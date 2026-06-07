@@ -602,17 +602,20 @@ function DataPage() {
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Assign to agent (optional)</Label>
+              <Label className="text-xs">Agent that will call through this data</Label>
               <p className="text-[11px] text-muted-foreground">
-                Records will be assigned to this agent so it can use their data during calls.
-                Required for Lead Generation agents to access CSV variables in the builder.
+                Choose which agent will dial these records. The agent's Lead Gen script can then
+                personalise each call using columns from this CSV.
               </p>
-              <Select value={csvImportAgentId} onValueChange={setCsvImportAgentId}>
+              <Select
+                value={csvImportAgentId || "__none__"}
+                onValueChange={(v) => setCsvImportAgentId(v === "__none__" ? "" : v)}
+              >
                 <SelectTrigger className="h-8 max-w-sm text-xs">
-                  <SelectValue placeholder="No agent — assign later" />
+                  <SelectValue placeholder="Select calling agent…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No agent — assign later</SelectItem>
+                  <SelectItem value="__none__">No agent — assign later</SelectItem>
                   {agents.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {a.name}
