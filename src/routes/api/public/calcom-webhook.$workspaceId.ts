@@ -166,12 +166,33 @@ export const Route = createFileRoute("/api/public/calcom-webhook/$workspaceId")(
           status,
         };
 
-        const { error } = await supabaseAdmin.from("calendar_bookings").upsert(row as never, {
-          onConflict: "workspace_id,external_id",
-        });
-        if (error) {
-          console.error("[calcom-webhook] upsert failed", error.message, { trigger });
-          return new Response("db error", { status: 500, headers: CORS });
+        // Manual upsert: check if a row for this (workspace_id, external_id)
+        // already exists, then update or insert. This avoids relying on a
+        // specific ON CONFLICT constraint definition in the DB.
+        const { data: existing } = await supabaseAdmin
+          .from("calendar_bookings")
+          .select("id")
+          .eq("workspace_id", workspaceId)
+          .eq("external_id", externalId)
+          .maybeSingle();
+
+        if (existing?.id) {
+          const { error } = await supabaseAdmin
+            .from("calendar_bookings")
+            .update({ ...row, updated_at: new Date().toISOString() } as never)
+            .eq("id", existing.id);
+          if (error) {
+            console.error("[calcom-webhook] update failed", error.message, { trigger });
+            return new Response("db error", { status: 500, headers: CORS });
+          }
+        } else {
+          const { error } = await supabaseAdmin
+            .from("calendar_bookings")
+            .insert(row as never);
+          if (error) {
+            console.error("[calcom-webhook] insert failed", error.message, { trigger });
+            return new Response("db error", { status: 500, headers: CORS });
+          }
         }
 
         return new Response("ok", { status: 200, headers: CORS });
