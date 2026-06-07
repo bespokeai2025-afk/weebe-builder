@@ -122,51 +122,6 @@ const DEFAULT_VOICES: { id: string; label: string; group: VoiceGroup }[] = [
 
 const VOICE_GROUPS: VoiceGroup[] = ["ElevenLabs", "OpenAI", "Deepgram"];
 
-/**
- * Small inline widget that lets users paste their own ElevenLabs voice ID
- * and have it applied immediately. The platform handles the `11labs-` prefix
- * internally so no provider branding is exposed to end users.
- */
-function ElevenLabsVoiceInserter({ onSelect }: { onSelect: (voiceId: string) => void }) {
-  const [value, setValue] = useState("");
-
-  function apply() {
-    const raw = value.trim();
-    if (!raw) return;
-    // Accept either a bare ElevenLabs ID or one already prefixed.
-    const voiceId = raw.startsWith("11labs-") ? raw : `11labs-${raw}`;
-    onSelect(voiceId);
-    setValue("");
-  }
-
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs">Your ElevenLabs Voice ID</Label>
-      <div className="flex items-center gap-1">
-        <Input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
-          className="h-7 text-xs flex-1"
-          placeholder="Paste your ElevenLabs voice ID"
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="h-7 px-2 text-xs shrink-0"
-          onClick={apply}
-          disabled={!value.trim()}
-        >
-          Use
-        </Button>
-      </div>
-      <p className="text-[10px] text-muted-foreground">
-        Find it in your ElevenLabs dashboard → Voices. This voice is used when you Go Live with your own Retell key; the builder preview may use a fallback voice if the ID isn't in the platform workspace.
-      </p>
-    </div>
-  );
-}
 
 export function Builder({
   heightClass = "h-[78vh]",
@@ -523,10 +478,9 @@ export function Builder({
                   </SelectContent>
                 </Select>
               </div>
-              <ElevenLabsVoiceInserter onSelect={(id) => setSettings({ voiceId: id })} />
-              <div className="flex items-center gap-1 pt-0.5">
-                <CustomVoiceUploadDialog onUploaded={(voiceId) => setSettings({ voiceId })} />
-              </div>
+              <CustomVoiceUploadDialog
+                onUploaded={(voiceId) => setSettings({ voiceId })}
+              />
             </div>
 
             <div className="rounded-lg border p-2 space-y-2">

@@ -1060,6 +1060,95 @@ export const cloneCustomVoice = createServerFn({ method: "POST" })
   });
 
 /**
+ * Search ElevenLabs shared/community voices by name.
+ * Requires ELEVENLABS_API_KEY; returns [] with a hint if not configured.
+ */
+export const searchElevenLabsVoices = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { query: string }) => input)
+  .handler(async ({ data }) => {
+    const elKey = process.env.ELEVENLABS_API_KEY;
+    if (!elKey) {
+      return {
+        voices: [] as Array<{
+          voice_id: string;
+          name: string;
+          description: string | null;
+          labels: Record<string, string>;
+          preview_url: string | null;
+        }>,
+        missingKey: true,
+      };
+    }
+
+    const q = encodeURIComponent((data.query ?? "").trim());
+    const url = `https://api.elevenlabs.io/v1/shared-voices?page_size=20${q ? `&search=${q}` : ""}`;
+    const res = await fetch(url, {
+      headers: { "xi-api-key": elKey },
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`ElevenLabs voices API ${res.status}: ${txt}`);
+    }
+    const json = (await res.json()) as {
+      voices?: Array<{
+        voice_id: string;
+        name: string;
+        description?: string;
+        labels?: Record<string, string>;
+        preview_url?: string;
+      }>;
+    };
+    return {
+      voices: (json.voices ?? []).map((v) => ({
+        voice_id: v.voice_id,
+        name: v.name,
+        description: v.description ?? null,
+        labels: v.labels ?? {},
+        preview_url: v.preview_url ?? null,
+      })),
+      missingKey: false,
+    };
+  });
+
+/**
+ * Register an ElevenLabs community voice with Retell, creating a
+ * custom_voice_xxx entry that can be used in an agent.
+ */
+export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { elevenLabsVoiceId: string; voiceName: string }) => input)
+  .handler(async ({ data }) => {
+    const apiKey = process.env.RETELL_API_KEY;
+    if (!apiKey) throw new Error("RETELL_API_KEY is not configured");
+    if (!data.elevenLabsVoiceId.trim()) throw new Error("ElevenLabs voice ID required");
+
+    const res = await fetch(`${RETELL_BASE}/create-voice`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        voice_name: data.voiceName.trim() || data.elevenLabsVoiceId,
+        voice_provider: "elevenlabs",
+        elevenlabs_voice_id: data.elevenLabsVoiceId.trim(),
+      }),
+    });
+    const text = await res.text();
+    let parsed: Record<string, unknown> = {};
+    try { parsed = text ? JSON.parse(text) : {}; } catch { /* raw */ }
+    if (!res.ok) {
+      const message = (parsed.message as string | undefined) || text || res.statusText;
+      throw new Error(`Retell /create-voice ${res.status}: ${message}`);
+    }
+    return {
+      voiceId: String(parsed.voice_id ?? ""),
+      voiceName: String(parsed.voice_name ?? data.voiceName),
+    };
+  });
+
+/**
  * Buy a new phone number from Retell (Twilio-backed by default).
  * Markup is purely display-side; Retell bills its own rate.
  */
