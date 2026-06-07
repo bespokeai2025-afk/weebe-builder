@@ -195,7 +195,7 @@ export const Route = createFileRoute("/api/public/retell/book")({
             attendee_phone: d.phone ?? null,
             start_at: booking.startTime,
             end_at: booking.endTime,
-            status: "confirmed",
+            status: "accepted" as const,
             meeting_url: booking.meetingUrl ?? null,
             notes: d.notes ?? null,
           });

@@ -432,7 +432,7 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
             <div className="flex flex-col gap-4 px-5 py-5">
               <p className="text-xs text-muted-foreground">
                 Upload 30 s – 3 min of clean, single-speaker audio (MP3, WAV, M4A — up to 15 MB).
-                Retell will clone the voice via ElevenLabs and return a unique voice ID.
+                Your voice will be cloned via ElevenLabs and assigned a unique voice ID.
               </p>
 
               <div className="space-y-1">

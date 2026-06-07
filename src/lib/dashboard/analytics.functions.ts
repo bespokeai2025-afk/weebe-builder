@@ -69,7 +69,6 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       })
       .parse(input ?? {}),
   )
-  // @ts-expect-error — deep generic inference limit
   .handler(async ({ context, data }: any) => {
     const { supabase } = context;
     const workspaceId = context.workspaceId;

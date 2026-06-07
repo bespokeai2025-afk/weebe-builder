@@ -95,7 +95,7 @@ export const Route = createFileRoute("/api/public/retell/reschedule")({
             .update({
               start_at: updated.startTime,
               end_at: updated.endTime,
-              status: "confirmed",
+              status: "accepted" as const,
               external_id: updated.uid ?? d.booking_id,
             })
             .eq("id", bookingRow.id);
