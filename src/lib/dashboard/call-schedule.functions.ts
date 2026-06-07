@@ -8,6 +8,7 @@ const CallScheduleSchema = z.object({
   startHour: z.number().int().min(0).max(23),
   endHour: z.number().int().min(0).max(24),
   enabled: z.boolean().default(true),
+  maxDailyAttempts: z.number().int().min(1).max(20).default(3),
 });
 
 export const getCallSchedule = createServerFn({ method: "GET" })

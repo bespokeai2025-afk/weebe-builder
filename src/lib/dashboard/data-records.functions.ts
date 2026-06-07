@@ -188,6 +188,17 @@ export const startCallingRecords = createServerFn({ method: "POST" })
     let failed = 0;
     const errors: { recordId: string; message: string }[] = [];
 
+    // Read workspace call schedule to get maxDailyAttempts
+    const { data: wsSettings } = await sb
+      .from("workspace_settings")
+      .select("call_schedule")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    const callSchedule = (wsSettings?.call_schedule ?? {}) as Record<string, unknown>;
+    const maxDailyAttempts = typeof callSchedule.maxDailyAttempts === "number"
+      ? callSchedule.maxDailyAttempts
+      : null;
+
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
 
     for (const r of records ?? []) {
@@ -195,10 +206,8 @@ export const startCallingRecords = createServerFn({ method: "POST" })
       const agent = useAgentId ? agentsById[useAgentId] : null;
       const retellAgentId = agent?.retell_agent_id ?? null;
 
-      // Enforce max daily call attempts (only for deployed/live agents with the setting)
-      const agentSettingsRaw = (agent as any)?.settings as Record<string, unknown> | null;
-      const maxDailyAttempts = agentSettingsRaw?.maxDailyAttempts as number | undefined;
-      if (maxDailyAttempts != null && maxDailyAttempts > 0 && agentSettingsRaw?.deployedRetellAgentId) {
+      // Enforce max daily call attempts from campaign schedule settings
+      if (maxDailyAttempts != null && maxDailyAttempts > 0) {
         const meta = (r.meta ?? {}) as Record<string, unknown>;
         const lastCallDate = meta._lastCallDate as string | undefined;
         const dailyAttempts = lastCallDate === today

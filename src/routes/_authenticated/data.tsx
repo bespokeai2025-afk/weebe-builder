@@ -553,6 +553,7 @@ function DataPage() {
     startHour: number;
     endHour: number;
     timezone: string;
+    maxDailyAttempts: number;
   }) {
     try {
       await setScheduleFn({ data });
@@ -1281,10 +1282,11 @@ function CallScheduleDialog({
     startHour: number;
     endHour: number;
     timezone: string;
+    maxDailyAttempts: number;
   }) => Promise<void>;
 }) {
   const existing = scheduleData?.schedule as
-    | { enabled?: boolean; days?: number[]; startHour?: number; endHour?: number }
+    | { enabled?: boolean; days?: number[]; startHour?: number; endHour?: number; maxDailyAttempts?: number }
     | null
     | undefined;
 
@@ -1293,6 +1295,7 @@ function CallScheduleDialog({
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(17);
   const [timezone, setTimezone] = useState("UTC");
+  const [maxDailyAttempts, setMaxDailyAttempts] = useState(3);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -1302,6 +1305,7 @@ function CallScheduleDialog({
       setStartHour(existing?.startHour ?? 9);
       setEndHour(existing?.endHour ?? 17);
       setTimezone(scheduleData?.timezone ?? "UTC");
+      setMaxDailyAttempts(existing?.maxDailyAttempts ?? 3);
       setLoading(false);
     }
   }, [open]);
@@ -1313,7 +1317,7 @@ function CallScheduleDialog({
   async function handleSave() {
     setLoading(true);
     try {
-      await onSave({ enabled, days, startHour, endHour, timezone });
+      await onSave({ enabled, days, startHour, endHour, timezone, maxDailyAttempts });
       onOpenChange(false);
     } finally {
       setLoading(false);
@@ -1394,6 +1398,27 @@ function CallScheduleDialog({
               onChange={(e) => setTimezone(e.target.value)}
               placeholder="UTC"
             />
+          </div>
+
+          <div className="space-y-1.5 border-t border-border pt-4">
+            <Label htmlFor="max-daily-attempts">Max call attempts per record per day</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="max-daily-attempts"
+                type="number"
+                min={1}
+                max={20}
+                value={maxDailyAttempts}
+                onChange={(e) =>
+                  setMaxDailyAttempts(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
+                }
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">attempts / day</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Records that reach this limit are skipped for the rest of the day and retried the next.
+            </p>
           </div>
         </div>
         <DialogFooter>

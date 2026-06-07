@@ -693,33 +693,6 @@ export function Builder({
 
             {settings.agentType === "lead_generation" && <LeadGenSection />}
 
-            {(settings as any).deployedRetellAgentId && (
-              <div className="rounded-lg border p-3 space-y-2.5">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Calling Limits
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Max daily call attempts per record</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={settings.maxDailyAttempts ?? 3}
-                      onChange={(e) =>
-                        setSettings({ maxDailyAttempts: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })
-                      }
-                      className="h-7 w-20 text-xs"
-                    />
-                    <span className="text-xs text-muted-foreground">per record per day</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground leading-snug">
-                    Records that hit this limit today are skipped automatically; they resume tomorrow.
-                  </p>
-                </div>
-              </div>
-            )}
-
             <Collapsible className="rounded-lg border">
               <CollapsibleTrigger className="flex w-full items-center justify-between p-2 text-xs font-medium text-muted-foreground">
                 <span>Agent Handbook</span>
