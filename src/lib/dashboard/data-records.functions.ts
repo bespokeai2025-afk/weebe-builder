@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { retellFetch } from "@/lib/providers/retell/client.server";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const RecordIdsSchema = z.object({
   recordIds: z.array(z.string().uuid()).min(1).max(2000),
@@ -154,7 +155,7 @@ export const startCallingRecords = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
@@ -173,7 +174,7 @@ export const startCallingRecords = createServerFn({ method: "POST" })
         ) as string[],
       ),
     );
-    let agentsById: Record<string, { retell_agent_id: string | null; name: string; settings: Record<string, unknown> | null }> = {};
+    let agentsById: Record<string, { id: string; retell_agent_id: string | null; name: string; settings: Record<string, unknown> | null }> = {};
     if (agentIds.length) {
       const { data: ags, error: aErr } = await sb
         .from("agents")
@@ -181,6 +182,21 @@ export const startCallingRecords = createServerFn({ method: "POST" })
         .in("id", agentIds);
       if (aErr) throw new Error(aErr.message);
       agentsById = Object.fromEntries((ags ?? []).map((a: any) => [a.id, { ...a, settings: a.settings ?? null }]));
+    }
+
+    // Preload per-agent production Retell keys from agent_retell_secrets.
+    // These are stored when the user clones an agent to their client workspace.
+    const agentKeyByDbId: Record<string, string> = {};
+    if (agentIds.length && userId) {
+      const { data: secrets } = await (supabaseAdmin as any)
+        .from("agent_retell_secrets")
+        .select("agent_id, production_api_key")
+        .in("agent_id", agentIds)
+        .eq("user_id", userId);
+      for (const s of (secrets ?? []) as Array<{ agent_id: string; production_api_key: string | null }>) {
+        const k = s.production_api_key?.trim();
+        if (k?.startsWith("key_")) agentKeyByDbId[s.agent_id] = k;
+      }
     }
 
     let queued = 0;
@@ -207,14 +223,17 @@ export const startCallingRecords = createServerFn({ method: "POST" })
       const useAgentId = (data.agentId ?? r.assigned_agent_id) as string | null;
       const agent = useAgentId ? agentsById[useAgentId] : null;
       // Resolve the correct Retell agent ID + API key pair.
-      // - deployedRetellAgentId → agent lives in client's Retell workspace → use clientRetellKey
+      // - deployedRetellAgentId → agent lives in client's Retell workspace → use client key
       // - retell_agent_id only  → agent lives in the platform workspace   → use platform key
       const agentSettings = (agent as any)?.settings as Record<string, unknown> | null;
       const deployedRetellAgentId =
         (agentSettings?.deployedRetellAgentId as string | undefined) ?? null;
       const retellAgentId = deployedRetellAgentId ?? agent?.retell_agent_id ?? null;
-      // Only use the per-client key when the agent has actually been cloned to that workspace.
-      const retellApiKey = deployedRetellAgentId ? clientRetellKey : undefined;
+      // Resolve the right Retell API key when agent is in a client workspace:
+      //   1. workspace_settings.retell_workspace_id (admin-provisioned)
+      //   2. agent_retell_secrets.production_api_key (stored during clone)
+      const resolvedClientKey = clientRetellKey || (useAgentId ? agentKeyByDbId[useAgentId] : undefined) || undefined;
+      const retellApiKey = deployedRetellAgentId ? resolvedClientKey : undefined;
 
       // Enforce max daily call attempts from campaign schedule settings
       if (maxDailyAttempts != null && maxDailyAttempts > 0) {

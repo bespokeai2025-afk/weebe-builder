@@ -218,6 +218,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
         data: {
           sourceAgentId: agent!.retell_agent_id,
           agentRowId: agent!.id,
+          agentName: agent!.name,
         },
       });
       await saveDeployedFn({

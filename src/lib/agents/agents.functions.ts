@@ -378,14 +378,28 @@ export const goLiveAgent = createServerFn({ method: "POST" })
           // when the agent was cloned to a client workspace; fall back to the
           // platform key for builder-draft agents.
           let retellKey: string | undefined;
-          if (deployedRetellId && context.workspaceId) {
-            const { data: ws } = await supabaseAdmin
-              .from("workspace_settings")
-              .select("retell_workspace_id")
-              .eq("workspace_id", context.workspaceId)
-              .maybeSingle();
-            const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
-            if (wsKey?.startsWith("key_")) retellKey = wsKey;
+          if (deployedRetellId) {
+            // 1. Try workspace-level key in workspace_settings
+            if (context.workspaceId) {
+              const { data: ws } = await supabaseAdmin
+                .from("workspace_settings")
+                .select("retell_workspace_id")
+                .eq("workspace_id", context.workspaceId)
+                .maybeSingle();
+              const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
+              if (wsKey?.startsWith("key_")) retellKey = wsKey;
+            }
+            // 2. Fall back to per-agent production key stored during clone
+            if (!retellKey && userId) {
+              const { data: secret } = await (supabaseAdmin as any)
+                .from("agent_retell_secrets")
+                .select("production_api_key")
+                .eq("agent_id", data.id)
+                .eq("user_id", userId)
+                .maybeSingle();
+              const agentKey = (secret?.production_api_key as string | undefined)?.trim();
+              if (agentKey?.startsWith("key_")) retellKey = agentKey;
+            }
           }
           await retellFetch(
             `/update-agent/${activeRetellId}`,
