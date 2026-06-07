@@ -97,10 +97,21 @@ export function RetellDeployDialog() {
   }, [inCall]);
 
   async function handleDeploy(kind: "create" | "update") {
+    // If the agent name changed since last deploy, force a new agent creation
+    // so the renamed agent gets its own Retell ID (same Go Live flow applies).
+    const nameChanged = Boolean(
+      settings.agentId &&
+      settings.deployedAgentName !== undefined &&
+      settings.agentName !== settings.deployedAgentName,
+    );
+
     // If the user clicks "Create" but an agent already exists in the builder,
-    // update it instead of spawning a duplicate in Retell.
-    const effectiveKind: "create" | "update" =
-      kind === "create" && settings.agentId ? "update" : kind;
+    // update it instead of spawning a duplicate — unless the name changed.
+    const effectiveKind: "create" | "update" = nameChanged
+      ? "create"
+      : kind === "create" && settings.agentId
+        ? "update"
+        : kind;
     setDeploying(effectiveKind);
     try {
       const agent = exportAgentJson(nodes, edges, settings, variables);
@@ -149,6 +160,7 @@ export function RetellDeployDialog() {
       setSettings({
         agentId: res.agentId,
         conversationFlowId: res.conversationFlowId,
+        deployedAgentName: settings.agentName,
       });
       await persistAgent(res.agentId);
       const bookingNote =
@@ -157,7 +169,12 @@ export function RetellDeployDialog() {
           : res.calendarConnected
             ? "Booking tools (check_availability / book_appointment / cancel_appointment) auto-attached."
             : "Calendar not connected — booking tools were NOT attached. Connect Cal.com in Settings → Calendar to enable bookings.";
-      toast.success(isUpdate ? "Agent updated" : "Agent created", {
+      const successLabel = nameChanged
+        ? "New agent created (name changed)"
+        : isUpdate
+          ? "Agent updated"
+          : "Agent created";
+      toast.success(successLabel, {
         description: `agent_id: ${res.agentId}\n${bookingNote}`,
       });
       if (res.voiceFallback) {

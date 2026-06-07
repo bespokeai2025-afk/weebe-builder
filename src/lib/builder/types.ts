@@ -132,6 +132,8 @@ export interface BuilderSettings {
   /** Stable IDs so re-imports update the same agent/flow */
   conversationFlowId?: string;
   agentId?: string;
+  /** The agent name at the time it was last deployed. A name change triggers a new agent creation. */
+  deployedAgentName?: string;
   /** Agent Handbook config toggles */
   handbookEchoVerification?: boolean;
   handbookSpeechNormalization?: boolean;
