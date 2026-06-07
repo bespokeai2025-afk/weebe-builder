@@ -296,31 +296,52 @@ const FIXED_COLUMNS: Array<{ value: string; label: string }> = [
 ];
 
 /**
- * Samples up to 20 data records to discover which fixed columns and `meta`
- * keys actually have data in this workspace. Returns a combined column list
- * that powers the Variable Mapping dropdown in the Lead Gen builder panel.
+ * Samples up to 50 data records to discover which fixed columns and `meta`
+ * keys actually have data in this workspace.
+ *
+ * If agentRowId is supplied it filters to records assigned to that agent
+ * (the "master CSV" for that agent). Falls back to all workspace records
+ * so the dropdown is never empty when records exist.
  */
-export const getDataRecordSchema = createServerFn({ method: "GET" })
+export const getDataRecordSchema = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input) =>
+    z.object({ agentRowId: z.string().uuid().nullable().optional() }).parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const { data: sample } = await sb
-      .from("data_records")
-      .select("name,mobile_number,first_name,last_name,email,title,client_name,unique_id,property_type,bedrooms,address_line1,address_line2,city,state,postal_code,lead_external_id,notes,meta")
-      .eq("workspace_id", workspaceId)
-      .eq("is_deleted", false)
-      .limit(20);
+    const COLS =
+      "name,mobile_number,first_name,last_name,email,title,client_name,unique_id,property_type,bedrooms,address_line1,address_line2,city,state,postal_code,lead_external_id,notes,meta";
 
-    const rows = (sample ?? []) as Array<Record<string, unknown>>;
+    // 1. Try records assigned to this agent first
+    let rows: Array<Record<string, unknown>> = [];
+    if (data.agentRowId) {
+      const { data: agentRows } = await sb
+        .from("data_records")
+        .select(COLS)
+        .eq("workspace_id", workspaceId)
+        .eq("assigned_agent_id", data.agentRowId)
+        .limit(50);
+      rows = (agentRows ?? []) as Array<Record<string, unknown>>;
+    }
 
-    // Which fixed columns have at least one non-null value?
+    // 2. Fall back to all workspace records (catches unassigned CSVs)
+    if (rows.length === 0) {
+      const { data: allRows } = await sb
+        .from("data_records")
+        .select(COLS)
+        .eq("workspace_id", workspaceId)
+        .limit(50);
+      rows = (allRows ?? []) as Array<Record<string, unknown>>;
+    }
+
+    // Which fixed columns have at least one non-empty value?
     const usedFixed = FIXED_COLUMNS.filter((col) =>
       rows.some((r) => r[col.value] != null && r[col.value] !== ""),
     );
-    // If no records yet, show all fixed columns as hints
     const fixedCols = usedFixed.length > 0 ? usedFixed : FIXED_COLUMNS;
 
     // Collect all meta keys across sampled rows

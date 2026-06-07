@@ -68,11 +68,15 @@ export function LeadGenSection() {
   const variableMappings: Record<string, string> =
     (leadGen.variableMappings as Record<string, string>) ?? {};
 
-  // Fetch real columns from the workspace's uploaded CSV data
+  const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
+
+  // Fetch real columns from the workspace's uploaded CSV data.
+  // Passes the current agent's DB row ID so it shows columns from records
+  // assigned to this agent first, then falls back to all workspace records.
   const getSchemFn = useServerFn(getDataRecordSchema);
   const schemaQ = useQuery({
-    queryKey: ["data-record-schema"],
-    queryFn: () => getSchemFn(),
+    queryKey: ["data-record-schema", currentAgentRowId],
+    queryFn: () => getSchemFn({ data: { agentRowId: currentAgentRowId ?? null } }),
     staleTime: 60_000,
   });
   const schema = schemaQ.data;
