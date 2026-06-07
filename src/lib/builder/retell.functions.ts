@@ -545,9 +545,15 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
       }
     }
 
-    // ---- Auto-inject Post-Call Analysis + webhook for booking-enabled agents ----
+    // ---- Always inject webhook URL on every deployed agent ----
     const PUBLIC_BASE_URL_FOR_WEBHOOK =
-      process.env.PUBLIC_BASE_URL ?? "";
+      process.env.PUBLIC_BASE_URL ||
+      (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+    if (PUBLIC_BASE_URL_FOR_WEBHOOK && !agent.webhook_url) {
+      agent.webhook_url = `${PUBLIC_BASE_URL_FOR_WEBHOOK}/api/public/voice-webhook`;
+    }
+
+    // ---- Auto-inject Post-Call Analysis for booking-enabled agents ----
     if (calendarConnected || perNodeTools.length > 0) {
       const bookingAnalysisFields = [
         {
@@ -592,9 +598,6 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         ...existingAnalysis,
         ...bookingAnalysisFields.filter((f) => !existingNames.has(f.name)),
       ];
-      if (!agent.webhook_url) {
-        agent.webhook_url = `${PUBLIC_BASE_URL_FOR_WEBHOOK}/api/public/voice-webhook`;
-      }
     }
 
     // ---- Agent ----
@@ -1001,6 +1004,14 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
         ...existing.filter((t) => !ourNames.has(t.name as string)),
         ...bookingTools,
       ];
+    }
+
+    // Always inject webhook URL so call events are tracked automatically.
+    const cloneWebhookBase =
+      process.env.PUBLIC_BASE_URL ||
+      (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+    if (cloneWebhookBase && !agentBody.webhook_url) {
+      agentBody.webhook_url = `${cloneWebhookBase}/api/public/voice-webhook`;
     }
 
     const agentResp = await retellFetch(`/create-agent`, agentBody, "POST", prodKey);

@@ -62,9 +62,7 @@ export const Route = createFileRoute("/api/public/voice-webhook")({
         if (!hasEvent) return validationResponse("POST", request.headers, parsedBody);
 
         try {
-          const result = await processRetellWebhook(rawBody, request.headers, {
-            skipSignature: true,
-          });
+          const result = await processRetellWebhook(rawBody, request.headers);
           await logAndStore("POST", request.headers, parsedBody, 200);
           if ([400, 401, 403].includes(result.status)) return retellJson({ success: true }, 200);
           return result.ok
