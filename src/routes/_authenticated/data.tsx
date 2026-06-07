@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus } from "lucide-react";
+import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ import {
   assignAgentToRecords,
   scheduleCallsForRecords,
   startCallingRecords,
+  resetDataRecord,
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
@@ -215,6 +216,7 @@ function DynamicDataTable({
   allSelected,
   toggleAll,
   toggleOne,
+  onReset,
 }: {
   records: any[];
   agents: any[];
@@ -222,6 +224,7 @@ function DynamicDataTable({
   allSelected: boolean;
   toggleAll: (v: boolean | "indeterminate") => void;
   toggleOne: (id: string) => void;
+  onReset: (id: string) => void;
 }) {
   const extraCols = useMemo(
     () => OPTIONAL_COLS.filter((c) => records.some((r) => r[c.key])),
@@ -264,7 +267,7 @@ function DynamicDataTable({
         </thead>
         <tbody>
           {records.map((r: any) => (
-            <tr key={r.id} className="border-b border-border/40 align-top">
+            <tr key={r.id} className="group border-b border-border/40 align-top">
               <td className="px-3 py-2">
                 <Checkbox
                   checked={selected.has(r.id)}
@@ -284,11 +287,20 @@ function DynamicDataTable({
                 </td>
               ))}
               <td className="px-3 py-2">
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${statusBadgeClass(r.call_status)}`}
-                >
-                  {(r.call_status ?? "").replace(/_/g, " ") || "—"}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${statusBadgeClass(r.call_status)}`}
+                  >
+                    {(r.call_status ?? "").replace(/_/g, " ") || "—"}
+                  </span>
+                  <button
+                    title="Reset — mark as needs to call again"
+                    onClick={() => onReset(r.id)}
+                    className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus:opacity-100"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </button>
+                </div>
               </td>
               <td className="px-3 py-2 text-muted-foreground">
                 {r.assigned_agent_id
@@ -328,6 +340,7 @@ function DataPage() {
   const assignFn = useServerFn(assignAgentToRecords);
   const scheduleFn = useServerFn(scheduleCallsForRecords);
   const startCallFn = useServerFn(startCallingRecords);
+  const resetFn = useServerFn(resetDataRecord);
   const getScheduleFn = useServerFn(getCallSchedule);
   const setScheduleFn = useServerFn(setCallSchedule);
   const listAgentsFn = useServerFn(listLiveAgents);
@@ -510,6 +523,16 @@ function DataPage() {
       qc.invalidateQueries({ queryKey: ["data-records"] });
     } catch (err) {
       toast.error("Assignment failed", { description: (err as Error).message });
+    }
+  }
+
+  async function handleReset(recordId: string) {
+    try {
+      await resetFn({ data: { recordIds: [recordId] } });
+      toast.success("Record reset — ready to call again");
+      qc.invalidateQueries({ queryKey: ["data-records"] });
+    } catch (err) {
+      toast.error("Reset failed", { description: (err as Error).message });
     }
   }
 
@@ -792,6 +815,7 @@ function DataPage() {
               allSelected={allSelected}
               toggleAll={toggleAll}
               toggleOne={toggleOne}
+              onReset={handleReset}
             />
           )}
         </CardContent>
@@ -1434,10 +1458,10 @@ function CallScheduleDialog({
                 id="max-daily-attempts"
                 type="number"
                 min={1}
-                max={20}
+                max={6}
                 value={maxDailyAttempts}
                 onChange={(e) =>
-                  setMaxDailyAttempts(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
+                  setMaxDailyAttempts(Math.max(1, Math.min(6, Number(e.target.value) || 1)))
                 }
                 className="w-24"
               />

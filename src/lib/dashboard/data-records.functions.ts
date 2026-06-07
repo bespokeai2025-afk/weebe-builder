@@ -146,6 +146,41 @@ export const setRecordCallStatus = createServerFn({ method: "POST" })
     return { updated: count ?? 0 };
   });
 
+/**
+ * Reset one or more records back to "needs_to_call" and clear any per-day
+ * attempt counters so they can be called again immediately (useful for testing).
+ */
+export const resetDataRecord = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => RecordIdsSchema.parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: rows, error: readErr } = await sb
+      .from("data_records")
+      .select("id, meta")
+      .eq("workspace_id", workspaceId)
+      .in("id", data.recordIds);
+    if (readErr) throw new Error(readErr.message);
+
+    let updated = 0;
+    for (const row of rows ?? []) {
+      const meta = { ...(row.meta ?? {}) };
+      delete meta._dailyAttempts;
+      delete meta._lastCallDate;
+      const { error } = await sb
+        .from("data_records")
+        .update({ call_status: "needs_to_call", need_to_call: true, meta })
+        .eq("id", row.id)
+        .eq("workspace_id", workspaceId);
+      if (!error) updated++;
+    }
+    return { updated };
+  });
+
 export const startCallingRecords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>

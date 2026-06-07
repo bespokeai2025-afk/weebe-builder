@@ -195,13 +195,36 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       savedId = (row?.id as string) ?? data.id;
     } else {
-      const { data: row, error } = await supabase
-        .from("agents")
-        .insert(base)
-        .select("id")
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      savedId = row!.id as string;
+      // Before inserting, check for an existing row with the same Retell agent ID
+      // to prevent duplicate rows when the builder store loses its currentAgentRowId.
+      let existingId: string | null = null;
+      if (data.retellAgentId) {
+        const { data: existing } = await supabase
+          .from("agents")
+          .select("id")
+          .eq("retell_agent_id", data.retellAgentId)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        existingId = (existing?.id as string) ?? null;
+      }
+      if (existingId) {
+        const { data: row, error } = await supabase
+          .from("agents")
+          .update(base)
+          .eq("id", existingId)
+          .select("id")
+          .maybeSingle();
+        if (error) throw new Error(error.message);
+        savedId = (row?.id as string) ?? existingId;
+      } else {
+        const { data: row, error } = await supabase
+          .from("agents")
+          .insert(base)
+          .select("id")
+          .maybeSingle();
+        if (error) throw new Error(error.message);
+        savedId = row!.id as string;
+      }
     }
 
     return { id: savedId };
