@@ -162,7 +162,13 @@ export function exportAgentJson(
         0,
       conversation_flow_id: cfId,
     },
-    language: settings.language,
+    language: (() => {
+      const sl = settings.speechLanguages;
+      if (!sl || sl.length === 0) return settings.language;
+      if (sl[0] === "multi") return "multi";
+      if (sl.length === 1) return sl[0];
+      return sl; // array → multilingual
+    })(),
     version: (rawAgent.version as number) ?? 0,
     is_published: rawAgent.is_published ?? false,
     voice_id: settings.voiceId,

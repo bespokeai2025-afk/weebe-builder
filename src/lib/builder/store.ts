@@ -56,6 +56,7 @@ const defaultSettings: BuilderSettings = {
   model: "gpt-4.1",
   voiceId: "11labs-Adrian",
   language: "en-US",
+  speechLanguages: ["en-US"],
   temperature: 0.3,
   webhookUrl: "",
   transitionFlexibility: "flex",

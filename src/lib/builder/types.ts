@@ -118,6 +118,9 @@ export interface BuilderSettings {
   model: string;
   voiceId: string;
   language: string;
+  /** BCP-47 codes selected in the language picker. "multi" = Flex Mode.
+   *  Single item → sent as string; multiple items → sent as array (multilingual). */
+  speechLanguages?: string[];
   temperature: number;
   /** webhook + misc agent options to round-trip into the exported agent JSON */
   webhookUrl?: string;
