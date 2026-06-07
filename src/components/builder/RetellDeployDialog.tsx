@@ -97,11 +97,9 @@ export function RetellDeployDialog() {
   }, [inCall]);
 
   async function handleDeploy(kind: "create" | "update") {
-    // If the user explicitly clicks Create (+) AND the name has changed since
-    // last deploy, treat this as a genuinely new agent. The Update (↺) button
-    // always updates the existing agent regardless of name changes.
+    // If the agent name changed since last deploy, always create a new agent
+    // regardless of whether the user clicked + or ↺.
     const nameChanged = Boolean(
-      kind === "create" &&
       settings.agentId &&
       settings.deployedAgentName !== undefined &&
       settings.agentName !== settings.deployedAgentName,
