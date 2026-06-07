@@ -83,11 +83,7 @@ export const listLiveAgents = createServerFn({ method: "GET" })
     }>;
     return rows.filter((r) => {
       const s = (r.settings ?? {}) as Record<string, unknown>;
-      const type = s.dashboardAgentType as string | undefined;
-      return (
-        s.isLive === true &&
-        (type === "lead_generation" || type === "client_qualification")
-      );
+      return s.isLive === true;
     });
   });
 
