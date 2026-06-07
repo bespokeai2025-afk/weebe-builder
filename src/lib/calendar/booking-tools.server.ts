@@ -18,7 +18,7 @@ export function buildBookingTools() {
         "Returns a human-readable list and an event_type_id for each option.",
       url: `${base}/event-types`,
       speak_during_execution: true,
-      execution_message_description: "Checking available appointment types",
+      execution_message_description: "Say: 'One moment while I pull up the available appointment types for you.'",
       parameters: {
         type: "object",
         properties: {},
@@ -36,7 +36,7 @@ export function buildBookingTools() {
         "If no slots are returned, offer to check different dates.",
       url: `${base}/availability`,
       speak_during_execution: true,
-      execution_message_description: "Checking the calendar for open times",
+      execution_message_description: "Say: 'One moment while I check the calendar for available times.'",
       parameters: {
         type: "object",
         properties: {
@@ -69,7 +69,7 @@ export function buildBookingTools() {
         "Returns a 'confirmation_message' you can read aloud, and optionally a 'meeting_url'.",
       url: `${base}/book`,
       speak_during_execution: true,
-      execution_message_description: "Booking the appointment now",
+      execution_message_description: "Say: 'Perfect, let me secure that booking for you now.'",
       parameters: {
         type: "object",
         properties: {
@@ -105,7 +105,7 @@ export function buildBookingTools() {
         "Always confirm with the caller before cancelling.",
       url: `${base}/cancel`,
       speak_during_execution: true,
-      execution_message_description: "Cancelling the appointment",
+      execution_message_description: "Say: 'One moment while I cancel that appointment for you.'",
       parameters: {
         type: "object",
         properties: {
@@ -127,7 +127,7 @@ export function buildBookingTools() {
         "Always confirm the new time with the caller before rescheduling.",
       url: `${base}/reschedule`,
       speak_during_execution: true,
-      execution_message_description: "Rescheduling the appointment",
+      execution_message_description: "Say: 'One moment while I reschedule that appointment for you.'",
       parameters: {
         type: "object",
         properties: {

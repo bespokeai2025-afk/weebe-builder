@@ -3,7 +3,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
 import { resolveRetellCandidateKeysByAgent } from "@/lib/calendar/retell-key-lookup";
-import { getAvailableSlots } from "@/lib/calendar/calcom.server";
+import { getAvailableSlots, getCalcomUserTimezone } from "@/lib/calendar/calcom.server";
 import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
 
 const CORS = {
@@ -19,7 +19,6 @@ const Body = z.object({
   timezone: z.string().min(1).max(64).optional(),
 });
 
-/** Format a single ISO slot into a human-readable label in the given timezone. */
 function formatSlotDisplay(isoTime: string, timezone: string): string {
   const d = new Date(isoTime);
   const datePart = new Intl.DateTimeFormat("en-GB", {
@@ -39,7 +38,6 @@ function formatSlotDisplay(isoTime: string, timezone: string): string {
   return `${datePart} at ${timePart}`;
 }
 
-/** Group slots by calendar day and build a spoken summary the LLM can read aloud. */
 function buildSlotResponse(
   rawSlots: { time: string }[],
   timezone: string,
@@ -50,7 +48,6 @@ function buildSlotResponse(
   by_day: { date: string; day_label: string; times: string[] }[];
   summary: string;
 } {
-  // Limit to 12 slots to avoid overwhelming the LLM
   const limited = rawSlots.slice(0, 12);
 
   const slots = limited.map((s) => ({
@@ -58,11 +55,10 @@ function buildSlotResponse(
     display: formatSlotDisplay(s.time, timezone),
   }));
 
-  // Group by calendar day in the target timezone
   const dayMap = new Map<string, { day_label: string; times: string[] }>();
   for (const s of slots) {
     const d = new Date(s.start);
-    const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(d); // YYYY-MM-DD
+    const dateKey = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(d);
     const dayLabel = new Intl.DateTimeFormat("en-GB", {
       weekday: "long",
       day: "numeric",
@@ -96,7 +92,10 @@ function buildSlotResponse(
       const timeList = d.times.join(", ");
       return `on ${d.day_label}: ${timeList}`;
     });
-    const joiner = dayParts.length > 1 ? dayParts.slice(0, -1).join("; ") + " and " + dayParts[dayParts.length - 1] : dayParts[0];
+    const joiner =
+      dayParts.length > 1
+        ? dayParts.slice(0, -1).join("; ") + " and " + dayParts[dayParts.length - 1]
+        : dayParts[0];
     summary = `I found ${slots.length} available slot${slots.length !== 1 ? "s" : ""}. ${joiner}.`;
   }
 
@@ -123,7 +122,19 @@ export const Route = createFileRoute("/api/public/retell/availability")({
             undefined;
         } catch { /* ignore */ }
 
-        const candidateKeys = await resolveRetellCandidateKeysByAgent(bodyAgentId);
+        // Run signature key resolution and agent DB lookup in parallel to cut latency.
+        const [candidateKeys, agentResult] = await Promise.all([
+          resolveRetellCandidateKeysByAgent(bodyAgentId),
+          supabaseAdmin
+            .from("agents")
+            .select("user_id, workspace_id, settings")
+            .or(
+              bodyAgentId && bodyAgentId !== "test_agent"
+                ? `retell_agent_id.eq.${bodyAgentId},settings->>deployedRetellAgentId.eq.${bodyAgentId}`
+                : "id.eq.00000000-0000-0000-0000-000000000000",
+            )
+            .maybeSingle(),
+        ]);
 
         if (!verifyRetellSignatureMultiKey(rawBody, sig, candidateKeys)) {
           console.warn("[retell/availability] Signature verification failed", { agentId: bodyAgentId });
@@ -135,22 +146,34 @@ export const Route = createFileRoute("/api/public/retell/availability")({
 
         const parsed = Body.safeParse(normalizeRetellPayload(rawBody));
         if (!parsed.success) {
-          return new Response(JSON.stringify({ error: "invalid body", summary: "I couldn't check availability due to a request error." }), {
-            status: 400,
-            headers: { ...CORS, "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({ error: "invalid body", summary: "I couldn't check availability due to a request error." }),
+            { status: 400, headers: { ...CORS, "Content-Type": "application/json" } },
+          );
         }
-        const { agent_id, start_date, end_date, timezone } = parsed.data;
+        const { agent_id, start_date, end_date, timezone: callerTimezone } = parsed.data;
 
-        const { data: agentRow } = await supabaseAdmin
-          .from("agents")
-          .select("user_id, workspace_id, settings")
-          .or(`retell_agent_id.eq.${agent_id},settings->>deployedRetellAgentId.eq.${agent_id}`)
-          .maybeSingle();
+        // Use the agent row from the parallel lookup, or do a fresh lookup if the
+        // parallel one used a dummy query (test_agent / missing id).
+        let agentRow = agentResult.data;
+        if (!agentRow && agent_id && agent_id !== "test_agent") {
+          const { data } = await supabaseAdmin
+            .from("agents")
+            .select("user_id, workspace_id, settings")
+            .or(`retell_agent_id.eq.${agent_id},settings->>deployedRetellAgentId.eq.${agent_id}`)
+            .maybeSingle();
+          agentRow = data;
+        }
 
         if (!agentRow?.workspace_id) {
           return new Response(
-            JSON.stringify({ error: "agent not found", slot_count: 0, slots: [], by_day: [], summary: "I'm having trouble accessing the calendar right now. Please try again." }),
+            JSON.stringify({
+              error: "agent not found",
+              slot_count: 0,
+              slots: [],
+              by_day: [],
+              summary: "I'm having trouble accessing the calendar right now. Please try again.",
+            }),
             { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
           );
         }
@@ -158,22 +181,29 @@ export const Route = createFileRoute("/api/public/retell/availability")({
         const wsId = agentRow.workspace_id;
         const uid = agentRow.user_id;
 
-        const { data: settings } = await supabaseAdmin
-          .from("workspace_settings")
-          .select("calcom_api_key, default_event_type_id, calcom_event_type_id, timezone")
-          .eq("workspace_id", wsId)
-          .maybeSingle();
-
         const agentSettings = (agentRow.settings ?? {}) as {
           calcom?: { apiKey?: string; eventTypeId?: string | number };
           booking?: { enabled?: boolean; eventTypeId?: string | number };
         };
         if (agentSettings.booking?.enabled === false) {
           return new Response(
-            JSON.stringify({ error: "booking disabled", slot_count: 0, slots: [], by_day: [], summary: "Booking is not available for this agent." }),
+            JSON.stringify({
+              error: "booking disabled",
+              slot_count: 0,
+              slots: [],
+              by_day: [],
+              summary: "Booking is not available for this agent.",
+            }),
             { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
           );
         }
+
+        // Fetch workspace settings (needed for API key, event type, stored timezone).
+        const { data: settings } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("calcom_api_key, default_event_type_id, calcom_event_type_id, timezone")
+          .eq("workspace_id", wsId)
+          .maybeSingle();
 
         const apiKey = agentSettings.calcom?.apiKey ?? settings?.calcom_api_key ?? null;
         let eventTypeId =
@@ -199,12 +229,23 @@ export const Route = createFileRoute("/api/public/retell/availability")({
 
         if (!apiKey || !eventTypeId) {
           return new Response(
-            JSON.stringify({ error: "calendar not configured", slot_count: 0, slots: [], by_day: [], summary: "The calendar isn't set up yet. Please contact us directly to book." }),
+            JSON.stringify({
+              error: "calendar not configured",
+              slot_count: 0,
+              slots: [],
+              by_day: [],
+              summary: "The calendar isn't set up yet. Please contact us directly to book.",
+            }),
             { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
           );
         }
 
-        const tz = timezone ?? settings?.timezone ?? "UTC";
+        // Resolve timezone: caller-supplied > stored workspace tz > Cal.com account tz > UTC.
+        let tz = callerTimezone ?? settings?.timezone ?? null;
+        if (!tz && apiKey) {
+          tz = await getCalcomUserTimezone(apiKey);
+        }
+        tz = tz ?? "UTC";
 
         try {
           const rawSlots = await getAvailableSlots(apiKey, {
@@ -228,7 +269,8 @@ export const Route = createFileRoute("/api/public/retell/availability")({
               slot_count: 0,
               slots: [],
               by_day: [],
-              summary: "I'm having trouble checking the calendar right now. Let me try again — or we can try different dates.",
+              summary:
+                "I'm having trouble checking the calendar right now. Let me try again — or we can try different dates.",
             }),
             { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
           );

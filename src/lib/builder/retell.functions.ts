@@ -448,9 +448,42 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         cf.nodes = nodes.map((n) => {
           const finalName = nodeToolIdRemap.get(String(n.id ?? ""));
           if (!finalName || n.type !== "function") return n;
-          return { ...n, tool_id: finalName };
+          return { ...n, tool_id: finalName, speak_during_execution: true };
         });
       }
+    }
+
+    // Force speak_during_execution on ALL calendar-related function nodes so
+    // the agent always says something while the function is running, regardless
+    // of whether the node went through the calToolOverrides remap above.
+    const BOOKING_TOOL_IDS = new Set([
+      "check_availability",
+      "check_availability_cal",
+      "book_appointment",
+      "book_appointment_cal",
+      "reschedule_appointment",
+      "cancel_appointment",
+    ]);
+    const BOOKING_SPEAK_MESSAGES: Record<string, string> = {
+      check_availability: "Say: 'One moment while I check the calendar for available times.'",
+      check_availability_cal: "Say: 'One moment while I check the calendar for available times.'",
+      book_appointment: "Say: 'Perfect, let me secure that booking for you now.'",
+      book_appointment_cal: "Say: 'Perfect, let me secure that booking for you now.'",
+      reschedule_appointment: "Say: 'One moment while I reschedule that appointment for you.'",
+      cancel_appointment: "Say: 'One moment while I cancel that appointment for you.'",
+    };
+    if (Array.isArray(cf.nodes)) {
+      cf.nodes = (cf.nodes as Array<Record<string, unknown>>).map((n) => {
+        if (n.type !== "function") return n;
+        const tid = String(n.tool_id ?? "");
+        if (!BOOKING_TOOL_IDS.has(tid)) return n;
+        const msg = BOOKING_SPEAK_MESSAGES[tid];
+        return {
+          ...n,
+          speak_during_execution: true,
+          ...(msg ? { execution_message_description: msg } : {}),
+        };
+      });
     }
 
     // Merge auto-attached + per-node Cal.com tools into agent.general_tools

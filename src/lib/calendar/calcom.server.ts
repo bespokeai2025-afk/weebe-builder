@@ -197,6 +197,20 @@ function normalizeBooking(d: Record<string, unknown>): CalcomBookingResult {
   };
 }
 
+/**
+ * Fetch the Cal.com account owner's timezone from their profile.
+ * Returns null if the API call fails or no timezone is set.
+ */
+export async function getCalcomUserTimezone(apiKey: string): Promise<string | null> {
+  try {
+    const data = await calFetch<{ timeZone?: string; timezone?: string }>(apiKey, "/me");
+    const tz = data?.timeZone ?? data?.timezone ?? null;
+    return tz && tz.length > 0 ? tz : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function cancelBooking(
   apiKey: string,
   bookingUid: string,

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
 import { resolveRetellCandidateKeysByAgent } from "@/lib/calendar/retell-key-lookup";
-import { createBooking } from "@/lib/calendar/calcom.server";
+import { createBooking, getCalcomUserTimezone } from "@/lib/calendar/calcom.server";
 import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
 
 const CORS = {
@@ -57,7 +57,19 @@ export const Route = createFileRoute("/api/public/retell/book")({
             undefined;
         } catch { /* ignore */ }
 
-        const candidateKeys = await resolveRetellCandidateKeysByAgent(bodyAgentId);
+        // Run signature key resolution and agent DB lookup in parallel to cut latency.
+        const [candidateKeys, agentResult] = await Promise.all([
+          resolveRetellCandidateKeysByAgent(bodyAgentId),
+          supabaseAdmin
+            .from("agents")
+            .select("id, user_id, workspace_id, settings")
+            .or(
+              bodyAgentId && bodyAgentId !== "test_agent"
+                ? `retell_agent_id.eq.${bodyAgentId},settings->>deployedRetellAgentId.eq.${bodyAgentId}`
+                : "id.eq.00000000-0000-0000-0000-000000000000",
+            )
+            .maybeSingle(),
+        ]);
 
         if (!verifyRetellSignatureMultiKey(rawBody, sig, candidateKeys)) {
           console.warn("[retell/book] Signature verification failed", { agentId: bodyAgentId });
@@ -76,14 +88,24 @@ export const Route = createFileRoute("/api/public/retell/book")({
         }
         const d = parsed.data;
 
-        const { data: agentRow } = await supabaseAdmin
-          .from("agents")
-          .select("id, user_id, workspace_id, settings")
-          .or(`retell_agent_id.eq.${d.agent_id},settings->>deployedRetellAgentId.eq.${d.agent_id}`)
-          .maybeSingle();
+        // Use agent row from parallel lookup; fall back if it used a dummy query.
+        let agentRow = agentResult.data;
+        if (!agentRow && d.agent_id && d.agent_id !== "test_agent") {
+          const { data } = await supabaseAdmin
+            .from("agents")
+            .select("id, user_id, workspace_id, settings")
+            .or(`retell_agent_id.eq.${d.agent_id},settings->>deployedRetellAgentId.eq.${d.agent_id}`)
+            .maybeSingle();
+          agentRow = data;
+        }
+
         if (!agentRow?.workspace_id) {
           return new Response(
-            JSON.stringify({ ok: false, error: "agent not found", confirmation_message: "I wasn't able to complete the booking. Please try again." }),
+            JSON.stringify({
+              ok: false,
+              error: "agent not found",
+              confirmation_message: "I wasn't able to complete the booking. Please try again.",
+            }),
             { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
           );
         }
@@ -91,22 +113,26 @@ export const Route = createFileRoute("/api/public/retell/book")({
         const wsId = agentRow.workspace_id;
         const uid = agentRow.user_id;
 
-        const { data: settings } = await supabaseAdmin
-          .from("workspace_settings")
-          .select("calcom_api_key, default_event_type_id, calcom_event_type_id, timezone")
-          .eq("workspace_id", wsId)
-          .maybeSingle();
-
         const agentSettings = (agentRow.settings ?? {}) as {
           calcom?: { apiKey?: string; eventTypeId?: string | number };
           booking?: { enabled?: boolean; eventTypeId?: string | number };
         };
         if (agentSettings.booking?.enabled === false) {
           return new Response(
-            JSON.stringify({ ok: false, error: "booking disabled", confirmation_message: "Booking is currently disabled. Please contact us directly." }),
+            JSON.stringify({
+              ok: false,
+              error: "booking disabled",
+              confirmation_message: "Booking is currently disabled. Please contact us directly.",
+            }),
             { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
           );
         }
+
+        const { data: settings } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("calcom_api_key, default_event_type_id, calcom_event_type_id, timezone")
+          .eq("workspace_id", wsId)
+          .maybeSingle();
 
         const apiKey = agentSettings.calcom?.apiKey ?? settings?.calcom_api_key ?? null;
         let eventTypeId =
@@ -117,7 +143,6 @@ export const Route = createFileRoute("/api/public/retell/book")({
               settings?.calcom_event_type_id ||
               0,
           ) || 0;
-        const timezone = d.timezone ?? settings?.timezone ?? "UTC";
 
         if (!eventTypeId) {
           const { data: et } = await supabaseAdmin
@@ -133,10 +158,21 @@ export const Route = createFileRoute("/api/public/retell/book")({
 
         if (!apiKey || !eventTypeId) {
           return new Response(
-            JSON.stringify({ ok: false, error: "calendar not configured", confirmation_message: "The calendar isn't set up yet. Please contact us directly to book." }),
+            JSON.stringify({
+              ok: false,
+              error: "calendar not configured",
+              confirmation_message: "The calendar isn't set up yet. Please contact us directly to book.",
+            }),
             { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
           );
         }
+
+        // Resolve timezone: caller-supplied > stored workspace tz > Cal.com account tz > UTC.
+        let timezone = d.timezone ?? settings?.timezone ?? null;
+        if (!timezone && apiKey) {
+          timezone = await getCalcomUserTimezone(apiKey);
+        }
+        timezone = timezone ?? "UTC";
 
         try {
           const booking = await createBooking(apiKey, {
@@ -170,7 +206,12 @@ export const Route = createFileRoute("/api/public/retell/book")({
             confirmationMessage += ` Your meeting link is ${booking.meetingUrl}`;
           }
 
-          console.log("[retell/book] Booking created", { uid: booking.uid, agent_id: d.agent_id, name: d.name });
+          console.log("[retell/book] Booking created", {
+            uid: booking.uid,
+            agent_id: d.agent_id,
+            name: d.name,
+            timezone,
+          });
 
           return new Response(
             JSON.stringify({
