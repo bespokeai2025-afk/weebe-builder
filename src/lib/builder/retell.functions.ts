@@ -329,13 +329,41 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         .maybeSingle();
 
       const PUBLIC_BASE_URL =
-        process.env.PUBLIC_BASE_URL ?? "";
+        process.env.PUBLIC_BASE_URL ||
+        (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
       const base = `${PUBLIC_BASE_URL}/api/public/retell`;
+
+      // Build a name→tool lookup for cf.tools so we can extract event_type_id
+      // from an existing native Cal tool when the node itself doesn't carry it.
+      const cfToolByName = new Map<string, Record<string, unknown>>();
+      if (Array.isArray(cf.tools)) {
+        for (const t of cf.tools as Array<Record<string, unknown>>) {
+          if (t.name) cfToolByName.set(String(t.name), t);
+          // Also index by tool_id in case name differs (e.g. "check_availability_cal")
+          if (t.tool_id) cfToolByName.set(String(t.tool_id), t);
+        }
+      }
 
       for (const ov of data.calToolOverrides) {
         const apiKey = (ov.apiKey?.trim() || ws?.calcom_api_key || "").trim();
-        const eventTypeId = Number(ov.eventTypeId || ws?.default_event_type_id || 0) || 0;
-        const timezone = ov.timezone?.trim() || ws?.timezone || "America/Los_Angeles";
+
+        // Try to extract event_type_id from: node data → workspace default →
+        // existing CF native tool (e.g. "check_availability_cal") as last resort.
+        const existingCalTool =
+          cfToolByName.get(`${ov.preset}_cal`) ??
+          cfToolByName.get(ov.preset ?? "") ??
+          cfToolByName.get(`${ov.name ?? ""}_cal`);
+        const rawEventTypeId =
+          ov.eventTypeId ||
+          ws?.default_event_type_id ||
+          existingCalTool?.event_type_id;
+        const eventTypeId = Number(rawEventTypeId || 0) || 0;
+        const timezone =
+          ov.timezone?.trim() ||
+          (existingCalTool?.timezone as string | undefined) ||
+          ws?.timezone ||
+          "America/Los_Angeles";
+
         const defaultNames: Record<string, string> = {
           check_availability: "check_availability",
           book_appointment: "book_appointment",
@@ -345,10 +373,12 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         const name = ov.name?.trim() || defaultNames[ov.preset];
         const description = ov.description?.trim() || "";
 
-        nodeToolIdRemap.set(ov.nodeId, name);
-
         if (ov.preset === "check_availability") {
-          if (!apiKey || !eventTypeId) continue;
+          if (!apiKey || !eventTypeId) {
+            console.warn("[retell-deploy] Skipping check_availability_cal override — missing apiKey or eventTypeId", { apiKey: apiKey ? "set" : "missing", eventTypeId });
+            continue;
+          }
+          nodeToolIdRemap.set(ov.nodeId, name);
           perNodeTools.push({
             type: "check_availability_cal",
             name,
@@ -358,7 +388,11 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
             timezone,
           });
         } else if (ov.preset === "book_appointment") {
-          if (!apiKey || !eventTypeId) continue;
+          if (!apiKey || !eventTypeId) {
+            console.warn("[retell-deploy] Skipping book_appointment_cal override — missing apiKey or eventTypeId", { apiKey: apiKey ? "set" : "missing", eventTypeId });
+            continue;
+          }
+          nodeToolIdRemap.set(ov.nodeId, name);
           perNodeTools.push({
             type: "book_appointment_cal",
             name,
@@ -498,10 +532,17 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
     // tools. Tools stored from a previous import may have relative paths
     // (e.g. "/api/public/retell/availability"). Convert them to absolute so
     // Retell does not reject the conversation flow with a URL validation error.
-    const PUBLIC_BASE_TOOL = process.env.PUBLIC_BASE_URL ?? "";
-    if (Array.isArray(cfBody.tools) && PUBLIC_BASE_TOOL) {
+    const PUBLIC_BASE_TOOL =
+      process.env.PUBLIC_BASE_URL ||
+      (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+    if (Array.isArray(cfBody.tools)) {
       cfBody.tools = (cfBody.tools as Array<Record<string, unknown>>).map((tool) => {
         if (tool.type === "custom" && typeof tool.url === "string" && tool.url.startsWith("/")) {
+          if (!PUBLIC_BASE_TOOL) {
+            console.warn("[retell-deploy] Cannot absolutize tool URL — PUBLIC_BASE_URL and REPLIT_DEV_DOMAIN are both unset. Tool:", tool.name, tool.url);
+            return tool;
+          }
+          console.log("[retell-deploy] Absolutizing tool URL:", tool.name, tool.url, "→", `${PUBLIC_BASE_TOOL}${tool.url}`);
           return { ...tool, url: `${PUBLIC_BASE_TOOL}${tool.url}` };
         }
         return tool;
@@ -533,16 +574,23 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
 
     let conversationFlowId = mode === "update" ? data.conversationFlowId : undefined;
     let cfResp: Record<string, unknown>;
-    if (mode === "update" && conversationFlowId) {
-      cfResp = await retellFetch(
-        `/update-conversation-flow/${conversationFlowId}`,
-        cfBody,
-        "PATCH",
-        builderKey,
-      );
-    } else {
-      cfResp = await retellFetch(`/create-conversation-flow`, cfBody, "POST", builderKey);
-      conversationFlowId = String(cfResp.conversation_flow_id ?? "");
+    console.log("[retell-deploy] Sending CF to Retell →", mode, "tools:", (cfBody.tools as Array<Record<string,unknown>> | undefined)?.map((t) => ({ name: t.name, type: t.type, url: t.url })));
+    try {
+      if (mode === "update" && conversationFlowId) {
+        cfResp = await retellFetch(
+          `/update-conversation-flow/${conversationFlowId}`,
+          cfBody,
+          "PATCH",
+          builderKey,
+        );
+      } else {
+        cfResp = await retellFetch(`/create-conversation-flow`, cfBody, "POST", builderKey);
+        conversationFlowId = String(cfResp.conversation_flow_id ?? "");
+      }
+      console.log("[retell-deploy] CF API success, conversationFlowId:", conversationFlowId);
+    } catch (cfErr) {
+      console.error("[retell-deploy] CF creation/update FAILED:", (cfErr as Error).message);
+      throw cfErr;
     }
 
     // Post-deploy verification: fetch the flow Retell actually stored and
