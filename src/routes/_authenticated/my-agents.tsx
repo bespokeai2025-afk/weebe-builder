@@ -110,17 +110,11 @@ function MyAgentsPage() {
     <main className="min-h-screen">
       <div className="mx-auto w-full max-w-7xl px-6 py-5 md:py-7">
         {/* Page header */}
-        <div className="bg-hero-radial mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-1">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Workspace
-            </p>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
-              Agents
-            </h1>
-            <p className="max-w-xl text-sm text-muted-foreground">
-              Voice agents you've designed, deployed, and shipped. Each card is a live
-              infrastructure object — deploy, monitor, and iterate.
+        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-base font-semibold tracking-tight text-foreground">Agents</h1>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Voice agents you've designed, deployed, and shipped.
             </p>
           </div>
           <div className="flex items-center gap-2">

@@ -16,8 +16,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { KpiCard, MiniKpiCard } from "@/components/dashboard/PageShell";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -293,94 +294,34 @@ function LeadsPage() {
         </div>
       </div>
 
-      {/* Campaign analytics stat cards */}
+      {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Leads</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-bold">{leads.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Positive Sentiment</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-bold text-emerald-500">{positive}</p>
-            {leads.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {Math.round((positive / leads.length) * 100)}%
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Lead Score</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {avgScore != null ? (
-              <p className={`text-xl font-bold ${avgScore >= 70 ? "text-emerald-500" : avgScore >= 40 ? "text-amber-500" : "text-red-500"}`}>
-                {avgScore}
-              </p>
-            ) : (
-              <p className="text-xl font-bold text-muted-foreground">—</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Meetings Requested</CardTitle>
-            <CalendarCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-bold text-violet-500">{meetingsReq}</p>
-          </CardContent>
-        </Card>
+        <KpiCard label="Total Leads" value={leads.length} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+        <KpiCard
+          label="Positive Sentiment"
+          value={positive}
+          icon={TrendingUp}
+          iconBg="bg-emerald-500/15"
+          iconColor="text-emerald-400"
+          hint={leads.length > 0 ? `${Math.round((positive / leads.length) * 100)}%` : undefined}
+        />
+        <KpiCard
+          label="Avg Lead Score"
+          value={avgScore ?? "—"}
+          icon={Target}
+          iconBg="bg-violet-500/15"
+          iconColor="text-violet-400"
+        />
+        <KpiCard label="Meetings Req." value={meetingsReq} icon={CalendarCheck} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
       </div>
 
-      {/* Campaign stats row (from data_records) */}
+      {/* Campaign stats mini strip */}
       {stats && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
-          <Card className="border-dashed">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Calls Made</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-lg font-semibold">{stats.called}</p>
-              <p className="text-[11px] text-muted-foreground">of {stats.total} records</p>
-            </CardContent>
-          </Card>
-          <Card className="border-dashed">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Contacts Reached</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-lg font-semibold">{stats.reached}</p>
-              <p className="text-[11px] text-muted-foreground">{stats.conversionRate}% connect rate</p>
-            </CardContent>
-          </Card>
-          <Card className="border-dashed">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Positive Sentiment %</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-lg font-semibold text-emerald-500">{stats.positivePct}%</p>
-            </CardContent>
-          </Card>
-          <Card className="border-dashed">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">Meetings Booked</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <p className="text-lg font-semibold text-violet-500">{stats.meetingsBooked}</p>
-            </CardContent>
-          </Card>
+          <MiniKpiCard label="Calls Made" value={stats.called} hint={`of ${stats.total} records`} />
+          <MiniKpiCard label="Contacts Reached" value={stats.reached} hint={`${stats.conversionRate}% connect rate`} />
+          <MiniKpiCard label="Positive Sentiment" value={`${stats.positivePct}%`} />
+          <MiniKpiCard label="Meetings Booked" value={stats.meetingsBooked} />
         </div>
       )}
 
@@ -411,14 +352,14 @@ function LeadsPage() {
 
       {/* Lead Intelligence Tab */}
       {tab === "leads" && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between py-3">
-            <CardTitle className="text-sm">
+        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Lead Records
               {selectedIds.size > 0 && (
-                <span className="ml-2 text-xs font-normal text-blue-400">{selectedIds.size} selected</span>
+                <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selectedIds.size} selected</span>
               )}
-            </CardTitle>
+            </p>
             <div className="flex items-center gap-2">
               {selectedIds.size > 0 && (
                 <Button
@@ -437,8 +378,8 @@ function LeadsPage() {
                 className="h-7 w-48 text-xs"
               />
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
+          </div>
+          <div className="p-0">
             {leadsQ.isLoading ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
             ) : filtered.length === 0 ? (
@@ -453,47 +394,47 @@ function LeadsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                      <th className="px-3 py-2 w-8">
+                    <tr className="border-b border-white/[0.06] bg-card/30">
+                      <th className="px-3 py-2.5 w-8">
                         <Checkbox
                           checked={selectedIds.size === filtered.length && filtered.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </th>
-                      <th className="px-3 py-2">Name</th>
-                      <th className="px-3 py-2">Phone</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Sentiment</th>
-                      <th className="px-3 py-2">Score</th>
-                      <th className="px-3 py-2">Interest</th>
-                      <th className="px-3 py-2">Summary</th>
-                      <th className="px-3 py-2">Next Action</th>
-                      <th className="px-3 py-2">Last Contact</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
+                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((lead: any) => (
                       <tr
                         key={lead.id}
-                        className={`border-b border-white/[0.04] align-top hover:bg-muted/30 transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
+                        className={`h-11 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
                       >
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2.5">
                           <Checkbox
                             checked={selectedIds.has(lead.id)}
                             onCheckedChange={() => toggleSelect(lead.id)}
                           />
                         </td>
-                        <td className="px-3 py-2 font-medium whitespace-nowrap">
+                        <td className="px-3 py-2.5 font-medium whitespace-nowrap">
                           {lead.full_name ?? "—"}
                           {lead.company_name && (
                             <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap text-xs">
+                        <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs font-mono">
                           {lead.phone}
                         </td>
                         {/* Status picker */}
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2.5">
                           <div className="flex flex-col gap-1">
                             <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${statusDisplay(lead.status).color}`}>
                               {statusDisplay(lead.status).label}
@@ -512,17 +453,17 @@ function LeadsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-2">{sentimentBadge(lead.sentiment)}</td>
-                        <td className="px-3 py-2">{scoreBadge(lead.lead_score)}</td>
-                        <td className="px-3 py-2">{interestBadge(lead.interest_level)}</td>
+                        <td className="px-3 py-2.5">{sentimentBadge(lead.sentiment)}</td>
+                        <td className="px-3 py-2.5">{scoreBadge(lead.lead_score)}</td>
+                        <td className="px-3 py-2.5">{interestBadge(lead.interest_level)}</td>
                         {/* Call summary */}
-                        <td className="px-3 py-2 text-xs text-muted-foreground max-w-[220px]">
+                        <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[220px] align-top">
                           <span className="line-clamp-3">{lead.call_summary ?? "—"}</span>
                         </td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground max-w-[180px]">
+                        <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px] align-top">
                           <span className="line-clamp-2">{lead.next_action ?? "—"}</span>
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap text-xs">
+                        <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
                           {fmtDate(lead.last_contacted_at)}
                         </td>
                       </tr>
@@ -531,8 +472,8 @@ function LeadsPage() {
                 </table>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Campaigns Tab */}

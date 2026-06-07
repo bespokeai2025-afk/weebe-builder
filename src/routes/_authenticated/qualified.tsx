@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiCard } from "@/components/dashboard/PageShell";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
 import { setLeadStatus } from "@/lib/dashboard/leads.functions";
@@ -134,66 +134,50 @@ function QualifiedPage() {
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
       {/* Header */}
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Qualified</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h1 className="text-base font-semibold tracking-tight">Qualified</h1>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             Contacts scored and routed after qualification calls
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={refresh}>
-          <RefreshCw className="mr-1 h-4 w-4" />
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={refresh}>
+          <RefreshCw className="h-3.5 w-3.5" />
           Refresh
         </Button>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-bold">{stats?.total ?? "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Qualified</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-bold text-emerald-500">{stats?.qualified ?? "—"}</p>
-            {stats && stats.total > 0 && (
-              <p className="text-xs text-muted-foreground">{stats.qualificationRate}% rate</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Partial</CardTitle>
-            <TrendingUp className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xl font-bold text-amber-500">{stats?.partiallyQualified ?? "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Score</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {stats?.avgScore != null ? (
-              <p className={`text-xl font-bold ${stats.avgScore >= 70 ? "text-emerald-500" : stats.avgScore >= 40 ? "text-amber-500" : "text-red-500"}`}>
-                {stats.avgScore}
-              </p>
-            ) : (
-              <p className="text-xl font-bold text-muted-foreground">—</p>
-            )}
-          </CardContent>
-        </Card>
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">
+        <KpiCard
+          label="Total"
+          value={stats?.total ?? "—"}
+          icon={Users}
+          iconBg="bg-blue-500/15"
+          iconColor="text-blue-400"
+        />
+        <KpiCard
+          label="Qualified"
+          value={stats?.qualified ?? "—"}
+          icon={ShieldCheck}
+          iconBg="bg-emerald-500/15"
+          iconColor="text-emerald-400"
+          hint={stats && stats.total > 0 ? `${stats.qualificationRate}% rate` : undefined}
+        />
+        <KpiCard
+          label="Partial"
+          value={stats?.partiallyQualified ?? "—"}
+          icon={TrendingUp}
+          iconBg="bg-amber-500/15"
+          iconColor="text-amber-400"
+        />
+        <KpiCard
+          label="Avg Score"
+          value={stats?.avgScore ?? "—"}
+          icon={Target}
+          iconBg="bg-violet-500/15"
+          iconColor="text-violet-400"
+        />
       </div>
 
       {/* Filters */}
@@ -221,8 +205,8 @@ function QualifiedPage() {
       </div>
 
       {/* Table */}
-      <Card>
-        <CardContent className="p-0">
+      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+        <div className="p-0">
           {leadsQ.isLoading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -239,58 +223,58 @@ function QualifiedPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Phone</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Score</th>
-                    <th className="px-3 py-2">Budget</th>
-                    <th className="px-3 py-2">Decision Maker</th>
-                    <th className="px-3 py-2">Interest</th>
-                    <th className="px-3 py-2">Urgency</th>
-                    <th className="px-3 py-2">Summary</th>
-                    <th className="px-3 py-2">Next Step</th>
-                    <th className="px-3 py-2">Last Contact</th>
-                    <th className="px-3 py-2">Actions</th>
+                  <tr className="border-b border-white/[0.06] bg-card/30">
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Budget</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Decision</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Urgency</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Step</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
+                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((lead: any) => (
                     <tr
                       key={lead.id}
-                      className="group border-b border-white/[0.04] align-top hover:bg-muted/30 transition-colors"
+                      className="h-11 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
                     >
-                      <td className="px-3 py-2 font-medium whitespace-nowrap">
+                      <td className="px-3 py-2.5 font-medium whitespace-nowrap">
                         {lead.full_name ?? "—"}
                         {lead.company_name && (
                           <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-muted-foreground whitespace-nowrap text-xs">
+                      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs font-mono">
                         {lead.phone}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2.5">
                         {qualStatusBadge(lead.qualification_status ?? lead.status)}
                       </td>
-                      <td className="px-3 py-2">{scoreBadge(lead.qualification_score ?? lead.lead_score)}</td>
-                      <td className="px-3 py-2">{boolBadge(lead.budget_confirmed, "✓", "—")}</td>
-                      <td className="px-3 py-2">{boolBadge(lead.decision_maker, "✓", "—")}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2.5">{scoreBadge(lead.qualification_score ?? lead.lead_score)}</td>
+                      <td className="px-3 py-2.5">{boolBadge(lead.budget_confirmed, "✓", "—")}</td>
+                      <td className="px-3 py-2.5">{boolBadge(lead.decision_maker, "✓", "—")}</td>
+                      <td className="px-3 py-2.5">
                         {lead.interest_level ? (
                           <span className="text-xs capitalize text-muted-foreground">{lead.interest_level}</span>
                         ) : "—"}
                       </td>
-                      <td className="px-3 py-2">{urgencyBadge(lead.urgency)}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground max-w-[200px]">
+                      <td className="px-3 py-2.5">{urgencyBadge(lead.urgency)}</td>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] align-top">
                         <span className="line-clamp-2">{lead.call_summary ?? "—"}</span>
                       </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground max-w-[160px]">
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[160px] align-top">
                         <span className="line-clamp-2">{lead.next_step ?? lead.next_action ?? "—"}</span>
                       </td>
-                      <td className="px-3 py-2 text-muted-foreground whitespace-nowrap text-xs">
+                      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
                         {fmtDate(lead.last_contacted_at)}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2.5">
                         <div className="flex gap-1">
                           {STATUS_ACTIONS.map((opt) => (
                             <button
@@ -310,8 +294,8 @@ function QualifiedPage() {
               </table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
