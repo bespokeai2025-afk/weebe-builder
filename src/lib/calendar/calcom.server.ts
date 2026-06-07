@@ -145,6 +145,7 @@ export interface CalcomBookingResult {
   uid: string;
   startTime: string;
   endTime: string;
+  meetingUrl?: string;
 }
 
 export async function createBooking(
@@ -181,11 +182,18 @@ export async function createBooking(
 }
 
 function normalizeBooking(d: Record<string, unknown>): CalcomBookingResult {
+  const meetingUrl =
+    (d.meetingUrl as string | undefined) ??
+    (d.videoCallData as { url?: string } | undefined)?.url ??
+    ((d.references as Array<{ meetingUrl?: string }> | undefined) ?? []).find((r) => r.meetingUrl)
+      ?.meetingUrl ??
+    undefined;
   return {
     id: Number(d.id ?? 0),
     uid: String(d.uid ?? ""),
     startTime: String(d.start ?? d.startTime ?? ""),
     endTime: String(d.end ?? d.endTime ?? ""),
+    meetingUrl,
   };
 }
 

@@ -486,7 +486,7 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
     }
 
     if (bookingTools) {
-      // Append per-agent booking instructions to the global prompt.
+      // Append comprehensive booking flow instructions to the global prompt.
       const instructions = data.bookingConfig?.instructions?.trim();
       const wh = data.bookingConfig?.workingHours;
       const whLines: string[] = [];
@@ -512,17 +512,92 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
           }
         }
       }
-      if (instructions || whLines.length) {
-        const existingPrompt = String(cf.global_prompt ?? "");
-        const parts: string[] = [];
-        if (whLines.length) {
-          parts.push(
-            `## Working hours\nOnly offer slots within these hours (caller's local time):\n${whLines.join("\n")}`,
-          );
-        }
-        if (instructions) parts.push(`## Booking instructions\n${instructions}`);
-        cf.global_prompt = `${existingPrompt}\n\n${parts.join("\n\n")}`.trim();
+
+      const existingPrompt = String(cf.global_prompt ?? "");
+      const parts: string[] = [];
+
+      // Always inject the full booking flow guidance when booking is enabled.
+      parts.push(`## Appointment Booking
+
+You have access to Cal.com booking tools. Follow this exact flow when a caller wants to book, cancel, or reschedule an appointment.
+
+### Booking a new appointment
+
+**Step 1 — Detect intent**
+Listen for phrases like "I'd like to book", "can I schedule", "I need an appointment", "I'd like to come in". Once detected, move to step 2.
+
+**Step 2 — Collect required information**
+Before checking availability you need:
+- Caller's full name
+- Caller's email address
+- Preferred date or date range (e.g. "this week", "next Monday", "sometime in June")
+- Caller's timezone (infer from phone number country code, accent, or ask "What timezone are you in?")
+Never ask for information the caller has already given.
+
+**Step 3 — Check availability**
+Call \`check_availability\` with:
+- start_date: first day of their preferred range (ISO date, e.g. 2026-06-10)
+- end_date: last day of their preferred range (add 6 days if they said "this week")
+- timezone: their IANA timezone (e.g. Europe/London, America/New_York)
+
+**Step 4 — Present available times**
+Read the \`summary\` field from the response aloud almost verbatim. Example:
+"I have slots on Tuesday 10th June at 2pm, 3pm and 4pm, and on Wednesday at 10am. Which works best for you?"
+If slot_count is 0, apologise and offer to check different dates: "I don't see any openings that week — shall I check the following week?"
+
+**Step 5 — Capture their chosen slot**
+When the caller picks a time, identify the exact \`start\` ISO string from the \`slots\` array that matches. Never modify or guess an ISO time — use it exactly as returned.
+
+**Step 6 — Confirm before booking**
+Always read back the details before creating the booking:
+"Just to confirm — I'll book you in for [display time] under [name] at [email]. Is that right?"
+Wait for an explicit "yes" or "that's correct" before proceeding.
+
+**Step 7 — Create the booking**
+Only after the caller confirms, call \`book_appointment\` with:
+- start: the exact ISO string from the slots array
+- name: caller's full name
+- email: caller's email address
+- phone: (optional) if they provided it
+- notes: (optional) any details they mentioned
+- timezone: their IANA timezone
+
+**Step 8 — Confirm success**
+Read the \`confirmation_message\` field from the response. If a \`meeting_url\` is present, share it: "Your meeting link is [url]". If \`ok\` is false, apologise and offer to try again.
+
+### Cancelling an appointment
+
+1. Ask for the booking ID (they received it in their confirmation email).
+2. Confirm: "Just to confirm, you'd like to cancel your booking [id]?"
+3. Call \`cancel_appointment\` only after they confirm.
+4. Confirm: "Your appointment has been cancelled."
+
+### Rescheduling an appointment
+
+1. Ask for the booking ID.
+2. Ask for their preferred new date/time range.
+3. Call \`check_availability\` for the new range.
+4. Present available slots.
+5. Confirm the new time with the caller.
+6. Call \`reschedule_appointment\` with the booking_id and new ISO start time.
+7. Confirm: "Your appointment has been rescheduled to [new time]."
+
+### Rules — always follow these
+
+- NEVER create a booking without explicit caller confirmation of name, email, and time.
+- NEVER fabricate, modify, or guess an ISO slot time — always use the exact value from check_availability.
+- NEVER ask for payment or credit card information.
+- If timezone is unclear, ask: "What timezone are you in?"
+- If the same slot gets booked twice, apologise and check availability again.
+- If an API call fails, apologise gracefully: "I'm sorry, I ran into a technical issue. Let me try again — or I can pass your details on and someone will call you back."`);
+
+      if (whLines.length) {
+        parts.push(
+          `## Working hours\nOnly offer slots within these hours (caller's local time):\n${whLines.join("\n")}`,
+        );
       }
+      if (instructions) parts.push(`## Additional booking instructions\n${instructions}`);
+      cf.global_prompt = `${existingPrompt}\n\n${parts.join("\n\n")}`.trim();
     }
 
     // ---- Conversation flow ----

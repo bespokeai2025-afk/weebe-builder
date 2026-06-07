@@ -22,6 +22,37 @@ const Body = z.object({
   retell_call_id: z.string().max(128).optional(),
 });
 
+function formatBookingTime(isoTime: string, timezone: string): string {
+  const d = new Date(isoTime);
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: timezone,
+    timeZoneName: "short",
+  }).format(d);
+}
+
+async function resolveWorkspaceCandidateKey(bodyAgentId?: string): Promise<string[]> {
+  if (!bodyAgentId) return [];
+  const { data: agentLookup } = await supabaseAdmin
+    .from("agents")
+    .select("workspace_id")
+    .or(`retell_agent_id.eq.${bodyAgentId},settings->>deployedRetellAgentId.eq.${bodyAgentId}`)
+    .maybeSingle();
+  if (!agentLookup?.workspace_id) return [];
+  const { data: wsLookup } = await supabaseAdmin
+    .from("workspace_settings")
+    .select("retell_workspace_id")
+    .eq("workspace_id", agentLookup.workspace_id)
+    .maybeSingle();
+  const wk = wsLookup?.retell_workspace_id?.trim();
+  return wk && wk.startsWith("key_") ? [wk] : [];
+}
+
 export const Route = createFileRoute("/api/public/retell/book")({
   server: {
     handlers: {
@@ -30,8 +61,6 @@ export const Route = createFileRoute("/api/public/retell/book")({
         const rawBody = await request.text();
         const sig = request.headers.get("x-retell-signature");
 
-        // Extract agent_id before schema validation to look up the workspace
-        // Retell API key. Custom tool calls are signed with the workspace key.
         let bodyAgentId: string | undefined;
         try {
           const quick = JSON.parse(rawBody) as Record<string, unknown>;
@@ -44,23 +73,7 @@ export const Route = createFileRoute("/api/public/retell/book")({
             undefined;
         } catch { /* ignore */ }
 
-        const candidateKeys: string[] = [];
-        if (bodyAgentId) {
-          const { data: agentLookup } = await supabaseAdmin
-            .from("agents")
-            .select("workspace_id")
-            .or(`retell_agent_id.eq.${bodyAgentId},settings->>deployedRetellAgentId.eq.${bodyAgentId}`)
-            .maybeSingle();
-          if (agentLookup?.workspace_id) {
-            const { data: wsLookup } = await supabaseAdmin
-              .from("workspace_settings")
-              .select("retell_workspace_id")
-              .eq("workspace_id", agentLookup.workspace_id)
-              .maybeSingle();
-            const wk = wsLookup?.retell_workspace_id?.trim();
-            if (wk && wk.startsWith("key_")) candidateKeys.push(wk);
-          }
-        }
+        const candidateKeys = await resolveWorkspaceCandidateKey(bodyAgentId);
 
         if (!verifyRetellSignatureMultiKey(rawBody, sig, candidateKeys)) {
           console.warn("[retell/book] Signature verification failed", { agentId: bodyAgentId });
@@ -73,7 +86,7 @@ export const Route = createFileRoute("/api/public/retell/book")({
         const parsed = Body.safeParse(normalizeRetellPayload(rawBody));
         if (!parsed.success) {
           return new Response(
-            JSON.stringify({ error: "invalid body", details: parsed.error.flatten() }),
+            JSON.stringify({ ok: false, error: "invalid body", details: parsed.error.flatten() }),
             { status: 400, headers: { ...CORS, "Content-Type": "application/json" } },
           );
         }
@@ -84,21 +97,15 @@ export const Route = createFileRoute("/api/public/retell/book")({
           .select("id, user_id, workspace_id, settings")
           .or(`retell_agent_id.eq.${d.agent_id},settings->>deployedRetellAgentId.eq.${d.agent_id}`)
           .maybeSingle();
-        if (!agentRow) {
-          return new Response(JSON.stringify({ error: "agent not found" }), {
-            status: 404,
-            headers: { ...CORS, "Content-Type": "application/json" },
-          });
+        if (!agentRow?.workspace_id) {
+          return new Response(
+            JSON.stringify({ ok: false, error: "agent not found", confirmation_message: "I wasn't able to complete the booking. Please try again." }),
+            { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
+          );
         }
 
         const wsId = agentRow.workspace_id;
         const uid = agentRow.user_id;
-        if (!wsId) {
-          return new Response(JSON.stringify({ error: "agent has no workspace" }), {
-            status: 500,
-            headers: { ...CORS, "Content-Type": "application/json" },
-          });
-        }
 
         const { data: settings } = await supabaseAdmin
           .from("workspace_settings")
@@ -111,11 +118,12 @@ export const Route = createFileRoute("/api/public/retell/book")({
           booking?: { enabled?: boolean; eventTypeId?: string | number };
         };
         if (agentSettings.booking?.enabled === false) {
-          return new Response(JSON.stringify({ error: "booking disabled for this agent" }), {
-            status: 403,
-            headers: { ...CORS, "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({ ok: false, error: "booking disabled", confirmation_message: "Booking is currently disabled. Please contact us directly." }),
+            { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
+          );
         }
+
         const apiKey = agentSettings.calcom?.apiKey ?? settings?.calcom_api_key ?? null;
         let eventTypeId =
           Number(
@@ -140,10 +148,10 @@ export const Route = createFileRoute("/api/public/retell/book")({
         }
 
         if (!apiKey || !eventTypeId) {
-          return new Response(JSON.stringify({ error: "calendar not configured" }), {
-            status: 400,
-            headers: { ...CORS, "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({ ok: false, error: "calendar not configured", confirmation_message: "The calendar isn't set up yet. Please contact us directly to book." }),
+            { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
+          );
         }
 
         try {
@@ -175,23 +183,38 @@ export const Route = createFileRoute("/api/public/retell/book")({
             raw: booking as unknown as never,
           });
 
+          const displayTime = formatBookingTime(booking.startTime, timezone);
+          let confirmationMessage = `Your appointment has been confirmed for ${displayTime}. A confirmation email has been sent to ${d.email}.`;
+          if (booking.meetingUrl) {
+            confirmationMessage += ` Your meeting link is ${booking.meetingUrl}`;
+          }
+
+          console.log("[retell/book] Booking created", { uid: booking.uid, agent_id: d.agent_id, name: d.name });
+
           return new Response(
             JSON.stringify({
               ok: true,
               booking_id: booking.uid,
               start: booking.startTime,
               end: booking.endTime,
-              confirmation_message: `Booked ${d.name} for ${booking.startTime}.`,
+              display_start: displayTime,
+              meeting_url: booking.meetingUrl ?? null,
+              confirmation_message: confirmationMessage,
             }),
             { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
           );
         } catch (e) {
           console.error("[retell/book]", e);
           const message = e instanceof Error ? e.message : "booking failed";
-          return new Response(JSON.stringify({ ok: false, error: "booking failed", message }), {
-            status: 502,
-            headers: { ...CORS, "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error: "booking failed",
+              message,
+              confirmation_message: `I'm sorry, I wasn't able to complete the booking. ${message}. Please try again or contact us directly.`,
+            }),
+            { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
+          );
         }
       },
     },

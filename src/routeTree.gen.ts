@@ -48,6 +48,7 @@ import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/em
 import { Route as ApiPublicWhatsappWebhookWorkspaceIdRouteImport } from './routes/api/public/whatsapp-webhook.$workspaceId'
 import { Route as ApiPublicVoiceWebhookHealthRouteImport } from './routes/api/public/voice-webhook.health'
 import { Route as ApiPublicRetellRescheduleRouteImport } from './routes/api/public/retell/reschedule'
+import { Route as ApiPublicRetellEventTypesRouteImport } from './routes/api/public/retell/event-types'
 import { Route as ApiPublicRetellCancelRouteImport } from './routes/api/public/retell/cancel'
 import { Route as ApiPublicRetellBookRouteImport } from './routes/api/public/retell/book'
 import { Route as ApiPublicRetellAvailabilityRouteImport } from './routes/api/public/retell/availability'
@@ -261,6 +262,12 @@ const ApiPublicRetellRescheduleRoute =
     path: '/api/public/retell/reschedule',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicRetellEventTypesRoute =
+  ApiPublicRetellEventTypesRouteImport.update({
+    id: '/api/public/retell/event-types',
+    path: '/api/public/retell/event-types',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRetellCancelRoute = ApiPublicRetellCancelRouteImport.update({
   id: '/api/public/retell/cancel',
   path: '/api/public/retell/cancel',
@@ -346,6 +353,7 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
   '/api/public/retell/book': typeof ApiPublicRetellBookRoute
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
+  '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
@@ -393,6 +401,7 @@ export interface FileRoutesByTo {
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
   '/api/public/retell/book': typeof ApiPublicRetellBookRoute
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
+  '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
@@ -443,6 +452,7 @@ export interface FileRoutesById {
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
   '/api/public/retell/book': typeof ApiPublicRetellBookRoute
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
+  '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
@@ -493,6 +503,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/availability'
     | '/api/public/retell/book'
     | '/api/public/retell/cancel'
+    | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
@@ -540,6 +551,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/availability'
     | '/api/public/retell/book'
     | '/api/public/retell/cancel'
+    | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
@@ -589,6 +601,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/availability'
     | '/api/public/retell/book'
     | '/api/public/retell/cancel'
+    | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
@@ -618,6 +631,7 @@ export interface RootRouteChildren {
   ApiPublicRetellAvailabilityRoute: typeof ApiPublicRetellAvailabilityRoute
   ApiPublicRetellBookRoute: typeof ApiPublicRetellBookRoute
   ApiPublicRetellCancelRoute: typeof ApiPublicRetellCancelRoute
+  ApiPublicRetellEventTypesRoute: typeof ApiPublicRetellEventTypesRoute
   ApiPublicRetellRescheduleRoute: typeof ApiPublicRetellRescheduleRoute
   ApiPublicWhatsappWebhookWorkspaceIdRoute: typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -902,6 +916,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRetellRescheduleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/retell/event-types': {
+      id: '/api/public/retell/event-types'
+      path: '/api/public/retell/event-types'
+      fullPath: '/api/public/retell/event-types'
+      preLoaderRoute: typeof ApiPublicRetellEventTypesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/retell/cancel': {
       id: '/api/public/retell/cancel'
       path: '/api/public/retell/cancel'
@@ -1068,6 +1089,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellAvailabilityRoute: ApiPublicRetellAvailabilityRoute,
   ApiPublicRetellBookRoute: ApiPublicRetellBookRoute,
   ApiPublicRetellCancelRoute: ApiPublicRetellCancelRoute,
+  ApiPublicRetellEventTypesRoute: ApiPublicRetellEventTypesRoute,
   ApiPublicRetellRescheduleRoute: ApiPublicRetellRescheduleRoute,
   ApiPublicWhatsappWebhookWorkspaceIdRoute:
     ApiPublicWhatsappWebhookWorkspaceIdRoute,

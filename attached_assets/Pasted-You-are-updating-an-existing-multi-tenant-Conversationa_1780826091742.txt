@@ -1,0 +1,212 @@
+You are updating an existing multi-tenant Conversational AI Agent Builder platform.
+
+The platform already contains:
+
+* Custom Function Nodes
+* Cal.com integration
+* Agent configuration and workflow builder
+* Voice AI agents that can execute function calls during conversations
+
+Your task is to improve and productionise the Cal.com booking workflow.
+
+OBJECTIVES
+
+1. Audit the existing Cal.com integration.
+2. Identify all existing Cal.com function nodes.
+3. Update each node so that the conversational agent can reliably:
+
+   * Determine booking intent.
+   * Collect missing booking information.
+   * Check availability.
+   * Present available times.
+   * Confirm selected slots.
+   * Create bookings.
+   * Handle errors gracefully.
+   * Confirm bookings back to the caller.
+
+FUNCTION NODE REQUIREMENTS
+
+Create or improve the following logical functions:
+
+1. CHECK_AVAILABILITY
+   Inputs:
+
+   * eventTypeId
+   * date
+   * timezone
+
+   Behaviour:
+
+   * Query Cal.com availability API.
+   * Return structured available slots.
+   * Return empty state when no availability exists.
+   * Return human-readable summaries for the LLM.
+
+2. CREATE_BOOKING
+   Inputs:
+
+   * eventTypeId
+   * selectedSlot
+   * name
+   * email
+   * phone
+   * notes
+
+   Behaviour:
+
+   * Validate required fields.
+   * Create booking via Cal.com API.
+   * Return booking ID.
+   * Return meeting link.
+   * Return booking confirmation details.
+
+3. GET_EVENT_TYPES
+   Inputs:
+
+   * tenantId
+
+   Behaviour:
+
+   * Return available booking types.
+   * Return names, durations and descriptions.
+
+4. CANCEL_BOOKING
+   Inputs:
+
+   * bookingId
+   * email
+
+5. RESCHEDULE_BOOKING
+   Inputs:
+
+   * bookingId
+   * newSlot
+
+CONVERSATIONAL ORCHESTRATION
+
+The AI agent must automatically follow this flow:
+
+STEP 1
+Detect booking intent.
+
+Examples:
+
+* "I'd like to book a call."
+* "Can I schedule an appointment?"
+* "I'd like to speak to someone."
+
+STEP 2
+Determine booking type.
+
+If multiple event types exist:
+
+* Ask the caller which appointment type they need.
+* Store the chosen event type.
+
+STEP 3
+Collect missing information.
+
+Required:
+
+* Name
+* Email
+* Preferred date
+* Timezone
+
+Optional:
+
+* Phone
+* Notes
+
+The agent should never ask for information already known.
+
+STEP 4
+Call CHECK_AVAILABILITY.
+
+STEP 5
+Convert API response into natural language.
+
+Example:
+
+"I have availability on Tuesday at 10am, 11am and 2pm. Which works best for you?"
+
+STEP 6
+Capture selected slot.
+
+STEP 7
+Repeat booking details for confirmation.
+
+Example:
+
+"I have you booked for Tuesday at 2pm UK time. Shall I confirm that?"
+
+STEP 8
+Execute CREATE_BOOKING.
+
+STEP 9
+Provide confirmation.
+
+Example:
+
+"Your appointment has been booked successfully. A confirmation email has been sent and your meeting link is ready."
+
+ERROR HANDLING
+
+If availability lookup fails:
+
+* Retry once.
+* Log the failure.
+* Inform the caller politely.
+
+If booking creation fails:
+
+* Retry once.
+* Surface the API error.
+* Offer alternative actions.
+
+TIMEZONE REQUIREMENTS
+
+* Always detect caller timezone where possible.
+* Support timezone conversion.
+* Store all bookings using Cal.com standards.
+* Display times in caller local timezone.
+
+BUILDER IMPROVEMENTS
+
+Update the Agent Builder UI so administrators can:
+
+* Select which Cal.com functions are enabled.
+* Configure event types.
+* Configure fallback behaviour.
+* Configure booking confirmation prompts.
+* Test function calls directly inside the builder.
+* View function execution logs.
+
+LLM PROMPTING IMPROVEMENTS
+
+Each Cal.com function node should expose:
+
+* Purpose
+* Required parameters
+* Optional parameters
+* Example invocation
+* Example responses
+* Error responses
+
+Ensure the generated system prompt clearly explains:
+
+* When to check availability.
+* When to book.
+* When to ask follow-up questions.
+* When not to create bookings.
+* How to confirm appointments.
+
+DELIVERABLES
+
+1. Updated backend integration.
+2. Updated function schemas.
+3. Updated builder UI.
+4. Updated orchestration logic.
+5. Improved system prompt generation.
+6. End-to-end testing of booking flow.
+7. Detailed implementation notes showing every file modified and why.
