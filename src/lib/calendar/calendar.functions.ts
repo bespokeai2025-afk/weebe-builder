@@ -227,9 +227,12 @@ export const setEventTypeActive = createServerFn({ method: "POST" })
 export const listMyBookings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
     const { data, error } = await context.supabase
-      .from("bookings")
+      .from("calendar_bookings" as never)
       .select("*")
+      .eq("workspace_id", workspaceId)
       .order("start_at", { ascending: false })
       .limit(20);
     if (error) throw new Error(error.message);

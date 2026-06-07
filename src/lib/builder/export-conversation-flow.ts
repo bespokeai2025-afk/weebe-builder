@@ -528,7 +528,7 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
   Object.assign(base, hasRaw ? gnsUser.nodeOverrides : nodeOverrides);
   if (gnsUser.model || (!hasRaw && gnsRaw.model)) {
     base.model_choice = buildModelChoice(
-      gnsUser.model ?? (!hasRaw ? gnsRaw.model : undefined),
+      (gnsUser.model ?? (!hasRaw ? gnsRaw.model : undefined)) as string | undefined,
       (raw.model_choice as Record<string, unknown>) ?? {},
     );
   }
