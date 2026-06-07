@@ -721,10 +721,7 @@ function CsvMappingDialog({
       .slice(0, 50);
   }, [rows, mapping, previewSearch]);
 
-  const mappedPreviewCols = useMemo(
-    () => headers.filter((h) => mapping[h]),
-    [headers, mapping],
-  );
+  const mappedPreviewCols = useMemo(() => headers, [headers]);
 
   function setField(csvCol: string, rawValue: string) {
     const sysField = rawValue === "__skip__" ? "" : rawValue;
@@ -835,11 +832,7 @@ function CsvMappingDialog({
                 </span>
               </div>
               <div className="flex-1 overflow-auto">
-                {mappedPreviewCols.length === 0 ? (
-                  <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-                    Map at least one column to see a preview.
-                  </div>
-                ) : previewRows.length === 0 ? (
+                {previewRows.length === 0 ? (
                   <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
                     No rows match your search.
                   </div>
@@ -850,23 +843,26 @@ function CsvMappingDialog({
                         {mappedPreviewCols.map((h) => {
                           const sysField = mapping[h];
                           const isCustom = sysField === "__custom__";
+                          const isMapped = Boolean(sysField);
                           const f = SYSTEM_FIELDS.find((x) => x.value === sysField);
                           return (
                             <th
                               key={h}
-                              className="px-3 py-2 font-semibold text-muted-foreground"
+                              className="whitespace-nowrap px-3 py-2 font-semibold"
                             >
-                              {isCustom ? (
-                                <span>
-                                  {h}{" "}
-                                  <span className="text-[10px] font-normal text-amber-500">custom</span>
-                                </span>
-                              ) : (
-                                <>
-                                  {f?.label ?? sysField}
-                                  {f?.required && <span className="ml-0.5 text-primary">*</span>}
-                                </>
-                              )}
+                              <div className="text-[11px] text-foreground/80">{h}</div>
+                              <div className="text-[10px] font-normal">
+                                {isCustom ? (
+                                  <span className="text-amber-500">custom field</span>
+                                ) : isMapped ? (
+                                  <span className="text-primary">
+                                    → {f?.label ?? sysField}
+                                    {f?.required && " *"}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground/50">not mapped</span>
+                                )}
+                              </div>
                             </th>
                           );
                         })}
