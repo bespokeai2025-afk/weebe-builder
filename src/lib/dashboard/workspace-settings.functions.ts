@@ -75,7 +75,11 @@ export const saveWorkspaceSettings = createServerFn({ method: "POST" })
         const { registerCalcomWebhook } =
           await import("@/lib/providers/calcom/webhook-register.server");
         const origin =
-          process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "") || "";
+          process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
+          process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, "") ||
+          (process.env.REPLIT_DEV_DOMAIN
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+            : "");
         const r = await registerCalcomWebhook({
           workspaceId,
           subscriberUrl: `${origin}/api/public/calcom-webhook/${workspaceId}`,
@@ -168,7 +172,11 @@ export const syncFromBuilder = createServerFn({ method: "POST" })
         const { registerCalcomWebhook } =
           await import("@/lib/providers/calcom/webhook-register.server");
         const origin =
-          process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "") || "";
+          process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
+          process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, "") ||
+          (process.env.REPLIT_DEV_DOMAIN
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+            : "");
         await registerCalcomWebhook({
           workspaceId,
           subscriberUrl: `${origin}/api/public/calcom-webhook/${workspaceId}`,

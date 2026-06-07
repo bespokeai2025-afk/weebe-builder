@@ -64,7 +64,7 @@ export const Route = createFileRoute("/api/public/retell/availability")({
 
         const { data: settings } = await supabaseAdmin
           .from("workspace_settings")
-          .select("calcom_api_key, default_event_type_id, timezone")
+          .select("calcom_api_key, default_event_type_id, calcom_event_type_id, timezone")
           .eq("workspace_id", wsId)
           .maybeSingle();
 
@@ -85,6 +85,7 @@ export const Route = createFileRoute("/api/public/retell/availability")({
             agentSettings.booking?.eventTypeId ||
               agentSettings.calcom?.eventTypeId ||
               settings?.default_event_type_id ||
+              settings?.calcom_event_type_id ||
               0,
           ) || 0;
 

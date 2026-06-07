@@ -3,15 +3,14 @@ import { createHmac, timingSafeEqual } from "crypto";
 /**
  * Verify the HMAC signature on an incoming Retell webhook body.
  *
- * If RETELL_WEBHOOK_SECRET is not configured we fall back to "open" mode
- * (logs a warning) so the system still works during initial setup. Set the
- * secret before going live so the public endpoints are not callable by
- * arbitrary third parties.
+ * Retell signs custom tool-call webhooks using the workspace Retell API key.
+ * We check RETELL_WEBHOOK_SECRET first (set this to match the key Retell uses),
+ * then fall back to RETELL_API_KEY. If neither is set, requests are rejected.
  */
 export function verifyRetellSignature(rawBody: string, signature: string | null): boolean {
-  const secret = process.env.RETELL_WEBHOOK_SECRET;
+  const secret = process.env.RETELL_WEBHOOK_SECRET || process.env.RETELL_API_KEY;
   if (!secret) {
-    console.error("[retell] RETELL_WEBHOOK_SECRET not set — rejecting request");
+    console.error("[retell] RETELL_WEBHOOK_SECRET / RETELL_API_KEY not set — rejecting request");
     return false;
   }
   if (!signature) return false;

@@ -60,7 +60,30 @@ export const saveWorkspaceCalendarSettings = createServerFn({ method: "POST" })
       .from("workspace_settings")
       .upsert(patch as never, { onConflict: "workspace_id" });
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    // Auto-register the Cal.com webhook whenever an API key is saved so
+    // booking status (cancelled, rescheduled) flows back to our system.
+    let calcomWebhook: { ok: boolean; message: string; created: boolean } | null = null;
+    if (data.calcomApiKey) {
+      try {
+        const { registerCalcomWebhook } =
+          await import("@/lib/providers/calcom/webhook-register.server");
+        const origin =
+          process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
+          process.env.PUBLIC_BASE_URL?.trim().replace(/\/$/, "") ||
+          (process.env.REPLIT_DEV_DOMAIN
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+            : "");
+        const r = await registerCalcomWebhook({
+          workspaceId,
+          subscriberUrl: `${origin}/api/public/calcom-webhook/${workspaceId}`,
+        });
+        calcomWebhook = { ok: r.ok, message: r.message, created: r.created };
+      } catch (e) {
+        console.warn("[saveWorkspaceCalendarSettings] calcom webhook register failed", e);
+      }
+    }
+    return { ok: true, calcomWebhook };
   });
 
 /**

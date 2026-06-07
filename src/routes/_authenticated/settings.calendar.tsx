@@ -75,7 +75,7 @@ function CalendarSettingsPage() {
   async function handleSave() {
     setSaving(true);
     try {
-      await saveSettings({
+      const result = await saveSettings({
         data: {
           ...(apiKey.trim() ? { calcomApiKey: apiKey.trim() } : {}),
           timezone,
@@ -86,6 +86,17 @@ function CalendarSettingsPage() {
       });
       setApiKey("");
       toast.success("Calendar settings saved");
+      if (result?.calcomWebhook) {
+        const wh = result.calcomWebhook;
+        if (wh.ok) {
+          toast.success(
+            wh.created ? "Cal.com webhook registered" : "Cal.com webhook already active",
+            { description: wh.message },
+          );
+        } else {
+          toast.warning("Cal.com webhook registration failed", { description: wh.message });
+        }
+      }
       qc.invalidateQueries({ queryKey: ["wcs"] });
     } catch (e) {
       toast.error("Save failed", { description: (e as Error).message });

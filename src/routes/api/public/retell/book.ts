@@ -66,7 +66,7 @@ export const Route = createFileRoute("/api/public/retell/book")({
 
         const { data: settings } = await supabaseAdmin
           .from("workspace_settings")
-          .select("calcom_api_key, default_event_type_id, timezone")
+          .select("calcom_api_key, default_event_type_id, calcom_event_type_id, timezone")
           .eq("workspace_id", wsId)
           .maybeSingle();
 
@@ -86,6 +86,7 @@ export const Route = createFileRoute("/api/public/retell/book")({
             agentSettings.booking?.eventTypeId ||
               agentSettings.calcom?.eventTypeId ||
               settings?.default_event_type_id ||
+              settings?.calcom_event_type_id ||
               0,
           ) || 0;
         const timezone = d.timezone ?? settings?.timezone ?? "UTC";
@@ -122,6 +123,7 @@ export const Route = createFileRoute("/api/public/retell/book")({
 
           await supabaseAdmin.from("bookings").insert({
             user_id: agentRow.user_id,
+            workspace_id: wsId,
             agent_id: agentRow.id,
             calcom_booking_id: booking.id,
             calcom_booking_uid: booking.uid,
