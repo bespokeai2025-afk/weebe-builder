@@ -340,9 +340,14 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
   const { data: agentMatches } = await supabaseAdmin
     .from("agents")
     .select("id, workspace_id, name, agent_type, retell_agent_id, settings");
-  const matched = (agentMatches ?? []).find(
-    (agent) => stripPrefix((agent.retell_agent_id as string) ?? "") === incomingAgentId,
-  );
+  const matched = (agentMatches ?? []).find((agent) => {
+    const s = (agent.settings ?? {}) as Record<string, unknown>;
+    // Match either the builder draft ID or the deployed clone ID stored in settings.
+    return (
+      stripPrefix((agent.retell_agent_id as string) ?? "") === incomingAgentId ||
+      (s.deployedRetellAgentId as string | undefined) === incomingAgentId
+    );
+  });
   if (matched) {
     const s = ((matched.settings ?? {}) as Record<string, unknown>);
     return {
