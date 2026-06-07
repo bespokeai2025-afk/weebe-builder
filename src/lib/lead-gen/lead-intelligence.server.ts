@@ -116,8 +116,10 @@ export async function updateLeadIntelligence(
   workspaceId: string,
   phone: string,
   intelligence: LeadIntelligence,
+  hints?: { contactName?: string | null; agentName?: string | null },
 ): Promise<void> {
   const digits = (s: string) => s.replace(/\D/g, "");
+  const now = new Date().toISOString();
 
   const { data: leads } = await supabaseAdmin
     .from("leads")
@@ -128,32 +130,66 @@ export async function updateLeadIntelligence(
   const matched = (leads ?? []).find(
     (l: any) => digits(l.phone ?? "") === digits(phone),
   );
-  if (!matched) return;
 
-  const update: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-    last_contacted_at: new Date().toISOString(),
+  const intelligenceUpdate: Record<string, unknown> = {
+    updated_at: now,
+    last_contacted_at: now,
+  };
+  if (intelligence.summary != null) intelligenceUpdate.call_summary = intelligence.summary;
+  if (intelligence.interest_level != null) intelligenceUpdate.interest_level = intelligence.interest_level;
+  if (intelligence.buying_intent != null) intelligenceUpdate.buying_intent = intelligence.buying_intent;
+  if (intelligence.lead_score != null) intelligenceUpdate.lead_score = intelligence.lead_score;
+  if (intelligence.objections != null) intelligenceUpdate.objections = intelligence.objections;
+  if (intelligence.next_action != null) intelligenceUpdate.next_action = intelligence.next_action;
+  if (intelligence.meeting_requested) intelligenceUpdate.meeting_requested = true;
+  if (intelligence.callback_requested) intelligenceUpdate.callback_requested = true;
+  if (intelligence.callback_date != null) intelligenceUpdate.callback_date = intelligence.callback_date;
+  if (intelligence.decision_maker_status != null)
+    intelligenceUpdate.decision_maker_status = intelligence.decision_maker_status;
+  if (intelligence.sentiment != null) intelligenceUpdate.sentiment = intelligence.sentiment as any;
+  intelligenceUpdate.status = intelligence.sentiment === "positive" ? "interested" : "completed";
+
+  if (matched) {
+    await (supabaseAdmin.from("leads") as any)
+      .update(intelligenceUpdate)
+      .eq("id", matched.id as string);
+    console.log("[LEAD-GEN] Lead intelligence updated", { leadId: matched.id, workspaceId });
+    return;
+  }
+
+  // No existing lead row — look up data_records for contact name, then auto-create.
+  let fullName: string | null = hints?.contactName ?? null;
+  if (!fullName) {
+    const { data: record } = await (supabaseAdmin.from("data_records") as any)
+      .select("first_name, last_name")
+      .eq("workspace_id", workspaceId)
+      .eq("mobile_number", phone)
+      .maybeSingle();
+    if (record) {
+      fullName =
+        [record.first_name, record.last_name].filter(Boolean).join(" ").trim() || null;
+    }
+  }
+
+  const newLead: Record<string, unknown> = {
+    workspace_id: workspaceId,
+    phone,
+    full_name: fullName,
+    source: hints?.agentName ? `AI call — ${hints.agentName}` : "AI call",
+    created_at: now,
+    ...intelligenceUpdate,
   };
 
-  if (intelligence.summary != null) update.call_summary = intelligence.summary;
-  if (intelligence.interest_level != null) update.interest_level = intelligence.interest_level;
-  if (intelligence.buying_intent != null) update.buying_intent = intelligence.buying_intent;
-  if (intelligence.lead_score != null) update.lead_score = intelligence.lead_score;
-  if (intelligence.objections != null) update.objections = intelligence.objections;
-  if (intelligence.next_action != null) update.next_action = intelligence.next_action;
-  if (intelligence.meeting_requested) update.meeting_requested = true;
-  if (intelligence.callback_requested) update.callback_requested = true;
-  if (intelligence.callback_date != null) update.callback_date = intelligence.callback_date;
-  if (intelligence.decision_maker_status != null)
-    update.decision_maker_status = intelligence.decision_maker_status;
-  if (intelligence.sentiment != null) update.sentiment = intelligence.sentiment as any;
-  update.status = intelligence.sentiment === "positive" ? "interested" : "completed";
+  const { data: inserted, error: insertErr } = await (supabaseAdmin.from("leads") as any)
+    .insert(newLead)
+    .select("id")
+    .single();
 
-  await (supabaseAdmin.from("leads") as any)
-    .update(update)
-    .eq("id", matched.id as string);
-
-  console.log("[LEAD-GEN] Lead intelligence updated", { leadId: matched.id, workspaceId });
+  if (insertErr) {
+    console.error("[LEAD-GEN] Auto-create lead failed", insertErr.message, { phone, workspaceId });
+  } else {
+    console.log("[LEAD-GEN] Lead auto-created from call", { leadId: inserted?.id, workspaceId, phone });
+  }
 }
 
 function mapSentiment(v?: string | null): "positive" | "neutral" | "negative" | null {

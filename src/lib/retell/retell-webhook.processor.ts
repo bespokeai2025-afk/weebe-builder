@@ -801,7 +801,19 @@ export async function processRetellWebhook(
           call.call_analysis?.user_sentiment,
           call.call_analysis?.call_summary,
         );
-        await updateLeadIntelligence(workspaceId, contactPhone, intelligence);
+        // Pull contact name from Retell dynamic variables (set when placing the call)
+        const dynVars = (payload as any)?.call?.retell_llm_dynamic_variables ?? {};
+        const contactName: string | null =
+          dynVars.full_name?.trim() ||
+          [dynVars.First_name ?? dynVars.first_name, dynVars.Last_name ?? dynVars.last_name]
+            .filter(Boolean)
+            .join(" ")
+            .trim() ||
+          null;
+        await updateLeadIntelligence(workspaceId, contactPhone, intelligence, {
+          contactName,
+          agentName: agentRow.name ?? null,
+        });
         console.log("[LEAD-GEN] Intelligence update complete", { callId, score: intelligence.lead_score });
       } catch (lgErr) {
         // Best-effort — never fail the webhook response due to lead gen errors
