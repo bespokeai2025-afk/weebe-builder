@@ -522,7 +522,19 @@ function DataPage() {
           fromNumber: fromNumber || null,
         },
       });
-      toast.success(`Placed: ${result.placed}, queued: ${result.queued}, failed: ${result.failed}`);
+      if (result.failed > 0 && result.placed === 0 && result.queued === 0) {
+        const firstError = result.errors?.[0]?.message ?? "Unknown error";
+        toast.error(`Failed to place ${result.failed} call${result.failed !== 1 ? "s" : ""}`, {
+          description: firstError,
+        });
+      } else {
+        toast.success(
+          `Placed: ${result.placed}, queued: ${result.queued}${result.failed ? `, failed: ${result.failed}` : ""}`,
+          result.failed && result.errors?.[0]
+            ? { description: result.errors[0].message }
+            : undefined,
+        );
+      }
       setSelected(new Set());
       qc.invalidateQueries({ queryKey: ["data-records"] });
     } catch (err) {

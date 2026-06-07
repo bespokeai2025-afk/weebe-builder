@@ -188,23 +188,31 @@ export const startCallingRecords = createServerFn({ method: "POST" })
     let failed = 0;
     const errors: { recordId: string; message: string }[] = [];
 
-    // Read workspace call schedule to get maxDailyAttempts
+    // Read workspace settings: call schedule + per-client Retell API key
     const { data: wsSettings } = await sb
       .from("workspace_settings")
-      .select("call_schedule")
+      .select("call_schedule, retell_workspace_id")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     const callSchedule = (wsSettings?.call_schedule ?? {}) as Record<string, unknown>;
     const maxDailyAttempts = typeof callSchedule.maxDailyAttempts === "number"
       ? callSchedule.maxDailyAttempts
       : null;
+    // Per-client Retell key (stored by admin during workspace approval)
+    const clientRetellKey = (wsSettings as any)?.retell_workspace_id?.trim() || undefined;
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
 
     for (const r of records ?? []) {
       const useAgentId = (data.agentId ?? r.assigned_agent_id) as string | null;
       const agent = useAgentId ? agentsById[useAgentId] : null;
-      const retellAgentId = agent?.retell_agent_id ?? null;
+      // Prefer the deployed agent ID stored in settings (Go Live clone),
+      // fall back to the row's retell_agent_id for backwards compat.
+      const agentSettings = (agent as any)?.settings as Record<string, unknown> | null;
+      const retellAgentId =
+        (agentSettings?.deployedRetellAgentId as string | undefined) ??
+        agent?.retell_agent_id ??
+        null;
 
       // Enforce max daily call attempts from campaign schedule settings
       if (maxDailyAttempts != null && maxDailyAttempts > 0) {
@@ -236,7 +244,6 @@ export const startCallingRecords = createServerFn({ method: "POST" })
 
       try {
         // Build Retell dynamic variables from the agent's lead gen variable mappings
-        const agentSettings = (agent as any)?.settings as Record<string, unknown> | null;
         const leadGenSettings = agentSettings?.leadGen as Record<string, unknown> | undefined;
         const variableMappings = leadGenSettings?.variableMappings as Record<string, string> | undefined;
 
@@ -267,7 +274,7 @@ export const startCallingRecords = createServerFn({ method: "POST" })
           callPayload.retell_llm_dynamic_variables = retellDynamicVars;
         }
 
-        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST");
+        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", clientRetellKey);
 
         // Increment daily attempt counter in meta
         const currentMeta = (r.meta ?? {}) as Record<string, unknown>;
