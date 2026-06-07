@@ -652,12 +652,23 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
     console.log("[retell-deploy] Sending CF to Retell →", mode, "tools:", (cfBody.tools as Array<Record<string,unknown>> | undefined)?.map((t) => ({ name: t.name, type: t.type, url: t.url })));
     try {
       if (mode === "update" && conversationFlowId) {
-        cfResp = await retellFetch(
-          `/update-conversation-flow/${conversationFlowId}`,
-          cfBody,
-          "PATCH",
-          builderKey,
-        );
+        try {
+          cfResp = await retellFetch(
+            `/update-conversation-flow/${conversationFlowId}`,
+            cfBody,
+            "PATCH",
+            builderKey,
+          );
+        } catch (updateErr) {
+          // Conversation flow was deleted from Retell (stale ID) — create a fresh one.
+          if (updateErr instanceof RetellApiError && updateErr.status === 404) {
+            console.warn("[retell-deploy] Conversation flow not found in Retell (stale ID), creating a new one");
+            cfResp = await retellFetch(`/create-conversation-flow`, cfBody, "POST", builderKey);
+            conversationFlowId = String(cfResp.conversation_flow_id ?? "");
+          } else {
+            throw updateErr;
+          }
+        }
       } else {
         cfResp = await retellFetch(`/create-conversation-flow`, cfBody, "POST", builderKey);
         conversationFlowId = String(cfResp.conversation_flow_id ?? "");
@@ -785,6 +796,10 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
           updateBody.voice_id = "11labs-Adrian";
           agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
           voiceFallback = true;
+        } else if (e instanceof RetellApiError && e.status === 404) {
+          // Agent was deleted from Retell (stale agentId) — clear it so we fall through to create.
+          console.warn("[retell-deploy] Agent not found in Retell (stale agentId), will create a new agent");
+          agentId = undefined;
         } else throw e;
       }
     }
