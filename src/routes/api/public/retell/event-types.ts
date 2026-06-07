@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
+import { resolveRetellCandidateKeysByAgent } from "@/lib/calendar/retell-key-lookup";
 import { listEventTypes } from "@/lib/calendar/calcom.server";
 import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
 
@@ -30,23 +31,7 @@ export const Route = createFileRoute("/api/public/retell/event-types")({
             undefined;
         } catch { /* ignore */ }
 
-        const candidateKeys: string[] = [];
-        if (bodyAgentId) {
-          const { data: agentLookup } = await supabaseAdmin
-            .from("agents")
-            .select("workspace_id")
-            .or(`retell_agent_id.eq.${bodyAgentId},settings->>deployedRetellAgentId.eq.${bodyAgentId}`)
-            .maybeSingle();
-          if (agentLookup?.workspace_id) {
-            const { data: wsLookup } = await supabaseAdmin
-              .from("workspace_settings")
-              .select("retell_workspace_id")
-              .eq("workspace_id", agentLookup.workspace_id)
-              .maybeSingle();
-            const wk = wsLookup?.retell_workspace_id?.trim();
-            if (wk && wk.startsWith("key_")) candidateKeys.push(wk);
-          }
-        }
+        const candidateKeys = await resolveRetellCandidateKeysByAgent(bodyAgentId);
 
         if (!verifyRetellSignatureMultiKey(rawBody, sig, candidateKeys)) {
           console.warn("[retell/event-types] Signature verification failed", { agentId: bodyAgentId });

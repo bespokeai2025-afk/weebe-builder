@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
+import { resolveRetellCandidateKeysByBooking } from "@/lib/calendar/retell-key-lookup";
 import { rescheduleBooking } from "@/lib/calendar/calcom.server";
 import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
 
@@ -35,23 +36,7 @@ export const Route = createFileRoute("/api/public/retell/reschedule")({
             (args.booking_id as string) ?? (quick.booking_id as string) ?? undefined;
         } catch { /* ignore */ }
 
-        const candidateKeys: string[] = [];
-        if (bodyBookingId) {
-          const { data: bkLookup } = await supabaseAdmin
-            .from("bookings")
-            .select("workspace_id")
-            .eq("calcom_booking_uid", bodyBookingId)
-            .maybeSingle();
-          if (bkLookup?.workspace_id) {
-            const { data: wsLookup } = await supabaseAdmin
-              .from("workspace_settings")
-              .select("retell_workspace_id")
-              .eq("workspace_id", bkLookup.workspace_id)
-              .maybeSingle();
-            const wk = wsLookup?.retell_workspace_id?.trim();
-            if (wk && wk.startsWith("key_")) candidateKeys.push(wk);
-          }
-        }
+        const candidateKeys = await resolveRetellCandidateKeysByBooking(bodyBookingId);
 
         if (!verifyRetellSignatureMultiKey(rawBody, sig, candidateKeys)) {
           console.warn("[retell/reschedule] Signature verification failed", { bookingId: bodyBookingId });

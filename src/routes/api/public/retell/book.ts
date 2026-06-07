@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
+import { resolveRetellCandidateKeysByAgent } from "@/lib/calendar/retell-key-lookup";
 import { createBooking } from "@/lib/calendar/calcom.server";
 import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
 
@@ -36,23 +37,6 @@ function formatBookingTime(isoTime: string, timezone: string): string {
   }).format(d);
 }
 
-async function resolveWorkspaceCandidateKey(bodyAgentId?: string): Promise<string[]> {
-  if (!bodyAgentId) return [];
-  const { data: agentLookup } = await supabaseAdmin
-    .from("agents")
-    .select("workspace_id")
-    .or(`retell_agent_id.eq.${bodyAgentId},settings->>deployedRetellAgentId.eq.${bodyAgentId}`)
-    .maybeSingle();
-  if (!agentLookup?.workspace_id) return [];
-  const { data: wsLookup } = await supabaseAdmin
-    .from("workspace_settings")
-    .select("retell_workspace_id")
-    .eq("workspace_id", agentLookup.workspace_id)
-    .maybeSingle();
-  const wk = wsLookup?.retell_workspace_id?.trim();
-  return wk && wk.startsWith("key_") ? [wk] : [];
-}
-
 export const Route = createFileRoute("/api/public/retell/book")({
   server: {
     handlers: {
@@ -73,7 +57,7 @@ export const Route = createFileRoute("/api/public/retell/book")({
             undefined;
         } catch { /* ignore */ }
 
-        const candidateKeys = await resolveWorkspaceCandidateKey(bodyAgentId);
+        const candidateKeys = await resolveRetellCandidateKeysByAgent(bodyAgentId);
 
         if (!verifyRetellSignatureMultiKey(rawBody, sig, candidateKeys)) {
           console.warn("[retell/book] Signature verification failed", { agentId: bodyAgentId });
