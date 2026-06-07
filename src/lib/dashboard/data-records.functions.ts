@@ -161,7 +161,7 @@ export const startCallingRecords = createServerFn({ method: "POST" })
 
     const { data: records, error } = await sb
       .from("data_records")
-      .select("id, mobile_number, assigned_agent_id, name, first_name, last_name, email, title, client_name, unique_id, property_type, bedrooms, address_line1, address_line2, city, state, postal_code, lead_external_id, notes, meta")
+      .select("id, mobile_number, assigned_agent_id, name, first_name, last_name, email, title, client_name, unique_id, property_type, bedrooms, address_line1, address_line2, city, state, postal_code, lead_external_id, meta")
       .eq("workspace_id", workspaceId)
       .in("id", data.recordIds);
     if (error) throw new Error(error.message);
