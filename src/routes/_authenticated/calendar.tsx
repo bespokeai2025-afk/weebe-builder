@@ -56,7 +56,9 @@ function CalendarPage() {
     queryFn: () => fn(),
   });
   const data = q.data;
-  const bookings: UnifiedBooking[] = (data?.bookings ?? []) as UnifiedBooking[];
+  const bookings: UnifiedBooking[] = ((data?.bookings ?? []) as UnifiedBooking[]).filter(
+    (b) => b.source === "calcom",
+  );
   const [cursor, setCursor] = useState<Date>(() => new Date());
   const [selected, setSelected] = useState<Date>(() => new Date());
   const now = Date.now();

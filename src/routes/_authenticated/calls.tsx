@@ -119,6 +119,7 @@ function CallsPage() {
                     <th className="px-3 py-2">Agent</th>
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Sentiment</th>
+                    <th className="px-3 py-2">Summary</th>
                     <th className="px-3 py-2">Duration</th>
                     <th className="px-3 py-2">Recording</th>
                     <th className="px-3 py-2">When</th>
@@ -131,14 +132,7 @@ function CallsPage() {
                       c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
                     return (
                       <tr key={c.id} className="border-b border-border/40 align-top">
-                        <td className="px-3 py-2 font-medium">
-                          {contact}
-                          {c.call_summary && (
-                            <div className="mt-0.5 line-clamp-1 max-w-xs text-[11px] text-muted-foreground">
-                              {c.call_summary}
-                            </div>
-                          )}
-                        </td>
+                        <td className="px-3 py-2 font-medium">{contact}</td>
                         <td className="px-3 py-2">
                           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                             {inbound ? (
@@ -178,7 +172,14 @@ function CallsPage() {
                             <span className="text-xs text-muted-foreground">\u2014</span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground tabular-nums">
+                        <td className="max-w-[280px] px-3 py-2 text-xs text-muted-foreground">
+                          {c.call_summary ? (
+                            <span className="line-clamp-3">{c.call_summary}</span>
+                          ) : (
+                            <span className="text-muted-foreground/40">—</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-muted-foreground tabular-nums">
                           {fmtDuration(c.duration_seconds)}
                         </td>
                         <td className="px-3 py-2">
