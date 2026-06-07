@@ -202,16 +202,12 @@ function AnalyticsPage() {
   const allCalls = (result?.calls ?? []) as any[];
   const agentNames: Record<string, string> = (result?.agentNames ?? {}) as Record<string, string>;
 
-  // Build distinct agent list from the returned calls
+  // Build agent list from the live Retell agents (agentNames) so it's always
+  // present regardless of the selected date range, and only shows connected
+  // live agents rather than any agent that historically appeared in calls.
   const agentList = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const c of allCalls) {
-      if (c.agent_id && !seen.has(c.agent_id)) {
-        seen.set(c.agent_id, agentNames[c.agent_id] ?? c.agent_name ?? c.agent_id);
-      }
-    }
-    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
-  }, [allCalls, agentNames]);
+    return Object.entries(agentNames).map(([id, name]) => ({ id, name }));
+  }, [agentNames]);
 
   const calls = useMemo(
     () => (selectedAgentId ? allCalls.filter((c) => c.agent_id === selectedAgentId) : allCalls),
