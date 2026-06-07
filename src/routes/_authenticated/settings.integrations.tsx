@@ -40,9 +40,9 @@ function IntegrationsPage() {
 
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Retell Webhook Endpoints</CardTitle>
+            <CardTitle>Voice Agent Webhook Endpoints</CardTitle>
             <CardDescription>
-              Paste these URLs into the matching custom-function nodes in your Retell agent. Every
+              Paste these URLs into the matching custom-function nodes in your voice agent. Every
               endpoint is signed with <code>x-retell-signature</code> using your{" "}
               <code>RETELL_WEBHOOK_SECRET</code>.
             </CardDescription>

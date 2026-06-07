@@ -43,7 +43,7 @@ class RetellApiError extends Error {
     public status: number,
     message: string,
   ) {
-    super(`Retell ${path} ${status}: ${message}`);
+    super(`${path} (${status}): ${message}`);
     this.name = "RetellApiError";
   }
 }
@@ -748,11 +748,11 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
         });
         if (stripped.length > 0 || hardMismatches.length > 0) {
           throw new Error(
-            `Retell transfer verification failed. Stripped nodes: ${stripped.join(", ") || "none"}. Critical schema mismatches: ${JSON.stringify(hardMismatches)}.`,
+            `Transfer verification failed. Stripped nodes: ${stripped.join(", ") || "none"}. Critical schema mismatches: ${JSON.stringify(hardMismatches)}.`,
           );
         }
       } catch (verifyErr) {
-        throw new Error(`Retell transfer verification failed: ${(verifyErr as Error).message}`);
+        throw new Error(`Transfer verification failed: ${(verifyErr as Error).message}`);
       }
     }
 
@@ -825,7 +825,7 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
       try {
         agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
       } catch (e) {
-        if (/Voice .* not found/i.test((e as Error).message)) {
+        if (/voice.*not found|not found.*voice/i.test((e as Error).message)) {
           updateBody.voice_id = "11labs-Adrian";
           agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
           voiceFallback = true;
@@ -846,7 +846,7 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
       try {
         agentResp = await retellFetch(`/create-agent`, createBody, "POST", builderKey);
       } catch (e) {
-        if (/Voice .* not found/i.test((e as Error).message)) {
+        if (/voice.*not found|not found.*voice/i.test((e as Error).message)) {
           createBody.voice_id = "11labs-Adrian";
           agentResp = await retellFetch(`/create-agent`, createBody, "POST", builderKey);
           voiceFallback = true;
@@ -999,7 +999,7 @@ export const fetchRetellAgent = createServerFn({ method: "POST" })
       const status = err instanceof RetellApiError ? err.status : undefined;
       const message =
         status === 404
-          ? `Agent ${agentId} was not found in Retell. It may have been deleted.`
+          ? `Agent ${agentId} was not found. It may have been deleted.`
           : (err as Error).message;
       return { ok: false as const, error: message };
     }
@@ -1050,7 +1050,7 @@ export const cloneCustomVoice = createServerFn({ method: "POST" })
     }
     if (!res.ok) {
       const message = (parsed.message as string | undefined) || text || res.statusText;
-      throw new Error(`Retell /clone-voice ${res.status}: ${message}`);
+      throw new Error(`Voice clone failed (${res.status}): ${message}`);
     }
     return {
       voiceId: String(parsed.voice_id ?? ""),

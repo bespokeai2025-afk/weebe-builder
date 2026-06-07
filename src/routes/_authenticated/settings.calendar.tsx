@@ -470,7 +470,7 @@ function CalendarSettingsPage() {
               Endpoint base:{" "}
               <code className="px-1 py-0.5 rounded bg-muted">
                 {typeof window !== "undefined" ? window.location.origin : ""}
-                /api/public/retell
+                /api/public/voice
               </code>
             </p>
             <ul className="list-disc pl-5 space-y-1">
