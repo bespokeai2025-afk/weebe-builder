@@ -40,6 +40,28 @@ export const listMyAgents = createServerFn({ method: "GET" })
   });
 
 /**
+ * Return every agent in the workspace with id, name, retell_agent_id and
+ * settings — used on the Data page so all agents appear in dropdowns
+ * regardless of live/draft status.
+ */
+export const listAllWorkspaceAgents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase
+      .from("agents")
+      .select("id, retell_agent_id, name, settings")
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Array<{
+      id: string;
+      retell_agent_id: string | null;
+      name: string;
+      settings: Json;
+    }>;
+  });
+
+/**
  * List only agents that have been pushed live via "Go Live" with
  * lead_generation or client_qualification flow type — used on the
  * Data / CSV page so only call-capable agents appear in selectors.
