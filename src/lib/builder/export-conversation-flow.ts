@@ -179,6 +179,13 @@ export function exportAgentJson(
   };
   delete agent.__key_order;
 
+  // Set voice_model for ElevenLabs voices. Retell uses this to select the
+  // ElevenLabs model tier (e.g. eleven_turbo_v2, eleven_flash_v2_5). We
+  // preserve whatever rawAgent had; for fresh agents we default to turbo v2.
+  if (settings.voiceId?.startsWith("11labs-")) {
+    agent.voice_model = rawAgent.voice_model ?? "eleven_turbo_v2";
+  }
+
   agent.voice_emotion =
     settings.voiceEmotion === "none"
       ? null

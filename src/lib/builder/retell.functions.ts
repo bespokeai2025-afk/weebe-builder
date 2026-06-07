@@ -614,6 +614,7 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
     // ---- Agent ----
     let agentResp: Record<string, unknown> | undefined;
     let agentId = mode === "update" ? data.agentId : undefined;
+    let voiceFallback = false;
 
     if (mode === "update" && agentId) {
       const updateBody = stripKeys(agent, READONLY_KEYS);
@@ -621,7 +622,15 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         type: "conversation-flow",
         conversation_flow_id: conversationFlowId,
       };
-      agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH");
+      try {
+        agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH");
+      } catch (e) {
+        if (/Voice .* not found/i.test((e as Error).message)) {
+          updateBody.voice_id = "11labs-Adrian";
+          agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH");
+          voiceFallback = true;
+        } else throw e;
+      }
     }
 
     if (!agentResp) {
@@ -636,6 +645,7 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         if (/Voice .* not found/i.test((e as Error).message)) {
           createBody.voice_id = "11labs-Adrian";
           agentResp = await retellFetch(`/create-agent`, createBody);
+          voiceFallback = true;
         } else throw e;
       }
       agentId = String(agentResp.agent_id ?? "");
@@ -647,6 +657,7 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
       agentName: String((agentResp.agent_name as string | undefined) ?? ""),
       calendarConnected,
       bookingToolsAttached: calendarConnected,
+      voiceFallback,
     };
   });
 
@@ -1029,6 +1040,31 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
       type: "conversation-flow",
       conversation_flow_id: newCfId,
     };
+
+    // Use the builder's intended voice_id (stored in agent settings) rather
+    // than the voice from the platform agent, which may have been silently
+    // fallen back to 11labs-Adrian when the custom voice wasn't available in
+    // the platform Retell workspace.
+    if (data.agentRowId) {
+      const { data: agentRow } = await supabaseAdmin
+        .from("agents")
+        .select("settings")
+        .eq("id", data.agentRowId)
+        .maybeSingle();
+      const storedSettings = (agentRow?.settings as Record<string, unknown> | null) ?? {};
+      const intendedVoiceId = (storedSettings.voiceId as string | undefined)?.trim();
+      if (intendedVoiceId) {
+        agentBody.voice_id = intendedVoiceId;
+        // Preserve voice_model from stored settings for ElevenLabs voices.
+        const intendedVoiceModel = (storedSettings.voiceModel as string | undefined)?.trim();
+        if (intendedVoiceId.startsWith("11labs-")) {
+          agentBody.voice_model =
+            intendedVoiceModel ||
+            (agent.voice_model as string | undefined) ||
+            "eleven_turbo_v2";
+        }
+      }
+    }
 
     // Auto-attach booking tools if this workspace has Cal.com connected.
     // In retail mode, use the shared retail workspace so all deployed agents

@@ -151,6 +151,13 @@ export function RetellDeployDialog() {
       toast.success(isUpdate ? "Agent updated" : "Agent created", {
         description: `agent_id: ${res.agentId}\n${bookingNote}`,
       });
+      if (res.voiceFallback) {
+        toast.warning("Voice not available in builder workspace", {
+          description:
+            "Your custom ElevenLabs voice wasn't found in this Retell workspace — the builder is using 11labs-Adrian for test calls. Your original voice will be applied automatically when you Go Live with your own Retell key.",
+          duration: 10000,
+        });
+      }
     } catch (e) {
       toast.error("Deploy failed", { description: (e as Error).message });
     } finally {

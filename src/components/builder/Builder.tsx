@@ -160,7 +160,7 @@ function ElevenLabsVoiceInserter({ onSelect }: { onSelect: (voiceId: string) => 
         </Button>
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Find it in your ElevenLabs dashboard → Voices.
+        Find it in your ElevenLabs dashboard → Voices. This voice is used when you Go Live with your own Retell key; the builder preview may use a fallback voice if the ID isn't in the platform workspace.
       </p>
     </div>
   );
