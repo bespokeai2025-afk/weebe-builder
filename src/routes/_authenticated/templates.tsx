@@ -81,13 +81,20 @@ function TemplatesPage() {
       const settings = (row.settings ?? {}) as Record<string, unknown>;
       const variables = Array.isArray(row.variables) ? row.variables : [];
 
-      // Strip any per-node Cal.com API keys saved by the template author so the
-      // user's own workspace credentials are used when they deploy.
+      // Strip any per-node Cal.com credentials saved by the template author so
+      // the user's own workspace credentials are used when they deploy.
       const nodes = (rawNodes as Array<Record<string, unknown>>).map((node) => {
         const data = node.data as Record<string, unknown> | undefined;
         if (!data) return node;
-        const { toolApiKey: _k, ...cleanData } = data as Record<string, unknown> & {
+        const {
+          toolApiKey: _k,
+          toolEventTypeId: _e,
+          toolTimezone: _tz,
+          ...cleanData
+        } = data as Record<string, unknown> & {
           toolApiKey?: unknown;
+          toolEventTypeId?: unknown;
+          toolTimezone?: unknown;
         };
         return { ...node, data: cleanData };
       });
