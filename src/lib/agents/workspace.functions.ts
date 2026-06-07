@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { sendResendEmail, renderBasicEmail } from "@/lib/email/resend.server";
+
+const APP_URL =
+  process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
+  (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
 
 async function assertAdmin(userId: string) {
   const { data } = await supabaseAdmin
@@ -113,22 +118,61 @@ export const decideWorkspaceRequest = createServerFn({ method: "POST" })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
 
+    // Look up the requesting user's profile (email + default workspace).
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name, default_workspace_id")
+      .eq("user_id", req.user_id)
+      .maybeSingle();
+
     // When approving with a Retell API key, store it in the user's workspace
     // settings so cloneRetellAgentForDeploy can use it automatically.
     if (data.approve && data.retellApiKey?.trim()) {
       const apiKey = data.retellApiKey.trim();
-      // Find the user's default workspace.
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("default_workspace_id")
-        .eq("user_id", req.user_id)
-        .maybeSingle();
       const workspaceId = profile?.default_workspace_id;
       if (workspaceId) {
         await supabaseAdmin
           .from("workspace_settings")
           .update({ retell_workspace_id: apiKey } as never)
           .eq("workspace_id", workspaceId);
+      }
+    }
+
+    // Notify the user by email (non-critical — never block the decision).
+    if (profile?.email) {
+      const name = profile.full_name?.trim() || "there";
+      const workspaceName = req.workspace_name || "your workspace";
+      try {
+        if (data.approve) {
+          const cta = APP_URL
+            ? `<p style="margin:20px 0 0;"><a href="${APP_URL}/dashboard" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-size:14px;font-weight:600;">Open your workspace</a></p>`
+            : "";
+          await sendResendEmail({
+            to: profile.email,
+            subject: `Your workspace "${workspaceName}" has been approved`,
+            html: renderBasicEmail({
+              heading: "Your workspace is approved",
+              bodyHtml: `<p style="margin:0 0 12px;">Hi ${name},</p>
+                <p style="margin:0 0 12px;">Good news — your workspace <strong>${workspaceName}</strong> has been approved and is ready to use. You can now build agents and take them live.</p>
+                ${cta}`,
+            }),
+            text: `Hi ${name},\n\nYour workspace "${workspaceName}" has been approved and is ready to use.${APP_URL ? `\n\nOpen it: ${APP_URL}/dashboard` : ""}\n\n— Webespoke AI`,
+          });
+        } else {
+          await sendResendEmail({
+            to: profile.email,
+            subject: `Update on your workspace request "${workspaceName}"`,
+            html: renderBasicEmail({
+              heading: "Workspace request update",
+              bodyHtml: `<p style="margin:0 0 12px;">Hi ${name},</p>
+                <p style="margin:0 0 12px;">Thanks for your interest. Unfortunately your request for the workspace <strong>${workspaceName}</strong> was not approved at this time.</p>
+                <p style="margin:0;">If you think this was a mistake or want to discuss it, just reply to this email.</p>`,
+            }),
+            text: `Hi ${name},\n\nYour request for the workspace "${workspaceName}" was not approved at this time. Reply to this email if you'd like to discuss it.\n\n— Webespoke AI`,
+          });
+        }
+      } catch (err) {
+        console.error("[workspace] approval email failed:", err);
       }
     }
 
