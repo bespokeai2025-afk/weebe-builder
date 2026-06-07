@@ -62,6 +62,7 @@ const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean; c
   { value: "title", label: "Title" },
   { value: "client_name", label: "Client Name" },
   { value: "unique_id", label: "Unique ID" },
+  { value: "lead_external_id", label: "Lead External ID" },
   { value: "property_type", label: "Property Type" },
   { value: "bedrooms", label: "Bedrooms" },
   { value: "address_line1", label: "Address Line 1" },
@@ -69,7 +70,8 @@ const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean; c
   { value: "city", label: "City" },
   { value: "state", label: "State" },
   { value: "postal_code", label: "Postal Code" },
-  { value: "__custom__", label: "Custom field", custom: true },
+  { value: "notes", label: "Notes" },
+  { value: "__custom__", label: "Custom field (stored in meta)", custom: true },
 ];
 
 function normaliseKey(s: string) {
@@ -122,6 +124,13 @@ const FIELD_ALIASES: Record<string, string> = {
   postcode: "postal_code",
   zip: "postal_code",
   zipcode: "postal_code",
+  leadexternalid: "lead_external_id",
+  leadid: "lead_external_id",
+  notes: "notes",
+  note: "notes",
+  comments: "notes",
+  description: "notes",
+  remarks: "notes",
 };
 
 function autoDetectMapping(headers: string[]): Record<string, string> {
@@ -332,6 +341,8 @@ function DataPage() {
           city: (out.city as string | null) ?? null,
           state: (out.state as string | null) ?? null,
           postal_code: (out.postal_code as string | null) ?? null,
+          lead_external_id: (out.lead_external_id as string | null) ?? null,
+          notes: (out.notes as string | null) ?? null,
           ...(Object.keys(meta).length > 0 ? { meta } : {}),
         };
       });
