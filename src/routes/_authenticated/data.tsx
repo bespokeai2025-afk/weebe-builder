@@ -571,7 +571,16 @@ function DataPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowCsvImport(!showCsvImport)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (!showCsvImport && agentFilter !== "all") {
+                setCsvImportAgentId(agentFilter);
+              }
+              setShowCsvImport(!showCsvImport);
+            }}
+          >
             <Database className="mr-1.5 h-3.5 w-3.5" />
             Import CSV
           </Button>
