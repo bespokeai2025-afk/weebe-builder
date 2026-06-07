@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutGrid,
+  Workflow,
   LayoutTemplate,
   LayoutDashboard,
-  Workflow,
   CalendarDays,
   CreditCard,
   ShieldCheck,
@@ -14,12 +14,10 @@ import {
   Settings,
   Sparkles,
   Check,
-  Database,
-  PhoneCall,
-  BarChart3,
-  MessageSquare,
-  UserCheck
+  Plug,
 } from "lucide-react";
+
+
 import {
   Sidebar,
   SidebarContent,
@@ -31,7 +29,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -39,27 +37,21 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyAdminStatus, getMyProfile } from "@/lib/auth/auth.functions";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Agents", url: "/my-agents", icon: LayoutGrid },
   { title: "Builder", url: "/builder", icon: Workflow },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Templates", url: "/templates", icon: LayoutTemplate },
-  { title: "Data", url: "/data", icon: Database },
-  { title: "Leads", url: "/leads", icon: UserCheck },
-  { title: "Qualified", url: "/qualified", icon: Check },
-  { title: "Calls", url: "/calls", icon: PhoneCall },
-  { title: "Calendar", url: "/calendar", icon: CalendarDays },
-  { title: "WhatsApp", url: "/whatsapp", icon: MessageSquare },
+  { title: "Calendar", url: "/settings/calendar", icon: CalendarDays },
+  { title: "Integrations", url: "/settings/integrations", icon: Plug },
   { title: "Billing", url: "/billing", icon: CreditCard },
 ];
 
@@ -101,7 +93,7 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    navigate({ to: "/login", search: { redirect: "/" } });
+    navigate({ to: "/login" });
   };
 
   const initials = (email || "U").slice(0, 2).toUpperCase();
@@ -210,14 +202,10 @@ export function AppSidebar() {
                         <item.icon
                           className={cn(
                             "h-[18px] w-[18px] shrink-0 transition-colors",
-                            active
-                              ? "text-primary"
-                              : "text-muted-foreground group-hover/nav:text-foreground",
+                            active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
                           )}
                         />
-                        <span className="truncate group-data-[collapsible=icon]:hidden">
-                          {item.title}
-                        </span>
+                        <span className="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -248,9 +236,7 @@ export function AppSidebar() {
                         <ShieldCheck
                           className={cn(
                             "h-[18px] w-[18px] shrink-0",
-                            isActive("/admin")
-                              ? "text-primary"
-                              : "text-muted-foreground group-hover/nav:text-foreground",
+                            isActive("/admin") ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
                           )}
                         />
                         <span className="truncate group-data-[collapsible=icon]:hidden">Admin</span>
@@ -267,14 +253,10 @@ export function AppSidebar() {
                         <Mail
                           className={cn(
                             "h-[18px] w-[18px] shrink-0",
-                            isActive("/admin/user-activity")
-                              ? "text-primary"
-                              : "text-muted-foreground group-hover/nav:text-foreground",
+                            isActive("/admin/user-activity") ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
                           )}
                         />
-                        <span className="truncate group-data-[collapsible=icon]:hidden">
-                          User activity
-                        </span>
+                        <span className="truncate group-data-[collapsible=icon]:hidden">User activity</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -284,6 +266,7 @@ export function AppSidebar() {
           </>
         )}
       </SidebarContent>
+
 
       <div className="mx-2 mb-1 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
       <SidebarFooter className="px-1.5 pb-3 group-data-[collapsible=icon]:px-1.5">
@@ -309,10 +292,7 @@ export function AppSidebar() {
                     </span>
                     <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                       {isAdmin ? (
-                        <Badge
-                          variant="secondary"
-                          className="h-4 rounded px-1.5 py-0 text-[10px] font-normal"
-                        >
+                        <Badge variant="secondary" className="h-4 rounded px-1.5 py-0 text-[10px] font-normal">
                           Admin
                         </Badge>
                       ) : (
@@ -334,16 +314,7 @@ export function AppSidebar() {
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <div className="px-2 py-1.5 flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Theme</span>
-              <ThemeToggle />
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleSignOut}
-              className="text-destructive focus:text-destructive"
-            >
+            <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
             </DropdownMenuItem>
