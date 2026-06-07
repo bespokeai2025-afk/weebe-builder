@@ -101,26 +101,31 @@ export function RetellDeployDialog() {
     try {
       const agent = exportAgentJson(nodes, edges, settings, variables);
       const isUpdate = kind === "update";
-      const CAL_PRESETS = new Set([
-        "check_availability",
-        "book_appointment",
-        "reschedule_appointment",
-        "cancel_appointment",
-      ]);
+      // Map both the base preset names AND the Retell-native _cal suffixed
+      // variants back to the base preset so nodes imported from an existing
+      // agent (where the raw tool_id is e.g. "check_availability_cal") are
+      // still picked up and re-configured with the correct credentials.
+      const CAL_PRESET_NORMALIZE: Record<
+        string,
+        "check_availability" | "book_appointment" | "reschedule_appointment" | "cancel_appointment"
+      > = {
+        check_availability: "check_availability",
+        book_appointment: "book_appointment",
+        reschedule_appointment: "reschedule_appointment",
+        cancel_appointment: "cancel_appointment",
+        check_availability_cal: "check_availability",
+        book_appointment_cal: "book_appointment",
+      };
       const calToolOverrides = nodes
         .filter(
           (n) =>
             n.data.kind === "function" &&
             typeof n.data.toolId === "string" &&
-            CAL_PRESETS.has(n.data.toolId),
+            n.data.toolId in CAL_PRESET_NORMALIZE,
         )
         .map((n) => ({
           nodeId: n.id,
-          preset: n.data.toolId as
-            | "check_availability"
-            | "book_appointment"
-            | "reschedule_appointment"
-            | "cancel_appointment",
+          preset: CAL_PRESET_NORMALIZE[n.data.toolId as string],
           name: n.data.toolName,
           description: n.data.toolDescription,
           apiKey: n.data.toolApiKey,

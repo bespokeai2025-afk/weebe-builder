@@ -7,6 +7,7 @@ import {
   getRetailWorkspaceId,
   isRetailDeployEnabled,
 } from "@/lib/deploy/config.server";
+import { registerCalcomWebhook } from "@/lib/providers/calcom/webhook-register.server";
 
 /**
  * Look up whether the signed-in user has Cal.com configured at the workspace
@@ -493,6 +494,20 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
     // ---- Conversation flow ----
     const cfBody = stripKeys(cf, READONLY_KEYS);
 
+    // Fix relative tool URLs: Retell requires absolute URLs for custom-type
+    // tools. Tools stored from a previous import may have relative paths
+    // (e.g. "/api/public/retell/availability"). Convert them to absolute so
+    // Retell does not reject the conversation flow with a URL validation error.
+    const PUBLIC_BASE_TOOL = process.env.PUBLIC_BASE_URL ?? "";
+    if (Array.isArray(cfBody.tools) && PUBLIC_BASE_TOOL) {
+      cfBody.tools = (cfBody.tools as Array<Record<string, unknown>>).map((tool) => {
+        if (tool.type === "custom" && typeof tool.url === "string" && tool.url.startsWith("/")) {
+          return { ...tool, url: `${PUBLIC_BASE_TOOL}${tool.url}` };
+        }
+        return tool;
+      });
+    }
+
     // Audit: list every transfer_call node going to Retell so deployment
     // problems with transfers (silent stripping, wrong type, bad numbers)
     // are visible in worker logs.
@@ -668,6 +683,42 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
       }
       agentId = String(agentResp.agent_id ?? "");
     }
+
+    // ---- Auto-register Cal.com webhook when booking tools are in the flow ----
+    // If the CF has any Retell-native Cal.com tools, ensure the workspace's
+    // webhook is registered so booking events get forwarded to us.
+    // Best-effort — failure does not block the deploy.
+    const hasCfCalTools =
+      Array.isArray(cfBody.tools) &&
+      (cfBody.tools as Array<Record<string, unknown>>).some(
+        (t) => t.type === "check_availability_cal" || t.type === "book_appointment_cal",
+      );
+    if (hasCfCalTools && wsId) {
+      const webhookBase =
+        process.env.PUBLIC_BASE_URL ||
+        (process.env.REPLIT_DEV_DOMAIN
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : "");
+      if (webhookBase) {
+        try {
+          const whResult = await registerCalcomWebhook({
+            workspaceId: wsId,
+            subscriberUrl: `${webhookBase}/api/public/calcom-webhook`,
+          });
+          console.log("[retell-deploy] Cal.com webhook registration:", whResult.message);
+        } catch (whErr) {
+          console.warn("[retell-deploy] Cal.com webhook registration failed:", whErr);
+        }
+      }
+    }
+
+    console.log("[retell-deploy] agent creation complete", {
+      agentId,
+      conversationFlowId,
+      voiceFallback,
+      calendarConnected,
+      calWebhookRegistered: hasCfCalTools,
+    });
 
     return {
       agentId: agentId ?? "",
