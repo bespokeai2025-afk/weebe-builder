@@ -61,6 +61,7 @@ function CalendarSettingsPage() {
   const [minNotice, setMinNotice] = useState(2);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [settingDefault, setSettingDefault] = useState<number | null>(null);
 
   useEffect(() => {
     const s = settingsQ.data;
@@ -102,6 +103,22 @@ function CalendarSettingsPage() {
       toast.error("Save failed", { description: (e as Error).message });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSetDefault(calcomEventTypeId: number) {
+    setSettingDefault(calcomEventTypeId);
+    try {
+      await saveSettings({
+        data: { defaultEventTypeId: calcomEventTypeId },
+      });
+      setDefaultEt(String(calcomEventTypeId));
+      toast.success("Default event type saved");
+      qc.invalidateQueries({ queryKey: ["wcs"] });
+    } catch (e) {
+      toast.error("Failed to set default", { description: (e as Error).message });
+    } finally {
+      setSettingDefault(null);
     }
   }
 
@@ -361,13 +378,16 @@ function CalendarSettingsPage() {
                     </div>
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setDefaultEt(String(et.calcom_event_type_id));
-                        toast.message("Set as default — remember to Save");
-                      }}
+                      variant={String(defaultEt) === String(et.calcom_event_type_id) ? "default" : "outline"}
+                      disabled={settingDefault === et.calcom_event_type_id}
+                      onClick={() => handleSetDefault(et.calcom_event_type_id)}
                     >
-                      Set default
+                      {settingDefault === et.calcom_event_type_id ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : String(defaultEt) === String(et.calcom_event_type_id) ? (
+                        <Check className="h-3 w-3 mr-1" />
+                      ) : null}
+                      {String(defaultEt) === String(et.calcom_event_type_id) ? "Default" : "Set default"}
                     </Button>
                     <Switch
                       checked={et.active}
