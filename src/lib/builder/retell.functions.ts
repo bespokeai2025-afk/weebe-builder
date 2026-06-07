@@ -861,9 +861,11 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
             voiceFallback = true;
           }
         } else if (e instanceof RetellApiError && e.status === 404) {
-          // Agent was deleted from Retell (stale agentId) — clear it so we fall through to create.
-          console.warn("[retell-deploy] Agent not found in Retell (stale agentId), will create a new agent");
-          agentId = undefined;
+          // Agent no longer exists in the platform workspace. Throw a typed error so
+          // the client can clear its stale agentId and prompt the user to create fresh.
+          throw new Error(
+            `STALE_AGENT_ID: Agent ${agentId} was not found — it may have been deleted. Click + to create a new agent.`,
+          );
         } else throw e;
       }
     }

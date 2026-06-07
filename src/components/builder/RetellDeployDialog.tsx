@@ -187,7 +187,18 @@ export function RetellDeployDialog() {
         });
       }
     } catch (e) {
-      toast.error("Deploy failed", { description: (e as Error).message });
+      const msg = (e as Error).message ?? "";
+      if (msg.startsWith("STALE_AGENT_ID:")) {
+        // The agent no longer exists in the platform — clear the stale IDs
+        // so the user can create a fresh one with the + button.
+        setSettings({ agentId: undefined, conversationFlowId: undefined, deployedAgentName: undefined });
+        toast.error("Agent not found", {
+          description: "This agent no longer exists. Click + to create a new one.",
+          duration: 8000,
+        });
+      } else {
+        toast.error("Deploy failed", { description: msg });
+      }
     } finally {
       setDeploying(null);
     }
