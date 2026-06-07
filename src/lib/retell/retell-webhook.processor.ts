@@ -1,5 +1,9 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  analyzeCallTranscript,
+  updateLeadIntelligence,
+} from "@/lib/lead-gen/lead-intelligence.server";
 
 const SUPPORTED_RETELL_EVENTS = new Set([
   "call_started",
@@ -319,29 +323,35 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
   if (forcedWorkspaceId) {
     const { data: agent } = await supabaseAdmin
       .from("agents")
-      .select("id, workspace_id, name, agent_type, retell_agent_id")
+      .select("id, workspace_id, name, agent_type, retell_agent_id, settings")
       .eq("workspace_id", forcedWorkspaceId)
       .maybeSingle();
+    const s = ((agent?.settings ?? {}) as Record<string, unknown>);
     return {
       id: (agent?.id as string | undefined) ?? undefined,
       workspace_id: forcedWorkspaceId,
       name: (agent?.name as string | undefined) ?? "Test agent",
       agent_type: (agent?.agent_type as string | undefined) ?? "lead_gen",
+      dashboardAgentType: (s.dashboardAgentType as string | undefined) ?? null,
+      leadGenSettings: (s.leadGen as Record<string, unknown> | undefined) ?? null,
     };
   }
 
   const { data: agentMatches } = await supabaseAdmin
     .from("agents")
-    .select("id, workspace_id, name, agent_type, retell_agent_id");
+    .select("id, workspace_id, name, agent_type, retell_agent_id, settings");
   const matched = (agentMatches ?? []).find(
     (agent) => stripPrefix((agent.retell_agent_id as string) ?? "") === incomingAgentId,
   );
   if (matched) {
+    const s = ((matched.settings ?? {}) as Record<string, unknown>);
     return {
       id: matched.id as string,
       workspace_id: matched.workspace_id as string,
       name: matched.name as string,
       agent_type: matched.agent_type as string,
+      dashboardAgentType: (s.dashboardAgentType as string | undefined) ?? null,
+      leadGenSettings: (s.leadGen as Record<string, unknown> | undefined) ?? null,
     };
   }
 
@@ -357,6 +367,8 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
     workspace_id: workspace.workspace_id as string,
     name: "Default agent",
     agent_type: "lead_gen",
+    dashboardAgentType: null as string | null,
+    leadGenSettings: null as Record<string, unknown> | null,
   };
 }
 
@@ -762,6 +774,34 @@ export async function processRetellWebhook(
         },
         { onConflict: "call_id" },
       );
+    }
+  }
+
+  // ── Lead Generation post-call processing ────────────────────────────────
+  // Only executes for lead_generation agents on call_analyzed events.
+  // Runs AFTER all other processing so it never blocks the core path.
+  if (
+    event === "call_analyzed" &&
+    (agentRow.dashboardAgentType === "lead_generation" ||
+      (agentRow as any).agent_type === "lead_gen") &&
+    contactPhone
+  ) {
+    const lgSettings = agentRow.leadGenSettings ?? {};
+    const autoUpdate = lgSettings.autoUpdateLead !== false;
+    if (autoUpdate) {
+      try {
+        console.log("[LEAD-GEN] Starting post-call intelligence extraction", { callId, workspaceId });
+        const intelligence = await analyzeCallTranscript(
+          call.transcript ?? "",
+          call.call_analysis?.user_sentiment,
+          call.call_analysis?.call_summary,
+        );
+        await updateLeadIntelligence(workspaceId, contactPhone, intelligence);
+        console.log("[LEAD-GEN] Intelligence update complete", { callId, score: intelligence.lead_score });
+      } catch (lgErr) {
+        // Best-effort — never fail the webhook response due to lead gen errors
+        console.error("[LEAD-GEN] Post-call processing error", lgErr);
+      }
     }
   }
 

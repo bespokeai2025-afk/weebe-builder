@@ -68,6 +68,7 @@ import { ImportJsonDialog } from "./ImportJsonDialog";
 import { RetellDeployDialog } from "./RetellDeployDialog";
 import { PostCallDataSection } from "./PostCallDataSection";
 import { BookingConfigSection } from "./BookingConfigSection";
+import { LeadGenSection } from "./LeadGenSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS } from "@/lib/builder/pricing";
@@ -664,6 +665,33 @@ export function Builder({
             <PostCallDataSection />
 
             <BookingConfigSection />
+
+            {/* Agent type selector — controls which sections appear below */}
+            <div className="rounded-lg border p-2 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Agent Type</div>
+              <Select
+                value={settings.agentType ?? "receptionist"}
+                onValueChange={(v) =>
+                  setSettings({ agentType: v as BuilderSettings["agentType"] })
+                }
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="receptionist">Receptionist</SelectItem>
+                  <SelectItem value="lead_generation">Lead Generation</SelectItem>
+                  <SelectItem value="client_qualification">Client Qualification</SelectItem>
+                </SelectContent>
+              </Select>
+              {settings.agentType === "lead_generation" && (
+                <p className="text-[10px] text-violet-500 dark:text-violet-400">
+                  Lead Gen sections active ↓
+                </p>
+              )}
+            </div>
+
+            {settings.agentType === "lead_generation" && <LeadGenSection />}
 
             <Collapsible className="rounded-lg border">
               <CollapsibleTrigger className="flex w-full items-center justify-between p-2 text-xs font-medium text-muted-foreground">

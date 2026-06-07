@@ -1,10 +1,39 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Users, Phone, RefreshCw } from "lucide-react";
+import {
+  Users,
+  Phone,
+  RefreshCw,
+  TrendingUp,
+  Target,
+  CalendarCheck,
+  BarChart3,
+  Brain,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { listCalledQualifiedRecords } from "@/lib/dashboard/calls.functions";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { listLeads } from "@/lib/dashboard/leads.functions";
+import {
+  listCampaigns,
+  createCampaign,
+  deleteCampaign,
+  getCampaignStats,
+} from "@/lib/dashboard/campaigns.functions";
 
 export const Route = createFileRoute("/_authenticated/leads")({
   head: () => ({ meta: [{ title: "Leads — Webespoke AI" }] }),
@@ -20,150 +49,432 @@ function fmtDate(d: string | null) {
   }
 }
 
-function fmtDuration(s: number | null) {
-  if (!s || s <= 0) return "—";
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return m > 0 ? `${m}m ${r}s` : `${r}s`;
+function sentimentBadge(s: string | null) {
+  if (!s) return null;
+  const map: Record<string, string> = {
+    positive: "bg-emerald-500/15 text-emerald-400",
+    neutral: "bg-amber-500/15 text-amber-400",
+    negative: "bg-red-500/15 text-red-400",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] ${map[s] ?? "bg-muted text-muted-foreground"}`}>
+      {s}
+    </span>
+  );
+}
+
+function scoreBadge(score: number | null) {
+  if (score == null) return <span className="text-muted-foreground">—</span>;
+  const color =
+    score >= 70
+      ? "text-emerald-400"
+      : score >= 40
+        ? "text-amber-400"
+        : "text-red-400";
+  return <span className={`font-semibold ${color}`}>{score}</span>;
+}
+
+function interestBadge(level: string | null) {
+  if (!level) return null;
+  const map: Record<string, string> = {
+    high: "bg-emerald-500/15 text-emerald-400",
+    medium: "bg-amber-500/15 text-amber-400",
+    low: "bg-red-500/15 text-red-400",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] ${map[level] ?? "bg-muted text-muted-foreground"}`}>
+      {level}
+    </span>
+  );
 }
 
 function LeadsPage() {
-  const fn = useServerFn(listCalledQualifiedRecords);
-  const q = useQuery({
-    queryKey: ["leads-qualified"],
-    queryFn: () => fn(),
+  const qc = useQueryClient();
+  const listLeadsFn = useServerFn(listLeads);
+  const listCampaignsFn = useServerFn(listCampaigns);
+  const createCampaignFn = useServerFn(createCampaign);
+  const deleteCampaignFn = useServerFn(deleteCampaign);
+  const getCampaignStatsFn = useServerFn(getCampaignStats);
+
+  const [tab, setTab] = useState<"leads" | "campaigns">("leads");
+  const [newCampaignOpen, setNewCampaignOpen] = useState(false);
+  const [campaignName, setCampaignName] = useState("");
+  const [search, setSearch] = useState("");
+
+  const leadsQ = useQuery({
+    queryKey: ["leads-all"],
+    queryFn: () => listLeadsFn({ data: { limit: 200 } }),
   });
-  const rows = (q.data ?? []) as { record: any; call: any }[];
-  const positive = rows.filter((r) => r.call.sentiment === "positive").length;
-  const neutral = rows.filter((r) => r.call.sentiment === "neutral").length;
+
+  const campaignsQ = useQuery({
+    queryKey: ["campaigns"],
+    queryFn: () => listCampaignsFn(),
+  });
+
+  const statsQ = useQuery({
+    queryKey: ["campaign-stats"],
+    queryFn: () => getCampaignStatsFn({ data: {} }),
+  });
+
+  const leads = (leadsQ.data ?? []) as any[];
+  const campaigns = campaignsQ.data ?? [];
+  const stats = statsQ.data;
+
+  const filtered = leads.filter((l: any) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      (l.full_name ?? "").toLowerCase().includes(q) ||
+      (l.phone ?? "").includes(q) ||
+      (l.email ?? "").toLowerCase().includes(q) ||
+      (l.company_name ?? "").toLowerCase().includes(q)
+    );
+  });
+
+  const positive = leads.filter((l: any) => l.sentiment === "positive").length;
+  const withScore = leads.filter((l: any) => l.lead_score != null);
+  const avgScore =
+    withScore.length > 0
+      ? Math.round(withScore.reduce((a: number, l: any) => a + l.lead_score, 0) / withScore.length)
+      : null;
+  const meetingsReq = leads.filter((l: any) => l.meeting_requested).length;
+
+  async function handleCreateCampaign() {
+    if (!campaignName.trim()) return;
+    try {
+      await createCampaignFn({ data: { name: campaignName.trim() } });
+      toast.success("Campaign created");
+      setCampaignName("");
+      setNewCampaignOpen(false);
+      qc.invalidateQueries({ queryKey: ["campaigns"] });
+    } catch (e) {
+      toast.error("Failed to create campaign", { description: (e as Error).message });
+    }
+  }
+
+  async function handleDeleteCampaign(id: string) {
+    try {
+      await deleteCampaignFn({ data: { id } });
+      toast.success("Campaign deleted");
+      qc.invalidateQueries({ queryKey: ["campaigns"] });
+    } catch (e) {
+      toast.error("Failed to delete campaign", { description: (e as Error).message });
+    }
+  }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-10">
-      <div className="mb-8 flex items-start justify-between">
+    <div className="mx-auto w-full max-w-6xl px-6 py-10">
+      {/* Header */}
+      <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Clients called by your voice agent with a neutral or positive outcome
+            Lead Generation intelligence — updated automatically after every call
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => q.refetch()}>
-          <RefreshCw className="mr-1 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            leadsQ.refetch();
+            campaignsQ.refetch();
+            statsQ.refetch();
+          }}>
+            <RefreshCw className="mr-1 h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Campaign analytics stat cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Qualified leads
-            </CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Leads</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {q.isLoading ? (
-              <div className="h-8 w-16 animate-pulse rounded bg-muted" />
-            ) : (
-              <p className="text-3xl font-bold">{rows.length}</p>
+            <p className="text-3xl font-bold">{leads.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Positive Sentiment</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-emerald-500">{positive}</p>
+            {leads.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {Math.round((positive / leads.length) * 100)}%
+              </p>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Positive</CardTitle>
-            <Phone className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Avg Lead Score</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {q.isLoading ? (
-              <div className="h-8 w-16 animate-pulse rounded bg-muted" />
+            {avgScore != null ? (
+              <p className={`text-3xl font-bold ${avgScore >= 70 ? "text-emerald-500" : avgScore >= 40 ? "text-amber-500" : "text-red-500"}`}>
+                {avgScore}
+              </p>
             ) : (
-              <p className="text-3xl font-bold text-emerald-500">{positive}</p>
+              <p className="text-3xl font-bold text-muted-foreground">—</p>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Neutral</CardTitle>
-            <Phone className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-muted-foreground">Meetings Requested</CardTitle>
+            <CalendarCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {q.isLoading ? (
-              <div className="h-8 w-16 animate-pulse rounded bg-muted" />
-            ) : (
-              <p className="text-3xl font-bold text-amber-500">{neutral}</p>
-            )}
+            <p className="text-3xl font-bold text-violet-500">{meetingsReq}</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Qualified Records</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {q.isLoading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
-          ) : rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-center">
-              <Users className="h-8 w-8 text-muted-foreground" />
-              <p className="text-sm font-medium">No qualified leads yet</p>
+      {/* Campaign stats row (from data_records) */}
+      {stats && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
+          <Card className="border-dashed">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Calls Made</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold">{stats.called}</p>
+              <p className="text-[11px] text-muted-foreground">of {stats.total} records</p>
+            </CardContent>
+          </Card>
+          <Card className="border-dashed">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Contacts Reached</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold">{stats.reached}</p>
+              <p className="text-[11px] text-muted-foreground">{stats.conversionRate}% connect rate</p>
+            </CardContent>
+          </Card>
+          <Card className="border-dashed">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Positive Sentiment %</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-emerald-500">{stats.positivePct}%</p>
+            </CardContent>
+          </Card>
+          <Card className="border-dashed">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Meetings Booked</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <p className="text-2xl font-semibold text-violet-500">{stats.meetingsBooked}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 border-b">
+        {(["leads", "campaigns"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === t
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "leads" ? (
+              <span className="flex items-center gap-1.5">
+                <Brain className="h-3.5 w-3.5" /> Lead Intelligence
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5" /> Campaigns
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Lead Intelligence Tab */}
+      {tab === "leads" && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between py-3">
+            <CardTitle className="text-sm">Lead Records</CardTitle>
+            <Input
+              placeholder="Search name, phone, email…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-7 w-48 text-xs"
+            />
+          </CardHeader>
+          <CardContent className="p-0">
+            {leadsQ.isLoading ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 text-center">
+                <Users className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">No leads yet</p>
+                <p className="text-sm text-muted-foreground max-w-xs">
+                  Once a Lead Generation agent completes a call, lead intelligence will appear here automatically.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                      <th className="px-3 py-2">Name</th>
+                      <th className="px-3 py-2">Phone</th>
+                      <th className="px-3 py-2">Company</th>
+                      <th className="px-3 py-2">Sentiment</th>
+                      <th className="px-3 py-2">Interest</th>
+                      <th className="px-3 py-2">Score</th>
+                      <th className="px-3 py-2">Buying Intent</th>
+                      <th className="px-3 py-2">Meeting</th>
+                      <th className="px-3 py-2">Next Action</th>
+                      <th className="px-3 py-2">Last Contact</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((lead: any) => (
+                      <tr
+                        key={lead.id}
+                        className="border-b border-white/[0.04] align-top hover:bg-muted/30 transition-colors"
+                      >
+                        <td className="px-3 py-2 font-medium whitespace-nowrap">
+                          {lead.full_name ?? "—"}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                          {lead.phone}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {lead.company_name ?? "—"}
+                        </td>
+                        <td className="px-3 py-2">{sentimentBadge(lead.sentiment)}</td>
+                        <td className="px-3 py-2">{interestBadge(lead.interest_level)}</td>
+                        <td className="px-3 py-2">{scoreBadge(lead.lead_score)}</td>
+                        <td className="px-3 py-2">
+                          {lead.buying_intent ? (
+                            <span className="text-xs text-muted-foreground capitalize">
+                              {lead.buying_intent}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          {lead.meeting_requested ? (
+                            <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[11px] text-violet-400">
+                              Requested
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground max-w-[180px]">
+                          <span className="line-clamp-2">{lead.next_action ?? "—"}</span>
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap text-xs">
+                          {fmtDate(lead.last_contacted_at)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Campaigns Tab */}
+      {tab === "campaigns" && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => setNewCampaignOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              New Campaign
+            </Button>
+          </div>
+
+          {campaignsQ.isLoading ? (
+            <p className="text-center text-sm text-muted-foreground py-8">Loading…</p>
+          ) : campaigns.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <BarChart3 className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">No campaigns yet</p>
               <p className="text-sm text-muted-foreground">
-                Once your voice agent calls clients from the Data section and a call ends with
-                neutral or positive sentiment, they'll appear here.
+                Create a campaign in the builder (Agent Type → Lead Generation → Campaign Settings) or here.
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Mobile</th>
-                    <th className="px-3 py-2">Email</th>
-                    <th className="px-3 py-2">City</th>
-                    <th className="px-3 py-2">Sentiment</th>
-                    <th className="px-3 py-2">Outcome</th>
-                    <th className="px-3 py-2">Duration</th>
-                    <th className="px-3 py-2">Last call</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(({ record: r, call: c }) => (
-                    <tr key={r.id} className="border-b border-white/[0.04] align-top">
-                      <td className="px-3 py-2 font-medium">{r.name ?? "—"}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                        {r.mobile_number}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{r.email ?? "—"}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{r.city ?? "—"}</td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={
-                            c.sentiment === "positive"
-                              ? "rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-400"
-                              : "rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-400"
-                          }
-                        >
-                          {c.sentiment}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {c.call_outcome ?? c.call_status ?? "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                        {fmtDuration(c.duration_seconds)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                        {fmtDate(c.started_at)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-2">
+              {campaigns.map((c: any) => (
+                <Card key={c.id}>
+                  <CardContent className="flex items-center justify-between py-3">
+                    <div>
+                      <p className="font-medium text-sm">{c.name}</p>
+                      {c.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Created {fmtDate(c.created_at)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="capitalize text-[11px]">
+                        {c.status}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleDeleteCampaign(c.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      {/* New Campaign Dialog */}
+      <Dialog open={newCampaignOpen} onOpenChange={setNewCampaignOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Campaign</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Campaign Name</Label>
+              <Input
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="e.g. Q3 Outbound — SMB"
+                className="mt-1"
+                onKeyDown={(e) => e.key === "Enter" && handleCreateCampaign()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setNewCampaignOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateCampaign} disabled={!campaignName.trim()}>
+              Create Campaign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

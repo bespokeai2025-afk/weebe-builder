@@ -1,0 +1,169 @@
+IMPORTANT ARCHITECTURAL REQUIREMENT
+
+The functionality below must ONLY apply to agents deployed using:
+
+Go Live → Lead Generation
+
+Do NOT apply this logic globally across the platform.
+
+Do NOT modify:
+
+* Receptionist agents
+* Customer support agents
+* Appointment booking agents
+* Inbound agents
+* FAQ agents
+* Custom workflow agents
+
+ACTIVATION CONDITION
+
+When:
+
+Agent Type = Lead Generation
+
+Enable:
+
+* CSV Variable Mapping
+* Campaign Management
+* Lead Intelligence
+* Sentiment Analysis
+* Lead Scoring
+* Post-Call Lead Updates
+* Campaign Analytics
+
+When:
+
+Agent Type ≠ Lead Generation
+
+None of the above systems should load.
+
+VARIABLE MAPPING
+
+Only Lead Generation agents should receive:
+
+Lead Context
+↓
+CSV Record
+↓
+Variable Mapping Engine
+↓
+Agent Variables
+↓
+Prompt Generation
+↓
+Retell
+
+Example:
+
+Agent Script contains:
+
+{{first_name}}
+{{company}}
+{{industry}}
+
+Before call starts:
+
+CSV row:
+
+{
+"first_name":"Sarah",
+"company":"Acme Ltd",
+"industry":"Manufacturing"
+}
+
+Variables resolved:
+
+{{first_name}} = Sarah
+
+{{company}} = Acme Ltd
+
+{{industry}} = Manufacturing
+
+These values are injected only for Lead Generation agents.
+
+POST-CALL LEAD PROCESSING
+
+Only execute for Lead Generation calls.
+
+Call Ends
+↓
+Fetch Transcript
+↓
+Analyse Transcript
+↓
+Determine Sentiment
+↓
+Extract Lead Intelligence
+↓
+Update Lead Record
+↓
+Update Campaign Metrics
+
+Store:
+
+* Sentiment
+* Summary
+* Interest Level
+* Buying Intent
+* Callback Requested
+* Meeting Requested
+* Decision Maker Status
+* Objections
+* Lead Score
+* Next Action
+
+LEADS SECTION INTEGRATION
+
+Only Lead Generation agents should write data into:
+
+Leads Section
+
+Every completed call should automatically update the corresponding lead record.
+
+Example:
+
+Lead:
+Sarah Jones
+
+Updated Fields:
+
+Last Contacted
+Call Outcome
+Sentiment
+Lead Score
+Summary
+Objections
+Next Action
+Meeting Booked
+Callback Date
+
+CAMPAIGN REPORTING
+
+Only Lead Generation agents should contribute to:
+
+* Calls Made
+* Contacts Reached
+* Positive Sentiment %
+* Meetings Booked
+* Conversion Rate
+* Average Lead Score
+
+BUILDER UI
+
+When Agent Type = Lead Generation:
+
+Show:
+
+Data Source
+Variable Mapping
+Campaign Settings
+Lead Tracking
+Lead Intelligence
+
+When Agent Type ≠ Lead Generation:
+
+Hide these sections completely.
+
+IMPLEMENTATION RULE
+
+The Lead Generation workflow must operate as a self-contained module attached exclusively to the Lead Generation deployment path and must not impact existing agent types or deployment workflows.

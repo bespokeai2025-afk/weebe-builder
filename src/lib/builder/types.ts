@@ -212,6 +212,32 @@ export interface BuilderSettings {
   rawAgent?: Record<string, unknown>;
   /** Raw conversationFlow object (without nodes) round-tripped from import. */
   rawConversationFlow?: Record<string, unknown>;
+  /**
+   * Intended deployment type — controls which builder sections are visible.
+   * Set here in the builder and mirrored as dashboardAgentType on Go Live.
+   */
+  agentType?: "lead_generation" | "receptionist" | "client_qualification";
+  /**
+   * Lead Generation module config. Only used when agentType === "lead_generation".
+   * Variable mappings, campaign name, and intelligence toggles live here.
+   */
+  leadGen?: {
+    campaignName?: string;
+    campaignId?: string;
+    /** Maps {{placeholder}} → data_records column name */
+    variableMappings?: Record<string, string>;
+    autoUpdateLead?: boolean;
+    writeCampaignMetrics?: boolean;
+    trackInterestLevel?: boolean;
+    trackBuyingIntent?: boolean;
+    trackLeadScore?: boolean;
+    trackObjections?: boolean;
+    trackNextAction?: boolean;
+    trackMeetingRequested?: boolean;
+    trackCallbackRequested?: boolean;
+    trackDecisionMaker?: boolean;
+    [key: string]: unknown;
+  };
 }
 
 export interface BuilderVariable {
