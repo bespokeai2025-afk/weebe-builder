@@ -565,6 +565,41 @@ export function Builder({
           </aside>
         )}
 
+        {/* Minimized icon strip — shown when left panel is collapsed */}
+        {!leftOpen && (
+          <aside className="w-9 shrink-0 border-r border-white/[0.04] bg-background/40 overflow-y-auto flex flex-col items-center py-1 gap-0.5 scrollbar-thin">
+            {PALETTE.map((p) => (
+              <button
+                key={p.kind}
+                title={p.label}
+                onClick={() => {
+                  let position: { x: number; y: number } | undefined;
+                  if (rf && canvasRef.current) {
+                    const b = canvasRef.current.getBoundingClientRect();
+                    position = rf.screenToFlowPosition({
+                      x: b.left + b.width / 2,
+                      y: b.top + b.height / 2,
+                    });
+                  }
+                  const id = addNode(p.kind, position);
+                  if (rf && position) {
+                    setTimeout(() => {
+                      rf.setCenter(position!.x + 140, position!.y + 80, {
+                        zoom: Math.max(rf.getZoom(), 0.8),
+                        duration: 400,
+                      });
+                    }, 30);
+                  }
+                  void id;
+                }}
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                <p.icon className={cn("h-3.5 w-3.5", p.color)} />
+              </button>
+            ))}
+          </aside>
+        )}
+
         {/* Canvas */}
         <div className="flex-1 min-w-0">
           <FlowCanvas canvasRef={canvasRef} onReady={setRf} />
