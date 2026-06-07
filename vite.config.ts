@@ -19,6 +19,13 @@ export default defineConfig({
       port: 5000,
       strictPort: true,
       allowedHosts: true,
+      proxy: {
+        "/__mockup": {
+          target: "http://localhost:23636",
+          changeOrigin: true,
+          ws: true,
+        },
+      },
     },
     resolve: {
       alias: {

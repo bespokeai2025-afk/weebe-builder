@@ -1,0 +1,293 @@
+# UI Modernisation Sprint (All Pages Except Builder)
+
+Your task is to redesign and modernise the entire application UI while preserving all functionality, data flows, business logic, APIs, and existing features.
+
+## Critical Requirement
+
+Do NOT modify the Builder page.
+
+Every other page should be updated to follow a unified enterprise-grade design system.
+
+The current dark theme and blue accent colour palette should remain, but the overall product needs to feel significantly more professional, compact, and polished.
+
+---
+
+## Main Problems Identified
+
+### 1. The Interface Is Far Too Large
+
+The current application feels oversized and inefficient.
+
+Issues:
+
+* KPI cards are excessively tall
+* Table rows waste vertical space
+* Search bars are oversized
+* Filters consume too much room
+* Sidebar icons are too large
+* Headers take up too much space
+* Padding throughout the application is excessive
+
+Goal:
+
+* Reduce overall UI scale by 25-40%
+* Increase visible information density
+* Allow users to see substantially more data without scrolling
+* Optimise for desktop workflows
+
+---
+
+### 2. KPI Cards Need a Complete Enterprise Redesign
+
+Current KPI cards feel oversized and consumer-focused.
+
+Redesign requirements:
+
+* Reduce card height significantly
+* Tighten internal spacing
+* Make metric values the primary visual focus
+* Move icons into subtle containers
+* Improve hierarchy:
+
+  * Label
+  * Value
+  * Status / Trend
+* Add cleaner borders and surface layers
+* Remove unnecessary empty space
+
+Target inspiration:
+
+* Stripe Dashboard
+* Linear Analytics
+* Attio
+* Retell AI
+* Vapi
+
+---
+
+### 3. Tables Need To Feel Like Enterprise Software
+
+Current tables:
+
+* Too tall
+* Too much whitespace
+* Difficult to scan
+* Low information density
+
+Update all tables to:
+
+* Compact row heights (44-48px)
+* Better alignment
+* Improved typography hierarchy
+* Cleaner column spacing
+* Better hover states
+* Sticky headers where appropriate
+* Improved readability for large datasets
+
+Users should be able to scan records significantly faster.
+
+---
+
+### 4. Search & Filters Need Refactoring
+
+Current search and filter sections consume excessive space.
+
+Update:
+
+* Compact toolbar layout
+* Consistent control sizing
+* Better alignment
+* Professional SaaS styling
+* Reduce height of search inputs and filters
+* Improve responsiveness
+
+---
+
+### 5. Sidebar Needs Modernisation
+
+Current sidebar feels oversized and dated.
+
+Update:
+
+* Reduce icon sizes
+* Reduce width where possible
+* Improve active states
+* Improve hover interactions
+* Better visual hierarchy
+* More premium appearance
+
+Keep:
+
+* Dark theme
+* Blue accent colours
+
+---
+
+### 6. Typography Needs a Real Design System
+
+Current typography lacks consistency.
+
+Create a typography scale:
+
+* 12px → metadata
+* 14px → table content
+* 16px → body text
+* 20px → section headers
+* 24px → page titles
+
+Improve:
+
+* Font weights
+* Hierarchy
+* Readability
+* Consistency across all pages
+
+---
+
+### 7. Create Consistent Layout Rules
+
+Introduce a unified spacing system:
+
+Base spacing:
+
+* 4px
+* 8px
+* 12px
+* 16px
+* 24px
+* 32px
+
+Requirements:
+
+* Consistent page containers
+* Consistent margins
+* Consistent section spacing
+* Better alignment throughout
+
+Remove visual clutter and wasted space.
+
+---
+
+### 8. Improve Visual Quality
+
+The application currently feels like an early-stage dashboard.
+
+The redesign should feel:
+
+* Enterprise
+* Premium
+* Professional
+* Trustworthy
+* Data-focused
+* Modern SaaS
+
+Avoid:
+
+* Excessive rounded corners
+* Large empty cards
+* Consumer-style dashboard aesthetics
+* Oversized UI elements
+
+Prefer:
+
+* Refined surfaces
+* Subtle borders
+* Minimal shadows
+* Strong alignment
+* Dense information layouts
+* Clean visual hierarchy
+
+---
+
+## Design System Standards
+
+### Border Radius
+
+Use:
+
+* Cards → 12px
+* Inputs → 10px
+* Buttons → 10px
+* Modals → 14px
+
+Reduce excessive rounding throughout the application.
+
+---
+
+### Component Heights
+
+Buttons:
+
+* Small → 32px
+* Default → 36px
+
+Inputs:
+
+* 36-40px
+
+Table Rows:
+
+* 44-48px
+
+Filter Controls:
+
+* 36px
+
+KPI Cards:
+
+* Approximately 35% shorter than current versions
+
+---
+
+### Colours
+
+Keep existing:
+
+* Dark backgrounds
+* Blue brand accents
+
+Improve:
+
+* Surface hierarchy
+* Border contrast
+* Hover states
+* Active states
+* Accessibility
+
+Do not significantly change the branding.
+
+---
+
+## Pages To Update
+
+Apply the new design system to:
+
+* Dashboard
+* Calls
+* Data Records
+* Contacts
+* Campaigns
+* Agents
+* Analytics
+* Settings
+* Reports
+* Every admin page
+
+Do NOT modify:
+
+* Builder Page
+
+---
+
+## Deliverables
+
+1. Audit every page except Builder.
+2. Create a shared design system.
+3. Refactor reusable UI components first.
+4. Update all pages to use the new components.
+5. Ensure complete visual consistency.
+6. Increase information density throughout.
+7. Improve desktop usability.
+8. Preserve all existing functionality.
+
+The final product should feel comparable to modern enterprise SaaS products such as Linear, Stripe, Attio, Retell AI, Vapi, HubSpot, and Notion rather than an oversized startup dashboard.
