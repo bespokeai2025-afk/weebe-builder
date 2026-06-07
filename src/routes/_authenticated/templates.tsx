@@ -76,11 +76,24 @@ function TemplatesPage() {
       const row = await getFn({ data: { id } });
       if (!row) throw new Error("Template not found");
       const flow = (row.flow_data ?? {}) as { nodes?: unknown; edges?: unknown };
-      const nodes = Array.isArray(flow.nodes) ? flow.nodes : [];
+      const rawNodes = Array.isArray(flow.nodes) ? flow.nodes : [];
       const edges = Array.isArray(flow.edges) ? flow.edges : [];
       const settings = (row.settings ?? {}) as Record<string, unknown>;
       const variables = Array.isArray(row.variables) ? row.variables : [];
-      // Strip identifiers so a fresh agent is created on save.
+
+      // Strip any per-node Cal.com API keys saved by the template author so the
+      // user's own workspace credentials are used when they deploy.
+      const nodes = (rawNodes as Array<Record<string, unknown>>).map((node) => {
+        const data = node.data as Record<string, unknown> | undefined;
+        if (!data) return node;
+        const { toolApiKey: _k, ...cleanData } = data as Record<string, unknown> & {
+          toolApiKey?: unknown;
+        };
+        return { ...node, data: cleanData };
+      });
+
+      // Strip identifiers and admin-specific credentials so a fresh agent is
+      // created and the user's own Retell API key / Cal.com webhooks are used.
       const cleanSettings = {
         ...settings,
         agentId: undefined,
@@ -88,6 +101,10 @@ function TemplatesPage() {
         deployedRetellAgentId: undefined,
         deployedConversationFlowId: undefined,
         phoneNumber: undefined,
+        productionRetellApiKey: undefined,
+        productionRetellApiKeyMasked: undefined,
+        productionRetellApiKeySavedAt: undefined,
+        webhookUrl: undefined,
         agentName: `${row.name} (copy)`,
       };
       useBuilderStore.getState().loadFlow({

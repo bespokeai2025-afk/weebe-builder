@@ -10,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -483,16 +485,49 @@ export function Builder({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {MODELS.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          <span className="flex items-center justify-between gap-3 w-full">
-                            <span>{m.label}</span>
-                            <span className="text-muted-foreground text-[11px]">
-                              ${m.costPerMin.toFixed(3)}/min
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Standard</SelectLabel>
+                        {MODELS.filter((m) => m.tier === "standard").map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span className="flex items-center gap-1.5">
+                                {m.label}
+                                {m.recommended && (
+                                  <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                    Recommended
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-muted-foreground text-[11px]">
+                                ${m.costPerMin.toFixed(3)}/min
+                              </span>
                             </span>
-                          </span>
-                        </SelectItem>
-                      ))}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Fast Tier — lower latency</SelectLabel>
+                        {MODELS.filter((m) => m.tier === "fast").map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span className="flex items-center gap-1.5">
+                                {m.label}
+                                {m.recommended && (
+                                  <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                    Recommended
+                                  </span>
+                                )}
+                                <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                                  Fast
+                                </span>
+                              </span>
+                              <span className="text-muted-foreground text-[11px]">
+                                ${m.costPerMin.toFixed(3)}/min
+                              </span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 </div>

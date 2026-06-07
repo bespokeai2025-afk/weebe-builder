@@ -7,121 +7,205 @@ export const BUILDER_LLM_MARKUP_PER_MIN = 0.15;
 // GPT-4.1 totals to $0.36/min, matching the historical flat cost meter.
 export const BUILDER_INFRA_PER_MIN = 0.165;
 
+export type ModelTier = "standard" | "fast";
+
 export type ModelInfo = {
   id: string;
   label: string;
+  tier: ModelTier;
   retellPerMin: number;
   costPerMin: number;
+  recommended?: boolean;
 };
 
+// Exact model list and pricing sourced from https://www.retellai.com/pricing
+// Fast Tier IDs use the same base name with "-fast" suffix (Retell convention).
+// Claude and Gemini models are standard-only.
 export const MODELS: ModelInfo[] = [
-  // Versatile / highly intelligent
-  {
-    id: "gpt-4.1",
-    label: "GPT 4.1",
-    retellPerMin: 0.045,
-    costPerMin: 0.045 + BUILDER_LLM_MARKUP_PER_MIN,
-  },
-  {
-    id: "gpt-5.1",
-    label: "GPT 5.1",
-    retellPerMin: 0.04,
-    costPerMin: 0.04 + BUILDER_LLM_MARKUP_PER_MIN,
-  },
+  // ── Standard tier ──────────────────────────────────────────────────────────
   {
     id: "gpt-5.5",
     label: "GPT 5.5",
+    tier: "standard",
     retellPerMin: 0.16,
     costPerMin: 0.16 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
     id: "gpt-5.4",
     label: "GPT 5.4",
+    tier: "standard",
     retellPerMin: 0.08,
     costPerMin: 0.08 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
     id: "gpt-5.2",
     label: "GPT 5.2",
+    tier: "standard",
     retellPerMin: 0.056,
     costPerMin: 0.056 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
-    id: "gpt-5",
-    label: "GPT 5",
+    id: "gpt-5.1",
+    label: "GPT 5.1",
+    tier: "standard",
     retellPerMin: 0.04,
     costPerMin: 0.04 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
-    id: "claude-4.6-sonnet",
-    label: "Claude 4.6 Sonnet",
-    retellPerMin: 0.08,
-    costPerMin: 0.08 + BUILDER_LLM_MARKUP_PER_MIN,
-  },
-  {
-    id: "claude-4.5-sonnet",
-    label: "Claude 4.5 Sonnet",
-    retellPerMin: 0.08,
-    costPerMin: 0.08 + BUILDER_LLM_MARKUP_PER_MIN,
-  },
-  {
-    id: "gemini-3.0-flash",
-    label: "Gemini 3.0 Flash",
-    retellPerMin: 0.027,
-    costPerMin: 0.027 + BUILDER_LLM_MARKUP_PER_MIN,
-  },
-  // Fast and cost-efficient
-  {
-    id: "gpt-5.4-mini",
-    label: "GPT 5.4 mini",
-    retellPerMin: 0.036,
-    costPerMin: 0.036 + BUILDER_LLM_MARKUP_PER_MIN,
-  },
-  {
-    id: "gpt-5.4-nano",
-    label: "GPT 5.4 nano",
-    retellPerMin: 0.01,
-    costPerMin: 0.01 + BUILDER_LLM_MARKUP_PER_MIN,
+    id: "gpt-5",
+    label: "GPT 5",
+    tier: "standard",
+    retellPerMin: 0.04,
+    costPerMin: 0.04 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
     id: "gpt-5-mini",
     label: "GPT 5 mini",
+    tier: "standard",
     retellPerMin: 0.012,
     costPerMin: 0.012 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
     id: "gpt-5-nano",
     label: "GPT 5 nano",
+    tier: "standard",
     retellPerMin: 0.003,
     costPerMin: 0.003 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
+    id: "gpt-4.1",
+    label: "GPT 4.1",
+    tier: "standard",
+    recommended: true,
+    retellPerMin: 0.045,
+    costPerMin: 0.045 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
     id: "gpt-4.1-mini",
     label: "GPT 4.1 mini",
+    tier: "standard",
     retellPerMin: 0.016,
     costPerMin: 0.016 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
     id: "gpt-4.1-nano",
     label: "GPT 4.1 nano",
+    tier: "standard",
     retellPerMin: 0.004,
     costPerMin: 0.004 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
+    id: "claude-4.6-sonnet",
+    label: "Claude 4.6 Sonnet",
+    tier: "standard",
+    retellPerMin: 0.08,
+    costPerMin: 0.08 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "claude-4.5-sonnet",
+    label: "Claude 4.5 Sonnet",
+    tier: "standard",
+    retellPerMin: 0.08,
+    costPerMin: 0.08 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
     id: "claude-4.5-haiku",
     label: "Claude 4.5 Haiku",
+    tier: "standard",
     retellPerMin: 0.025,
     costPerMin: 0.025 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
-    id: "gemini-3.1-flash-lite",
-    label: "Gemini 3.1 Flash Lite",
-    retellPerMin: 0.014,
-    costPerMin: 0.014 + BUILDER_LLM_MARKUP_PER_MIN,
+    id: "gemini-3.0-flash",
+    label: "Gemini 3.0 Flash",
+    tier: "standard",
+    retellPerMin: 0.027,
+    costPerMin: 0.027 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gemini-2.5-flash",
+    label: "Gemini 2.5 Flash",
+    tier: "standard",
+    retellPerMin: 0.035,
+    costPerMin: 0.035 + BUILDER_LLM_MARKUP_PER_MIN,
   },
   {
     id: "gemini-2.5-flash-lite",
     label: "Gemini 2.5 Flash Lite",
+    tier: "standard",
+    retellPerMin: 0.006,
+    costPerMin: 0.006 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+
+  // ── Fast Tier (lower latency, higher cost) ─────────────────────────────────
+  {
+    id: "gpt-5.5-fast",
+    label: "GPT 5.5",
+    tier: "fast",
+    retellPerMin: 0.32,
+    costPerMin: 0.32 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-5.4-fast",
+    label: "GPT 5.4",
+    tier: "fast",
+    retellPerMin: 0.16,
+    costPerMin: 0.16 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-5.2-fast",
+    label: "GPT 5.2",
+    tier: "fast",
+    retellPerMin: 0.112,
+    costPerMin: 0.112 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-5.1-fast",
+    label: "GPT 5.1",
+    tier: "fast",
+    retellPerMin: 0.08,
+    costPerMin: 0.08 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-5-fast",
+    label: "GPT 5",
+    tier: "fast",
+    retellPerMin: 0.08,
+    costPerMin: 0.08 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-5-mini-fast",
+    label: "GPT 5 mini",
+    tier: "fast",
+    retellPerMin: 0.024,
+    costPerMin: 0.024 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-5-nano-fast",
+    label: "GPT 5 nano",
+    tier: "fast",
+    retellPerMin: 0.006,
+    costPerMin: 0.006 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-4.1-fast",
+    label: "GPT 4.1",
+    tier: "fast",
+    recommended: true,
+    retellPerMin: 0.0675,
+    costPerMin: 0.0675 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-4.1-mini-fast",
+    label: "GPT 4.1 mini",
+    tier: "fast",
+    retellPerMin: 0.024,
+    costPerMin: 0.024 + BUILDER_LLM_MARKUP_PER_MIN,
+  },
+  {
+    id: "gpt-4.1-nano-fast",
+    label: "GPT 4.1 nano",
+    tier: "fast",
     retellPerMin: 0.006,
     costPerMin: 0.006 + BUILDER_LLM_MARKUP_PER_MIN,
   },
@@ -130,6 +214,6 @@ export const MODELS: ModelInfo[] = [
 // Total per-minute cost for the test-call meter: infra + selected LLM (with
 // markup). Falls back to GPT-4.1 if the id is unknown.
 export function getTotalCostPerMinute(modelId: string | undefined | null): number {
-  const m = MODELS.find((x) => x.id === modelId) ?? MODELS[0];
+  const m = MODELS.find((x) => x.id === modelId) ?? MODELS.find((x) => x.id === "gpt-4.1") ?? MODELS[0];
   return BUILDER_INFRA_PER_MIN + m.costPerMin;
 }
