@@ -215,7 +215,12 @@ function MyAgentsPage() {
       <DeployAgentDialog
         open={Boolean(deployTarget)}
         onOpenChange={(o) => !o && setDeployTarget(null)}
-        agent={deployTarget}
+        agent={
+          deployTarget
+            ? ((agentsQ.data?.find((a) => a.id === deployTarget.id) as typeof deployTarget) ??
+              deployTarget)
+            : null
+        }
       />
     </main>
   );
