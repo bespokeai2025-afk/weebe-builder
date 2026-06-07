@@ -715,7 +715,8 @@ function CsvMappingDialog({
     [headers, mapping],
   );
 
-  function setField(csvCol: string, sysField: string) {
+  function setField(csvCol: string, rawValue: string) {
+    const sysField = rawValue === "__skip__" ? "" : rawValue;
     setMapping((prev) => {
       const next = { ...prev };
       if (sysField) {
@@ -768,12 +769,12 @@ function CsvMappingDialog({
                           </p>
                         )}
                       </div>
-                      <Select value={selected} onValueChange={(v) => setField(h, v)}>
+                      <Select value={selected || "__skip__"} onValueChange={(v) => setField(h, v)}>
                         <SelectTrigger className="h-7 w-[140px] text-xs">
                           <SelectValue placeholder="Skip" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Skip</SelectItem>
+                          <SelectItem value="__skip__">Skip</SelectItem>
                           {SYSTEM_FIELDS.map((f) => (
                             <SelectItem
                               key={f.value}
