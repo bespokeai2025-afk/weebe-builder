@@ -24,6 +24,58 @@ async function retellFetch<T>(
   return res.json() as Promise<T>;
 }
 
+/**
+ * Returns the standard lead fields + any custom meta keys detected from
+ * this workspace's existing lead records. Used by the qualification builder
+ * to populate the Pre-Call Data Injection mapping dropdowns.
+ */
+export const getLeadCustomFields = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) return { standardFields: [], metaFields: [] };
+    const sb = supabase as any;
+
+    const STANDARD: Array<{ value: string; label: string }> = [
+      { value: "full_name", label: "Full Name" },
+      { value: "phone", label: "Phone" },
+      { value: "email", label: "Email" },
+      { value: "company_name", label: "Company Name" },
+      { value: "call_summary", label: "Last Call Summary" },
+      { value: "next_action", label: "Last Next Action" },
+      { value: "interest_level", label: "Interest Level" },
+      { value: "notes", label: "Notes" },
+      { value: "source", label: "Lead Source" },
+      { value: "urgency", label: "Urgency" },
+      { value: "next_step", label: "Next Step" },
+      { value: "buying_intent", label: "Buying Intent" },
+    ];
+
+    // Aggregate distinct meta keys from existing leads
+    const { data: leads } = await sb
+      .from("leads")
+      .select("meta")
+      .eq("workspace_id", workspaceId)
+      .not("meta", "eq", "{}")
+      .limit(200);
+
+    const metaKeys = new Set<string>();
+    for (const lead of leads ?? []) {
+      if (lead.meta && typeof lead.meta === "object") {
+        for (const key of Object.keys(lead.meta)) {
+          metaKeys.add(key);
+        }
+      }
+    }
+
+    const metaFields = Array.from(metaKeys).map((key) => ({
+      value: `meta.${key}`,
+      label: key,
+    }));
+
+    return { standardFields: STANDARD, metaFields };
+  });
+
 export const getOverviewStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ChevronDown,
   ShieldCheck,
@@ -18,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { useBuilderStore } from "@/lib/builder/store";
 import type { FlowNode } from "@/lib/builder/store";
+import { getLeadCustomFields } from "@/lib/dashboard/leads.functions";
 import {
   PostCallVariableMappingSection,
   PreCallLeadMappingSection,
@@ -75,6 +78,26 @@ export function ClientQualificationSection() {
     (qualify.postCallMappings as Record<string, string>) ?? {};
   const customScoringRules: Array<{ variable: string; points: number }> =
     (qualify.customScoringRules as Array<{ variable: string; points: number }>) ?? [];
+  const customLeadFields: string[] =
+    (qualify.customLeadFields as string[]) ?? [];
+
+  // Fetch lead fields (standard + meta) from the workspace's existing leads
+  const getLeadFieldsFn = useServerFn(getLeadCustomFields);
+  const leadFieldsQ = useQuery({
+    queryKey: ["lead-custom-fields"],
+    queryFn: () => getLeadFieldsFn(),
+    staleTime: 60_000,
+  });
+
+  const standardFields = (leadFieldsQ.data?.standardFields ?? []).map((f) => ({
+    ...f,
+    group: "standard" as const,
+  }));
+  const metaFields = (leadFieldsQ.data?.metaFields ?? []).map((f) => ({
+    ...f,
+    group: "meta" as const,
+  }));
+  const allSourceFields = [...standardFields, ...metaFields];
 
   function setQualify(patch: Partial<NonNullable<typeof settings.qualify>>) {
     setSettings({ qualify: { ...qualify, ...patch } });
@@ -133,6 +156,9 @@ export function ClientQualificationSection() {
           placeholders={placeholders}
           preCallMappings={preCallMappings}
           onMappingChange={(m) => setQualify({ preCallMappings: m })}
+          sourceFields={allSourceFields.length > 0 ? allSourceFields : undefined}
+          customLeadFields={customLeadFields}
+          onCustomLeadFieldsChange={(fields) => setQualify({ customLeadFields: fields } as any)}
         />
       )}
 
@@ -168,7 +194,7 @@ export function ClientQualificationSection() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Post-Call Variable Mapping — maps custom extracted vars → lead fields + scoring */}
+      {/* Post-Call Variable Mapping */}
       <PostCallVariableMappingSection
         mode="qualify"
         accentClass="text-blue-600 dark:text-blue-400"
@@ -190,6 +216,8 @@ export function ClientQualificationSection() {
         <CollapsibleContent className="space-y-2 px-3 pb-3">
           <p className="text-[11px] text-muted-foreground">
             Scores are calculated automatically from enabled criteria after each call.
+            Leads appear in the <span className="font-medium text-foreground">Qualified</span> section
+            only after you manually promote them there.
             {customScoringRules.length > 0 && (
               <> Custom variables add up to <span className="font-medium text-foreground">+{customScoringRules.reduce((a, r) => a + r.points, 0)} pts</span>.</>
             )}
@@ -220,7 +248,7 @@ export function ClientQualificationSection() {
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 px-3 pb-3">
           <p className="text-[11px] text-muted-foreground">
-            Where should leads go in the Qualified section based on sentiment?
+            Where should leads go in the Leads section based on call sentiment?
           </p>
           {(["positive", "neutral", "negative"] as const).map((sentiment) => {
             const defaultVal =
@@ -248,7 +276,7 @@ export function ClientQualificationSection() {
             );
           })}
           <div className="flex items-center justify-between mt-1 pt-1 border-t border-border/40">
-            <Label className="text-xs">Auto-route to Qualified section</Label>
+            <Label className="text-xs">Auto-route to Leads section after call</Label>
             <Switch
               checked={(qualify.autoRoute as boolean) !== false}
               onCheckedChange={(v) => setQualify({ autoRoute: v })}

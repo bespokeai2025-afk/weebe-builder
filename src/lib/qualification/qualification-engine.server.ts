@@ -236,9 +236,11 @@ function deriveStatus(
 }
 
 function deriveLeadStatus(result: QualificationResult): string {
-  if (result.qualification_status === "qualified") return "qualified";
-  if (result.sentiment === "negative") return "not_interested";
+  // NEVER auto-set status = "qualified" — that requires manual promotion by the user.
+  // Leads appear in the Qualified section only after the user explicitly marks them.
   if (result.qualification_status === "callback_required") return "need_to_call";
+  if (result.sentiment === "negative" && result.qualification_status === "not_qualified")
+    return "not_interested";
   return "interested";
 }
 

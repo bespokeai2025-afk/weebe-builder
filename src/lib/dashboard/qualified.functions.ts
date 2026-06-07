@@ -17,19 +17,23 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
+
+    // Only show leads that have been MANUALLY promoted to "qualified"
     let q = sb
       .from("leads")
       .select("*")
       .eq("workspace_id", workspaceId)
-      .in("status", ["interested", "qualified"])
+      .eq("status", "qualified")
       .order("updated_at", { ascending: false })
       .limit(data.limit);
+
     if (data.search)
       q = q.or(
         `full_name.ilike.%${data.search}%,phone.ilike.%${data.search}%,email.ilike.%${data.search}%`,
       );
     if (data.qualificationStatus && data.qualificationStatus !== "all")
       q = q.eq("qualification_status", data.qualificationStatus);
+
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return rows ?? [];
@@ -80,27 +84,34 @@ export const getQualificationStats = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const { data: rows, error } = await sb
+    // Funnel: all leads that have had a qualification call (have a qualification_status)
+    const { data: funnelRows, error: funnelErr } = await sb
       .from("leads")
-      .select("status, qualification_status, qualification_score, sentiment")
+      .select("status, qualification_status, qualification_score")
       .eq("workspace_id", workspaceId)
-      .in("status", ["interested", "qualified"]);
-    if (error) throw new Error(error.message);
+      .not("qualification_status", "is", null);
+    if (funnelErr) throw new Error(funnelErr.message);
 
-    const all = (rows ?? []) as any[];
-    const qualified = all.filter((r: any) => r.qualification_status === "qualified");
-    const partial = all.filter((r: any) => r.qualification_status === "partially_qualified");
-    const withScore = all.filter((r: any) => r.qualification_score != null);
+    const funnel = (funnelRows ?? []) as any[];
+    const manuallyQualified = funnel.filter((r: any) => r.status === "qualified");
+    const partial = funnel.filter((r: any) => r.qualification_status === "partially_qualified");
+    const withScore = funnel.filter((r: any) => r.qualification_score != null);
     const avgScore =
       withScore.length > 0
-        ? Math.round(withScore.reduce((a: number, r: any) => a + r.qualification_score, 0) / withScore.length)
+        ? Math.round(
+            withScore.reduce((a: number, r: any) => a + r.qualification_score, 0) /
+              withScore.length,
+          )
         : null;
 
     return {
-      total: all.length,
-      qualified: qualified.length,
+      total: funnel.length,
+      qualified: manuallyQualified.length,
       partiallyQualified: partial.length,
       avgScore,
-      qualificationRate: all.length > 0 ? Math.round((qualified.length / all.length) * 100) : 0,
+      qualificationRate:
+        funnel.length > 0
+          ? Math.round((manuallyQualified.length / funnel.length) * 100)
+          : 0,
     };
   });
