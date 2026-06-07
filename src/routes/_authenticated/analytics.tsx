@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
+import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import {
   AreaChart,
   Area,
@@ -189,6 +190,7 @@ function computeAnalytics(calls: any[]) {
 
 function AnalyticsPage() {
   const fn = useServerFn(getRetellAnalytics);
+  const getLiveAgentsFn = useServerFn(getDashboardLiveAgents);
   const [days, setDays] = useState(30);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectorOpen, setSelectorOpen] = useState(false);
@@ -198,16 +200,25 @@ function AnalyticsPage() {
     queryFn: () => fn({ data: { days, limit: 1000 } }),
   });
 
+  const liveAgentsQ = useQuery({
+    queryKey: ["dashboard-live-agents"],
+    queryFn: () => getLiveAgentsFn({ data: undefined }),
+    staleTime: 60_000,
+  });
+
   const result = q.data;
   const allCalls = (result?.calls ?? []) as any[];
   const agentNames: Record<string, string> = (result?.agentNames ?? {}) as Record<string, string>;
 
-  // Build agent list from the live Retell agents (agentNames) so it's always
-  // present regardless of the selected date range, and only shows connected
-  // live agents rather than any agent that historically appeared in calls.
+  // Build agent list only from agents marked isLive in the DB (same source as
+  // the dashboard "Live Agents" panel), keyed by deployedRetellAgentId so the
+  // filter correctly matches call.agent_id from Retell.
   const agentList = useMemo(() => {
-    return Object.entries(agentNames).map(([id, name]) => ({ id, name }));
-  }, [agentNames]);
+    const live = liveAgentsQ.data ?? [];
+    return live
+      .filter((a) => !!a.deployedRetellAgentId)
+      .map((a) => ({ id: a.deployedRetellAgentId as string, name: a.name }));
+  }, [liveAgentsQ.data]);
 
   const calls = useMemo(
     () => (selectedAgentId ? allCalls.filter((c) => c.agent_id === selectedAgentId) : allCalls),
