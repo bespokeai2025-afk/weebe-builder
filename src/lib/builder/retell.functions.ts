@@ -816,6 +816,31 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
     let agentId = mode === "update" ? data.agentId : undefined;
     let voiceFallback = false;
 
+    // Auto-register an unregistered ElevenLabs voice ID in the platform workspace.
+    // Voice IDs like 11labs-{20charId} that haven't been registered via /create-voice
+    // will fail with "voice not found". We detect them by the long alphanumeric suffix
+    // (EL real IDs are ~20 chars vs built-in names like "Adrian" which are short).
+    async function tryAutoRegisterVoice(failedVoiceId: unknown): Promise<string | null> {
+      if (typeof failedVoiceId !== "string") return null;
+      const suffix = failedVoiceId.startsWith("11labs-") ? failedVoiceId.slice(7) : null;
+      if (!suffix || suffix.length < 12) return null; // short names = built-in voices, can't re-register
+      try {
+        const regRes = await fetch(`${RETELL_BASE}/create-voice`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${builderKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ voice_name: suffix, voice_provider: "elevenlabs", elevenlabs_voice_id: suffix }),
+        });
+        if (!regRes.ok) return null;
+        const regJson = (await regRes.json()) as Record<string, unknown>;
+        const newId = String(regJson.voice_id ?? "");
+        if (newId) {
+          console.log("[retell-deploy] Auto-registered ElevenLabs voice", failedVoiceId, "→", newId);
+          return newId;
+        }
+      } catch { /* fall through */ }
+      return null;
+    }
+
     if (mode === "update" && agentId) {
       const updateBody = stripKeys(agent, READONLY_KEYS);
       updateBody.response_engine = {
@@ -826,9 +851,15 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
         agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
       } catch (e) {
         if (/voice.*not found|not found.*voice/i.test((e as Error).message)) {
-          updateBody.voice_id = "11labs-Adrian";
-          agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
-          voiceFallback = true;
+          const registeredId = await tryAutoRegisterVoice(updateBody.voice_id);
+          if (registeredId) {
+            updateBody.voice_id = registeredId;
+            agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
+          } else {
+            updateBody.voice_id = "11labs-Adrian";
+            agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
+            voiceFallback = true;
+          }
         } else if (e instanceof RetellApiError && e.status === 404) {
           // Agent was deleted from Retell (stale agentId) — clear it so we fall through to create.
           console.warn("[retell-deploy] Agent not found in Retell (stale agentId), will create a new agent");
@@ -847,9 +878,15 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
         agentResp = await retellFetch(`/create-agent`, createBody, "POST", builderKey);
       } catch (e) {
         if (/voice.*not found|not found.*voice/i.test((e as Error).message)) {
-          createBody.voice_id = "11labs-Adrian";
-          agentResp = await retellFetch(`/create-agent`, createBody, "POST", builderKey);
-          voiceFallback = true;
+          const registeredId = await tryAutoRegisterVoice(createBody.voice_id);
+          if (registeredId) {
+            createBody.voice_id = registeredId;
+            agentResp = await retellFetch(`/create-agent`, createBody, "POST", builderKey);
+          } else {
+            createBody.voice_id = "11labs-Adrian";
+            agentResp = await retellFetch(`/create-agent`, createBody, "POST", builderKey);
+            voiceFallback = true;
+          }
         } else throw e;
       }
       agentId = String(agentResp.agent_id ?? "");

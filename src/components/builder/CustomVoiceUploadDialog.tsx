@@ -80,6 +80,7 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
   /* ── professional import ── */
   const [proId, setProId] = useState("");
   const [proName, setProName] = useState("");
+  const [proImporting, setProImporting] = useState(false);
 
   const searchFn = useServerFn(searchElevenLabsVoices);
   const addFn = useServerFn(addElevenLabsCommunityVoice);
@@ -192,14 +193,25 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
   }
 
   /* ── Professional import ── */
-  function handleProImport() {
+  async function handleProImport() {
     const raw = proId.trim();
     if (!raw) return toast.error("Voice ID required");
-    const voiceId = raw.startsWith("11labs-") ? raw : `11labs-${raw}`;
-    onUploaded(voiceId, proName.trim() || raw);
-    toast.success("Voice set", { description: voiceId });
-    setOpen(false);
-    reset();
+    const elVoiceId = raw.startsWith("11labs-") ? raw.slice(7) : raw;
+    setProImporting(true);
+    try {
+      const res = await addFn({
+        data: { elevenLabsVoiceId: elVoiceId, voiceName: proName.trim() || elVoiceId },
+      });
+      if (!res.voiceId) throw new Error("No voice ID returned");
+      onUploaded(res.voiceId, res.voiceName);
+      toast.success("Voice added", { description: res.voiceName });
+      setOpen(false);
+      reset();
+    } catch (e) {
+      toast.error("Failed to add voice", { description: (e as Error).message });
+    } finally {
+      setProImporting(false);
+    }
   }
 
   const TABS: { id: Tab; label: string }[] = [
@@ -498,18 +510,22 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
                   onKeyDown={(e) => e.key === "Enter" && handleProImport()}
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  The 20-character ID from your ElevenLabs voice page. The{" "}
-                  <code className="rounded bg-muted px-1">11labs-</code> prefix is added automatically.
+                  The 20-character ID from your ElevenLabs voice page. The voice will be registered
+                  and ready to use in the builder immediately — no API key required.
                 </p>
               </div>
 
               <Button
                 onClick={handleProImport}
-                disabled={!proId.trim()}
+                disabled={!proId.trim() || proImporting}
                 className="self-start"
               >
-                <Check className="h-4 w-4 mr-2" />
-                Use this voice
+                {proImporting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4 mr-2" />
+                )}
+                {proImporting ? "Importing…" : "Use this voice"}
               </Button>
             </div>
           )}
