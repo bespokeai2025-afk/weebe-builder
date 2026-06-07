@@ -817,6 +817,7 @@ function DataPage() {
         onOpenChange={setStartCallingOpen}
         recordCount={selected.size}
         agents={agents}
+        defaultAgentId={agentFilter !== "all" ? agentFilter : ""}
         onStart={handleStartCalling}
       />
 
@@ -1090,25 +1091,39 @@ function StartCallingDialog({
   onOpenChange,
   recordCount,
   agents,
+  defaultAgentId = "",
   onStart,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   recordCount: number;
-  agents: Array<{ id: string; name: string }>;
+  agents: Array<{ id: string; name: string; settings?: Record<string, unknown> | null }>;
+  defaultAgentId?: string;
   onStart: (agentId: string | null, fromNumber: string | null) => Promise<void>;
 }) {
   const [agentId, setAgentId] = useState("");
   const [fromNumber, setFromNumber] = useState("");
   const [loading, setLoading] = useState(false);
 
+  function phoneForAgent(id: string) {
+    const ag = agents.find((a) => a.id === id);
+    return (ag?.settings?.phoneNumber as string | undefined) ?? "";
+  }
+
   useEffect(() => {
     if (open) {
-      setAgentId("");
-      setFromNumber("");
+      const id = defaultAgentId;
+      setAgentId(id);
+      setFromNumber(id ? phoneForAgent(id) : "");
       setLoading(false);
     }
-  }, [open]);
+  }, [open, defaultAgentId]);
+
+  function handleAgentChange(id: string) {
+    setAgentId(id);
+    const phone = phoneForAgent(id);
+    if (phone) setFromNumber(phone);
+  }
 
   async function handleStart() {
     setLoading(true);
@@ -1133,7 +1148,7 @@ function StartCallingDialog({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="start-agent">Agent</Label>
-            <Select value={agentId} onValueChange={setAgentId}>
+            <Select value={agentId} onValueChange={handleAgentChange}>
               <SelectTrigger id="start-agent">
                 <SelectValue placeholder="Select agent (optional)" />
               </SelectTrigger>
