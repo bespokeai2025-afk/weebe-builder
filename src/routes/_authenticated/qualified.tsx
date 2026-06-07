@@ -20,7 +20,7 @@ import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/quali
 import { setLeadStatus } from "@/lib/dashboard/leads.functions";
 
 export const Route = createFileRoute("/_authenticated/qualified")({
-  head: () => ({ meta: [{ title: "Qualified — Webespoke AI" }] }),
+  head: () => ({ meta: [{ title: "Qualified — Webee" }] }),
   component: QualifiedPage,
 });
 

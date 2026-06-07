@@ -25,7 +25,7 @@ export function HowItWorks() {
             How It Works
           </span>
           <h2 className="mt-2 text-3xl md:text-4xl font-semibold tracking-tight">
-            Three steps to a Webespoke AI-ready script
+            Three steps to a Webee-ready script
           </h2>
         </div>
         <div className="mt-12 grid gap-6 md:grid-cols-3">

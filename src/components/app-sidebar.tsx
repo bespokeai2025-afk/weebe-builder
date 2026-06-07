@@ -12,7 +12,6 @@ import {
   ChevronsUpDown,
   LogOut,
   Settings,
-  Sparkles,
   Check,
   Database,
   PhoneCall,
@@ -105,7 +104,7 @@ export function AppSidebar() {
   };
 
   const initials = (email || "U").slice(0, 2).toUpperCase();
-  const workspaceName = "Webespoke Workspace";
+  const workspaceName = "Webee";
 
   const navButtonClasses = (active: boolean) =>
     cn(
@@ -145,8 +144,9 @@ export function AppSidebar() {
                 "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
               )}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/90 to-primary/50 text-primary-foreground shadow-[0_0_0_1px_rgba(79,140,255,0.25),0_4px_16px_-4px_rgba(79,140,255,0.45)]">
-                <Sparkles className="h-4 w-4" />
+              <div className="flex h-8 w-8 shrink-0 overflow-hidden rounded-lg">
+                <img src="/webee-logo-dark.png" alt="Webee" className="hidden h-8 w-8 object-cover dark:block" />
+                <img src="/webee-logo-yellow.png" alt="Webee" className="block h-8 w-8 object-cover dark:hidden" />
               </div>
               {!collapsed && (
                 <>
@@ -155,7 +155,7 @@ export function AppSidebar() {
                       {workspaceName}
                     </span>
                     <span className="truncate text-[11px] text-muted-foreground">
-                      {isAdmin ? "Admin · Pro" : "Workspace"}
+                      {isAdmin ? "Admin · Pro" : "by Webespoke AI"}
                     </span>
                   </div>
                   <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-hover:text-foreground" />
@@ -168,8 +168,9 @@ export function AppSidebar() {
               Workspaces
             </DropdownMenuLabel>
             <DropdownMenuItem className="gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
-                <Sparkles className="h-3.5 w-3.5" />
+              <div className="flex h-7 w-7 overflow-hidden rounded-md">
+                <img src="/webee-logo-dark.png" alt="Webee" className="hidden h-7 w-7 object-cover dark:block" />
+                <img src="/webee-logo-yellow.png" alt="Webee" className="block h-7 w-7 object-cover dark:hidden" />
               </div>
               <div className="flex flex-1 flex-col">
                 <span className="text-sm font-medium">{workspaceName}</span>

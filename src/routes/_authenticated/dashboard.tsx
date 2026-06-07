@@ -9,7 +9,7 @@ import { getOverviewStats } from "@/lib/dashboard/leads.functions";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard — Webespoke AI" }] }),
+  head: () => ({ meta: [{ title: "Dashboard — Webee" }] }),
   component: DashboardPage,
 });
 

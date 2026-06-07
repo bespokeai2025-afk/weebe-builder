@@ -13,7 +13,7 @@ export function Hero() {
       <div className="mx-auto max-w-5xl px-6 py-20 md:py-28 text-center">
         <Logo className="mx-auto h-14 md:h-16 mb-6" />
         <span className="inline-flex items-center rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground">
-          Webespoke AI — Script Flow Builder
+          Webee — Smart Dash & Builder
         </span>
         <h1 className="mt-6 text-4xl md:text-6xl font-semibold tracking-tight">
           Map Your <span className="italic text-primary">AI Call Script</span>
@@ -21,7 +21,7 @@ export function Hero() {
         </h1>
         <p className="mt-5 mx-auto max-w-2xl text-base md:text-lg text-muted-foreground">
           Lay out your call structure, transitions, and dialogue visually — then deploy your
-          Webespoke AI agent in one click.
+          Webee AI agent in one click.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Button asChild size="lg">

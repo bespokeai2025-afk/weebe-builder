@@ -33,7 +33,7 @@ export const Route = createFileRoute("/_authenticated/templates")({
   }),
   head: () => ({
     meta: [
-      { title: "Agent Templates — Webespoke AI" },
+      { title: "Agent Templates — Webee" },
       {
         name: "description",
         content:

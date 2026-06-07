@@ -7,7 +7,7 @@ import { useBuilderStore } from "@/lib/builder/store";
 export const Route = createFileRoute("/_authenticated/agents/new")({
   head: () => ({
     meta: [
-      { title: "New Agent — Webespoke AI" },
+      { title: "New Agent — Webee" },
       {
         name: "description",
         content: "Start a new voice agent from a template or build from scratch.",

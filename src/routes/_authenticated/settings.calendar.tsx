@@ -26,7 +26,7 @@ import {
 export const Route = createFileRoute("/_authenticated/settings/calendar")({
   head: () => ({
     meta: [
-      { title: "Calendar Connections — Webespoke AI" },
+      { title: "Calendar Connections — Webee" },
       {
         name: "description",
         content: "Connect Google Calendar through Cal.com for your voice agents.",

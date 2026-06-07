@@ -24,7 +24,7 @@ import { listMyAgents, getMyAgent, deleteMyAgent } from "@/lib/agents/agents.fun
 export const Route = createFileRoute("/_authenticated/my-agents")({
   head: () => ({
     meta: [
-      { title: "Agents — Webespoke AI" },
+      { title: "Agents — Webee" },
       {
         name: "description",
         content: "Manage your saved Webespoke AI voice agents.",

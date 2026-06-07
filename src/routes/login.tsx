@@ -61,7 +61,7 @@ function LoginPage() {
         <Logo className="mx-auto h-10 mb-4" />
         <h1 className="text-xl font-semibold">Sign in</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Access the Webespoke AI script flow builder.
+          Access the Webee Smart Dash & Builder.
         </p>
 
         <div className="mt-5 space-y-3">

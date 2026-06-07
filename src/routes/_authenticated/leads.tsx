@@ -47,7 +47,7 @@ import {
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/leads")({
-  head: () => ({ meta: [{ title: "Leads — Webespoke AI" }] }),
+  head: () => ({ meta: [{ title: "Leads — Webee" }] }),
   component: LeadsPage,
 });
 

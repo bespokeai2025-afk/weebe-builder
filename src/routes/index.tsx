@@ -8,16 +8,16 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Webespoke AI — Visual Voice Agent Builder" },
+      { title: "Webee — Visual Voice Agent Builder" },
       {
         name: "description",
         content:
-          "Visually map your AI call script and deploy a Webespoke AI voice agent in one click.",
+          "Visually map your AI call script and deploy a Webee voice agent in one click.",
       },
-      { property: "og:title", content: "Webespoke AI — Visual Voice Agent Builder" },
+      { property: "og:title", content: "Webee — Visual Voice Agent Builder" },
       {
         property: "og:description",
-        content: "Drag, connect, and deploy a Webespoke AI voice agent for your call script.",
+        content: "Drag, connect, and deploy a Webee voice agent for your call script.",
       },
       { property: "og:url", content: "https://www.webespokeai.com" },
       { property: "og:type", content: "website" },
@@ -51,7 +51,7 @@ function Index() {
             </h2>
             <p className="mt-3 text-sm text-muted-foreground max-w-2xl mx-auto">
               Drag, connect, and fill in your call flow. Works on desktop and mobile. Deploy your
-              Webespoke AI agent when you're ready.
+              Webee AI agent when you're ready.
             </p>
           </div>
           {authed ? (
@@ -78,7 +78,7 @@ function Index() {
           rel="noopener noreferrer"
           className="hover:text-foreground transition-colors"
         >
-          Webespoke AI · webespokeai.com
+          Webee · by Webespoke AI
         </a>
       </footer>
     </main>

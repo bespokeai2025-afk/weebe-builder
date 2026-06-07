@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/builder")({
   }),
   head: () => ({
     meta: [
-      { title: "Builder — Webespoke AI Script Flow" },
+      { title: "Builder — Webee" },
       {
         name: "description",
         content: "Full-screen Webespoke AI script flow builder with JSON import and export.",

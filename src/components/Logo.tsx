@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import logoWebeeDark from "@/assets/webee-logo-dark.png";
 import logoDark from "@/assets/logo-dark.jpg";
 import logoLight from "@/assets/logo-light.png";
 import { cn } from "@/lib/utils";
@@ -16,8 +17,8 @@ export function Logo({ className }: { className?: string }) {
 
   return (
     <img
-      src={isDark ? logoDark : logoLight}
-      alt="WEbespokeAI"
+      src={isDark ? logoWebeeDark : logoLight}
+      alt="Webee"
       className={cn("h-10 w-auto select-none", className)}
       draggable={false}
     />

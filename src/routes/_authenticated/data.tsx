@@ -38,7 +38,7 @@ import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/data")({
-  head: () => ({ meta: [{ title: "Data Records — Webespoke AI" }] }),
+  head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
   component: DataPage,
 });
 

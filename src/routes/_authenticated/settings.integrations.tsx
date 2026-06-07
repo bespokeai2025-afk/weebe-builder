@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export const Route = createFileRoute("/_authenticated/settings/integrations")({
   head: () => ({
     meta: [
-      { title: "Integrations — Webespoke AI" },
+      { title: "Integrations — Webee" },
       {
         name: "description",
         content: "Push every published agent into your WE BE SMART DASH dashboard.",

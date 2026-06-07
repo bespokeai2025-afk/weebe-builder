@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { listWhatsappThreads } from "@/lib/dashboard/whatsapp.functions";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({
-  head: () => ({ meta: [{ title: "WhatsApp — Webespoke AI" }] }),
+  head: () => ({ meta: [{ title: "WhatsApp — Webee" }] }),
   component: WhatsappPage,
 });
 

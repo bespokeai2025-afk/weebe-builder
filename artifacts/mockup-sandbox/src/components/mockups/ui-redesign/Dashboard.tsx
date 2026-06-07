@@ -59,11 +59,11 @@ export function Dashboard() {
         {/* Workspace switcher */}
         <div style={{ padding: "10px 10px 6px" }}>
           <button style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "6px 8px", borderRadius: "8px", background: "transparent", border: "none", cursor: "pointer", color: "#e2e8f0" }}>
-            <div style={{ width: "28px", height: "28px", borderRadius: "7px", background: "linear-gradient(135deg, #4f8cff 0%, #2563eb 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 1px rgba(79,140,255,0.3), 0 4px 12px -4px rgba(79,140,255,0.5)" }}>
-              <Sparkles size={13} color="#fff" />
+            <div style={{ width: "28px", height: "28px", borderRadius: "7px", overflow: "hidden", flexShrink: 0 }}>
+              <img src="/__mockup/images/webee-logo-dark.png" alt="Webee" style={{ width: "28px", height: "28px", objectFit: "cover", display: "block" }} />
             </div>
             <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontSize: "12px", fontWeight: 600, color: "#e2e8f0", lineHeight: 1.2 }}>Webespoke AI</div>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "#e2e8f0", lineHeight: 1.2 }}>Webee</div>
               <div style={{ fontSize: "10px", color: "#64748b" }}>Admin · Pro</div>
             </div>
           </button>
