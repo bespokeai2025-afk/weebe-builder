@@ -122,7 +122,7 @@ function CallsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-10">
+    <div className="mx-auto w-full max-w-7xl px-6 py-5">
       {recordingPlayer && (
         <RecordingDialog
           url={recordingPlayer.url}
@@ -131,10 +131,10 @@ function CallsPage() {
         />
       )}
 
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calls</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight">Calls</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Call activity, transcripts and outcomes
           </p>
         </div>
@@ -150,7 +150,7 @@ function CallsPage() {
             <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{rows.length}</p>
+            <p className="text-xl font-bold">{rows.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -159,7 +159,7 @@ function CallsPage() {
             <Phone className="h-4 w-4 text-emerald-400" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{completed}</p>
+            <p className="text-xl font-bold">{completed}</p>
           </CardContent>
         </Card>
         <Card>
@@ -168,7 +168,7 @@ function CallsPage() {
             <Phone className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{failed}</p>
+            <p className="text-xl font-bold">{failed}</p>
           </CardContent>
         </Card>
         <Card>
@@ -177,12 +177,12 @@ function CallsPage() {
             <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{fmtDuration(totalSec)}</p>
+            <p className="text-xl font-bold">{fmtDuration(totalSec)}</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="mt-8">
+      <Card className="mt-4">
         <CardContent className="p-0">
           {rows.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16">

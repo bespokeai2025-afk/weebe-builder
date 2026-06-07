@@ -92,14 +92,14 @@ function BillingPage() {
   const sub = data?.subscription ?? null;
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-8 p-6 lg:p-10">
+    <div className="mx-auto w-full max-w-7xl space-y-5 p-5 lg:p-6">
       <PaymentTestModeBanner />
 
       {/* Header */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Billing</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Billing</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Manage your subscription, payment methods, and usage.
           </p>
         </div>
@@ -119,7 +119,7 @@ function BillingPage() {
       </header>
 
       {/* Current plan summary */}
-      <section className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-card/60 to-card/30 p-6 shadow-[0_30px_80px_-50px_rgba(79,140,255,0.4)]">
+      <section className="rounded-xl border border-white/[0.06] bg-gradient-to-br from-card/60 to-card/30 p-4 shadow-[0_30px_80px_-50px_rgba(79,140,255,0.4)]">
         {summaryQuery.isLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-5 w-32" />

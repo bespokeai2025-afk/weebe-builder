@@ -266,12 +266,12 @@ function LeadsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-10">
+    <div className="mx-auto w-full max-w-7xl px-6 py-5">
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl font-semibold tracking-tight">Leads</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
             Lead Generation intelligence — updated automatically after every call
           </p>
         </div>
@@ -294,14 +294,14 @@ function LeadsPage() {
       </div>
 
       {/* Campaign analytics stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Leads</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{leads.length}</p>
+            <p className="text-xl font-bold">{leads.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -310,7 +310,7 @@ function LeadsPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-emerald-500">{positive}</p>
+            <p className="text-xl font-bold text-emerald-500">{positive}</p>
             {leads.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 {Math.round((positive / leads.length) * 100)}%
@@ -325,11 +325,11 @@ function LeadsPage() {
           </CardHeader>
           <CardContent>
             {avgScore != null ? (
-              <p className={`text-3xl font-bold ${avgScore >= 70 ? "text-emerald-500" : avgScore >= 40 ? "text-amber-500" : "text-red-500"}`}>
+              <p className={`text-xl font-bold ${avgScore >= 70 ? "text-emerald-500" : avgScore >= 40 ? "text-amber-500" : "text-red-500"}`}>
                 {avgScore}
               </p>
             ) : (
-              <p className="text-3xl font-bold text-muted-foreground">—</p>
+              <p className="text-xl font-bold text-muted-foreground">—</p>
             )}
           </CardContent>
         </Card>
@@ -339,20 +339,20 @@ function LeadsPage() {
             <CalendarCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-violet-500">{meetingsReq}</p>
+            <p className="text-xl font-bold text-violet-500">{meetingsReq}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Campaign stats row (from data_records) */}
       {stats && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
           <Card className="border-dashed">
             <CardHeader className="pb-1">
               <CardTitle className="text-xs font-medium text-muted-foreground">Calls Made</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="text-2xl font-semibold">{stats.called}</p>
+              <p className="text-lg font-semibold">{stats.called}</p>
               <p className="text-[11px] text-muted-foreground">of {stats.total} records</p>
             </CardContent>
           </Card>
@@ -361,7 +361,7 @@ function LeadsPage() {
               <CardTitle className="text-xs font-medium text-muted-foreground">Contacts Reached</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="text-2xl font-semibold">{stats.reached}</p>
+              <p className="text-lg font-semibold">{stats.reached}</p>
               <p className="text-[11px] text-muted-foreground">{stats.conversionRate}% connect rate</p>
             </CardContent>
           </Card>
@@ -370,7 +370,7 @@ function LeadsPage() {
               <CardTitle className="text-xs font-medium text-muted-foreground">Positive Sentiment %</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-emerald-500">{stats.positivePct}%</p>
+              <p className="text-lg font-semibold text-emerald-500">{stats.positivePct}%</p>
             </CardContent>
           </Card>
           <Card className="border-dashed">
@@ -378,7 +378,7 @@ function LeadsPage() {
               <CardTitle className="text-xs font-medium text-muted-foreground">Meetings Booked</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="text-2xl font-semibold text-violet-500">{stats.meetingsBooked}</p>
+              <p className="text-lg font-semibold text-violet-500">{stats.meetingsBooked}</p>
             </CardContent>
           </Card>
         </div>

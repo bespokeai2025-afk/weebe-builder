@@ -108,14 +108,14 @@ function MyAgentsPage() {
 
   return (
     <main className="min-h-screen">
-      <div className="mx-auto w-full max-w-6xl px-6 py-10 md:py-14">
+      <div className="mx-auto w-full max-w-7xl px-6 py-5 md:py-7">
         {/* Page header */}
-        <div className="bg-hero-radial mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-2">
+        <div className="bg-hero-radial mb-5 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="space-y-1">
             <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Workspace
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
               Agents
             </h1>
             <p className="max-w-xl text-sm text-muted-foreground">
@@ -147,7 +147,7 @@ function MyAgentsPage() {
             <Loader2 className="h-4 w-4 animate-spin" /> Loading your agents…
           </div>
         ) : agents.length === 0 ? (
-          <div className="rounded-2xl bg-card/60 p-14 text-center ring-1 ring-white/[0.06]">
+          <div className="rounded-xl bg-card/60 p-8 text-center ring-1 ring-white/[0.06]">
             <h2 className="text-lg font-semibold tracking-tight">No agents yet</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Spin up your first voice agent in the builder.

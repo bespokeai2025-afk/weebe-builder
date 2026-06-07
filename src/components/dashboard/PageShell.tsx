@@ -17,26 +17,26 @@ export function PageHeader({
 }) {
   return (
     <>
-      <div className="border-b border-white/[0.06] px-8 py-5">
-        <h1 className="text-base font-medium text-foreground">{title}</h1>
+      <div className="border-b border-white/[0.06] px-6 py-3">
+        <h1 className="text-sm font-medium text-foreground">{title}</h1>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-4 px-8 pt-8">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 pt-5">
+        <div className="flex items-center gap-3">
           {Icon && (
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/60 shadow-glow">
-              <Icon className="h-7 w-7 text-primary-foreground" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/60 shadow-glow">
+              <Icon className="h-4 w-4 text-primary-foreground" />
             </div>
           )}
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">{title}</h2>
-            {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2">
           {actions}
           {onRefresh && (
-            <Button variant="secondary" onClick={onRefresh} className="bg-primary/15 text-primary hover:bg-primary/25">
-              <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+            <Button size="sm" variant="secondary" onClick={onRefresh} className="h-8 bg-primary/15 text-primary hover:bg-primary/25">
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh
             </Button>
           )}
         </div>
@@ -65,18 +65,18 @@ export function StatCard({
   tone?: keyof typeof toneStyles;
 }) {
   return (
-    <div className={cn("relative overflow-hidden rounded-2xl border border-white/[0.06] bg-card/60 p-5 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
+    <div className={cn("relative overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 p-4 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
       <div className={cn("absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r", toneStyles[tone].split(" ").slice(0, 2).join(" "))} />
       <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-      <p className="mt-3 text-4xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
-      {hint && <p className="mt-2 text-xs text-muted-foreground">{hint}</p>}
+      <p className="mt-1.5 text-2xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
 
 export function PanelCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-2xl border border-white/[0.06] bg-card/50 p-5 backdrop-blur", className)}>
+    <div className={cn("rounded-xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur", className)}>
       {children}
     </div>
   );
@@ -92,9 +92,9 @@ export function EmptyState({
   message: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.08] bg-card/30 px-6 py-16 text-center">
-      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-        <Icon className="h-5 w-5" />
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-white/[0.08] bg-card/30 px-6 py-10 text-center">
+      <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="h-4 w-4" />
       </div>
       <p className="text-sm font-medium text-foreground">{title}</p>
       <p className="mt-1 max-w-sm text-xs text-muted-foreground">{message}</p>

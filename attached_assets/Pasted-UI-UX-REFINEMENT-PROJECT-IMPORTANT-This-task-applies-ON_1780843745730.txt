@@ -1,0 +1,350 @@
+UI/UX REFINEMENT PROJECT
+
+IMPORTANT
+
+This task applies ONLY to dashboard pages.
+
+DO NOT modify:
+
+* Agent Builder
+* Workflow Builder
+* Script Builder
+* Flow Canvas
+* Visual Builder Components
+
+The Builder experience is already correctly sized.
+
+Only improve:
+
+* Dashboard Pages
+* Leads
+* Calls
+* Campaigns
+* Analytics
+* Qualified Leads
+* Data Section
+* Settings
+* Billing
+* User Management
+* All CRUD/List Views
+
+GOAL
+
+The dashboard currently feels too zoomed in.
+
+Components are oversized.
+
+Spacing is excessive.
+
+Too few records fit on screen.
+
+The product feels more like a consumer app than an enterprise SaaS platform.
+
+Maintain the existing colour palette and branding.
+
+Do NOT redesign the visual identity.
+
+Focus only on sizing, density, spacing and information architecture.
+
+DESIGN DIRECTION
+
+Target products:
+
+* Salesforce
+* HubSpot
+* Clay
+* Apollo
+* Retell
+* Stripe Dashboard
+* Linear
+* Attio
+
+The dashboard should feel:
+
+✓ Enterprise
+✓ Data dense
+✓ Professional
+✓ Efficient
+✓ Modern
+✓ High information visibility
+
+LAYOUT CHANGES
+
+Reduce overall visual scale by approximately 15-25%.
+
+Increase usable screen real estate.
+
+Fit significantly more information above the fold.
+
+CONTENT CONTAINER
+
+Current pages appear too wide and oversized.
+
+Review:
+
+* Max widths
+* Padding
+* Margins
+* Gutters
+
+Reduce unnecessary whitespace.
+
+CARD DESIGN
+
+Current cards are too large.
+
+Reduce:
+
+* Internal padding
+* Vertical spacing
+* Header heights
+* Card margins
+
+Target:
+
+Compact enterprise cards.
+
+TABLES
+
+Tables are the highest priority.
+
+Current rows are too tall.
+
+Reduce:
+
+* Row height
+* Cell padding
+* Header height
+
+Increase visible rows per screen.
+
+Target:
+
+40-60% more records visible.
+
+Maintain readability.
+
+TYPOGRAPHY
+
+Keep existing font family.
+
+Adjust:
+
+Page Titles
+
+Current:
+Too large
+
+Target:
+24-28px
+
+Section Headers
+
+Target:
+16-18px
+
+Body Text
+
+Target:
+13-14px
+
+Table Text
+
+Target:
+12-13px
+
+Metadata
+
+Target:
+11-12px
+
+BUTTONS
+
+Reduce button height.
+
+Current buttons feel oversized.
+
+Target:
+
+Primary Buttons:
+36-40px height
+
+Secondary Buttons:
+32-36px height
+
+Compact action buttons where appropriate.
+
+FORMS
+
+Reduce:
+
+* Input heights
+* Dropdown heights
+* Field spacing
+
+Target enterprise density.
+
+Inputs should feel similar to:
+
+Salesforce
+HubSpot
+Apollo
+
+METRICS CARDS
+
+Current KPI cards occupy too much space.
+
+Reduce:
+
+* Card height
+* Padding
+* Typography scale
+
+Fit more KPI cards in a single row.
+
+Example:
+
+Current:
+4 cards per row
+
+Target:
+5-6 cards per row on large screens
+
+LEADS PAGE
+
+Optimise for high-volume usage.
+
+Requirements:
+
+* More rows visible
+* Compact filters
+* Compact search
+* Compact bulk actions
+
+Reduce scrolling.
+
+CALLS PAGE
+
+Prioritise visibility.
+
+Show more:
+
+* Call history
+* Outcomes
+* Duration
+* Agent used
+
+without increasing scrolling.
+
+CAMPAIGNS PAGE
+
+Reduce card sizes.
+
+Increase campaign visibility.
+
+Show more campaigns per screen.
+
+QUALIFIED PAGE
+
+Increase information density.
+
+Allow sales teams to quickly review more records.
+
+ANALYTICS PAGE
+
+Reduce oversized charts.
+
+Improve balance between:
+
+* Charts
+* KPI cards
+* Tables
+
+More information visible without scrolling.
+
+SIDEBAR
+
+Maintain current colours.
+
+Reduce:
+
+* Menu item height
+* Vertical padding
+* Icon spacing
+
+Show more navigation items at once.
+
+Maintain readability.
+
+HEADER
+
+Reduce overall height.
+
+Increase usable content area.
+
+SPACING SYSTEM
+
+Audit all spacing values.
+
+Reduce excessive usage of:
+
+p-6
+p-8
+gap-8
+gap-10
+gap-12
+space-y-8
+
+Replace with more enterprise-friendly spacing.
+
+Examples:
+
+p-8 → p-4
+
+gap-8 → gap-4
+
+space-y-8 → space-y-4
+
+RESPONSIVENESS
+
+Preserve responsive behaviour.
+
+Do not create overflow issues.
+
+Do not break mobile layouts.
+
+Do not reduce accessibility.
+
+IMPLEMENTATION REQUIREMENTS
+
+Create a reusable dashboard density system.
+
+Examples:
+
+density="comfortable"
+
+density="compact"
+
+density="enterprise"
+
+Apply enterprise density across dashboard pages only.
+
+Do not affect Builder pages.
+
+ACCEPTANCE CRITERIA
+
+✓ Dashboard feels significantly more professional.
+
+✓ 20-40% more information visible on screen.
+
+✓ Reduced scrolling.
+
+✓ Cleaner hierarchy.
+
+✓ Improved usability for high-volume users.
+
+✓ Existing colour palette preserved.
+
+✓ Builder pages unchanged.
+
+Provide a complete list of modified components and explain all sizing changes before implementation.

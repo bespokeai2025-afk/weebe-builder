@@ -237,7 +237,7 @@ function AnalyticsPage() {
     : "All agents";
 
   return (
-    <div className="pb-12">
+    <div className="pb-6">
       <PageHeader
         title="Analytics"
         subtitle="All call performance metrics from your voice agents"
@@ -303,7 +303,7 @@ function AnalyticsPage() {
       )}
 
       {result && !result.configured ? (
-        <div className="px-8 pt-8">
+        <div className="px-6 pt-5">
           <PanelCard>
             <EmptyState
               icon={BarChart3}
@@ -329,14 +329,14 @@ function AnalyticsPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4 px-8 pt-6 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 px-6 pt-5 md:grid-cols-4">
             <StatCard label="Total calls" tone="primary" value={analytics.total} />
             <StatCard label="Minutes used" tone="info" value={`${analytics.totalMinutes}m`} />
             <StatCard label="Avg duration" tone="info" value={fmtDuration(analytics.avgDuration)} />
             <StatCard label="Success rate" tone="success" value={`${analytics.successRate.toFixed(1)}%`} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4 px-8 pt-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 px-6 pt-3 md:grid-cols-4">
             <StatCard label="Inbound" tone="primary" value={analytics.inbound} />
             <StatCard label="Outbound" tone="info" value={analytics.outbound} />
             <StatCard label="Voicemails" tone="danger" value={analytics.voicemailCount} />
@@ -344,7 +344,7 @@ function AnalyticsPage() {
           </div>
 
           {/* Calls per day */}
-          <div className="px-8 pt-6">
+          <div className="px-6 pt-4">
             <PanelCard>
               <div className="mb-4 flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
@@ -378,7 +378,7 @@ function AnalyticsPage() {
           </div>
 
           {/* Sentiment + Call type */}
-          <div className="grid grid-cols-1 gap-4 px-8 pt-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 px-6 pt-4 md:grid-cols-2">
             <PanelCard>
               <div className="mb-4 flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
@@ -419,7 +419,7 @@ function AnalyticsPage() {
           </div>
 
           {/* Status + Disconnect reasons */}
-          <div className="grid grid-cols-1 gap-4 px-8 pt-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 px-6 pt-4 md:grid-cols-2">
             <PanelCard>
               <div className="mb-4 flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
@@ -447,7 +447,7 @@ function AnalyticsPage() {
           </div>
 
           {/* Latency */}
-          <div className="px-8 pt-6">
+          <div className="px-6 pt-4">
             <PanelCard>
               <div className="mb-4 flex items-center gap-2">
                 <Clock className="h-4 w-4 text-primary" />
@@ -463,7 +463,7 @@ function AnalyticsPage() {
 
           {/* Per-agent breakdown — only shown on "All agents" view */}
           {!selectedAgentId && (
-            <div className="px-8 pt-6">
+            <div className="px-6 pt-4">
               <PanelCard>
                 <div className="mb-4 flex items-center gap-2">
                   <PhoneCall className="h-4 w-4 text-primary" />
@@ -517,7 +517,7 @@ function AnalyticsPage() {
       )}
 
       {q.isLoading && (
-        <div className="px-8 pt-6 text-sm text-muted-foreground">Loading analytics…</div>
+        <div className="px-6 pt-5 text-sm text-muted-foreground">Loading analytics…</div>
       )}
     </div>
   );

@@ -60,16 +60,16 @@ function DashboardPage() {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Overview of your receptionist activity</p>
+    <div className="mx-auto w-full max-w-7xl px-6 py-5">
+      <div className="mb-4">
+        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="text-xs text-muted-foreground mt-0.5">Overview of your receptionist activity</p>
       </div>
 
       {/* Live Agents */}
       {(liveAgents.length > 0 || liveAgentsQ.isLoading) && (
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+        <div className="mb-4">
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Live Agents
           </h2>
           {liveAgentsQ.isLoading ? (
@@ -131,7 +131,7 @@ function DashboardPage() {
                 {isLoading ? (
                   <div className="h-8 w-20 animate-pulse rounded bg-muted" />
                 ) : (
-                  <p className="text-3xl font-bold">{card.value}</p>
+                  <p className="text-xl font-bold">{card.value}</p>
                 )}
               </CardContent>
             </Card>
@@ -140,9 +140,9 @@ function DashboardPage() {
       </div>
 
       {data?.recentLeads && data.recentLeads.length > 0 && (
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle className="text-lg">Recent Leads</CardTitle>
+        <Card className="mt-4">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">Recent Leads</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -163,7 +163,7 @@ function DashboardPage() {
         </Card>
       )}
 
-      <div className="mt-8 flex gap-3">
+      <div className="mt-4 flex gap-3">
         <Button asChild variant="outline" size="sm">
           <Link to="/my-agents">
             View agents

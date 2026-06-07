@@ -616,11 +616,11 @@ function DataPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-10">
-      <div className="mb-8 flex items-start justify-between">
+    <div className="mx-auto w-full max-w-7xl px-6 py-5">
+      <div className="mb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Data Records</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold tracking-tight">Data Records</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Manage calling data, import records, and control outbound campaigns
           </p>
         </div>
@@ -701,7 +701,7 @@ function DataPage() {
         </Card>
       )}
 
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {(
           [
             { label: "Total", value: stats.total, icon: Database },
@@ -716,14 +716,14 @@ function DataPage() {
               <Icon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{value}</p>
+              <p className="text-xl font-bold">{value}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card className="mb-6">
-        <CardContent className="pb-4 pt-4">
+      <Card className="mb-4">
+        <CardContent className="pb-3 pt-3">
           <div className="flex flex-wrap items-end gap-3">
             <div className="relative min-w-[200px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

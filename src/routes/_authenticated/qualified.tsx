@@ -130,12 +130,12 @@ function QualifiedPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-10">
+    <div className="mx-auto w-full max-w-7xl px-6 py-5">
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Qualified</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl font-semibold tracking-tight">Qualified</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
             Contacts scored and routed after qualification calls
           </p>
         </div>
@@ -146,14 +146,14 @@ function QualifiedPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 mb-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{stats?.total ?? "—"}</p>
+            <p className="text-xl font-bold">{stats?.total ?? "—"}</p>
           </CardContent>
         </Card>
         <Card>
@@ -162,7 +162,7 @@ function QualifiedPage() {
             <ShieldCheck className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-emerald-500">{stats?.qualified ?? "—"}</p>
+            <p className="text-xl font-bold text-emerald-500">{stats?.qualified ?? "—"}</p>
             {stats && stats.total > 0 && (
               <p className="text-xs text-muted-foreground">{stats.qualificationRate}% rate</p>
             )}
@@ -174,7 +174,7 @@ function QualifiedPage() {
             <TrendingUp className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-amber-500">{stats?.partiallyQualified ?? "—"}</p>
+            <p className="text-xl font-bold text-amber-500">{stats?.partiallyQualified ?? "—"}</p>
           </CardContent>
         </Card>
         <Card>
@@ -184,11 +184,11 @@ function QualifiedPage() {
           </CardHeader>
           <CardContent>
             {stats?.avgScore != null ? (
-              <p className={`text-3xl font-bold ${stats.avgScore >= 70 ? "text-emerald-500" : stats.avgScore >= 40 ? "text-amber-500" : "text-red-500"}`}>
+              <p className={`text-xl font-bold ${stats.avgScore >= 70 ? "text-emerald-500" : stats.avgScore >= 40 ? "text-amber-500" : "text-red-500"}`}>
                 {stats.avgScore}
               </p>
             ) : (
-              <p className="text-3xl font-bold text-muted-foreground">—</p>
+              <p className="text-xl font-bold text-muted-foreground">—</p>
             )}
           </CardContent>
         </Card>
