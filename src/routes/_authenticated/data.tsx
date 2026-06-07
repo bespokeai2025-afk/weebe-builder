@@ -194,6 +194,116 @@ function statusBadgeClass(status?: string | null) {
   return map[status ?? ""] ?? "bg-muted text-muted-foreground";
 }
 
+const OPTIONAL_COLS: { key: string; label: string }[] = [
+  { key: "email", label: "Email" },
+  { key: "title", label: "Title" },
+  { key: "client_name", label: "Client" },
+  { key: "unique_id", label: "Unique ID" },
+  { key: "lead_external_id", label: "Lead ID" },
+  { key: "property_type", label: "Property Type" },
+  { key: "bedrooms", label: "Bedrooms" },
+  { key: "address_line1", label: "Address" },
+  { key: "city", label: "City" },
+  { key: "state", label: "State" },
+  { key: "postal_code", label: "Postcode" },
+];
+
+function DynamicDataTable({
+  records,
+  agents,
+  selected,
+  allSelected,
+  toggleAll,
+  toggleOne,
+}: {
+  records: any[];
+  agents: any[];
+  selected: Set<string>;
+  allSelected: boolean;
+  toggleAll: (v: boolean | "indeterminate") => void;
+  toggleOne: (id: string) => void;
+}) {
+  const extraCols = useMemo(
+    () => OPTIONAL_COLS.filter((c) => records.some((r) => r[c.key])),
+    [records],
+  );
+
+  const metaKeys = useMemo(() => {
+    const keys = new Set<string>();
+    records.forEach((r) => {
+      if (r.meta && typeof r.meta === "object") {
+        Object.keys(r.meta).forEach((k) => keys.add(k));
+      }
+    });
+    return Array.from(keys).sort();
+  }, [records]);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+            <th className="w-10 px-3 py-2">
+              <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
+            </th>
+            <th className="px-3 py-2">Name</th>
+            <th className="px-3 py-2">Phone</th>
+            {extraCols.map((c) => (
+              <th key={c.key} className="whitespace-nowrap px-3 py-2">{c.label}</th>
+            ))}
+            {metaKeys.map((k) => (
+              <th key={`meta_${k}`} className="whitespace-nowrap px-3 py-2">
+                {k}
+                <span className="ml-1 text-[9px] normal-case tracking-normal text-amber-500">custom</span>
+              </th>
+            ))}
+            <th className="px-3 py-2">Status</th>
+            <th className="px-3 py-2">Agent</th>
+            <th className="px-3 py-2">Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          {records.map((r: any) => (
+            <tr key={r.id} className="border-b border-border/40 align-top">
+              <td className="px-3 py-2">
+                <Checkbox
+                  checked={selected.has(r.id)}
+                  onCheckedChange={() => toggleOne(r.id)}
+                />
+              </td>
+              <td className="px-3 py-2 font-medium">{r.name}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{r.mobile_number}</td>
+              {extraCols.map((c) => (
+                <td key={c.key} className="px-3 py-2 text-muted-foreground">
+                  {r[c.key] ?? "—"}
+                </td>
+              ))}
+              {metaKeys.map((k) => (
+                <td key={`meta_${k}`} className="px-3 py-2 text-muted-foreground">
+                  {r.meta?.[k] ?? "—"}
+                </td>
+              ))}
+              <td className="px-3 py-2">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${statusBadgeClass(r.call_status)}`}
+                >
+                  {(r.call_status ?? "").replace(/_/g, " ") || "—"}
+                </span>
+              </td>
+              <td className="px-3 py-2 text-muted-foreground">
+                {r.assigned_agent_id
+                  ? (agents.find((a: any) => a.id === r.assigned_agent_id)?.name ?? "—")
+                  : "—"}
+              </td>
+              <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{fmtDate(r.updated_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function DataPage() {
   const [search, setSearch] = useState("");
   const [callStatus, setCallStatus] = useState("all");
@@ -603,54 +713,14 @@ function DataPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <th className="w-10 px-3 py-2">
-                      <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                    </th>
-                    <th className="px-3 py-2">Name</th>
-                    <th className="px-3 py-2">Phone</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Agent</th>
-                    <th className="px-3 py-2">Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((r: any) => (
-                    <tr key={r.id} className="border-b border-border/40 align-top">
-                      <td className="px-3 py-2">
-                        <Checkbox
-                          checked={selected.has(r.id)}
-                          onCheckedChange={() => toggleOne(r.id)}
-                        />
-                      </td>
-                      <td className="px-3 py-2 font-medium">
-                        {r.name}
-                        {r.email && (
-                          <div className="text-[11px] text-muted-foreground">{r.email}</div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{r.mobile_number}</td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${statusBadgeClass(r.call_status)}`}
-                        >
-                          {(r.call_status ?? "").replace(/_/g, " ") || "\u2014"}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {r.assigned_agent_id
-                          ? (agents.find((a) => a.id === r.assigned_agent_id)?.name ?? "\u2014")
-                          : "\u2014"}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{fmtDate(r.updated_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DynamicDataTable
+              records={records}
+              agents={agents}
+              selected={selected}
+              allSelected={allSelected}
+              toggleAll={toggleAll}
+              toggleOne={toggleOne}
+            />
           )}
         </CardContent>
       </Card>
