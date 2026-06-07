@@ -236,12 +236,16 @@ function deriveStatus(
 }
 
 function deriveLeadStatus(result: QualificationResult): string {
-  // NEVER auto-set status = "qualified" — that requires manual promotion by the user.
-  // Leads appear in the Qualified section only after the user explicitly marks them.
+  // Auto-route based on post-call sentiment — only called after a real call completes.
+  // Positive → qualified (shown in Qualified section automatically).
+  // Neutral   → interested (stays in Leads; qualification_status captures "partially_qualified").
+  // Negative  → not_interested.
+  // callback_required → need_to_call regardless of sentiment.
   if (result.qualification_status === "callback_required") return "need_to_call";
-  if (result.sentiment === "negative" && result.qualification_status === "not_qualified")
+  if (result.sentiment === "positive") return "qualified";
+  if (result.sentiment === "negative" || result.qualification_status === "not_qualified")
     return "not_interested";
-  return "interested";
+  return "interested"; // neutral / partially_qualified stays visible in Leads
 }
 
 function buildFallback(
