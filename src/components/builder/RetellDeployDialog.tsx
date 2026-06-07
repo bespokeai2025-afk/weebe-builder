@@ -163,7 +163,7 @@ export function RetellDeployDialog() {
       if (res.voiceFallback) {
         toast.warning("Voice not available in builder workspace", {
           description:
-            "Your custom ElevenLabs voice wasn't found in this Retell workspace — the builder is using 11labs-Adrian for test calls. Your original voice will be applied automatically when you Go Live with your own Retell key.",
+            "Your custom ElevenLabs voice wasn't found in the builder workspace — using 11labs-Adrian for test calls. Your original voice will be applied automatically when you Go Live.",
           duration: 10000,
         });
       }

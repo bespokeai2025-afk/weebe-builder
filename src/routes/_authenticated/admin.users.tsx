@@ -69,13 +69,13 @@ function AdminUsersPage() {
   const handleDecide = async (id: string, approve: boolean) => {
     const retellApiKey = approveKeys[id]?.trim();
     if (approve && !retellApiKey) {
-      toast.error("Paste the Retell API key for this company's dedicated workspace first.");
+      toast.error("Paste the API key for this company's dedicated workspace first.");
       return;
     }
     setWsBusy(true);
     try {
       await decideWorkspaceRequest({ data: { id, approve, retellApiKey: retellApiKey || undefined } });
-      toast.success(approve ? "Workspace approved — Retell key stored" : "Request denied");
+      toast.success(approve ? "Workspace approved — API key stored" : "Request denied");
       setApproveOpen((s) => ({ ...s, [id]: false }));
       setApproveKeys((s) => ({ ...s, [id]: "" }));
       await loadWsRequests();
@@ -306,7 +306,7 @@ function AdminUsersPage() {
                       <div className="pl-2 space-y-2 pt-1">
                         <div className="space-y-1">
                           <Label className="text-xs">
-                            Retell API key for{" "}
+                            API key for{" "}
                             <span className="font-semibold">{r.workspace_name}</span>'s dedicated
                             workspace
                           </Label>
@@ -320,7 +320,7 @@ function AdminUsersPage() {
                             }
                           />
                           <p className="text-[11px] text-muted-foreground">
-                            Create a dedicated Retell sub-account for this company, copy its API
+                            Create a dedicated sub-account for this company, copy its API
                             key, and paste it here. The client will never see this key.
                           </p>
                         </div>

@@ -121,7 +121,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
         agentIds,
         calls,
         agentNames,
-        error: error ?? "No agents found in this Retell workspace",
+        error: error ?? "No deployed agents found in this workspace",
       };
     }
 
