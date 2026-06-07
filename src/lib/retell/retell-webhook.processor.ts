@@ -462,6 +462,14 @@ export async function processRetellWebhook(
     return { ok: true, status: 200, message: "ignored", event, callId };
   }
 
+  // Ignore test/builder calls (web_call type). These are calls initiated from
+  // the builder preview — they should never appear in the client dashboard.
+  if (call.call_type === "web_call" || call.call_type === "webcall") {
+    console.log("[RETELL WEBHOOK] Ignoring web/test call (not a live call)", { event, callId });
+    await updateWebhookEvent(eventLogId, "ignored", "web_call type — builder test call");
+    return { ok: true, status: 200, message: "ignored: test call", event, callId };
+  }
+
   if (!callId || !incomingAgentId) {
     console.warn("[RETELL WEBHOOK] Missing call_id or agent_id", {
       event,

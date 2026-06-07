@@ -21,6 +21,9 @@ export const listCalls = createServerFn({ method: "POST" })
       .from("calls")
       .select("*, lead:leads(id, full_name, phone)")
       .eq("workspace_id", workspaceId)
+      // Exclude test/builder calls. Web calls have no real phone number and are
+      // stored with to_number = "unknown". Only live phone calls should appear.
+      .neq("to_number", "unknown")
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(data.limit);
     if (data.status && data.status !== "all") q = q.eq("call_status", data.status as any);
