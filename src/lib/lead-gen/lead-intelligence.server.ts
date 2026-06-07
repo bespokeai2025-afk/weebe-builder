@@ -175,7 +175,7 @@ export async function updateLeadIntelligence(
     workspace_id: workspaceId,
     phone,
     full_name: fullName,
-    source: hints?.agentName ? `AI call — ${hints.agentName}` : "AI call",
+    source: "outbound",
     created_at: now,
     ...intelligenceUpdate,
   };
