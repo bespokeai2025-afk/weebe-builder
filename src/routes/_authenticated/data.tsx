@@ -361,6 +361,7 @@ function DataPage() {
     id: string;
     retell_agent_id: string | null;
     name: string;
+    settings?: Record<string, unknown> | null;
   }>;
   const records = (recordsQ.data ?? []) as any[];
 
@@ -1442,7 +1443,7 @@ function ManualEntryDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  agents: Array<{ id: string; name: string }>;
+  agents: Array<{ id: string; name: string; settings?: Record<string, unknown> | null }>;
   defaultAgentId: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSave: (row: Record<string, any>, agentId: string) => Promise<void>;
@@ -1454,16 +1455,37 @@ function ManualEntryDialog({
   const [newVal, setNewVal] = useState("");
   const [loading, setLoading] = useState(false);
 
+  function getAgentMeta(id: string) {
+    const ag = agents.find((a) => a.id === id);
+    const mappings = ((ag?.settings?.leadGen as any)?.variableMappings ?? {}) as Record<string, string>;
+    return {
+      fixedCols: [...new Set(Object.values(mappings).filter((v) => !v.startsWith("meta.")))],
+      metaRows: Object.entries(mappings)
+        .filter(([, v]) => v.startsWith("meta."))
+        .map(([placeholder, colRef]) => ({
+          key: colRef.slice(5),
+          label: placeholder,
+          value: "",
+        })),
+    };
+  }
+
   useEffect(() => {
     if (open) {
       setFields({});
-      setAgentId(defaultAgentId);
-      setExtraRows([]);
       setNewKey("");
       setNewVal("");
       setLoading(false);
+      const id = defaultAgentId;
+      setAgentId(id);
+      setExtraRows(id ? getAgentMeta(id).metaRows : []);
     }
   }, [open, defaultAgentId]);
+
+  useEffect(() => {
+    if (!open) return;
+    setExtraRows(agentId ? getAgentMeta(agentId).metaRows : []);
+  }, [agentId]);
 
   function setField(key: string, value: string) {
     setFields((prev) => ({ ...prev, [key]: value }));
@@ -1534,6 +1556,30 @@ function ManualEntryDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          {/* Agent variable hints banner */}
+          {(() => {
+            if (!agentId) return null;
+            const { fixedCols } = getAgentMeta(agentId);
+            if (fixedCols.length === 0) return null;
+            return (
+              <div className="rounded-md border border-violet-200 bg-violet-50 p-2.5 dark:border-violet-800 dark:bg-violet-950/30">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+                  Fields this agent uses
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {fixedCols.map((col) => (
+                    <span
+                      key={col}
+                      className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900 dark:text-violet-300"
+                    >
+                      {col}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Required fields */}
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

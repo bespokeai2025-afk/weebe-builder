@@ -188,10 +188,28 @@ export const startCallingRecords = createServerFn({ method: "POST" })
     let failed = 0;
     const errors: { recordId: string; message: string }[] = [];
 
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+
     for (const r of records ?? []) {
       const useAgentId = (data.agentId ?? r.assigned_agent_id) as string | null;
       const agent = useAgentId ? agentsById[useAgentId] : null;
       const retellAgentId = agent?.retell_agent_id ?? null;
+
+      // Enforce max daily call attempts (only for deployed/live agents with the setting)
+      const agentSettingsRaw = (agent as any)?.settings as Record<string, unknown> | null;
+      const maxDailyAttempts = agentSettingsRaw?.maxDailyAttempts as number | undefined;
+      if (maxDailyAttempts != null && maxDailyAttempts > 0 && agentSettingsRaw?.deployedRetellAgentId) {
+        const meta = (r.meta ?? {}) as Record<string, unknown>;
+        const lastCallDate = meta._lastCallDate as string | undefined;
+        const dailyAttempts = lastCallDate === today
+          ? (typeof meta._dailyAttempts === "number" ? meta._dailyAttempts : Number(meta._dailyAttempts ?? 0))
+          : 0;
+        if (dailyAttempts >= maxDailyAttempts) {
+          errors.push({ recordId: r.id, message: `Daily call limit (${maxDailyAttempts}) reached` });
+          failed += 1;
+          continue;
+        }
+      }
 
       if (!retellAgentId || !data.fromNumber) {
         const { error: uErr } = await sb
@@ -241,11 +259,21 @@ export const startCallingRecords = createServerFn({ method: "POST" })
         }
 
         const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST");
+
+        // Increment daily attempt counter in meta
+        const currentMeta = (r.meta ?? {}) as Record<string, unknown>;
+        const lastCallDate = currentMeta._lastCallDate as string | undefined;
+        const priorAttempts = lastCallDate === today
+          ? (typeof currentMeta._dailyAttempts === "number" ? currentMeta._dailyAttempts : Number(currentMeta._dailyAttempts ?? 0))
+          : 0;
+        const updatedMeta = { ...currentMeta, _lastCallDate: today, _dailyAttempts: priorAttempts + 1 };
+
         await sb
           .from("data_records")
           .update({
             call_status: "calling",
             assigned_agent_id: useAgentId,
+            meta: updatedMeta,
           })
           .eq("id", r.id)
           .eq("workspace_id", workspaceId);

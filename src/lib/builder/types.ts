@@ -218,6 +218,11 @@ export interface BuilderSettings {
    */
   agentType?: "lead_generation" | "receptionist" | "client_qualification";
   /**
+   * Maximum number of call attempts per data record per calendar day.
+   * Only enforced when the agent is live (has deployedRetellAgentId).
+   */
+  maxDailyAttempts?: number;
+  /**
    * Lead Generation module config. Only used when agentType === "lead_generation".
    * Variable mappings, campaign name, and intelligence toggles live here.
    */
