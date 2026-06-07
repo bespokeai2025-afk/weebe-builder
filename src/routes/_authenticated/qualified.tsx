@@ -119,6 +119,7 @@ function QualifiedPage() {
       toast.success("Status updated");
       qc.invalidateQueries({ queryKey: ["leads-qualified"] });
       qc.invalidateQueries({ queryKey: ["qualification-stats"] });
+      qc.invalidateQueries({ queryKey: ["leads-all"] });
     } catch (e) {
       toast.error("Failed", { description: (e as Error).message });
     }
@@ -127,6 +128,7 @@ function QualifiedPage() {
   function refresh() {
     qc.invalidateQueries({ queryKey: ["leads-qualified"] });
     qc.invalidateQueries({ queryKey: ["qualification-stats"] });
+    qc.invalidateQueries({ queryKey: ["leads-all"] });
   }
 
   return (
