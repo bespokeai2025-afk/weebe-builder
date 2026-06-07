@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { retellFetch } from "@/lib/providers/retell/client.server";
 
 type Json = Database["public"]["Tables"]["agents"]["Row"]["flow_data"];
 
@@ -362,6 +363,38 @@ export const goLiveAgent = createServerFn({ method: "POST" })
         },
       })
       .eq("id", data.id);
+
+    // Patch the Retell agent's webhook URL so post-call data flows back.
+    // This also fixes agents that were deployed before the webhook was configured.
+    const webhookBase =
+      process.env.PUBLIC_BASE_URL ||
+      (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+    if (webhookBase && activeRetellId) {
+      try {
+        // Resolve the right API key: client workspace key for deployed clones,
+        // platform key for builder-only agents.
+        let retellKey: string | undefined;
+        if (deployedRetellId && context.workspaceId) {
+          const { data: ws } = await supabase
+            .from("workspace_settings" as never)
+            .select("retell_workspace_id")
+            .eq("workspace_id", context.workspaceId)
+            .maybeSingle() as any;
+          const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
+          if (wsKey?.startsWith("key_")) retellKey = wsKey;
+        }
+        await retellFetch(
+          `/update-agent/${activeRetellId}`,
+          { webhook_url: `${webhookBase}/api/public/voice-webhook` },
+          "PATCH",
+          retellKey,
+        );
+        console.log("[go-live] Webhook URL patched on Retell agent", activeRetellId);
+      } catch (whErr) {
+        // Best-effort — don't fail Go Live if the webhook patch fails
+        console.warn("[go-live] Failed to patch webhook URL on Retell agent", whErr);
+      }
+    }
 
     return { ok: true, live: true };
   });

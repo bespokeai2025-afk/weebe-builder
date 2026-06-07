@@ -1372,10 +1372,11 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
     }
 
     // Always inject webhook URL so call events are tracked automatically.
+    // Unconditional — overwrite any stale URL the source agent may have had.
     const cloneWebhookBase =
       process.env.PUBLIC_BASE_URL ||
       (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
-    if (cloneWebhookBase && !agentBody.webhook_url) {
+    if (cloneWebhookBase) {
       agentBody.webhook_url = `${cloneWebhookBase}/api/public/voice-webhook`;
     }
 
