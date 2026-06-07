@@ -229,12 +229,19 @@ export const listMyBookings = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const { data, error } = await context.supabase
-      .from("calendar_bookings" as never)
+    const { data, error } = await (context.supabase as any)
+      .from("calendar_bookings")
       .select("*")
       .eq("workspace_id", workspaceId)
       .order("start_at", { ascending: false })
       .limit(20);
-    if (error) throw new Error(error.message);
-    return data ?? [];
+    if (error) throw new Error((error as { message: string }).message);
+    return (data ?? []) as Array<{
+      id: string;
+      attendee_name: string | null;
+      attendee_email: string | null;
+      start_at: string;
+      end_at: string;
+      status: string;
+    }>;
   });

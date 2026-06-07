@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo, useEffect } from "react";
-import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   listDataRecords,
@@ -51,6 +52,92 @@ const CALL_STATUSES = [
   { value: "failed", label: "Failed" },
   { value: "do_not_call", label: "Do not call" },
 ] as const;
+
+const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean }> = [
+  { value: "name", label: "Name", required: true },
+  { value: "mobile_number", label: "Mobile Number", required: true },
+  { value: "first_name", label: "First Name" },
+  { value: "last_name", label: "Last Name" },
+  { value: "email", label: "Email" },
+  { value: "title", label: "Title" },
+  { value: "client_name", label: "Client Name" },
+  { value: "unique_id", label: "Unique ID" },
+  { value: "property_type", label: "Property Type" },
+  { value: "bedrooms", label: "Bedrooms" },
+  { value: "address_line1", label: "Address Line 1" },
+  { value: "address_line2", label: "Address Line 2" },
+  { value: "city", label: "City" },
+  { value: "state", label: "State" },
+  { value: "postal_code", label: "Postal Code" },
+];
+
+function normaliseKey(s: string) {
+  return s.toLowerCase().replace(/[\s_\-().]/g, "");
+}
+
+const FIELD_ALIASES: Record<string, string> = {
+  name: "name",
+  fullname: "name",
+  mobilenumber: "mobile_number",
+  phone: "mobile_number",
+  phonenumber: "mobile_number",
+  mobile: "mobile_number",
+  cellphone: "mobile_number",
+  cell: "mobile_number",
+  contactnumber: "mobile_number",
+  firstname: "first_name",
+  givenname: "first_name",
+  lastname: "last_name",
+  surname: "last_name",
+  familyname: "last_name",
+  email: "email",
+  emailaddress: "email",
+  title: "title",
+  jobtitle: "title",
+  clientname: "client_name",
+  company: "client_name",
+  organisation: "client_name",
+  organization: "client_name",
+  uniqueid: "unique_id",
+  externalid: "unique_id",
+  ref: "unique_id",
+  propertytype: "property_type",
+  type: "property_type",
+  bedrooms: "bedrooms",
+  beds: "bedrooms",
+  addressline1: "address_line1",
+  address1: "address_line1",
+  streetaddress: "address_line1",
+  address: "address_line1",
+  addressline2: "address_line2",
+  address2: "address_line2",
+  city: "city",
+  town: "city",
+  suburb: "city",
+  state: "state",
+  county: "state",
+  region: "state",
+  postalcode: "postal_code",
+  postcode: "postal_code",
+  zip: "postal_code",
+  zipcode: "postal_code",
+};
+
+function autoDetectMapping(headers: string[]): Record<string, string> {
+  const used = new Set<string>();
+  const mapping: Record<string, string> = {};
+  for (const h of headers) {
+    const norm = normaliseKey(h);
+    const sysField = FIELD_ALIASES[norm] ?? "";
+    if (sysField && !used.has(sysField)) {
+      mapping[h] = sysField;
+      used.add(sysField);
+    } else {
+      mapping[h] = "";
+    }
+  }
+  return mapping;
+}
 
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
@@ -108,6 +195,11 @@ function DataPage() {
   const [startCallingOpen, setStartCallingOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [callScheduleOpen, setCallScheduleOpen] = useState(false);
+
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
+  const [showCsvMapping, setShowCsvMapping] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const listFn = useServerFn(listDataRecords);
   const importFn = useServerFn(importDataRecords);
@@ -172,57 +264,83 @@ function DataPage() {
     setSelected(next);
   }
 
-  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target?.result as string;
+        const lines = text
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean);
+        if (lines.length < 2)
+          throw new Error("CSV must have a header row and at least one data row");
+        const headers = parseCsvLine(lines[0]).map((h) => h.trim());
+        const rows: Record<string, string>[] = [];
+        for (let i = 1; i < lines.length; i++) {
+          const vals = parseCsvLine(lines[i]);
+          const row: Record<string, string> = {};
+          headers.forEach((h, idx) => {
+            row[h] = (vals[idx] ?? "").trim();
+          });
+          rows.push(row);
+        }
+        setCsvHeaders(headers);
+        setCsvRows(rows);
+        setShowCsvMapping(true);
+      } catch (err) {
+        toast.error("Could not parse CSV", { description: (err as Error).message });
+      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleImportMapped(
+    mapping: Record<string, string>,
+    rows: Record<string, string>[],
+  ) {
     setImporting(true);
     try {
-      const text = await file.text();
-      const lines = text
-        .split("\n")
-        .map((l) => l.trim())
-        .filter(Boolean);
-      if (lines.length < 2) throw new Error("CSV must have a header row and at least one data row");
-      const headers = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
-      const rows: Record<string, string>[] = [];
-      for (let i = 1; i < lines.length; i++) {
-        const vals = parseCsvLine(lines[i]);
-        const row: Record<string, string> = {};
-        headers.forEach((h, idx) => {
-          row[h] = (vals[idx] ?? "").trim();
-        });
-        rows.push(row);
-      }
-
-      const mapped = rows.map((r) => ({
-        name: r.name || r["full name"] || "",
-        mobile_number: r.mobile_number || r["mobile number"] || r.phone || r.mobile || "",
-        first_name: r.first_name || r["first name"] || null,
-        last_name: r.last_name || r["last name"] || null,
-        email: r.email || null,
-        title: r.title || null,
-        client_name: r.client_name || r["client name"] || null,
-        unique_id: r.unique_id || r["unique id"] || null,
-        property_type: r.property_type || r["property type"] || null,
-        bedrooms: r.bedrooms || null,
-        address_line1: r.address_line1 || r["address line1"] || r["address line 1"] || null,
-        address_line2: r.address_line2 || r["address line2"] || r["address line 2"] || null,
-        city: r.city || null,
-        state: r.state || null,
-        postal_code: r.postal_code || r["postal code"] || r.zip || null,
-      }));
+      const mapped = rows.map((r) => {
+        const out: Record<string, string | null> = {};
+        for (const [csvCol, sysField] of Object.entries(mapping)) {
+          if (sysField) out[sysField] = r[csvCol] || null;
+        }
+        return {
+          name: (out.name as string) || "",
+          mobile_number: (out.mobile_number as string) || "",
+          first_name: (out.first_name as string | null) ?? null,
+          last_name: (out.last_name as string | null) ?? null,
+          email: (out.email as string | null) ?? null,
+          title: (out.title as string | null) ?? null,
+          client_name: (out.client_name as string | null) ?? null,
+          unique_id: (out.unique_id as string | null) ?? null,
+          property_type: (out.property_type as string | null) ?? null,
+          bedrooms: (out.bedrooms as string | null) ?? null,
+          address_line1: (out.address_line1 as string | null) ?? null,
+          address_line2: (out.address_line2 as string | null) ?? null,
+          city: (out.city as string | null) ?? null,
+          state: (out.state as string | null) ?? null,
+          postal_code: (out.postal_code as string | null) ?? null,
+        };
+      });
 
       const valid = mapped.filter((r) => r.name && r.mobile_number);
-      if (valid.length === 0) throw new Error("No rows with valid name and mobile_number");
+      if (valid.length === 0)
+        throw new Error(
+          "No rows have both name and mobile_number mapped — check your column mapping.",
+        );
 
       const result = await importFn({ data: { rows: valid } });
       toast.success(`Imported ${result.inserted} records`);
       qc.invalidateQueries({ queryKey: ["data-records"] });
+      setShowCsvMapping(false);
       setShowCsvImport(false);
     } catch (err) {
-      toast.error("Import failed", {
-        description: (err as Error).message,
-      });
+      toast.error("Import failed", { description: (err as Error).message });
     } finally {
       setImporting(false);
     }
@@ -238,9 +356,7 @@ function DataPage() {
       setSelected(new Set());
       qc.invalidateQueries({ queryKey: ["data-records"] });
     } catch (err) {
-      toast.error("Assignment failed", {
-        description: (err as Error).message,
-      });
+      toast.error("Assignment failed", { description: (err as Error).message });
     }
   }
 
@@ -257,9 +373,7 @@ function DataPage() {
       setSelected(new Set());
       qc.invalidateQueries({ queryKey: ["data-records"] });
     } catch (err) {
-      toast.error("Calling failed", {
-        description: (err as Error).message,
-      });
+      toast.error("Calling failed", { description: (err as Error).message });
     }
   }
 
@@ -276,9 +390,7 @@ function DataPage() {
       setSelected(new Set());
       qc.invalidateQueries({ queryKey: ["data-records"] });
     } catch (err) {
-      toast.error("Scheduling failed", {
-        description: (err as Error).message,
-      });
+      toast.error("Scheduling failed", { description: (err as Error).message });
     }
   }
 
@@ -294,9 +406,7 @@ function DataPage() {
       toast.success("Call schedule updated");
       qc.invalidateQueries({ queryKey: ["call-schedule"] });
     } catch (err) {
-      toast.error("Failed to save schedule", {
-        description: (err as Error).message,
-      });
+      toast.error("Failed to save schedule", { description: (err as Error).message });
     }
   }
 
@@ -326,19 +436,19 @@ function DataPage() {
           <CardContent className="pt-6">
             <p className="mb-1 text-sm font-medium">Upload a CSV file</p>
             <p className="mb-4 text-xs text-muted-foreground">
-              Required: <strong>name</strong>, <strong>mobile_number</strong>. Optional: first_name,
-              last_name, email, title, client_name, unique_id, property_type, bedrooms, address
-              fields, city, state, postal_code.
+              Select a CSV file and you'll be guided to map its columns to system fields before
+              importing.
             </p>
             <div className="flex items-center gap-3">
               <Input
+                ref={fileInputRef}
                 type="file"
                 accept=".csv"
                 onChange={handleCsvFile}
                 disabled={importing}
                 className="max-w-sm"
               />
-              {importing && <span className="text-sm text-muted-foreground">Importing...</span>}
+              {importing && <span className="text-sm text-muted-foreground">Importing…</span>}
             </div>
           </CardContent>
         </Card>
@@ -348,11 +458,7 @@ function DataPage() {
         {(
           [
             { label: "Total", value: stats.total, icon: Database },
-            {
-              label: "Need to call",
-              value: stats.needToCall,
-              icon: PhoneOutgoing,
-            },
+            { label: "Need to call", value: stats.needToCall, icon: PhoneOutgoing },
             { label: "Queued", value: stats.queued, icon: CalendarClock },
             { label: "Completed", value: stats.completed, icon: UserCheck },
           ] as const
@@ -375,7 +481,7 @@ function DataPage() {
             <div className="relative min-w-[200px] flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search name, phone, email..."
+                placeholder="Search name, phone, email…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-9 pl-8"
@@ -429,7 +535,7 @@ function DataPage() {
           <span className="mr-2 text-sm text-muted-foreground">{selected.size} selected</span>
           <Select onValueChange={(v) => handleBulkAssign(v === "none" ? null : v)}>
             <SelectTrigger className="h-8 w-[160px]">
-              <SelectValue placeholder="Assign agent..." />
+              <SelectValue placeholder="Assign agent…" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Unassign</SelectItem>
@@ -460,7 +566,7 @@ function DataPage() {
         <CardContent className="p-0">
           {recordsQ.isLoading ? (
             <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-              Loading records...
+              Loading records…
             </div>
           ) : records.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16">
@@ -523,6 +629,15 @@ function DataPage() {
         </CardContent>
       </Card>
 
+      <CsvMappingDialog
+        open={showCsvMapping}
+        onOpenChange={setShowCsvMapping}
+        headers={csvHeaders}
+        rows={csvRows}
+        importing={importing}
+        onImport={handleImportMapped}
+      />
+
       <StartCallingDialog
         open={startCallingOpen}
         onOpenChange={setStartCallingOpen}
@@ -546,6 +661,241 @@ function DataPage() {
         onSave={handleSaveSchedule}
       />
     </div>
+  );
+}
+
+function CsvMappingDialog({
+  open,
+  onOpenChange,
+  headers,
+  rows,
+  importing,
+  onImport,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  headers: string[];
+  rows: Record<string, string>[];
+  importing: boolean;
+  onImport: (mapping: Record<string, string>, rows: Record<string, string>[]) => Promise<void>;
+}) {
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [previewSearch, setPreviewSearch] = useState("");
+
+  useEffect(() => {
+    if (open && headers.length > 0) {
+      setMapping(autoDetectMapping(headers));
+      setPreviewSearch("");
+    }
+  }, [open, headers]);
+
+  const mappedFields = useMemo(() => new Set(Object.values(mapping).filter(Boolean)), [mapping]);
+
+  const hasName = Object.values(mapping).includes("name");
+  const hasMobile = Object.values(mapping).includes("mobile_number");
+  const canImport = hasName && hasMobile;
+
+  const previewRows = useMemo(() => {
+    const q = previewSearch.trim().toLowerCase();
+    if (!q) return rows.slice(0, 50);
+    return rows
+      .filter((row) => {
+        for (const [csvCol, sysField] of Object.entries(mapping)) {
+          if (!sysField) continue;
+          const val = (row[csvCol] ?? "").toLowerCase();
+          if (val.includes(q)) return true;
+        }
+        return false;
+      })
+      .slice(0, 50);
+  }, [rows, mapping, previewSearch]);
+
+  const mappedPreviewCols = useMemo(
+    () => headers.filter((h) => mapping[h]),
+    [headers, mapping],
+  );
+
+  function setField(csvCol: string, sysField: string) {
+    setMapping((prev) => {
+      const next = { ...prev };
+      if (sysField) {
+        for (const k of Object.keys(next)) {
+          if (next[k] === sysField && k !== csvCol) next[k] = "";
+        }
+      }
+      next[csvCol] = sysField;
+      return next;
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[90vh] w-full max-w-4xl flex-col gap-0 p-0">
+        <DialogHeader className="border-b border-border px-6 py-4">
+          <DialogTitle>Map CSV Columns</DialogTitle>
+          <DialogDescription>
+            {rows.length} rows detected · Match each CSV column to a system field, then preview and
+            import.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 divide-x divide-border overflow-hidden">
+            {/* Left: column mapping */}
+            <div className="flex w-[340px] shrink-0 flex-col overflow-hidden">
+              <div className="border-b border-border bg-muted/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Column Mapping
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {headers.map((h) => {
+                  const selected = mapping[h] ?? "";
+                  const fieldMeta = SYSTEM_FIELDS.find((f) => f.value === selected);
+                  return (
+                    <div
+                      key={h}
+                      className="flex items-center gap-3 border-b border-border/40 px-4 py-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium" title={h}>
+                          {h}
+                        </p>
+                        {selected && (
+                          <p className="text-[10px] text-muted-foreground">
+                            → {fieldMeta?.label ?? selected}
+                            {fieldMeta?.required && (
+                              <span className="ml-1 text-primary">*</span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                      <Select value={selected} onValueChange={(v) => setField(h, v)}>
+                        <SelectTrigger className="h-7 w-[140px] text-xs">
+                          <SelectValue placeholder="Skip" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Skip</SelectItem>
+                          {SYSTEM_FIELDS.map((f) => (
+                            <SelectItem
+                              key={f.value}
+                              value={f.value}
+                              disabled={mappedFields.has(f.value) && mapping[h] !== f.value}
+                            >
+                              {f.label}
+                              {f.required ? " *" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right: preview */}
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-4 py-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Preview
+                </span>
+                <div className="relative ml-auto w-[200px]">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search rows…"
+                    value={previewSearch}
+                    onChange={(e) => setPreviewSearch(e.target.value)}
+                    className="h-7 pl-7 text-xs"
+                  />
+                  {previewSearch && (
+                    <button
+                      onClick={() => setPreviewSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {previewSearch
+                    ? `${previewRows.length} match${previewRows.length !== 1 ? "es" : ""}`
+                    : `${Math.min(rows.length, 50)} of ${rows.length}`}
+                </span>
+              </div>
+              <div className="flex-1 overflow-auto">
+                {mappedPreviewCols.length === 0 ? (
+                  <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                    Map at least one column to see a preview.
+                  </div>
+                ) : previewRows.length === 0 ? (
+                  <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                    No rows match your search.
+                  </div>
+                ) : (
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-card">
+                      <tr className="border-b border-border text-left">
+                        {mappedPreviewCols.map((h) => {
+                          const f = SYSTEM_FIELDS.find((x) => x.value === mapping[h]);
+                          return (
+                            <th
+                              key={h}
+                              className="px-3 py-2 font-semibold text-muted-foreground"
+                            >
+                              {f?.label ?? mapping[h]}
+                              {f?.required && <span className="ml-0.5 text-primary">*</span>}
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewRows.map((row, i) => (
+                        <tr key={i} className="border-b border-border/40">
+                          {mappedPreviewCols.map((h) => (
+                            <td key={h} className="max-w-[160px] truncate px-3 py-1.5" title={row[h]}>
+                              {row[h] || <span className="text-muted-foreground/50">—</span>}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="border-t border-border px-6 py-3">
+          <div className="mr-auto flex items-center gap-2 text-xs text-muted-foreground">
+            {!hasName && (
+              <Badge variant="destructive" className="text-[10px]">
+                Name * required
+              </Badge>
+            )}
+            {!hasMobile && (
+              <Badge variant="destructive" className="text-[10px]">
+                Mobile Number * required
+              </Badge>
+            )}
+            {canImport && (
+              <span className="text-emerald-500">
+                {rows.length} row{rows.length !== 1 ? "s" : ""} ready to import
+              </span>
+            )}
+          </div>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importing}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => onImport(mapping, rows)}
+            disabled={!canImport || importing}
+          >
+            {importing ? "Importing…" : `Import ${rows.length} row${rows.length !== 1 ? "s" : ""}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -625,7 +975,7 @@ function StartCallingDialog({
             Cancel
           </Button>
           <Button onClick={handleStart} disabled={loading}>
-            {loading ? "Starting..." : `Start ${recordCount} call${recordCount !== 1 ? "s" : ""}`}
+            {loading ? "Starting…" : `Start ${recordCount} call${recordCount !== 1 ? "s" : ""}`}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -723,7 +1073,7 @@ function ScheduleCallsDialog({
             Cancel
           </Button>
           <Button onClick={handleSchedule} disabled={loading}>
-            {loading ? "Scheduling..." : "Schedule"}
+            {loading ? "Scheduling…" : "Schedule"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -749,12 +1099,7 @@ function CallScheduleDialog({
   }) => Promise<void>;
 }) {
   const existing = scheduleData?.schedule as
-    | {
-        enabled?: boolean;
-        days?: number[];
-        startHour?: number;
-        endHour?: number;
-      }
+    | { enabled?: boolean; days?: number[]; startHour?: number; endHour?: number }
     | null
     | undefined;
 
@@ -871,7 +1216,7 @@ function CallScheduleDialog({
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={loading}>
-            {loading ? "Saving..." : "Save Schedule"}
+            {loading ? "Saving…" : "Save Schedule"}
           </Button>
         </DialogFooter>
       </DialogContent>
