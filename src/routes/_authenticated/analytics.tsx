@@ -5,8 +5,6 @@ import { useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -22,18 +20,11 @@ import {
 import {
   BarChart3,
   PhoneCall,
-  PhoneIncoming,
-  PhoneOutgoing,
   Clock,
-  DollarSign,
-  Smile,
-  Meh,
-  Frown,
-  Voicemail,
-  CheckCircle2,
-  XCircle,
   Activity,
+  XCircle,
   AlertTriangle,
+  ChevronDown,
 } from "lucide-react";
 import {
   PageHeader,
@@ -56,7 +47,6 @@ const RANGES = [
   { label: "90d", days: 90 },
 ];
 
-// Retell-style palette mapped to our purple primary
 const CHART = {
   primary: "#8B5CF6",
   primaryGlow: "#A78BFA",
@@ -109,127 +99,138 @@ function fmtMs(ms?: number | null) {
 }
 
 function humanize(key: string) {
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function computeAnalytics(calls: any[]) {
+  const total = calls.length;
+  const inbound = calls.filter((c) => c.direction === "inbound" || c.call_direction === "inbound").length;
+  const outbound = calls.filter((c) => c.direction === "outbound" || c.call_direction === "outbound").length;
+  const webCalls = calls.filter((c) => c.call_type === "web_call" || c.call_type === "webcall").length;
+
+  const byStatus: Record<string, number> = {};
+  const byDisconnect: Record<string, number> = {};
+  const bySentiment: Record<string, number> = { Positive: 0, Neutral: 0, Negative: 0, Unknown: 0 };
+  const byAgent: Record<string, { count: number; durationSec: number; costCents: number }> = {};
+  const byDay: Record<string, number> = {};
+  let totalDurationSec = 0;
+  let totalCostCents = 0;
+  let successCount = 0;
+  let unsuccessCount = 0;
+  let voicemailCount = 0;
+  const llmLatencies: number[] = [];
+  const e2eLatencies: number[] = [];
+  const ttsLatencies: number[] = [];
+
+  for (const c of calls) {
+    byStatus[c.call_status ?? "unknown"] = (byStatus[c.call_status ?? "unknown"] ?? 0) + 1;
+    const dr = c.disconnection_reason ?? c.disconnect_reason;
+    if (dr) byDisconnect[dr] = (byDisconnect[dr] ?? 0) + 1;
+
+    const sentiment = c.call_analysis?.user_sentiment ?? "Unknown";
+    bySentiment[sentiment] = (bySentiment[sentiment] ?? 0) + 1;
+
+    const durSec =
+      c.call_cost?.total_duration_seconds ??
+      (c.duration_ms != null
+        ? c.duration_ms / 1000
+        : c.end_timestamp && c.start_timestamp
+          ? Math.max(0, (c.end_timestamp - c.start_timestamp) / 1000)
+          : 0);
+    totalDurationSec += durSec;
+
+    const costCents = c.call_cost?.combined_cost ?? c.combined_cost ?? 0;
+    totalCostCents += costCents;
+
+    if (c.call_analysis?.call_successful === true) successCount += 1;
+    else if (c.call_analysis?.call_successful === false) unsuccessCount += 1;
+    if (c.call_analysis?.in_voicemail) voicemailCount += 1;
+
+    const aid = c.agent_id ?? "unknown";
+    const agg = byAgent[aid] ?? { count: 0, durationSec: 0, costCents: 0 };
+    agg.count += 1;
+    agg.durationSec += durSec;
+    agg.costCents += costCents;
+    byAgent[aid] = agg;
+
+    if (c.start_timestamp) {
+      const d = new Date(c.start_timestamp);
+      const key = d.toISOString().slice(0, 10);
+      byDay[key] = (byDay[key] ?? 0) + 1;
+    }
+
+    if (c.latency?.llm?.p50 != null) llmLatencies.push(c.latency.llm.p50);
+    if (c.latency?.e2e?.p50 != null) e2eLatencies.push(c.latency.e2e.p50);
+    if (c.latency?.tts?.p50 != null) ttsLatencies.push(c.latency.tts.p50);
+  }
+
+  const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+
+  return {
+    total,
+    inbound,
+    outbound,
+    webCalls,
+    byStatus,
+    byDisconnect,
+    bySentiment,
+    byAgent,
+    byDay,
+    totalDurationSec,
+    totalCostCents,
+    avgDuration: total ? totalDurationSec / total : 0,
+    avgCost: total ? totalCostCents / total : 0,
+    successCount,
+    unsuccessCount,
+    voicemailCount,
+    successRate: total ? (successCount / total) * 100 : 0,
+    avgLlmLatency: avg(llmLatencies),
+    avgE2eLatency: avg(e2eLatencies),
+    avgTtsLatency: avg(ttsLatencies),
+  };
 }
 
 function AnalyticsPage() {
   const fn = useServerFn(getRetellAnalytics);
   const [days, setDays] = useState(30);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [selectorOpen, setSelectorOpen] = useState(false);
+
   const q = useQuery({
     queryKey: ["retell-analytics", days],
     queryFn: () => fn({ data: { days, limit: 1000 } }),
   });
 
   const result = q.data;
-  const calls = (result?.calls ?? []) as any[];
+  const allCalls = (result?.calls ?? []) as any[];
+  const agentNames: Record<string, string> = (result?.agentNames ?? {}) as Record<string, string>;
 
-  const analytics = useMemo(() => {
-    const total = calls.length;
-    const inbound = calls.filter(
-      (c) => c.direction === "inbound" || c.call_direction === "inbound",
-    ).length;
-    const outbound = calls.filter(
-      (c) => c.direction === "outbound" || c.call_direction === "outbound",
-    ).length;
-    const webCalls = calls.filter(
-      (c) => c.call_type === "web_call" || c.call_type === "webcall",
-    ).length;
-
-    const byStatus: Record<string, number> = {};
-    const byDisconnect: Record<string, number> = {};
-    const bySentiment: Record<string, number> = { Positive: 0, Neutral: 0, Negative: 0, Unknown: 0 };
-    const byAgent: Record<string, { count: number; durationSec: number; costCents: number }> = {};
-    const byDay: Record<string, number> = {};
-    let totalDurationSec = 0;
-    let totalCostCents = 0;
-    let successCount = 0;
-    let unsuccessCount = 0;
-    let voicemailCount = 0;
-    const llmLatencies: number[] = [];
-    const e2eLatencies: number[] = [];
-    const ttsLatencies: number[] = [];
-
-    for (const c of calls) {
-      byStatus[c.call_status ?? "unknown"] = (byStatus[c.call_status ?? "unknown"] ?? 0) + 1;
-      const dr = c.disconnection_reason ?? c.disconnect_reason;
-      if (dr) {
-        byDisconnect[dr] = (byDisconnect[dr] ?? 0) + 1;
+  // Build distinct agent list from the returned calls
+  const agentList = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const c of allCalls) {
+      if (c.agent_id && !seen.has(c.agent_id)) {
+        seen.set(c.agent_id, agentNames[c.agent_id] ?? c.agent_name ?? c.agent_id);
       }
-      const sentiment = c.call_analysis?.user_sentiment ?? "Unknown";
-      bySentiment[sentiment] = (bySentiment[sentiment] ?? 0) + 1;
-
-      const durSec =
-        c.call_cost?.total_duration_seconds ??
-        (c.duration_ms != null
-          ? c.duration_ms / 1000
-          : c.end_timestamp && c.start_timestamp
-            ? Math.max(0, (c.end_timestamp - c.start_timestamp) / 1000)
-            : 0);
-      totalDurationSec += durSec;
-
-      const costCents = c.call_cost?.combined_cost ?? c.combined_cost ?? 0;
-      totalCostCents += costCents;
-
-      if (c.call_analysis?.call_successful === true) successCount += 1;
-      else if (c.call_analysis?.call_successful === false) unsuccessCount += 1;
-      if (c.call_analysis?.in_voicemail) voicemailCount += 1;
-
-      const aid = c.agent_id ?? "unknown";
-      const agg = byAgent[aid] ?? { count: 0, durationSec: 0, costCents: 0 };
-      agg.count += 1;
-      agg.durationSec += durSec;
-      agg.costCents += costCents;
-      byAgent[aid] = agg;
-
-      if (c.start_timestamp) {
-        const d = new Date(c.start_timestamp);
-        const key = d.toISOString().slice(0, 10);
-        byDay[key] = (byDay[key] ?? 0) + 1;
-      }
-
-      if (c.latency?.llm?.p50 != null) llmLatencies.push(c.latency.llm.p50);
-      if (c.latency?.e2e?.p50 != null) e2eLatencies.push(c.latency.e2e.p50);
-      if (c.latency?.tts?.p50 != null) ttsLatencies.push(c.latency.tts.p50);
     }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [allCalls, agentNames]);
 
-    const avg = (arr: number[]) =>
-      arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const calls = useMemo(
+    () => (selectedAgentId ? allCalls.filter((c) => c.agent_id === selectedAgentId) : allCalls),
+    [allCalls, selectedAgentId],
+  );
 
-    const avgDuration = total ? totalDurationSec / total : 0;
-    const avgCost = total ? totalCostCents / total : 0;
-
-    return {
-      total,
-      inbound,
-      outbound,
-      webCalls,
-      byStatus,
-      byDisconnect,
-      bySentiment,
-      byAgent,
-      byDay,
-      totalDurationSec,
-      totalCostCents,
-      avgDuration,
-      avgCost,
-      successCount,
-      unsuccessCount,
-      voicemailCount,
-      successRate: total ? (successCount / total) * 100 : 0,
-      avgLlmLatency: avg(llmLatencies),
-      avgE2eLatency: avg(e2eLatencies),
-      avgTtsLatency: avg(ttsLatencies),
-    };
-  }, [calls]);
+  const analytics = useMemo(() => computeAnalytics(calls), [calls]);
 
   const dayEntries = useMemo(() => {
     const entries = Object.entries(analytics.byDay).sort(([a], [b]) => a.localeCompare(b));
     return entries.slice(-30);
   }, [analytics.byDay]);
 
-  const maxDay = Math.max(1, ...dayEntries.map(([, v]) => v));
+  const selectedAgentName = selectedAgentId
+    ? (agentNames[selectedAgentId] ?? agentList.find((a) => a.id === selectedAgentId)?.name ?? selectedAgentId)
+    : "All agents";
 
   return (
     <div className="pb-12">
@@ -239,18 +240,53 @@ function AnalyticsPage() {
         icon={BarChart3}
         onRefresh={() => q.refetch()}
         actions={
-          <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
-            {RANGES.map((r) => (
-              <Button
-                key={r.days}
-                size="sm"
-                variant={days === r.days ? "secondary" : "ghost"}
-                onClick={() => setDays(r.days)}
-                className={days === r.days ? "bg-primary/20 text-primary" : ""}
-              >
-                {r.label}
-              </Button>
-            ))}
+          <div className="flex items-center gap-2">
+            {/* Agent selector */}
+            {agentList.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setSelectorOpen((o) => !o)}
+                  className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-card/60 px-3 py-1.5 text-sm font-medium hover:bg-card/80"
+                >
+                  <span className="max-w-[180px] truncate">{selectedAgentName}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                {selectorOpen && (
+                  <div className="absolute right-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
+                    <button
+                      className={`w-full px-4 py-2.5 text-left text-sm hover:bg-muted/60 ${!selectedAgentId ? "text-primary font-medium" : "text-foreground"}`}
+                      onClick={() => { setSelectedAgentId(null); setSelectorOpen(false); }}
+                    >
+                      All agents
+                    </button>
+                    {agentList.map((a) => (
+                      <button
+                        key={a.id}
+                        className={`w-full px-4 py-2.5 text-left text-sm hover:bg-muted/60 ${selectedAgentId === a.id ? "text-primary font-medium" : "text-foreground"}`}
+                        onClick={() => { setSelectedAgentId(a.id); setSelectorOpen(false); }}
+                      >
+                        {a.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Date range selector */}
+            <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
+              {RANGES.map((r) => (
+                <Button
+                  key={r.days}
+                  size="sm"
+                  variant={days === r.days ? "secondary" : "ghost"}
+                  onClick={() => setDays(r.days)}
+                  className={days === r.days ? "bg-primary/20 text-primary" : ""}
+                >
+                  {r.label}
+                </Button>
+              ))}
+            </div>
           </div>
         }
       />
@@ -274,6 +310,21 @@ function AnalyticsPage() {
         </div>
       ) : (
         <>
+          {/* Agent context banner when filtered */}
+          {selectedAgentId && (
+            <div className="mx-8 mt-6 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm">
+              <span className="text-primary font-medium">
+                Showing: <span className="font-semibold">{selectedAgentName}</span>
+              </span>
+              <button
+                onClick={() => setSelectedAgentId(null)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 px-8 pt-6 md:grid-cols-4">
             <StatCard label="Total calls" tone="primary" value={analytics.total} />
             <StatCard label="Total talk time" tone="info" value={fmtDuration(analytics.totalDurationSec)} />
@@ -301,10 +352,7 @@ function AnalyticsPage() {
                 <div className="h-64 w-full">
                   <ResponsiveContainer>
                     <AreaChart
-                      data={dayEntries.map(([day, count]) => ({
-                        day: day.slice(5),
-                        calls: count,
-                      }))}
+                      data={dayEntries.map(([day, count]) => ({ day: day.slice(5), calls: count }))}
                       margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
                     >
                       <defs>
@@ -317,13 +365,7 @@ function AnalyticsPage() {
                       <XAxis dataKey="day" stroke={CHART.axis} fontSize={11} tickLine={false} axisLine={false} />
                       <YAxis stroke={CHART.axis} fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                       <Tooltip content={<ChartTooltip />} cursor={{ stroke: CHART.primary, strokeOpacity: 0.3 }} />
-                      <Area
-                        type="monotone"
-                        dataKey="calls"
-                        stroke={CHART.primaryGlow}
-                        strokeWidth={2}
-                        fill="url(#callsArea)"
-                      />
+                      <Area type="monotone" dataKey="calls" stroke={CHART.primaryGlow} strokeWidth={2} fill="url(#callsArea)" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -331,11 +373,11 @@ function AnalyticsPage() {
             </PanelCard>
           </div>
 
-          {/* Sentiment + Call type breakdowns */}
+          {/* Sentiment + Call type */}
           <div className="grid grid-cols-1 gap-4 px-8 pt-6 md:grid-cols-2">
             <PanelCard>
               <div className="mb-4 flex items-center gap-2">
-                <Smile className="h-4 w-4 text-primary" />
+                <Activity className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-semibold">User sentiment</h3>
               </div>
               <DonutChart
@@ -415,81 +457,64 @@ function AnalyticsPage() {
             </PanelCard>
           </div>
 
-          {/* Per-agent table */}
-          <div className="px-8 pt-6">
-            <PanelCard>
-              <div className="mb-4 flex items-center gap-2">
-                <PhoneCall className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">Per-agent breakdown</h3>
-              </div>
-              {Object.keys(analytics.byAgent).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No agent activity.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-white/[0.06] text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                        <th className="px-3 py-2">Agent ID</th>
-                        <th className="px-3 py-2">Calls</th>
-                        <th className="px-3 py-2">Talk time</th>
-                        <th className="px-3 py-2">Cost</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(analytics.byAgent)
-                        .sort(([, a], [, b]) => b.count - a.count)
-                        .map(([id, v]) => (
-                          <tr key={id} className="border-b border-white/[0.04]">
-                            <td className="px-3 py-2 font-mono text-xs">{id}</td>
-                            <td className="px-3 py-2 tabular-nums">{v.count}</td>
-                            <td className="px-3 py-2 tabular-nums">{fmtDuration(v.durationSec)}</td>
-                            <td className="px-3 py-2 tabular-nums">{fmtMoney(v.costCents)}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+          {/* Per-agent breakdown — only shown on "All agents" view */}
+          {!selectedAgentId && (
+            <div className="px-8 pt-6">
+              <PanelCard>
+                <div className="mb-4 flex items-center gap-2">
+                  <PhoneCall className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Per-agent breakdown</h3>
                 </div>
-              )}
-            </PanelCard>
-          </div>
+                {Object.keys(analytics.byAgent).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No agent activity.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/[0.06] text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                          <th className="px-3 py-2">Agent</th>
+                          <th className="px-3 py-2">Calls</th>
+                          <th className="px-3 py-2">Talk time</th>
+                          <th className="px-3 py-2">Cost</th>
+                          <th className="px-3 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(analytics.byAgent)
+                          .sort(([, a], [, b]) => b.count - a.count)
+                          .map(([id, v]) => (
+                            <tr key={id} className="border-b border-white/[0.04]">
+                              <td className="px-3 py-2 font-medium">
+                                {agentNames[id] ?? agentList.find((a) => a.id === id)?.name ?? (
+                                  <span className="font-mono text-xs text-muted-foreground">{id}</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 tabular-nums">{v.count}</td>
+                              <td className="px-3 py-2 tabular-nums">{fmtDuration(v.durationSec)}</td>
+                              <td className="px-3 py-2 tabular-nums">{fmtMoney(v.costCents)}</td>
+                              <td className="px-3 py-2">
+                                <button
+                                  onClick={() => setSelectedAgentId(id)}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  View only
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </PanelCard>
+            </div>
+          )}
         </>
       )}
 
       {q.isLoading && (
         <div className="px-8 pt-6 text-sm text-muted-foreground">Loading analytics…</div>
       )}
-    </div>
-  );
-}
-
-function SentimentRow({
-  icon: Icon,
-  label,
-  count,
-  total,
-  tone,
-}: {
-  icon: React.ElementType;
-  label: string;
-  count: number;
-  total: number;
-  tone: string;
-}) {
-  const pct = total ? (count / total) * 100 : 0;
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="flex items-center gap-2 text-muted-foreground">
-          <Icon className="h-3.5 w-3.5" />
-          {label}
-        </span>
-        <span className="font-medium tabular-nums">
-          {count} <span className="text-xs text-muted-foreground">({pct.toFixed(0)}%)</span>
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.04]">
-        <div className={`h-full ${tone} transition-all`} style={{ width: `${pct}%` }} />
-      </div>
     </div>
   );
 }
@@ -506,32 +531,18 @@ function DonutChart({
   centerValue: number;
 }) {
   const filtered = data.filter((d) => d.value > 0);
-  if (filtered.length === 0) {
-    return <p className="text-sm text-muted-foreground">No data.</p>;
-  }
+  if (filtered.length === 0) return <p className="text-sm text-muted-foreground">No data.</p>;
   return (
     <div className="relative h-64 w-full">
       <ResponsiveContainer>
         <PieChart>
           <Tooltip content={<ChartTooltip />} />
-          <Pie
-            data={filtered}
-            dataKey="value"
-            nameKey="name"
-            innerRadius={60}
-            outerRadius={90}
-            paddingAngle={2}
-            stroke="none"
-          >
+          <Pie data={filtered} dataKey="value" nameKey="name" innerRadius={60} outerRadius={90} paddingAngle={2} stroke="none">
             {filtered.map((_, i) => (
               <Cell key={i} fill={colors[i % colors.length]} />
             ))}
           </Pie>
-          <Legend
-            verticalAlign="bottom"
-            iconType="circle"
-            wrapperStyle={{ fontSize: 11, color: CHART.axis }}
-          />
+          <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: 11, color: CHART.axis }} />
         </PieChart>
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-8">
@@ -542,13 +553,7 @@ function DonutChart({
   );
 }
 
-function HBarChart({
-  data,
-  color = CHART.primary,
-}: {
-  data: { name: string; value: number }[];
-  color?: string;
-}) {
+function HBarChart({ data, color = CHART.primary }: { data: { name: string; value: number }[]; color?: string }) {
   if (data.length === 0) return <p className="text-sm text-muted-foreground">No data.</p>;
   const height = Math.max(180, data.length * 36);
   return (
@@ -557,15 +562,7 @@ function HBarChart({
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
           <CartesianGrid stroke={CHART.grid} horizontal={false} />
           <XAxis type="number" stroke={CHART.axis} fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-          <YAxis
-            type="category"
-            dataKey="name"
-            stroke={CHART.axis}
-            fontSize={11}
-            tickLine={false}
-            axisLine={false}
-            width={120}
-          />
+          <YAxis type="category" dataKey="name" stroke={CHART.axis} fontSize={11} tickLine={false} axisLine={false} width={120} />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(139,92,246,0.08)" }} />
           <Bar dataKey="value" fill={color} radius={[0, 6, 6, 0]} barSize={18} />
         </BarChart>

@@ -87,12 +87,29 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     );
 
     if (agentIds.length === 0) {
-      return { configured: false, agentIds, calls: [] as any[], error: null as string | null };
+      return {
+        configured: false,
+        agentIds,
+        calls: [] as any[],
+        agentNames: {} as Record<string, string>,
+        error: null as string | null,
+      };
     }
 
     const sinceMs = Date.now() - data.days * 24 * 60 * 60 * 1000;
     let calls: any[] = [];
     let error: string | null = null;
+    let agentNames: Record<string, string> = {};
+
+    try {
+      const agentList = await retellFetch<any[]>("/list-agents", null, "GET");
+      for (const a of agentList ?? []) {
+        if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
+      }
+    } catch {
+      // agent names are best-effort; fall back to IDs
+    }
+
     try {
       const res = await retellFetch<any>(
         "/v2/list-calls",
@@ -112,5 +129,5 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       console.error("Retell list-calls failed:", e);
     }
 
-    return { configured: true, agentIds, calls, error };
+    return { configured: true, agentIds, calls, agentNames, error };
   });

@@ -257,7 +257,7 @@ function CallsPage() {
                         </td>
 
                         {/* Summary — expandable */}
-                        <td className="max-w-[260px] px-3 py-2 text-xs text-muted-foreground">
+                        <td className="max-w-[420px] px-3 py-2 text-xs text-muted-foreground">
                           {c.call_summary ? (
                             <div>
                               <p className={cn(!expanded && hasLongSummary && "line-clamp-2")}>
