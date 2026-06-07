@@ -98,12 +98,10 @@ export function exportAgentJson(
     nodes: flowNodes,
     start_node_id: startNode?.id ?? flowNodes[0]?.id ?? "",
     start_speaker: settings.startSpeaker ?? rawCf.start_speaker ?? "agent",
-    model_choice: {
-      type: "cascading",
-      high_priority: false,
-      ...((rawCf.model_choice as Record<string, unknown>) ?? {}),
-      model: settings.model,
-    },
+    model_choice: buildModelChoice(
+      settings.model,
+      (rawCf.model_choice as Record<string, unknown>) ?? {},
+    ),
     begin_tag_display_position: rawCf.begin_tag_display_position ?? {
       x: (startNode?.position.x ?? 0) - 220,
       y: startNode?.position.y ?? 0,
@@ -257,6 +255,29 @@ export function exportAgentJson(
   if (settings.webhookUrl) agent.webhook_url = settings.webhookUrl;
 
   return orderLikeRaw(agent, rawAgent.__key_order as string[] | undefined);
+}
+
+/**
+ * Translate our internal model ID convention into Retell's model_choice shape.
+ *
+ * In our UI we use a "-fast" suffix to represent Retell's Fast Tier
+ * (e.g. "gpt-4.1-fast"). Retell's API does NOT use that suffix — instead it
+ * uses the same base model ID with high_priority: true in model_choice.
+ * This helper strips the suffix and sets the flag accordingly.
+ */
+function buildModelChoice(
+  modelId: string | undefined,
+  rawModelChoice: Record<string, unknown>,
+): Record<string, unknown> {
+  const isFast = (modelId ?? "").endsWith("-fast");
+  const baseModel = isFast ? (modelId ?? "").slice(0, -5) : modelId;
+  const highPriority = isFast ? true : (rawModelChoice.high_priority ?? false);
+  return {
+    type: "cascading",
+    ...rawModelChoice,
+    model: baseModel,
+    high_priority: highPriority,
+  };
 }
 
 function orderLikeRaw<T extends Record<string, unknown>>(obj: T, keyOrder?: string[]): T {
@@ -499,12 +520,10 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
   const globalNodeSetting = { ...gnsRaw.globalNodeSetting, ...gnsUser.globalNodeSetting };
   Object.assign(base, hasRaw ? gnsUser.nodeOverrides : nodeOverrides);
   if (gnsUser.model || (!hasRaw && gnsRaw.model)) {
-    base.model_choice = {
-      type: "cascading",
-      high_priority: false,
-      ...((raw.model_choice as Record<string, unknown>) ?? {}),
-      model: gnsUser.model ?? (!hasRaw ? gnsRaw.model : undefined),
-    };
+    base.model_choice = buildModelChoice(
+      gnsUser.model ?? (!hasRaw ? gnsRaw.model : undefined),
+      (raw.model_choice as Record<string, unknown>) ?? {},
+    );
   }
   if (
     d.isGlobalNode &&

@@ -30,6 +30,19 @@ const NODE_OVERRIDE_KEYS = [
   "allow_dtmf_interruption",
 ] as const;
 
+/**
+ * Reconstruct our internal model ID from Retell's model_choice object.
+ * Retell represents Fast Tier as {model: "gpt-4.1", high_priority: true}.
+ * In our UI we use a "-fast" suffix (e.g. "gpt-4.1-fast") so the dropdown
+ * correctly shows the Fast Tier selection.
+ */
+function resolveModelId(modelChoice: AnyObj | undefined): string | undefined {
+  if (!modelChoice) return undefined;
+  const base = modelChoice.model as string | undefined;
+  if (!base) return undefined;
+  return modelChoice.high_priority ? `${base}-fast` : base;
+}
+
 function readNodeSettings(rn: AnyObj): Record<string, unknown> | undefined {
   const settings: Record<string, unknown> = {
     ...((rn.global_node_setting as Record<string, unknown>) ?? {}),
@@ -37,7 +50,7 @@ function readNodeSettings(rn: AnyObj): Record<string, unknown> | undefined {
   NODE_OVERRIDE_KEYS.forEach((key) => {
     if (rn[key] !== undefined) settings[key] = rn[key];
   });
-  if (rn.model_choice?.model !== undefined) settings.model = rn.model_choice.model;
+  if (rn.model_choice?.model !== undefined) settings.model = resolveModelId(rn.model_choice);
   if (typeof settings.condition === "string" && settings.condition.trim()) {
     settings.conditions = [settings.condition];
   }
@@ -217,7 +230,7 @@ export function importAgentJson(raw: string): {
     agentId: data.agent_id || undefined,
     conversationFlowId: cf.conversation_flow_id,
     globalPrompt: cf.global_prompt,
-    model: cf.model_choice?.model ?? data.model,
+    model: resolveModelId(cf.model_choice),
     voiceId: data.voice_id,
     language: data.language,
     temperature: cf.model_temperature ?? cf.temperature,
