@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBuilderStore } from "@/lib/builder/store";
+import type { FlowNode } from "@/lib/builder/store";
 
 const DATA_RECORD_COLUMNS = [
   { value: "name", label: "Name" },
@@ -47,20 +48,35 @@ const INTELLIGENCE_TOGGLES: Array<{ key: string; label: string }> = [
   { key: "trackDecisionMaker", label: "Decision maker status" },
 ];
 
-function parsePlaceholders(prompt: string): string[] {
-  const matches = prompt.matchAll(/\{\{(\w+)\}\}/g);
+function extractPlaceholders(text: string, seen: Set<string>) {
+  for (const m of text.matchAll(/\{\{(\w+)\}\}/g)) seen.add(m[1]);
+}
+
+function parsePlaceholdersFromAll(globalPrompt: string, nodes: FlowNode[]): string[] {
   const seen = new Set<string>();
-  for (const m of matches) seen.add(m[1]);
+  // Global prompt
+  extractPlaceholders(globalPrompt ?? "", seen);
+  // Every conversation node's dialogue text
+  for (const node of nodes) {
+    const d = node.data;
+    if (d?.dialogue) extractPlaceholders(String(d.dialogue), seen);
+    // Edge transition conditions also support {{vars}}
+    if (Array.isArray(d?.edges)) {
+      for (const edge of d.edges as Array<{ condition?: string }>) {
+        if (edge?.condition) extractPlaceholders(edge.condition, seen);
+      }
+    }
+  }
   return Array.from(seen);
 }
 
 export function LeadGenSection() {
-  const { settings, setSettings } = useBuilderStore();
+  const { settings, setSettings, nodes } = useBuilderStore();
   const leadGen = settings.leadGen ?? {};
 
   const placeholders = useMemo(
-    () => parsePlaceholders(settings.globalPrompt ?? ""),
-    [settings.globalPrompt],
+    () => parsePlaceholdersFromAll(settings.globalPrompt ?? "", nodes),
+    [settings.globalPrompt, nodes],
   );
 
   const variableMappings: Record<string, string> = (leadGen.variableMappings as Record<string, string>) ?? {};
