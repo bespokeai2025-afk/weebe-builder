@@ -1,1 +1,2 @@
 - [Two-tier Retell deploy model](two-tier-retell-deploy.md) — builder uses platform RETELL_API_KEY; Go Live auto-uses per-client key stored in workspace_settings.retell_workspace_id.
+- [srvx static serving + AWS prod start](srvx-static-serving.md) — prod uses srvx; `--static` resolves relative to entry dir, so must be `--static=../client` or assets 404 silently.

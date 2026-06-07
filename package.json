@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
-    "start": "srvx serve --prod --entry dist/server/server.js --static dist/client --host 127.0.0.1",
+    "start": "srvx serve --prod --entry dist/server/server.js --static=../client --host 127.0.0.1",
+    "start:aws": "srvx serve --prod --entry dist/server/server.js --static=../client --host 0.0.0.0",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write ."

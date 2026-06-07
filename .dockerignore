@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.*
+*.log
+.DS_Store
+.local
+.agents
+.replit
+replit.nix
+.cache
+.config
+.upm
+attached_assets
+bun.lock

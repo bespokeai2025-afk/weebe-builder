@@ -1,4 +1,4 @@
-modules = ["nodejs-22"]
+modules = ["nodejs-22", "python-3.11"]
 [nix]
 channel = "stable-25_05"
 
@@ -30,8 +30,52 @@ waitForPort = 5000
 outputType = "webview"
 
 [[ports]]
+localPort = 3000
+externalPort = 3002
+
+[[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8799
+externalPort = 3001
+
+[[ports]]
+localPort = 8801
+externalPort = 3003
+
+[[ports]]
+localPort = 8802
+externalPort = 4200
+
+[[ports]]
+localPort = 8803
+externalPort = 5000
+
+[[ports]]
+localPort = 8804
+externalPort = 5173
+
+[[ports]]
+localPort = 8805
+externalPort = 6000
+
+[[ports]]
+localPort = 8810
+externalPort = 6800
+
+[[ports]]
+localPort = 8811
+externalPort = 8000
+
+[[ports]]
+localPort = 8812
+externalPort = 8008
 
 [userenv]
 
