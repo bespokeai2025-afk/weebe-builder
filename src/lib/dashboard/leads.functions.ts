@@ -222,7 +222,7 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
     // Load the selected leads — select all fields that could be used in pre-call mapping
     const { data: leads, error: leadsErr } = await sb
       .from("leads")
-      .select("id, phone, full_name, email, company_name, call_summary, next_action, interest_level, notes, source, meta")
+      .select("id, phone, full_name, email, company_name, call_summary, next_action, interest_level, notes, source")
       .eq("workspace_id", workspaceId)
       .in("id", data.leadIds);
     if (leadsErr) throw new Error(leadsErr.message);
