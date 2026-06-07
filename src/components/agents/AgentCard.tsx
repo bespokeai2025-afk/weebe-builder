@@ -250,7 +250,7 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentC
 
       {/* Actions */}
       <div className="mt-6 flex items-center justify-between border-t border-white/[0.04] pt-4">
-        <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
+        <div className="flex items-center gap-1.5">
           <Button
             size="sm"
             variant="ghost"

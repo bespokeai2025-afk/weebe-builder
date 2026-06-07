@@ -34,7 +34,7 @@ import {
   startCallingRecords,
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
-import { listMyAgents } from "@/lib/agents/agents.functions";
+import { listLiveAgents } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webespoke AI" }] }),
@@ -328,7 +328,7 @@ function DataPage() {
   const startCallFn = useServerFn(startCallingRecords);
   const getScheduleFn = useServerFn(getCallSchedule);
   const setScheduleFn = useServerFn(setCallSchedule);
-  const listAgentsFn = useServerFn(listMyAgents);
+  const listAgentsFn = useServerFn(listLiveAgents);
   const qc = useQueryClient();
 
   const filters = useMemo(() => {

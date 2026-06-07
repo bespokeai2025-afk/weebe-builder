@@ -39,6 +39,36 @@ export const listMyAgents = createServerFn({ method: "GET" })
     }>;
   });
 
+/**
+ * List only agents that have been pushed live via "Go Live" with
+ * lead_generation or client_qualification flow type — used on the
+ * Data / CSV page so only call-capable agents appear in selectors.
+ */
+export const listLiveAgents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase
+      .from("agents")
+      .select("id, retell_agent_id, name, settings")
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as Array<{
+      id: string;
+      retell_agent_id: string | null;
+      name: string;
+      settings: Json;
+    }>;
+    return rows.filter((r) => {
+      const s = (r.settings ?? {}) as Record<string, unknown>;
+      const type = s.dashboardAgentType as string | undefined;
+      return (
+        s.isLive === true &&
+        (type === "lead_generation" || type === "client_qualification")
+      );
+    });
+  });
+
 /** Load a specific agent by row id. */
 export const getMyAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
