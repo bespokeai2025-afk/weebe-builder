@@ -369,6 +369,7 @@ export const importDataRecords = createServerFn({ method: "POST" })
     z
       .object({
         rows: z.array(DataRowSchema).min(1).max(5000),
+        agentId: z.string().uuid().nullable().optional(),
       })
       .parse(input),
   )
@@ -397,6 +398,7 @@ export const importDataRecords = createServerFn({ method: "POST" })
       postal_code: r.postal_code || null,
       lead_external_id: r.lead_external_id || null,
       meta: r.meta && Object.keys(r.meta).length > 0 ? r.meta : {},
+      ...(data.agentId ? { assigned_agent_id: data.agentId } : {}),
     }));
     const CHUNK = 1000;
     let inserted = 0;

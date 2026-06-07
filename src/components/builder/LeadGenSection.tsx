@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -8,6 +9,8 @@ import {
   Brain,
   GitBranch,
   Loader2,
+  AlertTriangle,
+  ExternalLink,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
@@ -153,14 +156,33 @@ export function LeadGenSection() {
             </p>
           ) : schema && schema.totalRecords > 0 ? (
             <p className="text-[11px] text-emerald-500">
-              ✓ {schema.totalRecords} uploaded record{schema.totalRecords !== 1 ? "s" : ""} found
+              ✓ {schema.totalRecords} record{schema.totalRecords !== 1 ? "s" : ""} found
+              {currentAgentRowId ? " (assigned to this agent)" : " (workspace)"}
               {metaCols.length > 0 ? ` · ${metaCols.length} custom column${metaCols.length !== 1 ? "s" : ""} detected` : ""}
             </p>
           ) : schema && schema.totalRecords === 0 ? (
-            <p className="text-[11px] text-amber-500">
-              No records uploaded yet — upload a CSV in the Data section first, then mappings will
-              auto-populate with your real column names.
-            </p>
+            <div className="flex flex-col gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                <div className="space-y-1">
+                  <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    No CSV data uploaded yet
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Upload a CSV in the Data section and assign it to this agent. Variable mappings
+                    will then auto-populate with your real column names and the agent will
+                    personalise each call.
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/data"
+                className="flex w-fit items-center gap-1 rounded bg-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber-600 hover:bg-amber-500/30 dark:text-amber-400"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Go to Data &amp; upload CSV
+              </Link>
+            </div>
           ) : null}
 
           {placeholders.length === 0 ? (

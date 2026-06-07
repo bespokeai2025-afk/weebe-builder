@@ -319,6 +319,7 @@ function DataPage() {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
   const [showCsvMapping, setShowCsvMapping] = useState(false);
+  const [csvImportAgentId, setCsvImportAgentId] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const listFn = useServerFn(listDataRecords);
@@ -470,11 +471,25 @@ function DataPage() {
           "No rows have both name and mobile_number mapped — check your column mapping.",
         );
 
-      const result = await importFn({ data: { rows: valid } });
-      toast.success(`Imported ${result.inserted} records`);
+      const result = await importFn({
+        data: {
+          rows: valid,
+          agentId: csvImportAgentId || null,
+        },
+      });
+      const agentName = csvImportAgentId
+        ? agents.find((a) => a.id === csvImportAgentId)?.name
+        : null;
+      toast.success(
+        agentName
+          ? `Imported ${result.inserted} records and assigned to ${agentName}`
+          : `Imported ${result.inserted} records`,
+      );
       qc.invalidateQueries({ queryKey: ["data-records"] });
+      qc.invalidateQueries({ queryKey: ["data-record-schema"] });
       setShowCsvMapping(false);
       setShowCsvImport(false);
+      setCsvImportAgentId("");
     } catch (err) {
       toast.error("Import failed", { description: (err as Error).message });
     } finally {
@@ -569,12 +584,34 @@ function DataPage() {
 
       {showCsvImport && (
         <Card className="mb-6">
-          <CardContent className="pt-6">
-            <p className="mb-1 text-sm font-medium">Upload a CSV file</p>
-            <p className="mb-4 text-xs text-muted-foreground">
-              Select a CSV file and you'll be guided to map its columns to system fields before
-              importing.
-            </p>
+          <CardContent className="pt-6 space-y-4">
+            <div>
+              <p className="mb-1 text-sm font-medium">Upload a CSV file</p>
+              <p className="text-xs text-muted-foreground">
+                Select a CSV file and you'll be guided to map its columns to system fields before
+                importing.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Assign to agent (optional)</Label>
+              <p className="text-[11px] text-muted-foreground">
+                Records will be assigned to this agent so it can use their data during calls.
+                Required for Lead Generation agents to access CSV variables in the builder.
+              </p>
+              <Select value={csvImportAgentId} onValueChange={setCsvImportAgentId}>
+                <SelectTrigger className="h-8 max-w-sm text-xs">
+                  <SelectValue placeholder="No agent — assign later" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No agent — assign later</SelectItem>
+                  {agents.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center gap-3">
               <Input
                 ref={fileInputRef}
