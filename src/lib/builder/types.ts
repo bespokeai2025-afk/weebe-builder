@@ -229,8 +229,18 @@ export interface BuilderSettings {
   leadGen?: {
     campaignName?: string;
     campaignId?: string;
-    /** Maps {{placeholder}} → data_records column name */
+    /** Maps {{placeholder}} → data_records column name (pre-call injection) */
     variableMappings?: Record<string, string>;
+    /**
+     * Post-call variable mapping: custom variable name → lead field to write.
+     * e.g. { "company_name": "meta.company_name", "budget": "meta.budget" }
+     */
+    postCallMappings?: Record<string, string>;
+    /**
+     * Custom scoring rules — each adds points to lead_score when the
+     * post-call variable has a truthy value.
+     */
+    customScoringRules?: Array<{ variable: string; points: number }>;
     autoUpdateLead?: boolean;
     writeCampaignMetrics?: boolean;
     trackInterestLevel?: boolean;
@@ -248,6 +258,19 @@ export interface BuilderSettings {
    */
   qualify?: {
     leadSource?: "data_section" | "leads_section";
+    /**
+     * Pre-call mapping: {{placeholder}} → leads table field (when leadSource = leads_section).
+     * e.g. { "full_name": "full_name", "company": "company_name" }
+     */
+    preCallMappings?: Record<string, string>;
+    /**
+     * Post-call variable mapping: custom variable name → lead field to write.
+     */
+    postCallMappings?: Record<string, string>;
+    /**
+     * Custom scoring rules — adds to qualification_score when variable is truthy.
+     */
+    customScoringRules?: Array<{ variable: string; points: number }>;
     trackBudget?: boolean;
     trackDecisionMaker?: boolean;
     trackUrgency?: boolean;

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   ChevronDown,
   ShieldCheck,
@@ -16,6 +17,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBuilderStore } from "@/lib/builder/store";
+import type { FlowNode } from "@/lib/builder/store";
+import {
+  PostCallVariableMappingSection,
+  PreCallLeadMappingSection,
+} from "./PostCallVariableMappingSection";
 
 const QUALIFICATION_CRITERIA = [
   { key: "trackBudget", label: "Budget confirmed", points: 25 },
@@ -35,9 +41,40 @@ const OUTCOME_OPTIONS = [
   { value: "callback_required", label: "Callback Required" },
 ];
 
+function extractPlaceholders(text: string, seen: Set<string>) {
+  for (const m of text.matchAll(/\{\{(\w+)\}\}/g)) seen.add(m[1]);
+}
+
+function parsePlaceholdersFromAll(globalPrompt: string, nodes: FlowNode[]): string[] {
+  const seen = new Set<string>();
+  extractPlaceholders(globalPrompt ?? "", seen);
+  for (const node of nodes) {
+    const d = node.data;
+    if (d?.dialogue) extractPlaceholders(String(d.dialogue), seen);
+    if (Array.isArray(d?.edges)) {
+      for (const edge of d.edges as Array<{ condition?: string }>) {
+        if (edge?.condition) extractPlaceholders(edge.condition, seen);
+      }
+    }
+  }
+  return Array.from(seen);
+}
+
 export function ClientQualificationSection() {
-  const { settings, setSettings } = useBuilderStore();
+  const { settings, setSettings, nodes } = useBuilderStore();
   const qualify = settings.qualify ?? {};
+
+  const placeholders = useMemo(
+    () => parsePlaceholdersFromAll(settings.globalPrompt ?? "", nodes),
+    [settings.globalPrompt, nodes],
+  );
+
+  const preCallMappings: Record<string, string> =
+    (qualify.preCallMappings as Record<string, string>) ?? {};
+  const postCallMappings: Record<string, string> =
+    (qualify.postCallMappings as Record<string, string>) ?? {};
+  const customScoringRules: Array<{ variable: string; points: number }> =
+    (qualify.customScoringRules as Array<{ variable: string; points: number }>) ?? [];
 
   function setQualify(patch: Partial<NonNullable<typeof settings.qualify>>) {
     setSettings({ qualify: { ...qualify, ...patch } });
@@ -89,6 +126,16 @@ export function ClientQualificationSection() {
         </CollapsibleContent>
       </Collapsible>
 
+      {/* Pre-Call Data Injection (leads fields → script placeholders) */}
+      {(qualify.leadSource === "leads_section" || qualify.leadSource == null) && (
+        <PreCallLeadMappingSection
+          accentClass="text-blue-600 dark:text-blue-400"
+          placeholders={placeholders}
+          preCallMappings={preCallMappings}
+          onMappingChange={(m) => setQualify({ preCallMappings: m })}
+        />
+      )}
+
       {/* Qualification Criteria */}
       <Collapsible className="rounded-lg border border-blue-500/20 bg-blue-500/5">
         <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-blue-600 dark:text-blue-400">
@@ -113,13 +160,23 @@ export function ClientQualificationSection() {
                 )}
               </div>
               <Switch
-                checked={(qualify[key] as boolean) !== false}
-                onCheckedChange={(v) => toggleCriteria(key, v)}
+                checked={(qualify[key as keyof typeof qualify] as boolean) !== false}
+                onCheckedChange={(v) => toggleCriteria(key as keyof NonNullable<typeof settings.qualify>, v)}
               />
             </div>
           ))}
         </CollapsibleContent>
       </Collapsible>
+
+      {/* Post-Call Variable Mapping — maps custom extracted vars → lead fields + scoring */}
+      <PostCallVariableMappingSection
+        mode="qualify"
+        accentClass="text-blue-600 dark:text-blue-400"
+        postCallMappings={postCallMappings}
+        customScoringRules={customScoringRules}
+        onMappingChange={(m) => setQualify({ postCallMappings: m })}
+        onScoringChange={(r) => setQualify({ customScoringRules: r })}
+      />
 
       {/* Scoring Bands */}
       <Collapsible className="rounded-lg border border-blue-500/20 bg-blue-500/5">
@@ -133,6 +190,9 @@ export function ClientQualificationSection() {
         <CollapsibleContent className="space-y-2 px-3 pb-3">
           <p className="text-[11px] text-muted-foreground">
             Scores are calculated automatically from enabled criteria after each call.
+            {customScoringRules.length > 0 && (
+              <> Custom variables add up to <span className="font-medium text-foreground">+{customScoringRules.reduce((a, r) => a + r.points, 0)} pts</span>.</>
+            )}
           </p>
           <div className="space-y-1">
             {[
@@ -165,7 +225,7 @@ export function ClientQualificationSection() {
           {(["positive", "neutral", "negative"] as const).map((sentiment) => {
             const defaultVal =
               sentiment === "negative" ? "not_qualified" : "qualified";
-            const key = `route_${sentiment}`;
+            const key = `route_${sentiment}` as keyof NonNullable<typeof settings.qualify>;
             return (
               <div key={sentiment} className="flex items-center justify-between gap-2">
                 <Label className="text-xs capitalize">{sentiment}</Label>

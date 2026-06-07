@@ -338,6 +338,7 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
       agent_type: (agent?.agent_type as string | undefined) ?? "lead_gen",
       dashboardAgentType: (s.dashboardAgentType as string | undefined) ?? null,
       leadGenSettings: (s.leadGen as Record<string, unknown> | undefined) ?? null,
+      qualifySettings: (s.qualify as Record<string, unknown> | undefined) ?? null,
     };
   }
 
@@ -361,6 +362,7 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
       agent_type: matched.agent_type as string,
       dashboardAgentType: (s.dashboardAgentType as string | undefined) ?? null,
       leadGenSettings: (s.leadGen as Record<string, unknown> | undefined) ?? null,
+      qualifySettings: (s.qualify as Record<string, unknown> | undefined) ?? null,
     };
   }
 
@@ -378,6 +380,7 @@ async function resolveAgent(incomingAgentId: string, forcedWorkspaceId?: string)
     agent_type: "lead_gen",
     dashboardAgentType: null as string | null,
     leadGenSettings: null as Record<string, unknown> | null,
+    qualifySettings: null as Record<string, unknown> | null,
   };
 }
 
@@ -814,11 +817,20 @@ export async function processRetellWebhook(
             .join(" ")
             .trim() ||
           null;
+        // Pass custom post-call analysis data + builder mappings
+        const customData = (call.call_analysis?.custom_analysis_data ?? {}) as Record<string, unknown>;
         await updateLeadIntelligence(workspaceId, contactPhone, intelligence, {
           contactName,
           agentName: agentRow.name ?? null,
+          customData,
+          postCallMappings: (lgSettings.postCallMappings as Record<string, string> | undefined) ?? {},
+          customScoringRules: (lgSettings.customScoringRules as Array<{ variable: string; points: number }> | undefined) ?? [],
         });
-        console.log("[LEAD-GEN] Intelligence update complete", { callId, score: intelligence.lead_score });
+        console.log("[LEAD-GEN] Intelligence update complete", {
+          callId,
+          score: intelligence.lead_score,
+          customVars: Object.keys(customData).length,
+        });
       } catch (lgErr) {
         // Best-effort — never fail the webhook response due to lead gen errors
         console.error("[LEAD-GEN] Post-call processing error", lgErr);
@@ -847,11 +859,20 @@ export async function processRetellWebhook(
           .join(" ")
           .trim() ||
         null;
+      const customData = (call.call_analysis?.custom_analysis_data ?? {}) as Record<string, unknown>;
+      const qualifySettings = (agentRow as any).qualifySettings ?? {};
       await applyQualificationToLead(workspaceId, contactPhone, result, {
         contactName,
         agentName: agentRow.name ?? null,
+        customData,
+        qualifySettings,
       });
-      console.log("[QUALIFY] Qualification complete", { callId, status: result.qualification_status, score: result.qualification_score });
+      console.log("[QUALIFY] Qualification complete", {
+        callId,
+        status: result.qualification_status,
+        score: result.qualification_score,
+        customVars: Object.keys(customData).length,
+      });
     } catch (qErr) {
       console.error("[QUALIFY] Post-call processing error", qErr);
     }

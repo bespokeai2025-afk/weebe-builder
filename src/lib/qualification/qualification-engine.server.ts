@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { applyCustomPostCallData } from "@/lib/lead-gen/lead-intelligence.server";
 
 export interface QualificationResult {
   qualification_status: "qualified" | "partially_qualified" | "not_qualified" | "callback_required";
@@ -10,6 +11,12 @@ export interface QualificationResult {
   next_step: string | null;
   summary: string | null;
   sentiment: "positive" | "neutral" | "negative" | null;
+}
+
+export interface QualifySettings {
+  postCallMappings?: Record<string, string>;
+  customScoringRules?: Array<{ variable: string; points: number }>;
+  [key: string]: unknown;
 }
 
 const QUALIFICATION_PROMPT = `You are a sales qualification analyst. Analyze the call transcript and determine whether the prospect qualifies as a sales lead.
@@ -105,14 +112,19 @@ export async function applyQualificationToLead(
   workspaceId: string,
   phone: string,
   result: QualificationResult,
-  hints?: { contactName?: string | null; agentName?: string | null },
+  hints?: {
+    contactName?: string | null;
+    agentName?: string | null;
+    customData?: Record<string, unknown>;
+    qualifySettings?: QualifySettings;
+  },
 ): Promise<void> {
   const digits = (s: string) => s.replace(/\D/g, "");
   const now = new Date().toISOString();
 
   const { data: leads } = await supabaseAdmin
     .from("leads")
-    .select("id, phone")
+    .select("id, phone, qualification_score")
     .eq("workspace_id", workspaceId)
     .limit(500) as any;
 
@@ -120,11 +132,37 @@ export async function applyQualificationToLead(
     (l: any) => digits(l.phone ?? "") === digits(phone),
   );
 
+  // Start with base qualification data
+  let finalScore = result.qualification_score;
+
+  // Apply custom scoring rules from post-call variables
+  const customData = hints?.customData ?? {};
+  const qualifySettings = hints?.qualifySettings ?? {};
+  const customScoringRules = qualifySettings.customScoringRules ?? [];
+  const postCallMappings = qualifySettings.postCallMappings ?? {};
+
+  if (customScoringRules.length > 0) {
+    let bonus = 0;
+    for (const rule of customScoringRules) {
+      const value = customData[rule.variable];
+      if (value && value !== "false" && value !== "0" && value !== "none") {
+        bonus += rule.points;
+        console.log("[QUALIFY] Custom scoring rule hit", { variable: rule.variable, points: rule.points, value });
+      }
+    }
+    finalScore = Math.min(100, finalScore + bonus);
+    if (bonus > 0) {
+      console.log("[QUALIFY] Custom scoring bonus applied", { bonus, finalScore });
+    }
+  }
+
+  const finalStatus = deriveStatus(result.qualification_status, finalScore);
+
   const patch: Record<string, unknown> = {
     updated_at: now,
     last_contacted_at: now,
-    qualification_status: result.qualification_status,
-    qualification_score: result.qualification_score,
+    qualification_status: finalStatus,
+    qualification_score: finalScore,
     budget_confirmed: result.budget_confirmed,
     decision_maker: result.decision_maker,
     urgency: result.urgency,
@@ -135,9 +173,19 @@ export async function applyQualificationToLead(
     status: deriveLeadStatus(result),
   };
 
+  // Apply custom post-call field mappings
+  if (Object.keys(postCallMappings).length > 0 && Object.keys(customData).length > 0) {
+    const currentScore = matched?.qualification_score ?? null;
+    applyCustomPostCallData(patch, customData, postCallMappings, [], currentScore);
+    console.log("[QUALIFY] Applied custom post-call field mappings", {
+      variables: Object.keys(customData),
+      mappings: Object.keys(postCallMappings),
+    });
+  }
+
   if (matched) {
     await (supabaseAdmin.from("leads") as any).update(patch).eq("id", matched.id as string);
-    console.log("[QUALIFY] Lead updated", { leadId: matched.id, status: result.qualification_status, score: result.qualification_score });
+    console.log("[QUALIFY] Lead updated", { leadId: matched.id, status: finalStatus, score: finalScore });
     return;
   }
 
@@ -171,7 +219,7 @@ export async function applyQualificationToLead(
   if (insertErr) {
     console.error("[QUALIFY] Auto-create lead failed", insertErr.message, { phone, workspaceId });
   } else {
-    console.log("[QUALIFY] Lead auto-created", { leadId: inserted?.id, status: result.qualification_status, score: result.qualification_score });
+    console.log("[QUALIFY] Lead auto-created", { leadId: inserted?.id, status: finalStatus, score: finalScore });
   }
 }
 

@@ -28,6 +28,7 @@ import {
 import { useBuilderStore } from "@/lib/builder/store";
 import type { FlowNode } from "@/lib/builder/store";
 import { getDataRecordSchema } from "@/lib/dashboard/data-records.functions";
+import { PostCallVariableMappingSection } from "./PostCallVariableMappingSection";
 
 const INTELLIGENCE_TOGGLES: Array<{ key: string; label: string }> = [
   { key: "trackInterestLevel", label: "Interest level" },
@@ -70,12 +71,13 @@ export function LeadGenSection() {
 
   const variableMappings: Record<string, string> =
     (leadGen.variableMappings as Record<string, string>) ?? {};
+  const postCallMappings: Record<string, string> =
+    (leadGen.postCallMappings as Record<string, string>) ?? {};
+  const customScoringRules: Array<{ variable: string; points: number }> =
+    (leadGen.customScoringRules as Array<{ variable: string; points: number }>) ?? [];
 
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
 
-  // Fetch real columns from the workspace's uploaded CSV data.
-  // Passes the current agent's DB row ID so it shows columns from records
-  // assigned to this agent first, then falls back to all workspace records.
   const getSchemFn = useServerFn(getDataRecordSchema);
   const schemaQ = useQuery({
     queryKey: ["data-record-schema", currentAgentRowId],
@@ -99,7 +101,6 @@ export function LeadGenSection() {
     setLeadGen({ [key]: val });
   }
 
-  // Human-readable label for a column ref (e.g. "meta.company" → "company")
   function colLabel(ref: string): string {
     if (ref.startsWith("meta.")) return ref.slice(5);
     return fixedCols.find((c) => c.value === ref)?.label ?? ref;
@@ -132,12 +133,12 @@ export function LeadGenSection() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Variable Mapping */}
+      {/* Pre-Call Variable Mapping (CSV → script placeholders) */}
       <Collapsible className="rounded-lg border border-violet-500/20 bg-violet-500/5">
         <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-violet-600 dark:text-violet-400">
           <span className="flex items-center gap-1.5">
             <GitBranch className="h-3.5 w-3.5" />
-            Variable Mapping
+            Pre-Call Variable Mapping
           </span>
           <ChevronDown className="h-3.5 w-3.5" />
         </CollapsibleTrigger>
@@ -148,7 +149,6 @@ export function LeadGenSection() {
             nodes to columns from your uploaded CSV. Values are injected into each call automatically.
           </p>
 
-          {/* CSV column source status */}
           {schemaQ.isLoading ? (
             <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -232,7 +232,6 @@ export function LeadGenSection() {
                           )}
                         </>
                       ) : (
-                        // Fallback list before any records are uploaded
                         <SelectGroup>
                           <SelectLabel className="text-[10px]">Standard Fields</SelectLabel>
                           {[
@@ -263,6 +262,16 @@ export function LeadGenSection() {
           )}
         </CollapsibleContent>
       </Collapsible>
+
+      {/* Post-Call Variable Mapping — maps custom extracted vars → lead fields */}
+      <PostCallVariableMappingSection
+        mode="leadgen"
+        accentClass="text-violet-600 dark:text-violet-400"
+        postCallMappings={postCallMappings}
+        customScoringRules={customScoringRules}
+        onMappingChange={(m) => setLeadGen({ postCallMappings: m })}
+        onScoringChange={(r) => setLeadGen({ customScoringRules: r })}
+      />
 
       {/* Lead Intelligence */}
       <Collapsible className="rounded-lg border border-violet-500/20 bg-violet-500/5">

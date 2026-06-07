@@ -92,38 +92,66 @@ export async function analyzeCallTranscript(
   }
 }
 
-function buildFallback(
-  retellSentiment?: string | null,
-  retellSummary?: string | null,
-): LeadIntelligence {
-  const sentiment = mapSentiment(retellSentiment);
-  return {
-    summary: retellSummary ?? null,
-    interest_level: null,
-    buying_intent: null,
-    lead_score: sentimentToScore(sentiment),
-    objections: null,
-    next_action: null,
-    meeting_requested: false,
-    callback_requested: false,
-    callback_date: null,
-    decision_maker_status: null,
-    sentiment,
-  };
+/** Apply custom post-call variable mappings to a lead patch object */
+export function applyCustomPostCallData(
+  patch: Record<string, unknown>,
+  customData: Record<string, unknown>,
+  postCallMappings: Record<string, string>,
+  customScoringRules: Array<{ variable: string; points: number }>,
+  currentScore: number | null,
+): void {
+  // Apply field mappings
+  for (const [varName, targetField] of Object.entries(postCallMappings)) {
+    const value = customData[varName];
+    if (value == null) continue;
+
+    if (targetField.startsWith("meta.")) {
+      // Store in the lead's meta JSON
+      const metaKey = targetField.slice(5);
+      const existingMeta = (patch.meta as Record<string, unknown>) ?? {};
+      patch.meta = { ...existingMeta, [metaKey]: value };
+    } else {
+      // Write directly to the named lead column
+      patch[targetField] = value;
+    }
+  }
+
+  // Apply custom scoring rules to lead_score
+  if (customScoringRules.length > 0) {
+    let bonus = 0;
+    for (const rule of customScoringRules) {
+      const value = customData[rule.variable];
+      if (value && value !== "false" && value !== "0" && value !== "none") {
+        bonus += rule.points;
+      }
+    }
+    if (bonus > 0) {
+      const base = typeof patch.lead_score === "number"
+        ? patch.lead_score
+        : currentScore ?? 0;
+      patch.lead_score = Math.min(100, base + bonus);
+    }
+  }
 }
 
 export async function updateLeadIntelligence(
   workspaceId: string,
   phone: string,
   intelligence: LeadIntelligence,
-  hints?: { contactName?: string | null; agentName?: string | null },
+  hints?: {
+    contactName?: string | null;
+    agentName?: string | null;
+    customData?: Record<string, unknown>;
+    postCallMappings?: Record<string, string>;
+    customScoringRules?: Array<{ variable: string; points: number }>;
+  },
 ): Promise<void> {
   const digits = (s: string) => s.replace(/\D/g, "");
   const now = new Date().toISOString();
 
   const { data: leads } = await supabaseAdmin
     .from("leads")
-    .select("id, phone")
+    .select("id, phone, lead_score")
     .eq("workspace_id", workspaceId)
     .limit(500) as any;
 
@@ -148,6 +176,24 @@ export async function updateLeadIntelligence(
     intelligenceUpdate.decision_maker_status = intelligence.decision_maker_status;
   if (intelligence.sentiment != null) intelligenceUpdate.sentiment = intelligence.sentiment as any;
   intelligenceUpdate.status = intelligence.sentiment === "positive" ? "interested" : "completed";
+
+  // Apply custom post-call variable mappings
+  if (hints?.customData && hints?.postCallMappings) {
+    const currentScore = matched?.lead_score ?? null;
+    applyCustomPostCallData(
+      intelligenceUpdate,
+      hints.customData,
+      hints.postCallMappings,
+      hints.customScoringRules ?? [],
+      currentScore,
+    );
+    if (Object.keys(hints.customData).length > 0) {
+      console.log("[LEAD-GEN] Applied custom post-call data", {
+        variables: Object.keys(hints.customData),
+        mappings: Object.keys(hints.postCallMappings),
+      });
+    }
+  }
 
   if (matched) {
     await (supabaseAdmin.from("leads") as any)
@@ -190,6 +236,26 @@ export async function updateLeadIntelligence(
   } else {
     console.log("[LEAD-GEN] Lead auto-created from call", { leadId: inserted?.id, workspaceId, phone });
   }
+}
+
+function buildFallback(
+  retellSentiment?: string | null,
+  retellSummary?: string | null,
+): LeadIntelligence {
+  const sentiment = mapSentiment(retellSentiment);
+  return {
+    summary: retellSummary ?? null,
+    interest_level: null,
+    buying_intent: null,
+    lead_score: sentimentToScore(sentiment),
+    objections: null,
+    next_action: null,
+    meeting_requested: false,
+    callback_requested: false,
+    callback_date: null,
+    decision_maker_status: null,
+    sentiment,
+  };
 }
 
 function mapSentiment(v?: string | null): "positive" | "neutral" | "negative" | null {

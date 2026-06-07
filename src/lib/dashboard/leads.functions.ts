@@ -219,10 +219,10 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    // Load the selected leads
+    // Load the selected leads — select all fields that could be used in pre-call mapping
     const { data: leads, error: leadsErr } = await sb
       .from("leads")
-      .select("id, phone, full_name")
+      .select("id, phone, full_name, email, company_name, call_summary, next_action, interest_level, notes, source, meta")
       .eq("workspace_id", workspaceId)
       .in("id", data.leadIds);
     if (leadsErr) throw new Error(leadsErr.message);
@@ -237,6 +237,8 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
     if (!agent) throw new Error("Agent not found");
 
     const agentSettings = (agent.settings ?? {}) as Record<string, unknown>;
+    const qualifySettings = (agentSettings.qualify as Record<string, unknown> | undefined) ?? {};
+    const preCallMappings = (qualifySettings.preCallMappings as Record<string, string> | undefined) ?? {};
     const deployedRetellAgentId = (agentSettings.deployedRetellAgentId as string | undefined) ?? null;
     const retellAgentId = deployedRetellAgentId ?? agent.retell_agent_id ?? null;
 
@@ -284,14 +286,24 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
       }
 
       try {
+        // Build dynamic variables from preCallMappings (placeholder → lead field)
+        // Always include full_name as a baseline, then apply builder-configured mappings.
+        const dynamicVars: Record<string, string> = {
+          full_name: lead.full_name ?? "",
+        };
+        for (const [placeholder, leadField] of Object.entries(preCallMappings)) {
+          const val = (lead as Record<string, unknown>)[leadField];
+          if (val != null && val !== "") {
+            dynamicVars[placeholder] = String(val);
+          }
+        }
+
         const callPayload: Record<string, unknown> = {
           from_number: fromNumber,
           to_number: lead.phone,
           override_agent_id: retellAgentId,
           metadata: { lead_id: lead.id, workspace_id: workspaceId },
-          retell_llm_dynamic_variables: {
-            full_name: lead.full_name ?? "",
-          },
+          retell_llm_dynamic_variables: dynamicVars,
         };
 
         const call = await retellFetch<any>("/v2/create-phone-call", callPayload, resolvedKey);
