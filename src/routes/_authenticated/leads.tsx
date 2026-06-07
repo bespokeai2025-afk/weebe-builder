@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { listLeads } from "@/lib/dashboard/leads.functions";
+import { listLeads, setLeadStatus } from "@/lib/dashboard/leads.functions";
 import {
   listCampaigns,
   createCampaign,
@@ -88,9 +88,23 @@ function interestBadge(level: string | null) {
   );
 }
 
+const STATUS_OPTIONS = [
+  { value: "interested", label: "Open", color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" },
+  { value: "qualified", label: "Qualified", color: "bg-violet-500/15 text-violet-400 ring-violet-500/30" },
+  { value: "not_interested", label: "Closed", color: "bg-red-500/15 text-red-400 ring-red-500/30" },
+  { value: "completed", label: "Completed", color: "bg-blue-500/15 text-blue-400 ring-blue-500/30" },
+] as const;
+
+function statusDisplay(status: string | null) {
+  const opt = STATUS_OPTIONS.find((o) => o.value === status);
+  if (opt) return opt;
+  return { value: status ?? "", label: status?.replace(/_/g, " ") ?? "—", color: "bg-muted text-muted-foreground ring-border" };
+}
+
 function LeadsPage() {
   const qc = useQueryClient();
   const listLeadsFn = useServerFn(listLeads);
+  const setStatusFn = useServerFn(setLeadStatus);
   const listCampaignsFn = useServerFn(listCampaigns);
   const createCampaignFn = useServerFn(createCampaign);
   const deleteCampaignFn = useServerFn(deleteCampaign);
@@ -138,6 +152,15 @@ function LeadsPage() {
       ? Math.round(withScore.reduce((a: number, l: any) => a + l.lead_score, 0) / withScore.length)
       : null;
   const meetingsReq = leads.filter((l: any) => l.meeting_requested).length;
+
+  async function handleSetStatus(id: string, status: typeof STATUS_OPTIONS[number]["value"]) {
+    try {
+      await setStatusFn({ data: { id, status } });
+      qc.invalidateQueries({ queryKey: ["leads-all"] });
+    } catch (e) {
+      toast.error("Failed to update status", { description: (e as Error).message });
+    }
+  }
 
   async function handleCreateCampaign() {
     if (!campaignName.trim()) return;
@@ -330,12 +353,11 @@ function LeadsPage() {
                     <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                       <th className="px-3 py-2">Name</th>
                       <th className="px-3 py-2">Phone</th>
-                      <th className="px-3 py-2">Company</th>
+                      <th className="px-3 py-2">Status</th>
                       <th className="px-3 py-2">Sentiment</th>
-                      <th className="px-3 py-2">Interest</th>
                       <th className="px-3 py-2">Score</th>
-                      <th className="px-3 py-2">Buying Intent</th>
-                      <th className="px-3 py-2">Meeting</th>
+                      <th className="px-3 py-2">Interest</th>
+                      <th className="px-3 py-2">Summary</th>
                       <th className="px-3 py-2">Next Action</th>
                       <th className="px-3 py-2">Last Contact</th>
                     </tr>
@@ -348,33 +370,39 @@ function LeadsPage() {
                       >
                         <td className="px-3 py-2 font-medium whitespace-nowrap">
                           {lead.full_name ?? "—"}
+                          {lead.company_name && (
+                            <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
+                          )}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">
+                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap text-xs">
                           {lead.phone}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground">
-                          {lead.company_name ?? "—"}
+                        {/* Status picker */}
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1">
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${statusDisplay(lead.status).color}`}>
+                              {statusDisplay(lead.status).label}
+                            </span>
+                            <div className="flex gap-1 mt-0.5">
+                              {STATUS_OPTIONS.map((opt) => (
+                                <button
+                                  key={opt.value}
+                                  title={`Mark as ${opt.label}`}
+                                  onClick={() => handleSetStatus(lead.id, opt.value)}
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-opacity ring-1 ${opt.color} ${lead.status === opt.value ? "opacity-100" : "opacity-40 hover:opacity-80"}`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </td>
                         <td className="px-3 py-2">{sentimentBadge(lead.sentiment)}</td>
-                        <td className="px-3 py-2">{interestBadge(lead.interest_level)}</td>
                         <td className="px-3 py-2">{scoreBadge(lead.lead_score)}</td>
-                        <td className="px-3 py-2">
-                          {lead.buying_intent ? (
-                            <span className="text-xs text-muted-foreground capitalize">
-                              {lead.buying_intent}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="px-3 py-2">
-                          {lead.meeting_requested ? (
-                            <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[11px] text-violet-400">
-                              Requested
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
+                        <td className="px-3 py-2">{interestBadge(lead.interest_level)}</td>
+                        {/* Call summary */}
+                        <td className="px-3 py-2 text-xs text-muted-foreground max-w-[220px]">
+                          <span className="line-clamp-3">{lead.call_summary ?? "—"}</span>
                         </td>
                         <td className="px-3 py-2 text-xs text-muted-foreground max-w-[180px]">
                           <span className="line-clamp-2">{lead.next_action ?? "—"}</span>

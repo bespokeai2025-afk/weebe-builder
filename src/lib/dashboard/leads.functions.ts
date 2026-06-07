@@ -139,6 +139,35 @@ export const upsertLead = createServerFn({ method: "POST" })
     return { id: row!.id as string };
   });
 
+export const setLeadStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        status: z.enum([
+          "need_to_call",
+          "interested",
+          "not_interested",
+          "qualified",
+          "completed",
+          "do_not_call",
+        ]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const { error } = await (supabase as any)
+      .from("leads" as never)
+      .update({ status: data.status, updated_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const deleteLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
