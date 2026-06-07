@@ -8,12 +8,22 @@ const APP_URL =
   (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
 
 async function assertAdmin(userId: string) {
-  const { data } = await supabaseAdmin
+  // Check profiles.user_type first — this is what the route guard and
+  // updateUserType use, so it's the authoritative admin flag.
+  const { data: profile } = await supabaseAdmin
+    .from("profiles")
+    .select("user_type")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (profile?.user_type === "admin") return;
+
+  // Fall back to legacy user_roles table.
+  const { data: roles } = await supabaseAdmin
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
     .eq("role", "admin");
-  if (!data || data.length === 0) throw new Error("Forbidden");
+  if (!roles || roles.length === 0) throw new Error("Forbidden");
 }
 
 /** Current user: get their most recent workspace request (or null). */

@@ -297,6 +297,22 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
     const bookingEnabled = data.bookingConfig?.enabled !== false;
     const wsId = context.workspaceId;
     if (!wsId) throw new Error("No active workspace");
+
+    // Resolve which Retell key to use for all builder API calls.
+    // If the workspace has its own key configured (admin-provisioned), use it
+    // so custom ElevenLabs voices and workspace-specific resources work in
+    // the builder. Falls back to the platform RETELL_API_KEY when not set.
+    let builderKey: string | undefined;
+    {
+      const { data: wsSettings } = await supabaseAdmin
+        .from("workspace_settings")
+        .select("retell_workspace_id")
+        .eq("workspace_id", wsId)
+        .maybeSingle();
+      const wk = wsSettings?.retell_workspace_id?.trim();
+      if (wk && wk.startsWith("key_")) builderKey = wk;
+    }
+
     const bookingTools = bookingEnabled ? await maybeBuildBookingToolsForWorkspace(wsId) : null;
     const calendarConnected = bookingTools !== null;
 
@@ -507,9 +523,10 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         `/update-conversation-flow/${conversationFlowId}`,
         cfBody,
         "PATCH",
+        builderKey,
       );
     } else {
-      cfResp = await retellFetch(`/create-conversation-flow`, cfBody);
+      cfResp = await retellFetch(`/create-conversation-flow`, cfBody, "POST", builderKey);
       conversationFlowId = String(cfResp.conversation_flow_id ?? "");
     }
 
@@ -521,6 +538,7 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
           `/get-conversation-flow/${conversationFlowId}`,
           undefined,
           "GET",
+          builderKey,
         )) as Record<string, unknown>;
         const deployedNodes = Array.isArray(deployed.nodes)
           ? (deployed.nodes as Array<Record<string, unknown>>)
@@ -623,11 +641,11 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         conversation_flow_id: conversationFlowId,
       };
       try {
-        agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH");
+        agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
       } catch (e) {
         if (/Voice .* not found/i.test((e as Error).message)) {
           updateBody.voice_id = "11labs-Adrian";
-          agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH");
+          agentResp = await retellFetch(`/update-agent/${agentId}`, updateBody, "PATCH", builderKey);
           voiceFallback = true;
         } else throw e;
       }
@@ -640,11 +658,11 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
         conversation_flow_id: conversationFlowId,
       };
       try {
-        agentResp = await retellFetch(`/create-agent`, createBody);
+        agentResp = await retellFetch(`/create-agent`, createBody, "POST", builderKey);
       } catch (e) {
         if (/Voice .* not found/i.test((e as Error).message)) {
           createBody.voice_id = "11labs-Adrian";
-          agentResp = await retellFetch(`/create-agent`, createBody);
+          agentResp = await retellFetch(`/create-agent`, createBody, "POST", builderKey);
           voiceFallback = true;
         } else throw e;
       }
@@ -1016,17 +1034,24 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
     }
     const prodKey = resolveProductionApiKey(explicitKey);
 
-    const agent = (await retellFetch(`/get-agent/${src}`, undefined, "GET")) as Record<
+    // The builder may have created the source agent in the workspace's own
+    // Retell account (using the workspace key). Use that same key when reading
+    // so Go Live can find the agent even when it's not in the platform workspace.
+    const srcReadKey = explicitKey || undefined;
+
+    const agent = (await retellFetch(`/get-agent/${src}`, undefined, "GET", srcReadKey)) as Record<
       string,
       unknown
     >;
     const engine = (agent.response_engine ?? {}) as Record<string, unknown>;
     const srcCfId = String(engine.conversation_flow_id ?? "");
     if (!srcCfId) throw new Error("Source agent has no conversation flow");
-    const cf = (await retellFetch(`/get-conversation-flow/${srcCfId}`, undefined, "GET")) as Record<
-      string,
-      unknown
-    >;
+    const cf = (await retellFetch(
+      `/get-conversation-flow/${srcCfId}`,
+      undefined,
+      "GET",
+      srcReadKey,
+    )) as Record<string, unknown>;
 
     const cfBody = stripKeys(cf, READONLY_KEYS);
     const cfResp = await retellFetch(`/create-conversation-flow`, cfBody, "POST", prodKey);
