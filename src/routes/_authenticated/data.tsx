@@ -53,7 +53,7 @@ const CALL_STATUSES = [
   { value: "do_not_call", label: "Do not call" },
 ] as const;
 
-const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean }> = [
+const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean; custom?: boolean }> = [
   { value: "name", label: "Name", required: true },
   { value: "mobile_number", label: "Mobile Number", required: true },
   { value: "first_name", label: "First Name" },
@@ -69,6 +69,7 @@ const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean }>
   { value: "city", label: "City" },
   { value: "state", label: "State" },
   { value: "postal_code", label: "Postal Code" },
+  { value: "__custom__", label: "Custom field", custom: true },
 ];
 
 function normaliseKey(s: string) {
@@ -306,8 +307,14 @@ function DataPage() {
     try {
       const mapped = rows.map((r) => {
         const out: Record<string, string | null> = {};
+        const meta: Record<string, string> = {};
         for (const [csvCol, sysField] of Object.entries(mapping)) {
-          if (sysField) out[sysField] = r[csvCol] || null;
+          if (!sysField) continue;
+          if (sysField === "__custom__") {
+            if (r[csvCol]) meta[csvCol] = r[csvCol];
+          } else {
+            out[sysField] = r[csvCol] || null;
+          }
         }
         return {
           name: (out.name as string) || "",
@@ -325,6 +332,7 @@ function DataPage() {
           city: (out.city as string | null) ?? null,
           state: (out.state as string | null) ?? null,
           postal_code: (out.postal_code as string | null) ?? null,
+          ...(Object.keys(meta).length > 0 ? { meta } : {}),
         };
       });
 
@@ -689,7 +697,10 @@ function CsvMappingDialog({
     }
   }, [open, headers]);
 
-  const mappedFields = useMemo(() => new Set(Object.values(mapping).filter(Boolean)), [mapping]);
+  const mappedFields = useMemo(
+    () => new Set(Object.values(mapping).filter((v) => v && v !== "__custom__")),
+    [mapping],
+  );
 
   const hasName = Object.values(mapping).includes("name");
   const hasMobile = Object.values(mapping).includes("mobile_number");
@@ -719,7 +730,8 @@ function CsvMappingDialog({
     const sysField = rawValue === "__skip__" ? "" : rawValue;
     setMapping((prev) => {
       const next = { ...prev };
-      if (sysField) {
+      // Custom fields are not exclusive — multiple CSV columns can all be custom
+      if (sysField && sysField !== "__custom__") {
         for (const k of Object.keys(next)) {
           if (next[k] === sysField && k !== csvCol) next[k] = "";
         }
@@ -836,14 +848,25 @@ function CsvMappingDialog({
                     <thead className="sticky top-0 bg-card">
                       <tr className="border-b border-border text-left">
                         {mappedPreviewCols.map((h) => {
-                          const f = SYSTEM_FIELDS.find((x) => x.value === mapping[h]);
+                          const sysField = mapping[h];
+                          const isCustom = sysField === "__custom__";
+                          const f = SYSTEM_FIELDS.find((x) => x.value === sysField);
                           return (
                             <th
                               key={h}
                               className="px-3 py-2 font-semibold text-muted-foreground"
                             >
-                              {f?.label ?? mapping[h]}
-                              {f?.required && <span className="ml-0.5 text-primary">*</span>}
+                              {isCustom ? (
+                                <span>
+                                  {h}{" "}
+                                  <span className="text-[10px] font-normal text-amber-500">custom</span>
+                                </span>
+                              ) : (
+                                <>
+                                  {f?.label ?? sysField}
+                                  {f?.required && <span className="ml-0.5 text-primary">*</span>}
+                                </>
+                              )}
                             </th>
                           );
                         })}

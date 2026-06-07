@@ -23,6 +23,7 @@ const DataRowSchema = z.object({
   city: z.string().max(120).nullable().optional(),
   state: z.string().max(120).nullable().optional(),
   postal_code: z.string().max(40).nullable().optional(),
+  meta: z.record(z.string(), z.string()).optional(),
 });
 
 export const listDataRecords = createServerFn({ method: "POST" })
@@ -281,6 +282,7 @@ export const importDataRecords = createServerFn({ method: "POST" })
       city: r.city || null,
       state: r.state || null,
       postal_code: r.postal_code || null,
+      meta: r.meta && Object.keys(r.meta).length > 0 ? r.meta : {},
     }));
     const CHUNK = 1000;
     let inserted = 0;
