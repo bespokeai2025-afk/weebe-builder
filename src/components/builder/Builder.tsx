@@ -91,29 +91,80 @@ const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: 
   { kind: "note", label: "Note", icon: StickyNote, color: "text-yellow-700" },
 ];
 
-// Curated list of built-in Retell voice IDs. Custom cloned voices use IDs like
-// `custom_voice_xxx` and are appended dynamically when not in this list.
-const DEFAULT_VOICES: { id: string; label: string }[] = [
-  { id: "11labs-Adrian", label: "Adrian (ElevenLabs · male, US)" },
-  { id: "11labs-Anthony", label: "Anthony (ElevenLabs · male, US)" },
-  { id: "11labs-Brian", label: "Brian (ElevenLabs · male, US)" },
-  { id: "11labs-Chloe", label: "Chloe (ElevenLabs · female, US)" },
-  { id: "11labs-Cimo", label: "Cimo (ElevenLabs · male, IT)" },
-  { id: "11labs-Lily", label: "Lily (ElevenLabs · female, UK)" },
-  { id: "11labs-Marissa", label: "Marissa (ElevenLabs · female, US)" },
-  { id: "11labs-Myra", label: "Myra (ElevenLabs · female, US)" },
-  { id: "11labs-Paul", label: "Paul (ElevenLabs · male, US)" },
-  { id: "11labs-Zuri", label: "Zuri (ElevenLabs · female, US)" },
-  { id: "openai-Alloy", label: "Alloy (OpenAI · neutral)" },
-  { id: "openai-Echo", label: "Echo (OpenAI · male)" },
-  { id: "openai-Nova", label: "Nova (OpenAI · female)" },
-  { id: "openai-Shimmer", label: "Shimmer (OpenAI · female)" },
-  { id: "openai-Onyx", label: "Onyx (OpenAI · male)" },
-  { id: "deepgram-Angus", label: "Angus (Deepgram · male)" },
-  { id: "deepgram-Asteria", label: "Asteria (Deepgram · female)" },
-  { id: "deepgram-Luna", label: "Luna (Deepgram · female)" },
-  { id: "deepgram-Orion", label: "Orion (Deepgram · male)" },
+type VoiceGroup = "ElevenLabs" | "OpenAI" | "Deepgram";
+
+const DEFAULT_VOICES: { id: string; label: string; group: VoiceGroup }[] = [
+  // ElevenLabs
+  { id: "11labs-Adrian", label: "Adrian — male, US", group: "ElevenLabs" },
+  { id: "11labs-Anthony", label: "Anthony — male, US", group: "ElevenLabs" },
+  { id: "11labs-Brian", label: "Brian — male, US", group: "ElevenLabs" },
+  { id: "11labs-Chloe", label: "Chloe — female, US", group: "ElevenLabs" },
+  { id: "11labs-Cimo", label: "Cimo — male, IT", group: "ElevenLabs" },
+  { id: "11labs-Lily", label: "Lily — female, UK", group: "ElevenLabs" },
+  { id: "11labs-Marissa", label: "Marissa — female, US", group: "ElevenLabs" },
+  { id: "11labs-Myra", label: "Myra — female, US", group: "ElevenLabs" },
+  { id: "11labs-Paul", label: "Paul — male, US", group: "ElevenLabs" },
+  { id: "11labs-Zuri", label: "Zuri — female, US", group: "ElevenLabs" },
+  // OpenAI
+  { id: "openai-Alloy", label: "Alloy — neutral", group: "OpenAI" },
+  { id: "openai-Echo", label: "Echo — male", group: "OpenAI" },
+  { id: "openai-Nova", label: "Nova — female", group: "OpenAI" },
+  { id: "openai-Shimmer", label: "Shimmer — female", group: "OpenAI" },
+  { id: "openai-Onyx", label: "Onyx — male", group: "OpenAI" },
+  // Deepgram
+  { id: "deepgram-Angus", label: "Angus — male", group: "Deepgram" },
+  { id: "deepgram-Asteria", label: "Asteria — female", group: "Deepgram" },
+  { id: "deepgram-Luna", label: "Luna — female", group: "Deepgram" },
+  { id: "deepgram-Orion", label: "Orion — male", group: "Deepgram" },
 ];
+
+const VOICE_GROUPS: VoiceGroup[] = ["ElevenLabs", "OpenAI", "Deepgram"];
+
+/**
+ * Small inline widget that lets users paste their own ElevenLabs voice ID
+ * and have it applied immediately. The platform handles the `11labs-` prefix
+ * internally so no provider branding is exposed to end users.
+ */
+function ElevenLabsVoiceInserter({ onSelect }: { onSelect: (voiceId: string) => void }) {
+  const [value, setValue] = useState("");
+
+  function apply() {
+    const raw = value.trim();
+    if (!raw) return;
+    // Accept either a bare ElevenLabs ID or one already prefixed.
+    const voiceId = raw.startsWith("11labs-") ? raw : `11labs-${raw}`;
+    onSelect(voiceId);
+    setValue("");
+  }
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">Your ElevenLabs Voice ID</Label>
+      <div className="flex items-center gap-1">
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
+          className="h-7 text-xs flex-1"
+          placeholder="Paste your ElevenLabs voice ID"
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-7 px-2 text-xs shrink-0"
+          onClick={apply}
+          disabled={!value.trim()}
+        >
+          Use
+        </Button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Find it in your ElevenLabs dashboard → Voices.
+      </p>
+    </div>
+  );
+}
 
 export function Builder({
   heightClass = "h-[78vh]",
@@ -413,57 +464,66 @@ export function Builder({
 
             <div className="rounded-lg border p-2 space-y-2">
               <div className="text-xs font-medium text-muted-foreground">Voice & Language</div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">Language</Label>
-                  <Input
-                    value={settings.language}
-                    onChange={(e) => setSettings({ language: e.target.value })}
-                    className="h-7 text-xs"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">Voice</Label>
-                  <Select
-                    value={
-                      DEFAULT_VOICES.some((v) => v.id === settings.voiceId)
-                        ? settings.voiceId
-                        : settings.voiceId
-                          ? "__custom__"
-                          : ""
-                    }
-                    onValueChange={(v) => {
-                      if (v !== "__custom__") setSettings({ voiceId: v });
-                    }}
-                  >
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue placeholder="Pick a voice" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEFAULT_VOICES.map((v) => (
-                        <SelectItem key={v.id} value={v.id}>
-                          {v.label}
-                        </SelectItem>
-                      ))}
-                      {settings.voiceId &&
-                        !DEFAULT_VOICES.some((v) => v.id === settings.voiceId) && (
-                          <SelectItem value="__custom__">Custom: {settings.voiceId}</SelectItem>
-                        )}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <Label className="text-xs">Language</Label>
+                <Input
+                  value={settings.language}
+                  onChange={(e) => setSettings({ language: e.target.value })}
+                  className="h-7 text-xs"
+                />
               </div>
               <div>
-                <Label className="text-xs">Voice ID (raw)</Label>
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={settings.voiceId}
-                    onChange={(e) => setSettings({ voiceId: e.target.value })}
-                    className="h-7 text-xs"
-                    placeholder="e.g. 11labs-Adrian or custom_voice_..."
-                  />
-                  <CustomVoiceUploadDialog onUploaded={(voiceId) => setSettings({ voiceId })} />
-                </div>
+                <Label className="text-xs">Voice</Label>
+                <Select
+                  value={
+                    DEFAULT_VOICES.some((v) => v.id === settings.voiceId)
+                      ? settings.voiceId
+                      : settings.voiceId
+                        ? "__custom__"
+                        : ""
+                  }
+                  onValueChange={(v) => {
+                    if (v !== "__custom__") setSettings({ voiceId: v });
+                  }}
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Pick a voice" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VOICE_GROUPS.map((group) => (
+                      <SelectGroup key={group}>
+                        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {group}
+                        </SelectLabel>
+                        {DEFAULT_VOICES.filter((v) => v.group === group).map((v) => (
+                          <SelectItem key={v.id} value={v.id}>
+                            {v.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                    {settings.voiceId &&
+                      !DEFAULT_VOICES.some((v) => v.id === settings.voiceId) && (
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            Custom
+                          </SelectLabel>
+                          <SelectItem value="__custom__">
+                            {(() => {
+                              const id = settings.voiceId;
+                              if (id.startsWith("11labs-")) return `ElevenLabs: ${id.slice(7)}`;
+                              if (id.startsWith("custom_voice_")) return `Cloned voice: ${id.slice(13)}`;
+                              return id;
+                            })()}
+                          </SelectItem>
+                        </SelectGroup>
+                      )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <ElevenLabsVoiceInserter onSelect={(id) => setSettings({ voiceId: id })} />
+              <div className="flex items-center gap-1 pt-0.5">
+                <CustomVoiceUploadDialog onUploaded={(voiceId) => setSettings({ voiceId })} />
               </div>
             </div>
 

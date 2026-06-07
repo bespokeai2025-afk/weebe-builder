@@ -75,11 +75,11 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
           mimeType: file.type || "audio/mpeg",
         },
       });
-      if (!res.voiceId) throw new Error("Retell did not return a voice ID");
+      if (!res.voiceId) throw new Error("No voice ID returned — check your audio file and try again");
 
       onUploaded(res.voiceId);
-      toast.success("Custom voice cloned", {
-        description: `${res.voiceName} (${res.voiceId})`,
+      toast.success("Voice cloned successfully", {
+        description: res.voiceName,
       });
       setOpen(false);
       reset();
