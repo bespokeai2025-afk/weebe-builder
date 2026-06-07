@@ -102,6 +102,8 @@ function interestBadge(level: string | null) {
 const STATUS_OPTIONS = [
   { value: "interested", label: "Open", color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" },
   { value: "qualified", label: "Qualified", color: "bg-violet-500/15 text-violet-400 ring-violet-500/30" },
+  { value: "callback_requested", label: "Callback Requested", color: "bg-amber-500/15 text-amber-400 ring-amber-500/30" },
+  { value: "need_to_call", label: "Needs to Call", color: "bg-sky-500/15 text-sky-400 ring-sky-500/30" },
   { value: "not_interested", label: "Closed", color: "bg-red-500/15 text-red-400 ring-red-500/30" },
   { value: "completed", label: "Completed", color: "bg-blue-500/15 text-blue-400 ring-blue-500/30" },
 ] as const;

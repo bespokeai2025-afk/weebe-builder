@@ -221,6 +221,7 @@ export const setLeadStatus = createServerFn({ method: "POST" })
         id: z.string().uuid(),
         status: z.enum([
           "need_to_call",
+          "callback_requested",
           "interested",
           "not_interested",
           "qualified",
