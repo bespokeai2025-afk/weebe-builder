@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { verifyRetellSignature } from "@/lib/calendar/retell-signature";
+import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
 import { cancelBooking } from "@/lib/calendar/calcom.server";
 import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
 
@@ -12,7 +12,7 @@ const CORS = {
 };
 
 const Body = z.object({
-  booking_id: z.string().min(1).max(128), // Cal.com booking UID
+  booking_id: z.string().min(1).max(128),
   reason: z.string().max(500).optional(),
 });
 
@@ -22,12 +22,44 @@ export const Route = createFileRoute("/api/public/retell/cancel")({
       OPTIONS: async () => new Response(null, { status: 204, headers: CORS }),
       POST: async ({ request }) => {
         const rawBody = await request.text();
-        if (!verifyRetellSignature(rawBody, request.headers.get("x-retell-signature"))) {
+        const sig = request.headers.get("x-retell-signature");
+
+        // For cancel we have booking_id, not agent_id. Look up workspace via
+        // booking to find the Retell key used to sign the request.
+        let bodyBookingId: string | undefined;
+        try {
+          const quick = JSON.parse(rawBody) as Record<string, unknown>;
+          const args = (quick.args ?? {}) as Record<string, unknown>;
+          bodyBookingId =
+            (args.booking_id as string) ?? (quick.booking_id as string) ?? undefined;
+        } catch { /* ignore */ }
+
+        const candidateKeys: string[] = [];
+        if (bodyBookingId) {
+          const { data: bkLookup } = await supabaseAdmin
+            .from("bookings")
+            .select("workspace_id")
+            .eq("calcom_booking_uid", bodyBookingId)
+            .maybeSingle();
+          if (bkLookup?.workspace_id) {
+            const { data: wsLookup } = await supabaseAdmin
+              .from("workspace_settings")
+              .select("retell_workspace_id")
+              .eq("workspace_id", bkLookup.workspace_id)
+              .maybeSingle();
+            const wk = wsLookup?.retell_workspace_id?.trim();
+            if (wk && wk.startsWith("key_")) candidateKeys.push(wk);
+          }
+        }
+
+        if (!verifyRetellSignatureMultiKey(rawBody, sig, candidateKeys)) {
+          console.warn("[retell/cancel] Signature verification failed", { bookingId: bodyBookingId });
           return new Response(JSON.stringify({ error: "invalid signature" }), {
             status: 401,
             headers: { ...CORS, "Content-Type": "application/json" },
           });
         }
+
         const parsed = Body.safeParse(normalizeRetellPayload(rawBody));
         if (!parsed.success) {
           return new Response(JSON.stringify({ error: "invalid body" }), {

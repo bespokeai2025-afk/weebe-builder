@@ -1153,7 +1153,30 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
     )) as Record<string, unknown>;
 
     const cfBody = stripKeys(cf, READONLY_KEYS);
-    const cfResp = await retellFetch(`/create-conversation-flow`, cfBody, "POST", prodKey);
+
+    // Absolutize relative tool URLs so Retell's production workspace doesn't
+    // reject the CF with a URL validation error.
+    const clonePubBase =
+      process.env.PUBLIC_BASE_URL ||
+      (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+    if (Array.isArray(cfBody.tools) && clonePubBase) {
+      cfBody.tools = (cfBody.tools as Array<Record<string, unknown>>).map((tool) => {
+        if (tool.type === "custom" && typeof tool.url === "string" && tool.url.startsWith("/")) {
+          console.log("[go-live] Absolutizing tool URL:", tool.name, tool.url);
+          return { ...tool, url: `${clonePubBase}${tool.url}` };
+        }
+        return tool;
+      });
+    }
+
+    console.log("[go-live] Creating production CF, tools:", (cfBody.tools as Array<Record<string,unknown>> | undefined)?.map((t) => ({ name: t.name, type: t.type, url: t.url })));
+    let cfResp: Record<string, unknown>;
+    try {
+      cfResp = await retellFetch(`/create-conversation-flow`, cfBody, "POST", prodKey);
+    } catch (cfErr) {
+      console.error("[go-live] CF creation FAILED:", (cfErr as Error).message);
+      throw cfErr;
+    }
     const newCfId = String(cfResp.conversation_flow_id ?? "");
     if (!newCfId) throw new Error("Production workspace did not return a conversation_flow_id");
 
@@ -1221,6 +1244,31 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
     const newAgentId = String(agentResp.agent_id ?? "");
     if (!newAgentId) throw new Error("Production workspace did not return an agent_id");
     await rememberProductionRetellApiKey(data.agentRowId, context.userId, prodKey);
+
+    // Register Cal.com webhook when the CF has native cal tools.
+    const goLiveHasCal =
+      Array.isArray(cfBody.tools) &&
+      (cfBody.tools as Array<Record<string, unknown>>).some(
+        (t) => t.type === "check_availability_cal" || t.type === "book_appointment_cal",
+      );
+    if (goLiveHasCal && bkWorkspaceId) {
+      const goLiveWebhookBase =
+        process.env.PUBLIC_BASE_URL ||
+        (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+      if (goLiveWebhookBase) {
+        try {
+          const wh = await registerCalcomWebhook({
+            workspaceId: bkWorkspaceId,
+            subscriberUrl: `${goLiveWebhookBase}/api/public/calcom-webhook`,
+          });
+          console.log("[go-live] Cal.com webhook registration:", wh.message);
+        } catch (whErr) {
+          console.warn("[go-live] Cal.com webhook registration failed:", whErr);
+        }
+      }
+    }
+
+    console.log("[go-live] Complete", { newAgentId, newCfId, calendarConnected });
     return {
       agentId: newAgentId,
       conversationFlowId: newCfId,

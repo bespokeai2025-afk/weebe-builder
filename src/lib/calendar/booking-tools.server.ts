@@ -3,10 +3,11 @@
  * Server-only — referenced from createServerFn handlers.
  */
 
-const PUBLIC_BASE_URL =
-  process.env.PUBLIC_BASE_URL ?? "";
-
 export function buildBookingTools() {
+  // Resolve at call-time (not module-load) so REPLIT_DEV_DOMAIN is available.
+  const PUBLIC_BASE_URL =
+    process.env.PUBLIC_BASE_URL ||
+    (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
   const base = `${PUBLIC_BASE_URL}/api/public/retell`;
   return [
     {

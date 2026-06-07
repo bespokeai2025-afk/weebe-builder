@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { verifyRetellSignature } from "@/lib/calendar/retell-signature";
+import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
 import { getAvailableSlots } from "@/lib/calendar/calcom.server";
 import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
 
@@ -24,12 +24,50 @@ export const Route = createFileRoute("/api/public/retell/availability")({
       OPTIONS: async () => new Response(null, { status: 204, headers: CORS }),
       POST: async ({ request }) => {
         const rawBody = await request.text();
-        if (!verifyRetellSignature(rawBody, request.headers.get("x-retell-signature"))) {
+        const sig = request.headers.get("x-retell-signature");
+
+        // Extract agent_id before schema validation to look up the workspace
+        // Retell API key for signature verification. Custom tool calls are signed
+        // with the workspace's own Retell API key, not the platform key.
+        let bodyAgentId: string | undefined;
+        try {
+          const quick = JSON.parse(rawBody) as Record<string, unknown>;
+          const args = (quick.args ?? {}) as Record<string, unknown>;
+          const call = (quick.call ?? {}) as Record<string, unknown>;
+          bodyAgentId =
+            (args.agent_id as string) ??
+            (call.agent_id as string) ??
+            (quick.agent_id as string) ??
+            undefined;
+        } catch { /* ignore */ }
+
+        // Collect workspace Retell key as a candidate for signature verification.
+        const candidateKeys: string[] = [];
+        if (bodyAgentId) {
+          const { data: agentLookup } = await supabaseAdmin
+            .from("agents")
+            .select("workspace_id")
+            .or(`retell_agent_id.eq.${bodyAgentId},settings->>deployedRetellAgentId.eq.${bodyAgentId}`)
+            .maybeSingle();
+          if (agentLookup?.workspace_id) {
+            const { data: wsLookup } = await supabaseAdmin
+              .from("workspace_settings")
+              .select("retell_workspace_id")
+              .eq("workspace_id", agentLookup.workspace_id)
+              .maybeSingle();
+            const wk = wsLookup?.retell_workspace_id?.trim();
+            if (wk && wk.startsWith("key_")) candidateKeys.push(wk);
+          }
+        }
+
+        if (!verifyRetellSignatureMultiKey(rawBody, sig, candidateKeys)) {
+          console.warn("[retell/availability] Signature verification failed", { agentId: bodyAgentId });
           return new Response(JSON.stringify({ error: "invalid signature" }), {
             status: 401,
             headers: { ...CORS, "Content-Type": "application/json" },
           });
         }
+
         const parsed = Body.safeParse(normalizeRetellPayload(rawBody));
         if (!parsed.success) {
           return new Response(JSON.stringify({ error: "invalid body" }), {
@@ -68,7 +106,6 @@ export const Route = createFileRoute("/api/public/retell/availability")({
           .eq("workspace_id", wsId)
           .maybeSingle();
 
-        // Per-agent override on settings.booking (preferred) or settings.calcom
         const agentSettings = (agentRow.settings ?? {}) as {
           calcom?: { apiKey?: string; eventTypeId?: string | number };
           booking?: { enabled?: boolean; eventTypeId?: string | number };
