@@ -69,6 +69,40 @@ export const listLiveAgents = createServerFn({ method: "GET" })
     });
   });
 
+/** Return ALL live agents for the dashboard (all flow types). */
+export const getDashboardLiveAgents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase
+      .from("agents")
+      .select("id, name, settings, updated_at")
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as Array<{
+      id: string;
+      name: string;
+      settings: Json;
+      updated_at: string;
+    }>;
+    return rows
+      .filter((r) => {
+        const s = (r.settings ?? {}) as Record<string, unknown>;
+        return s.isLive === true;
+      })
+      .map((r) => {
+        const s = (r.settings ?? {}) as Record<string, unknown>;
+        return {
+          id: r.id,
+          name: r.name,
+          agentType: (s.dashboardAgentType as string | undefined) ?? "receptionist",
+          phoneNumber: (s.phoneNumber as string | undefined) ?? null,
+          liveAt: (s.liveAt as string | undefined) ?? null,
+          deployedRetellAgentId: (s.deployedRetellAgentId as string | undefined) ?? null,
+        };
+      });
+  });
+
 /** Load a specific agent by row id. */
 export const getMyAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

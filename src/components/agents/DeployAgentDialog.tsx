@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Phone, PhoneCall, Calendar, ExternalLink, Check, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -55,6 +56,7 @@ type CallDirection = "inbound" | "outbound" | "both";
 
 export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [goingLive, setGoingLive] = useState(false);
   const initialType =
     ((agent?.settings as Record<string, unknown> | null)?.dashboardAgentType as
@@ -69,6 +71,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     try {
       const res = await goLiveFn({ data: { id: agent.id, agentType } });
       qc.invalidateQueries({ queryKey: ["my-agents"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-live-agents"] });
       if (!res.ok) {
         toast.error("Go Live failed");
         return;
@@ -76,6 +79,8 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
       toast.success("Agent is live", {
         description: `${agent.name} is now live as ${agentType.replace("_", " ")}.`,
       });
+      onOpenChange(false);
+      navigate({ to: "/dashboard" });
     } catch (e) {
       toast.error("Go Live failed", {
         description:

@@ -1,22 +1,40 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, Users, Calendar, TrendingUp, ArrowUpRight } from "lucide-react";
+import { Phone, Users, Calendar, TrendingUp, ArrowUpRight, Radio, PhoneCall } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getOverviewStats } from "@/lib/dashboard/leads.functions";
+import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Webespoke AI" }] }),
   component: DashboardPage,
 });
 
+const FLOW_LABELS: Record<string, string> = {
+  receptionist: "Receptionist",
+  lead_generation: "Lead Generation",
+  client_qualification: "Client Qualification",
+};
+
 function DashboardPage() {
   const getStats = useServerFn(getOverviewStats);
+  const getLiveAgents = useServerFn(getDashboardLiveAgents);
+
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-overview"],
     queryFn: () => getStats(),
   });
+
+  const liveAgentsQ = useQuery({
+    queryKey: ["dashboard-live-agents"],
+    queryFn: () => getLiveAgents(),
+    refetchOnWindowFocus: true,
+  });
+
+  const liveAgents = liveAgentsQ.data ?? [];
 
   const cards = [
     {
@@ -48,6 +66,56 @@ function DashboardPage() {
         <p className="text-sm text-muted-foreground mt-1">Overview of your receptionist activity</p>
       </div>
 
+      {/* Live Agents */}
+      {(liveAgents.length > 0 || liveAgentsQ.isLoading) && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Live Agents
+          </h2>
+          {liveAgentsQ.isLoading ? (
+            <div className="h-20 animate-pulse rounded-lg bg-muted" />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {liveAgents.map((agent) => (
+                <Card key={agent.id} className="border-green-500/30 bg-green-500/5">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{agent.name}</p>
+                        <Badge variant="secondary" className="mt-1 text-[10px] px-1.5 py-0">
+                          {FLOW_LABELS[agent.agentType] ?? agent.agentType}
+                        </Badge>
+                      </div>
+                      <span className="flex items-center gap-1 shrink-0">
+                        <Radio className="h-3 w-3 text-green-500 animate-pulse" />
+                        <span className="text-[11px] text-green-600 font-medium">Live</span>
+                      </span>
+                    </div>
+                    {agent.phoneNumber && (
+                      <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <PhoneCall className="h-3 w-3 shrink-0" />
+                        <span className="font-mono">{agent.phoneNumber}</span>
+                      </div>
+                    )}
+                    {agent.liveAt && (
+                      <p className="mt-1.5 text-[11px] text-muted-foreground">
+                        Since{" "}
+                        {new Date(agent.liveAt).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => {
           const Icon = card.icon;
@@ -102,7 +170,6 @@ function DashboardPage() {
             <ArrowUpRight className="ml-1 h-3 w-3" />
           </Link>
         </Button>
-       
       </div>
     </div>
   );
