@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { retellFetch } from "@/lib/providers/retell/client.server";
 
 type Json = Database["public"]["Tables"]["agents"]["Row"]["flow_data"];
@@ -364,35 +365,39 @@ export const goLiveAgent = createServerFn({ method: "POST" })
       })
       .eq("id", data.id);
 
-    // Patch the Retell agent's webhook URL so post-call data flows back.
-    // This also fixes agents that were deployed before the webhook was configured.
-    const webhookBase =
-      process.env.PUBLIC_BASE_URL ||
-      (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
-    if (webhookBase && activeRetellId) {
-      try {
-        // Resolve the right API key: client workspace key for deployed clones,
-        // platform key for builder-only agents.
-        let retellKey: string | undefined;
-        if (deployedRetellId && context.workspaceId) {
-          const { data: ws } = await supabase
-            .from("workspace_settings" as never)
-            .select("retell_workspace_id")
-            .eq("workspace_id", context.workspaceId)
-            .maybeSingle() as any;
-          const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
-          if (wsKey?.startsWith("key_")) retellKey = wsKey;
+    // For lead generation agents: automatically patch the Retell agent's
+    // webhook URL so every post-call event is delivered to this server and
+    // lead intelligence / call records are populated without manual setup.
+    if (data.agentType === "lead_generation") {
+      const webhookBase =
+        process.env.PUBLIC_BASE_URL ||
+        (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
+      if (webhookBase) {
+        try {
+          // Resolve the right API key: use the client workspace's Retell key
+          // when the agent was cloned to a client workspace; fall back to the
+          // platform key for builder-draft agents.
+          let retellKey: string | undefined;
+          if (deployedRetellId && context.workspaceId) {
+            const { data: ws } = await supabaseAdmin
+              .from("workspace_settings")
+              .select("retell_workspace_id")
+              .eq("workspace_id", context.workspaceId)
+              .maybeSingle();
+            const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
+            if (wsKey?.startsWith("key_")) retellKey = wsKey;
+          }
+          await retellFetch(
+            `/update-agent/${activeRetellId}`,
+            { webhook_url: `${webhookBase}/api/public/voice-webhook` },
+            "PATCH",
+            retellKey,
+          );
+          console.log("[go-live] Lead gen webhook URL configured on Retell agent", activeRetellId, webhookBase);
+        } catch (whErr) {
+          // Best-effort — don't block Go Live if the patch fails
+          console.warn("[go-live] Failed to configure lead gen webhook URL", whErr);
         }
-        await retellFetch(
-          `/update-agent/${activeRetellId}`,
-          { webhook_url: `${webhookBase}/api/public/voice-webhook` },
-          "PATCH",
-          retellKey,
-        );
-        console.log("[go-live] Webhook URL patched on Retell agent", activeRetellId);
-      } catch (whErr) {
-        // Best-effort — don't fail Go Live if the webhook patch fails
-        console.warn("[go-live] Failed to patch webhook URL on Retell agent", whErr);
       }
     }
 
