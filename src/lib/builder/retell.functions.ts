@@ -801,7 +801,23 @@ export const createRetellWebCall = createServerFn({ method: "POST" })
         `Test-call spend cap reached ($${(used / 100).toFixed(2)} of $${(limit / 100).toFixed(2)}). Ask an admin to add credits.`,
       );
     }
-    const resp = await retellFetch(`/v2/create-web-call`, { agent_id: agentId });
+
+    // Use the same API key that was used to create the agent. The agent may
+    // live in the workspace's own Retell account (retell_workspace_id), not
+    // the platform account. Using the wrong key gives a 404.
+    let webCallKey: string | undefined;
+    const wsId = context.workspaceId;
+    if (wsId) {
+      const { data: wsSettings } = await supabaseAdmin
+        .from("workspace_settings")
+        .select("retell_workspace_id")
+        .eq("workspace_id", wsId)
+        .maybeSingle();
+      const wk = wsSettings?.retell_workspace_id?.trim();
+      if (wk && wk.startsWith("key_")) webCallKey = wk;
+    }
+
+    const resp = await retellFetch(`/v2/create-web-call`, { agent_id: agentId }, "POST", webCallKey);
     return {
       callId: String(resp.call_id ?? ""),
       accessToken: String(resp.access_token ?? ""),

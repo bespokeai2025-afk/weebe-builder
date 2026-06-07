@@ -97,10 +97,14 @@ export function RetellDeployDialog() {
   }, [inCall]);
 
   async function handleDeploy(kind: "create" | "update") {
-    setDeploying(kind);
+    // If the user clicks "Create" but an agent already exists in the builder,
+    // update it instead of spawning a duplicate in Retell.
+    const effectiveKind: "create" | "update" =
+      kind === "create" && settings.agentId ? "update" : kind;
+    setDeploying(effectiveKind);
     try {
       const agent = exportAgentJson(nodes, edges, settings, variables);
-      const isUpdate = kind === "update";
+      const isUpdate = effectiveKind === "update";
       // Map both the base preset names AND the Retell-native _cal suffixed
       // variants back to the base preset so nodes imported from an existing
       // agent (where the raw tool_id is e.g. "check_availability_cal") are
@@ -135,7 +139,7 @@ export function RetellDeployDialog() {
       const res = await deploy({
         data: {
           agent: agent as Record<string, unknown>,
-          mode: kind,
+          mode: effectiveKind,
           agentId: isUpdate ? settings.agentId || undefined : undefined,
           conversationFlowId: isUpdate ? settings.conversationFlowId || undefined : undefined,
           bookingConfig: settings.booking,
