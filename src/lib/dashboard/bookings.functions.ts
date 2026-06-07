@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { calFetch } from "@/lib/calendar/calcom.server";
 
 export type UnifiedBooking = {
   id: string;
@@ -144,41 +145,33 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
 
     if (token) {
       try {
-        const url = new URL("https://api.cal.com/v1/bookings");
-        url.searchParams.set("apiKey", token);
-        const res = await fetch(url.toString(), {
-          method: "GET",
-          headers: { Accept: "application/json" },
+        // v2 API: GET /bookings with Bearer auth
+        const payload = await calFetch<{ bookings?: any[] } | any[]>(token, "/bookings", {
+          apiVersion: "2024-08-13",
         });
-        if (!res.ok) {
-          const body = await res.text().catch(() => "");
-          calcomError = `Cal.com API ${res.status}: ${body.slice(0, 200) || res.statusText}`;
-        } else {
-          const payload: any = await res.json();
-          const list: any[] = Array.isArray(payload?.bookings)
-            ? payload.bookings
-            : Array.isArray(payload)
-              ? payload
-              : [];
-          calcom = list.map((b: any) => {
-            const attendee =
-              Array.isArray(b.attendees) && b.attendees.length > 0 ? b.attendees[0] : null;
-            return {
-              id: `calcom:${b.uid ?? b.id}`,
-              source: "calcom" as const,
-              title: b.title ?? b.eventType?.title ?? "Meeting",
-              start_at: b.startTime ?? b.start ?? "",
-              end_at: b.endTime ?? b.end ?? null,
-              status: normalizeCalcomStatus(b.status),
-              attendee_name: attendee?.name ?? null,
-              attendee_email: attendee?.email ?? null,
-              meeting_url:
-                b.metadata?.videoCallUrl ??
-                (typeof b.location === "string" ? b.location : null) ??
-                (b.uid ? `https://app.cal.com/booking/${b.uid}` : null),
-            };
-          });
-        }
+        const list: any[] = Array.isArray(payload)
+          ? payload
+          : Array.isArray((payload as any)?.bookings)
+            ? (payload as any).bookings
+            : [];
+        calcom = list.map((b: any) => {
+          const attendee =
+            Array.isArray(b.attendees) && b.attendees.length > 0 ? b.attendees[0] : null;
+          return {
+            id: `calcom:${b.uid ?? b.id}`,
+            source: "calcom" as const,
+            title: b.title ?? b.eventType?.title ?? "Meeting",
+            start_at: b.start ?? b.startTime ?? "",
+            end_at: b.end ?? b.endTime ?? null,
+            status: normalizeCalcomStatus(b.status),
+            attendee_name: attendee?.name ?? null,
+            attendee_email: attendee?.email ?? null,
+            meeting_url:
+              b.metadata?.videoCallUrl ??
+              (typeof b.location === "string" ? b.location : null) ??
+              (b.uid ? `https://app.cal.com/booking/${b.uid}` : null),
+          };
+        });
       } catch (e: any) {
         calcomError = e?.message ?? "Cal.com request failed";
       }

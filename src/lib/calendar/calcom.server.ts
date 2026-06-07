@@ -28,7 +28,7 @@ export interface CalcomSlot {
   time: string; // ISO start
 }
 
-async function calFetch<T = unknown>(
+export async function calFetch<T = unknown>(
   apiKey: string,
   path: string,
   init?: {
