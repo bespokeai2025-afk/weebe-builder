@@ -80,7 +80,7 @@ export function LeadGenSection() {
   const schemaQ = useQuery({
     queryKey: ["data-record-schema", currentAgentRowId],
     queryFn: () => getSchemFn({ data: { agentRowId: currentAgentRowId ?? null } }),
-    staleTime: 60_000,
+    staleTime: 0,
   });
   const schema = schemaQ.data;
   const fixedCols = schema?.fixed ?? [];

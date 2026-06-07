@@ -292,7 +292,6 @@ const FIXED_COLUMNS: Array<{ value: string; label: string }> = [
   { value: "state", label: "State" },
   { value: "postal_code", label: "Postal Code" },
   { value: "lead_external_id", label: "Lead External ID" },
-  { value: "notes", label: "Notes" },
 ];
 
 /**
@@ -313,15 +312,12 @@ export const getDataRecordSchema = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const COLS =
-      "name,mobile_number,first_name,last_name,email,title,client_name,unique_id,property_type,bedrooms,address_line1,address_line2,city,state,postal_code,lead_external_id,notes,meta";
-
     // 1. Try records assigned to this agent first
     let rows: Array<Record<string, unknown>> = [];
     if (data.agentRowId) {
       const { data: agentRows } = await sb
         .from("data_records")
-        .select(COLS)
+        .select("*")
         .eq("workspace_id", workspaceId)
         .eq("assigned_agent_id", data.agentRowId)
         .limit(50);
@@ -332,7 +328,7 @@ export const getDataRecordSchema = createServerFn({ method: "POST" })
     if (rows.length === 0) {
       const { data: allRows } = await sb
         .from("data_records")
-        .select(COLS)
+        .select("*")
         .eq("workspace_id", workspaceId)
         .limit(50);
       rows = (allRows ?? []) as Array<Record<string, unknown>>;
