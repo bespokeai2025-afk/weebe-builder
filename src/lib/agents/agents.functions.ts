@@ -259,11 +259,14 @@ export const goLiveAgent = createServerFn({ method: "POST" })
     const deployedRetellId = (settings.deployedRetellAgentId as string | undefined) ?? null;
     const deployedFlowId = (settings.deployedConversationFlowId as string | undefined) ?? null;
     const phoneNumber = (settings.phoneNumber as string | undefined) ?? null;
-    if (!deployedRetellId) {
-      throw new Error("Clone this agent into your production workspace first.");
+    // Allow Go Live when the agent has been deployed to Retell in any form
+    // (dedicated production clone OR the builder agent itself).
+    const activeRetellId = deployedRetellId ?? row.retell_agent_id;
+    if (!activeRetellId) {
+      throw new Error("Deploy this agent from the builder first.");
     }
     if (!phoneNumber) {
-      throw new Error("Attach a phone number to the production agent first.");
+      throw new Error("Attach a phone number to the agent first.");
     }
     // Agent is live in the unified app — mark it so locally.
     await supabase

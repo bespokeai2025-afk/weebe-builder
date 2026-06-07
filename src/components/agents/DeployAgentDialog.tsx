@@ -155,6 +155,13 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   const [calApiKey, setCalApiKey] = useState("");
   const [calEventId, setCalEventId] = useState("");
   const [savingCal, setSavingCal] = useState(false);
+  // Track a just-saved cal entry locally so the green banner appears immediately
+  // without waiting for the parent query to refetch and pass new agent settings.
+  const [calJustSaved, setCalJustSaved] = useState<{
+    apiKey: string;
+    eventTypeId: string | null;
+    connectedAt: string;
+  } | null>(null);
 
   // Production-workspace clone state
   const [cloning, setCloning] = useState(false);
@@ -292,17 +299,26 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     }
     setSavingCal(true);
     try {
+      const savedKey = calApiKey.trim();
+      const savedEventId = calEventId.trim() || null;
       await saveCalFn({
         data: {
           id: agent!.id,
-          calcomApiKey: calApiKey.trim() || null,
-          calcomEventTypeId: calEventId.trim() || null,
+          calcomApiKey: savedKey,
+          calcomEventTypeId: savedEventId,
         },
       });
       qc.invalidateQueries({ queryKey: ["my-agents"] });
+      // Show the green banner immediately without waiting for the parent query
+      // to refetch; `calJustSaved` acts as a local override until parent rerenders.
+      setCalJustSaved({
+        apiKey: savedKey,
+        eventTypeId: savedEventId,
+        connectedAt: new Date().toISOString(),
+      });
       toast.success("Cal.com connected", {
-        description: calEventId.trim()
-          ? `Event Type ID: ${calEventId.trim()}`
+        description: savedEventId
+          ? `API key saved · Event Type ID: ${savedEventId}`
           : "API key saved to this agent",
       });
       setCalApiKey("");
@@ -321,6 +337,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
         data: { id: agent!.id, calcomApiKey: null, calcomEventTypeId: null },
       });
       qc.invalidateQueries({ queryKey: ["my-agents"] });
+      setCalJustSaved(null);
       toast.success("Cal.com disconnected");
     } catch (e) {
       toast.error("Disconnect failed", { description: (e as Error).message });
@@ -358,7 +375,10 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
           !needsDeploy &&
           (() => {
             const savedPhone = (settings.phoneNumber as string | undefined) ?? null;
-            const canGoLive = !!deployedId && !!savedPhone;
+            // Go Live only needs the agent deployed to Retell (builder deploy is enough)
+            // and a phone number attached. A dedicated production workspace clone is
+            // optional — the builder agent can serve as the live agent.
+            const canGoLive = !!savedPhone;
             return (
               <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-3">
                 <div className="space-y-0.5">
@@ -369,9 +389,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                   <p className="text-xs text-muted-foreground">
                     {canGoLive
                       ? "Pick the flow type, then push this agent to your live dashboard."
-                      : !deployedId
-                        ? "Clone the agent into your production workspace first."
-                        : "Attach a phone number to the production agent first."}
+                      : "Attach a phone number to the agent first."}
                   </p>
                 </div>
                 <div className="flex items-end gap-2">
@@ -734,11 +752,20 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
               {/* CAL.COM */}
               <TabsContent value="calcom" className="space-y-3 mt-4">
                 {(() => {
-                  const cal = (settings.calcom ?? null) as {
+                  // Use calJustSaved as immediate local override so the banner
+                  // shows right after save without waiting for the parent query refetch.
+                  const calFromSettings = (settings.calcom ?? null) as {
                     apiKey?: string;
                     eventTypeId?: string | null;
                     connectedAt?: string;
                   } | null;
+                  const cal = calJustSaved
+                    ? {
+                        apiKey: calJustSaved.apiKey,
+                        eventTypeId: calJustSaved.eventTypeId,
+                        connectedAt: calJustSaved.connectedAt,
+                      }
+                    : calFromSettings;
                   if (!cal?.apiKey) return null;
                   const masked = `${cal.apiKey.slice(0, 8)}…${cal.apiKey.slice(-4)}`;
                   const when = cal.connectedAt ? new Date(cal.connectedAt).toLocaleString() : null;
