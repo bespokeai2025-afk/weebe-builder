@@ -1,10 +1,13 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ChevronDown,
   Megaphone,
   SlidersHorizontal,
   Brain,
   GitBranch,
+  Loader2,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
@@ -13,29 +16,15 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { useBuilderStore } from "@/lib/builder/store";
 import type { FlowNode } from "@/lib/builder/store";
-
-const DATA_RECORD_COLUMNS = [
-  { value: "name", label: "Name" },
-  { value: "first_name", label: "First Name" },
-  { value: "last_name", label: "Last Name" },
-  { value: "email", label: "Email" },
-  { value: "title", label: "Title" },
-  { value: "client_name", label: "Client Name" },
-  { value: "company", label: "Company (meta)" },
-  { value: "industry", label: "Industry (meta)" },
-  { value: "property_type", label: "Property Type" },
-  { value: "city", label: "City" },
-  { value: "state", label: "State" },
-  { value: "postal_code", label: "Postal Code" },
-  { value: "unique_id", label: "Unique ID" },
-  { value: "notes", label: "Notes" },
-];
+import { getDataRecordSchema } from "@/lib/dashboard/data-records.functions";
 
 const INTELLIGENCE_TOGGLES: Array<{ key: string; label: string }> = [
   { key: "trackInterestLevel", label: "Interest level" },
@@ -54,13 +43,10 @@ function extractPlaceholders(text: string, seen: Set<string>) {
 
 function parsePlaceholdersFromAll(globalPrompt: string, nodes: FlowNode[]): string[] {
   const seen = new Set<string>();
-  // Global prompt
   extractPlaceholders(globalPrompt ?? "", seen);
-  // Every conversation node's dialogue text
   for (const node of nodes) {
     const d = node.data;
     if (d?.dialogue) extractPlaceholders(String(d.dialogue), seen);
-    // Edge transition conditions also support {{vars}}
     if (Array.isArray(d?.edges)) {
       for (const edge of d.edges as Array<{ condition?: string }>) {
         if (edge?.condition) extractPlaceholders(edge.condition, seen);
@@ -79,7 +65,20 @@ export function LeadGenSection() {
     [settings.globalPrompt, nodes],
   );
 
-  const variableMappings: Record<string, string> = (leadGen.variableMappings as Record<string, string>) ?? {};
+  const variableMappings: Record<string, string> =
+    (leadGen.variableMappings as Record<string, string>) ?? {};
+
+  // Fetch real columns from the workspace's uploaded CSV data
+  const getSchemFn = useServerFn(getDataRecordSchema);
+  const schemaQ = useQuery({
+    queryKey: ["data-record-schema"],
+    queryFn: () => getSchemFn(),
+    staleTime: 60_000,
+  });
+  const schema = schemaQ.data;
+  const fixedCols = schema?.fixed ?? [];
+  const metaCols = schema?.meta ?? [];
+  const hasSchema = fixedCols.length > 0 || metaCols.length > 0;
 
   function setLeadGen(patch: Record<string, unknown>) {
     setSettings({ leadGen: { ...leadGen, ...patch } } as any);
@@ -91,6 +90,12 @@ export function LeadGenSection() {
 
   function toggleIntelligence(key: string, val: boolean) {
     setLeadGen({ [key]: val });
+  }
+
+  // Human-readable label for a column ref (e.g. "meta.company" → "company")
+  function colLabel(ref: string): string {
+    if (ref.startsWith("meta.")) return ref.slice(5);
+    return fixedCols.find((c) => c.value === ref)?.label ?? ref;
   }
 
   return (
@@ -131,12 +136,33 @@ export function LeadGenSection() {
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-2 px-3 pb-3">
           <p className="text-[11px] text-muted-foreground">
-            Map <code className="rounded bg-muted px-1">{"{{placeholders}}"}</code> in your global
-            prompt to CSV columns. These values are injected per-lead before each call.
+            Map{" "}
+            <code className="rounded bg-muted px-1">{"{{placeholders}}"}</code> in your script
+            nodes to columns from your uploaded CSV. Values are injected into each call automatically.
           </p>
+
+          {/* CSV column source status */}
+          {schemaQ.isLoading ? (
+            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading your CSV columns…
+            </p>
+          ) : schema && schema.totalRecords > 0 ? (
+            <p className="text-[11px] text-emerald-500">
+              ✓ {schema.totalRecords} uploaded record{schema.totalRecords !== 1 ? "s" : ""} found
+              {metaCols.length > 0 ? ` · ${metaCols.length} custom column${metaCols.length !== 1 ? "s" : ""} detected` : ""}
+            </p>
+          ) : schema && schema.totalRecords === 0 ? (
+            <p className="text-[11px] text-amber-500">
+              No records uploaded yet — upload a CSV in the Data section first, then mappings will
+              auto-populate with your real column names.
+            </p>
+          ) : null}
+
           {placeholders.length === 0 ? (
             <p className="text-[11px] text-muted-foreground italic">
-              No {"{{variables}}"} found in your global prompt. Add them to enable personalisation.
+              No {"{{variables}}"} found in your script nodes or global prompt yet. Add them to
+              enable per-lead personalisation.
             </p>
           ) : (
             <div className="space-y-1.5">
@@ -151,14 +177,58 @@ export function LeadGenSection() {
                     onValueChange={(v) => setMapping(p, v)}
                   >
                     <SelectTrigger className="h-7 text-xs">
-                      <SelectValue placeholder="CSV column…" />
+                      <SelectValue placeholder="CSV column…">
+                        {variableMappings[p] ? colLabel(variableMappings[p]) : undefined}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {DATA_RECORD_COLUMNS.map((col) => (
-                        <SelectItem key={col.value} value={col.value}>
-                          {col.label}
-                        </SelectItem>
-                      ))}
+                      {hasSchema ? (
+                        <>
+                          {fixedCols.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px]">CSV Fields</SelectLabel>
+                              {fixedCols.map((col) => (
+                                <SelectItem key={col.value} value={col.value} className="text-xs">
+                                  {col.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                          {metaCols.length > 0 && (
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px]">Custom Columns</SelectLabel>
+                              {metaCols.map((col) => (
+                                <SelectItem key={col.value} value={col.value} className="text-xs">
+                                  {col.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          )}
+                        </>
+                      ) : (
+                        // Fallback list before any records are uploaded
+                        <SelectGroup>
+                          <SelectLabel className="text-[10px]">Standard Fields</SelectLabel>
+                          {[
+                            { value: "name", label: "Full Name" },
+                            { value: "first_name", label: "First Name" },
+                            { value: "last_name", label: "Last Name" },
+                            { value: "mobile_number", label: "Mobile Number" },
+                            { value: "email", label: "Email" },
+                            { value: "title", label: "Title" },
+                            { value: "client_name", label: "Client Name" },
+                            { value: "property_type", label: "Property Type" },
+                            { value: "city", label: "City" },
+                            { value: "state", label: "State" },
+                            { value: "postal_code", label: "Postal Code" },
+                            { value: "notes", label: "Notes" },
+                          ].map((col) => (
+                            <SelectItem key={col.value} value={col.value} className="text-xs">
+                              {col.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

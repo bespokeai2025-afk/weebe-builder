@@ -161,7 +161,7 @@ export const startCallingRecords = createServerFn({ method: "POST" })
 
     const { data: records, error } = await sb
       .from("data_records")
-      .select("id, mobile_number, assigned_agent_id, name")
+      .select("id, mobile_number, assigned_agent_id, name, first_name, last_name, email, title, client_name, unique_id, property_type, bedrooms, address_line1, address_line2, city, state, postal_code, lead_external_id, notes, meta")
       .eq("workspace_id", workspaceId)
       .in("id", data.recordIds);
     if (error) throw new Error(error.message);
@@ -173,14 +173,14 @@ export const startCallingRecords = createServerFn({ method: "POST" })
         ) as string[],
       ),
     );
-    let agentsById: Record<string, { retell_agent_id: string | null; name: string }> = {};
+    let agentsById: Record<string, { retell_agent_id: string | null; name: string; settings: Record<string, unknown> | null }> = {};
     if (agentIds.length) {
       const { data: ags, error: aErr } = await sb
         .from("agents")
-        .select("id, retell_agent_id, name")
+        .select("id, retell_agent_id, name, settings")
         .in("id", agentIds);
       if (aErr) throw new Error(aErr.message);
-      agentsById = Object.fromEntries((ags ?? []).map((a: any) => [a.id, a]));
+      agentsById = Object.fromEntries((ags ?? []).map((a: any) => [a.id, { ...a, settings: a.settings ?? null }]));
     }
 
     let queued = 0;
@@ -208,16 +208,39 @@ export const startCallingRecords = createServerFn({ method: "POST" })
       }
 
       try {
-        const call = await retellFetch<any>(
-          "/v2/create-phone-call",
-          {
-            from_number: data.fromNumber,
-            to_number: r.mobile_number,
-            override_agent_id: retellAgentId,
-            metadata: { data_record_id: r.id, workspace_id: workspaceId },
-          },
-          "POST",
-        );
+        // Build Retell dynamic variables from the agent's lead gen variable mappings
+        const agentSettings = (agent as any)?.settings as Record<string, unknown> | null;
+        const leadGenSettings = agentSettings?.leadGen as Record<string, unknown> | undefined;
+        const variableMappings = leadGenSettings?.variableMappings as Record<string, string> | undefined;
+
+        const retellDynamicVars: Record<string, string> = {};
+        if (variableMappings && Object.keys(variableMappings).length > 0) {
+          for (const [placeholder, colRef] of Object.entries(variableMappings)) {
+            let val: string | null = null;
+            if (colRef.startsWith("meta.")) {
+              // meta.someKey → read from record.meta object
+              const metaKey = colRef.slice(5);
+              const meta = r.meta as Record<string, unknown> | null;
+              val = meta?.[metaKey] != null ? String(meta[metaKey]) : null;
+            } else {
+              // Fixed DB column
+              val = r[colRef] != null ? String(r[colRef]) : null;
+            }
+            if (val) retellDynamicVars[placeholder] = val;
+          }
+        }
+
+        const callPayload: Record<string, unknown> = {
+          from_number: data.fromNumber,
+          to_number: r.mobile_number,
+          override_agent_id: retellAgentId,
+          metadata: { data_record_id: r.id, workspace_id: workspaceId },
+        };
+        if (Object.keys(retellDynamicVars).length > 0) {
+          callPayload.retell_llm_dynamic_variables = retellDynamicVars;
+        }
+
+        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST");
         await sb
           .from("data_records")
           .update({
@@ -249,6 +272,74 @@ export const startCallingRecords = createServerFn({ method: "POST" })
     }
 
     return { placed, queued, failed, errors };
+  });
+
+/** Fixed DB columns present on every data_record row */
+const FIXED_COLUMNS: Array<{ value: string; label: string }> = [
+  { value: "name", label: "Full Name" },
+  { value: "mobile_number", label: "Mobile Number" },
+  { value: "first_name", label: "First Name" },
+  { value: "last_name", label: "Last Name" },
+  { value: "email", label: "Email" },
+  { value: "title", label: "Title" },
+  { value: "client_name", label: "Client Name" },
+  { value: "unique_id", label: "Unique ID" },
+  { value: "property_type", label: "Property Type" },
+  { value: "bedrooms", label: "Bedrooms" },
+  { value: "address_line1", label: "Address Line 1" },
+  { value: "address_line2", label: "Address Line 2" },
+  { value: "city", label: "City" },
+  { value: "state", label: "State" },
+  { value: "postal_code", label: "Postal Code" },
+  { value: "lead_external_id", label: "Lead External ID" },
+  { value: "notes", label: "Notes" },
+];
+
+/**
+ * Samples up to 20 data records to discover which fixed columns and `meta`
+ * keys actually have data in this workspace. Returns a combined column list
+ * that powers the Variable Mapping dropdown in the Lead Gen builder panel.
+ */
+export const getDataRecordSchema = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: sample } = await sb
+      .from("data_records")
+      .select("name,mobile_number,first_name,last_name,email,title,client_name,unique_id,property_type,bedrooms,address_line1,address_line2,city,state,postal_code,lead_external_id,notes,meta")
+      .eq("workspace_id", workspaceId)
+      .eq("is_deleted", false)
+      .limit(20);
+
+    const rows = (sample ?? []) as Array<Record<string, unknown>>;
+
+    // Which fixed columns have at least one non-null value?
+    const usedFixed = FIXED_COLUMNS.filter((col) =>
+      rows.some((r) => r[col.value] != null && r[col.value] !== ""),
+    );
+    // If no records yet, show all fixed columns as hints
+    const fixedCols = usedFixed.length > 0 ? usedFixed : FIXED_COLUMNS;
+
+    // Collect all meta keys across sampled rows
+    const metaKeys = new Set<string>();
+    for (const row of rows) {
+      const meta = row.meta as Record<string, unknown> | null;
+      if (meta && typeof meta === "object") {
+        for (const k of Object.keys(meta)) metaKeys.add(k);
+      }
+    }
+    const metaCols = Array.from(metaKeys)
+      .sort()
+      .map((k) => ({ value: `meta.${k}`, label: k, isMeta: true }));
+
+    return {
+      fixed: fixedCols.map((c) => ({ ...c, isMeta: false })),
+      meta: metaCols,
+      totalRecords: rows.length,
+    };
   });
 
 export const importDataRecords = createServerFn({ method: "POST" })
