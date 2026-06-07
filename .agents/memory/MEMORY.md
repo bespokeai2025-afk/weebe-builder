@@ -1,0 +1,1 @@
+- [Two-tier Retell deploy model](two-tier-retell-deploy.md) — builder uses platform RETELL_API_KEY; Go Live auto-uses per-client key stored in workspace_settings.retell_workspace_id.

@@ -127,9 +127,20 @@ async function retellFetchForAgent(
   userId: string,
   agentRowId?: string,
   explicitApiKey?: string,
+  workspaceId?: string,
 ) {
   const explicit = explicitApiKey?.trim() || undefined;
-  const stored = explicit ? null : await loadStoredProductionRetellApiKey(agentRowId, userId);
+  let stored = explicit ? null : await loadStoredProductionRetellApiKey(agentRowId, userId);
+  // Fall back to the admin-provisioned workspace-level production API key.
+  if (!explicit && !stored && workspaceId) {
+    const { data: ws } = await supabaseAdmin
+      .from("workspace_settings")
+      .select("retell_workspace_id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
+    if (wsKey && wsKey.startsWith("key_")) stored = wsKey;
+  }
   const resp = await retellFetch(path, body, method, explicit ?? stored ?? undefined);
   if (explicit) await rememberProductionRetellApiKey(agentRowId, userId, explicit);
   return resp;
@@ -813,6 +824,7 @@ export const buyRetellPhoneNumber = createServerFn({ method: "POST" })
       context.userId,
       data.agentRowId,
       data.productionApiKey,
+      context.workspaceId,
     );
     return {
       phoneNumber: String(resp.phone_number ?? ""),
@@ -862,6 +874,7 @@ export const importSipPhoneNumber = createServerFn({ method: "POST" })
       context.userId,
       data.agentRowId,
       data.productionApiKey,
+      context.workspaceId,
     );
     return {
       phoneNumber: String(resp.phone_number ?? data.phoneNumber),
@@ -885,6 +898,7 @@ export const listRetellPhoneNumbers = createServerFn({ method: "POST" })
         context.userId,
         data?.agentRowId,
         data?.productionApiKey,
+        context.workspaceId,
       );
     } catch (error) {
       if (isRetellAuthError(error)) {
@@ -934,6 +948,7 @@ export const assignNumberToAgent = createServerFn({ method: "POST" })
       context.userId,
       data.agentRowId,
       data.productionApiKey,
+      context.workspaceId,
     );
     return { phoneNumber: String(resp.phone_number ?? data.phoneNumber) };
   });
@@ -950,7 +965,7 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
   .inputValidator(
     (input: {
       sourceAgentId: string;
-      agentName: string;
+      agentName?: string;
       productionApiKey?: string;
       agentRowId?: string;
     }) => input,
@@ -958,9 +973,37 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const src = (data.sourceAgentId ?? "").trim();
     if (!src.startsWith("agent_")) throw new Error("Invalid source agent ID");
-    const label = (data.agentName ?? "").trim();
-    if (!label) throw new Error("A label for the production workspace is required");
-    const prodKey = resolveProductionApiKey(data.productionApiKey);
+
+    // Resolve the label: use explicit name, or fall back to the user's
+    // approved workspace_request name (their company name).
+    let label = (data.agentName ?? "").trim();
+    if (!label && context.workspaceId) {
+      const { data: wsReq } = await supabaseAdmin
+        .from("workspace_requests")
+        .select("workspace_name")
+        .eq("user_id", context.userId)
+        .eq("status", "approved")
+        .order("decided_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      label = wsReq?.workspace_name ?? "";
+    }
+    if (!label) throw new Error("A company / workspace name is required to go live.");
+
+    // Resolve the production API key: explicit > stored in agent_retell_secrets
+    // > admin-provisioned key in workspace_settings.retell_workspace_id.
+    let explicitKey = (data.productionApiKey ?? "").trim() || undefined;
+    if (!explicitKey && context.workspaceId) {
+      const { data: ws } = await supabaseAdmin
+        .from("workspace_settings")
+        .select("retell_workspace_id")
+        .eq("workspace_id", context.workspaceId)
+        .maybeSingle();
+      // retell_workspace_id stores the admin-provisioned production API key.
+      const storedKey = ws?.retell_workspace_id?.trim();
+      if (storedKey && storedKey.startsWith("key_")) explicitKey = storedKey;
+    }
+    const prodKey = resolveProductionApiKey(explicitKey);
 
     const agent = (await retellFetch(`/get-agent/${src}`, undefined, "GET")) as Record<
       string,

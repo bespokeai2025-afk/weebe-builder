@@ -82,12 +82,27 @@ export const listWorkspaceRequests = createServerFn({ method: "GET" })
     return reqs.map((r) => ({ ...r, email: emailMap.get(r.user_id) ?? "" }));
   });
 
-/** Admin: approve or deny a workspace request. */
+/** Admin: approve or deny a workspace request.
+ *  When approving, pass retellApiKey to store the dedicated Retell
+ *  sub-account API key for the user's workspace (so Go Live is one-click).
+ */
 export const decideWorkspaceRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { id: string; approve: boolean }) => input)
+  .inputValidator(
+    (input: { id: string; approve: boolean; retellApiKey?: string }) => input,
+  )
   .handler(async ({ context, data }) => {
     await assertAdmin(context.userId);
+
+    // Look up the request to get the user_id.
+    const { data: req, error: reqErr } = await supabaseAdmin
+      .from("workspace_requests")
+      .select("id, user_id, workspace_name")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (reqErr) throw new Error(reqErr.message);
+    if (!req) throw new Error("Workspace request not found");
+
     const { error } = await supabaseAdmin
       .from("workspace_requests")
       .update({
@@ -97,5 +112,25 @@ export const decideWorkspaceRequest = createServerFn({ method: "POST" })
       })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
+
+    // When approving with a Retell API key, store it in the user's workspace
+    // settings so cloneRetellAgentForDeploy can use it automatically.
+    if (data.approve && data.retellApiKey?.trim()) {
+      const apiKey = data.retellApiKey.trim();
+      // Find the user's default workspace.
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("default_workspace_id")
+        .eq("user_id", req.user_id)
+        .maybeSingle();
+      const workspaceId = profile?.default_workspace_id;
+      if (workspaceId) {
+        await supabaseAdmin
+          .from("workspace_settings")
+          .update({ retell_workspace_id: apiKey } as never)
+          .eq("workspace_id", workspaceId);
+      }
+    }
+
     return { ok: true };
   });

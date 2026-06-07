@@ -104,8 +104,6 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     enabled: open,
     staleTime: 60_000,
   });
-  const isRetailMode = deployConfigQ.data?.mode === "retail";
-
   // Workspace approval gate (first-time deployers) — skipped in retail mode
   const wsReqQ = useQuery({
     queryKey: ["my-workspace-request"],
@@ -158,27 +156,19 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   const [calEventId, setCalEventId] = useState("");
   const [savingCal, setSavingCal] = useState(false);
 
-  // Production-workspace clone state (declared here so number ops can reuse the key)
+  // Production-workspace clone state
   const [cloning, setCloning] = useState(false);
-  const [prodLabel, setProdLabel] = useState("");
-  const [prodApiKey, setProdApiKey] = useState("");
 
   const settings = (agent?.settings ?? {}) as Record<string, unknown>;
   const deployedId = (settings.deployedRetellAgentId as string | undefined) ?? null;
-  const storedProdKeyMasked = (settings.productionRetellApiKeyMasked as string | undefined) ?? null;
-  // When a production clone exists, all number ops must hit the production workspace.
-  // If the key was entered successfully before, the server reuses the stored copy.
-  const prodKeyForOps = deployedId ? prodApiKey.trim() || undefined : undefined;
-  const hasProductionKeyForOps = !deployedId || !!prodKeyForOps || !!storedProdKeyMasked;
+
+  // The production API key is now stored server-side (workspace_settings.retell_workspace_id).
+  // Phone-number operations always send productionApiKey: undefined and the server resolves it.
+  const hasProductionKeyForOps = true;
 
   const numbersQ = useQuery({
-    queryKey: [
-      "retell-numbers",
-      agent?.id,
-      deployedId ? "prod" : "dev",
-      prodKeyForOps ? "explicit" : "stored",
-    ],
-    queryFn: () => listFn({ data: { productionApiKey: prodKeyForOps, agentRowId: agent!.id } }),
+    queryKey: ["retell-numbers", agent?.id, deployedId ? "prod" : "dev"],
+    queryFn: () => listFn({ data: { agentRowId: agent!.id } }),
     enabled: open && !!agent && hasProductionKeyForOps,
   });
 
@@ -197,7 +187,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   async function attachAndSave(phoneNumber: string) {
     if (retellId) {
       await assignFn({
-        data: { phoneNumber, ...dirIds(), productionApiKey: prodKeyForOps, agentRowId: agent!.id },
+        data: { phoneNumber, ...dirIds(), agentRowId: agent!.id },
       });
     }
     await savePhoneFn({ data: { id: agent!.id, phoneNumber } });
@@ -210,23 +200,11 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
       toast.error("Deploy the agent from the builder first");
       return;
     }
-    const label = prodLabel.trim();
-    if (!label) {
-      toast.error("Production workspace ID / label is required");
-      return;
-    }
-    const key = prodApiKey.trim();
-    if (!key && !isRetailMode && !storedProdKeyMasked) {
-      toast.error("Production API key is required");
-      return;
-    }
     setCloning(true);
     try {
       const res = await cloneFn({
         data: {
           sourceAgentId: agent!.retell_agent_id,
-          agentName: label,
-          productionApiKey: key || undefined,
           agentRowId: agent!.id,
         },
       });
@@ -241,13 +219,11 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
       const bookingNote = res.calendarConnected
         ? "Booking tools auto-attached."
         : "Cal.com not connected — booking tools NOT attached.";
-      toast.success("Cloned into production workspace", {
+      toast.success("Deployed to company workspace", {
         description: `${res.agentName} — ${res.agentId}\n${bookingNote}`,
       });
-
-      setProdApiKey("");
     } catch (e) {
-      toast.error("Clone failed", { description: (e as Error).message });
+      toast.error("Deploy failed", { description: (e as Error).message });
     } finally {
       setCloning(false);
     }
@@ -262,7 +238,6 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
           areaCode: areaCode ? Number(areaCode) : undefined,
           nickname: nickname || agent!.name,
           ...dirIds(),
-          productionApiKey: prodKeyForOps,
           agentRowId: agent!.id,
         },
       });
@@ -291,7 +266,6 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
           sipPassword: sipPass || undefined,
           nickname: sipNick || agent!.name,
           ...dirIds(),
-          productionApiKey: prodKeyForOps,
           agentRowId: agent!.id,
         },
       });
@@ -360,8 +334,6 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   const showGate =
     deployConfigQ.data?.mode === "approval" && !wsReqQ.isLoading && wsStatus !== "approved";
 
-  const canCloneWithoutKey =
-    isRetailMode || !!prodApiKey.trim() || !!storedProdKeyMasked;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -511,7 +483,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
             {/* Production workspace clone */}
             {agent.retell_agent_id && (
               <div className="rounded-md border p-3 text-xs space-y-3">
-                {deployedId && (
+                {deployedId ? (
                   <div className="flex items-center gap-2">
                     <Check className="h-3 w-3 text-green-600" />
                     <span className="font-medium text-foreground">Production copy active</span>
@@ -519,63 +491,25 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                       {deployedId}
                     </span>
                   </div>
-                )}
+                ) : null}
                 <p className="text-muted-foreground">
-                  {isRetailMode
-                    ? "Clone this agent into the shared production workspace. Your platform Retell key is configured server-side — only a label is required."
-                    : "Clone this agent into a separate production workspace so the live version is fully isolated from the builder copy. Paste the workspace label and production API key below."}
+                  {wsReqQ.data?.workspace_name
+                    ? `Your dedicated workspace "${wsReqQ.data.workspace_name}" is provisioned. Click below to deploy this agent there.`
+                    : "Clone this agent into your dedicated company workspace. The workspace is provisioned by your account manager — no API key needed."}
                 </p>
-                <div className="grid grid-cols-1 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">
-                      Production workspace ID / label <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      placeholder={`${agent.name} — LIVE`}
-                      value={prodLabel}
-                      onChange={(e) => setProdLabel(e.target.value)}
-                    />
+                {wsReqQ.data?.workspace_name && (
+                  <div className="flex items-center gap-1.5 rounded bg-muted/60 px-2 py-1">
+                    <span className="text-muted-foreground">Workspace:</span>
+                    <span className="font-medium text-foreground">{wsReqQ.data.workspace_name}</span>
                   </div>
-                  {!isRetailMode && (
-                    <div className="space-y-1">
-                      <Label className="text-xs">
-                        Production API key <span className="text-red-500">*</span>
-                      </Label>
-                      <Input
-                        type="password"
-                        placeholder="key_..."
-                        value={prodApiKey}
-                        onChange={(e) => setProdApiKey(e.target.value)}
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        Used for the clone and for phone-number actions. Saved after a successful
-                        use.
-                      </p>
-                      {storedProdKeyMasked && !prodApiKey.trim() && (
-                        <p className="text-[11px] text-green-700 dark:text-green-400">
-                          Saved production key available: {storedProdKeyMasked}
-                        </p>
-                      )}
-                      {deployedId && !prodApiKey.trim() && !storedProdKeyMasked && (
-                        <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                          Paste your production API key above before buying or attaching a number.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {isRetailMode && (
-                    <p className="text-[11px] text-muted-foreground">
-                      Production Retell API key is loaded from server configuration.
-                    </p>
-                  )}
-                </div>
+                )}
                 <Button
                   size="sm"
                   onClick={handleClone}
-                  disabled={cloning || !prodLabel.trim() || !canCloneWithoutKey}
+                  disabled={cloning}
                 >
                   {cloning && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                  {deployedId ? "Re-clone into workspace" : "Clone into production workspace"}
+                  {deployedId ? "Re-deploy to workspace" : "Deploy to company workspace"}
                 </Button>
               </div>
             )}
