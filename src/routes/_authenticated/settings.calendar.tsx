@@ -325,8 +325,13 @@ function CalendarSettingsPage() {
                         <Switch
                           checked={c.is_availability}
                           onCheckedChange={async (v) => {
-                            await setFlags({ data: { id: c.id, isAvailability: v } });
-                            qc.invalidateQueries({ queryKey: ["wcs-cals"] });
+                            try {
+                              await setFlags({ data: { id: c.id, isAvailability: v } });
+                              qc.invalidateQueries({ queryKey: ["wcs-cals"] });
+                              toast.success(v ? "Availability enabled" : "Availability disabled", { description: c.name });
+                            } catch (e) {
+                              toast.error("Failed to update calendar", { description: (e as Error).message });
+                            }
                           }}
                         />
                         Availability
@@ -336,8 +341,13 @@ function CalendarSettingsPage() {
                           checked={c.is_primary_booking}
                           disabled={c.read_only}
                           onCheckedChange={async (v) => {
-                            await setFlags({ data: { id: c.id, isPrimaryBooking: v } });
-                            qc.invalidateQueries({ queryKey: ["wcs-cals"] });
+                            try {
+                              await setFlags({ data: { id: c.id, isPrimaryBooking: v } });
+                              qc.invalidateQueries({ queryKey: ["wcs-cals"] });
+                              toast.success(v ? "Set as primary booking calendar" : "Primary booking removed", { description: c.name });
+                            } catch (e) {
+                              toast.error("Failed to update calendar", { description: (e as Error).message });
+                            }
                           }}
                         />
                         Primary booking
@@ -392,8 +402,13 @@ function CalendarSettingsPage() {
                     <Switch
                       checked={et.active}
                       onCheckedChange={async (v) => {
-                        await setEtActive({ data: { id: et.id, active: v } });
-                        qc.invalidateQueries({ queryKey: ["wcs-ets"] });
+                        try {
+                          await setEtActive({ data: { id: et.id, active: v } });
+                          qc.invalidateQueries({ queryKey: ["wcs-ets"] });
+                          toast.success(v ? "Event type enabled" : "Event type disabled", { description: et.title });
+                        } catch (e) {
+                          toast.error("Failed to update event type", { description: (e as Error).message });
+                        }
                       }}
                     />
                   </div>
