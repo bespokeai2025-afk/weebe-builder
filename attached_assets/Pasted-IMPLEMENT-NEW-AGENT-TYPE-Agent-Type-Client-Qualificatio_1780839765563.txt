@@ -1,0 +1,298 @@
+IMPLEMENT NEW AGENT TYPE
+
+Agent Type:
+Client Qualification
+
+This is a separate workflow from Lead Generation.
+
+PURPOSE
+
+The Client Qualification agent is responsible for contacting existing prospects and determining whether they qualify based on predefined business criteria.
+
+The agent should be able to call contacts from either:
+
+1. Data Section (CSV Sources)
+2. Leads Section (Existing Leads)
+
+The source must be selectable during agent configuration.
+
+SOURCE SELECTION
+
+Within Agent Builder:
+
+Agent Type → Client Qualification
+
+Add:
+
+Lead Source
+
+Options:
+
+○ Data Section
+○ Leads Section
+
+User must select one source before deployment.
+
+WORKFLOW CONFIGURATION
+
+If Source = Data Section
+
+Display:
+
+* Dataset Selection
+* Variable Mapping
+* Calling Rules
+* Qualification Rules
+
+Use the existing Data Section architecture.
+
+If Source = Leads Section
+
+Display:
+
+* Lead List Selection
+* Lead Filters
+* Calling Rules
+* Qualification Rules
+
+The agent should call through existing leads.
+
+LEADS SECTION INTEGRATION
+
+Add a new action within Leads.
+
+Example:
+
+Select Leads
+↓
+Actions
+↓
+Assign Qualification Agent
+
+User selects:
+
+* Qualification Agent
+* Calling Schedule
+* Daily Limits
+* Retry Rules
+* Qualification Criteria
+
+This creates a Qualification Campaign.
+
+QUALIFICATION ENGINE
+
+Allow users to define qualification criteria.
+
+Examples:
+
+Budget Confirmed
+Decision Maker
+Business Size
+Location
+Urgency
+Current Provider
+Interest Level
+
+Builder should support:
+
+Required Qualification Conditions
+
+Example:
+
+Budget = Yes
+Decision Maker = Yes
+Interest Level = Medium+
+
+Result:
+
+Qualified = True
+
+QUALIFICATION OUTCOMES
+
+Possible outcomes:
+
+Qualified
+Partially Qualified
+Not Qualified
+Call Back Required
+Voicemail
+Wrong Number
+Do Not Contact
+
+Store outcome against contact.
+
+POST CALL ANALYSIS
+
+After every call:
+
+Retrieve:
+
+* Transcript
+* Recording Metadata
+* Call Outcome
+
+Run Qualification Analysis.
+
+Generate:
+
+{
+"qualification_status":"qualified",
+"sentiment":"positive",
+"budget_confirmed":true,
+"decision_maker":true,
+"urgency":"high",
+"interest_level":"high",
+"next_step":"sales_followup",
+"summary":"Prospect meets qualification criteria and requested pricing information."
+}
+
+QUALIFIED SECTION
+
+Create automated routing.
+
+POSITIVE SENTIMENT
+→ Qualified Section
+
+NEUTRAL SENTIMENT
+→ Qualified Section
+
+NEGATIVE SENTIMENT
+→ Do Not Add To Qualified Section
+
+All qualification decisions should be configurable.
+
+DEFAULT RULES
+
+Positive
+→ Qualified
+
+Neutral
+→ Qualified
+
+Negative
+→ Not Qualified
+
+CALLS SECTION
+
+Every completed call must be written to Calls Section regardless of outcome.
+
+This includes:
+
+Positive
+Neutral
+Negative
+Qualified
+Unqualified
+Voicemail
+Wrong Number
+Do Not Contact
+
+Calls Section should act as the complete call history.
+
+Store:
+
+Call Date
+Duration
+Outcome
+Transcript
+Recording URL
+Sentiment
+Qualification Status
+Summary
+Agent Used
+
+QUALIFIED SECTION FIELDS
+
+Add:
+
+Qualification Score
+Qualification Status
+Budget Confirmed
+Decision Maker
+Interest Level
+Urgency
+Summary
+Next Step
+Last Contact Date
+
+QUALIFICATION SCORING
+
+Generate score.
+
+Example:
+
+Decision Maker = +25
+
+Budget Confirmed = +25
+
+Urgent Need = +20
+
+Strong Interest = +20
+
+Requested Follow Up = +10
+
+Total Score:
+
+0-39 = Unqualified
+
+40-69 = Potential
+
+70-100 = Qualified
+
+CAMPAIGN MANAGEMENT
+
+Qualification agents should support:
+
+Start
+Pause
+Resume
+Stop
+
+Track:
+
+Calls Made
+Contacts Reached
+Qualified Contacts
+Qualification Rate
+Average Qualification Score
+
+BUILDER CHANGES
+
+When Agent Type = Client Qualification
+
+Show:
+
+Lead Source
+Qualification Criteria
+Qualification Scoring
+Qualification Outcomes
+Qualified Routing Rules
+
+Hide:
+
+Lead Generation specific campaign settings.
+
+SHARED INFRASTRUCTURE
+
+Reuse existing:
+
+* Variable Mapping Engine
+* Transcript Processing
+* Sentiment Engine
+* Retell Deployment Logic
+* Campaign Scheduler
+* Call Logging System
+
+Do not duplicate existing systems.
+
+ARCHITECTURAL GOAL
+
+Create a Client Qualification workflow capable of:
+
+Data Section → Qualification Calls → Calls Section → Qualified Section
+
+OR
+
+Leads Section → Qualification Calls → Calls Section → Qualified Section
+
+using a single shared qualification engine while maintaining full multi-tenant isolation.

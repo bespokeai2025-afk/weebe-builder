@@ -12,12 +12,15 @@ import {
   Brain,
   Plus,
   Trash2,
+  ShieldCheck,
+  Loader2,
 } from "lucide-react";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -25,15 +28,23 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { listLeads, setLeadStatus } from "@/lib/dashboard/leads.functions";
+import { listLeads, setLeadStatus, startQualificationCallsForLeads } from "@/lib/dashboard/leads.functions";
 import {
   listCampaigns,
   createCampaign,
   deleteCampaign,
   getCampaignStats,
 } from "@/lib/dashboard/campaigns.functions";
+import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/leads")({
   head: () => ({ meta: [{ title: "Leads — Webespoke AI" }] }),
@@ -109,11 +120,18 @@ function LeadsPage() {
   const createCampaignFn = useServerFn(createCampaign);
   const deleteCampaignFn = useServerFn(deleteCampaign);
   const getCampaignStatsFn = useServerFn(getCampaignStats);
+  const getAgentsFn = useServerFn(getDashboardLiveAgents);
+  const startQualFn = useServerFn(startQualificationCallsForLeads);
 
   const [tab, setTab] = useState<"leads" | "campaigns">("leads");
   const [newCampaignOpen, setNewCampaignOpen] = useState(false);
   const [campaignName, setCampaignName] = useState("");
   const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [qualDialogOpen, setQualDialogOpen] = useState(false);
+  const [qualAgentId, setQualAgentId] = useState<string>("");
+  const [qualFromNumber, setQualFromNumber] = useState<string>("");
+  const [qualRunning, setQualRunning] = useState(false);
 
   const leadsQ = useQuery({
     queryKey: ["leads-all"],
@@ -130,9 +148,17 @@ function LeadsPage() {
     queryFn: () => getCampaignStatsFn({ data: {} }),
   });
 
+  const agentsQ = useQuery({
+    queryKey: ["dashboard-live-agents"],
+    queryFn: () => getAgentsFn(),
+    staleTime: 30_000,
+  });
+
   const leads = (leadsQ.data ?? []) as any[];
   const campaigns = campaignsQ.data ?? [];
   const stats = statsQ.data;
+  const allAgents = (agentsQ.data ?? []) as any[];
+  const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
 
   const filtered = leads.filter((l: any) => {
     if (!search.trim()) return true;
@@ -152,6 +178,23 @@ function LeadsPage() {
       ? Math.round(withScore.reduce((a: number, l: any) => a + l.lead_score, 0) / withScore.length)
       : null;
   const meetingsReq = leads.filter((l: any) => l.meeting_requested).length;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((l: any) => l.id)));
+    }
+  }
 
   async function handleSetStatus(id: string, status: typeof STATUS_OPTIONS[number]["value"]) {
     try {
@@ -185,6 +228,41 @@ function LeadsPage() {
     }
   }
 
+  async function handleStartQualification() {
+    if (!qualAgentId || selectedIds.size === 0) return;
+    setQualRunning(true);
+    try {
+      const result = await startQualFn({
+        data: {
+          leadIds: Array.from(selectedIds),
+          agentId: qualAgentId,
+          fromNumber: qualFromNumber || null,
+        },
+      });
+      toast.success(`Qualification started — ${result.placed} calls placed`, {
+        description: result.failed > 0 ? `${result.failed} failed` : undefined,
+      });
+      setQualDialogOpen(false);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["leads-all"] });
+    } catch (e) {
+      toast.error("Failed to start qualification", { description: (e as Error).message });
+    } finally {
+      setQualRunning(false);
+    }
+  }
+
+  function openQualDialog() {
+    if (selectedIds.size === 0) {
+      toast.error("Select at least one lead first");
+      return;
+    }
+    const defaultAgent = qualAgents[0];
+    if (defaultAgent && !qualAgentId) setQualAgentId(defaultAgent.id);
+    if (defaultAgent?.phoneNumber && !qualFromNumber) setQualFromNumber(defaultAgent.phoneNumber);
+    setQualDialogOpen(true);
+  }
+
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
       {/* Header */}
@@ -196,6 +274,12 @@ function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {tab === "leads" && selectedIds.size > 0 && (
+            <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openQualDialog}>
+              <ShieldCheck className="mr-1 h-4 w-4" />
+              Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => {
             leadsQ.refetch();
             campaignsQ.refetch();
@@ -327,13 +411,30 @@ function LeadsPage() {
       {tab === "leads" && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between py-3">
-            <CardTitle className="text-sm">Lead Records</CardTitle>
-            <Input
-              placeholder="Search name, phone, email…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-7 w-48 text-xs"
-            />
+            <CardTitle className="text-sm">
+              Lead Records
+              {selectedIds.size > 0 && (
+                <span className="ml-2 text-xs font-normal text-blue-400">{selectedIds.size} selected</span>
+              )}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-muted-foreground"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Clear
+                </Button>
+              )}
+              <Input
+                placeholder="Search name, phone, email…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-7 w-48 text-xs"
+              />
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {leadsQ.isLoading ? (
@@ -351,6 +452,12 @@ function LeadsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left text-[11px] uppercase tracking-wider text-muted-foreground">
+                      <th className="px-3 py-2 w-8">
+                        <Checkbox
+                          checked={selectedIds.size === filtered.length && filtered.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </th>
                       <th className="px-3 py-2">Name</th>
                       <th className="px-3 py-2">Phone</th>
                       <th className="px-3 py-2">Status</th>
@@ -366,8 +473,14 @@ function LeadsPage() {
                     {filtered.map((lead: any) => (
                       <tr
                         key={lead.id}
-                        className="border-b border-white/[0.04] align-top hover:bg-muted/30 transition-colors"
+                        className={`border-b border-white/[0.04] align-top hover:bg-muted/30 transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
                       >
+                        <td className="px-3 py-2">
+                          <Checkbox
+                            checked={selectedIds.has(lead.id)}
+                            onCheckedChange={() => toggleSelect(lead.id)}
+                          />
+                        </td>
                         <td className="px-3 py-2 font-medium whitespace-nowrap">
                           {lead.full_name ?? "—"}
                           {lead.company_name && (
@@ -474,6 +587,81 @@ function LeadsPage() {
           )}
         </div>
       )}
+
+      {/* Assign Qualification Agent Dialog */}
+      <Dialog open={qualDialogOpen} onOpenChange={setQualDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-blue-400" />
+              Assign Qualification Agent
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <p className="text-sm text-muted-foreground">
+              Start qualification calls for <span className="font-semibold text-foreground">{selectedIds.size}</span> selected lead{selectedIds.size !== 1 ? "s" : ""}.
+            </p>
+            {qualAgents.length === 0 ? (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-400">
+                No live Client Qualification agents found. Build and go-live with a qualification agent in the Builder first.
+              </div>
+            ) : (
+              <>
+                <div>
+                  <Label className="text-xs">Qualification Agent</Label>
+                  <Select value={qualAgentId} onValueChange={(v) => {
+                    setQualAgentId(v);
+                    const agent = qualAgents.find((a: any) => a.id === v);
+                    if (agent?.phoneNumber) setQualFromNumber(agent.phoneNumber);
+                  }}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select an agent…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {qualAgents.map((a: any) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name}
+                          {a.phoneNumber && <span className="ml-2 text-muted-foreground text-xs">{a.phoneNumber}</span>}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">From Number (optional override)</Label>
+                  <Input
+                    value={qualFromNumber}
+                    onChange={(e) => setQualFromNumber(e.target.value)}
+                    placeholder="+1 555 000 0000"
+                    className="mt-1 h-8 text-xs"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setQualDialogOpen(false)} disabled={qualRunning}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleStartQualification}
+              disabled={!qualAgentId || qualAgents.length === 0 || qualRunning}
+            >
+              {qualRunning ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  Starting…
+                </>
+              ) : (
+                <>
+                  <Phone className="mr-1 h-4 w-4" />
+                  Start {selectedIds.size} Call{selectedIds.size !== 1 ? "s" : ""}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* New Campaign Dialog */}
       <Dialog open={newCampaignOpen} onOpenChange={setNewCampaignOpen}>

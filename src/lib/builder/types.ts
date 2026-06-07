@@ -243,6 +243,25 @@ export interface BuilderSettings {
     trackDecisionMaker?: boolean;
     [key: string]: unknown;
   };
+  /**
+   * Client Qualification module config. Only used when agentType === "client_qualification".
+   */
+  qualify?: {
+    leadSource?: "data_section" | "leads_section";
+    trackBudget?: boolean;
+    trackDecisionMaker?: boolean;
+    trackUrgency?: boolean;
+    trackInterestLevel?: boolean;
+    trackFollowUp?: boolean;
+    trackBusinessSize?: boolean;
+    trackLocation?: boolean;
+    trackCurrentProvider?: boolean;
+    route_positive?: string;
+    route_neutral?: string;
+    route_negative?: string;
+    autoRoute?: boolean;
+    [key: string]: unknown;
+  };
 }
 
 export interface BuilderVariable {

@@ -8,6 +8,7 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
     z
       .object({
         search: z.string().optional(),
+        qualificationStatus: z.string().optional(),
         limit: z.number().int().min(1).max(500).default(200),
       })
       .parse(input ?? {}),
@@ -27,6 +28,8 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
       q = q.or(
         `full_name.ilike.%${data.search}%,phone.ilike.%${data.search}%,email.ilike.%${data.search}%`,
       );
+    if (data.qualificationStatus && data.qualificationStatus !== "all")
+      q = q.eq("qualification_status", data.qualificationStatus);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return rows ?? [];
@@ -68,4 +71,36 @@ export const listQualifiedRecords = createServerFn({ method: "GET" })
     if (recErr) throw new Error(recErr.message);
 
     return (records ?? []).filter((r: any) => phones.has(digits(r.mobile_number)));
+  });
+
+export const getQualificationStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: rows, error } = await sb
+      .from("leads")
+      .select("status, qualification_status, qualification_score, sentiment")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["interested", "qualified"]);
+    if (error) throw new Error(error.message);
+
+    const all = (rows ?? []) as any[];
+    const qualified = all.filter((r: any) => r.qualification_status === "qualified");
+    const partial = all.filter((r: any) => r.qualification_status === "partially_qualified");
+    const withScore = all.filter((r: any) => r.qualification_score != null);
+    const avgScore =
+      withScore.length > 0
+        ? Math.round(withScore.reduce((a: number, r: any) => a + r.qualification_score, 0) / withScore.length)
+        : null;
+
+    return {
+      total: all.length,
+      qualified: qualified.length,
+      partiallyQualified: partial.length,
+      avgScore,
+      qualificationRate: all.length > 0 ? Math.round((qualified.length / all.length) * 100) : 0,
+    };
   });

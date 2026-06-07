@@ -69,6 +69,7 @@ import { RetellDeployDialog } from "./RetellDeployDialog";
 import { PostCallDataSection } from "./PostCallDataSection";
 import { BookingConfigSection } from "./BookingConfigSection";
 import { LeadGenSection } from "./LeadGenSection";
+import { ClientQualificationSection } from "./ClientQualificationSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS } from "@/lib/builder/pricing";
@@ -689,9 +690,15 @@ export function Builder({
                   Lead Gen sections active ↓
                 </p>
               )}
+              {settings.agentType === "client_qualification" && (
+                <p className="text-[10px] text-blue-500 dark:text-blue-400">
+                  Client Qualification sections active ↓
+                </p>
+              )}
             </div>
 
             {settings.agentType === "lead_generation" && <LeadGenSection />}
+            {settings.agentType === "client_qualification" && <ClientQualificationSection />}
 
             <Collapsible className="rounded-lg border">
               <CollapsibleTrigger className="flex w-full items-center justify-between p-2 text-xs font-medium text-muted-foreground">

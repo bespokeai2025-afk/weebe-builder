@@ -1,6 +1,28 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+async function retellFetch<T>(
+  path: string,
+  body: Record<string, unknown>,
+  apiKey?: string,
+): Promise<T> {
+  const key = apiKey ?? process.env.RETELL_API_KEY ?? "";
+  const res = await fetch(`https://api.retellai.com${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Retell ${path} → ${res.status}: ${txt}`);
+  }
+  return res.json() as Promise<T>;
+}
 
 export const getOverviewStats = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -179,4 +201,119 @@ export const deleteLead = createServerFn({ method: "POST" })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const startQualificationCallsForLeads = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        leadIds: z.array(z.string().uuid()).min(1).max(200),
+        agentId: z.string().uuid(),
+        fromNumber: z.string().nullable().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId, userId } = context as any;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    // Load the selected leads
+    const { data: leads, error: leadsErr } = await sb
+      .from("leads")
+      .select("id, phone, full_name")
+      .eq("workspace_id", workspaceId)
+      .in("id", data.leadIds);
+    if (leadsErr) throw new Error(leadsErr.message);
+
+    // Load the qualification agent
+    const { data: agent, error: agentErr } = await sb
+      .from("agents")
+      .select("id, retell_agent_id, name, settings")
+      .eq("id", data.agentId)
+      .maybeSingle();
+    if (agentErr) throw new Error(agentErr.message);
+    if (!agent) throw new Error("Agent not found");
+
+    const agentSettings = (agent.settings ?? {}) as Record<string, unknown>;
+    const deployedRetellAgentId = (agentSettings.deployedRetellAgentId as string | undefined) ?? null;
+    const retellAgentId = deployedRetellAgentId ?? agent.retell_agent_id ?? null;
+
+    // Resolve Retell API key
+    const { data: wsSettings } = await sb
+      .from("workspace_settings")
+      .select("retell_workspace_id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    const clientRetellKey = (wsSettings as any)?.retell_workspace_id?.trim() || undefined;
+
+    let agentApiKey: string | undefined;
+    if (deployedRetellAgentId && userId) {
+      const { data: secret } = await (supabaseAdmin as any)
+        .from("agent_retell_secrets")
+        .select("production_api_key")
+        .eq("agent_id", data.agentId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      const k = secret?.production_api_key?.trim();
+      if (k?.startsWith("key_")) agentApiKey = k;
+    }
+    const resolvedKey = deployedRetellAgentId ? (clientRetellKey || agentApiKey) : undefined;
+
+    const fromNumber = data.fromNumber?.trim() || (agentSettings.phoneNumber as string | undefined) || null;
+
+    let placed = 0;
+    let queued = 0;
+    let failed = 0;
+    const errors: { leadId: string; message: string }[] = [];
+    const now = new Date().toISOString();
+
+    for (const lead of leads ?? []) {
+      if (!lead.phone?.trim()) {
+        failed += 1;
+        errors.push({ leadId: lead.id, message: "No phone number" });
+        continue;
+      }
+
+      if (!retellAgentId || !fromNumber) {
+        // Queue without placing — agent not fully configured
+        await sb.from("leads").update({ status: "need_to_call", updated_at: now }).eq("id", lead.id);
+        queued += 1;
+        continue;
+      }
+
+      try {
+        const callPayload: Record<string, unknown> = {
+          from_number: fromNumber,
+          to_number: lead.phone,
+          override_agent_id: retellAgentId,
+          metadata: { lead_id: lead.id, workspace_id: workspaceId },
+          retell_llm_dynamic_variables: {
+            full_name: lead.full_name ?? "",
+          },
+        };
+
+        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, resolvedKey);
+
+        await sb.from("leads").update({ status: "calling", updated_at: now }).eq("id", lead.id);
+        await sb.from("calls").insert({
+          workspace_id: workspaceId,
+          retell_call_id: call?.call_id ?? null,
+          agent_id: retellAgentId,
+          agent_name: agent.name ?? null,
+          from_number: fromNumber,
+          to_number: lead.phone,
+          call_type: "outbound",
+          call_status: "initiated",
+        });
+        placed += 1;
+      } catch (e: any) {
+        failed += 1;
+        errors.push({ leadId: lead.id, message: e?.message ?? "Retell call failed" });
+        await sb.from("leads").update({ status: "need_to_call", updated_at: now }).eq("id", lead.id);
+      }
+    }
+
+    return { placed, queued, failed, errors };
   });
