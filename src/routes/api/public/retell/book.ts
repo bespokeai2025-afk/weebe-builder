@@ -149,22 +149,19 @@ export const Route = createFileRoute("/api/public/retell/book")({
             timeZone: timezone,
           });
 
-          await supabaseAdmin.from("bookings").insert({
-            user_id: agentRow.user_id,
+          await supabaseAdmin.from("calendar_bookings").insert({
             workspace_id: wsId,
-            agent_id: agentRow.id,
-            calcom_booking_id: booking.id,
-            calcom_booking_uid: booking.uid,
-            event_type_id: eventTypeId,
+            external_id: booking.uid ?? String(booking.id),
+            source: "retell",
+            title: `Consultation with ${d.name}`,
             attendee_name: d.name,
             attendee_email: d.email,
             attendee_phone: d.phone ?? null,
             start_at: booking.startTime,
             end_at: booking.endTime,
             status: "confirmed",
-            retell_call_id: d.retell_call_id ?? null,
+            meeting_url: booking.meetingUrl ?? null,
             notes: d.notes ?? null,
-            raw: booking as unknown as never,
           });
 
           const displayTime = formatBookingTime(booking.startTime, timezone);

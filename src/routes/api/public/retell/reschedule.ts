@@ -56,9 +56,9 @@ export const Route = createFileRoute("/api/public/retell/reschedule")({
         const d = parsed.data;
 
         const { data: bookingRow } = await supabaseAdmin
-          .from("bookings")
-          .select("id, user_id, workspace_id, agent_id")
-          .eq("calcom_booking_uid", d.booking_id)
+          .from("calendar_bookings")
+          .select("id, workspace_id")
+          .eq("external_id", d.booking_id)
           .maybeSingle();
         if (!bookingRow) {
           return new Response(JSON.stringify({ error: "booking not found" }), {
@@ -91,12 +91,12 @@ export const Route = createFileRoute("/api/public/retell/reschedule")({
         try {
           const updated = await rescheduleBooking(apiKey, d.booking_id, d.new_start, d.reason);
           await supabaseAdmin
-            .from("bookings")
+            .from("calendar_bookings")
             .update({
               start_at: updated.startTime,
               end_at: updated.endTime,
               status: "confirmed",
-              calcom_booking_uid: updated.uid ?? d.booking_id,
+              external_id: updated.uid ?? d.booking_id,
             })
             .eq("id", bookingRow.id);
 

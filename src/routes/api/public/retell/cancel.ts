@@ -54,9 +54,9 @@ export const Route = createFileRoute("/api/public/retell/cancel")({
         }
 
         const { data: bookingRow } = await supabaseAdmin
-          .from("bookings")
-          .select("id, user_id, workspace_id, agent_id")
-          .eq("calcom_booking_uid", parsed.data.booking_id)
+          .from("calendar_bookings")
+          .select("id, workspace_id")
+          .eq("external_id", parsed.data.booking_id)
           .maybeSingle();
         if (!bookingRow) {
           return new Response(JSON.stringify({ error: "booking not found" }), {
@@ -89,7 +89,7 @@ export const Route = createFileRoute("/api/public/retell/cancel")({
         try {
           await cancelBooking(apiKey, parsed.data.booking_id, parsed.data.reason);
           await supabaseAdmin
-            .from("bookings")
+            .from("calendar_bookings")
             .update({ status: "cancelled" })
             .eq("id", bookingRow.id);
           return new Response(JSON.stringify({ ok: true }), {
