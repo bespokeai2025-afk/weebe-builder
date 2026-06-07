@@ -1,0 +1,37 @@
+# Install:
+#   sudo cp deploy/webespoke.service /etc/systemd/system/webespoke.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now webespoke
+#
+# Adjust User, Group, WorkingDirectory, and EnvironmentFile for your host.
+
+[Unit]
+Description=Webespoke AI Builder (TanStack Start)
+Documentation=https://github.com/your-org/webespoke
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/html/webespoke
+Environment=NODE_ENV=production
+EnvironmentFile=/var/www/html/webespoke/.env
+ExecStart=/var/www/html/webespoke/node_modules/.bin/srvx serve --prod --entry dist/server/server.js --static dist/client --host 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+# Hardening (adjust if your app needs broader filesystem access)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/html/webespoke
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,89 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Verify production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ed225e2b7595cf9aa897e8c42cd19c353ca # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
+          VITE_PAYMENTS_CLIENT_TOKEN: pk_test_placeholder
+
+  deploy:
+    name: Deploy to EC2
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
+
+      - name: Configure SSH
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${EC2_HOST}" || -z "${EC2_SSH_KEY}" ]]; then
+            echo "Missing required secrets: EC2_HOST and EC2_SSH_KEY" >&2
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${EC2_SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${EC2_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Run remote deploy
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_PORT: ${{ secrets.EC2_SSH_PORT }}
+          EC2_DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          EC2_USER="${EC2_USER:-deploy}"
+          EC2_SSH_PORT="${EC2_SSH_PORT:-22}"
+          EC2_DEPLOY_PATH="${EC2_DEPLOY_PATH:-/var/www/html/webespoke}"
+
+          ssh -i ~/.ssh/deploy_key -p "${EC2_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "${EC2_USER}@${EC2_HOST}" \
+            "DEPLOY_PATH='${EC2_DEPLOY_PATH}' GIT_SHA='${GIT_SHA}' bash -s" < scripts/deploy-remote.sh
+
+      - name: Remove deploy key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
