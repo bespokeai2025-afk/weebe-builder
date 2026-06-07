@@ -21,3 +21,18 @@ www.webespokeaibuilder.com are **live database rows**, so a code upload can't ca
 them. To import them, get a data export of that table (or read access to the old
 Supabase project) and insert into this app's `agent_templates` table
 (scope/owner_user_id/name/description/flow_data/settings/variables).
+
+**What worked for the template migration:** ask the source app to export the rows as
+raw JSON (paste/attach a file), then upsert into this app's Supabase with a small
+node script using `@supabase/supabase-js` + `VITE_SUPABASE_URL` +
+`SUPABASE_SERVICE_ROLE_KEY`, `onConflict: "id"`, forcing `scope:"global",
+owner_user_id:null`. Keeping source UUIDs makes re-imports idempotent.
+
+**Don't rely on a Lovable "public API" for cross-app data.** Its `/api/public/*`
+routes are page routes, not server routes, so they return the SPA shell for
+HTML/`*/*` requests and `{"error":"Only HTML requests are supported here"}` (500)
+for `Accept: application/json`. That error == a page route receiving a non-HTML
+request. A JSON export is far more reliable than trying to consume that endpoint.
+
+**Note:** the exported flow_data/settings embed the user's real Cal.com/Retell
+keys — it's their own data going into their own app, fine to import as-is.
