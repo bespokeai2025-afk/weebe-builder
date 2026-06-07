@@ -404,23 +404,47 @@ export async function processRetellWebhook(
     return { ok: true, status: 200, message: "ok" };
   }
 
-  const apiKey = process.env.RETELL_API_KEY;
+  const platformKey = process.env.RETELL_API_KEY;
   let signatureValid: boolean | null = null;
   if (!options.skipSignature && !RETELL_SIGNATURE_VERIFICATION_DISABLED) {
-    if (!apiKey) {
-      console.error("[RETELL WEBHOOK] RETELL_API_KEY is not configured");
-      return { ok: false, status: 500, message: "RETELL_API_KEY not configured" };
+    const sigHeader = headers.get("x-retell-signature");
+
+    // Try platform key first, then fall back to each workspace's own Retell key.
+    // Go Live agents live in the workspace's own Retell account so webhooks are
+    // signed with workspace_settings.retell_workspace_id, not the platform key.
+    let sigResult = platformKey
+      ? verifyRetellSignature(rawBody, sigHeader, platformKey)
+      : { valid: false, reason: "RETELL_API_KEY not configured", mode: "none" };
+
+    if (!sigResult.valid) {
+      // Fetch all per-workspace keys and try each one.
+      try {
+        const { data: wsRows } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("retell_workspace_id");
+        for (const ws of wsRows ?? []) {
+          const wsKey = (ws as any)?.retell_workspace_id?.trim();
+          if (!wsKey) continue;
+          const wsResult = verifyRetellSignature(rawBody, sigHeader, wsKey);
+          if (wsResult.valid) {
+            sigResult = wsResult;
+            break;
+          }
+        }
+      } catch (e) {
+        console.warn("[RETELL WEBHOOK] Workspace key lookup failed", e);
+      }
     }
-    const signature = verifyRetellSignature(rawBody, headers.get("x-retell-signature"), apiKey);
-    signatureValid = signature.valid;
-    console.log("[RETELL WEBHOOK] Signature validation result", signature);
-    if (!signature.valid) {
+
+    signatureValid = sigResult.valid;
+    console.log("[RETELL WEBHOOK] Signature validation result", sigResult);
+    if (!sigResult.valid) {
       await recordWebhookEvent({
         eventType: "signature_failed",
         signatureValid: false,
         status: "rejected",
         payload: { rawBody: truncate(rawBody), headers: headersForLog(headers) },
-        error: signature.reason,
+        error: sigResult.reason,
       });
       return { ok: false, status: 403, message: "Invalid signature", signatureValid: false };
     }
