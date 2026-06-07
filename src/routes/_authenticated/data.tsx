@@ -308,6 +308,12 @@ function DataPage() {
     reader.readAsText(file);
   }
 
+  function normalisePhone(raw: string): string {
+    let s = raw.replace(/[\s.\-()]/g, "");
+    if (s.startsWith("00")) s = "+" + s.slice(2);
+    return s;
+  }
+
   async function handleImportMapped(
     mapping: Record<string, string>,
     rows: Record<string, string>[],
@@ -319,8 +325,10 @@ function DataPage() {
         const meta: Record<string, string> = {};
         for (const [csvCol, sysField] of Object.entries(mapping)) {
           if (!sysField) continue;
-          if (sysField === "__custom__") {
-            if (r[csvCol]) meta[csvCol] = r[csvCol];
+          if (sysField === "__custom__" || sysField === "notes") {
+            if (r[csvCol]) meta[sysField === "notes" ? "notes" : csvCol] = r[csvCol];
+          } else if (sysField === "mobile_number") {
+            out[sysField] = r[csvCol] ? normalisePhone(r[csvCol]) : null;
           } else {
             out[sysField] = r[csvCol] || null;
           }
@@ -342,7 +350,6 @@ function DataPage() {
           state: (out.state as string | null) ?? null,
           postal_code: (out.postal_code as string | null) ?? null,
           lead_external_id: (out.lead_external_id as string | null) ?? null,
-          notes: (out.notes as string | null) ?? null,
           ...(Object.keys(meta).length > 0 ? { meta } : {}),
         };
       });
@@ -883,7 +890,7 @@ function CsvMappingDialog({
                       {previewRows.map((row, i) => (
                         <tr key={i} className="border-b border-border/40">
                           {mappedPreviewCols.map((h) => (
-                            <td key={h} className="max-w-[160px] truncate px-3 py-1.5" title={row[h]}>
+                            <td key={h} className="whitespace-nowrap px-3 py-1.5" title={row[h]}>
                               {row[h] || <span className="text-muted-foreground/50">—</span>}
                             </td>
                           ))}
