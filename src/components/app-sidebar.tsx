@@ -49,6 +49,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Agents", url: "/my-agents", icon: LayoutGrid },
   // { title: "Builder", url: "/builder", icon: Workflow },
   { title: "Templates", url: "/templates", icon: LayoutTemplate },
@@ -58,7 +59,6 @@ const navItems = [
   { title: "Calls", url: "/calls", icon: PhoneCall },
   { title: "Calendar", url: "/calendar", icon: CalendarDays },
   { title: "WhatsApp", url: "/whatsapp", icon: MessageSquare },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Billing", url: "/billing", icon: CreditCard },
 ];
 
