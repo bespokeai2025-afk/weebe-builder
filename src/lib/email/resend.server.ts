@@ -65,6 +65,18 @@ export async function sendResendEmail(params: SendEmailParams): Promise<SendEmai
 }
 
 /**
+ * Escape user-controlled text before interpolating it into HTML email content.
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * Wrap body content in a simple, branded HTML shell.
  */
 export function renderBasicEmail(opts: { heading: string; bodyHtml: string }): string {
