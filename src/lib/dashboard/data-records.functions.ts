@@ -206,13 +206,15 @@ export const startCallingRecords = createServerFn({ method: "POST" })
     for (const r of records ?? []) {
       const useAgentId = (data.agentId ?? r.assigned_agent_id) as string | null;
       const agent = useAgentId ? agentsById[useAgentId] : null;
-      // Prefer the deployed agent ID stored in settings (Go Live clone),
-      // fall back to the row's retell_agent_id for backwards compat.
+      // Resolve the correct Retell agent ID + API key pair.
+      // - deployedRetellAgentId → agent lives in client's Retell workspace → use clientRetellKey
+      // - retell_agent_id only  → agent lives in the platform workspace   → use platform key
       const agentSettings = (agent as any)?.settings as Record<string, unknown> | null;
-      const retellAgentId =
-        (agentSettings?.deployedRetellAgentId as string | undefined) ??
-        agent?.retell_agent_id ??
-        null;
+      const deployedRetellAgentId =
+        (agentSettings?.deployedRetellAgentId as string | undefined) ?? null;
+      const retellAgentId = deployedRetellAgentId ?? agent?.retell_agent_id ?? null;
+      // Only use the per-client key when the agent has actually been cloned to that workspace.
+      const retellApiKey = deployedRetellAgentId ? clientRetellKey : undefined;
 
       // Enforce max daily call attempts from campaign schedule settings
       if (maxDailyAttempts != null && maxDailyAttempts > 0) {
@@ -274,7 +276,7 @@ export const startCallingRecords = createServerFn({ method: "POST" })
           callPayload.retell_llm_dynamic_variables = retellDynamicVars;
         }
 
-        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", clientRetellKey);
+        const call = await retellFetch<any>("/v2/create-phone-call", callPayload, "POST", retellApiKey);
 
         // Increment daily attempt counter in meta
         const currentMeta = (r.meta ?? {}) as Record<string, unknown>;
