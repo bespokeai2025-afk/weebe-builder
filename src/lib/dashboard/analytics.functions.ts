@@ -69,30 +69,30 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       })
       .parse(input ?? {}),
   )
-  // @ts-expect-error — deep generic inference limit (same pattern as auth.functions.ts)
+  // @ts-expect-error — deep generic inference limit
   .handler(async ({ context, data }: any) => {
     const { supabase } = context;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const { data: deps, error: depErr } = await sb
-      .from("deployments")
-      .select("provider_agent_id, agent_id")
+    // Prefer the workspace's own Retell API key (Go Live agents live there).
+    // Fall back to the platform key for builder/test agents.
+    const { data: wsSettings } = await sb
+      .from("workspace_settings")
+      .select("retell_workspace_id")
       .eq("workspace_id", workspaceId)
-      .eq("provider", "retell");
-    if (depErr) throw new Error(depErr.message);
-    const agentIds = Array.from(
-      new Set((deps ?? []).map((d: any) => d.provider_agent_id).filter(Boolean)),
-    );
+      .maybeSingle();
+    const workspaceRetellKey = (wsSettings?.retell_workspace_id as string | undefined)?.trim() || undefined;
 
-    if (agentIds.length === 0) {
+    const apiKey = workspaceRetellKey || process.env.RETELL_API_KEY;
+    if (!apiKey) {
       return {
         configured: false,
-        agentIds,
+        agentIds: [] as string[],
         calls: [] as any[],
         agentNames: {} as Record<string, string>,
-        error: null as string | null,
+        error: "No Retell API key configured",
       };
     }
 
@@ -100,16 +100,32 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     let calls: any[] = [];
     let error: string | null = null;
     let agentNames: Record<string, string> = {};
+    let agentIds: string[] = [];
 
+    // Fetch agent list using the workspace key so we get all their agents
     try {
-      const agentList = await retellFetch<any[]>("/list-agents", null, "GET");
+      const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey);
       for (const a of agentList ?? []) {
-        if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
+        if (a.agent_id) {
+          agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
+          agentIds.push(a.agent_id);
+        }
       }
-    } catch {
-      // agent names are best-effort; fall back to IDs
+    } catch (e: any) {
+      console.error("Retell list-agents failed:", e);
     }
 
+    if (agentIds.length === 0) {
+      return {
+        configured: false,
+        agentIds,
+        calls,
+        agentNames,
+        error: error ?? "No agents found in this Retell workspace",
+      };
+    }
+
+    // Fetch calls for all workspace agents
     try {
       const res = await retellFetch<any>(
         "/v2/list-calls",
@@ -122,6 +138,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
           sort_order: "descending",
         },
         "POST",
+        apiKey,
       );
       calls = Array.isArray(res) ? res : (res?.calls ?? []);
     } catch (e: any) {

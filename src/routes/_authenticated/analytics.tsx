@@ -25,6 +25,7 @@ import {
   XCircle,
   AlertTriangle,
   ChevronDown,
+  Timer,
 } from "lucide-react";
 import {
   PageHeader,
@@ -88,8 +89,10 @@ function fmtDuration(seconds: number) {
   return `${s}s`;
 }
 
-function fmtMoney(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
+function fmtMinutes(seconds: number) {
+  if (!seconds || !isFinite(seconds)) return "0m";
+  const m = Math.round(seconds / 60);
+  return `${m}m`;
 }
 
 function fmtMs(ms?: number | null) {
@@ -111,10 +114,9 @@ function computeAnalytics(calls: any[]) {
   const byStatus: Record<string, number> = {};
   const byDisconnect: Record<string, number> = {};
   const bySentiment: Record<string, number> = { Positive: 0, Neutral: 0, Negative: 0, Unknown: 0 };
-  const byAgent: Record<string, { count: number; durationSec: number; costCents: number }> = {};
+  const byAgent: Record<string, { count: number; durationSec: number }> = {};
   const byDay: Record<string, number> = {};
   let totalDurationSec = 0;
-  let totalCostCents = 0;
   let successCount = 0;
   let unsuccessCount = 0;
   let voicemailCount = 0;
@@ -139,18 +141,14 @@ function computeAnalytics(calls: any[]) {
           : 0);
     totalDurationSec += durSec;
 
-    const costCents = c.call_cost?.combined_cost ?? c.combined_cost ?? 0;
-    totalCostCents += costCents;
-
     if (c.call_analysis?.call_successful === true) successCount += 1;
     else if (c.call_analysis?.call_successful === false) unsuccessCount += 1;
     if (c.call_analysis?.in_voicemail) voicemailCount += 1;
 
     const aid = c.agent_id ?? "unknown";
-    const agg = byAgent[aid] ?? { count: 0, durationSec: 0, costCents: 0 };
+    const agg = byAgent[aid] ?? { count: 0, durationSec: 0 };
     agg.count += 1;
     agg.durationSec += durSec;
-    agg.costCents += costCents;
     byAgent[aid] = agg;
 
     if (c.start_timestamp) {
@@ -177,9 +175,8 @@ function computeAnalytics(calls: any[]) {
     byAgent,
     byDay,
     totalDurationSec,
-    totalCostCents,
+    totalMinutes: Math.round(totalDurationSec / 60),
     avgDuration: total ? totalDurationSec / total : 0,
-    avgCost: total ? totalCostCents / total : 0,
     successCount,
     unsuccessCount,
     voicemailCount,
@@ -327,14 +324,14 @@ function AnalyticsPage() {
 
           <div className="grid grid-cols-2 gap-4 px-8 pt-6 md:grid-cols-4">
             <StatCard label="Total calls" tone="primary" value={analytics.total} />
-            <StatCard label="Total talk time" tone="info" value={fmtDuration(analytics.totalDurationSec)} />
-            <StatCard label="Total cost" tone="warning" value={fmtMoney(analytics.totalCostCents)} />
+            <StatCard label="Minutes used" tone="info" value={`${analytics.totalMinutes}m`} />
+            <StatCard label="Avg duration" tone="info" value={fmtDuration(analytics.avgDuration)} />
             <StatCard label="Success rate" tone="success" value={`${analytics.successRate.toFixed(1)}%`} />
           </div>
 
           <div className="grid grid-cols-2 gap-4 px-8 pt-4 md:grid-cols-4">
-            <StatCard label="Avg duration" tone="info" value={fmtDuration(analytics.avgDuration)} />
-            <StatCard label="Avg cost / call" tone="warning" value={fmtMoney(analytics.avgCost)} />
+            <StatCard label="Inbound" tone="primary" value={analytics.inbound} />
+            <StatCard label="Outbound" tone="info" value={analytics.outbound} />
             <StatCard label="Voicemails" tone="danger" value={analytics.voicemailCount} />
             <StatCard label="Unsuccessful" tone="danger" value={analytics.unsuccessCount} />
           </div>
@@ -475,7 +472,7 @@ function AnalyticsPage() {
                           <th className="px-3 py-2">Agent</th>
                           <th className="px-3 py-2">Calls</th>
                           <th className="px-3 py-2">Talk time</th>
-                          <th className="px-3 py-2">Cost</th>
+                          <th className="px-3 py-2">Minutes</th>
                           <th className="px-3 py-2"></th>
                         </tr>
                       </thead>
@@ -491,7 +488,7 @@ function AnalyticsPage() {
                               </td>
                               <td className="px-3 py-2 tabular-nums">{v.count}</td>
                               <td className="px-3 py-2 tabular-nums">{fmtDuration(v.durationSec)}</td>
-                              <td className="px-3 py-2 tabular-nums">{fmtMoney(v.costCents)}</td>
+                              <td className="px-3 py-2 tabular-nums">{fmtMinutes(v.durationSec)}</td>
                               <td className="px-3 py-2">
                                 <button
                                   onClick={() => setSelectedAgentId(id)}
