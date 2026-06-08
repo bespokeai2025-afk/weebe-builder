@@ -66,6 +66,7 @@ import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
 import { RetellDeployDialog } from "./RetellDeployDialog";
 import { VoiceCopilotButton } from "./VoiceCopilot";
+import { PlatformGuideDrawer } from "./PlatformGuideDrawer";
 import { PostCallDataSection } from "./PostCallDataSection";
 import { BookingConfigSection } from "./BookingConfigSection";
 import { LeadGenSection } from "./LeadGenSection";
@@ -299,6 +300,7 @@ export function Builder({
   const [tab, setTab] = useState<"node" | "components">("node");
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -499,7 +501,9 @@ export function Builder({
 
           {/* Voice Copilot — own small capsule */}
           <div className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5">
-            <VoiceCopilotButton />
+            <VoiceCopilotButton
+              onModeChange={(m) => setGuideOpen(m === "PLATFORM_HELP")}
+            />
           </div>
 
           {/* Separator */}
@@ -1305,6 +1309,9 @@ export function Builder({
             </Collapsible>
           </aside>
         )}
+
+        {/* Platform Guide Drawer — 4th flex column, pushes canvas on open */}
+        <PlatformGuideDrawer open={guideOpen} onClose={() => setGuideOpen(false)} />
       </div>
 
       <NodeEditorDialog />

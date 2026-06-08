@@ -416,7 +416,11 @@ const CHEAT_SECTIONS = [
   },
 ];
 
-export function VoiceCopilotButton() {
+export function VoiceCopilotButton({
+  onModeChange,
+}: {
+  onModeChange?: (mode: "MICRO" | "MACRO" | "PLATFORM_HELP") => void;
+} = {}) {
   const [state, setState]             = useState<CopilotState>("idle");
   const [copilotMode, setCopilotMode] = useState<"MICRO" | "MACRO" | "PLATFORM_HELP">("MICRO");
   const [sessionCost, setSessionCost] = useState(0);
@@ -459,7 +463,8 @@ export function VoiceCopilotButton() {
   const updateMode = useCallback((m: "MICRO" | "MACRO" | "PLATFORM_HELP") => {
     modeRef.current = m;
     setCopilotMode(m);
-  }, []);
+    onModeChange?.(m);
+  }, [onModeChange]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state !== "inactive") mediaRecorderRef.current?.stop();
