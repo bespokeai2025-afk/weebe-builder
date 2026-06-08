@@ -345,8 +345,10 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 export function VoiceCopilotButton() {
-  const [state, setState]           = useState<CopilotState>("idle");
+  const [state, setState]             = useState<CopilotState>("idle");
   const [copilotMode, setCopilotMode] = useState<"MICRO" | "MACRO">("MICRO");
+  const [sessionCost, setSessionCost] = useState(0);
+  const [lastCost, setLastCost]       = useState<number | null>(null);
   // Use a ref so processAudio always reads the current mode without stale closure
   const modeRef = useRef<"MICRO" | "MACRO">("MICRO");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -405,7 +407,20 @@ export function VoiceCopilotButton() {
         commands?: VoiceCommand[];
         mode?: string | null;
         error?: string;
+        usage?: {
+          promptTokens: number;
+          completionTokens: number;
+          whisperSeconds: number;
+          rawCostUsd: number;
+          clientCostUsd: number;
+        } | null;
       };
+
+      // Accumulate session cost immediately (even if commands fail later)
+      if (data.usage) {
+        setSessionCost((prev) => prev + data.usage!.clientCostUsd);
+        setLastCost(data.usage.clientCostUsd);
+      }
 
       if (!data.ok || !data.commands) {
         toast.error(data.error ?? "Voice copilot failed. Please try again.");
@@ -588,6 +603,23 @@ export function VoiceCopilotButton() {
               ✕
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── Session cost counter (shows after first request) ── */}
+      {sessionCost > 0 && (
+        <div
+          title={`Last request: $${lastCost?.toFixed(4)} • Session total (incl. webespokeai margin): $${sessionCost.toFixed(4)}`}
+          className={cn(
+            "absolute left-full ml-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono cursor-default select-none",
+            isMacro
+              ? "bg-yellow-400/10 text-yellow-300 border border-yellow-400/20"
+              : "bg-white/[0.04] text-muted-foreground/60 border border-white/[0.06]",
+          )}
+          style={{ whiteSpace: "nowrap" }}
+        >
+          <span className="opacity-50">$</span>
+          <span>{sessionCost.toFixed(4)}</span>
         </div>
       )}
 

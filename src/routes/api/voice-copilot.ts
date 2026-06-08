@@ -218,6 +218,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
         // ── 4. Parse commands via GPT-4o ──────────────────────────────────────
         let commands: unknown[] = [];
         let responseMode: string | undefined;
+        let voiceUsage: import("../../lib/builder/pricing").VoiceCopilotUsage | null = null;
         try {
           const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
@@ -238,14 +239,35 @@ export const Route = createFileRoute("/api/voice-copilot")({
             console.error("[VoiceCopilot] GPT error:", await gptRes.text());
             return json({ ok: false, error: "Command parsing failed" }, 502);
           }
-          const raw =
-            ((await gptRes.json() as { choices?: { message?: { content?: string } }[] })
-              .choices?.[0]?.message?.content) ?? "{}";
+          type GptResponse = {
+            choices?: { message?: { content?: string } }[];
+            usage?: { prompt_tokens?: number; completion_tokens?: number };
+          };
+          const gptBody = await gptRes.json() as GptResponse;
+          const raw = gptBody.choices?.[0]?.message?.content ?? "{}";
+          const gptUsage = gptBody.usage ?? {};
           const parsed = JSON.parse(raw) as { thought?: string; mode?: string; commands?: unknown[] };
           if (parsed.thought) console.log("[VoiceCopilot] CoT:", parsed.thought);
           if (parsed.mode)    console.log("[VoiceCopilot] Mode:", parsed.mode);
           commands     = parsed.commands ?? [];
           responseMode = parsed.mode;
+
+          // ── Cost accounting ─────────────────────────────────────────────────
+          // Whisper: estimate audio duration from base64 size.
+          // WebM/Opus at ~16kbps mono → bytes/2000 ≈ seconds (conservative).
+          const { calcVoiceCopilotCost } = await import("../../lib/builder/pricing");
+          const whisperSecs = Math.max(1, Math.ceil((audio.length * 0.75) / 2000));
+          voiceUsage = calcVoiceCopilotCost(
+            gptUsage.prompt_tokens     ?? 0,
+            gptUsage.completion_tokens ?? 0,
+            whisperSecs,
+          );
+          console.log(
+            `[VoiceCopilot] cost raw=$${voiceUsage.rawCostUsd.toFixed(5)} ` +
+            `client=$${voiceUsage.clientCostUsd.toFixed(5)} ` +
+            `tokens=${voiceUsage.promptTokens}+${voiceUsage.completionTokens} ` +
+            `whisper~${whisperSecs}s`,
+          );
         } catch (e) {
           console.error("[VoiceCopilot] GPT parse error:", e);
           return json({ ok: false, error: "Command parsing failed" }, 502);
@@ -260,7 +282,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
           return true;
         });
 
-        return json({ ok: true, transcript, commands: safe, mode: responseMode ?? null });
+        return json({ ok: true, transcript, commands: safe, mode: responseMode ?? null, usage: voiceUsage ?? null });
       },
     },
   },

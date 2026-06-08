@@ -3,6 +3,44 @@
 // cost. Customer-facing pricing lives elsewhere.
 export const BUILDER_LLM_MARKUP_PER_MIN = 0.15;
 
+// ── Voice Copilot API cost rates (OpenAI, USD) ──────────────────────────────
+// GPT-4o as of 2025: $2.50/1M input tokens, $10.00/1M output tokens.
+// Whisper: $0.006/min of audio.
+export const VC_GPT4O_INPUT_PER_TOKEN  = 2.50 / 1_000_000;
+export const VC_GPT4O_OUTPUT_PER_TOKEN = 10.00 / 1_000_000;
+export const VC_WHISPER_PER_SECOND     = 0.006 / 60;
+
+// Webespokeai profit margin on voice copilot usage.
+// Raw cost × this multiplier = client-facing price.
+// 2.5 = 150% gross margin (we pay $0.01, we charge $0.025).
+export const VC_WEBESPOKEAI_MARKUP_MULTIPLIER = 2.5;
+
+export interface VoiceCopilotUsage {
+  promptTokens:     number;
+  completionTokens: number;
+  whisperSeconds:   number;
+  rawCostUsd:       number;
+  clientCostUsd:    number;
+}
+
+export function calcVoiceCopilotCost(
+  promptTokens: number,
+  completionTokens: number,
+  whisperSeconds: number,
+): VoiceCopilotUsage {
+  const rawCostUsd =
+    promptTokens     * VC_GPT4O_INPUT_PER_TOKEN +
+    completionTokens * VC_GPT4O_OUTPUT_PER_TOKEN +
+    whisperSeconds   * VC_WHISPER_PER_SECOND;
+  return {
+    promptTokens,
+    completionTokens,
+    whisperSeconds,
+    rawCostUsd,
+    clientCostUsd: rawCostUsd * VC_WEBESPOKEAI_MARKUP_MULTIPLIER,
+  };
+}
+
 // Non-LLM infra per minute (voice engine + telephony + overhead). Picked so
 // GPT-4.1 totals to $0.36/min, matching the historical flat cost meter.
 export const BUILDER_INFRA_PER_MIN = 0.165;

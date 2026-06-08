@@ -1,0 +1,29 @@
+Title: Feature Request - Voice Copilot Onboarding & Command Tooltips
+
+Please implement a lightweight onboarding and command-hinting system so users know exactly what phrasing to use to control the copilot and switch modes.
+
+### 1. The Floating Contextual Hint Text
+* **Dynamic Typing Placeholder:** Directly underneath or next to the microphone recording container, add a small, muted, cycling hint label (e.g., `text-xs font-medium text-slate-500`).
+* **Rotating Examples:** When idle, this text should gently fade and cycle through 3-second intervals showing example phrases:
+    * *Hint 1:* Try saying: "Switch to Webee Build"
+    * *Hint 2:* Try saying: "Delete the conversation node"
+    * *Hint 3:* Try saying: "Connect Intro to Check Availability"
+
+---
+
+### 2. Mic Hover Tooltip Card
+* **Interactive Tooltip:** When a user hovers their mouse cursor over the Microphone button for more than 500ms, reveal a sleek, floating dark drop-shadow card (`bg-slate-900 border border-slate-800 rounded-xl p-3`).
+* **Content Structure:** Inside the tooltip, display a highly readable mini-guide:
+    * **Header:** `🎙️ Voice Controls` (Bold off-white)
+    * **Body:** "Click to speak commands for single actions. To build entire layouts at once, use the phrase below:"
+    * **Highlight Box:** Wrap `"Switch to Webee Build"` in a subtle golden-yellow outline capsule box to make it instantly recognizable as the primary macro activation phrase.
+
+---
+
+### 3. Slide-Out Voice Help Cheat Sheet Panel
+* **Help Icon Integration:** Place a tiny, minimal question mark or info icon bubble `( ? )` directly inside or adjacent to the voice control widget.
+* **The Command Sheet Drawer:** Clicking this icon should trigger a smooth side-drawer animation or an elegant modal displaying a structured index of all supported vocal commands:
+    * **Section 1: App Modes** — Showcases the switch triggers (*"Switch to Webee Build"* / *"Switch back to normal mode"*).
+    * **Section 2: Node Creation** — Shows examples like *"Add a logic split node"* or *"Create a code block"*.
+    * **Section 3: Canvas Tweaks** — Shows examples like *"Delete wire"* or *"Rename this node to..."*.
+* **Close Action:** Clicking anywhere outside the sheet or hitting `ESC` closes the drawer instantly, returning the user straight back to their work canvas.
