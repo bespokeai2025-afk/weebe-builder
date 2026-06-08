@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarCheck, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { CalendarCheck, ChevronLeft, ChevronRight, ExternalLink, CalendarDays, Clock, CheckCircle2, RefreshCw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { listCalendarBookings } from "@/lib/dashboard/bookings.functions";
+import { PageHeader, KpiCard } from "@/components/dashboard/PageShell";
 
 export const Route = createFileRoute("/_authenticated/calendar")({
   head: () => ({ meta: [{ title: "Calendar" }] }),

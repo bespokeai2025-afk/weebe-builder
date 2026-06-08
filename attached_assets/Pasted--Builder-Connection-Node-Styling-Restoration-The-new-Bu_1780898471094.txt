@@ -1,0 +1,151 @@
+## Builder Connection & Node Styling Restoration
+
+The new Builder redesign has improved layout and spacing, but the workflow connections and node styling have regressed significantly compared to the original WEBEE Builder.
+
+I want the workflow canvas to inherit the visual language of the original builder.
+
+### Priority: Restore Original Connection Lines
+
+The current connection lines feel thin, flat, generic and difficult to visually follow.
+
+Restore the connection system from the original WEBEE Builder.
+
+Requirements:
+
+* Match the original connector line thickness.
+* Match the original connector curvature.
+* Match the original connector routing style.
+* Match the original spacing between nodes and connections.
+* Match the original visual weight.
+
+The goal is for the workflow to feel instantly readable from a distance.
+
+Do not use generic React Flow defaults.
+
+---
+
+### Restore Connection Glow Effects
+
+The original builder had much better visual depth.
+
+Restore:
+
+* Soft blue connection glow.
+* Connection hover glow.
+* Selected connection glow.
+* Active path glow.
+* Animated flow effect where appropriate.
+
+Connection lines should feel alive and premium.
+
+Avoid harsh neon effects.
+
+Glow should be subtle but visible.
+
+Think:
+
+* Linear
+* Vapi
+* Retool
+* High-end AI workflow builders
+
+---
+
+### Restore Original Node Dimensions
+
+The new nodes feel undersized and compressed.
+
+Use the original WEBEE Builder as the source of truth.
+
+Restore:
+
+* Original node width.
+* Original node height.
+* Original header sizing.
+* Original spacing.
+* Original padding.
+* Original proportions.
+
+Nodes should feel substantial and easy to scan.
+
+Avoid making nodes look like small cards floating on the canvas.
+
+---
+
+### Restore Original Node Shape
+
+The original node shape felt more premium.
+
+Match:
+
+* Corner radius.
+* Border treatment.
+* Header proportions.
+* Overall silhouette.
+
+Preserve modern styling while keeping the original shape language.
+
+---
+
+### Restore Original Node Glow
+
+The previous builder had much better visual hierarchy.
+
+Bring back:
+
+* Subtle outer glow.
+* Hover glow.
+* Selected glow.
+* Active node glow.
+* Node elevation.
+
+Nodes should feel layered above the canvas.
+
+The new design feels too flat.
+
+---
+
+### Restore Original Workflow Density
+
+The original builder had a better balance between:
+
+* Node size
+* Canvas spacing
+* Connection spacing
+* Readability
+
+The redesign should not compress the workflow.
+
+Requirements:
+
+* Increase node spacing where needed.
+* Maintain readable connection routing.
+* Avoid crowded layouts.
+* Preserve visual flow from left to right.
+
+Users should be able to understand a workflow at a glance.
+
+---
+
+### Builder Visual Goal
+
+The workflow canvas should feel:
+
+* Premium
+* Technical
+* AI-native
+* High-end SaaS
+* Visually alive
+
+It should not feel like a standard React Flow implementation.
+
+The original WEBEE Builder's workflow aesthetics should be treated as the benchmark for:
+
+* Connector styling
+* Glow effects
+* Node sizing
+* Node proportions
+* Node spacing
+* Workflow readability
+
+Keep the cleaner overall layout of the redesign, but restore the original WEBEE workflow visual language.

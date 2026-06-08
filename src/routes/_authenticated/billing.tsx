@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ExternalLink, Receipt, Sparkles, Loader2 } from "lucide-react";
+import { ExternalLink, Receipt, Sparkles, Loader2, CreditCard } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { PaymentTestModeBanner } from "@/components/billing/PaymentTestModeBanne
 import { PricingCards } from "@/components/billing/PricingCards";
 import { UsageCards } from "@/components/billing/UsageCards";
 import { StripeEmbeddedCheckout } from "@/components/billing/StripeEmbeddedCheckout";
+import { PageHeader } from "@/components/dashboard/PageShell";
 
 export const Route = createFileRoute("/_authenticated/billing")({
   validateSearch: (search: Record<string, unknown>) => ({

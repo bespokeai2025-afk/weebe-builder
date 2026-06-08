@@ -33,6 +33,8 @@ import {
   PanelCard,
   StatCard,
   EmptyState,
+  TableHead,
+  Th,
 } from "@/components/dashboard/PageShell";
 import { Button } from "@/components/ui/button";
 import { getRetellAnalytics } from "@/lib/dashboard/analytics.functions";
@@ -474,29 +476,27 @@ function AnalyticsPage() {
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-white/[0.06] text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                          <th className="px-3 py-2">Agent</th>
-                          <th className="px-3 py-2">Calls</th>
-                          <th className="px-3 py-2">Talk time</th>
-                          <th className="px-3 py-2">Minutes</th>
-                          <th className="px-3 py-2"></th>
-                        </tr>
-                      </thead>
+                      <TableHead>
+                        <Th>Agent</Th>
+                        <Th>Calls</Th>
+                        <Th>Talk time</Th>
+                        <Th>Minutes</Th>
+                        <Th />
+                      </TableHead>
                       <tbody>
                         {Object.entries(analytics.byAgent)
                           .sort(([, a], [, b]) => b.count - a.count)
                           .map(([id, v]) => (
-                            <tr key={id} className="border-b border-white/[0.04]">
-                              <td className="px-3 py-2 font-medium">
+                            <tr key={id} className="h-11 border-b border-white/[0.04] transition-colors hover:bg-white/[0.02]">
+                              <td className="px-3 py-2.5 text-sm font-medium">
                                 {agentNames[id] ?? agentList.find((a) => a.id === id)?.name ?? (
                                   <span className="font-mono text-xs text-muted-foreground">{id}</span>
                                 )}
                               </td>
-                              <td className="px-3 py-2 tabular-nums">{v.count}</td>
-                              <td className="px-3 py-2 tabular-nums">{fmtDuration(v.durationSec)}</td>
-                              <td className="px-3 py-2 tabular-nums">{fmtMinutes(v.durationSec)}</td>
-                              <td className="px-3 py-2">
+                              <td className="px-3 py-2.5 text-sm tabular-nums">{v.count}</td>
+                              <td className="px-3 py-2.5 text-sm tabular-nums">{fmtDuration(v.durationSec)}</td>
+                              <td className="px-3 py-2.5 text-sm tabular-nums">{fmtMinutes(v.durationSec)}</td>
+                              <td className="px-3 py-2.5">
                                 <button
                                   onClick={() => setSelectedAgentId(id)}
                                   className="text-xs text-primary hover:underline"
