@@ -54,10 +54,8 @@ import {
   Maximize,
   Trash,
   Image as ImageIcon,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
+  ChevronLeft,
+  ChevronRight,
   CalendarClock,
   LayoutGrid,
   Undo2,
@@ -394,16 +392,6 @@ export function Builder({
         {/* Left: panel toggle + agent name + status */}
         <div className="flex flex-1 items-center gap-1 min-w-0">
           {toolbarStart}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setLeftOpen((v) => !v)}
-            title={leftOpen ? "Hide nodes panel" : "Show nodes panel"}
-            className="!w-7 !p-0 shrink-0"
-          >
-            {leftOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
-          </Button>
-          <div className="mx-0.5 h-4 w-px bg-white/[0.05] shrink-0" />
           <Input
             value={settings.agentName}
             onChange={(e) => setSettings({ agentName: e.target.value })}
@@ -512,17 +500,6 @@ export function Builder({
           <RetellDeployDialog />
           {toolbarTrailing}
 
-          {/* Settings panel toggle */}
-          <div className="h-4 w-px bg-white/[0.06]" />
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setRightOpen((v) => !v)}
-            title={rightOpen ? "Hide settings panel" : "Show settings panel"}
-            className="!w-7 !p-0"
-          >
-            {rightOpen ? <PanelRightClose /> : <PanelRightOpen />}
-          </Button>
         </div>
       </div>
 
@@ -659,7 +636,29 @@ export function Builder({
         )}
 
         {/* Canvas */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 relative">
+          {/* Left panel toggle — anchored to the left border */}
+          <button
+            onClick={() => setLeftOpen((v) => !v)}
+            title={leftOpen ? "Collapse panel" : "Expand panel"}
+            className="group/lt absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 flex h-10 w-3 items-center justify-center rounded-sm text-white/20 hover:text-white/60 hover:bg-white/[0.05] transition-all duration-200"
+          >
+            {leftOpen
+              ? <ChevronLeft className="h-2.5 w-2.5 shrink-0" strokeWidth={1.5} />
+              : <ChevronRight className="h-2.5 w-2.5 shrink-0" strokeWidth={1.5} />}
+          </button>
+
+          {/* Right panel toggle — anchored to the right border */}
+          <button
+            onClick={() => setRightOpen((v) => !v)}
+            title={rightOpen ? "Collapse settings" : "Expand settings"}
+            className="group/rt absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-20 flex h-10 w-3 items-center justify-center rounded-sm text-white/20 hover:text-white/60 hover:bg-white/[0.05] transition-all duration-200"
+          >
+            {rightOpen
+              ? <ChevronRight className="h-2.5 w-2.5 shrink-0" strokeWidth={1.5} />
+              : <ChevronLeft className="h-2.5 w-2.5 shrink-0" strokeWidth={1.5} />}
+          </button>
+
           <FlowCanvas canvasRef={canvasRef} onReady={setRf} />
         </div>
 
