@@ -537,17 +537,37 @@ export function VoiceCopilotButton({
       // ── PLATFORM_HELP mode: show helpResponse + execute doc-link commands only ──
       if (currentMode === "PLATFORM_HELP") {
         if (data.helpResponse) {
-          toast.success(
-            <div className="flex items-start gap-2 text-sm max-w-[280px]">
+          const toastId = "platform-help";
+          toast(
+            <div className="flex items-start gap-2 max-w-[280px]">
               <span className="text-purple-400 text-base shrink-0 mt-0.5">📘</span>
-              <div>
-                <span className="text-[10px] font-semibold tracking-wide text-purple-400 block mb-0.5 uppercase">
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold tracking-widest text-purple-400 block mb-1 uppercase">
                   Platform Helper
                 </span>
-                <span className="text-slate-200 text-[12px] leading-snug">{data.helpResponse}</span>
+                <span className="text-slate-200 text-[12px] leading-snug block">{data.helpResponse}</span>
+                <button
+                  onClick={() => {
+                    updateMode("MICRO");
+                    toast.dismiss(toastId);
+                    toast.info("Normal mode restored.", { duration: 2500 });
+                  }}
+                  className="mt-2.5 text-[10px] font-medium text-purple-400 hover:text-purple-300 underline underline-offset-2 transition-colors"
+                >
+                  ✕ Exit Help Mode
+                </button>
               </div>
             </div>,
-            { duration: 12000 },
+            {
+              id: toastId,
+              duration: 14000,
+              style: {
+                background: "#0d1117",
+                border: "1px solid rgba(147, 51, 234, 0.3)",
+                color: "white",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+              },
+            },
           );
         }
         // Execute only OPEN_DOCUMENTATION_LINK commands from the help response
