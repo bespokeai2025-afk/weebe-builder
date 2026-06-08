@@ -757,7 +757,7 @@ export function Builder({
               </CollapsibleContent>
             </Collapsible>
 
-            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+            <Collapsible data-tour="global-prompt" className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><MsgSq className="h-3 w-3" />Global Prompt</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />

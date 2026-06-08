@@ -9,27 +9,23 @@ export interface OnboardingState {
   step: number;
   // Step 3
   agentNameSet: boolean;
-  // Step 4
-  companyContext: string;
   // Step 5
+  companyContext: string;
+  // Step 6
   voiceChosen: string;
   voiceInteracted: boolean;
   elevenLabsKey: string;
-  // Step 6
-  agentTypeSet: boolean;
   // Step 7
+  agentTypeSet: boolean;
+  // Step 8
   agentSaved: boolean;
-  // Step 9
+  // Step 11 — deploy dialog: workspace clone
   deployWorkspaceClicked: boolean;
-  // Step 10
-  authAllowed: boolean;
-  // Step 11
+  // Step 12 — deploy dialog: phone
   phoneChoice: "local" | "trunk" | null;
   phoneValue: string;
-  // Step 12
+  // Step 13 — deploy dialog: cal.com
   calConnected: boolean;
-  // Step 13
-  deployed: boolean;
 }
 
 const DEFAULTS: OnboardingState = {
@@ -44,11 +40,9 @@ const DEFAULTS: OnboardingState = {
   agentTypeSet: false,
   agentSaved: false,
   deployWorkspaceClicked: false,
-  authAllowed: false,
   phoneChoice: null,
   phoneValue: "",
   calConnected: false,
-  deployed: false,
 };
 
 function load(): OnboardingState {

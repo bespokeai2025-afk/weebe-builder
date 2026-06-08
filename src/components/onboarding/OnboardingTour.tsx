@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useOnboarding } from "./useOnboarding";
 import type { OnboardingState } from "./useOnboarding";
 
-// ─── Config ──────────────────────────────────────────────────────────────────
+// ─── Step config ──────────────────────────────────────────────────────────────
 
 type Side = "left" | "right" | "bottom" | "center";
 
@@ -14,45 +14,55 @@ interface StepCfg {
   side: Side;
   emoji: string;
   label: string;
-  /** If true the Next button is hidden — step only advances via DOM event. */
+  /** Advance only via a real DOM click — no Next button shown. */
   clickGated?: boolean;
-  /** If true no footer is shown at all (auto-advance step). */
+  /** Auto-advances after 1.5 s — no footer at all. */
   autoStep?: boolean;
+  /** Suppresses the quad-overlay so the user can interact freely (dialogs, node editor). */
+  noOverlay?: boolean;
 }
 
 const STEPS: StepCfg[] = [
-  { route: "/builder",           anchor: null,                    side: "center", emoji: "👋", label: "Welcome to Webee",       autoStep: true        }, // 0
-  { route: "/builder",           anchor: "nav-templates",         side: "right",  emoji: "📋", label: "Browse Templates",       clickGated: true      }, // 1
-  { route: "/templates",         anchor: "template-receptionist", side: "bottom", emoji: "🚀", label: "Select Blueprint",        clickGated: true      }, // 2
-  { route: "/builder",           anchor: "agent-name-input",      side: "bottom", emoji: "✍️", label: "Name Your Agent"                                }, // 3
-  { route: "/builder",           anchor: "right-panel",           side: "left",   emoji: "🌐", label: "Global Configuration"                           }, // 4
-  { route: "/builder",           anchor: "voice-section",         side: "left",   emoji: "🎙️", label: "Voice Profile"                                  }, // 5
-  { route: "/builder",           anchor: "agent-type-select",     side: "left",   emoji: "⚙️", label: "Agent Type"                                     }, // 6
-  { route: "/builder",           anchor: "save-btn",              side: "bottom", emoji: "🛠️", label: "Compile Agent",           clickGated: true      }, // 7
-  { route: "/builder",           anchor: "nav-agents",            side: "right",  emoji: "📡", label: "Agents Registry",         clickGated: true      }, // 8
-  { route: "/my-agents",         anchor: null,                    side: "center", emoji: "🏢", label: "Deploy to Workspace"                            }, // 9
-  { route: "/my-agents",         anchor: null,                    side: "center", emoji: "🔐", label: "Authorization Gate"                             }, // 10
-  { route: "/my-agents",         anchor: null,                    side: "center", emoji: "📞", label: "Telephony Setup"                                }, // 11
-  { route: "/settings/calendar", anchor: "cal-connect",           side: "right",  emoji: "📅", label: "Calendar Integration"                          }, // 12
-  { route: "/builder",           anchor: "deploy-btn",            side: "bottom", emoji: "🚀", label: "Go Live",                 clickGated: true      }, // 13
-  { route: "/dashboard",         anchor: null,                    side: "center", emoji: "📊", label: "You're Live!"                                   }, // 14
+  // 0
+  { route: "/builder",           anchor: null,                      side: "center", emoji: "👋", label: "Welcome to Webee",         autoStep: true },
+  // 1
+  { route: "/builder",           anchor: "nav-templates",           side: "right",  emoji: "📋", label: "Browse Templates",          clickGated: true },
+  // 2
+  { route: "/templates",         anchor: "template-receptionist",   side: "bottom", emoji: "🚀", label: "Select Blueprint",           clickGated: true },
+  // 3
+  { route: "/builder",           anchor: "agent-name-input",        side: "bottom", emoji: "✍️", label: "Name Your Agent" },
+  // 4 — first conversation node (isStart); no overlay so NodeEditorDialog can open freely
+  { route: "/builder",           anchor: "node-root",               side: "bottom", emoji: "💬", label: "Configure First Node",       noOverlay: true },
+  // 5 — global prompt section in right panel; no overlay so user can type directly
+  { route: "/builder",           anchor: "global-prompt",           side: "left",   emoji: "🌐", label: "Global Prompt",              noOverlay: true },
+  // 6
+  { route: "/builder",           anchor: "voice-section",           side: "left",   emoji: "🎙️", label: "Voice Profile" },
+  // 7
+  { route: "/builder",           anchor: "agent-type-select",       side: "left",   emoji: "⚙️", label: "Agent Type" },
+  // 8
+  { route: "/builder",           anchor: "save-btn",                side: "bottom", emoji: "🛠️", label: "Compile Agent",              clickGated: true },
+  // 9
+  { route: "/builder",           anchor: "nav-agents",              side: "right",  emoji: "📡", label: "Agents Registry",            clickGated: true },
+  // 10 — real Deploy button on the AgentCard
+  { route: "/my-agents",         anchor: "agent-deploy-btn",        side: "bottom", emoji: "🚀", label: "Deploy Agent",               clickGated: true },
+  // 11-14 — inside DeployAgentDialog; no overlay so dialog is fully interactive
+  { route: "/my-agents",         anchor: null,                      side: "center", emoji: "🏢", label: "Workspace Clone",            noOverlay: true },
+  { route: "/my-agents",         anchor: null,                      side: "center", emoji: "📞", label: "Phone Number",               noOverlay: true },
+  { route: "/my-agents",         anchor: null,                      side: "center", emoji: "📅", label: "Cal.com Integration",        noOverlay: true },
+  { route: "/my-agents",         anchor: null,                      side: "center", emoji: "🎉", label: "Go Live",                    noOverlay: true, clickGated: true },
 ];
 
 const PAD    = 10;
 const CARD_W = 300;
 
-// ─── Unlock logic ─────────────────────────────────────────────────────────────
+// ─── Unlock gates ─────────────────────────────────────────────────────────────
 
 function isUnlocked(step: number, s: OnboardingState): boolean {
   switch (step) {
-    case 3:  return s.agentNameSet;
-    case 4:  return s.companyContext.trim().length >= 3;
-    case 5:  return s.voiceInteracted;
-    case 6:  return s.agentTypeSet;
-    case 9:  return s.deployWorkspaceClicked;
-    case 10: return s.authAllowed;
-    case 11: return s.phoneChoice !== null;
-    case 12: return s.calConnected;
+    case 3: return s.agentNameSet;
+    case 5: return s.companyContext.trim().length >= 3;
+    case 6: return s.voiceInteracted;
+    case 7: return s.agentTypeSet;
     default: return true;
   }
 }
@@ -61,9 +71,14 @@ function isUnlocked(step: number, s: OnboardingState): boolean {
 
 interface Rect { top: number; left: number; width: number; height: number; }
 
-function cardPos(rect: Rect | null, side: Side): { top: number; left: number } {
+function cardPos(rect: Rect | null, side: Side, noOverlay: boolean): { top: number; left: number } {
   const vw = typeof window !== "undefined" ? window.innerWidth  : 1280;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+
+  // noOverlay + no anchor → top-right corner (beside dialogs)
+  if (noOverlay && !rect) {
+    return { top: 24, left: vw - CARD_W - 24 };
+  }
 
   if (!rect || side === "center") {
     return { top: Math.max(40, vh / 2 - 210), left: vw / 2 - CARD_W / 2 };
@@ -106,7 +121,8 @@ function QuadOverlay({
   if (!rect) return <div style={{ ...bg, inset: 0 }} onClick={onOutsideClick} />;
 
   const sTop = rect.top - PAD, sLeft = rect.left - PAD;
-  const sW = rect.width + PAD * 2, sH = rect.height + PAD * 2;
+  const sW   = rect.width  + PAD * 2;
+  const sH   = rect.height + PAD * 2;
 
   return (
     <>
@@ -155,7 +171,6 @@ function Step0({ onDone }: { onDone: () => void }) {
     const t = setTimeout(onDone, 1500);
     return () => clearTimeout(t);
   }, [onDone]);
-
   return (
     <div className="flex flex-col items-center gap-3 py-1">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/15 ring-1 ring-indigo-500/30">
@@ -164,7 +179,7 @@ function Step0({ onDone }: { onDone: () => void }) {
       <div className="text-center">
         <div className="text-sm font-semibold text-slate-100">Welcome to Webee!</div>
         <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-          Your design workspace is now loaded and ready. Let's build your voice agent step by step.
+          Your design workspace is loaded. Let's build your voice agent step by step.
         </div>
       </div>
       <div className="flex gap-1">
@@ -180,7 +195,7 @@ function Step1() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Click the <span className="text-indigo-300 font-medium">Templates</span> item in the navigation panel to choose a baseline script framework for your agent.
+        Click the <span className="text-indigo-300 font-medium">Templates</span> item in the navigation panel to browse baseline agent frameworks.
       </p>
       <WaitingFor text="Waiting for you to click Templates →" />
     </div>
@@ -192,17 +207,14 @@ function Step2() {
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
         Click <span className="text-indigo-300 font-medium">Use template</span> on the{" "}
-        <span className="text-white font-medium">Virtual Receptionist</span> card to import its node tree into your builder canvas.
+        <span className="text-white font-medium">Virtual Receptionist</span> card to import its conversation flow into the builder.
       </p>
       <WaitingFor text="Waiting for you to click Use template ↓" />
     </div>
   );
 }
 
-function Step3({ state, setState }: {
-  state: OnboardingState;
-  setState: (p: Partial<OnboardingState>) => void;
-}) {
+function Step3({ state }: { state: OnboardingState }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
@@ -213,28 +225,52 @@ function Step3({ state, setState }: {
           <span>✓</span><span>Agent name set — click Next to continue</span>
         </div>
       ) : (
-        <WaitingFor text="Waiting for you to type an agent name ↑" />
+        <WaitingFor text="Waiting for you to type a name ↑" />
       )}
     </div>
   );
 }
 
-function Step4({ state, setState }: {
+function Step4() {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Click the <span className="text-indigo-300 font-medium">✏️ pencil icon</span> on the{" "}
+        <span className="text-white font-medium">Begin</span> node above to open the node editor. Set your{" "}
+        <span className="text-amber-300 font-mono text-[10px]">{"{{agent_name}}"}</span> and{" "}
+        <span className="text-amber-300 font-mono text-[10px]">{"{{company_name}}"}</span> variables in the greeting dialogue, then close the editor.
+      </p>
+      <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-0.5">
+        <div className="text-slate-300 font-medium mb-1">Example greeting:</div>
+        <div className="font-mono text-[9px] leading-relaxed text-slate-400">
+          "Thank you for calling{" "}
+          <span className="text-amber-300">{"{{company_name}}"}</span>, this is{" "}
+          <span className="text-amber-300">{"{{agent_name}}"}</span>. How can I help?"
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 text-[10px] text-indigo-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+        <span>Click Next when you're done editing the node</span>
+      </div>
+    </div>
+  );
+}
+
+function Step5({ state, setState }: {
   state: OnboardingState;
   setState: (p: Partial<OnboardingState>) => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Type your <span className="text-indigo-300 font-medium">Company Name</span> and{" "}
-        <span className="text-indigo-300 font-medium">Agent Name</span> variables in the Global Node settings to link systemic responses.
+        Expand the <span className="text-indigo-300 font-medium">Global Prompt</span> section in the panel to the right and enter a system prompt describing your company and agent persona.
       </p>
       <div>
-        <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Company Context</label>
+        <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Quick context (saved to tour)</label>
         <textarea
           rows={2}
           className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 resize-none"
-          placeholder="e.g. Acme Medical — AI Receptionist for scheduling"
+          placeholder="e.g. Acme Dental — AI receptionist for appointment booking"
           value={state.companyContext}
           onChange={(e) => setState({ companyContext: e.target.value })}
         />
@@ -244,7 +280,7 @@ function Step4({ state, setState }: {
       </div>
       {state.companyContext.trim().length >= 3 && (
         <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
-          <span>✓</span><span>Context saved — proceed to voice setup</span>
+          <span>✓</span><span>Context saved — click Next</span>
         </div>
       )}
     </div>
@@ -257,7 +293,7 @@ const VOICES = [
   { id: "sofia", label: "Sofia", desc: "Friendly · Upbeat" },
 ];
 
-function Step5({ state, setState }: {
+function Step6({ state, setState }: {
   state: OnboardingState;
   setState: (p: Partial<OnboardingState>) => void;
 }) {
@@ -325,13 +361,12 @@ function Step5({ state, setState }: {
   );
 }
 
-function Step6({ state, setState }: {
+function Step7({ state, setState }: {
   state: OnboardingState;
   setState: (p: Partial<OnboardingState>) => void;
 }) {
   function setReceptionist() {
     try {
-      // Write directly to builder store
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { useBuilderStore } = require("@/lib/builder/store");
       useBuilderStore.getState().setSettings?.({ agentType: "receptionist" });
@@ -361,215 +396,112 @@ function Step6({ state, setState }: {
   );
 }
 
-function Step7({ saved }: { saved: boolean }) {
+function Step8({ saved }: { saved: boolean }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Click the <span className="text-indigo-300 font-medium">Save</span> button in the toolbar to compile your layout settings and instantiate your agent routing instance.
+        Click the <span className="text-indigo-300 font-medium">Save</span> button in the toolbar to compile your conversation flow and register the agent on Retell.
       </p>
       {!saved ? (
         <WaitingFor text="Waiting for you to click Save ↑" />
       ) : (
         <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 animate-in fade-in">
-          <span>🛠️</span><span className="font-semibold">Agent compiled! Redirecting…</span>
+          <span>🛠️</span><span className="font-semibold">Agent compiled! Navigating to registry…</span>
         </div>
       )}
     </div>
   );
 }
 
-function Step8() {
+function Step9() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Click the <span className="text-indigo-300 font-medium">Agents</span> icon in the navigation panel to access your deployment registry and locate your new agent card.
+        Click the <span className="text-indigo-300 font-medium">Agents</span> icon in the navigation panel to view your deployment registry.
       </p>
       <WaitingFor text="Waiting for you to click Agents →" />
     </div>
   );
 }
 
-function Step9({ state, setState }: {
-  state: OnboardingState;
-  setState: (p: Partial<OnboardingState>) => void;
-}) {
-  const [loading, setLoading] = useState(false);
-
-  function deploy() {
-    setLoading(true);
-    setTimeout(() => { setLoading(false); setState({ deployWorkspaceClicked: true }); }, 1800);
-  }
-
+function Step10() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Locate your agent card in the list and click{" "}
-        <span className="text-indigo-300 font-medium">Deploy to Company Workspace</span> to initialize connection layers.
+        Locate your agent card and click the{" "}
+        <span className="text-indigo-300 font-medium">Deploy</span> button to open the deployment wizard.
       </p>
-      {!state.deployWorkspaceClicked ? (
-        <button onClick={deploy} disabled={loading}
-          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-600/15 py-2.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/25 transition-all disabled:opacity-60">
-          {loading ? <><span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" /> Deploying…</> : "🏢 Deploy to Company Workspace"}
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-          <span className="text-emerald-400">✓</span>
-          <span className="text-xs font-semibold text-emerald-400">Workspace deployment initiated</span>
-        </div>
-      )}
+      <WaitingFor text="Waiting for you to click Deploy ↓" />
     </div>
   );
 }
 
-function Step10({ state, setState }: {
-  state: OnboardingState;
-  setState: (p: Partial<OnboardingState>) => void;
-}) {
+function Step11() {
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5">
-        <div className="flex items-center gap-2 text-[11px] text-amber-300 font-medium">
-          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-          Awaiting Authentication for Workspace
-        </div>
-        <p className="text-[10px] text-slate-400 mt-1">
-          Network security protocols are validating your instance configuration.
+      <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-1">
+        <div className="text-slate-200 font-medium text-[11px]">Step 1 of 3 — Workspace</div>
+        <p className="leading-relaxed">
+          In the dialog, click{" "}
+          <span className="text-indigo-300 font-medium">Deploy to company workspace</span> to clone your agent into the production environment.
         </p>
       </div>
-      {!state.authAllowed ? (
-        <button onClick={() => setState({ authAllowed: true })}
-          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-600/15 py-2.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/25 transition-all">
-          🔐 Allow Access
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-          <span className="text-emerald-400">✓</span>
-          <span className="text-xs font-semibold text-emerald-400">Access granted</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const PHONE_OPTS = [
-  { id: "local-us", label: "+1 (415) 555-0198", type: "Local US",       kind: "local" as const, price: "$4/mo" },
-  { id: "local-uk", label: "+44 20 7946 0321",  type: "Local UK",       kind: "local" as const, price: "$5/mo" },
-  { id: "trunk",    label: "Bring Your Own Trunk", type: "SIP / IP Trunk", kind: "trunk" as const, price: "Free" },
-];
-
-function Step11({ state, setState }: {
-  state: OnboardingState;
-  setState: (p: Partial<OnboardingState>) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-2.5">
-      <p className="text-xs text-slate-400 leading-relaxed">
-        Choose how your agent catches calls — purchase a number or bind your SIP trunk.
-      </p>
-      <div className="flex flex-col gap-1.5">
-        {PHONE_OPTS.map((opt) => (
-          <button key={opt.id} onClick={() => setState({ phoneChoice: opt.kind, phoneValue: opt.label })}
-            className={`flex items-center justify-between rounded-lg border px-2.5 py-2 text-left transition-all ${
-              state.phoneValue === opt.label ? "border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30" : "border-slate-700 bg-slate-800/40 hover:border-slate-600"
-            }`}>
-            <div>
-              <div className="text-[11px] font-semibold font-mono text-slate-100">{opt.label}</div>
-              <div className="text-[9px] text-slate-500">{opt.type}</div>
-            </div>
-            <div className="text-right shrink-0 ml-2">
-              <div className="text-[9px] text-slate-400">{opt.price}</div>
-              {state.phoneValue === opt.label && <div className="text-[9px] text-indigo-400 font-bold mt-0.5">✓ Selected</div>}
-            </div>
-          </button>
-        ))}
+      <div className="flex items-center gap-1.5 text-[10px] text-indigo-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+        <span>Click Next when the workspace deploy is done</span>
       </div>
-      {state.phoneChoice === "trunk" && (
-        <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-0.5">
-          <div className="font-medium text-slate-300">SIP Trunk Setup:</div>
-          <div>1. Input your SIP URI domain</div>
-          <div>2. Authenticate credentials</div>
-          <div>3. Bind connection endpoints</div>
-        </div>
-      )}
     </div>
   );
 }
 
-function Step12({ state, setState }: {
-  state: OnboardingState;
-  setState: (p: Partial<OnboardingState>) => void;
-}) {
-  const [syncing, setSyncing] = useState(false);
-
-  function connect() {
-    setSyncing(true);
-    setTimeout(() => { setSyncing(false); setState({ calConnected: true }); }, 1600);
-  }
-
+function Step12() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs text-slate-400 leading-relaxed">
-        Connect your Cal.com account to enable appointment booking. Click the highlighted card or use the button below.
-      </p>
-      {!state.calConnected ? (
-        <button onClick={connect} disabled={syncing}
-          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/50 bg-indigo-600/20 py-2.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/30 transition-all disabled:opacity-60">
-          {syncing ? <><span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" /> Calendar Syncing…</> : "📅 Connect Cal.com"}
-        </button>
-      ) : (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5">
-          <span className="text-emerald-400">✓</span>
-          <span className="text-xs font-semibold text-emerald-400">Cal.com Connected</span>
-        </div>
-      )}
+      <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-1">
+        <div className="text-slate-200 font-medium text-[11px]">Step 2 of 3 — Phone Number</div>
+        <p className="leading-relaxed">
+          In the dialog, go to the{" "}
+          <span className="text-indigo-300 font-medium">Buy number</span> tab and purchase a local or toll-free number, or use the{" "}
+          <span className="text-indigo-300 font-medium">SIP trunk</span> tab to bring your own.
+        </p>
+      </div>
+      <div className="flex items-center gap-1.5 text-[10px] text-indigo-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+        <span>Click Next once your number is configured</span>
+      </div>
     </div>
   );
 }
 
-function Step13({ deployed }: { deployed: boolean }) {
+function Step13() {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-1">
+        <div className="text-slate-200 font-medium text-[11px]">Step 3 of 3 — Calendar</div>
+        <p className="leading-relaxed">
+          Click the{" "}
+          <span className="text-indigo-300 font-medium">Cal.com</span> tab, paste your Cal.com API key, and click Save. This enables automated appointment booking.
+        </p>
+      </div>
+      <div className="flex items-center gap-1.5 text-[10px] text-indigo-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+        <span>Click Next once Cal.com is connected</span>
+      </div>
+    </div>
+  );
+}
+
+function Step14() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Ensure your Receptionist is highlighted in the top panel, then click the{" "}
-        <span className="text-indigo-300 font-medium">Go Live</span> button — your agent will go from Draft to Active.
+        Select the <span className="text-indigo-300 font-medium">Receptionist flow</span> from the dropdown at the top of the dialog, then click{" "}
+        <span className="text-white font-medium">Go Live</span>. Your agent will become active and the dashboard will start tracking real-time call data.
       </p>
-      <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 px-3 py-2 text-[10px] text-slate-400">
+      <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400">
         Status change: <span className="text-amber-400">Draft</span> → <span className="text-emerald-400">Live</span>
       </div>
-      {!deployed ? (
-        <WaitingFor text="Waiting for you to click Go Live / Deploy ↑" />
-      ) : (
-        <div className="flex items-center gap-2 text-[11px] text-emerald-400 animate-in fade-in">
-          <span>🚀</span><span className="font-semibold">Deployed! Redirecting to console…</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Step14({ complete }: { complete: () => void }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-xs text-slate-400 leading-relaxed">
-        🎉 Your AI Receptionist is <span className="text-emerald-400 font-semibold">officially live</span>. The moment your number answers an inbound call, this dashboard streams operational metrics, sentiment trends, and post-call data in real-time.
-      </p>
-      <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
-        <div className="flex items-center gap-2 text-[11px] text-slate-300 mb-1.5">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />Live data streaming active
-        </div>
-        <div className="grid grid-cols-3 gap-1">
-          {["Calls Today", "Avg Duration", "Sentiment"].map((m) => (
-            <div key={m} className="rounded border border-slate-700 bg-slate-800/60 px-1.5 py-1 text-center">
-              <div className="text-sm font-bold text-slate-100">—</div>
-              <div className="text-[8px] text-slate-500">{m}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <button onClick={complete}
-        className="w-full rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-900/40 hover:from-indigo-500 hover:to-violet-500 transition-all">
-        🚀 Finish &amp; Open Console
-      </button>
+      <WaitingFor text="Waiting for you to click Go Live in the dialog" />
     </div>
   );
 }
@@ -577,7 +509,7 @@ function Step14({ complete }: { complete: () => void }) {
 // ─── Tour card shell ──────────────────────────────────────────────────────────
 
 function TourCard({
-  step, pos, state, setState, advance, dismiss, complete, shaking, onNextAttempt,
+  step, pos, state, setState, advance, dismiss, shaking, onNextAttempt,
 }: {
   step: number;
   pos: { top: number; left: number };
@@ -585,7 +517,6 @@ function TourCard({
   setState: (p: Partial<OnboardingState>) => void;
   advance: () => void;
   dismiss: () => void;
-  complete: () => void;
   shaking: boolean;
   onNextAttempt: () => void;
 }) {
@@ -597,8 +528,7 @@ function TourCard({
     advance();
   }
 
-  const showFooter  = !cfg.autoStep && !cfg.clickGated && step !== 14;
-  const isLastInput = step === 14;
+  const showFooter = !cfg.autoStep && !cfg.clickGated;
 
   return (
     <div
@@ -631,18 +561,18 @@ function TourCard({
         {step === 0  && <Step0  onDone={advance} />}
         {step === 1  && <Step1  />}
         {step === 2  && <Step2  />}
-        {step === 3  && <Step3  state={state} setState={setState} />}
-        {step === 4  && <Step4  state={state} setState={setState} />}
+        {step === 3  && <Step3  state={state} />}
+        {step === 4  && <Step4  />}
         {step === 5  && <Step5  state={state} setState={setState} />}
         {step === 6  && <Step6  state={state} setState={setState} />}
-        {step === 7  && <Step7  saved={state.agentSaved} />}
-        {step === 8  && <Step8  />}
-        {step === 9  && <Step9  state={state} setState={setState} />}
-        {step === 10 && <Step10 state={state} setState={setState} />}
-        {step === 11 && <Step11 state={state} setState={setState} />}
-        {step === 12 && <Step12 state={state} setState={setState} />}
-        {step === 13 && <Step13 deployed={state.deployed} />}
-        {step === 14 && <Step14 complete={complete} />}
+        {step === 7  && <Step7  state={state} setState={setState} />}
+        {step === 8  && <Step8  saved={state.agentSaved} />}
+        {step === 9  && <Step9  />}
+        {step === 10 && <Step10 />}
+        {step === 11 && <Step11 />}
+        {step === 12 && <Step12 />}
+        {step === 13 && <Step13 />}
+        {step === 14 && <Step14 />}
       </div>
 
       {/* Footer */}
@@ -669,14 +599,6 @@ function TourCard({
           </div>
         </div>
       )}
-
-      {isLastInput && !cfg.clickGated && step !== 14 && (
-        <div className="border-t border-slate-800 px-3.5 py-2 text-right">
-          <button onClick={dismiss} className="text-[9px] text-slate-600 hover:text-slate-400 transition-colors">
-            Skip Guide
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -684,7 +606,7 @@ function TourCard({
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export function OnboardingTour() {
-  const [mounted, setMounted] = useState(false);
+  const [mounted,    setMounted]    = useState(false);
   const navigate = useNavigate();
   const { state, setState, advance, dismiss, complete, visible } = useOnboarding();
 
@@ -695,7 +617,7 @@ export function OnboardingTour() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Navigate to step's route
+  // Navigate to the step's route whenever the step changes
   useEffect(() => {
     if (!mounted || !visible) return;
     const cfg = STEPS[state.step];
@@ -703,7 +625,7 @@ export function OnboardingTour() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.step, mounted, visible]);
 
-  // Resolve anchor rect with polling (handles async renders + SPA route changes)
+  // Poll for the anchor element's rect
   useEffect(() => {
     if (!mounted || !visible) return;
     const anchor = STEPS[state.step]?.anchor;
@@ -723,7 +645,7 @@ export function OnboardingTour() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [state.step, mounted, visible]);
 
-  // Re-measure on window resize
+  // Re-measure on resize
   useEffect(() => {
     if (!mounted || !visible) return;
     const anchor = STEPS[state.step]?.anchor;
@@ -742,14 +664,14 @@ export function OnboardingTour() {
   // ── Step 1: nav-templates click ──────────────────────────────────────────────
   useEffect(() => {
     if (!mounted || !visible || state.step !== 1) return;
-    function handler() { setTimeout(() => advance(), 80); }
     const el = document.querySelector('[data-tour="nav-templates"]');
     if (!el) return;
+    function handler() { setTimeout(() => advance(), 80); }
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
   }, [state.step, mounted, visible, advance]);
 
-  // ── Step 2: template-receptionist "Use template" click ───────────────────────
+  // ── Step 2: template-receptionist click ──────────────────────────────────────
   useEffect(() => {
     if (!mounted || !visible || state.step !== 2) return;
     let attempts = 0;
@@ -771,11 +693,8 @@ export function OnboardingTour() {
     function attach() {
       const el = document.querySelector('[data-tour="agent-name-input"]') as HTMLInputElement | null;
       if (!el) { if (++attempts < 30) setTimeout(attach, 250); return; }
-      // Check existing value immediately
       if (el.value.trim().length >= 3) setState({ agentNameSet: true });
-      function handler() {
-        if (el.value.trim().length >= 3) setState({ agentNameSet: true });
-      }
+      function handler() { if (el.value.trim().length >= 3) setState({ agentNameSet: true }); }
       el.addEventListener("input", handler);
       return () => el.removeEventListener("input", handler);
     }
@@ -783,51 +702,73 @@ export function OnboardingTour() {
     return () => { if (typeof cleanup === "function") cleanup(); };
   }, [state.step, mounted, visible, setState]);
 
-  // ── Step 7: save-btn click ───────────────────────────────────────────────────
+  // ── Step 8: save-btn click ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!mounted || !visible || state.step !== 7 || state.agentSaved) return;
+    if (!mounted || !visible || state.step !== 8 || state.agentSaved) return;
+    const el = document.querySelector('[data-tour="save-btn"]');
+    if (!el) return;
     function handler() {
       setState({ agentSaved: true });
       setTimeout(() => advance(), 1200);
     }
-    const el = document.querySelector('[data-tour="save-btn"]');
-    if (!el) return;
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
   }, [state.step, mounted, visible, state.agentSaved, setState, advance]);
 
-  // ── Step 8: nav-agents click ─────────────────────────────────────────────────
+  // ── Step 9: nav-agents click ──────────────────────────────────────────────────
   useEffect(() => {
-    if (!mounted || !visible || state.step !== 8) return;
-    function handler() { setTimeout(() => advance(), 80); }
+    if (!mounted || !visible || state.step !== 9) return;
     const el = document.querySelector('[data-tour="nav-agents"]');
     if (!el) return;
+    function handler() { setTimeout(() => advance(), 80); }
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
   }, [state.step, mounted, visible, advance]);
 
-  // ── Step 12: cal-connect click ───────────────────────────────────────────────
+  // ── Step 10: agent-deploy-btn click → advance (dialog will open naturally) ───
   useEffect(() => {
-    if (!mounted || !visible || state.step !== 12 || state.calConnected) return;
-    const card = document.querySelector('[data-tour="cal-connect"]');
-    if (!card) return;
-    function handler() { setState({ calConnected: true }); }
-    card.addEventListener("click", handler);
-    return () => card.removeEventListener("click", handler);
-  }, [state.step, mounted, visible, state.calConnected, setState]);
-
-  // ── Step 13: deploy-btn click ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!mounted || !visible || state.step !== 13 || state.deployed) return;
-    function handler() {
-      setState({ deployed: true });
-      setTimeout(() => advance(), 1500);
+    if (!mounted || !visible || state.step !== 10) return;
+    let attempts = 0;
+    function attach() {
+      const el = document.querySelector('[data-tour="agent-deploy-btn"]');
+      if (!el) { if (++attempts < 30) setTimeout(attach, 300); return; }
+      function handler() { setTimeout(() => advance(), 150); }
+      el.addEventListener("click", handler);
+      return () => el.removeEventListener("click", handler);
     }
-    const el = document.querySelector('[data-tour="deploy-btn"]');
-    if (!el) return;
-    el.addEventListener("click", handler);
-    return () => el.removeEventListener("click", handler);
-  }, [state.step, mounted, visible, state.deployed, setState, advance]);
+    const cleanup = attach();
+    return () => { if (typeof cleanup === "function") cleanup(); };
+  }, [state.step, mounted, visible, advance]);
+
+  // ── Step 11: deploy-dialog-clone-btn — detect click for optional tracking ────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 11) return;
+    let attempts = 0;
+    function attach() {
+      const el = document.querySelector('[data-tour="deploy-dialog-clone-btn"]');
+      if (!el) { if (++attempts < 20) setTimeout(attach, 300); return; }
+      function handler() { setState({ deployWorkspaceClicked: true }); }
+      el.addEventListener("click", handler);
+      return () => el.removeEventListener("click", handler);
+    }
+    const cleanup = attach();
+    return () => { if (typeof cleanup === "function") cleanup(); };
+  }, [state.step, mounted, visible, setState]);
+
+  // ── Step 14: Go Live button click → complete tour ─────────────────────────────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 14) return;
+    let attempts = 0;
+    function attach() {
+      const el = document.querySelector('[data-tour="deploy-dialog-golive-btn"]');
+      if (!el) { if (++attempts < 30) setTimeout(attach, 300); return; }
+      function handler() { setTimeout(() => complete(), 400); }
+      el.addEventListener("click", handler);
+      return () => el.removeEventListener("click", handler);
+    }
+    const cleanup = attach();
+    return () => { if (typeof cleanup === "function") cleanup(); };
+  }, [state.step, mounted, visible, complete]);
 
   const triggerShake = useCallback(() => {
     setShaking(true); setTimeout(() => setShaking(false), 550);
@@ -844,8 +785,9 @@ export function OnboardingTour() {
 
   if (!mounted || !visible) return null;
 
-  const cfg = STEPS[state.step];
-  const pos = cardPos(anchorRect, cfg.side);
+  const cfg       = STEPS[state.step];
+  const showOverlay = !cfg.noOverlay;
+  const pos       = cardPos(anchorRect, cfg.side, cfg.noOverlay ?? false);
 
   return createPortal(
     <>
@@ -859,7 +801,9 @@ export function OnboardingTour() {
           85%     { transform: translateX(-2px); }
         }
       `}</style>
-      <QuadOverlay rect={anchorRect} flash={flash} onOutsideClick={handleOutsideClick} />
+      {showOverlay && (
+        <QuadOverlay rect={anchorRect} flash={flash} onOutsideClick={handleOutsideClick} />
+      )}
       <SpotlightRing rect={anchorRect} flash={flash} />
       <TourCard
         step={state.step}
@@ -868,7 +812,6 @@ export function OnboardingTour() {
         setState={setState}
         advance={advance}
         dismiss={dismiss}
-        complete={complete}
         shaking={shaking}
         onNextAttempt={triggerShake}
       />

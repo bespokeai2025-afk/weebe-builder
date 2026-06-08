@@ -122,6 +122,7 @@ function ConversationStyleNode({ id, data }: NodeProps<FlowNode>) {
       )}
 
       <div
+        {...(data.isStart ? { "data-tour": "node-root" } : {})}
         className={cn(
           "w-72 rounded-2xl border bg-card text-card-foreground backdrop-blur-md shadow-[0_10px_30px_-10px_rgba(0,0,0,0.15)] ring-1 ring-border transition-all overflow-visible",
           "border-border hover:border-foreground/30 hover:shadow-[0_10px_30px_-10px_rgba(0,0,0,0.25)]",

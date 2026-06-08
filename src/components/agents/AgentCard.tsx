@@ -294,7 +294,7 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentC
           </DropdownMenu>
         </div>
 
-        <Button size="sm" variant="default" onClick={onDeploy} className="h-9 gap-1.5 px-4">
+        <Button data-tour="agent-deploy-btn" size="sm" variant="default" onClick={onDeploy} className="h-9 gap-1.5 px-4">
           <Rocket className="h-3.5 w-3.5" />
           {isLive ? "Manage deployment" : "Deploy"}
         </Button>

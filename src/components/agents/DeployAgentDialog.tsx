@@ -419,6 +419,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                     </Select>
                   </div>
                   <Button
+                    data-tour="deploy-dialog-golive-btn"
                     size="sm"
                     disabled={goingLive || !canGoLive}
                     onClick={handleGoLive}
@@ -528,6 +529,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                   </div>
                 )}
                 <Button
+                  data-tour="deploy-dialog-clone-btn"
                   size="sm"
                   onClick={handleClone}
                   disabled={cloning}
@@ -571,13 +573,13 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
             <Tabs defaultValue="buy" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="buy">
+                <TabsTrigger data-tour="deploy-dialog-phone-tab" value="buy">
                   <Phone className="h-4 w-4 mr-1" /> Buy number
                 </TabsTrigger>
                 <TabsTrigger value="sip">
                   <PhoneCall className="h-4 w-4 mr-1" /> SIP trunk
                 </TabsTrigger>
-                <TabsTrigger value="calcom">
+                <TabsTrigger data-tour="deploy-dialog-calcom-tab" value="calcom">
                   <Calendar className="h-4 w-4 mr-1" /> Cal.com
                 </TabsTrigger>
               </TabsList>
