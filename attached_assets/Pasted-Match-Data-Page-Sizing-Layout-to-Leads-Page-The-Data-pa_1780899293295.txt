@@ -1,0 +1,127 @@
+Match Data Page Sizing & Layout to Leads Page
+
+The Data page currently feels inconsistent with the Leads page.
+
+Use the Leads page as the source of truth for spacing, sizing, proportions, and overall layout.
+
+The Data page should feel like it belongs to the same product and design system.
+
+Layout Consistency
+
+Compare the Data page against the Leads page and match:
+
+Content width
+Table width
+Container sizing
+Card sizing
+Header spacing
+Filter bar sizing
+Search bar sizing
+Toolbar spacing
+Table row height
+Column padding
+Section margins
+
+The user should be able to switch between Leads and Data without noticing a difference in sizing or layout density.
+
+Statistics Cards
+
+Match the Leads page metrics cards exactly.
+
+Use the same:
+
+Height
+Width
+Border radius
+Padding
+Typography sizing
+Icon sizing
+Glow treatment
+Spacing between cards
+
+The cards on both pages should appear to come from the same component.
+
+Search & Filters
+
+The Data page search and filter controls should match the Leads page.
+
+Requirements:
+
+Same height
+Same padding
+Same border radius
+Same spacing
+Same typography
+Same dropdown sizing
+
+Do not allow one page to feel more compressed or expanded than the other.
+
+Table Sizing
+
+Match the Leads table exactly.
+
+Use the same:
+
+Row height
+Cell padding
+Column spacing
+Header height
+Status badge sizing
+Checkbox sizing
+Action menu sizing
+
+The Data table currently feels visually different and should be standardized.
+
+Typography Consistency
+
+Match all text sizing to the Leads page.
+
+Including:
+
+Page title
+Section headers
+Table headers
+Table content
+Status badges
+Filter labels
+Search placeholders
+
+Typography should be identical between the two pages.
+
+Vertical Rhythm
+
+Match the Leads page spacing system.
+
+Standardize:
+
+Top margins
+Bottom margins
+Gaps between sections
+Gaps between cards
+Gaps between filters and tables
+
+The Data page should feel equally balanced and breathable.
+
+Component Reuse
+
+Do not create separate sizing systems.
+
+If the Leads page components are already correct:
+
+Reuse the same card components
+Reuse the same table components
+Reuse the same filter components
+Reuse the same spacing tokens
+
+Both pages should be powered by the same design system.
+
+Final Goal
+
+When switching between Leads and Data:
+
+Layout density should feel identical.
+Component sizing should feel identical.
+Spacing should feel identical.
+Visual hierarchy should feel identical.
+
+The only difference should be the content being displayed, not the UI proportions.

@@ -1,0 +1,279 @@
+Redesign the entire Webee Builder + Smart Dash landing page to match the premium branding and visual identity of Webespoke AI.
+
+DESIGN OBJECTIVE
+
+Create a modern SaaS landing page that feels like a high-end enterprise AI platform. The design should be visually similar to Webespoke AI, using deep navy blue backgrounds, subtle gradients, gold accents, modern typography, glassmorphism effects, and premium spacing.
+
+This is NOT just an AI agent landing page.
+
+This platform combines:
+
+• Webee Builder (No-Code AI Agent Builder)
+• Webee Voice Agents
+• Smart Dash Analytics Platform
+
+The landing page should clearly communicate that all three products work together inside one ecosystem.
+
+COLOR PALETTE
+
+Use:
+
+--navy-primary: #06162B
+--navy-secondary: #0B2344
+--navy-card: #102A4C
+--accent-gold: #F5B800
+--accent-blue: #2D8CFF
+--text-primary: #FFFFFF
+--text-secondary: #B8C5D6
+
+Background should use layered navy gradients with subtle blue glows.
+
+GLOBAL STYLE
+
+• Enterprise SaaS
+• Similar quality to Retell AI, Vapi, ElevenLabs and Webespoke AI
+• Rounded corners (20-24px)
+• Glassmorphism cards
+• Smooth hover animations
+• Soft blue glow effects
+• Premium typography hierarchy
+• Mobile responsive
+
+NAVIGATION
+
+Logo on left.
+
+Menu:
+
+Platform
+Solutions
+Pricing
+Enterprise
+Resources
+
+Right side:
+
+Book Demo (outline button)
+Start Building (gold primary button)
+
+HERO SECTION
+
+Left Side:
+
+Small Badge:
+"Powered by Webespoke AI"
+
+Headline:
+
+Build, Deploy & Manage
+AI Voice Agents
+From One Platform
+
+Subheadline:
+
+Create AI receptionists, sales agents, support teams and lead generators without code. Monitor conversations, performance and bookings in real time.
+
+CTA Buttons:
+
+Start Building
+Watch Demo
+
+Trust indicators:
+
+✓ No Code
+✓ 24/7 Automation
+✓ Voice + SMS
+✓ Real-Time Analytics
+
+Right Side:
+
+Create a premium floating product mockup showing:
+
+1. AI Builder Interface
+2. Smart Dashboard Analytics
+3. Live Voice Agent
+
+These should appear stacked together as one ecosystem rather than a single screenshot.
+
+Add animated blue glow behind the mockup.
+
+SECTION 2
+
+Headline:
+
+One Platform.
+Three Powerful Layers.
+
+Display 3 large cards:
+
+1. Builder
+   Visual drag-and-drop workflow creation
+
+2. AI Voice Agents
+   Deploy receptionists, sales agents and support teams
+
+3. Smart Dash
+   Track calls, bookings, conversions and ROI
+
+Connect the cards visually to show they work together.
+
+SECTION 3
+
+Builder Showcase
+
+Headline:
+
+Build AI Agents Visually
+
+Subheadline:
+
+Design intelligent workflows without writing code.
+
+Create a large visual workflow diagram showing:
+
+Trigger
+↓
+AI Agent
+↓
+CRM Update
+↓
+SMS Follow-Up
+↓
+Booking Confirmed
+
+Use premium node-based UI components.
+
+SECTION 4
+
+Voice Agent Showcase
+
+Headline:
+
+AI Agents That Never Miss A Call
+
+Features:
+
+• Natural Voice Conversations
+• Appointment Booking
+• Lead Qualification
+• CRM Integration
+• 24/7 Availability
+
+Include an animated conversation interface.
+
+SECTION 5
+
+Smart Dash Showcase
+
+Headline:
+
+Every Conversation.
+Every Booking.
+One Dashboard.
+
+Display analytics cards showing:
+
+Calls
+Qualified Leads
+Bookings
+Revenue
+Conversion Rate
+Agent Performance
+
+Use premium glass cards and charts.
+
+SECTION 6
+
+SOCIAL PROOF
+
+Headline:
+
+Trusted By Growing Businesses
+
+Stats:
+
+500,000+ Calls Handled
+89% Qualification Rate
+24/7 Availability
+10x Faster Response Times
+
+Include logo placeholders.
+
+SECTION 7
+
+ENTERPRISE SECTION
+
+Headline:
+
+Built For Teams That Scale
+
+Features:
+
+• Multi-Agent Management
+• Team Permissions
+• White Label Options
+• API Access
+• Enterprise Security
+• Advanced Reporting
+
+SECTION 8
+
+FINAL CTA
+
+Large navy gradient section.
+
+Headline:
+
+Start Building Your AI Workforce Today
+
+Subheadline:
+
+Launch voice agents, automate conversations and monitor performance from one platform.
+
+Buttons:
+
+Start Building
+Book Demo
+
+FOOTER
+
+Columns:
+
+Platform
+Builder
+Voice Agents
+Smart Dash
+
+Solutions
+Healthcare
+Property
+Automotive
+Trades
+
+Company
+About
+Contact
+Partners
+
+Use a premium enterprise footer with navy background and subtle divider lines.
+
+ANIMATIONS
+
+Add:
+
+• Smooth scroll reveals
+• Hover lift effects
+• Floating dashboard animation
+• Glow pulse effects
+• Gradient transitions
+
+TECHNICAL REQUIREMENTS
+
+• React + Tailwind
+• Fully responsive
+• Modern SaaS design
+• Optimized performance
+• Accessible components
+• Clean component structure
+
+The final result should feel like a premium enterprise AI operating system rather than a generic AI landing page.
