@@ -24,7 +24,7 @@ interface StepCfg {
 
 const STEPS: StepCfg[] = [
   // 0
-  { route: "/builder",           anchor: null,                      side: "center", emoji: "👋", label: "Welcome to Webee",         autoStep: true },
+  { route: "/builder",           anchor: null,                      side: "center", emoji: "👋", label: "Welcome to Webee" },
   // 1
   { route: "/builder",           anchor: "nav-templates",           side: "right",  emoji: "📋", label: "Browse Templates",          clickGated: true },
   // 2
@@ -168,26 +168,31 @@ function WaitingFor({ text }: { text: string }) {
 
 // ─── Step bodies ──────────────────────────────────────────────────────────────
 
-function Step0({ onDone }: { onDone: () => void }) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 1500);
-    return () => clearTimeout(t);
-  }, [onDone]);
+function Step0({ onDone, dismiss }: { onDone: () => void; dismiss: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 py-1">
+    <div className="flex flex-col items-center gap-4 py-1">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/15 ring-1 ring-indigo-500/30">
         <span className="text-2xl">🤖</span>
       </div>
       <div className="text-center">
         <div className="text-sm font-semibold text-slate-100">Welcome to Webee!</div>
         <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-          Your design workspace is loaded. Let's build your voice agent step by step.
+          Want a quick walkthrough on building your first voice agent?
         </div>
       </div>
-      <div className="flex gap-1">
-        {[0, 1, 2].map((i) => (
-          <span key={i} className="h-1 w-1.5 rounded-full bg-indigo-500 animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
-        ))}
+      <div className="flex flex-col gap-2 w-full">
+        <button
+          onClick={onDone}
+          className="w-full rounded-lg bg-indigo-600 py-2 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors"
+        >
+          Yes, show me around →
+        </button>
+        <button
+          onClick={dismiss}
+          className="w-full rounded-lg py-1.5 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          No thanks, I'll explore on my own
+        </button>
       </div>
     </div>
   );
@@ -595,7 +600,7 @@ function TourCard({
 
       {/* Body */}
       <div className="px-3.5 py-3">
-        {step === 0  && <Step0  onDone={advance} />}
+        {step === 0  && <Step0  onDone={advance} dismiss={dismiss} />}
         {step === 1  && <Step1  />}
         {step === 2  && <Step2  />}
         {step === 3  && <Step3  state={state} />}
