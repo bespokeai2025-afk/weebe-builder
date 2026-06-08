@@ -355,6 +355,9 @@ const HINTS = [
   'Try: "Connect Intro to Check Availability"',
   'Try: "Add a logic split node"',
   'Try: "Rename this node to Booking Confirm"',
+  'Try: "Webee help"',
+  'Try: "How do I pass variables?"',
+  'Try: "Open the receptionist go-live guide"',
 ];
 
 // ── Cheat-sheet command catalogue ────────────────────────────────────────────
@@ -363,9 +366,24 @@ const CHEAT_SECTIONS = [
     title: "App Modes",
     icon: "⚡",
     commands: [
-      { phrase: "Switch to Webee Build", desc: "Activate Macro Blueprint mode" },
-      { phrase: "Switch back to normal", desc: "Return to single-command mode" },
-      { phrase: "Exit Webee Build",      desc: "Exit Macro mode" },
+      { phrase: "Switch to Webee Build",  desc: "Activate Macro Blueprint mode" },
+      { phrase: "Switch back to normal",  desc: "Return to single-command mode" },
+      { phrase: "Exit Webee Build",       desc: "Exit Macro mode" },
+      { phrase: "Webee help",             desc: "Activate Platform Helper mode" },
+      { phrase: "Switch to Webee help",   desc: "Activate Platform Helper mode" },
+      { phrase: "Exit help",              desc: "Exit Platform Helper mode" },
+    ],
+  },
+  {
+    title: "Platform Helper",
+    icon: "📘",
+    commands: [
+      { phrase: "How do I configure a Logic Split?",       desc: "Step-by-step configuration guide" },
+      { phrase: "How do I pass variables between nodes?",  desc: "Learn variable extraction & usage" },
+      { phrase: "How do I check my Retell config?",        desc: "Troubleshoot Retell setup" },
+      { phrase: "Open the receptionist go-live guide",     desc: "Opens documentation in a new tab" },
+      { phrase: "Open the customer care build guide",      desc: "Opens documentation in a new tab" },
+      { phrase: "How do I deploy my agent?",               desc: "Publishing & Go Live walkthrough" },
     ],
   },
   {
@@ -765,14 +783,24 @@ export function VoiceCopilotButton() {
           </button>
         </div>
 
-        {/* Activation highlight */}
-        <div className="mx-4 mt-4 mb-1 px-3 py-3 rounded-lg border border-yellow-500/50 bg-yellow-500/10">
-          <p className="text-[10px] text-yellow-500/80 uppercase tracking-widest mb-1.5 font-bold">Primary activation phrase</p>
-          <div className="flex items-center gap-2">
-            <span className="text-yellow-400 text-sm">⚡</span>
-            <span className="text-yellow-300 text-[13px] font-semibold">"Switch to Webee Build"</span>
+        {/* Activation highlights */}
+        <div className="mx-4 mt-4 mb-1 space-y-2">
+          <div className="px-3 py-3 rounded-lg border border-yellow-500/50 bg-yellow-500/10">
+            <p className="text-[10px] text-yellow-500/80 uppercase tracking-widest mb-1.5 font-bold">Build mode</p>
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-400 text-sm">⚡</span>
+              <span className="text-yellow-300 text-[13px] font-semibold">"Switch to Webee Build"</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1.5">Describe a full multi-node flow in one sentence.</p>
           </div>
-          <p className="text-[10px] text-slate-400 mt-1.5">Enables Macro Blueprint mode — describe a full multi-node flow in one sentence.</p>
+          <div className="px-3 py-3 rounded-lg border border-purple-500/50 bg-purple-500/10">
+            <p className="text-[10px] text-purple-400/80 uppercase tracking-widest mb-1.5 font-bold">Platform helper</p>
+            <div className="flex items-center gap-2">
+              <span className="text-purple-400 text-sm">📘</span>
+              <span className="text-purple-300 text-[13px] font-semibold">"Webee help"</span>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1.5">Ask platform questions or open step-by-step guides.</p>
+          </div>
         </div>
 
         {/* Sections */}
