@@ -787,28 +787,22 @@ export function VoiceCopilotButton() {
                 <span className="text-yellow-400 text-[10px]">⚡</span>
                 <span className="text-yellow-300 text-[11px] font-semibold">"Switch to Webee Build"</span>
               </div>
+              {sessionCost > 0 && (
+                <div className="mt-2.5 pt-2.5 border-t border-slate-800 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500">Session cost</span>
+                  <div className="flex items-center gap-2 text-[10px] font-mono">
+                    {lastCost !== null && (
+                      <span className="text-slate-500">last <span className="text-slate-400">${lastCost.toFixed(4)}</span></span>
+                    )}
+                    <span className="text-slate-300 font-semibold">${sessionCost.toFixed(4)}</span>
+                  </div>
+                </div>
+              )}
             </div>
             {/* Arrow */}
             <div className="flex justify-center mt-[-1px]">
               <div className="w-2.5 h-2.5 bg-slate-900 border-r border-b border-slate-800 rotate-45 -mt-1.5" />
             </div>
-          </div>
-        )}
-
-        {/* ── Session cost counter ── */}
-        {sessionCost > 0 && (
-          <div
-            title={`Last: $${lastCost?.toFixed(4)} · Session (w/ margin): $${sessionCost.toFixed(4)}`}
-            className={cn(
-              "absolute right-full mr-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono cursor-default select-none",
-              isMacro
-                ? "bg-yellow-400/10 text-yellow-300 border border-yellow-400/20"
-                : "bg-white/[0.04] text-muted-foreground/60 border border-white/[0.06]",
-            )}
-            style={{ whiteSpace: "nowrap" }}
-          >
-            <span className="opacity-50">$</span>
-            <span>{sessionCost.toFixed(4)}</span>
           </div>
         )}
 
