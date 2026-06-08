@@ -1,0 +1,31 @@
+Title: Feature Request - Voice Copilot Mode Switching & Active UI Indicators
+
+Please implement a explicit state-machine toggle for the Voice Copilot to handle seamless switching between "Micro Command Mode" (Default) and "Macro Blueprinting Mode" (Webee Build Mode). 
+
+### 1. Dual-State Initialization Logic
+* Maintain an internal state controller tracking the active input state: `copilotMode: 'MICRO' | 'MACRO'`.
+* **Micro Mode (Default):** Process voice inputs sequentially phrase-by-phrase to create, modify, or delete single elements.
+* **Macro Mode (Webee Build):** Hold the multi-sentence conversational description buffer in memory to generate and route complete, cascading multi-node tree layouts at once.
+
+---
+
+### 2. Voice-Activated Switching Triggers
+* **Initiating Macro Mode:** If the voice recognition system detects the phrase **"switch to webee build"** or **"activate webee build"**, immediately intercept execution loop and change `copilotMode` to `'MACRO'`.
+* **Reverting to Normal Mode:** If the user speaks the command phrase **"switch back to normal mode"**, **"exit webee build"**, or **"return to normal"**, immediately revert `copilotMode` back to `'MICRO'`.
+
+---
+
+### 3. High-Visibility Mode Activation Indicators (UI Feedback)
+When the system transitions into Macro Mode ("Webee Build Mode"), update the interface layout dynamically to prevent user confusion:
+
+* **Microphone Icon Morph:** Transition the microphone button’s idle ring and pulsing glow wave color from the standard theme blue over to our signature **vibrant brand golden-yellow accent color**.
+* **Persistent Status Badge Overlay:** Render a tight, floating uppercase status pill directly above the text box or near the top navbar saying: `⚡ WEBEE BUILD MODE ACTIVE`. Use the golden-yellow backdrop with a dark slate contrast font so it stands out immediately.
+* **Contextual Placeholder Shift:** Dynamically swap the background text hint within the mic transcription display panel:
+    * *Micro Mode Hint:* "Speak a command... (e.g., 'Add a conversation node')"
+    * *Macro Mode Hint:* "Describe a full script flow... (e.g., 'Build an inbound real estate script that captures names and books an appointment')"
+
+---
+
+### 4. Hybrid Manual Toggle Escape Hatch
+* **Visual Mode Switcher Button:** Add a tiny, clean close icon cross button `(✕)` or an elegant minimalist toggle slider directly onto the floating status badge card. 
+* **Touch Override:** This allows the user to click out of Macro Mode manually with a cursor click at any time, instantly reverting the environment back to regular Micro Mode without requiring a secondary vocal instruction loop.

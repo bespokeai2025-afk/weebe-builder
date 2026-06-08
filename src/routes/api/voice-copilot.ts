@@ -145,16 +145,19 @@ export const Route = createFileRoute("/api/voice-copilot")({
         let mimeType: string;
         type CanvasNode = { id: string; label: string; kind: string; x: number; y: number; transitions: { id: string; label: string }[] };
         let canvasNodes: CanvasNode[] = [];
+        let clientMode: "MICRO" | "MACRO" = "MICRO";
 
         try {
           const body = (await request.json()) as {
             audio: string;
             mimeType: string;
             canvasNodes?: CanvasNode[];
+            copilotMode?: "MICRO" | "MACRO";
           };
           audio = body.audio;
           mimeType = body.mimeType ?? "audio/webm";
           canvasNodes = body.canvasNodes ?? [];
+          clientMode  = body.copilotMode ?? "MICRO";
         } catch {
           return json({ ok: false, error: "Invalid request body" }, 400);
         }
@@ -206,7 +209,11 @@ export const Route = createFileRoute("/api/voice-copilot")({
               }).join("\n")}\n\n`
             : "CURRENT CANVAS NODES: (empty canvas)\n\n";
 
-        const userMessage = `${canvasContext}USER COMMAND: ${transcript}`;
+        const modeContext = clientMode === "MACRO"
+          ? "ACTIVE MODE: MACRO (Webee Build Mode) — you MUST set \"mode\":\"MACRO_BLUEPRINT\" and generate a full connected multi-node flow.\n\n"
+          : "";
+
+        const userMessage = `${modeContext}${canvasContext}USER COMMAND: ${transcript}`;
 
         // ── 4. Parse commands via GPT-4o ──────────────────────────────────────
         let commands: unknown[] = [];

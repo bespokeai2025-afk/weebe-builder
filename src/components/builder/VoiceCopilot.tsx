@@ -345,10 +345,18 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 export function VoiceCopilotButton() {
-  const [state, setState] = useState<CopilotState>("idle");
+  const [state, setState]           = useState<CopilotState>("idle");
+  const [copilotMode, setCopilotMode] = useState<"MICRO" | "MACRO">("MICRO");
+  // Use a ref so processAudio always reads the current mode without stale closure
+  const modeRef = useRef<"MICRO" | "MACRO">("MICRO");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef        = useRef<Blob[]>([]);
   const streamRef        = useRef<MediaStream | null>(null);
+
+  const updateMode = useCallback((m: "MICRO" | "MACRO") => {
+    modeRef.current = m;
+    setCopilotMode(m);
+  }, []);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state !== "inactive") mediaRecorderRef.current?.stop();
@@ -378,6 +386,8 @@ export function VoiceCopilotButton() {
         transitions: n.data.transitions.map((t) => ({ id: t.id, label: t.condition })),
       }));
 
+      const currentMode = modeRef.current;
+
       const res = await fetch("/api/voice-copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -385,6 +395,7 @@ export function VoiceCopilotButton() {
           audio: base64,
           mimeType: blob.type || "audio/webm",
           canvasNodes,
+          copilotMode: currentMode,
         }),
       });
 
@@ -399,6 +410,32 @@ export function VoiceCopilotButton() {
       if (!data.ok || !data.commands) {
         toast.error(data.error ?? "Voice copilot failed. Please try again.");
         return;
+      }
+
+      // ── Mode-switch detection (client-side, checked before any commands) ──
+      if (data.transcript) {
+        const lower = data.transcript.toLowerCase();
+        const MACRO_PHRASES = ["switch to webee build", "activate webee build", "webee build mode", "enable webee build"];
+        const MICRO_PHRASES = ["switch back to normal", "exit webee build", "return to normal", "normal mode", "disable webee build"];
+        if (MACRO_PHRASES.some((p) => lower.includes(p))) {
+          updateMode("MACRO");
+          toast.success(
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-yellow-400 text-base">⚡</span>
+              <div>
+                <span className="text-yellow-400 font-bold">Webee Build Mode</span>
+                <span className="text-muted-foreground ml-1.5">activated — describe a full flow</span>
+              </div>
+            </div>,
+            { duration: 5000 },
+          );
+          return;
+        }
+        if (MICRO_PHRASES.some((p) => lower.includes(p))) {
+          updateMode("MICRO");
+          toast.info("Normal mode restored.", { duration: 3000 });
+          return;
+        }
       }
 
       const isBlueprint = data.mode === "MACRO_BLUEPRINT";
@@ -512,10 +549,12 @@ export function VoiceCopilotButton() {
       recorder.start();
       setState("recording");
 
-      toast.info("Listening… click the mic again to stop.", {
-        id: "voice-listening",
-        duration: 30000,
-      });
+      toast.info(
+        modeRef.current === "MACRO"
+          ? "⚡ Webee Build — describe your full flow, then click the mic to stop."
+          : "Listening… click the mic again to stop.",
+        { id: "voice-listening", duration: 30000 },
+      );
     } catch (err) {
       console.error("[VoiceCopilot] Mic access error:", err);
       toast.error("Microphone access denied. Please allow mic access and try again.");
@@ -524,36 +563,78 @@ export function VoiceCopilotButton() {
 
   const isRecording  = state === "recording";
   const isProcessing = state === "processing";
+  const isMacro      = copilotMode === "MACRO";
 
   return (
-    <Button
-      size="sm"
-      variant="ghost"
-      title={isRecording ? "Stop recording" : isProcessing ? "Processing…" : "Voice Command Copilot"}
-      disabled={isProcessing}
-      onClick={() => {
-        if (isRecording) toast.dismiss("voice-listening");
-        void handleClick();
-      }}
-      className={cn(
-        "!h-8 !w-8 !p-0 relative transition-all duration-200",
-        isRecording
-          ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
-          : isProcessing
-            ? "text-blue-400 bg-blue-500/10"
-            : "text-muted-foreground/60 hover:text-blue-400 hover:bg-blue-500/10",
+    <div className="relative flex items-center justify-center" style={{ overflow: "visible" }}>
+
+      {/* ── Floating badge: only visible in MACRO mode ── */}
+      {isMacro && (
+        <div
+          className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-50"
+          style={{ whiteSpace: "nowrap" }}
+        >
+          <div className="flex items-center gap-1.5 bg-yellow-400 text-slate-900 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-yellow-500/40">
+            <span>⚡ WEBEE BUILD</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                updateMode("MICRO");
+                toast.info("Normal mode restored.", { duration: 3000 });
+              }}
+              className="opacity-60 hover:opacity-100 transition-opacity leading-none ml-0.5"
+              title="Exit Webee Build Mode"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
       )}
-    >
-      {isProcessing ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-      ) : isRecording ? (
-        <>
-          <MicOff className="h-3.5 w-3.5" />
-          <span className="absolute inset-0 rounded-md animate-ping bg-yellow-400/20 pointer-events-none" />
-        </>
-      ) : (
-        <Mic className="h-3.5 w-3.5" />
-      )}
-    </Button>
+
+      {/* ── Mic button ── */}
+      <Button
+        size="sm"
+        variant="ghost"
+        title={
+          isRecording  ? "Stop recording" :
+          isProcessing ? "Processing…" :
+          isMacro      ? "⚡ Webee Build — describe a full flow" :
+                         "Voice Command Copilot"
+        }
+        disabled={isProcessing}
+        onClick={() => {
+          if (isRecording) toast.dismiss("voice-listening");
+          void handleClick();
+        }}
+        className={cn(
+          "!h-8 !w-8 !p-0 relative transition-all duration-200",
+          isRecording
+            ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
+            : isProcessing
+              ? isMacro
+                ? "text-yellow-400 bg-yellow-500/10"
+                : "text-blue-400 bg-blue-500/10"
+              : isMacro
+                ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
+                : "text-muted-foreground/60 hover:text-blue-400 hover:bg-blue-500/10",
+        )}
+      >
+        {isProcessing ? (
+          <Loader2 className={cn("h-3.5 w-3.5 animate-spin", isMacro && "text-yellow-400")} />
+        ) : isRecording ? (
+          <>
+            <MicOff className="h-3.5 w-3.5" />
+            <span className="absolute inset-0 rounded-md animate-ping bg-yellow-400/20 pointer-events-none" />
+          </>
+        ) : (
+          <>
+            <Mic className="h-3.5 w-3.5" />
+            {isMacro && (
+              <span className="absolute inset-0 rounded-md animate-pulse bg-yellow-400/15 pointer-events-none" />
+            )}
+          </>
+        )}
+      </Button>
+    </div>
   );
 }
