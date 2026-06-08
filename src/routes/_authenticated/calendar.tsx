@@ -201,7 +201,7 @@ function BookingDetailDialog({
               </div>
             )}
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
               <span
                 className={cn(
                   "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ring-1",
@@ -210,9 +210,12 @@ function BookingDetailDialog({
               >
                 {booking.status}
               </span>
-              <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-muted/50 text-muted-foreground ring-border">
-                {booking.source === "calcom" ? "Cal.com" : "Manual"}
-              </span>
+              {booking.agent_name && (
+                <span className="rounded-full px-2 py-0.5 text-[11px] ring-1 bg-blue-500/10 text-blue-400 ring-blue-500/20 flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400 inline-block" />
+                  {booking.agent_name}
+                </span>
+              )}
             </div>
 
             {booking.meeting_url && (
@@ -581,6 +584,12 @@ function CalendarPage() {
                         {(b.attendee_name || b.attendee_email) && (
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
                             {b.attendee_name ?? b.attendee_email}
+                          </p>
+                        )}
+                        {b.agent_name && (
+                          <p className="mt-0.5 truncate text-[11px] text-blue-400/80 flex items-center gap-1">
+                            <span className="h-1 w-1 rounded-full bg-blue-400/80 shrink-0 inline-block" />
+                            {b.agent_name}
                           </p>
                         )}
                         {b.notes && (

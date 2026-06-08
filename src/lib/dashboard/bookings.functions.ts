@@ -16,6 +16,7 @@ export type UnifiedBooking = {
   db_id: string | null;
   external_id: string | null;
   notes: string | null;
+  agent_name: string | null;
 };
 
 export type BookingDetail = {
@@ -154,6 +155,7 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
       db_id: b.id as string,
       external_id: b.external_id ?? null,
       notes: b.notes ?? null,
+      agent_name: null,
     }));
 
     const token = (settings as any)?.calcom_api_key ?? null;
@@ -171,13 +173,47 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
           : Array.isArray((payload as any)?.bookings)
             ? (payload as any).bookings
             : [];
+
+        // Collect all calcom UIDs so we can look up agent names in bulk
+        const calcomUids = list
+          .map((b: any) => b.uid ?? b.id)
+          .filter(Boolean)
+          .map(String);
+
+        // Fetch booking_summaries and agents in parallel to resolve agent names
+        const [{ data: summaryRows }, { data: agentRows }] = await Promise.all([
+          calcomUids.length > 0
+            ? (supabase as any)
+                .from("booking_summaries" as never)
+                .select("calcom_booking_uid,agent_id")
+                .in("calcom_booking_uid", calcomUids)
+            : Promise.resolve({ data: [] }),
+          (supabase as any)
+            .from("agents" as never)
+            .select("id,name")
+            .eq("workspace_id", workspaceId),
+        ]);
+
+        // Build uid → agent_name lookup
+        const agentNameById: Record<string, string> = {};
+        for (const a of (agentRows ?? []) as any[]) {
+          if (a.id && a.name) agentNameById[a.id] = a.name;
+        }
+        const uidToAgentName: Record<string, string | null> = {};
+        for (const s of (summaryRows ?? []) as any[]) {
+          if (s.calcom_booking_uid && s.agent_id) {
+            uidToAgentName[s.calcom_booking_uid] = agentNameById[s.agent_id] ?? null;
+          }
+        }
+
         calcom = list.map((b: any) => {
           const attendee =
             Array.isArray(b.attendees) && b.attendees.length > 0 ? b.attendees[0] : null;
           const calcomUid = b.uid ?? b.id ?? null;
+          const uidStr = calcomUid ? String(calcomUid) : null;
           // Check if there's a local calendar_bookings row for this calcom booking
           const localMatch = ((localRows ?? []) as any[]).find(
-            (r) => r.external_id === String(calcomUid),
+            (r) => r.external_id === uidStr,
           );
           return {
             id: `calcom:${calcomUid}`,
@@ -193,8 +229,9 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
               (typeof b.location === "string" ? b.location : null) ??
               (calcomUid ? `https://app.cal.com/booking/${calcomUid}` : null),
             db_id: localMatch?.id ?? null,
-            external_id: calcomUid ? String(calcomUid) : null,
+            external_id: uidStr,
             notes: localMatch?.notes ?? null,
+            agent_name: uidStr ? (uidToAgentName[uidStr] ?? null) : null,
           };
         });
       } catch (e: any) {
@@ -202,13 +239,8 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
       }
     }
 
-    // De-duplicate: if a local row has an external_id that matches a calcom entry, skip the local one
-    const calcomExternalIds = new Set(calcom.map((b) => b.external_id).filter(Boolean));
-    const localFiltered = local.filter(
-      (b) => !b.external_id || !calcomExternalIds.has(b.external_id),
-    );
-
-    const combined = [...calcom, ...localFiltered].filter((b) => !!b.start_at);
+    // Only return Cal.com bookings — local/manual call records are excluded from the calendar view
+    const combined = calcom.filter((b) => !!b.start_at);
     combined.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
 
     return {
