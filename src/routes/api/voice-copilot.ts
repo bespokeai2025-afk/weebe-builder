@@ -19,112 +19,49 @@ const VALID_TYPES = new Set([
 ]);
 
 const VALID_ACTIONS = new Set([
-  "CREATE_NODE",
-  "CONNECT_NODES",
-  "UPDATE_NODE_PROPERTIES",
-  "CREATE_TRANSITIONS",
-  "UPDATE_GLOBAL_SETTINGS",
+  "CREATE_NODE", "CONNECT_NODES", "UPDATE_NODE_PROPERTIES",
+  "CREATE_TRANSITIONS", "UPDATE_GLOBAL_SETTINGS",
 ]);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// System prompt — comprehensive command dictionary
-// ─────────────────────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are WEBEE Builder Copilot. Convert voice instructions into a JSON command array for an AI voice agent canvas builder.
+const SYSTEM_PROMPT = `You are WEBEE Builder Copilot. Convert voice instructions into JSON commands for an AI voice agent canvas builder.
 
-═══ NODE TYPE REGISTRY ═══
+═══ NODE TYPE REGISTRY (synonyms → type) ═══
+conversation  — say, speak, greet, talk, message, add conversation, prompt
+function      — run function, check availability, trigger API, call action, tool
+call_transfer — transfer call, forward to, forward number, dial out
+press_digit   — press key, dtmf, gather digit, ivr menu, keypad
+logic_split   — conditional, branching, if else, route, split path, check if, based on
+agent_transfer — send to human, hand off to live agent, escalate, operator
+sms           — send text, text during call, SMS
+extract_variable — save response, capture data, extract var, remember what they said
+code          — custom script, javascript, run code block
+ending        — hang up, terminate, goodbye, stop call, end call, end the call
+note          — sticky note, comment, annotation
 
-Map synonyms → type exactly as shown:
+═══ COMMANDS ═══
 
-• conversation — say, speak, greet, talk, add conversation, message, add a prompt, add speech, ask the caller
-• function      — run function, check availability, trigger API, call action, execute integration, tool call
-• call_transfer — transfer call, forward to, forward number, dial out, redirect call, send to number
-• press_digit   — press key, dtmf, gather digit, ivr menu, press button, keypad input
-• logic_split   — conditional, branching, if else, route intent, split path, depends on, based on, check if
-• agent_transfer — send to human, hand off to live agent, escalate, transfer to operator, live agent
-• sms           — send text message, text during call, sms link, send SMS, send a text
-• extract_variable — save response, capture data, extract var, remember what they said, store answer, record value
-• code          — custom script, javascript, run code block, code snippet, execute code
-• ending        — hang up, terminate, goodbye node, stop call, end call, end the call
-• note          — sticky note, comment on canvas, remind me, canvas note, annotation
+1. CREATE_NODE
+{"action":"CREATE_NODE","type":"<type>","label":"<short title>","dialogue":"<agent instructions or content>","properties":{"phone_number":"","sms_body":"","variable_name":"","function_name":"","code_snippet":""},"_ref":"n1"}
 
-═══ COMMAND SHAPES ═══
+2. CONNECT_NODES  (use node labels or _ref from same batch)
+{"action":"CONNECT_NODES","from":"<label or _ref>","to":"<label or _ref>","transition_label":"<optional: name the new connection>"}
 
-1. CREATE_NODE — create a new node on the canvas
-{
-  "action": "CREATE_NODE",
-  "type": "<nodeType>",
-  "label": "<short descriptive title>",
-  "dialogue": "<optional: agent instructions or content>",
-  "properties": {
-    "phone_number": "<for call_transfer>",
-    "sms_body": "<for sms>",
-    "variable_name": "<for extract_variable>",
-    "function_name": "<for function>",
-    "code_snippet": "<for code>"
-  },
-  "_ref": "<short unique id, e.g. n1, n2 — used by CONNECT_NODES in same batch>"
-}
+3. UPDATE_NODE_PROPERTIES  (reference nodes by label — fuzzy match)
+{"action":"UPDATE_NODE_PROPERTIES","node":"<label>","properties":{"title":"","text":"","phone_number":"","sms_body":"","variable_name":"","function_name":"","code_snippet":""}}
 
-2. CONNECT_NODES — draw a wire between two nodes
-{
-  "action": "CONNECT_NODES",
-  "from": "<node label, _ref, or node id>",
-  "to": "<node label, _ref, or node id>",
-  "via_transition": "<optional: exact transition/option label to use as source handle>"
-}
+4. CREATE_TRANSITIONS  (add branching options to a node)
+{"action":"CREATE_TRANSITIONS","node":"<label>","transitions":["option 1","option 2"]}
 
-3. UPDATE_NODE_PROPERTIES — modify an existing node's content or settings
-{
-  "action": "UPDATE_NODE_PROPERTIES",
-  "node": "<node label or id — use fuzzy match>",
-  "properties": {
-    "title": "<new label>",
-    "text": "<new dialogue/instructions>",
-    "phone_number": "<for call_transfer>",
-    "sms_body": "<for sms>",
-    "variable_name": "<for extract_variable>",
-    "function_name": "<for function>",
-    "code_snippet": "<for code>"
-  }
-}
+5. UPDATE_GLOBAL_SETTINGS
+{"action":"UPDATE_GLOBAL_SETTINGS","agentName":"","globalPrompt":"","language":"<BCP-47: en-US,en-GB,es-ES,fr-FR,de-DE,pt-PT,ja-JP,zh-CN>","voiceId":"<e.g. 11labs-Adrian>","model":"<gpt-4o|gpt-4o-mini|gpt-4.1>"}
 
-4. CREATE_TRANSITIONS — add branching options/paths to a node
-{
-  "action": "CREATE_TRANSITIONS",
-  "node": "<node label or id>",
-  "transitions": ["<option label 1>", "<option label 2>", ...]
-}
-
-5. UPDATE_GLOBAL_SETTINGS — update side-panel agent settings (no canvas changes)
-{
-  "action": "UPDATE_GLOBAL_SETTINGS",
-  "agentName": "<optional>",
-  "globalPrompt": "<optional>",
-  "language": "<optional: BCP-47 code — map natural language: 'GB English'→'en-GB', 'US English'→'en-US', 'Spanish'→'es-ES', 'French'→'fr-FR', 'German'→'de-DE', 'Portuguese'→'pt-PT', 'Italian'→'it-IT', 'Dutch'→'nl-NL', 'Japanese'→'ja-JP', 'Chinese'→'zh-CN', 'Korean'→'ko-KR'>",
-  "voiceId": "<optional: map 'Adrian'→'11labs-Adrian', keep other voice names as-is>",
-  "model": "<optional: map 'GPT-4o'→'gpt-4o', 'GPT-4o mini'→'gpt-4o-mini', 'GPT-4.1'→'gpt-4.1', 'GPT-4'→'gpt-4'>"
-}
-
-═══ EXECUTION RULES ═══
-
-1. CHAIN: Execute multiple commands in a single batch array. If user says "Create a greeting node, add two options, and connect it to a logic split", output all required commands in sequence.
-
-2. FUZZY NAMES: When a command references an existing node by name (e.g. "connect to the booking node"), match it by the closest label — don't require exact spelling. Use the node label string, not an ID.
-
-3. REFS: Assign _ref values (n1, n2, etc.) to every CREATE_NODE. Use those refs in subsequent CONNECT_NODES or CREATE_TRANSITIONS within the same batch.
-
-4. PROPERTIES: Always populate relevant properties for the node type:
-   - conversation → dialogue (agent instructions)
-   - call_transfer → properties.phone_number
-   - sms → properties.sms_body
-   - extract_variable → properties.variable_name
-   - function → properties.function_name
-   - code → properties.code_snippet
-   - note → dialogue (content)
-
-5. STRICT: Reject any command that isn't one of the 5 actions above. Return { "commands": [] } if the request is not about the builder.
-
-Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
+═══ RULES ═══
+- Use _ref (n1, n2…) on every CREATE_NODE; reference same _ref in CONNECT_NODES
+- When referencing EXISTING nodes, use their exact label from CURRENT CANVAS NODES
+- Chain all commands in one batch array for multi-step instructions
+- For conversation nodes write natural agent instructions in dialogue
+- Return {"commands":[]} if not a builder command
+- Return ONLY valid JSON, no markdown`;
 
 export const Route = createFileRoute("/api/voice-copilot")({
   server: {
@@ -139,10 +76,17 @@ export const Route = createFileRoute("/api/voice-copilot")({
 
         let audio: string;
         let mimeType: string;
+        let canvasNodes: { id: string; label: string; kind: string }[] = [];
+
         try {
-          const body = (await request.json()) as { audio: string; mimeType: string };
+          const body = (await request.json()) as {
+            audio: string;
+            mimeType: string;
+            canvasNodes?: { id: string; label: string; kind: string }[];
+          };
           audio = body.audio;
           mimeType = body.mimeType ?? "audio/webm";
+          canvasNodes = body.canvasNodes ?? [];
         } catch {
           return json({ ok: false, error: "Invalid request body" }, 400);
         }
@@ -160,8 +104,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
         // ── 2. Transcribe via Whisper ─────────────────────────────────────────
         const formData = new FormData();
         const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
-        const blob = new Blob([audioBuffer], { type: mimeType });
-        formData.append("file", blob, `audio.${ext}`);
+        formData.append("file", new Blob([audioBuffer], { type: mimeType }), `audio.${ext}`);
         formData.append("model", "whisper-1");
         formData.append("language", "en");
 
@@ -176,8 +119,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
             console.error("[VoiceCopilot] Whisper error:", await whisperRes.text());
             return json({ ok: false, error: "Transcription failed" }, 502);
           }
-          const data = (await whisperRes.json()) as { text?: string };
-          transcript = (data.text ?? "").trim();
+          transcript = ((await whisperRes.json() as { text?: string }).text ?? "").trim();
         } catch (e) {
           console.error("[VoiceCopilot] Whisper fetch error:", e);
           return json({ ok: false, error: "Transcription request failed" }, 502);
@@ -185,23 +127,28 @@ export const Route = createFileRoute("/api/voice-copilot")({
 
         if (!transcript) return json({ ok: false, error: "Could not transcribe audio" }, 422);
 
-        // ── 3. Parse commands via GPT-4o-mini ─────────────────────────────────
+        // ── 3. Build user message with canvas context ─────────────────────────
+        const canvasContext =
+          canvasNodes.length > 0
+            ? `CURRENT CANVAS NODES:\n${canvasNodes.map((n) => `- "${n.label}" (id: ${n.id}, type: ${n.kind})`).join("\n")}\n\n`
+            : "CURRENT CANVAS NODES: (empty canvas)\n\n";
+
+        const userMessage = `${canvasContext}USER COMMAND: ${transcript}`;
+
+        // ── 4. Parse commands via GPT-4o ──────────────────────────────────────
         let commands: unknown[] = [];
         try {
           const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "gpt-4o-mini",
+              model: "gpt-4o",
               temperature: 0,
               max_tokens: 1500,
               response_format: { type: "json_object" },
               messages: [
                 { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: transcript },
+                { role: "user", content: userMessage },
               ],
             }),
           });
@@ -209,18 +156,16 @@ export const Route = createFileRoute("/api/voice-copilot")({
             console.error("[VoiceCopilot] GPT error:", await gptRes.text());
             return json({ ok: false, error: "Command parsing failed" }, 502);
           }
-          const gptData = (await gptRes.json()) as {
-            choices?: { message?: { content?: string } }[];
-          };
-          const raw = gptData.choices?.[0]?.message?.content ?? "{}";
-          const parsed = JSON.parse(raw) as { commands?: unknown[] };
-          commands = Array.isArray(parsed.commands) ? parsed.commands : [];
+          const raw =
+            ((await gptRes.json() as { choices?: { message?: { content?: string } }[] })
+              .choices?.[0]?.message?.content) ?? "{}";
+          commands = (JSON.parse(raw) as { commands?: unknown[] }).commands ?? [];
         } catch (e) {
           console.error("[VoiceCopilot] GPT parse error:", e);
           return json({ ok: false, error: "Command parsing failed" }, 502);
         }
 
-        // ── 4. Sanitise — strip unknown actions / node types ──────────────────
+        // ── 5. Sanitise ───────────────────────────────────────────────────────
         const safe = commands.filter((c) => {
           if (typeof c !== "object" || c === null) return false;
           const cmd = c as Record<string, unknown>;

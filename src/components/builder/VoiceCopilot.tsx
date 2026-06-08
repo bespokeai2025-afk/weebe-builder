@@ -20,6 +20,7 @@ interface VoiceCommand {
   from?: string;
   to?: string;
   via_transition?: string;
+  transition_label?: string;
   // UPDATE_NODE_PROPERTIES
   node?: string;
   // CREATE_TRANSITIONS
@@ -34,82 +35,70 @@ interface VoiceCommand {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Fuzzy node finder — exact ID → exact label → includes → Levenshtein
+// Fuzzy node finder — exact ID → _ref map → exact label → includes → Levenshtein
 // ─────────────────────────────────────────────────────────────────────────────
 function levenshtein(a: string, b: string): number {
   const m = a.length, n = b.length;
   const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
     Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
   );
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
       dp[i][j] =
         a[i - 1] === b[j - 1]
           ? dp[i - 1][j - 1]
           : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
-  }
   return dp[m][n];
 }
 
 function findNode(nameOrRef: string, idMap: Record<string, string>) {
-  const store = useBuilderStore.getState();
-  const nodes = store.nodes;
+  const nodes = useBuilderStore.getState().nodes;
 
-  // 1. _ref from current batch
-  const mappedId = idMap[nameOrRef];
-  if (mappedId) {
-    const n = nodes.find((n) => n.id === mappedId);
+  // 1. _ref resolved to real ID
+  const mapped = idMap[nameOrRef];
+  if (mapped) {
+    const n = nodes.find((n) => n.id === mapped);
     if (n) return n;
   }
-
   // 2. Exact node ID
   const byId = nodes.find((n) => n.id === nameOrRef);
   if (byId) return byId;
 
   const lower = nameOrRef.toLowerCase().trim();
-
-  // 3. Exact label (case-insensitive)
+  // 3. Exact label
   const exact = nodes.find((n) => n.data.label.toLowerCase() === lower);
   if (exact) return exact;
-
-  // 4. Label includes query (or query includes label)
-  const includes = nodes.find(
+  // 4. Substring
+  const sub = nodes.find(
     (n) =>
       n.data.label.toLowerCase().includes(lower) ||
       lower.includes(n.data.label.toLowerCase()),
   );
-  if (includes) return includes;
-
-  // 5. Levenshtein fuzzy — accept if distance ≤ max(3, 40% of query length)
+  if (sub) return sub;
+  // 5. Levenshtein ≤ max(3, 40% of query)
   let best: (typeof nodes)[0] | undefined;
   let bestDist = Infinity;
   for (const n of nodes) {
-    const dist = levenshtein(n.data.label.toLowerCase(), lower);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = n;
-    }
+    const d = levenshtein(n.data.label.toLowerCase(), lower);
+    if (d < bestDist) { bestDist = d; best = n; }
   }
-  const threshold = Math.max(3, Math.floor(lower.length * 0.4));
-  if (best && bestDist <= threshold) return best;
-
+  if (best && bestDist <= Math.max(3, Math.floor(lower.length * 0.4))) return best;
   return undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Map node-type-specific voice properties → FlowNodeData field names
+// Map voice property names → FlowNodeData field names
 // ─────────────────────────────────────────────────────────────────────────────
 function mapProperties(props: Record<string, string>): Partial<FlowNodeData> {
-  const patch: Partial<FlowNodeData> = {};
-  if (props.title) patch.label = props.title;
-  if (props.text) patch.dialogue = props.text;
-  if (props.phone_number) patch.transferNumber = props.phone_number;
-  if (props.sms_body) patch.smsMessage = props.sms_body;
-  if (props.variable_name) patch.variableName = props.variable_name;
-  if (props.function_name) patch.toolName = props.function_name;
-  if (props.code_snippet) patch.codeSource = props.code_snippet;
-  return patch;
+  const p: Partial<FlowNodeData> = {};
+  if (props.title) p.label = props.title;
+  if (props.text) p.dialogue = props.text;
+  if (props.phone_number) p.transferNumber = props.phone_number;
+  if (props.sms_body) p.smsMessage = props.sms_body;
+  if (props.variable_name) p.variableName = props.variable_name;
+  if (props.function_name) p.toolName = props.function_name;
+  if (props.code_snippet) p.codeSource = props.code_snippet;
+  return p;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,59 +106,65 @@ function mapProperties(props: Record<string, string>): Partial<FlowNodeData> {
 // ─────────────────────────────────────────────────────────────────────────────
 function executeVoiceCommands(commands: VoiceCommand[]) {
   const idMap: Record<string, string> = {};
-  let createdCount = 0;
-  let connectedCount = 0;
-  let updatedCount = 0;
-  let settingsCount = 0;
+  let createdCount = 0, connectedCount = 0, updatedCount = 0, settingsCount = 0;
   const warnings: string[] = [];
 
   for (const cmd of commands) {
+
     // ── CREATE_NODE ──────────────────────────────────────────────────────────
     if (cmd.action === "CREATE_NODE") {
-      const kind = cmd.type as NodeKind;
       const nodesBefore = useBuilderStore.getState().nodes.map((n) => n.id);
-      useBuilderStore.getState().addNode(kind);
-      const newNode = useBuilderStore
-        .getState()
-        .nodes.find((n) => !nodesBefore.includes(n.id));
-
+      useBuilderStore.getState().addNode(cmd.type as NodeKind);
+      const newNode = useBuilderStore.getState().nodes.find((n) => !nodesBefore.includes(n.id));
       if (newNode) {
         if (cmd._ref) idMap[cmd._ref] = newNode.id;
-
         const patch: Partial<FlowNodeData> = {};
         if (cmd.label) patch.label = cmd.label;
         if (cmd.dialogue) patch.dialogue = cmd.dialogue;
         if (cmd.properties) Object.assign(patch, mapProperties(cmd.properties));
-
-        if (Object.keys(patch).length) {
-          useBuilderStore.getState().updateNode(newNode.id, patch);
-        }
+        if (Object.keys(patch).length) useBuilderStore.getState().updateNode(newNode.id, patch);
         createdCount++;
       }
 
     // ── CONNECT_NODES ────────────────────────────────────────────────────────
+    // Nodes have NO default source handle — only per-transition handles.
+    // So we MUST create a new transition (or find an existing one) to get a
+    // valid sourceHandle before calling onConnect.
     } else if (cmd.action === "CONNECT_NODES") {
       const fromNode = cmd.from ? findNode(cmd.from, idMap) : undefined;
-      const toNode = cmd.to ? findNode(cmd.to, idMap) : undefined;
+      const toNode   = cmd.to   ? findNode(cmd.to,   idMap) : undefined;
 
       if (!fromNode || !toNode) {
-        warnings.push(
-          `Could not find node(s) to connect: "${cmd.from ?? "?"}" → "${cmd.to ?? "?"}"`,
-        );
+        warnings.push(`Could not find nodes: "${cmd.from ?? "?"}" → "${cmd.to ?? "?"}"`);
         continue;
       }
 
-      // Find the matching transition handle if via_transition is given
       let sourceHandle: string | null = null;
+
+      // Try to match an existing transition by via_transition label
       if (cmd.via_transition) {
         const viaLower = cmd.via_transition.toLowerCase();
-        const matchingTransition = fromNode.data.transitions?.find(
+        const match = fromNode.data.transitions?.find(
           (t) =>
             t.condition.toLowerCase() === viaLower ||
-            t.condition.toLowerCase().includes(viaLower) ||
-            viaLower.includes(t.condition.toLowerCase()),
+            t.condition.toLowerCase().includes(viaLower),
         );
-        if (matchingTransition) sourceHandle = matchingTransition.id;
+        if (match) sourceHandle = match.id;
+      }
+
+      // No matching handle found — create a new transition to serve as the wire
+      if (!sourceHandle) {
+        const newId = `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        const conditionLabel = cmd.transition_label ?? cmd.via_transition ?? "Continue";
+        const existing = useBuilderStore.getState().nodes.find((n) => n.id === fromNode.id);
+        const existingTransitions = existing?.data.transitions ?? [];
+        useBuilderStore.getState().updateNode(fromNode.id, {
+          transitions: [
+            ...existingTransitions,
+            { id: newId, condition: conditionLabel, target: toNode.id },
+          ],
+        });
+        sourceHandle = newId;
       }
 
       useBuilderStore.getState().onConnect({
@@ -187,13 +182,10 @@ function executeVoiceCommands(commands: VoiceCommand[]) {
         warnings.push(`Could not find node to update: "${cmd.node ?? "?"}"`);
         continue;
       }
-
       const patch: Partial<FlowNodeData> = {};
-      if (cmd.properties) Object.assign(patch, mapProperties(cmd.properties));
-      // Also accept top-level label/dialogue for convenience
       if (cmd.label) patch.label = cmd.label;
       if (cmd.dialogue) patch.dialogue = cmd.dialogue;
-
+      if (cmd.properties) Object.assign(patch, mapProperties(cmd.properties));
       if (Object.keys(patch).length) {
         useBuilderStore.getState().updateNode(target.id, patch);
         updatedCount++;
@@ -206,17 +198,15 @@ function executeVoiceCommands(commands: VoiceCommand[]) {
         warnings.push(`Could not find node for transitions: "${cmd.node ?? "?"}"`);
         continue;
       }
-
       const newTransitions = (cmd.transitions ?? []).map((label) => ({
         id: `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
         condition: label,
         target: null,
       }));
-
       if (newTransitions.length) {
-        const existing = target.data.transitions ?? [];
+        const fresh = useBuilderStore.getState().nodes.find((n) => n.id === target.id);
         useBuilderStore.getState().updateNode(target.id, {
-          transitions: [...existing, ...newTransitions],
+          transitions: [...(fresh?.data.transitions ?? []), ...newTransitions],
         });
         updatedCount++;
       }
@@ -224,12 +214,11 @@ function executeVoiceCommands(commands: VoiceCommand[]) {
     // ── UPDATE_GLOBAL_SETTINGS ───────────────────────────────────────────────
     } else if (cmd.action === "UPDATE_GLOBAL_SETTINGS") {
       const patch: Record<string, unknown> = {};
-      if (cmd.agentName) patch.agentName = cmd.agentName;
+      if (cmd.agentName)   patch.agentName   = cmd.agentName;
       if (cmd.globalPrompt) patch.globalPrompt = cmd.globalPrompt;
-      if (cmd.language) patch.language = cmd.language;
-      if (cmd.voiceId) patch.voiceId = cmd.voiceId;
-      if (cmd.model) patch.model = cmd.model;
-
+      if (cmd.language)    patch.language    = cmd.language;
+      if (cmd.voiceId)     patch.voiceId     = cmd.voiceId;
+      if (cmd.model)       patch.model       = cmd.model;
       if (Object.keys(patch).length) {
         useBuilderStore.getState().setSettings(patch);
         settingsCount++;
@@ -246,22 +235,19 @@ function executeVoiceCommands(commands: VoiceCommand[]) {
 export function VoiceCopilotButton() {
   const [state, setState] = useState<CopilotState>("idle");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef        = useRef<Blob[]>([]);
+  const streamRef        = useRef<MediaStream | null>(null);
 
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
+    if (mediaRecorderRef.current?.state !== "inactive") mediaRecorderRef.current?.stop();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
   }, []);
 
   const processAudio = useCallback(async (blob: Blob) => {
     setState("processing");
     try {
+      // Encode audio to base64
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve((reader.result as string).split(",")[1]);
@@ -269,10 +255,21 @@ export function VoiceCopilotButton() {
         reader.readAsDataURL(blob);
       });
 
+      // Snapshot current canvas nodes so GPT knows what exists
+      const canvasNodes = useBuilderStore.getState().nodes.map((n) => ({
+        id: n.id,
+        label: n.data.label,
+        kind: n.data.kind,
+      }));
+
       const res = await fetch("/api/voice-copilot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audio: base64, mimeType: blob.type || "audio/webm" }),
+        body: JSON.stringify({
+          audio: base64,
+          mimeType: blob.type || "audio/webm",
+          canvasNodes,
+        }),
       });
 
       const data = (await res.json()) as {
@@ -287,9 +284,23 @@ export function VoiceCopilotButton() {
         return;
       }
 
-      if (data.commands.length === 0) {
+      // Always show what was heard first, before executing
+      if (data.transcript) {
         toast.info(
-          `"${data.transcript}" — no builder commands detected. Try describing nodes to add, connections to make, or settings to change.`,
+          <span className="text-sm">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-medium block mb-0.5">
+              Heard
+            </span>
+            "{data.transcript}"
+          </span>,
+          { duration: 4000, id: "voice-transcript" },
+        );
+      }
+
+      if (data.commands.length === 0) {
+        toast.warning(
+          "No builder commands detected — try describing nodes to add, connections to make, or settings to change.",
+          { duration: 5000 },
         );
         return;
       }
@@ -297,31 +308,25 @@ export function VoiceCopilotButton() {
       const { createdCount, connectedCount, updatedCount, settingsCount, warnings } =
         executeVoiceCommands(data.commands);
 
-      // Show any fuzzy-match failures as a gentle warning
-      if (warnings.length) {
-        warnings.forEach((w) => toast.warning(w, { duration: 6000 }));
-      }
+      warnings.forEach((w) => toast.warning(w, { duration: 6000 }));
 
       const parts: string[] = [];
-      if (createdCount > 0) parts.push(`${createdCount} node${createdCount > 1 ? "s" : ""} added`);
-      if (connectedCount > 0)
-        parts.push(`${connectedCount} connection${connectedCount > 1 ? "s" : ""} made`);
-      if (updatedCount > 0)
-        parts.push(`${updatedCount} update${updatedCount > 1 ? "s" : ""} applied`);
-      if (settingsCount > 0) parts.push("settings updated");
+      if (createdCount)  parts.push(`${createdCount} node${createdCount > 1 ? "s" : ""} added`);
+      if (connectedCount) parts.push(`${connectedCount} connection${connectedCount > 1 ? "s" : ""} made`);
+      if (updatedCount)  parts.push(`${updatedCount} update${updatedCount > 1 ? "s" : ""} applied`);
+      if (settingsCount) parts.push("settings updated");
 
-      toast.success(
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground/80 uppercase tracking-wide">
-            Voice command detected
-          </span>
-          <span className="text-sm">"{data.transcript}"</span>
-          {parts.length > 0 && (
-            <span className="text-[11px] text-muted-foreground mt-0.5">{parts.join(" · ")}</span>
-          )}
-        </div>,
-        { duration: 5000 },
-      );
+      if (parts.length) {
+        toast.success(
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wide">
+              Done
+            </span>
+            <span className="text-sm">{parts.join(" · ")}</span>
+          </div>,
+          { duration: 4000 },
+        );
+      }
     } catch (err) {
       console.error("[VoiceCopilot] Error:", err);
       toast.error("Could not understand layout instruction. Please try again.");
@@ -331,10 +336,7 @@ export function VoiceCopilotButton() {
   }, []);
 
   const handleClick = useCallback(async () => {
-    if (state === "recording") {
-      stopRecording();
-      return;
-    }
+    if (state === "recording") { stopRecording(); return; }
     if (state === "processing") return;
 
     try {
@@ -344,19 +346,14 @@ export function VoiceCopilotButton() {
 
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "";
+        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
 
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = recorder;
 
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () =>
         void processAudio(new Blob(chunksRef.current, { type: mimeType || "audio/webm" }));
-      };
 
       recorder.start();
       setState("recording");
@@ -371,16 +368,14 @@ export function VoiceCopilotButton() {
     }
   }, [state, stopRecording, processAudio]);
 
-  const isRecording = state === "recording";
+  const isRecording  = state === "recording";
   const isProcessing = state === "processing";
 
   return (
     <Button
       size="sm"
       variant="ghost"
-      title={
-        isRecording ? "Stop recording" : isProcessing ? "Processing…" : "Voice Command Copilot"
-      }
+      title={isRecording ? "Stop recording" : isProcessing ? "Processing…" : "Voice Command Copilot"}
       disabled={isProcessing}
       onClick={() => {
         if (isRecording) toast.dismiss("voice-listening");

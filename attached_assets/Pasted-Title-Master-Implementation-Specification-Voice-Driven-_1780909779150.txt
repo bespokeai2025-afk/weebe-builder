@@ -1,0 +1,56 @@
+Title: Master Implementation Specification - Voice-Driven Builder Copilot with Precise Transition Routing
+
+Please implement a complete, production-grade "Voice Command AI Copilot" feature within our node builder workspace. This feature must allow users to speak instructions into a microphone, which are then parsed by an intelligent backend pipeline and translated into explicit frontend state function calls to dynamically assemble, label, modify, and wire nodes on the canvas. 
+
+---
+
+### 1. UI/UX Interface Elements
+* **The Microphone Trigger:** Add a sleek, compact microphone icon button directly into the top navigation bar or floating adjacent to the central canvas. It must match our dark theme and use our signature blue/yellow accents for active/hover states.
+* **Recording Feedback Loop:** Clicking the button switches it to a "Listening..." state, accompanied by a subtle, low-opacity pulsing wave animation around the button. Clicking it again halts recording.
+* **Transcription Toast:** Display a minimalist, temporary notification toast at the bottom of the screen showing a preview of the processed text (e.g., "Voice command detected: 'Add a conversation node'").
+
+---
+
+### 2. High-Accuracy Voice Processing Pipeline
+To eliminate parsing errors, the backend pipeline must follow a strict three-step framework: Active Context Injection, Chain-of-Thought Reasoning, and Few-Shot Mapping.
+
+* **Active Context Injection:** On every voice trigger, the frontend must package the user's spoken text alongside a highly compressed snapshot of the **current canvas state** (a JSON array listing all existing node IDs, current custom titles, and types present on the screen). This ensures the processor can resolve contextual phrases like *"the last node I made"* or *"change the text in the welcome box"*.
+* **Mandatory Chain-of-Thought Reasoning:** Instruct the parsing LLM to output a hidden `thought` string property *before* it generates the executable actions array. It must state its architectural goal, identify targeted nodes, and verify component existence.
+* **Few-Shot Learning Examples:** Hardcode exact behavioral templates into the system prompt to train the parser on messy, natural human commands:
+    * *Input:* "Oh wait, can you make a box that says goodbye if they hang up?"
+      * *Output JSON:* `{ "thought": "User wants an end node for goodbyes.", "commands": [{ "action": "CREATE_NODE", "type": "ending", "properties": { "title": "Goodbye Handler" } }] }`
+    * *Input:* "Link the booking button to that check availability thing we just made."
+      * *Output JSON:* `{ "thought": "User wants to bridge the 'Booking' transition path to the 'Check Availability' node.", "commands": [{ "action": "CONNECT_NODES", "from_node_id": "welcome_01", "via_transition": "Booking", "to_node_id": "check_avail_02" }] }`
+
+---
+
+### 3. Comprehensive Command Dictionary & System Registry
+The parser must seamlessly translate natural human intents into these precise frontend tools and modifications:
+
+* **Node Creation Commands:** Map spoken keywords to the exact structural block variants:
+    * *Conversation Node* ("say", "speak", "greet", "talk", "message") -> Properties: `title`, `text`
+    * *Function Node* ("run function", "check availability", "trigger API", "execute integration") -> Properties: `title`, `function_name`
+    * *Call Transfer Node* ("transfer call", "forward to number", "dial out") -> Properties: `title`, `phone_number`
+    * *Press Digit Node* ("press key", "dtmf option", "ivr menu") -> Properties: `title`, `digit_options`
+    * *Logic Split Node* ("conditional branch", "if else", "route intent") -> Properties: `title`, `conditions`
+    * *Agent Transfer Node* ("send to human", "live operator handoff", "escalate") -> Properties: `title`
+    * *In-Call SMS Node* ("send text message", "sms during call") -> Properties: `title`, `sms_body`
+    * *Extract Variable Node* ("save response", "capture data fields", "remember what they said") -> Properties: `title`, `variable_name`
+    * *Code Node* ("custom script block", "run javascript run") -> Properties: `title`, `code_snippet`
+    * *Ending Node* ("hang up", "terminate call", "stop workflow") -> Properties: `title`
+    * *Note Node* ("add a sticky note", "canvas comment", "remind me") -> Properties: `content`
+* **Property Modifications:** Interpret phrases that update live elements (e.g., *"Change the phone number in the transfer node to +123456789"* or *"Rename that conversation block to Intro Greeting"*).
+
+---
+
+### 4. Precise Transition-Port Routing Logic
+Connections between nodes must never be generic; they must target specific output branches (ports) explicitly:
+
+* **Transition-Aware Mapping:** Refactor the connection execution loop to process explicit source transition paths. The LLM must output connections adhering strictly to this data layout:
+  ```json
+  {
+    "action": "CONNECT_NODES",
+    "from_node_id": "welcome_node_id",
+    "via_transition": "Booking enquiry",
+    "to_node_id": "check_availability_node_id"
+  }
