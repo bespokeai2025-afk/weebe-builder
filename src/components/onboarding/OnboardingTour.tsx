@@ -42,7 +42,7 @@ const STEPS: StepCfg[] = [
   // 8
   { route: "/builder",           anchor: "save-btn",                side: "bottom", emoji: "🛠️", label: "Save Agent",                 clickGated: true },
   // 9 — Deploy to Retell (creates the live Retell agent)
-  { route: "/builder",           anchor: "builder-create-deploy-btn", side: "bottom", emoji: "⚡", label: "Deploy to Retell",          clickGated: true },
+  { route: "/builder",           anchor: "builder-create-deploy-btn", side: "bottom", emoji: "⚡", label: "Deploy Agent",              clickGated: true },
   // 10
   { route: "/builder",           anchor: "nav-agents",              side: "right",  emoji: "📡", label: "Agents Registry",            clickGated: true },
   // 11 — real Deploy button on the AgentCard
