@@ -37,6 +37,8 @@ interface VoiceCommand {
   // REMOVE_TRANSITION
   transition?: string;
   // DISCONNECT_NODES (reuses from_node_id/to_node_id)
+  // CREATE_NODE with seed-recipe position override
+  position?: { x: number; y: number };
   [key: string]: unknown;
 }
 
@@ -159,7 +161,8 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
     // CREATE_NODE ─────────────────────────────────────────────────────────────
     if (cmd.action === "CREATE_NODE") {
       const nodesBefore = useBuilderStore.getState().nodes;
-      const pos = findFreePosition(nodesBefore);
+      // Use recipe-specified position when present; otherwise auto-place
+      const pos = cmd.position ?? findFreePosition(nodesBefore);
       useBuilderStore.getState().addNode(cmd.type as NodeKind, pos);
       const newNode = useBuilderStore.getState().nodes.find((n) => !nodesBefore.some((b) => b.id === n.id));
       if (newNode) {

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { detectRecipe } from "./-voice-copilot-recipes";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -214,7 +215,14 @@ export const Route = createFileRoute("/api/voice-copilot")({
           ? "ACTIVE MODE: MACRO (Webee Build Mode) — you MUST set \"mode\":\"MACRO_BLUEPRINT\" and generate a full connected multi-node flow.\n\n"
           : "";
 
-        const userMessage = `${modeContext}${canvasContext}USER COMMAND: ${transcript}`;
+        // ── Seed Recipes Engine ───────────────────────────────────────────────
+        // If the transcript matches a known industry blueprint (e.g. receptionist),
+        // inject the structural template so GPT follows the fixed node/layout spec.
+        const recipe = clientMode === "MACRO" ? detectRecipe(transcript) : null;
+        const recipeContext = recipe ? `${recipe.injection}\n` : "";
+        if (recipe) console.log(`[VoiceCopilot] SeedRecipe matched: ${recipe.name}`);
+
+        const userMessage = `${modeContext}${recipeContext}${canvasContext}USER COMMAND: ${transcript}`;
 
         // ── 4. Parse commands via GPT-4o ──────────────────────────────────────
         let commands: unknown[] = [];

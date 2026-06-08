@@ -1,0 +1,20 @@
+Title: Bug Fix & Enforcement Rule - Prevent Lazy/Under-Generated Canvas Flows
+
+We are experiencing an issue where the Macro Mode (Webee Build) is under-generating (e.g., only creating 4 generic text nodes for a complex receptionist flow) and leaving properties incomplete or empty. Please update the LLM prompt wrapper and backend parser to strictly enforce node completeness and structural depth.
+
+### 1. Mandatory Minimum Architecture Depth Rule
+* **Multi-Node Enforcement:** Update the LLM system instructions to state that comprehensive business flows (like a Receptionist, Lead Gen, or Intake script) cannot physically or logically function in fewer than **5 to 8 interconnected nodes**. 
+* **Diverse Block Enforcement:** Explicitly forbid the LLM from relying solely on standard conversation blocks. It *must* utilize our diverse toolset matrix (`logic_split`, `extract_variable`, `function`, and `ending` blocks) to ensure the script functions as an operational voice system.
+
+### 2. Zero-Placeholder Policy (Strict Property Hydration)
+* Modify the parser logic to reject any incomplete JSON payloads. The LLM must fully generate real, highly descriptive text strings for every single property field.
+* **Strict Bans on Shortcutting:** Explicitly instruct the LLM that it is strictly forbidden from using text truncation shortcuts, placeholder markers, ellipses (`...`), or comments like `// fill in later` inside strings. Every node's `text`, `title`, or `condition` array must be 100% complete and fully articulated based on the user's business profile text.
+
+### 3. Structural Validation & Auto-Correction Loop
+Add a validation validation layer in the backend script handler (`validateGeneratedBlueprint`) before it pushes the payload down to our canvas state:
+* **Completeness Check:** If the LLM payload returns empty object attributes, missing parameters required by a specific node type (such as an empty `phone_number` string inside a `call_transfer` type), or generates fewer than 5 structural items for an enterprise workflow request, catch it immediately.
+* **Internal Self-Correction Loop:** If validation fails, automatically drop the bad payload and run an immediate internal retry prompt to the LLM: *"Your previous output was incomplete and contained missing layout fields. Re-generate the layout ensuring every node property is completely filled out with concrete data."*
+
+### 4. Direct Injection of the Receptionist Schema
+Force the LLM backend to strictly copy the structural framework of our core 'Receptionist Seed Blueprint' whenever a receptionist is mentioned:
+* Ensure it maps the exact 4-column cascading layout, embedding the data validation functions, variable text extraction chains, and explicit out-of-hours fallbacks instead of spinning up basic text boxes.
