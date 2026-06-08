@@ -19,7 +19,9 @@ export interface OnboardingState {
   agentTypeSet: boolean;
   // Step 8
   agentSaved: boolean;
-  // Step 11 — deploy dialog: workspace clone
+  // Step 9
+  agentDeployed: boolean;
+  // Step 12 — deploy dialog: workspace clone
   deployWorkspaceClicked: boolean;
   // Step 12 — deploy dialog: phone
   phoneChoice: "local" | "trunk" | null;
@@ -39,6 +41,7 @@ const DEFAULTS: OnboardingState = {
   elevenLabsKey: "",
   agentTypeSet: false,
   agentSaved: false,
+  agentDeployed: false,
   deployWorkspaceClicked: false,
   phoneChoice: null,
   phoneValue: "",
@@ -84,7 +87,7 @@ export function useOnboarding() {
     });
   }, []);
 
-  const advance  = useCallback(() => setState((p) => ({ step: Math.min(p.step + 1, 14) })), [setState]);
+  const advance  = useCallback(() => setState((p) => ({ step: Math.min(p.step + 1, 15) })), [setState]);
   const dismiss  = useCallback(() => setState({ dismissed: true }),                           [setState]);
   const complete = useCallback(() => setState({ completed: true, dismissed: true }),          [setState]);
   const reset    = useCallback(() => restartTour(),                                           []);

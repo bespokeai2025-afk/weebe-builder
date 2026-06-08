@@ -40,12 +40,14 @@ const STEPS: StepCfg[] = [
   // 7
   { route: "/builder",           anchor: "agent-type-select",       side: "left",   emoji: "⚙️", label: "Agent Type" },
   // 8
-  { route: "/builder",           anchor: "save-btn",                side: "bottom", emoji: "🛠️", label: "Compile Agent",              clickGated: true },
-  // 9
+  { route: "/builder",           anchor: "save-btn",                side: "bottom", emoji: "🛠️", label: "Save Agent",                 clickGated: true },
+  // 9 — Deploy to Retell (creates the live Retell agent)
+  { route: "/builder",           anchor: "builder-create-deploy-btn", side: "bottom", emoji: "⚡", label: "Deploy to Retell",          clickGated: true },
+  // 10
   { route: "/builder",           anchor: "nav-agents",              side: "right",  emoji: "📡", label: "Agents Registry",            clickGated: true },
-  // 10 — real Deploy button on the AgentCard
+  // 11 — real Deploy button on the AgentCard
   { route: "/my-agents",         anchor: "agent-deploy-btn",        side: "bottom", emoji: "🚀", label: "Deploy Agent",               clickGated: true },
-  // 11-14 — inside DeployAgentDialog; no overlay so dialog is fully interactive
+  // 12-15 — inside DeployAgentDialog; no overlay so dialog is fully interactive
   { route: "/my-agents",         anchor: null,                      side: "center", emoji: "🏢", label: "Workspace Clone",            noOverlay: true },
   { route: "/my-agents",         anchor: null,                      side: "center", emoji: "📞", label: "Phone Number",               noOverlay: true },
   { route: "/my-agents",         anchor: null,                      side: "center", emoji: "📅", label: "Cal.com Integration",        noOverlay: true },
@@ -417,6 +419,21 @@ function Step9() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
+        Click the <span className="text-white font-medium">+</span> button in the builder toolbar to deploy your agent to Retell AI. This creates a real live voice agent.
+      </p>
+      <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-1">
+        <div className="text-slate-200 font-medium text-[11px]">What this does</div>
+        <p className="leading-relaxed">Compiles your conversation flow and uploads it to Retell's infrastructure so it can handle real phone calls.</p>
+      </div>
+      <WaitingFor text="Waiting for you to click the + Deploy button ↑" />
+    </div>
+  );
+}
+
+function Step10() {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
         Click the <span className="text-indigo-300 font-medium">Agents</span> icon in the navigation panel to view your deployment registry.
       </p>
       <WaitingFor text="Waiting for you to click Agents →" />
@@ -424,7 +441,7 @@ function Step9() {
   );
 }
 
-function Step10() {
+function Step11() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
@@ -436,7 +453,7 @@ function Step10() {
   );
 }
 
-function Step11() {
+function Step12() {
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-1">
@@ -454,7 +471,7 @@ function Step11() {
   );
 }
 
-function Step12() {
+function Step13() {
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-1">
@@ -473,7 +490,7 @@ function Step12() {
   );
 }
 
-function Step13() {
+function Step14() {
   return (
     <div className="flex flex-col gap-3">
       <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-1">
@@ -491,7 +508,7 @@ function Step13() {
   );
 }
 
-function Step14({ complete }: { complete: () => void }) {
+function Step15({ complete }: { complete: () => void }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
@@ -592,7 +609,8 @@ function TourCard({
         {step === 11 && <Step11 />}
         {step === 12 && <Step12 />}
         {step === 13 && <Step13 />}
-        {step === 14 && <Step14 complete={complete} />}
+        {step === 14 && <Step14 />}
+        {step === 15 && <Step15 complete={complete} />}
       </div>
 
       {/* Footer — Next/Skip for form-gated steps */}
@@ -745,9 +763,24 @@ export function OnboardingTour() {
     return () => el.removeEventListener("click", handler);
   }, [state.step, mounted, visible, state.agentSaved, setState, advance]);
 
-  // ── Step 9: nav-agents click ──────────────────────────────────────────────────
+  // ── Step 9: builder-create-deploy-btn click → deploy to Retell ───────────────
   useEffect(() => {
     if (!mounted || !visible || state.step !== 9) return;
+    let attempts = 0;
+    function attach() {
+      const el = document.querySelector('[data-tour="builder-create-deploy-btn"]');
+      if (!el) { if (++attempts < 30) setTimeout(attach, 300); return; }
+      function handler() { setTimeout(() => advance(), 1400); }
+      el.addEventListener("click", handler);
+      return () => el.removeEventListener("click", handler);
+    }
+    const cleanup = attach();
+    return () => { if (typeof cleanup === "function") cleanup(); };
+  }, [state.step, mounted, visible, advance]);
+
+  // ── Step 10: nav-agents click ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 10) return;
     const el = document.querySelector('[data-tour="nav-agents"]');
     if (!el) return;
     function handler() { setTimeout(() => advance(), 80); }
@@ -755,9 +788,9 @@ export function OnboardingTour() {
     return () => el.removeEventListener("click", handler);
   }, [state.step, mounted, visible, advance]);
 
-  // ── Step 10: agent-deploy-btn click → advance (dialog will open naturally) ───
+  // ── Step 11: agent-deploy-btn click → advance (dialog will open naturally) ───
   useEffect(() => {
-    if (!mounted || !visible || state.step !== 10) return;
+    if (!mounted || !visible || state.step !== 11) return;
     let attempts = 0;
     function attach() {
       const el = document.querySelector('[data-tour="agent-deploy-btn"]');
@@ -770,9 +803,9 @@ export function OnboardingTour() {
     return () => { if (typeof cleanup === "function") cleanup(); };
   }, [state.step, mounted, visible, advance]);
 
-  // ── Step 11: deploy-dialog-clone-btn — detect click for optional tracking ────
+  // ── Step 12: deploy-dialog-clone-btn — detect click for optional tracking ────
   useEffect(() => {
-    if (!mounted || !visible || state.step !== 11) return;
+    if (!mounted || !visible || state.step !== 12) return;
     let attempts = 0;
     function attach() {
       const el = document.querySelector('[data-tour="deploy-dialog-clone-btn"]');
@@ -785,9 +818,9 @@ export function OnboardingTour() {
     return () => { if (typeof cleanup === "function") cleanup(); };
   }, [state.step, mounted, visible, setState]);
 
-  // ── Step 14: Go Live button click → complete tour ─────────────────────────────
+  // ── Step 15: Go Live button click → complete tour ─────────────────────────────
   useEffect(() => {
-    if (!mounted || !visible || state.step !== 14) return;
+    if (!mounted || !visible || state.step !== 15) return;
     let attempts = 0;
     function attach() {
       const el = document.querySelector('[data-tour="deploy-dialog-golive-btn"]');

@@ -435,6 +435,7 @@ export function RetellDeployDialog() {
 
         {/* Create / Deploy — ghost with primary color on hover */}
         <Button
+          data-tour="builder-create-deploy-btn"
           size="sm"
           variant="ghost"
           onClick={() => handleDeploy("create")}
