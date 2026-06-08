@@ -624,7 +624,6 @@
 }
 
 /* Scrollable panels — prevent layout shift when scrollbar appears */
-aside,
 [data-radix-scroll-area-viewport],
 .overflow-y-auto,
 .overflow-auto,
@@ -634,7 +633,6 @@ textarea {
   scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 }
 
-.dark aside,
 .dark [data-radix-scroll-area-viewport],
 .dark .overflow-y-auto,
 .dark .overflow-auto,
