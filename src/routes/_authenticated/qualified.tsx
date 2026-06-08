@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { KpiCard } from "@/components/dashboard/PageShell";
+import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
 import { setLeadStatus } from "@/lib/dashboard/leads.functions";
@@ -265,8 +265,8 @@ function QualifiedPage() {
                         ) : "—"}
                       </td>
                       <td className="px-3 py-2.5">{urgencyBadge(lead.urgency)}</td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] align-top">
-                        <span className="line-clamp-2">{lead.call_summary ?? "—"}</span>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] align-middle">
+                        <SummaryTooltip text={lead.call_summary} lines={2} />
                       </td>
                       <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[160px] align-top">
                         <span className="line-clamp-2">{lead.next_step ?? lead.next_action ?? "—"}</span>

@@ -1,6 +1,12 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function PageHeader({
   title,
@@ -173,5 +179,32 @@ export function Th({ children, className }: { children?: React.ReactNode; classN
     <th className={cn("px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground", className)}>
       {children}
     </th>
+  );
+}
+
+/* ── Call summary cell with hover tooltip ── */
+export function SummaryTooltip({
+  text,
+  lines = 2,
+}: {
+  text: string | null | undefined;
+  lines?: 1 | 2 | 3;
+}) {
+  if (!text) return <span className="text-muted-foreground/40">—</span>;
+  const clampClass = lines === 1 ? "line-clamp-1" : lines === 3 ? "line-clamp-3" : "line-clamp-2";
+  return (
+    <TooltipProvider delayDuration={250}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={cn("block cursor-help leading-relaxed", clampClass)}>{text}</span>
+        </TooltipTrigger>
+        <TooltipContent
+          side="left"
+          className="max-w-sm rounded-lg border border-white/[0.08] bg-[#111827] p-3 text-xs leading-relaxed text-foreground shadow-2xl"
+        >
+          <p className="whitespace-pre-wrap">{text}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

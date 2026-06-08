@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { KpiCard, MiniKpiCard } from "@/components/dashboard/PageShell";
+import { KpiCard, MiniKpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -457,8 +457,8 @@ function LeadsPage() {
                         <td className="px-3 py-2.5">{scoreBadge(lead.lead_score)}</td>
                         <td className="px-3 py-2.5">{interestBadge(lead.interest_level)}</td>
                         {/* Call summary */}
-                        <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[220px] align-top">
-                          <span className="line-clamp-3">{lead.call_summary ?? "—"}</span>
+                        <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] align-middle">
+                          <SummaryTooltip text={lead.call_summary} lines={2} />
                         </td>
                         <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px] align-top">
                           <span className="line-clamp-2">{lead.next_action ?? "—"}</span>

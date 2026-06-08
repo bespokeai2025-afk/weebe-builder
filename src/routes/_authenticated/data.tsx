@@ -254,52 +254,52 @@ function DynamicDataTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-white/[0.06] bg-card/30">
-            <th className="w-8 px-3 py-2.5">
+            <th className="w-8 px-3 py-2">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
             </th>
-            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
             {extraCols.map((c) => (
-              <th key={c.key} className="whitespace-nowrap px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
+              <th key={c.key} className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
             ))}
             {metaKeys.map((k) => (
-              <th key={`meta_${k}`} className="whitespace-nowrap px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <th key={`meta_${k}`} className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 {k}
                 <span className="ml-1 font-normal normal-case tracking-normal text-amber-500/70">meta</span>
               </th>
             ))}
-            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
+            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
           </tr>
         </thead>
         <tbody>
           {records.map((r: any) => (
-            <tr key={r.id} className={`group h-11 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}>
-              <td className="px-3 py-2.5">
+            <tr key={r.id} className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}>
+              <td className="px-3 py-1.5">
                 <Checkbox
                   checked={selected.has(r.id)}
                   onCheckedChange={() => toggleOne(r.id)}
                 />
               </td>
-              <td className="px-3 py-2.5 font-medium whitespace-nowrap">{r.name}</td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground text-xs font-mono">{r.mobile_number}</td>
+              <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{r.name}</td>
+              <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px] font-mono">{r.mobile_number}</td>
               {extraCols.map((c) => (
-                <td key={c.key} className="px-3 py-2.5 text-muted-foreground text-xs">
+                <td key={c.key} className="px-3 py-1.5 text-muted-foreground text-[11px]">
                   {r[c.key] ?? "—"}
                 </td>
               ))}
               {metaKeys.map((k) => (
-                <td key={`meta_${k}`} className="px-3 py-2.5 text-muted-foreground text-xs">
+                <td key={`meta_${k}`} className="px-3 py-1.5 text-muted-foreground text-[11px]">
                   {r.meta?.[k] ?? "—"}
                 </td>
               ))}
-              <td className="px-3 py-2.5">
+              <td className="px-3 py-1.5">
                 <div className="flex items-center gap-1.5">
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ring-1 ${statusBadgeClass(r.call_status)}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ring-1 ${statusBadgeClass(r.call_status)}`}>
                     {(r.call_status ?? "").replace(/_/g, " ") || "—"}
                   </span>
                   <button
@@ -311,12 +311,12 @@ function DynamicDataTable({
                   </button>
                 </div>
               </td>
-              <td className="px-3 py-2.5 text-muted-foreground text-xs">
+              <td className="px-3 py-1.5 text-muted-foreground text-[11px]">
                 {r.assigned_agent_id
                   ? (agents.find((a: any) => a.id === r.assigned_agent_id)?.name ?? "—")
                   : "—"}
               </td>
-              <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground text-xs">{fmtDate(r.updated_at)}</td>
+              <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">{fmtDate(r.updated_at)}</td>
             </tr>
           ))}
         </tbody>

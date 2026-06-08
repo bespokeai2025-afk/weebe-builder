@@ -3,8 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
-  ChevronDown,
-  ChevronUp,
   Download,
   Phone,
   PhoneIncoming,
@@ -14,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { KpiCard } from "@/components/dashboard/PageShell";
+import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls } from "@/lib/dashboard/calls.functions";
 
@@ -100,16 +98,7 @@ function CallsPage() {
   const failed = rows.filter((r) => ["failed", "no_answer", "busy"].includes(r.call_status)).length;
   const totalSec = rows.reduce((a, r) => a + (r.duration_seconds ?? 0), 0);
 
-  const [expandedSummaries, setExpandedSummaries] = useState<Set<string>>(new Set());
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
-
-  function toggleSummary(id: string) {
-    setExpandedSummaries((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
 
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
@@ -199,22 +188,8 @@ function CallsPage() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="max-w-[360px] px-3 py-2.5 text-xs text-muted-foreground align-top">
-                        {c.call_summary ? (
-                          <div>
-                            <p className={cn(!expanded && hasLongSummary && "line-clamp-2")}>{c.call_summary}</p>
-                            {hasLongSummary && (
-                              <button
-                                onClick={() => toggleSummary(c.id)}
-                                className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline"
-                              >
-                                {expanded ? <><ChevronUp className="h-3 w-3" /> Less</> : <><ChevronDown className="h-3 w-3" /> More</>}
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground/40">—</span>
-                        )}
+                      <td className="max-w-[300px] px-3 py-2.5 text-xs text-muted-foreground align-middle">
+                        <SummaryTooltip text={c.call_summary} lines={2} />
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground tabular-nums text-xs">{fmtDuration(c.duration_seconds)}</td>
                       <td className="px-3 py-2.5">
