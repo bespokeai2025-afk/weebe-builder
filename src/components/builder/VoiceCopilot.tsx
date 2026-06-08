@@ -510,9 +510,13 @@ export function VoiceCopilotButton() {
       // ── Mode-switch detection (client-side, checked before any commands) ──
       if (data.transcript) {
         const lower = data.transcript.toLowerCase();
-        const MACRO_PHRASES = ["switch to webee build", "activate webee build", "webee build mode", "enable webee build"];
-        const MICRO_PHRASES = ["switch back to normal", "exit webee build", "return to normal", "normal mode", "disable webee build"];
-        if (MACRO_PHRASES.some((p) => lower.includes(p))) {
+
+        // Whisper often mangles "Webee" → "we be", "we bee", "weeby", "webe", etc.
+        // Match flexibly: (switch to / activate / enable)? + webee-variant + (build / mode)
+        const MACRO_REGEX = /\b(switch\s+to|activate|enable|start)\s+(web+e+e?y?|we[\s-]b+e+e?y?)\s*(build|mode)\b|\b(web+e+e?y?|we[\s-]b+e+e?y?)\s*(build[\s-]?mode|build)\b/i;
+        const MICRO_REGEX = /\b(switch\s+back|exit\s+(web+e+e?y?|we[\s-]b+e+e?y?)|return\s+to\s+normal|normal\s+mode|disable\s+(web+e+e?y?|we[\s-]b+e+e?y?))\b/i;
+
+        if (MACRO_REGEX.test(lower)) {
           updateMode("MACRO");
           toast.success(
             <div className="flex items-center gap-2 text-sm">
@@ -526,7 +530,7 @@ export function VoiceCopilotButton() {
           );
           return;
         }
-        if (MICRO_PHRASES.some((p) => lower.includes(p))) {
+        if (MICRO_REGEX.test(lower)) {
           updateMode("MICRO");
           toast.info("Normal mode restored.", { duration: 3000 });
           return;

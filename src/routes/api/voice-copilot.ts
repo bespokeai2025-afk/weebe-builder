@@ -197,6 +197,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
         }
 
         if (!transcript) return json({ ok: false, error: "Could not transcribe audio" }, 422);
+        console.log("[VoiceCopilot] Transcript:", JSON.stringify(transcript));
 
         // ── 3. Build user message with canvas context ─────────────────────────
         const canvasContext =
