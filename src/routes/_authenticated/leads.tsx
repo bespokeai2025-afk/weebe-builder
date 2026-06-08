@@ -17,6 +17,7 @@ import {
   Clock,
   CalendarClock,
   PlayCircle,
+  StickyNote,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,8 @@ import {
   scheduleQualificationCalls,
   fireScheduledCalls,
 } from "@/lib/dashboard/leads.functions";
+import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import {
   listCampaigns,
   createCampaign,
@@ -151,6 +154,27 @@ function LeadsPage() {
   const [qualSchedule, setQualSchedule] = useState(false);
   const [qualScheduledAt, setQualScheduledAt] = useState<string>("");
   const [firingScheduled, setFiringScheduled] = useState(false);
+
+  type PanelTarget = {
+    entityType: NotesEntityType;
+    entityId: string;
+    entityName: string;
+    defaultPhone?: string;
+    defaultEmail?: string;
+    leadId?: string | null;
+  };
+  const [panel, setPanel] = useState<PanelTarget | null>(null);
+
+  function openLeadPanel(lead: any) {
+    setPanel({
+      entityType: "lead",
+      entityId: lead.id,
+      entityName: lead.full_name ?? lead.phone ?? "Lead",
+      defaultPhone: lead.phone ?? undefined,
+      defaultEmail: lead.email ?? undefined,
+      leadId: lead.id,
+    });
+  }
 
   const leadsQ = useQuery({
     queryKey: ["leads-all"],
@@ -486,6 +510,7 @@ function LeadsPage() {
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
+                      <th className="px-3 py-2 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -541,6 +566,15 @@ function LeadsPage() {
                         </td>
                         <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtDate(lead.last_contacted_at)}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <button
+                            onClick={() => openLeadPanel(lead)}
+                            title="Notes & appointment"
+                            className="rounded p-1 text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                          >
+                            <StickyNote className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -725,6 +759,20 @@ function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Notes & Booking sheet */}
+      {panel && (
+        <NotesBookingSheet
+          open={!!panel}
+          onOpenChange={(o) => { if (!o) setPanel(null); }}
+          entityType={panel.entityType}
+          entityId={panel.entityId}
+          entityName={panel.entityName}
+          defaultPhone={panel.defaultPhone}
+          defaultEmail={panel.defaultEmail}
+          leadId={panel.leadId}
+        />
+      )}
 
       {/* New Campaign Dialog */}
       <Dialog open={newCampaignOpen} onOpenChange={setNewCampaignOpen}>

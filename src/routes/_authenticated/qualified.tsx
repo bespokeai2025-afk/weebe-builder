@@ -11,6 +11,7 @@ import {
   Users,
   Target,
   CheckCircle2,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
 import { setLeadStatus } from "@/lib/dashboard/leads.functions";
+import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 export const Route = createFileRoute("/_authenticated/qualified")({
   head: () => ({ meta: [{ title: "Qualified — Webee" }] }),
@@ -82,6 +85,15 @@ const STATUS_ACTIONS = [
   { value: "not_interested" as const, label: "Closed", color: "bg-red-500/15 text-red-400 ring-red-500/30" },
 ];
 
+type PanelTarget = {
+  entityType: NotesEntityType;
+  entityId: string;
+  entityName: string;
+  defaultPhone?: string;
+  defaultEmail?: string;
+  leadId?: string | null;
+};
+
 function QualifiedPage() {
   const qc = useQueryClient();
   const getLeads = useServerFn(listQualifiedLeads);
@@ -90,6 +102,7 @@ function QualifiedPage() {
 
   const [search, setSearch] = useState("");
   const [qualFilter, setQualFilter] = useState("all");
+  const [panel, setPanel] = useState<PanelTarget | null>(null);
 
   const leadsQ = useQuery({
     queryKey: ["leads-qualified", search, qualFilter],
@@ -131,6 +144,17 @@ function QualifiedPage() {
     qc.invalidateQueries({ queryKey: ["leads-all"] });
   }
 
+  function openPanel(lead: any) {
+    setPanel({
+      entityType: "lead",
+      entityId: lead.id,
+      entityName: lead.full_name ?? lead.phone ?? "Lead",
+      defaultPhone: lead.phone ?? undefined,
+      defaultEmail: lead.email ?? undefined,
+      leadId: lead.id,
+    });
+  }
+
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
       {/* Header */}
@@ -149,13 +173,7 @@ function QualifiedPage() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">
-        <KpiCard
-          label="Total"
-          value={stats?.total ?? "—"}
-          icon={Users}
-          iconBg="bg-blue-500/15"
-          iconColor="text-blue-400"
-        />
+        <KpiCard label="Total" value={stats?.total ?? "—"} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
         <KpiCard
           label="Qualified"
           value={stats?.qualified ?? "—"}
@@ -164,20 +182,8 @@ function QualifiedPage() {
           iconColor="text-emerald-400"
           hint={stats && stats.total > 0 ? `${stats.qualificationRate}% rate` : undefined}
         />
-        <KpiCard
-          label="Partial"
-          value={stats?.partiallyQualified ?? "—"}
-          icon={TrendingUp}
-          iconBg="bg-amber-500/15"
-          iconColor="text-amber-400"
-        />
-        <KpiCard
-          label="Avg Score"
-          value={stats?.avgScore ?? "—"}
-          icon={Target}
-          iconBg="bg-violet-500/15"
-          iconColor="text-violet-400"
-        />
+        <KpiCard label="Partial" value={stats?.partiallyQualified ?? "—"} icon={TrendingUp} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
+        <KpiCard label="Avg Score" value={stats?.avgScore ?? "—"} icon={Target} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
       </div>
 
       {/* Filters */}
@@ -236,6 +242,7 @@ function QualifiedPage() {
                     <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Step</th>
                     <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
                     <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Actions</th>
+                    <th className="px-3 py-2 w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -288,6 +295,15 @@ function QualifiedPage() {
                           ))}
                         </div>
                       </td>
+                      <td className="px-3 py-1.5">
+                        <button
+                          onClick={() => openPanel(lead)}
+                          title="Notes & appointment"
+                          className="rounded p-1 text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                        >
+                          <StickyNote className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -296,6 +312,20 @@ function QualifiedPage() {
           )}
         </div>
       </div>
+
+      {/* Notes & Booking sheet */}
+      {panel && (
+        <NotesBookingSheet
+          open={!!panel}
+          onOpenChange={(o) => { if (!o) setPanel(null); }}
+          entityType={panel.entityType}
+          entityId={panel.entityId}
+          entityName={panel.entityName}
+          defaultPhone={panel.defaultPhone}
+          defaultEmail={panel.defaultEmail}
+          leadId={panel.leadId}
+        />
+      )}
     </div>
   );
 }

@@ -9,12 +9,15 @@ import {
   PhoneOutgoing,
   PlayCircle,
   RefreshCw,
+  StickyNote,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls } from "@/lib/dashboard/calls.functions";
+import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -87,6 +90,15 @@ function RecordingDialog({
   );
 }
 
+type PanelTarget = {
+  entityType: NotesEntityType;
+  entityId: string;
+  entityName: string;
+  defaultPhone?: string;
+  defaultEmail?: string;
+  leadId?: string | null;
+};
+
 function CallsPage() {
   const fn = useServerFn(listCalls);
   const q = useQuery({
@@ -99,6 +111,20 @@ function CallsPage() {
   const totalSec = rows.reduce((a, r) => a + (r.duration_seconds ?? 0), 0);
 
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
+  const [panel, setPanel] = useState<PanelTarget | null>(null);
+
+  function openPanel(c: any) {
+    const inbound = c.call_type === "inbound";
+    const contact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Call";
+    const phone = inbound ? c.from_number : c.to_number;
+    setPanel({
+      entityType: "call",
+      entityId: c.id,
+      entityName: contact,
+      defaultPhone: phone ?? undefined,
+      leadId: c.lead_id ?? null,
+    });
+  }
 
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
@@ -152,6 +178,7 @@ function CallsPage() {
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
+                  <th className="px-3 py-2 w-8"></th>
                 </tr>
               </thead>
               <tbody>
@@ -205,6 +232,15 @@ function CallsPage() {
                       <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
                         {c.started_at ? new Date(c.started_at).toLocaleString() : "—"}
                       </td>
+                      <td className="px-3 py-1.5">
+                        <button
+                          onClick={() => openPanel(c)}
+                          title="Notes & appointment"
+                          className="rounded p-1 text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                        >
+                          <StickyNote className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -213,6 +249,20 @@ function CallsPage() {
           </div>
         )}
       </div>
+
+      {/* Notes & Booking sheet */}
+      {panel && (
+        <NotesBookingSheet
+          open={!!panel}
+          onOpenChange={(o) => { if (!o) setPanel(null); }}
+          entityType={panel.entityType}
+          entityId={panel.entityId}
+          entityName={panel.entityName}
+          defaultPhone={panel.defaultPhone}
+          defaultEmail={panel.defaultEmail}
+          leadId={panel.leadId}
+        />
+      )}
     </div>
   );
 }

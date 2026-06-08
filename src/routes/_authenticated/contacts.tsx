@@ -2,11 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { BookUser, RefreshCw, Search } from "lucide-react";
+import { BookUser, RefreshCw, Search, StickyNote } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { listDataRecords } from "@/lib/dashboard/data-records.functions";
+import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 export const Route = createFileRoute("/_authenticated/contacts")({
   head: () => ({ meta: [{ title: "Contacts — Webee" }] }),
@@ -21,8 +23,18 @@ function fmtAddress(r: any) {
   );
 }
 
+type PanelTarget = {
+  entityType: NotesEntityType;
+  entityId: string;
+  entityName: string;
+  defaultPhone?: string;
+  defaultEmail?: string;
+  leadId?: string | null;
+};
+
 function ContactsPage() {
   const [search, setSearch] = useState("");
+  const [panel, setPanel] = useState<PanelTarget | null>(null);
   const listFn = useServerFn(listDataRecords);
 
   const { data: records = [], isLoading, refetch, isFetching } = useQuery({
@@ -47,8 +59,23 @@ function ContactsPage() {
   }, [records, search]);
 
   const total = (records as any[]).length;
-  const withAddress = (records as any[]).filter((r) => r.address_line1).length;
-  const withEmail = (records as any[]).filter((r) => r.email).length;
+  const withAddress = (records as any[]).filter((r: any) => r.address_line1).length;
+  const withEmail = (records as any[]).filter((r: any) => r.email).length;
+
+  function openPanel(r: any) {
+    const displayName =
+      r.name ||
+      [r.first_name, r.last_name].filter(Boolean).join(" ") ||
+      r.mobile_number ||
+      "Contact";
+    setPanel({
+      entityType: "contact",
+      entityId: r.id,
+      entityName: displayName,
+      defaultPhone: r.mobile_number ?? undefined,
+      defaultEmail: r.email ?? undefined,
+    });
+  }
 
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
@@ -121,21 +148,12 @@ function ContactsPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-card/30">
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Name
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Phone
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Email
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Address
-                  </th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Notes
-                  </th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Address</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Notes</th>
+                  <th className="px-3 py-2 w-10"></th>
                 </tr>
               </thead>
               <tbody>
@@ -149,9 +167,7 @@ function ContactsPage() {
                       key={r.id}
                       className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors"
                     >
-                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
-                        {displayName}
-                      </td>
+                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{displayName}</td>
                       <td className="px-3 py-1.5 text-[11px] text-muted-foreground font-mono whitespace-nowrap">
                         {r.mobile_number ?? "—"}
                       </td>
@@ -168,6 +184,15 @@ function ContactsPage() {
                           <span className="text-muted-foreground/40">—</span>
                         )}
                       </td>
+                      <td className="px-3 py-1.5">
+                        <button
+                          onClick={() => openPanel(r)}
+                          title="Notes & appointment"
+                          className="rounded p-1 text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                        >
+                          <StickyNote className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -176,6 +201,20 @@ function ContactsPage() {
           </div>
         )}
       </div>
+
+      {/* Notes & Booking sheet */}
+      {panel && (
+        <NotesBookingSheet
+          open={!!panel}
+          onOpenChange={(o) => { if (!o) setPanel(null); }}
+          entityType={panel.entityType}
+          entityId={panel.entityId}
+          entityName={panel.entityName}
+          defaultPhone={panel.defaultPhone}
+          defaultEmail={panel.defaultEmail}
+          leadId={panel.leadId}
+        />
+      )}
     </div>
   );
 }
