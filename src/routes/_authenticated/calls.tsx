@@ -140,71 +140,69 @@ function CallsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-card/30">
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
-                  <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((c: any) => {
                   const inbound = c.call_type === "inbound";
                   const contact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
-                  const expanded = expandedSummaries.has(c.id);
-                  const hasLongSummary = c.call_summary && c.call_summary.length > 120;
                   return (
-                    <tr key={c.id} className="h-11 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
-                      <td className="px-3 py-2.5 font-medium whitespace-nowrap">{contact}</td>
-                      <td className="px-3 py-2.5">
-                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <tr key={c.id} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{contact}</td>
+                      <td className="px-3 py-1.5">
+                        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                           {inbound ? (
-                            <PhoneIncoming className="h-3.5 w-3.5 text-primary" />
+                            <PhoneIncoming className="h-3 w-3 text-primary" />
                           ) : (
-                            <PhoneOutgoing className="h-3.5 w-3.5" />
+                            <PhoneOutgoing className="h-3 w-3" />
                           )}
                           {inbound ? "Inbound" : "Outbound"}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-muted-foreground text-xs whitespace-nowrap">{c.agent_name ?? "—"}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={cn("rounded-full px-2 py-0.5 text-[11px] capitalize", statusClass(c.call_status))}>
+                      <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
+                      <td className="px-3 py-1.5">
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
                           {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         {c.sentiment ? (
-                          <span className={cn("rounded-full px-2 py-0.5 text-[11px] capitalize", sentimentClass(c.sentiment))}>
+                          <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>
                             {c.sentiment}
                           </span>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-[11px] text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="max-w-[300px] px-3 py-2.5 text-xs text-muted-foreground align-middle">
+                      <td className="max-w-[300px] px-3 py-1.5 text-xs text-muted-foreground align-middle">
                         <SummaryTooltip text={c.call_summary} lines={2} />
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground tabular-nums text-xs">{fmtDuration(c.duration_seconds)}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
+                      <td className="px-3 py-1.5">
                         {c.recording_url ? (
                           <button
                             onClick={() => setRecordingPlayer({ url: c.recording_url, contact })}
-                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                           >
-                            <PlayCircle className="h-3.5 w-3.5" /> Play
+                            <PlayCircle className="h-3 w-3" /> Play
                           </button>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-[11px] text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground text-xs">
+                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
                         {c.started_at ? new Date(c.started_at).toLocaleString() : "—"}
                       </td>
                     </tr>

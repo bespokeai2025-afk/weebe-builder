@@ -221,60 +221,60 @@ function QualifiedPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Budget</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Decision</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Urgency</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Step</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
-                    <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Actions</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Budget</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Decision</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Urgency</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Step</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((lead: any) => (
                     <tr
                       key={lead.id}
-                      className="h-11 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
+                      className="h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
                     >
-                      <td className="px-3 py-2.5 font-medium whitespace-nowrap">
+                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
                         {lead.full_name ?? "—"}
                         {lead.company_name && (
                           <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
                         )}
                       </td>
-                      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs font-mono">
+                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px] font-mono">
                         {lead.phone}
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         {qualStatusBadge(lead.qualification_status ?? lead.status)}
                       </td>
-                      <td className="px-3 py-2.5">{scoreBadge(lead.qualification_score ?? lead.lead_score)}</td>
-                      <td className="px-3 py-2.5">{boolBadge(lead.budget_confirmed, "✓", "—")}</td>
-                      <td className="px-3 py-2.5">{boolBadge(lead.decision_maker, "✓", "—")}</td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">{scoreBadge(lead.qualification_score ?? lead.lead_score)}</td>
+                      <td className="px-3 py-1.5">{boolBadge(lead.budget_confirmed, "✓", "—")}</td>
+                      <td className="px-3 py-1.5">{boolBadge(lead.decision_maker, "✓", "—")}</td>
+                      <td className="px-3 py-1.5">
                         {lead.interest_level ? (
-                          <span className="text-xs capitalize text-muted-foreground">{lead.interest_level}</span>
+                          <span className="text-[11px] capitalize text-muted-foreground">{lead.interest_level}</span>
                         ) : "—"}
                       </td>
-                      <td className="px-3 py-2.5">{urgencyBadge(lead.urgency)}</td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] align-middle">
+                      <td className="px-3 py-1.5">{urgencyBadge(lead.urgency)}</td>
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground max-w-[200px] align-middle">
                         <SummaryTooltip text={lead.call_summary} lines={2} />
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[160px] align-top">
-                        <span className="line-clamp-2">{lead.next_step ?? lead.next_action ?? "—"}</span>
+                      <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[160px] align-middle">
+                        <span className="line-clamp-1">{lead.next_step ?? lead.next_action ?? "—"}</span>
                       </td>
-                      <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
+                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
                         {fmtDate(lead.last_contacted_at)}
                       </td>
-                      <td className="px-3 py-2.5">
+                      <td className="px-3 py-1.5">
                         <div className="flex gap-1">
                           {STATUS_ACTIONS.map((opt) => (
                             <button

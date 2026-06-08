@@ -17,7 +17,8 @@ import {
   PhoneCall,
   BarChart3,
   MessageSquare,
-  UserCheck
+  UserCheck,
+  BookUser,
 } from "lucide-react";
 import {
   Sidebar,
@@ -54,6 +55,7 @@ const navItems = [
   { title: "Builder", url: "/builder", icon: Workflow },
   { title: "Templates", url: "/templates", icon: LayoutTemplate },
   { title: "Data", url: "/data", icon: Database },
+  { title: "Contacts", url: "/contacts", icon: BookUser },
   { title: "Leads", url: "/leads", icon: UserCheck },
   { title: "Qualified", url: "/qualified", icon: Check },
   { title: "Calls", url: "/calls", icon: PhoneCall },

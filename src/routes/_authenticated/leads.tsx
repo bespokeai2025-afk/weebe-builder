@@ -392,51 +392,51 @@ function LeadsPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      <th className="px-3 py-2.5 w-8">
+                      <th className="px-3 py-2 w-8">
                         <Checkbox
                           checked={selectedIds.size === filtered.length && filtered.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
-                      <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((lead: any) => (
                       <tr
                         key={lead.id}
-                        className={`h-11 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
+                        className={`h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
                       >
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-1.5">
                           <Checkbox
                             checked={selectedIds.has(lead.id)}
                             onCheckedChange={() => toggleSelect(lead.id)}
                           />
                         </td>
-                        <td className="px-3 py-2.5 font-medium whitespace-nowrap">
+                        <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
                           {lead.full_name ?? "—"}
                           {lead.company_name && (
                             <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
                           )}
                         </td>
-                        <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs font-mono">
+                        <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px] font-mono">
                           {lead.phone}
                         </td>
                         {/* Status picker */}
-                        <td className="px-3 py-2.5">
+                        <td className="px-3 py-1.5">
                           <div className="flex flex-col gap-1">
-                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${statusDisplay(lead.status).color}`}>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${statusDisplay(lead.status).color}`}>
                               {statusDisplay(lead.status).label}
                             </span>
                             <div className="flex gap-1 mt-0.5">
@@ -453,17 +453,17 @@ function LeadsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-2.5">{sentimentBadge(lead.sentiment)}</td>
-                        <td className="px-3 py-2.5">{scoreBadge(lead.lead_score)}</td>
-                        <td className="px-3 py-2.5">{interestBadge(lead.interest_level)}</td>
+                        <td className="px-3 py-1.5">{sentimentBadge(lead.sentiment)}</td>
+                        <td className="px-3 py-1.5">{scoreBadge(lead.lead_score)}</td>
+                        <td className="px-3 py-1.5">{interestBadge(lead.interest_level)}</td>
                         {/* Call summary */}
-                        <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[200px] align-middle">
+                        <td className="px-3 py-1.5 text-xs text-muted-foreground max-w-[200px] align-middle">
                           <SummaryTooltip text={lead.call_summary} lines={2} />
                         </td>
-                        <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px] align-top">
-                          <span className="line-clamp-2">{lead.next_action ?? "—"}</span>
+                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[180px] align-middle">
+                          <span className="line-clamp-1">{lead.next_action ?? "—"}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
+                        <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtDate(lead.last_contacted_at)}
                         </td>
                       </tr>
