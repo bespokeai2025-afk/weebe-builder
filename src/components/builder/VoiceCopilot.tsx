@@ -193,15 +193,24 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
 
       let sourceHandle: string | null = null;
 
-      // Try to match an existing transition by via_transition label
+      // Try to match an existing transition by via_transition label (fuzzy)
       if (cmd.via_transition) {
         const viaLower = cmd.via_transition.toLowerCase();
         const liveNode = useBuilderStore.getState().nodes.find((n) => n.id === fromNode.id);
-        const match = liveNode?.data.transitions?.find(
+        const transitions = liveNode?.data.transitions ?? [];
+        // Exact or substring match first, then Levenshtein fallback
+        let match = transitions.find(
           (t) =>
             t.condition.toLowerCase() === viaLower ||
-            t.condition.toLowerCase().includes(viaLower),
+            t.condition.toLowerCase().includes(viaLower) ||
+            viaLower.includes(t.condition.toLowerCase()),
         );
+        if (!match) {
+          const threshold = Math.max(2, Math.floor(viaLower.length * 0.35));
+          match = transitions.find(
+            (t) => levenshtein(t.condition.toLowerCase(), viaLower) <= threshold,
+          );
+        }
         if (match) sourceHandle = match.id;
       }
 
@@ -260,11 +269,13 @@ export function VoiceCopilotButton() {
         reader.readAsDataURL(blob);
       });
 
-      // Snapshot current canvas nodes so GPT knows what exists
+      // Snapshot current canvas nodes — include transitions so GPT knows
+      // which transition handles already exist and can reference them exactly
       const canvasNodes = useBuilderStore.getState().nodes.map((n) => ({
         id: n.id,
         label: n.data.label,
         kind: n.data.kind,
+        transitions: n.data.transitions.map((t) => ({ id: t.id, label: t.condition })),
       }));
 
       const res = await fetch("/api/voice-copilot", {

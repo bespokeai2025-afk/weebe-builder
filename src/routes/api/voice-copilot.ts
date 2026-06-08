@@ -86,6 +86,7 @@ Input: "Set the agent name to Aria and switch the model to GPT-4o"
 - When referencing EXISTING canvas nodes, use their exact label from CURRENT CANVAS NODES (fuzzy match acceptable)
 - Chain all commands in one array for multi-step instructions — never split across responses
 - For conversation nodes, write natural brief agent instructions in dialogue
+- EXISTING TRANSITIONS: each node lists its transitions in CURRENT CANVAS NODES. When the user says "connect via [name]" or "use the [name] transition", look up that node's transition list and set via_transition to the EXACT existing label. Do NOT emit CREATE_TRANSITIONS or a new transition_label if a matching transition already exists on the source node.
 - Return {"thought":"Not a builder command.","commands":[]} if the request is off-topic
 - Return ONLY valid JSON — no markdown, no code fences`;
 
@@ -102,13 +103,13 @@ export const Route = createFileRoute("/api/voice-copilot")({
 
         let audio: string;
         let mimeType: string;
-        let canvasNodes: { id: string; label: string; kind: string }[] = [];
+        let canvasNodes: { id: string; label: string; kind: string; transitions: { id: string; label: string }[] }[] = [];
 
         try {
           const body = (await request.json()) as {
             audio: string;
             mimeType: string;
-            canvasNodes?: { id: string; label: string; kind: string }[];
+            canvasNodes?: { id: string; label: string; kind: string; transitions: { id: string; label: string }[] }[];
           };
           audio = body.audio;
           mimeType = body.mimeType ?? "audio/webm";
@@ -156,7 +157,12 @@ export const Route = createFileRoute("/api/voice-copilot")({
         // ── 3. Build user message with canvas context ─────────────────────────
         const canvasContext =
           canvasNodes.length > 0
-            ? `CURRENT CANVAS NODES:\n${canvasNodes.map((n) => `- "${n.label}" (id: ${n.id}, type: ${n.kind})`).join("\n")}\n\n`
+            ? `CURRENT CANVAS NODES:\n${canvasNodes.map((n) => {
+                const tList = n.transitions.length > 0
+                  ? ` | transitions: [${n.transitions.map((t) => `"${t.label}"`).join(", ")}]`
+                  : "";
+                return `- "${n.label}" (id: ${n.id}, type: ${n.kind})${tList}`;
+              }).join("\n")}\n\n`
             : "CURRENT CANVAS NODES: (empty canvas)\n\n";
 
         const userMessage = `${canvasContext}USER COMMAND: ${transcript}`;
