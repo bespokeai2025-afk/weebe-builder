@@ -3,7 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiCard } from "@/components/dashboard/PageShell";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -255,52 +256,50 @@ function DynamicDataTable({
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-            <th className="w-10 px-3 py-2">
+          <tr className="border-b border-white/[0.06] bg-card/30">
+            <th className="w-8 px-3 py-2.5">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
             </th>
-            <th className="px-3 py-2">Name</th>
-            <th className="px-3 py-2">Phone</th>
+            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
             {extraCols.map((c) => (
-              <th key={c.key} className="whitespace-nowrap px-3 py-2">{c.label}</th>
+              <th key={c.key} className="whitespace-nowrap px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
             ))}
             {metaKeys.map((k) => (
-              <th key={`meta_${k}`} className="whitespace-nowrap px-3 py-2">
+              <th key={`meta_${k}`} className="whitespace-nowrap px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 {k}
-                <span className="ml-1 text-[9px] normal-case tracking-normal text-amber-500">custom</span>
+                <span className="ml-1 font-normal normal-case tracking-normal text-amber-500/70">meta</span>
               </th>
             ))}
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Agent</th>
-            <th className="px-3 py-2">Updated</th>
+            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+            <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
           </tr>
         </thead>
         <tbody>
           {records.map((r: any) => (
-            <tr key={r.id} className="group border-b border-border/40 align-top">
-              <td className="px-3 py-2">
+            <tr key={r.id} className={`group h-11 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}>
+              <td className="px-3 py-2.5">
                 <Checkbox
                   checked={selected.has(r.id)}
                   onCheckedChange={() => toggleOne(r.id)}
                 />
               </td>
-              <td className="px-3 py-2 font-medium">{r.name}</td>
-              <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{r.mobile_number}</td>
+              <td className="px-3 py-2.5 font-medium whitespace-nowrap">{r.name}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground text-xs font-mono">{r.mobile_number}</td>
               {extraCols.map((c) => (
-                <td key={c.key} className="px-3 py-2 text-muted-foreground">
+                <td key={c.key} className="px-3 py-2.5 text-muted-foreground text-xs">
                   {r[c.key] ?? "—"}
                 </td>
               ))}
               {metaKeys.map((k) => (
-                <td key={`meta_${k}`} className="px-3 py-2 text-muted-foreground">
+                <td key={`meta_${k}`} className="px-3 py-2.5 text-muted-foreground text-xs">
                   {r.meta?.[k] ?? "—"}
                 </td>
               ))}
-              <td className="px-3 py-2">
+              <td className="px-3 py-2.5">
                 <div className="flex items-center gap-1.5">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${statusBadgeClass(r.call_status)}`}
-                  >
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ring-1 ${statusBadgeClass(r.call_status)}`}>
                     {(r.call_status ?? "").replace(/_/g, " ") || "—"}
                   </span>
                   <button
@@ -312,12 +311,12 @@ function DynamicDataTable({
                   </button>
                 </div>
               </td>
-              <td className="px-3 py-2 text-muted-foreground">
+              <td className="px-3 py-2.5 text-muted-foreground text-xs">
                 {r.assigned_agent_id
                   ? (agents.find((a: any) => a.id === r.assigned_agent_id)?.name ?? "—")
                   : "—"}
               </td>
-              <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{fmtDate(r.updated_at)}</td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-muted-foreground text-xs">{fmtDate(r.updated_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -701,69 +700,83 @@ function DataPage() {
         </Card>
       )}
 
+      {/* KPI strip — matches Leads page */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {(
-          [
-            { label: "Total", value: stats.total, icon: Database },
-            { label: "Need to call", value: stats.needToCall, icon: PhoneOutgoing },
-            { label: "Queued", value: stats.queued, icon: CalendarClock },
-            { label: "Completed", value: stats.completed, icon: UserCheck },
-          ] as const
-        ).map(({ label, value, icon: Icon }) => (
-          <Card key={label}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-bold">{value}</p>
-            </CardContent>
-          </Card>
-        ))}
+        <KpiCard label="Total" value={stats.total} icon={Database} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+        <KpiCard label="Need to Call" value={stats.needToCall} icon={PhoneOutgoing} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
+        <KpiCard label="Queued" value={stats.queued} icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+        <KpiCard label="Completed" value={stats.completed} icon={UserCheck} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
       </div>
 
-      <Card className="mb-4">
-        <CardContent className="pb-3 pt-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="relative min-w-[200px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      {/* Table card — matches Leads page container */}
+      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+        {/* Toolbar row */}
+        <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Data Records
+            {selected.size > 0 && (
+              <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selected.size} selected</span>
+            )}
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {selected.size > 0 && (
+              <>
+                <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => setSelected(new Set())}>
+                  Clear
+                </Button>
+                <Select onValueChange={(v) => handleBulkAssign(v === "none" ? null : v)}>
+                  <SelectTrigger className="h-7 w-[140px] text-xs">
+                    <SelectValue placeholder="Assign agent…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassign</SelectItem>
+                    {agents.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setScheduleOpen(true)}>
+                  <CalendarClock className="mr-1 h-3.5 w-3.5" />
+                  Schedule
+                </Button>
+                <Button variant="default" size="sm" className="h-7 text-xs" onClick={() => setStartCallingOpen(true)}>
+                  <PhoneOutgoing className="mr-1 h-3.5 w-3.5" />
+                  Start Calling
+                </Button>
+              </>
+            )}
+            {/* Filters */}
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search name, phone, email…"
+                placeholder="Search name, phone…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-9 pl-8"
+                className="h-7 w-44 pl-7 text-xs"
               />
             </div>
-            <div className="w-[160px]">
-              <Select value={callStatus} onValueChange={setCallStatus}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Call status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CALL_STATUSES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-[160px]">
-              <Select value={agentFilter} onValueChange={setAgentFilter}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Agent" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All agents</SelectItem>
-                  {agents.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <label className="flex cursor-pointer items-center gap-2 pb-0.5">
+            <Select value={callStatus} onValueChange={setCallStatus}>
+              <SelectTrigger className="h-7 w-[130px] text-xs">
+                <SelectValue placeholder="Call status" />
+              </SelectTrigger>
+              <SelectContent>
+                {CALL_STATUSES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={agentFilter} onValueChange={setAgentFilter}>
+              <SelectTrigger className="h-7 w-[120px] text-xs">
+                <SelectValue placeholder="Agent" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All agents</SelectItem>
+                {agents.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <label className="flex cursor-pointer items-center gap-1.5">
               <Checkbox
                 checked={unassignedOnly}
                 onCheckedChange={(v) => {
@@ -771,71 +784,36 @@ function DataPage() {
                   if (v) setAgentFilter("all");
                 }}
               />
-              <span className="text-sm text-muted-foreground">Unassigned only</span>
+              <span className="text-xs text-muted-foreground">Unassigned</span>
             </label>
           </div>
-        </CardContent>
-      </Card>
-
-      {selected.size > 0 && (
-        <div className="mb-4 flex items-center gap-2 px-1">
-          <span className="mr-2 text-sm text-muted-foreground">{selected.size} selected</span>
-          <Select onValueChange={(v) => handleBulkAssign(v === "none" ? null : v)}>
-            <SelectTrigger className="h-8 w-[160px]">
-              <SelectValue placeholder="Assign agent…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Unassign</SelectItem>
-              {agents.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {a.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="outline" size="sm" className="h-8" onClick={() => setScheduleOpen(true)}>
-            <CalendarClock className="mr-1 h-3.5 w-3.5" />
-            Schedule
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            className="h-8"
-            onClick={() => setStartCallingOpen(true)}
-          >
-            <PhoneOutgoing className="mr-1 h-3.5 w-3.5" />
-            Start Calling
-          </Button>
         </div>
-      )}
 
-      <Card>
-        <CardContent className="p-0">
-          {recordsQ.isLoading ? (
-            <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-              Loading records…
-            </div>
-          ) : records.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-16">
-              <Database className="h-8 w-8 text-muted-foreground" />
-              <p className="text-sm font-medium">No data records</p>
-              <p className="text-xs text-muted-foreground">
-                Import a CSV to get started or adjust your filters.
-              </p>
-            </div>
-          ) : (
-            <DynamicDataTable
-              records={records}
-              agents={agents}
-              selected={selected}
-              allSelected={allSelected}
-              toggleAll={toggleAll}
-              toggleOne={toggleOne}
-              onReset={handleReset}
-            />
-          )}
-        </CardContent>
-      </Card>
+        {/* Table body */}
+        {recordsQ.isLoading ? (
+          <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+            Loading records…
+          </div>
+        ) : records.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-16">
+            <Database className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm font-medium">No data records</p>
+            <p className="text-xs text-muted-foreground">
+              Import a CSV to get started or adjust your filters.
+            </p>
+          </div>
+        ) : (
+          <DynamicDataTable
+            records={records}
+            agents={agents}
+            selected={selected}
+            allSelected={allSelected}
+            toggleAll={toggleAll}
+            toggleOne={toggleOne}
+            onReset={handleReset}
+          />
+        )}
+      </div>
 
       <ManualEntryDialog
         open={showManualEntry}
