@@ -665,7 +665,7 @@ export function Builder({
 
         {/* Right global settings */}
         {rightOpen && (
-          <aside className="w-64 shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto p-3 space-y-3 hidden md:block text-xs [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px]">
+          <aside className="w-[22vw] min-w-[300px] max-w-[360px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-4 py-3 space-y-3 hidden md:block text-xs [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]">
             {/* Panel header */}
             <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06]">
               <h3 className="text-sm font-semibold tracking-tight text-foreground">Agent Settings</h3>
