@@ -233,14 +233,17 @@ function CallsPage() {
                         {c.started_at ? new Date(c.started_at).toLocaleString() : "—"}
                       </td>
                       <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => openPanel(c)}
-                          title="Notes & appointment"
-                          className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors whitespace-nowrap"
-                        >
-                          <StickyNote className="h-3 w-3" />
-                          <span>Notes</span>
-                        </button>
+                        <div className="relative group/notes flex justify-center">
+                          <button
+                            onClick={() => openPanel(c)}
+                            className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                          >
+                            <StickyNote className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[10px] text-foreground shadow opacity-0 group-hover/notes:opacity-100 transition-opacity z-50">
+                            Notes
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   );
