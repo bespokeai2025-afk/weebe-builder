@@ -12,13 +12,30 @@ import {
 } from "lucide-react";
 
 /* ── Design tokens (matching the rest of the app mockups) ── */
-const BG        = "#0b0f14";
-const SIDEBAR   = "#0d1117";
-const CARD      = "#131c2b";
-const BORDER    = "rgba(255,255,255,0.06)";
+const BG        = "#080c11";
+const SIDEBAR   = "#0a0e14";
+const CANVAS_BG = "#0d1219";
+const CARD      = "#111827";
+const PANEL_BG  = "#0c1018";
+const BORDER    = "rgba(255,255,255,0.07)";
+const BORDER_STRONG = "rgba(255,255,255,0.12)";
 const MUTED     = "#64748b";
 const TEXT      = "#e2e8f0";
-const ACCENT    = "#4f8cff";
+const ACCENT    = "#3B82F6";
+
+/* ── Per-type node palette (spec) ── */
+const NODE_COLOR: Record<string, { color: string; bg: string; glow: string; border: string }> = {
+  conversation: { color: "#3B82F6", bg: "rgba(59,130,246,0.12)",  glow: "rgba(59,130,246,0.22)",  border: "rgba(59,130,246,0.35)"  },
+  function:     { color: "#8B5CF6", bg: "rgba(139,92,246,0.12)",  glow: "rgba(139,92,246,0.22)",  border: "rgba(139,92,246,0.35)"  },
+  transfer:     { color: "#10B981", bg: "rgba(16,185,129,0.12)",  glow: "rgba(16,185,129,0.22)",  border: "rgba(16,185,129,0.35)"  },
+  logic:        { color: "#F59E0B", bg: "rgba(245,158,11,0.12)",  glow: "rgba(245,158,11,0.22)",  border: "rgba(245,158,11,0.35)"  },
+  agent:        { color: "#EC4899", bg: "rgba(236,72,153,0.12)",  glow: "rgba(236,72,153,0.22)",  border: "rgba(236,72,153,0.35)"  },
+  sms:          { color: "#06B6D4", bg: "rgba(6,182,212,0.12)",   glow: "rgba(6,182,212,0.22)",   border: "rgba(6,182,212,0.35)"   },
+  variable:     { color: "#6366F1", bg: "rgba(99,102,241,0.12)",  glow: "rgba(99,102,241,0.22)",  border: "rgba(99,102,241,0.35)"  },
+  code:         { color: "#64748B", bg: "rgba(100,116,139,0.12)", glow: "rgba(100,116,139,0.18)", border: "rgba(100,116,139,0.3)"  },
+  ending:       { color: "#EF4444", bg: "rgba(239,68,68,0.12)",   glow: "rgba(239,68,68,0.22)",   border: "rgba(239,68,68,0.35)"   },
+  note:         { color: "#94A3B8", bg: "rgba(148,163,184,0.08)", glow: "rgba(148,163,184,0.12)", border: "rgba(148,163,184,0.2)"  },
+};
 
 /* ── App-shell sidebar nav (same as Dashboard/Calls mockups) ── */
 const NAV = [
@@ -38,16 +55,16 @@ const NAV = [
 
 /* ── Node palette ── */
 const NODE_TYPES = [
-  { id: "conversation", label: "Conversation",  icon: MsgSq,         color: ACCENT,     bg: "rgba(79,140,255,0.12)"  },
-  { id: "function",     label: "Function",       icon: Zap,           color: "#a78bfa",  bg: "rgba(167,139,250,0.12)" },
-  { id: "transfer",     label: "Call Transfer",  icon: PhoneForwarded,color: "#34d399",  bg: "rgba(52,211,153,0.12)"  },
-  { id: "logic",        label: "Logic Split",    icon: GitBranch,     color: "#fbbf24",  bg: "rgba(251,191,36,0.12)"  },
-  { id: "agent",        label: "Agent Transfer", icon: User2,         color: "#f472b6",  bg: "rgba(244,114,182,0.12)" },
-  { id: "sms",          label: "In-Call SMS",    icon: MessageCircle, color: "#38bdf8",  bg: "rgba(56,189,248,0.12)"  },
-  { id: "variable",     label: "Extract Var",    icon: Variable,      color: "#fb923c",  bg: "rgba(251,146,60,0.12)"  },
-  { id: "code",         label: "Code",           icon: Code2,         color: "#94a3b8",  bg: "rgba(148,163,184,0.12)" },
-  { id: "ending",       label: "End Call",       icon: XCircle,       color: "#f87171",  bg: "rgba(248,113,113,0.12)" },
-  { id: "note",         label: "Note",           icon: StickyNote,    color: TEXT,       bg: "rgba(226,232,240,0.06)" },
+  { id: "conversation", label: "Conversation",  icon: MsgSq,         color: NODE_COLOR.conversation.color, bg: NODE_COLOR.conversation.bg },
+  { id: "function",     label: "Function",       icon: Zap,           color: NODE_COLOR.function.color,     bg: NODE_COLOR.function.bg     },
+  { id: "transfer",     label: "Call Transfer",  icon: PhoneForwarded,color: NODE_COLOR.transfer.color,     bg: NODE_COLOR.transfer.bg     },
+  { id: "logic",        label: "Logic Split",    icon: GitBranch,     color: NODE_COLOR.logic.color,        bg: NODE_COLOR.logic.bg        },
+  { id: "agent",        label: "Agent Transfer", icon: User2,         color: NODE_COLOR.agent.color,        bg: NODE_COLOR.agent.bg        },
+  { id: "sms",          label: "In-Call SMS",    icon: MessageCircle, color: NODE_COLOR.sms.color,          bg: NODE_COLOR.sms.bg          },
+  { id: "variable",     label: "Extract Var",    icon: Variable,      color: NODE_COLOR.variable.color,     bg: NODE_COLOR.variable.bg     },
+  { id: "code",         label: "Code",           icon: Code2,         color: NODE_COLOR.code.color,         bg: NODE_COLOR.code.bg         },
+  { id: "ending",       label: "End Call",       icon: XCircle,       color: NODE_COLOR.ending.color,       bg: NODE_COLOR.ending.bg       },
+  { id: "note",         label: "Note",           icon: StickyNote,    color: NODE_COLOR.note.color,         bg: NODE_COLOR.note.bg         },
 ];
 
 /* ── Sample canvas nodes ── */
@@ -79,39 +96,49 @@ const CANVAS_NODES = [
 ];
 
 /* ── Canvas node card ── */
-function CanvasNode({ node }: { node: typeof CANVAS_NODES[0] }) {
+function CanvasNode({ node, selected = false }: { node: typeof CANVAS_NODES[0]; selected?: boolean }) {
   const meta = NODE_TYPES.find(t => t.id === node.type)!;
+  const nc   = NODE_COLOR[node.type] ?? NODE_COLOR.note;
   const Icon = meta.icon;
   const isMono = node.type === "function" || node.type === "code";
   return (
     <div style={{
       position: "absolute", left: node.x, top: node.y, width: node.w,
-      background: CARD, border: `1px solid ${BORDER}`,
+      background: CARD,
+      border: `1px solid ${selected ? nc.color : nc.border}`,
       borderRadius: 10, overflow: "hidden",
-      boxShadow: "0 2px 20px rgba(0,0,0,0.35)",
+      boxShadow: selected
+        ? `0 0 0 2px ${nc.color}55, 0 8px 32px rgba(0,0,0,0.55), 0 0 24px ${nc.glow}`
+        : `0 4px 24px rgba(0,0,0,0.5), 0 0 12px ${nc.glow}`,
     }}>
+      {/* Coloured top accent strip */}
+      <div style={{ height: 2, background: nc.color, opacity: 0.85 }} />
+
       <div style={{
         display: "flex", alignItems: "center", gap: 7,
         padding: "7px 10px", borderBottom: `1px solid ${BORDER}`,
-        background: "rgba(255,255,255,0.025)",
+        background: `linear-gradient(135deg, ${nc.bg} 0%, rgba(255,255,255,0.015) 100%)`,
       }}>
         <div style={{
           width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-          background: meta.bg, display: "flex", alignItems: "center", justifyContent: "center",
+          background: nc.bg,
+          border: `1px solid ${nc.border}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <Icon size={11} color={meta.color} />
+          <Icon size={11} color={nc.color} />
         </div>
         <span style={{ fontSize: 11, fontWeight: 600, color: TEXT, flex: 1 }}>{node.label}</span>
         <span style={{
-          fontSize: 9.5, color: MUTED,
-          background: "rgba(255,255,255,0.05)", padding: "1px 5px", borderRadius: 4,
+          fontSize: 9, color: nc.color, fontWeight: 600,
+          background: nc.bg, border: `1px solid ${nc.border}`,
+          padding: "1px 5px", borderRadius: 4, letterSpacing: "0.04em",
         }}>{meta.label}</span>
       </div>
 
       <div style={{ padding: "7px 10px", borderBottom: node.transitions.length ? `1px solid ${BORDER}` : "none" }}>
         <p style={{
-          fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.55, margin: 0,
-          fontFamily: isMono ? "monospace" : "inherit",
+          fontSize: 10, color: "rgba(255,255,255,0.5)", lineHeight: 1.55, margin: 0,
+          fontFamily: isMono ? "'JetBrains Mono', 'Fira Code', monospace" : "inherit",
         }}>
           {node.prompt}
         </p>
@@ -122,10 +149,11 @@ function CanvasNode({ node }: { node: typeof CANVAS_NODES[0] }) {
           {node.transitions.map(t => (
             <div key={t} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "3px 7px", background: "rgba(255,255,255,0.03)", borderRadius: 5,
+              padding: "3px 7px", background: "rgba(255,255,255,0.03)",
+              border: `1px solid ${BORDER}`, borderRadius: 5,
             }}>
-              <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.45)" }}>{t}</span>
-              <ArrowRight size={9} color="rgba(255,255,255,0.2)" />
+              <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.5)" }}>{t}</span>
+              <ArrowRight size={9} color={nc.color} style={{ opacity: 0.6 }} />
             </div>
           ))}
         </div>
@@ -134,23 +162,36 @@ function CanvasNode({ node }: { node: typeof CANVAS_NODES[0] }) {
   );
 }
 
-/* ── SVG edges ── */
+/* ── SVG edges (color-coded by source node type) ── */
 function Edges() {
+  const conv  = NODE_COLOR.conversation.color;
+  const func  = NODE_COLOR.function.color;
+  const logic = NODE_COLOR.logic.color;
+  const mkId  = (id: string) => `arr-${id}`;
+  const Marker = ({ id, color }: { id: string; color: string }) => (
+    <marker id={mkId(id)} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L6,3 z" fill={color} fillOpacity="0.75" />
+    </marker>
+  );
   return (
     <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} overflow="visible">
       <defs>
-        <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L6,3 z" fill="rgba(79,140,255,0.5)" />
-        </marker>
+        <Marker id="conv"  color={conv}  />
+        <Marker id="func"  color={func}  />
+        <Marker id="logic" color={logic} />
       </defs>
+      {/* Welcome (conv) → Check Availability */}
       <path d={`M ${148+224} ${130+46} C ${420} ${130+46} ${420} ${54+46} ${448} ${54+46}`}
-        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+        stroke={conv} strokeOpacity="0.45" strokeWidth="1.5" fill="none" markerEnd={`url(#${mkId("conv")})`} />
+      {/* Welcome (conv) → Route Intent */}
       <path d={`M ${148+224} ${130+74} C ${420} ${130+74} ${420} ${270+46} ${448} ${270+46}`}
-        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+        stroke={conv} strokeOpacity="0.45" strokeWidth="1.5" fill="none" markerEnd={`url(#${mkId("conv")})`} />
+      {/* Check Availability (func) → Goodbye */}
       <path d={`M ${448+224} ${54+46} C ${720} ${54+46} ${720} ${174+46} ${748} ${174+46}`}
-        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+        stroke={func} strokeOpacity="0.45" strokeWidth="1.5" fill="none" markerEnd={`url(#${mkId("func")})`} />
+      {/* Route Intent (logic) → Goodbye */}
       <path d={`M ${448+224} ${270+46} C ${720} ${270+46} ${720} ${174+70} ${748} ${174+70}`}
-        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+        stroke={logic} strokeOpacity="0.5" strokeWidth="1.5" fill="none" markerEnd={`url(#${mkId("logic")})`} />
     </svg>
   );
 }
@@ -258,15 +299,16 @@ export function BuilderImproved() {
   return (
     <div style={{
       display: "flex", height: "100vh", background: BG,
-      color: TEXT, fontFamily: "Inter, -apple-system, sans-serif",
+      color: TEXT, fontFamily: "'Inter', -apple-system, sans-serif",
       fontSize: 14, overflow: "hidden",
     }}>
 
       {/* ════════════ COLLAPSED ICON-RAIL SIDEBAR ════════════ */}
       <aside style={{
         width: 56, minWidth: 56, background: SIDEBAR,
-        borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column",
+        borderRight: `1px solid ${BORDER_STRONG}`, display: "flex", flexDirection: "column",
         alignItems: "center", paddingTop: 8,
+        boxShadow: "2px 0 12px rgba(0,0,0,0.4)",
       }}>
         {/* Logo avatar */}
         <div style={{
@@ -322,9 +364,10 @@ export function BuilderImproved() {
         {/* ── Builder toolbar ── */}
         <header style={{
           height: 44, display: "flex", alignItems: "center",
-          borderBottom: `1px solid ${BORDER}`,
-          background: "rgba(11,15,20,0.9)", backdropFilter: "blur(12px)",
+          borderBottom: `1px solid ${BORDER_STRONG}`,
+          background: "rgba(8,12,17,0.95)", backdropFilter: "blur(12px)",
           flexShrink: 0, padding: "0 10px", gap: 5,
+          boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 4px 16px rgba(0,0,0,0.3)",
         }}>
           {/* Status */}
           <div style={{
@@ -384,9 +427,12 @@ export function BuilderImproved() {
 
             <button style={{
               display: "flex", alignItems: "center", gap: 5,
-              padding: "5px 13px", background: ACCENT, border: "none",
+              padding: "5px 13px",
+              background: "linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)",
+              border: "1px solid rgba(59,130,246,0.5)",
               borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
-              color: "#fff", boxShadow: "0 0 16px rgba(79,140,255,0.3)",
+              color: "#fff",
+              boxShadow: "0 0 20px rgba(59,130,246,0.45), 0 2px 8px rgba(0,0,0,0.4)",
             }}>
               <Play size={11} /> Deploy
             </button>
@@ -411,8 +457,9 @@ export function BuilderImproved() {
 
           {/* ── Node palette ── */}
           <div style={{
-            width: 204, flexShrink: 0, borderRight: `1px solid ${BORDER}`,
-            background: "rgba(13,17,23,0.7)", display: "flex", flexDirection: "column",
+            width: 204, flexShrink: 0, borderRight: `1px solid ${BORDER_STRONG}`,
+            background: PANEL_BG, display: "flex", flexDirection: "column",
+            boxShadow: "2px 0 8px rgba(0,0,0,0.3)",
           }}>
             {/* Tabs */}
             <div style={{ display: "flex", padding: "8px 8px 0", gap: 2 }}>
@@ -514,17 +561,22 @@ export function BuilderImproved() {
           </div>
 
           {/* ── Canvas ── */}
-          <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-            {/* Dot grid */}
+          <div style={{ flex: 1, position: "relative", overflow: "hidden", background: CANVAS_BG }}>
+            {/* Dot grid — slightly more visible */}
             <div style={{
               position: "absolute", inset: 0,
-              backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.055) 1px, transparent 1px)`,
-              backgroundSize: "26px 26px",
+              backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.09) 1px, transparent 1px)`,
+              backgroundSize: "24px 24px",
             }} />
-            {/* Vignette */}
+            {/* Radial workflow glow — blue tint in centre */}
             <div style={{
               position: "absolute", inset: 0, pointerEvents: "none",
-              background: "radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(11,15,20,0.45) 100%)",
+              background: "radial-gradient(ellipse 65% 55% at 52% 45%, rgba(59,130,246,0.055) 0%, rgba(139,92,246,0.025) 45%, transparent 75%)",
+            }} />
+            {/* Edge vignette */}
+            <div style={{
+              position: "absolute", inset: 0, pointerEvents: "none",
+              background: "radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(8,12,17,0.6) 100%)",
             }} />
 
             {/* Nodes + edges */}
@@ -585,9 +637,10 @@ export function BuilderImproved() {
           {/* ── Right settings panel ── */}
           {!rightCollapsed && (
             <div style={{
-              width: 256, flexShrink: 0, borderLeft: `1px solid ${BORDER}`,
-              background: "rgba(13,17,23,0.7)", overflowY: "auto",
+              width: 256, flexShrink: 0, borderLeft: `1px solid ${BORDER_STRONG}`,
+              background: PANEL_BG, overflowY: "auto",
               display: "flex", flexDirection: "column",
+              boxShadow: "-2px 0 12px rgba(0,0,0,0.4)",
             }}>
               {/* Panel header */}
               <div style={{
