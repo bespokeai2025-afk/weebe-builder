@@ -557,11 +557,11 @@ export function BuilderImproved() {
               display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
             }}>
               <div style={{
-                padding: "2px 9px", background: "rgba(79,140,255,0.12)",
-                border: `1px solid rgba(79,140,255,0.25)`, borderRadius: 20,
-                fontSize: 9.5, fontWeight: 700, color: ACCENT, letterSpacing: "0.08em",
+                padding: "2px 9px", background: "rgba(167,139,250,0.14)",
+                border: "1px solid rgba(167,139,250,0.32)", borderRadius: 20,
+                fontSize: 9.5, fontWeight: 700, color: "#a78bfa", letterSpacing: "0.08em",
               }}>START</div>
-              <ArrowRight size={12} color={`${ACCENT}88`} />
+              <ArrowRight size={12} color="rgba(167,139,250,0.6)" />
             </div>
 
             {/* Bottom mini-toolbar */}
