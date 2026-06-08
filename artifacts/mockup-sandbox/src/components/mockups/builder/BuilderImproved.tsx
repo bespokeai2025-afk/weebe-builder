@@ -140,17 +140,17 @@ function Edges() {
     <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} overflow="visible">
       <defs>
         <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L6,3 z" fill={`${ACCENT}88`} />
+          <path d="M0,0 L0,6 L6,3 z" fill="rgba(79,140,255,0.5)" />
         </marker>
       </defs>
       <path d={`M ${148+224} ${130+46} C ${420} ${130+46} ${420} ${54+46} ${448} ${54+46}`}
-        stroke={`${ACCENT}55`} strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
       <path d={`M ${148+224} ${130+74} C ${420} ${130+74} ${420} ${270+46} ${448} ${270+46}`}
-        stroke={`${ACCENT}55`} strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
       <path d={`M ${448+224} ${54+46} C ${720} ${54+46} ${720} ${174+46} ${748} ${174+46}`}
-        stroke="rgba(167,139,250,0.4)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
       <path d={`M ${448+224} ${270+46} C ${720} ${270+46} ${720} ${174+70} ${748} ${174+70}`}
-        stroke="rgba(251,191,36,0.4)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
     </svg>
   );
 }
