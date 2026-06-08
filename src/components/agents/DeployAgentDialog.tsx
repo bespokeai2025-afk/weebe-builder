@@ -29,6 +29,7 @@ import {
   saveAgentPhoneNumber,
   saveAgentDeployedRetellId,
   goLiveAgent,
+  fetchCalcomEventTypes,
   type AgentGoLiveType,
 } from "@/lib/agents/agents.functions";
 import {
@@ -96,6 +97,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   const listFn = useServerFn(listRetellPhoneNumbers);
   const assignFn = useServerFn(assignNumberToAgent);
   const saveCalFn = useServerFn(saveAgentCalcom);
+  const fetchEventTypesFn = useServerFn(fetchCalcomEventTypes);
   const savePhoneFn = useServerFn(saveAgentPhoneNumber);
   const cloneFn = useServerFn(cloneRetellAgentForDeploy);
   const saveDeployedFn = useServerFn(saveAgentDeployedRetellId);
@@ -160,6 +162,10 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   const [calApiKey, setCalApiKey] = useState("");
   const [calEventId, setCalEventId] = useState("");
   const [savingCal, setSavingCal] = useState(false);
+  const [verifyingCal, setVerifyingCal] = useState(false);
+  const [calKeyVerified, setCalKeyVerified] = useState(false);
+  const [calKeyError, setCalKeyError] = useState<string | null>(null);
+  const [calEventTypes, setCalEventTypes] = useState<{ id: number; title: string; length: number }[]>([]);
   // Track a just-saved cal entry locally so the green banner appears immediately
   // without waiting for the parent query to refetch and pass new agent settings.
   const [calJustSaved, setCalJustSaved] = useState<{
@@ -298,37 +304,63 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     }
   }
 
+  async function handleVerifyCalKey() {
+    const key = calApiKey.trim();
+    if (!key) { toast.error("Paste your Cal.com API key first"); return; }
+    if (!key.startsWith("cal_live_")) {
+      setCalKeyError("Must start with cal_live_");
+      setCalKeyVerified(false);
+      return;
+    }
+    setVerifyingCal(true);
+    setCalKeyError(null);
+    try {
+      const res = await fetchEventTypesFn({ data: { apiKey: key } });
+      if (!res.ok) {
+        setCalKeyError(res.error ?? "Invalid API key — check it and try again");
+        setCalKeyVerified(false);
+        setCalEventTypes([]);
+      } else {
+        setCalKeyVerified(true);
+        setCalEventTypes(res.eventTypes);
+        if (res.eventTypes.length === 1) setCalEventId(String(res.eventTypes[0].id));
+        toast.success("Cal.com key verified", {
+          description: `${res.eventTypes.length} event type${res.eventTypes.length !== 1 ? "s" : ""} found`,
+        });
+      }
+    } catch (e) {
+      setCalKeyError((e as Error).message);
+      setCalKeyVerified(false);
+    } finally {
+      setVerifyingCal(false);
+    }
+  }
+
   async function handleSaveCal() {
-    if (!calApiKey.trim()) {
-      toast.error("Add a Cal.com API key first");
+    const key = calApiKey.trim();
+    if (!key) { toast.error("Add a Cal.com API key first"); return; }
+    if (!key.startsWith("cal_live_")) {
+      toast.error("Invalid key format", { description: "Cal.com API keys start with cal_live_" });
       return;
     }
     setSavingCal(true);
     try {
-      const savedKey = calApiKey.trim();
       const savedEventId = calEventId.trim() || null;
       await saveCalFn({
-        data: {
-          id: agent!.id,
-          calcomApiKey: savedKey,
-          calcomEventTypeId: savedEventId,
-        },
+        data: { id: agent!.id, calcomApiKey: key, calcomEventTypeId: savedEventId },
       });
       qc.invalidateQueries({ queryKey: ["my-agents"] });
-      // Show the green banner immediately without waiting for the parent query
-      // to refetch; `calJustSaved` acts as a local override until parent rerenders.
-      setCalJustSaved({
-        apiKey: savedKey,
-        eventTypeId: savedEventId,
-        connectedAt: new Date().toISOString(),
-      });
+      setCalJustSaved({ apiKey: key, eventTypeId: savedEventId, connectedAt: new Date().toISOString() });
       toast.success("Cal.com connected", {
         description: savedEventId
-          ? `API key saved · Event Type ID: ${savedEventId}`
-          : "API key saved to this agent",
+          ? `Key saved · Event type: ${calEventTypes.find(e => String(e.id) === savedEventId)?.title ?? savedEventId}`
+          : "Key saved — booking tools will auto-attach on next deploy",
       });
       setCalApiKey("");
       setCalEventId("");
+      setCalKeyVerified(false);
+      setCalKeyError(null);
+      setCalEventTypes([]);
     } catch (e) {
       toast.error("Save failed", { description: (e as Error).message });
     } finally {
@@ -344,6 +376,9 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
       });
       qc.invalidateQueries({ queryKey: ["my-agents"] });
       setCalJustSaved(null);
+      setCalKeyVerified(false);
+      setCalKeyError(null);
+      setCalEventTypes([]);
       toast.success("Cal.com disconnected");
     } catch (e) {
       toast.error("Disconnect failed", { description: (e as Error).message });
@@ -865,26 +900,73 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
                 <div className="space-y-1">
                   <Label className="text-xs">Cal.com API Key</Label>
-                  <Input
-                    type="password"
-                    placeholder="cal_live_..."
-                    value={calApiKey}
-                    onChange={(e) => setCalApiKey(e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder="cal_live_..."
+                      value={calApiKey}
+                      onChange={(e) => {
+                        setCalApiKey(e.target.value);
+                        setCalKeyVerified(false);
+                        setCalKeyError(null);
+                        setCalEventTypes([]);
+                        setCalEventId("");
+                      }}
+                      className={calKeyError ? "border-destructive" : calKeyVerified ? "border-green-500" : ""}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleVerifyCalKey}
+                      disabled={verifyingCal || !calApiKey.trim()}
+                      className="shrink-0"
+                    >
+                      {verifyingCal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : calKeyVerified ? <Check className="h-3.5 w-3.5 text-green-500" /> : "Verify"}
+                    </Button>
+                  </div>
+                  {calKeyError && (
+                    <p className="text-[11px] text-destructive">{calKeyError}</p>
+                  )}
+                  {calKeyVerified && (
+                    <p className="text-[11px] text-green-600 dark:text-green-400">✓ Key verified</p>
+                  )}
                 </div>
+
                 <div className="space-y-1">
-                  <Label className="text-xs">Default Event Type ID (optional)</Label>
-                  <Input
-                    placeholder="e.g. 123456"
-                    value={calEventId}
-                    onChange={(e) => setCalEventId(e.target.value)}
-                  />
+                  <Label className="text-xs">
+                    Event Type {calEventTypes.length > 0 ? "(select from your account)" : "ID (optional)"}
+                  </Label>
+                  {calEventTypes.length > 0 ? (
+                    <Select value={calEventId} onValueChange={setCalEventId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an event type…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {calEventTypes.map((et) => (
+                          <SelectItem key={et.id} value={String(et.id)}>
+                            {et.title} · {et.length} min
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      placeholder="e.g. 123456 (verify key above to auto-load)"
+                      value={calEventId}
+                      onChange={(e) => setCalEventId(e.target.value)}
+                    />
+                  )}
                   <p className="text-[11px] text-muted-foreground">
-                    Found in your Cal.com event-type URL. Used as the default slot to check.
+                    Which event type Retell uses when checking availability and booking.
                   </p>
                 </div>
 
-                <Button onClick={handleSaveCal} disabled={savingCal} className="w-full">
+                <Button
+                  onClick={handleSaveCal}
+                  disabled={savingCal || !calApiKey.trim()}
+                  className="w-full"
+                >
                   {savingCal && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                   Save Cal.com credentials
                 </Button>

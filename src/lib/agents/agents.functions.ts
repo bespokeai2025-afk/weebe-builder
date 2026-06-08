@@ -275,7 +275,7 @@ export const saveAgentCalcom = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { data: row, error: readErr } = await supabase
       .from("agents")
-      .select("settings")
+      .select("settings, workspace_id")
       .eq("id", data.id)
       .maybeSingle();
     if (readErr) throw new Error(readErr.message);
@@ -292,7 +292,53 @@ export const saveAgentCalcom = createServerFn({ method: "POST" })
     };
     const { error } = await supabase.from("agents").update({ settings: next }).eq("id", data.id);
     if (error) throw new Error(error.message);
+
+    // Sync to workspace_settings so the builder deploy function can find the key
+    // and automatically attach booking tools when the agent is deployed.
+    if (row?.workspace_id) {
+      if (data.calcomApiKey) {
+        const wsData: Record<string, unknown> = {
+          workspace_id: row.workspace_id,
+          calcom_api_key: data.calcomApiKey,
+        };
+        if (data.calcomEventTypeId) {
+          wsData.default_event_type_id = data.calcomEventTypeId;
+        }
+        await supabase
+          .from("workspace_settings")
+          .upsert(wsData, { onConflict: "workspace_id" });
+      } else {
+        // Disconnecting — clear workspace key too
+        await supabase
+          .from("workspace_settings")
+          .update({ calcom_api_key: null, default_event_type_id: null })
+          .eq("workspace_id", row.workspace_id);
+      }
+    }
+
     return { ok: true };
+  });
+
+/** Verify a Cal.com API key and return the user's event types for the dropdown. */
+export const fetchCalcomEventTypes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { apiKey: string }) => input)
+  .handler(async ({ data }) => {
+    const { listEventTypes } = await import("@/lib/calendar/calcom.server");
+    try {
+      const eventTypes = await listEventTypes(data.apiKey.trim());
+      return {
+        ok: true as const,
+        eventTypes: eventTypes.map((e) => ({ id: e.id, title: e.title, length: e.length, slug: e.slug })),
+        error: null as string | null,
+      };
+    } catch (e) {
+      return {
+        ok: false as const,
+        eventTypes: [] as { id: number; title: string; length: number; slug: string }[],
+        error: (e as Error).message,
+      };
+    }
   });
 
 /** Save the deployed phone number onto an agent's settings JSON. */
