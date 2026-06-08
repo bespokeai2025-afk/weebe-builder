@@ -1,0 +1,33 @@
+Title: Feature Request - Receptionist Blueprint & Seed Recipes Engine for Macro Mode
+
+Please implement an underlying "Seed Recipes Engine" within the Macro Mode (Webee Build Mode) processing pipeline. This injects hardcoded, industry-standard script playbooks into the LLM's core system prompt, ensuring that when a user asks for a 'receptionist', the copilot automatically handles all operational edge cases flawlessly.
+
+### 1. The Master Virtual Receptionist Playbook Blueprint
+Hardcode this mandatory layout template into the system prompt context for the macro flow generator. When a user requests a "receptionist flow", the AI must use this template structure as its foundation:
+
+* **Stage 1: Dynamic Greeting & Triage (Conversation Node -> Logic Split Node)**
+    * *Rule:* Must greet the user, identify the business name provided, and immediately branch into three core paths: "Booking an Appointment", "General Inquiry / FAQ", and "Urgent Escalation / Speak to Staff".
+* **Stage 2: Availability Verification (Function Node -> Logic Split Node)**
+    * *Rule:* For the booking path, it *must* immediately queue a Function node (e.g., calling our availability check API/Cal.com integration) to check calendar availability slots before asking the user for a time.
+* **Stage 3: Information Extraction (Extract Variable Nodes)**
+    * *Rule:* Before routing to a confirmation state, the flow must include extraction nodes to securely capture the caller's Caller Name, Contact Phone Number, and Reason for Calling.
+* **Stage 4: Out-of-Hours / Queue Handling (Logic Split Node -> In-Call SMS Node)**
+    * *Rule:* If the calendar function returns "No Slots Available" or if the caller asks for a live operator outside of business hours, the script must automatically drop an In-Call SMS node to text the caller a fallback digital booking link, then route to an elegant End Call node.
+* **Stage 5: Live Transfer Safeguard (Agent Transfer Node)**
+    * *Rule:* For the urgent escalation branch, it must map cleanly to an Agent Transfer or Call Transfer node to ensure a human can take over smoothly.
+
+---
+
+### 2. Business Profile Adaptation Layer
+* **Dynamic Customization:** Ensure the LLM modifies the text properties inside this structural blueprint based on the specific business type the user describes. 
+    * *Example:* If the user says, *"Build a receptionist for a luxury spa,"* the copilot uses the exact structural layout stages above, but automatically sets the text fields to say phrases like: *"Welcome to Oasis Spa, are we looking to book a massage treatment today?"*
+    * *Example:* If the user says, *"Build a receptionist for a law firm,"* the layout remains identically structured, but the copy adjusts to: *"Thank you for calling Apex Legal. Are you calling regarding an active case file?"*
+
+---
+
+### 3. Canvas Tree Rendering Layout Constraints
+* To ensure this massive multi-stage script renders beautifully, enforce the cascading horizontal spacing logic calculated sequentially from left to right:
+    * Column 1 ($x: 100$): Greeting Node.
+    * Column 2 ($x: 420$): Core Triage Logic Split.
+    * Column 3 ($x: 740$): Top row gets the Calendar Function; middle row gets Variable Extraction; bottom row gets Live Staff Transfer.
+    * Column 4 ($x: 1060$): Booking Success Message, SMS Fallbacks, and Goodbye Ending Nodes.

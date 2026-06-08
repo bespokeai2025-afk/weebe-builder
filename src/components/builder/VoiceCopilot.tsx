@@ -511,12 +511,25 @@ export function VoiceCopilotButton() {
       if (data.transcript) {
         const lower = data.transcript.toLowerCase();
 
-        // Whisper often mangles "Webee" → "we be", "we bee", "weeby", "webe", etc.
-        // Match flexibly: (switch to / activate / enable)? + webee-variant + (build / mode)
-        const MACRO_REGEX = /\b(switch\s+to|activate|enable|start)\s+(web+e+e?y?|we[\s-]b+e+e?y?)\s*(build|mode)\b|\b(web+e+e?y?|we[\s-]b+e+e?y?)\s*(build[\s-]?mode|build)\b/i;
-        const MICRO_REGEX = /\b(switch\s+back|exit\s+(web+e+e?y?|we[\s-]b+e+e?y?)|return\s+to\s+normal|normal\s+mode|disable\s+(web+e+e?y?|we[\s-]b+e+e?y?))\b/i;
+        // Whisper mangles "Webee" in many ways: "we be", "we bee", "weeby", "WeBeBuild",
+        // "WeeBeeBuild", "web build", "EXIT WEB BUILD" etc. Use intent-based matching:
+        // look for the activation verb AND any phonetic trace of "webee" separately.
+        //
+        // "Webee" phonetic fingerprint: word starting with "we" or "w" followed by
+        // some combo of e/b sounds, OR the standalone word "web".
+        const WB = /\bwe+b|web\b|we[\s-]b/i;      // covers weeb, web, we be, we-b …
+        const isActivate = /\b(switch\s+to|activate|enable|start\s+webee?)\b/i;
+        const isExit     = /\bexit\b|\bswitch\s+back\b|\breturn\s+to\s+normal\b|\bnormal\s+mode\b/i;
 
-        if (MACRO_REGEX.test(lower)) {
+        // MACRO: activation verb present AND phonetic "webee" present
+        const isMacroSwitch = isActivate.test(lower) && WB.test(lower);
+        // MICRO: exit verb present AND (phonetic "webee" OR "build" present)
+        //        OR standard return phrases alone (no "webee" needed)
+        const isMicroSwitch =
+          (isExit.test(lower) && (WB.test(lower) || /\bbuild\b/i.test(lower))) ||
+          /\b(switch\s+back|return\s+to\s+normal|normal\s+mode)\b/i.test(lower);
+
+        if (isMacroSwitch) {
           updateMode("MACRO");
           toast.success(
             <div className="flex items-center gap-2 text-sm">
