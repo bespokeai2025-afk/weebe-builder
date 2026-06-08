@@ -1,0 +1,72 @@
+### 6. Comprehensive Copilot Command Dictionary & Intent Mapping
+
+To ensure the AI copilot recognizes commands for every single component and operation in our system, train the parser LLM using this strict, all-inclusive vocabulary schema. The LLM must translate any of the following natural language variations into the precise JSON engine actions detailed below.
+
+#### A. Node Creation Registry (All Available Tools)
+* **Conversation Node**
+    * *Synonyms:* "say", "speak", "greet", "talk", "add conversation", "message"
+    * *Properties:* `title` (string), `text` (string)
+* **Function Node**
+    * *Synonyms:* "run function", "check availability", "trigger API", "call action", "execute integration"
+    * *Properties:* `title` (string), `function_name` (string)
+* **Call Transfer Node**
+    * *Synonyms:* "transfer call", "forward to", "forward number", "dial out"
+    * *Properties:* `title` (string), `phone_number` (string)
+* **Press Digit Node**
+    * *Synonyms:* "press key", "dtmf", "gather digit", "ivr menu", "press button"
+    * *Properties:* `title` (string), `digit_options` (array)
+* **Logic Split Node**
+    * *Synonyms:* "conditional", "branching", "if else", "route intent", "split path"
+    * *Properties:* `title` (string), `conditions` (array)
+* **Agent Transfer Node**
+    * *Synonyms:* "send to human", "hand off to live agent", "escalate", "operator"
+    * *Properties:* `title` (string)
+* **In-Call SMS Node**
+    * *Synonyms:* "send text message", "text during call", "sms link"
+    * *Properties:* `title` (string), `sms_body` (string)
+* **Extract Variable Node**
+    * *Synonyms:* "save response", "capture data", "extract var", "remember what they said"
+    * *Properties:* `title` (string), `variable_name` (string)
+* **Code Node**
+    * *Synonyms:* "custom script", "javascript", "run code block"
+    * *Properties:* `title` (string), `code_snippet` (string)
+* **Ending / End Call Node**
+    * *Synonyms:* "hang up", "terminate", "goodbye node", "stop call"
+    * *Properties:* `title` (string)
+* **Note Node**
+    * *Synonyms:* "add a sticky note", "comment on canvas", "remind me"
+    * *Properties:* `content` (string)
+
+#### B. Naming, Labeling & Property Modification Commands
+The engine must parse commands that modify existing items on the canvas using unique identifiers or closest text matches:
+* *Command:* "Name that new conversation node 'Welcome Greeting' and make it say 'Hello!'"
+    * *Action:* `UPDATE_NODE_PROPERTIES` -> Sets `title: "Welcome Greeting"`, `text: "Hello!"`
+* *Command:* "Change the phone number in the transfer node to +123456789"
+    * *Action:* `UPDATE_NODE_PROPERTIES` -> Sets `phone_number: "+123456789"`
+
+#### C. Transition Creation & Targeted Routing Commands
+The engine must dynamically inject branching options into nodes and connect them explicitly:
+* *Command:* "Inside the Welcome node, add two options: 'Booking enquiry' and 'General question'."
+    * *Action:* `CREATE_TRANSITIONS` -> Appends specific path handles to the node's output state.
+* *Command:* "Connect 'Booking enquiry' from the Welcome node over to the Check Availability function."
+    * *Action:* `CONNECT_NODES` using explicit port tracking:
+        ```json
+        {
+          "action": "CONNECT_NODES",
+          "from_node": "Welcome",
+          "via_transition": "Booking enquiry",
+          "to_node": "Check Availability"
+        }
+        ```
+
+#### D. Global Settings Adjustments
+The copilot must handle side-panel configuration via voice commands without touching the canvas layout:
+* *Command:* "Set the language to GB English, use Adrian's voice, and change the model to GPT-4o."
+    * *Action:* `UPDATE_GLOBAL_SETTINGS` -> Updates target variables in the draft settings configuration array.
+
+---
+
+### 7. Execution Logic Rules for the AI Copilot Engine
+1.  **Fuzzy Name Matching:** If a command says "Connect to the booking node", find the closest node labeled "Booking", "Booking enquiry", or "Check Availability".
+2.  **Chain Executions:** If a user strings commands together ("Create a conversation node called Intro, add an option for support, and link it to an agent transfer node"), execute them sequentially in a single batch array update.
+3.  **Strict Validation:** Reject any unrecognized commands with a quiet UI warning, keeping the design workspace clean and uncorrupted.
