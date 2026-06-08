@@ -60,6 +60,9 @@ function parsePlaceholdersFromAll(globalPrompt: string, nodes: FlowNode[]): stri
   return Array.from(seen);
 }
 
+const TRIGGER = "group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-violet-600 dark:text-violet-400 hover:brightness-110 transition-colors";
+const CONTENT = "space-y-1.5 px-2.5 pb-2.5";
+
 export function LeadGenSection() {
   const { settings, setSettings, nodes } = useBuilderStore();
   const leadGen = settings.leadGen ?? {};
@@ -107,102 +110,99 @@ export function LeadGenSection() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {/* Campaign Settings */}
       <Collapsible className="rounded-lg border border-violet-500/20 bg-violet-500/5">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-violet-600 dark:text-violet-400">
+        <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
-            <Megaphone className="h-3.5 w-3.5" />
+            <Megaphone className="h-3 w-3" />
             Campaign Settings
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-2 px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
+        <CollapsibleContent className={CONTENT}>
+          <p className="text-[10px] text-muted-foreground">
             Name this campaign to group and track results in the Leads section.
           </p>
           <div>
-            <Label className="text-xs">Campaign name</Label>
+            <Label className="text-[9px]">Campaign name</Label>
             <Input
               value={(leadGen.campaignName as string) ?? ""}
               onChange={(e) => setLeadGen({ campaignName: e.target.value })}
               placeholder="e.g. Q3 Outbound — SMB"
-              className="h-7 text-xs mt-1"
+              className="h-6 text-[10px] mt-0.5"
             />
           </div>
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Pre-Call Variable Mapping (CSV → script placeholders) */}
+      {/* Pre-Call Variable Mapping */}
       <Collapsible className="rounded-lg border border-violet-500/20 bg-violet-500/5">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-violet-600 dark:text-violet-400">
+        <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
-            <GitBranch className="h-3.5 w-3.5" />
+            <GitBranch className="h-3 w-3" />
             Pre-Call Variable Mapping
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-2 px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
+        <CollapsibleContent className={CONTENT}>
+          <p className="text-[10px] text-muted-foreground">
             Map{" "}
             <code className="rounded bg-muted px-1">{"{{placeholders}}"}</code> in your script
-            nodes to columns from your uploaded CSV. Values are injected into each call automatically.
+            nodes to columns from your uploaded CSV.
           </p>
 
           {schemaQ.isLoading ? (
-            <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
-              Loading your CSV columns…
+              Loading CSV columns…
             </p>
           ) : schema && schema.totalRecords > 0 ? (
-            <p className="text-[11px] text-emerald-500">
+            <p className="text-[10px] text-emerald-500">
               ✓ {schema.totalRecords} record{schema.totalRecords !== 1 ? "s" : ""} found
               {currentAgentRowId ? " (assigned to this agent)" : " (workspace)"}
-              {metaCols.length > 0 ? ` · ${metaCols.length} custom column${metaCols.length !== 1 ? "s" : ""} detected` : ""}
+              {metaCols.length > 0 ? ` · ${metaCols.length} custom column${metaCols.length !== 1 ? "s" : ""}` : ""}
             </p>
           ) : schema && schema.totalRecords === 0 ? (
-            <div className="flex flex-col gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-                <div className="space-y-1">
-                  <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+            <div className="flex flex-col gap-1.5 rounded border border-amber-500/30 bg-amber-500/10 p-2">
+              <div className="flex items-start gap-1.5">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
                     No CSV data uploaded yet
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Upload a CSV in the Data section and assign it to this agent. Variable mappings
-                    will then auto-populate with your real column names and the agent will
-                    personalise each call.
+                  <p className="text-[10px] text-muted-foreground">
+                    Upload a CSV in the Data section and assign it to this agent.
                   </p>
                 </div>
               </div>
               <Link
                 to="/data"
-                className="flex w-fit items-center gap-1 rounded bg-amber-500/20 px-2 py-1 text-[11px] font-medium text-amber-600 hover:bg-amber-500/30 dark:text-amber-400"
+                className="flex w-fit items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 hover:bg-amber-500/30 dark:text-amber-400"
               >
-                <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="h-2.5 w-2.5" />
                 Go to Data &amp; upload CSV
               </Link>
             </div>
           ) : null}
 
           {placeholders.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground italic">
-              No {"{{variables}}"} found in your script nodes or global prompt yet. Add them to
-              enable per-lead personalisation.
+            <p className="text-[10px] text-muted-foreground italic">
+              No {"{{variables}}"} in your script yet.
             </p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {placeholders.map((p) => (
                 <div key={p} className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
-                  <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-violet-600 dark:text-violet-400 truncate">
+                  <code className="rounded bg-muted px-1 py-0.5 text-[10px] text-violet-600 dark:text-violet-400 truncate">
                     {`{{${p}}}`}
                   </code>
-                  <span className="text-[10px] text-muted-foreground">→</span>
+                  <span className="text-[9px] text-muted-foreground">→</span>
                   <Select
                     value={variableMappings[p] ?? ""}
                     onValueChange={(v) => setMapping(p, v)}
                   >
-                    <SelectTrigger className="h-7 text-xs">
+                    <SelectTrigger className="h-6 text-[10px]">
                       <SelectValue placeholder="CSV column…">
                         {variableMappings[p] ? colLabel(variableMappings[p]) : undefined}
                       </SelectValue>
@@ -212,7 +212,7 @@ export function LeadGenSection() {
                         <>
                           {fixedCols.length > 0 && (
                             <SelectGroup>
-                              <SelectLabel className="text-[10px]">CSV Fields</SelectLabel>
+                              <SelectLabel className="text-[9px]">CSV Fields</SelectLabel>
                               {fixedCols.map((col) => (
                                 <SelectItem key={col.value} value={col.value} className="text-xs">
                                   {col.label}
@@ -222,7 +222,7 @@ export function LeadGenSection() {
                           )}
                           {metaCols.length > 0 && (
                             <SelectGroup>
-                              <SelectLabel className="text-[10px]">Custom Columns</SelectLabel>
+                              <SelectLabel className="text-[9px]">Custom Columns</SelectLabel>
                               {metaCols.map((col) => (
                                 <SelectItem key={col.value} value={col.value} className="text-xs">
                                   {col.label}
@@ -233,7 +233,7 @@ export function LeadGenSection() {
                         </>
                       ) : (
                         <SelectGroup>
-                          <SelectLabel className="text-[10px]">Standard Fields</SelectLabel>
+                          <SelectLabel className="text-[9px]">Standard Fields</SelectLabel>
                           {[
                             { value: "name", label: "Full Name" },
                             { value: "first_name", label: "First Name" },
@@ -263,7 +263,7 @@ export function LeadGenSection() {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Post-Call Variable Mapping — maps custom extracted vars → lead fields */}
+      {/* Post-Call Variable Mapping */}
       <PostCallVariableMappingSection
         mode="leadgen"
         accentClass="text-violet-600 dark:text-violet-400"
@@ -275,20 +275,20 @@ export function LeadGenSection() {
 
       {/* Lead Intelligence */}
       <Collapsible className="rounded-lg border border-violet-500/20 bg-violet-500/5">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-violet-600 dark:text-violet-400">
+        <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
-            <Brain className="h-3.5 w-3.5" />
+            <Brain className="h-3 w-3" />
             Lead Intelligence
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1.5 px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
-            After each call, AI analyses the transcript and updates the lead record with:
+        <CollapsibleContent className={CONTENT}>
+          <p className="text-[10px] text-muted-foreground">
+            AI analyses each transcript and updates the lead record with:
           </p>
           {INTELLIGENCE_TOGGLES.map(({ key, label }) => (
             <div key={key} className="flex items-center justify-between">
-              <Label className="text-xs">{label}</Label>
+              <Label className="text-[10px]">{label}</Label>
               <Switch
                 checked={(leadGen[key] as boolean) !== false}
                 onCheckedChange={(v) => toggleIntelligence(key, v)}
@@ -300,26 +300,26 @@ export function LeadGenSection() {
 
       {/* Lead Tracking */}
       <Collapsible className="rounded-lg border border-violet-500/20 bg-violet-500/5">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-violet-600 dark:text-violet-400">
+        <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <SlidersHorizontal className="h-3 w-3" />
             Lead Tracking
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1.5 px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
-            Every completed call automatically updates the matching lead record in the Leads section.
+        <CollapsibleContent className={CONTENT}>
+          <p className="text-[10px] text-muted-foreground">
+            Completed calls automatically update the matching lead record.
           </p>
           <div className="flex items-center justify-between">
-            <Label className="text-xs">Auto-update lead on call end</Label>
+            <Label className="text-[10px]">Auto-update lead on call end</Label>
             <Switch
               checked={(leadGen.autoUpdateLead as boolean) !== false}
               onCheckedChange={(v) => setLeadGen({ autoUpdateLead: v })}
             />
           </div>
           <div className="flex items-center justify-between">
-            <Label className="text-xs">Write to campaign metrics</Label>
+            <Label className="text-[10px]">Write to campaign metrics</Label>
             <Switch
               checked={(leadGen.writeCampaignMetrics as boolean) !== false}
               onCheckedChange={(v) => setLeadGen({ writeCampaignMetrics: v })}

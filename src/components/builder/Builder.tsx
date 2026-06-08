@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, Search, Check, ArrowLeftRight, Globe } from "lucide-react";
+import { ChevronDown, MoreHorizontal, FileJson, Upload, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
@@ -664,7 +664,7 @@ export function Builder({
 
         {/* Right global settings */}
         {rightOpen && (
-          <aside className="w-[15vw] min-w-[200px] max-w-[240px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-3 py-2 space-y-2 hidden md:block text-[10px] [&_label]:text-[9px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[10px] [&_button[role=combobox]]:h-6 [&_button[role=combobox]]:text-[10px] [&_input]:text-[10px] [&_select]:text-[10px]">
+          <aside className="w-[15vw] min-w-[200px] max-w-[240px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-2 py-1.5 space-y-1.5 hidden md:block text-[10px] [&_label]:text-[9px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[10px] [&_button[role=combobox]]:h-6 [&_button[role=combobox]]:text-[10px] [&_input]:text-[10px] [&_select]:text-[10px]">
             {/* Panel header */}
             <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
               <h3 className="text-[11px] font-semibold tracking-tight text-foreground">Agent Settings</h3>
@@ -682,51 +682,48 @@ export function Builder({
               </DropdownMenu>
             </div>
 
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Voice & Language</p>
-              <div>
-                <Label className="text-[9px]">Language</Label>
-                <LanguagePicker
-                  value={settings.speechLanguages ?? [settings.language ?? "en-US"]}
-                  onChange={(v) => setSettings({ speechLanguages: v, language: v[0] === "multi" ? "en-US" : v[0] })}
-                />
-              </div>
-              <div>
-                <Label className="text-[9px]">Voice</Label>
-                <Select
-                  value={
-                    DEFAULT_VOICES.some((v) => v.id === settings.voiceId)
-                      ? settings.voiceId
-                      : settings.voiceId
-                        ? "__custom__"
-                        : ""
-                  }
-                  onValueChange={(v) => {
-                    if (v !== "__custom__") setSettings({ voiceId: v });
-                  }}
-                >
-                  <SelectTrigger className="h-6 text-[10px]">
-                    <SelectValue placeholder="Pick a voice" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VOICE_GROUPS.map((group) => (
-                      <SelectGroup key={group}>
-                        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {group}
-                        </SelectLabel>
-                        {DEFAULT_VOICES.filter((v) => v.group === group).map((v) => (
-                          <SelectItem key={v.id} value={v.id}>
-                            {v.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                    {settings.voiceId &&
-                      !DEFAULT_VOICES.some((v) => v.id === settings.voiceId) && (
+            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+                <span className="flex items-center gap-1.5"><Mic className="h-3 w-3" />Voice & Language</span>
+                <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
+                <div>
+                  <Label className="text-[9px]">Language</Label>
+                  <LanguagePicker
+                    value={settings.speechLanguages ?? [settings.language ?? "en-US"]}
+                    onChange={(v) => setSettings({ speechLanguages: v, language: v[0] === "multi" ? "en-US" : v[0] })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-[9px]">Voice</Label>
+                  <Select
+                    value={
+                      DEFAULT_VOICES.some((v) => v.id === settings.voiceId)
+                        ? settings.voiceId
+                        : settings.voiceId
+                          ? "__custom__"
+                          : ""
+                    }
+                    onValueChange={(v) => {
+                      if (v !== "__custom__") setSettings({ voiceId: v });
+                    }}
+                  >
+                    <SelectTrigger className="h-6 text-[10px]">
+                      <SelectValue placeholder="Pick a voice" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VOICE_GROUPS.map((group) => (
+                        <SelectGroup key={group}>
+                          <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">{group}</SelectLabel>
+                          {DEFAULT_VOICES.filter((v) => v.group === group).map((v) => (
+                            <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                      {settings.voiceId && !DEFAULT_VOICES.some((v) => v.id === settings.voiceId) && (
                         <SelectGroup>
-                          <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                            Custom
-                          </SelectLabel>
+                          <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Custom</SelectLabel>
                           <SelectItem value="__custom__">
                             {(() => {
                               const id = settings.voiceId;
@@ -737,183 +734,147 @@ export function Builder({
                           </SelectItem>
                         </SelectGroup>
                       )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <CustomVoiceUploadDialog
-                onUploaded={(voiceId) => setSettings({ voiceId })}
-              />
-            </div>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <CustomVoiceUploadDialog onUploaded={(voiceId) => setSettings({ voiceId })} />
+              </CollapsibleContent>
+            </Collapsible>
 
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Global Prompt</p>
-              <div>
-                <Label className="text-[9px] flex items-center gap-1">
-                  Model
-                  <span
-                    className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground"
-                    title="Internal cost (Retell rate + $0.15/min margin). Not shown to customers."
-                  >
-                    builder cost
-                  </span>
-                </Label>
-                <Select value={settings.model} onValueChange={(v) => setSettings({ model: v })}>
-                  <SelectTrigger className="h-6 text-[10px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Standard</SelectLabel>
-                      {MODELS.filter((m) => m.tier === "standard").map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          <span className="flex items-center justify-between gap-3 w-full">
-                            <span className="flex items-center gap-1.5">
-                              {m.label}
-                              {m.recommended && (
-                                <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                                  Recommended
-                                </span>
-                              )}
-                            </span>
-                            <span className="text-muted-foreground text-[11px]">
-                              ${m.costPerMin.toFixed(3)}/min
-                            </span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Fast Tier — lower latency</SelectLabel>
-                      {MODELS.filter((m) => m.tier === "fast").map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          <span className="flex items-center justify-between gap-3 w-full">
-                            <span className="flex items-center gap-1.5">
-                              {m.label}
-                              {m.recommended && (
-                                <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                                  Recommended
-                                </span>
-                              )}
-                              <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
-                                Fast
+            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+                <span className="flex items-center gap-1.5"><MsgSq className="h-3 w-3" />Global Prompt</span>
+                <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
+                <div>
+                  <Label className="text-[9px] flex items-center gap-1">
+                    Model
+                    <span className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground" title="Internal cost (Retell rate + $0.15/min margin). Not shown to customers.">
+                      builder cost
+                    </span>
+                  </Label>
+                  <Select value={settings.model} onValueChange={(v) => setSettings({ model: v })}>
+                    <SelectTrigger className="h-6 text-[10px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Standard</SelectLabel>
+                        {MODELS.filter((m) => m.tier === "standard").map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span className="flex items-center gap-1.5">
+                                {m.label}
+                                {m.recommended && <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">Recommended</span>}
                               </span>
+                              <span className="text-muted-foreground text-[11px]">${m.costPerMin.toFixed(3)}/min</span>
                             </span>
-                            <span className="text-muted-foreground text-[11px]">
-                              ${m.costPerMin.toFixed(3)}/min
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Fast Tier — lower latency</SelectLabel>
+                        {MODELS.filter((m) => m.tier === "fast").map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span className="flex items-center gap-1.5">
+                                {m.label}
+                                {m.recommended && <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">Recommended</span>}
+                                <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">Fast</span>
+                              </span>
+                              <span className="text-muted-foreground text-[11px]">${m.costPerMin.toFixed(3)}/min</span>
                             </span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <SliderField
-                label="Temperature"
-                value={settings.temperature ?? 1}
-                min={0}
-                max={2}
-                step={0.1}
-                onChange={(v) => setSettings({ temperature: v })}
-              />
-              <Textarea
-                rows={4}
-                value={settings.globalPrompt}
-                onChange={(e) => setSettings({ globalPrompt: e.target.value })}
-                placeholder="Enter your global prompt here"
-                className="text-[10px] leading-relaxed"
-              />
-            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <SliderField label="Temperature" value={settings.temperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => setSettings({ temperature: v })} />
+                <Textarea rows={4} value={settings.globalPrompt} onChange={(e) => setSettings({ globalPrompt: e.target.value })} placeholder="Enter your global prompt here" className="text-[10px] leading-relaxed" />
+              </CollapsibleContent>
+            </Collapsible>
 
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Transition</p>
-              <Select
-                value={settings.transitionFlexibility ?? "flex"}
-                onValueChange={(v) =>
-                  setSettings({ transitionFlexibility: v as "flex" | "strict" })
-                }
-              >
-                <SelectTrigger className="h-6 text-[10px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="flex">Flex Mode</SelectItem>
-                  <SelectItem value="strict">Strict Mode</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Agent</p>
-              <div>
-                <Label className="text-[9px]">Webhook URL</Label>
-                <Input
-                  value={settings.webhookUrl ?? ""}
-                  onChange={(e) => setSettings({ webhookUrl: e.target.value })}
-                  className="h-6 text-[10px]"
-                  placeholder="https://…"
-                />
-              </div>
-              <div>
-                <Label className="text-[9px]">Start speaker</Label>
-                <Select
-                  value={settings.startSpeaker ?? "agent"}
-                  onValueChange={(v) => setSettings({ startSpeaker: v as "agent" | "user" })}
-                >
-                  <SelectTrigger className="h-6 text-[10px]">
-                    <SelectValue />
-                  </SelectTrigger>
+            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+                <span className="flex items-center gap-1.5"><ArrowLeftRight className="h-3 w-3" />Transition</span>
+                <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-2.5 pb-2.5">
+                <Select value={settings.transitionFlexibility ?? "flex"} onValueChange={(v) => setSettings({ transitionFlexibility: v as "flex" | "strict" })}>
+                  <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="agent">Agent</SelectItem>
-                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="flex">Flex Mode</SelectItem>
+                    <SelectItem value="strict">Strict Mode</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+                <span className="flex items-center gap-1.5"><Settings2 className="h-3 w-3" />Agent</span>
+                <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
+                <div>
+                  <Label className="text-[9px]">Webhook URL</Label>
+                  <Input value={settings.webhookUrl ?? ""} onChange={(e) => setSettings({ webhookUrl: e.target.value })} className="h-6 text-[10px]" placeholder="https://…" />
+                </div>
+                <div>
+                  <Label className="text-[9px]">Start speaker</Label>
+                  <Select value={settings.startSpeaker ?? "agent"} onValueChange={(v) => setSettings({ startSpeaker: v as "agent" | "user" })}>
+                    <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="agent">Agent</SelectItem>
+                      <SelectItem value="user">User</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <PostCallDataSection />
 
             <BookingConfigSection />
 
             {/* Agent type selector — controls which sections appear below */}
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Agent Type</p>
-              <Select
-                value={settings.agentType ?? "receptionist"}
-                onValueChange={(v) =>
-                  setSettings({ agentType: v as BuilderSettings["agentType"] })
-                }
-              >
-                <SelectTrigger className="h-6 text-[10px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="receptionist">Receptionist</SelectItem>
-                  <SelectItem value="lead_generation">Lead Generation</SelectItem>
-                  <SelectItem value="client_qualification">Client Qualification</SelectItem>
-                </SelectContent>
-              </Select>
-              {settings.agentType === "lead_generation" && (
-                <p className="text-[10px] text-violet-500 dark:text-violet-400">
-                  Lead Gen sections active ↓
-                </p>
-              )}
-              {settings.agentType === "client_qualification" && (
-                <p className="text-[10px] text-blue-500 dark:text-blue-400">
-                  Client Qualification sections active ↓
-                </p>
-              )}
-            </div>
+            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+                <span className="flex items-center gap-1.5"><Globe className="h-3 w-3" />Agent Type</span>
+                <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
+                <Select
+                  value={settings.agentType ?? "receptionist"}
+                  onValueChange={(v) => setSettings({ agentType: v as BuilderSettings["agentType"] })}
+                >
+                  <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="receptionist">Receptionist</SelectItem>
+                    <SelectItem value="lead_generation">Lead Generation</SelectItem>
+                    <SelectItem value="client_qualification">Client Qualification</SelectItem>
+                  </SelectContent>
+                </Select>
+                {settings.agentType === "lead_generation" && (
+                  <p className="text-[10px] text-violet-500 dark:text-violet-400">Lead Gen sections active ↓</p>
+                )}
+                {settings.agentType === "client_qualification" && (
+                  <p className="text-[10px] text-blue-500 dark:text-blue-400">Client Qualification sections active ↓</p>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
 
             {settings.agentType === "lead_generation" && <LeadGenSection />}
             {settings.agentType === "client_qualification" && <ClientQualificationSection />}
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
-              <CollapsibleTrigger className="flex w-full items-center justify-between px-2.5 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span>Agent Handbook</span>
-                <ChevronDown className="h-3.5 w-3.5" />
+                <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1.5 px-2 pb-2">
+              <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
                 {(
                   [
                     ["handbookEchoVerification", "Echo verification"],
@@ -939,11 +900,11 @@ export function Builder({
             </Collapsible>
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
-              <CollapsibleTrigger className="flex w-full items-center justify-between px-2.5 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span>Speech Settings</span>
-                <ChevronDown className="h-3.5 w-3.5" />
+                <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3 px-2.5 pb-2.5">
+              <CollapsibleContent className="space-y-2 px-2.5 pb-2.5">
                 <SliderField
                   label="Voice Speed"
                   value={settings.voiceSpeed ?? 1}

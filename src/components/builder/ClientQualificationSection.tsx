@@ -63,6 +63,9 @@ function parsePlaceholdersFromAll(globalPrompt: string, nodes: FlowNode[]): stri
   return Array.from(seen);
 }
 
+const TRIGGER = "group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:brightness-110 transition-colors";
+const CONTENT = "space-y-1.5 px-2.5 pb-2.5";
+
 export function ClientQualificationSection() {
   const { settings, setSettings, nodes } = useBuilderStore();
   const qualify = settings.qualify ?? {};
@@ -81,7 +84,6 @@ export function ClientQualificationSection() {
   const customLeadFields: string[] =
     (qualify.customLeadFields as string[]) ?? [];
 
-  // Fetch lead fields (standard + meta) from the workspace's existing leads
   const getLeadFieldsFn = useServerFn(getLeadCustomFields);
   const leadFieldsQ = useQuery({
     queryKey: ["lead-custom-fields"],
@@ -108,27 +110,27 @@ export function ClientQualificationSection() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {/* Lead Source */}
       <Collapsible defaultOpen className="rounded-lg border border-blue-500/20 bg-blue-500/5">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-blue-600 dark:text-blue-400">
+        <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
-            <GitBranch className="h-3.5 w-3.5" />
+            <GitBranch className="h-3 w-3" />
             Lead Source
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
-            Choose where the agent pulls contacts from for qualification calls.
+        <CollapsibleContent className={CONTENT}>
+          <p className="text-[10px] text-muted-foreground">
+            Where the agent pulls contacts for qualification calls.
           </p>
           <div>
-            <Label className="text-xs">Source</Label>
+            <Label className="text-[9px]">Source</Label>
             <Select
               value={qualify.leadSource ?? "data_section"}
               onValueChange={(v) => setQualify({ leadSource: v as "data_section" | "leads_section" })}
             >
-              <SelectTrigger className="h-7 text-xs mt-1">
+              <SelectTrigger className="h-6 text-[10px] mt-0.5">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -142,14 +144,14 @@ export function ClientQualificationSection() {
             </Select>
           </div>
           {(qualify.leadSource as string) === "leads_section" && (
-            <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-2 text-[11px] text-blue-600 dark:text-blue-400">
-              Go to the Leads page → select leads → Actions → Assign Qualification Agent to start a campaign.
+            <div className="rounded border border-blue-500/20 bg-blue-500/5 p-1.5 text-[10px] text-blue-600 dark:text-blue-400">
+              Leads page → select leads → Actions → Assign Qualification Agent.
             </div>
           )}
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Pre-Call Data Injection (leads fields → script placeholders) */}
+      {/* Pre-Call Data Injection */}
       {(qualify.leadSource === "leads_section" || qualify.leadSource == null) && (
         <PreCallLeadMappingSection
           accentClass="text-blue-600 dark:text-blue-400"
@@ -164,23 +166,23 @@ export function ClientQualificationSection() {
 
       {/* Qualification Criteria */}
       <Collapsible className="rounded-lg border border-blue-500/20 bg-blue-500/5">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-blue-600 dark:text-blue-400">
+        <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="h-3.5 w-3.5" />
+            <ShieldCheck className="h-3 w-3" />
             Qualification Criteria
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1.5 px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
-            Enable the signals the AI should detect after each call to build the qualification score.
+        <CollapsibleContent className={CONTENT}>
+          <p className="text-[10px] text-muted-foreground">
+            Signals AI should detect after each call to build the qualification score.
           </p>
           {QUALIFICATION_CRITERIA.map(({ key, label, points }) => (
             <div key={key} className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Label className="text-xs">{label}</Label>
+              <div className="flex items-center gap-1">
+                <Label className="text-[10px]">{label}</Label>
                 {points > 0 && (
-                  <span className="rounded bg-blue-500/10 px-1 py-0.5 text-[10px] text-blue-500">
+                  <span className="rounded bg-blue-500/10 px-1 py-0.5 text-[9px] text-blue-500">
                     +{points}
                   </span>
                 )}
@@ -204,64 +206,61 @@ export function ClientQualificationSection() {
         onScoringChange={(r) => setQualify({ customScoringRules: r })}
       />
 
-      {/* Scoring Bands */}
+      {/* Qualification Scoring */}
       <Collapsible className="rounded-lg border border-blue-500/20 bg-blue-500/5">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-blue-600 dark:text-blue-400">
+        <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <SlidersHorizontal className="h-3 w-3" />
             Qualification Scoring
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-2 px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
-            Scores are calculated automatically from enabled criteria after each call.
-            Leads appear in the <span className="font-medium text-foreground">Qualified</span> section
-            only after you manually promote them there.
+        <CollapsibleContent className={CONTENT}>
+          <p className="text-[10px] text-muted-foreground">
+            Scores calculated automatically from enabled criteria.
             {customScoringRules.length > 0 && (
               <> Custom variables add up to <span className="font-medium text-foreground">+{customScoringRules.reduce((a, r) => a + r.points, 0)} pts</span>.</>
             )}
           </p>
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {[
               { range: "70 – 100", label: "Qualified", color: "text-emerald-400" },
               { range: "40 – 69", label: "Partially Qualified", color: "text-amber-400" },
               { range: "0 – 39", label: "Not Qualified", color: "text-red-400" },
             ].map(({ range, label, color }) => (
               <div key={label} className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">{range}</span>
-                <span className={`text-[11px] font-medium ${color}`}>{label}</span>
+                <span className="text-[10px] text-muted-foreground">{range}</span>
+                <span className={`text-[10px] font-medium ${color}`}>{label}</span>
               </div>
             ))}
           </div>
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Routing Rules */}
+      {/* Outcome Routing */}
       <Collapsible className="rounded-lg border border-blue-500/20 bg-blue-500/5">
-        <CollapsibleTrigger className="flex w-full items-center justify-between p-3 text-xs font-medium text-blue-600 dark:text-blue-400">
+        <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
-            <Zap className="h-3.5 w-3.5" />
+            <Zap className="h-3 w-3" />
             Outcome Routing
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-2 px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
-            Where should leads go in the Leads section based on call sentiment?
+        <CollapsibleContent className={CONTENT}>
+          <p className="text-[10px] text-muted-foreground">
+            Where leads go in the Leads section based on call sentiment.
           </p>
           {(["positive", "neutral", "negative"] as const).map((sentiment) => {
-            const defaultVal =
-              sentiment === "negative" ? "not_qualified" : "qualified";
+            const defaultVal = sentiment === "negative" ? "not_qualified" : "qualified";
             const key = `route_${sentiment}` as keyof NonNullable<typeof settings.qualify>;
             return (
               <div key={sentiment} className="flex items-center justify-between gap-2">
-                <Label className="text-xs capitalize">{sentiment}</Label>
+                <Label className="text-[10px] capitalize">{sentiment}</Label>
                 <Select
                   value={(qualify[key] as string) ?? defaultVal}
                   onValueChange={(v) => setQualify({ [key]: v })}
                 >
-                  <SelectTrigger className="h-7 w-36 text-xs">
+                  <SelectTrigger className="h-6 w-32 text-[10px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -275,8 +274,8 @@ export function ClientQualificationSection() {
               </div>
             );
           })}
-          <div className="flex items-center justify-between mt-1 pt-1 border-t border-border/40">
-            <Label className="text-xs">Auto-route to Leads section after call</Label>
+          <div className="flex items-center justify-between pt-1 border-t border-border/40">
+            <Label className="text-[10px]">Auto-route after call</Label>
             <Switch
               checked={(qualify.autoRoute as boolean) !== false}
               onCheckedChange={(v) => setQualify({ autoRoute: v })}

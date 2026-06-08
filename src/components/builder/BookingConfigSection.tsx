@@ -32,13 +32,6 @@ const DAYS: { key: DayKey; label: string }[] = [
   { key: "sun", label: "Sun" },
 ];
 
-/**
- * Per-agent booking & calendar config. Lives next to the other right-panel
- * sections in the builder. Writes to settings.booking on the BuilderSettings
- * store; the deploy server fn reads it to decide whether to attach booking
- * tools, which event type to use, and whether to append booking instructions
- * to the global prompt.
- */
 export function BookingConfigSection() {
   const { settings, setSettings } = useBuilderStore();
   const booking = settings.booking ?? {};
@@ -69,29 +62,28 @@ export function BookingConfigSection() {
   };
 
   return (
-    <Collapsible className="rounded-lg border" defaultOpen>
-      <CollapsibleTrigger className="flex w-full items-center justify-between p-2 text-xs font-medium text-muted-foreground">
+    <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+      <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
         <span className="flex items-center gap-1.5">
-          <CalendarClock className="h-3.5 w-3.5" />
+          <CalendarClock className="h-3 w-3" />
           Booking & Calendar
         </span>
-        <ChevronDown className="h-4 w-4" />
+        <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-3 px-2 pb-3">
+      <CollapsibleContent className="space-y-2 px-2.5 pb-2.5">
         {!calConnected && (
-          <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-2 text-[11px] text-amber-900 dark:text-amber-200">
-            Cal.com is not connected.{" "}
+          <div className="rounded border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-1.5 text-[10px] text-amber-900 dark:text-amber-200">
+            Cal.com not connected.{" "}
             <Link to="/settings/calendar" className="font-medium underline underline-offset-2">
-              Connect it in Settings → Calendar
-            </Link>{" "}
-            to enable booking tools. Your agent will still deploy without them.
+              Connect in Settings → Calendar
+            </Link>
           </div>
         )}
 
         <div className="flex items-center justify-between gap-2">
           <div className="space-y-0.5">
-            <Label className="text-xs font-medium">Enable booking on this agent</Label>
-            <p className="text-[11px] text-muted-foreground">
+            <Label className="text-[10px] font-medium">Enable booking</Label>
+            <p className="text-[10px] text-muted-foreground leading-tight">
               Auto-attach check_availability, book_appointment, cancel_appointment.
             </p>
           </div>
@@ -99,35 +91,29 @@ export function BookingConfigSection() {
         </div>
 
         <div className="space-y-1">
-          <Label className="text-xs font-medium">Booking instructions (prompt)</Label>
+          <Label className="text-[10px] font-medium">Booking instructions</Label>
           <Textarea
-            className="min-h-[120px] text-xs"
-            placeholder={
-              "e.g. Only offer slots Mon–Fri between 9am and 5pm London time. " +
-              "Always confirm the caller's full name and email before calling book_appointment. " +
-              "If no slots are available in the next 7 days, ask if they want a callback."
-            }
+            className="min-h-[72px] text-[10px] leading-relaxed"
+            placeholder="e.g. Only offer slots Mon–Fri 9am–5pm. Confirm name and email before booking."
             value={booking.instructions ?? ""}
             onChange={(e) => updateBooking({ instructions: e.target.value })}
             disabled={!enabled}
           />
-          <p className="text-[11px] text-muted-foreground">
-            Appended to the agent's global prompt on deploy.
-          </p>
+          <p className="text-[10px] text-muted-foreground">Appended to global prompt on deploy.</p>
         </div>
 
         <div className="space-y-1">
-          <Label className="text-xs font-medium">Event type</Label>
+          <Label className="text-[10px] font-medium">Event type</Label>
           <Select
             value={booking.eventTypeId || ""}
             onValueChange={(v) => updateBooking({ eventTypeId: v === "__default__" ? "" : v })}
             disabled={!enabled || eventTypes.length === 0}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="h-6 text-[10px]">
               <SelectValue
                 placeholder={
                   eventTypes.length === 0
-                    ? "No event types synced yet"
+                    ? "No event types synced"
                     : defaultEt
                       ? `Workspace default (${defaultEt})`
                       : "Pick an event type"
@@ -145,18 +131,14 @@ export function BookingConfigSection() {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[11px] text-muted-foreground">
-            Override which Cal.com event type this agent books into.
-          </p>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium">Working hours (per weekday)</Label>
-          <p className="text-[11px] text-muted-foreground">
-            Overrides the workspace default for this agent. Use 24-hour HH:MM (caller's local time).
-            Leave a day empty to mark it closed.
+        <div className="space-y-1">
+          <Label className="text-[10px] font-medium">Working hours</Label>
+          <p className="text-[10px] text-muted-foreground leading-tight">
+            Per weekday, 24h HH:MM. Leave empty = closed.
           </p>
-          <div className="space-y-1.5">
+          <div className="space-y-0.5">
             {DAYS.map(({ key, label }) => {
               const ranges = booking.workingHours?.[key] ?? [];
               const setDay = (next: Array<[string, string]>) => {
@@ -165,19 +147,19 @@ export function BookingConfigSection() {
                 });
               };
               return (
-                <div key={key} className="flex items-start gap-2">
-                  <div className="w-9 pt-1.5 text-[11px] font-medium text-muted-foreground">
+                <div key={key} className="flex items-start gap-1.5">
+                  <div className="w-8 pt-1 text-[10px] font-medium text-muted-foreground shrink-0">
                     {label}
                   </div>
-                  <div className="flex-1 space-y-1">
+                  <div className="flex-1 space-y-0.5">
                     {ranges.length === 0 && (
-                      <div className="text-[11px] italic text-muted-foreground py-1">Closed</div>
+                      <div className="text-[10px] italic text-muted-foreground py-0.5">Closed</div>
                     )}
                     {ranges.map((r, i) => (
                       <div key={i} className="flex items-center gap-1">
                         <Input
                           type="time"
-                          className="h-7 text-xs w-24"
+                          className="h-6 text-[10px] w-20"
                           value={r[0]}
                           disabled={!enabled}
                           onChange={(e) => {
@@ -187,10 +169,10 @@ export function BookingConfigSection() {
                             setDay(next);
                           }}
                         />
-                        <span className="text-[11px] text-muted-foreground">–</span>
+                        <span className="text-[10px] text-muted-foreground">–</span>
                         <Input
                           type="time"
-                          className="h-7 text-xs w-24"
+                          className="h-6 text-[10px] w-20"
                           value={r[1]}
                           disabled={!enabled}
                           onChange={(e) => {
@@ -204,12 +186,12 @@ export function BookingConfigSection() {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-6 w-6"
+                          className="h-5 w-5"
                           disabled={!enabled}
                           onClick={() => setDay(ranges.filter((_, j) => j !== i))}
                           aria-label="Remove range"
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-2.5 w-2.5" />
                         </Button>
                       </div>
                     ))}
@@ -217,11 +199,11 @@ export function BookingConfigSection() {
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="h-6 px-2 text-[11px]"
+                      className="h-5 px-1.5 text-[10px]"
                       disabled={!enabled}
                       onClick={() => setDay([...ranges, ["09:00", "17:00"]])}
                     >
-                      <Plus className="h-3 w-3 mr-1" /> Add range
+                      <Plus className="h-2.5 w-2.5 mr-0.5" /> Add range
                     </Button>
                   </div>
                 </div>

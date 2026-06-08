@@ -110,17 +110,17 @@ export function PostCallVariableMappingSection({
   if (variables.length === 0) {
     return (
       <Collapsible className={`rounded-lg border ${borderClass}`}>
-        <CollapsibleTrigger className={`flex w-full items-center justify-between p-3 text-xs font-medium ${accentClass}`}>
+        <CollapsibleTrigger className={`group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
           <span className="flex items-center gap-1.5">
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight className="h-3 w-3" />
             Post-Call Variable Mapping
           </span>
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
         </CollapsibleTrigger>
-        <CollapsibleContent className="px-3 pb-3">
-          <p className="text-[11px] text-muted-foreground">
-            No custom post-call variables defined yet. Add them in{" "}
-            <span className="font-medium">Post Call Data Retrieval</span> above, then map each one to a lead field here.
+        <CollapsibleContent className="px-2.5 pb-2.5">
+          <p className="text-[10px] text-muted-foreground">
+            No custom post-call variables yet. Add them in{" "}
+            <span className="font-medium">Post-Call Data Retrieval</span> above, then map each one to a lead field here.
           </p>
         </CollapsibleContent>
       </Collapsible>
@@ -129,20 +129,20 @@ export function PostCallVariableMappingSection({
 
   return (
     <Collapsible className={`rounded-lg border ${borderClass}`}>
-      <CollapsibleTrigger className={`flex w-full items-center justify-between p-3 text-xs font-medium ${accentClass}`}>
+      <CollapsibleTrigger className={`group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
         <span className="flex items-center gap-1.5">
-          <ArrowRight className="h-3.5 w-3.5" />
+          <ArrowRight className="h-3 w-3" />
           Post-Call Variable Mapping
         </span>
-        <ChevronDown className="h-3.5 w-3.5" />
+        <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2 px-3 pb-3">
-        <p className="text-[11px] text-muted-foreground">
+      <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
+        <p className="text-[10px] text-muted-foreground">
           After each call, map extracted variables to lead fields.
           {mode === "qualify" && " Add points to boost the qualification score when a variable is truthy."}
         </p>
-        <div className="space-y-2">
-          <div className={`grid gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground ${mode === "qualify" ? "grid-cols-[1fr_auto_1fr_auto_5rem]" : "grid-cols-[1fr_auto_1fr]"}`}>
+        <div className="space-y-1.5">
+          <div className={`grid gap-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground ${mode === "qualify" ? "grid-cols-[1fr_auto_1fr_auto_4rem]" : "grid-cols-[1fr_auto_1fr]"}`}>
             <span>Variable</span>
             <span />
             <span>Lead Field</span>
@@ -151,17 +151,17 @@ export function PostCallVariableMappingSection({
           {variables.map((v) => (
             <div
               key={v.name}
-              className={`grid items-center gap-1 ${mode === "qualify" ? "grid-cols-[1fr_auto_1fr_auto_5rem]" : "grid-cols-[1fr_auto_1fr]"}`}
+              className={`grid items-center gap-1 ${mode === "qualify" ? "grid-cols-[1fr_auto_1fr_auto_4rem]" : "grid-cols-[1fr_auto_1fr]"}`}
             >
-              <div className="rounded bg-muted px-1.5 py-1 text-[11px] font-mono truncate" title={v.name}>
+              <div className="rounded bg-muted px-1 py-0.5 text-[10px] font-mono truncate" title={v.name}>
                 {v.name}
                 {v.type && v.type !== "string" && (
-                  <span className="ml-1 text-muted-foreground text-[10px]">({v.type})</span>
+                  <span className="ml-1 text-muted-foreground text-[9px]">({v.type})</span>
                 )}
               </div>
-              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+              <ArrowRight className="h-2.5 w-2.5 text-muted-foreground" />
               <Select value={fieldDisplayValue(v.name)} onValueChange={(val) => setMapping(v.name, val)}>
-                <SelectTrigger className="h-7 text-xs">
+                <SelectTrigger className="h-6 text-[10px]">
                   <SelectValue placeholder="Lead field…">
                     {postCallMappings[v.name] ? fieldLabel(postCallMappings[v.name]) : undefined}
                   </SelectValue>
@@ -169,7 +169,7 @@ export function PostCallVariableMappingSection({
                 <SelectContent>
                   {groups.map((group) => (
                     <SelectGroup key={group}>
-                      <SelectLabel className="text-[10px]">{group}</SelectLabel>
+                      <SelectLabel className="text-[9px]">{group}</SelectLabel>
                       {LEAD_FIELD_OPTIONS.filter((o) => o.group === group).map((o) => (
                         <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
                       ))}
@@ -179,7 +179,7 @@ export function PostCallVariableMappingSection({
               </Select>
               {mode === "qualify" && (
                 <>
-                  <span className="text-[10px] text-muted-foreground text-center">+</span>
+                  <span className="text-[9px] text-muted-foreground text-center">+</span>
                   <Input
                     type="number"
                     min={0}
@@ -187,7 +187,7 @@ export function PostCallVariableMappingSection({
                     value={currentPoints(v.name) || ""}
                     onChange={(e) => setPoints(v.name, parseInt(e.target.value, 10) || 0)}
                     placeholder="0"
-                    className="h-7 text-xs text-center"
+                    className="h-6 text-[10px] text-center"
                   />
                 </>
               )}
@@ -195,7 +195,7 @@ export function PostCallVariableMappingSection({
           ))}
         </div>
         {mode === "qualify" && customScoringRules.length > 0 && (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground">
             Custom variables contribute{" "}
             <span className="font-medium text-foreground">
               +{customScoringRules.reduce((a, r) => a + r.points, 0)} pts max
@@ -213,14 +213,11 @@ interface PreCallProps {
   placeholders: string[];
   preCallMappings: Record<string, string>;
   onMappingChange: (m: Record<string, string>) => void;
-  /** Standard + meta fields fetched from the workspace's lead records */
   sourceFields?: Array<{ value: string; label: string; group?: string }>;
-  /** Extra custom field names the user has manually added */
   customLeadFields?: string[];
   onCustomLeadFieldsChange?: (fields: string[]) => void;
 }
 
-/** Pre-call mapping collapsible: maps {{placeholders}} → leads table fields */
 export function PreCallLeadMappingSection({
   accentClass,
   placeholders,
@@ -236,7 +233,6 @@ export function PreCallLeadMappingSection({
     ? "border-blue-500/20 bg-blue-500/5"
     : "border-violet-500/20 bg-violet-500/5";
 
-  // Build combined source options: standard fields + meta fields + user-added custom fields
   const standardFields = sourceFields?.filter((f) => !f.group || f.group === "standard") ?? LEAD_SOURCE_FIELDS;
   const metaFields = sourceFields?.filter((f) => f.group === "meta") ?? [];
   const userFields = customLeadFields.map((f) => ({ value: `meta.${f}`, label: f }));
@@ -251,7 +247,6 @@ export function PreCallLeadMappingSection({
 
   function removeCustomField(key: string) {
     onCustomLeadFieldsChange?.(customLeadFields.filter((f) => f !== key));
-    // Also clear any mapping pointing to this field
     const updated = { ...preCallMappings };
     for (const [ph, val] of Object.entries(updated)) {
       if (val === `meta.${key}`) delete updated[ph];
@@ -269,49 +264,49 @@ export function PreCallLeadMappingSection({
 
   return (
     <Collapsible className={`rounded-lg border ${borderClass}`}>
-      <CollapsibleTrigger className={`flex w-full items-center justify-between p-3 text-xs font-medium ${accentClass}`}>
+      <CollapsibleTrigger className={`group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
         <span className="flex items-center gap-1.5">
-          <ArrowRight className="h-3.5 w-3.5" />
+          <ArrowRight className="h-3 w-3" />
           Pre-Call Data Injection
         </span>
-        <ChevronDown className="h-3.5 w-3.5" />
+        <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
       </CollapsibleTrigger>
-      <CollapsibleContent className="space-y-2 px-3 pb-3">
-        <p className="text-[11px] text-muted-foreground">
-          Map <code className="bg-muted px-1 rounded">{"{{placeholders}}"}</code> in your script to lead fields. Values are injected before each outbound call.
+      <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
+        <p className="text-[10px] text-muted-foreground">
+          Map <code className="bg-muted px-1 rounded">{"{{placeholders}}"}</code> to lead fields. Values injected before each outbound call.
         </p>
 
         {placeholders.length === 0 ? (
-          <p className="text-[11px] text-muted-foreground italic">
-            No <code className="bg-muted px-0.5 rounded">{"{{variables}}"}</code> found in your script yet. Add them to inject lead data.
+          <p className="text-[10px] text-muted-foreground italic">
+            No <code className="bg-muted px-0.5 rounded">{"{{variables}}"}</code> in your script yet.
           </p>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {placeholders.map((p) => (
               <div key={p} className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
-                <code className={`rounded bg-muted px-1.5 py-0.5 text-[11px] ${accentClass} truncate`}>
+                <code className={`rounded bg-muted px-1 py-0.5 text-[10px] ${accentClass} truncate`}>
                   {`{{${p}}}`}
                 </code>
-                <span className="text-[10px] text-muted-foreground">→</span>
+                <span className="text-[9px] text-muted-foreground">→</span>
                 <Select
                   value={preCallMappings[p] ?? ""}
                   onValueChange={(v) => onMappingChange({ ...preCallMappings, [p]: v })}
                 >
-                  <SelectTrigger className="h-7 text-xs">
+                  <SelectTrigger className="h-6 text-[10px]">
                     <SelectValue placeholder="Lead field…">
                       {preCallMappings[p] ? fieldLabel(preCallMappings[p]) : undefined}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectLabel className="text-[10px]">Lead Fields</SelectLabel>
+                      <SelectLabel className="text-[9px]">Lead Fields</SelectLabel>
                       {standardFields.map((f) => (
                         <SelectItem key={f.value} value={f.value} className="text-xs">{f.label}</SelectItem>
                       ))}
                     </SelectGroup>
                     {(metaFields.length > 0 || userFields.length > 0) && (
                       <SelectGroup>
-                        <SelectLabel className="text-[10px]">Custom Fields (meta)</SelectLabel>
+                        <SelectLabel className="text-[9px]">Custom Fields (meta)</SelectLabel>
                         {metaFields.map((f) => (
                           <SelectItem key={f.value} value={f.value} className="text-xs">{f.label}</SelectItem>
                         ))}
@@ -327,13 +322,12 @@ export function PreCallLeadMappingSection({
           </div>
         )}
 
-        {/* Custom field manager */}
-        <div className="pt-1 border-t border-border/40">
-          <p className="text-[10px] text-muted-foreground mb-1.5 font-medium uppercase tracking-wider">Add custom lead field</p>
+        <div className="pt-1 border-t border-border/40 space-y-1">
+          <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">Add custom lead field</p>
           {customLeadFields.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-2">
+            <div className="flex flex-wrap gap-1">
               {customLeadFields.map((f) => (
-                <span key={f} className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                <span key={f} className="flex items-center gap-1 rounded bg-muted px-1 py-0.5 text-[10px]">
                   meta.{f}
                   <button onClick={() => removeCustomField(f)} className="text-muted-foreground hover:text-destructive">
                     <X className="h-2.5 w-2.5" />
@@ -348,13 +342,13 @@ export function PreCallLeadMappingSection({
               onChange={(e) => setNewField(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addCustomField()}
               placeholder="field_name"
-              className="h-7 text-xs flex-1"
+              className="h-6 text-[10px] flex-1"
             />
-            <Button size="sm" variant="outline" className="h-7 px-2" onClick={addCustomField}>
-              <Plus className="h-3 w-3" />
+            <Button size="sm" variant="outline" className="h-6 px-2" onClick={addCustomField}>
+              <Plus className="h-2.5 w-2.5" />
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1">Stored in lead <code className="bg-muted px-0.5 rounded">meta</code> — useful if you set custom fields via CSV upload or post-call mapping.</p>
+          <p className="text-[10px] text-muted-foreground">Stored in lead <code className="bg-muted px-0.5 rounded">meta</code>.</p>
         </div>
       </CollapsibleContent>
     </Collapsible>
