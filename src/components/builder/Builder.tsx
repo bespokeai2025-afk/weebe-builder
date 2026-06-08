@@ -665,14 +665,14 @@ export function Builder({
 
         {/* Right global settings */}
         {rightOpen && (
-          <aside className="w-[22vw] min-w-[300px] max-w-[360px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-4 py-3 space-y-3 hidden md:block text-xs [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]">
+          <aside className="w-[15vw] min-w-[200px] max-w-[240px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-3 py-2 space-y-2 hidden md:block text-[10px] [&_label]:text-[9px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[10px] [&_button[role=combobox]]:h-6 [&_button[role=combobox]]:text-[10px] [&_input]:text-[10px] [&_select]:text-[10px]">
             {/* Panel header */}
-            <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06]">
-              <h3 className="text-sm font-semibold tracking-tight text-foreground">Agent Settings</h3>
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+              <h3 className="text-[11px] font-semibold tracking-tight text-foreground">Agent Settings</h3>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex h-6 w-6 items-center justify-center rounded hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors">
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  <button className="flex h-5 w-5 items-center justify-center rounded hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors">
+                    <MoreHorizontal className="h-3 w-3" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
@@ -683,17 +683,17 @@ export function Builder({
               </DropdownMenu>
             </div>
 
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Voice & Language</p>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Voice & Language</p>
               <div>
-                <Label className="text-xs">Language</Label>
+                <Label className="text-[9px]">Language</Label>
                 <LanguagePicker
                   value={settings.speechLanguages ?? [settings.language ?? "en-US"]}
                   onChange={(v) => setSettings({ speechLanguages: v, language: v[0] === "multi" ? "en-US" : v[0] })}
                 />
               </div>
               <div>
-                <Label className="text-xs">Voice</Label>
+                <Label className="text-[9px]">Voice</Label>
                 <Select
                   value={
                     DEFAULT_VOICES.some((v) => v.id === settings.voiceId)
@@ -706,7 +706,7 @@ export function Builder({
                     if (v !== "__custom__") setSettings({ voiceId: v });
                   }}
                 >
-                  <SelectTrigger className="h-7 text-xs">
+                  <SelectTrigger className="h-6 text-[10px]">
                     <SelectValue placeholder="Pick a voice" />
                   </SelectTrigger>
                   <SelectContent>
@@ -746,20 +746,20 @@ export function Builder({
               />
             </div>
 
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Global Prompt</p>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Global Prompt</p>
               <div>
-                <Label className="text-xs flex items-center gap-1.5">
+                <Label className="text-[9px] flex items-center gap-1">
                   Model
                   <span
-                    className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground"
+                    className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground"
                     title="Internal cost (Retell rate + $0.15/min margin). Not shown to customers."
                   >
                     builder cost
                   </span>
                 </Label>
                 <Select value={settings.model} onValueChange={(v) => setSettings({ model: v })}>
-                  <SelectTrigger className="h-7 text-xs">
+                  <SelectTrigger className="h-6 text-[10px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -818,23 +818,23 @@ export function Builder({
                 onChange={(v) => setSettings({ temperature: v })}
               />
               <Textarea
-                rows={5}
+                rows={4}
                 value={settings.globalPrompt}
                 onChange={(e) => setSettings({ globalPrompt: e.target.value })}
                 placeholder="Enter your global prompt here"
-                className="text-xs"
+                className="text-[10px] leading-relaxed"
               />
             </div>
 
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Transition</p>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Transition</p>
               <Select
                 value={settings.transitionFlexibility ?? "flex"}
                 onValueChange={(v) =>
                   setSettings({ transitionFlexibility: v as "flex" | "strict" })
                 }
               >
-                <SelectTrigger className="h-7 text-xs">
+                <SelectTrigger className="h-6 text-[10px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -844,24 +844,24 @@ export function Builder({
               </Select>
             </div>
 
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Agent</p>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Agent</p>
               <div>
-                <Label className="text-xs">Webhook URL</Label>
+                <Label className="text-[9px]">Webhook URL</Label>
                 <Input
                   value={settings.webhookUrl ?? ""}
                   onChange={(e) => setSettings({ webhookUrl: e.target.value })}
-                  className="h-7 text-xs"
+                  className="h-6 text-[10px]"
                   placeholder="https://…"
                 />
               </div>
               <div>
-                <Label className="text-xs">Start speaker</Label>
+                <Label className="text-[9px]">Start speaker</Label>
                 <Select
                   value={settings.startSpeaker ?? "agent"}
                   onValueChange={(v) => setSettings({ startSpeaker: v as "agent" | "user" })}
                 >
-                  <SelectTrigger className="h-7 text-xs">
+                  <SelectTrigger className="h-6 text-[10px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -877,15 +877,15 @@ export function Builder({
             <BookingConfigSection />
 
             {/* Agent type selector — controls which sections appear below */}
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
-              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Agent Type</p>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2 space-y-2">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Agent Type</p>
               <Select
                 value={settings.agentType ?? "receptionist"}
                 onValueChange={(v) =>
                   setSettings({ agentType: v as BuilderSettings["agentType"] })
                 }
               >
-                <SelectTrigger className="h-7 text-xs">
+                <SelectTrigger className="h-6 text-[10px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -929,7 +929,7 @@ export function Builder({
                   ] as const
                 ).map(([key, label]) => (
                   <div key={key} className="flex items-center justify-between">
-                    <Label className="text-xs">{label}</Label>
+                    <Label className="text-[9px]">{label}</Label>
                     <Switch
                       checked={Boolean(settings[key])}
                       onCheckedChange={(v) => setSettings({ [key]: v })}
@@ -987,14 +987,14 @@ export function Builder({
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs">Emotion</Label>
+                    <Label className="text-[9px]">Emotion</Label>
                     <Select
                       value={settings.voiceEmotion ?? "none"}
                       onValueChange={(v) =>
                         setSettings({ voiceEmotion: v as BuilderSettings["voiceEmotion"] })
                       }
                     >
-                      <SelectTrigger className="h-7 text-xs">
+                      <SelectTrigger className="h-6 text-[10px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1018,14 +1018,14 @@ export function Builder({
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs">STT mode</Label>
+                    <Label className="text-[9px]">STT mode</Label>
                     <Select
                       value={settings.sttMode ?? "fast"}
                       onValueChange={(v) =>
                         setSettings({ sttMode: v as BuilderSettings["sttMode"] })
                       }
                     >
-                      <SelectTrigger className="h-7 text-xs">
+                      <SelectTrigger className="h-6 text-[10px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1036,7 +1036,7 @@ export function Builder({
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs">Vocabulary</Label>
+                    <Label className="text-[9px]">Vocabulary</Label>
                     <Select
                       value={settings.vocabSpecialization ?? "general"}
                       onValueChange={(v) =>
@@ -1045,7 +1045,7 @@ export function Builder({
                         })
                       }
                     >
-                      <SelectTrigger className="h-7 text-xs">
+                      <SelectTrigger className="h-6 text-[10px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1056,17 +1056,17 @@ export function Builder({
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs">Boosted keywords</Label>
+                  <Label className="text-[9px]">Boosted keywords</Label>
                   <Input
                     value={(settings.boostedKeywords ?? []).join(", ")}
                     onChange={(e) => setCsvSetting("boostedKeywords", e.target.value)}
                     placeholder="names, brands, specialist words"
-                    className="h-7 text-xs"
+                    className="h-6 text-[10px]"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs">Reminder (ms)</Label>
+                    <Label className="text-[9px]">Reminder (ms)</Label>
                     <Input
                       type="number"
                       step="1000"
@@ -1075,22 +1075,22 @@ export function Builder({
                       onChange={(e) =>
                         setNumericSetting("reminderTriggerMs", e.target.value, 10000)
                       }
-                      className="h-7 text-xs"
+                      className="h-6 text-[10px]"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Reminder count</Label>
+                    <Label className="text-[9px]">Reminder count</Label>
                     <Input
                       type="number"
                       step="1"
                       min={0}
                       value={settings.reminderMaxCount ?? 1}
                       onChange={(e) => setNumericSetting("reminderMaxCount", e.target.value, 1)}
-                      className="h-7 text-xs"
+                      className="h-6 text-[10px]"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Silence end (ms)</Label>
+                    <Label className="text-[9px]">Silence end (ms)</Label>
                     <Input
                       type="number"
                       step="1000"
@@ -1099,11 +1099,11 @@ export function Builder({
                       onChange={(e) =>
                         setNumericSetting("endCallAfterSilenceMs", e.target.value, 600000)
                       }
-                      className="h-7 text-xs"
+                      className="h-6 text-[10px]"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Begin delay (ms)</Label>
+                    <Label className="text-[9px]">Begin delay (ms)</Label>
                     <Input
                       type="number"
                       step="100"
@@ -1111,11 +1111,11 @@ export function Builder({
                       max={5000}
                       value={settings.beginMessageDelayMs ?? 0}
                       onChange={(e) => setNumericSetting("beginMessageDelayMs", e.target.value, 0)}
-                      className="h-7 text-xs"
+                      className="h-6 text-[10px]"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Max call (ms)</Label>
+                    <Label className="text-[9px]">Max call (ms)</Label>
                     <Input
                       type="number"
                       step="1000"
@@ -1124,30 +1124,30 @@ export function Builder({
                       onChange={(e) =>
                         setNumericSetting("maxCallDurationMs", e.target.value, 1800000)
                       }
-                      className="h-7 text-xs"
+                      className="h-6 text-[10px]"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Ring (ms)</Label>
+                    <Label className="text-[9px]">Ring (ms)</Label>
                     <Input
                       type="number"
                       step="1000"
                       min={5000}
                       value={settings.ringDurationMs ?? 30000}
                       onChange={(e) => setNumericSetting("ringDurationMs", e.target.value, 30000)}
-                      className="h-7 text-xs"
+                      className="h-6 text-[10px]"
                     />
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs">Ambient sound</Label>
+                  <Label className="text-[9px]">Ambient sound</Label>
                   <Select
                     value={settings.ambientSound ?? "none"}
                     onValueChange={(v) =>
                       setSettings({ ambientSound: v as BuilderSettings["ambientSound"] })
                     }
                   >
-                    <SelectTrigger className="h-7 text-xs">
+                    <SelectTrigger className="h-6 text-[10px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1163,7 +1163,7 @@ export function Builder({
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <Label className="text-xs">Ambient volume</Label>
+                    <Label className="text-[9px]">Ambient volume</Label>
                     <Input
                       type="number"
                       step="0.1"
@@ -1171,18 +1171,18 @@ export function Builder({
                       max={2}
                       value={settings.ambientSoundVolume ?? 1}
                       onChange={(e) => setNumericSetting("ambientSoundVolume", e.target.value, 1)}
-                      className="h-7 text-xs"
+                      className="h-6 text-[10px]"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Denoising</Label>
+                    <Label className="text-[9px]">Denoising</Label>
                     <Select
                       value={settings.denoisingMode ?? "noise-and-background-speech-cancellation"}
                       onValueChange={(v) =>
                         setSettings({ denoisingMode: v as BuilderSettings["denoisingMode"] })
                       }
                     >
-                      <SelectTrigger className="h-7 text-xs">
+                      <SelectTrigger className="h-6 text-[10px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1196,28 +1196,28 @@ export function Builder({
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Dynamic voice speed</Label>
+                  <Label className="text-[9px]">Dynamic voice speed</Label>
                   <Switch
                     checked={Boolean(settings.enableDynamicVoiceSpeed)}
                     onCheckedChange={(v) => setSettings({ enableDynamicVoiceSpeed: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Dynamic responsiveness</Label>
+                  <Label className="text-[9px]">Dynamic responsiveness</Label>
                   <Switch
                     checked={Boolean(settings.enableDynamicResponsiveness)}
                     onCheckedChange={(v) => setSettings({ enableDynamicResponsiveness: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Normalize for speech</Label>
+                  <Label className="text-[9px]">Normalize for speech</Label>
                   <Switch
                     checked={settings.normalizeForSpeech ?? true}
                     onCheckedChange={(v) => setSettings({ normalizeForSpeech: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Backchannel</Label>
+                  <Label className="text-[9px]">Backchannel</Label>
                   <Switch
                     checked={Boolean(settings.enableBackchannel)}
                     onCheckedChange={(v) => setSettings({ enableBackchannel: v })}
@@ -1226,7 +1226,7 @@ export function Builder({
                 {settings.enableBackchannel && (
                   <div className="space-y-2 rounded-md bg-muted/50 p-2">
                     <div>
-                      <Label className="text-xs">Backchannel frequency</Label>
+                      <Label className="text-[9px]">Backchannel frequency</Label>
                       <Input
                         type="number"
                         step="0.05"
@@ -1236,29 +1236,29 @@ export function Builder({
                         onChange={(e) =>
                           setNumericSetting("backchannelFrequency", e.target.value, 0.8)
                         }
-                        className="h-7 text-xs"
+                        className="h-6 text-[10px]"
                       />
                     </div>
                     <div>
-                      <Label className="text-xs">Backchannel words</Label>
+                      <Label className="text-[9px]">Backchannel words</Label>
                       <Input
                         value={(settings.backchannelWords ?? []).join(", ")}
                         onChange={(e) => setCsvSetting("backchannelWords", e.target.value)}
                         placeholder="yeah, uh-huh, okay"
-                        className="h-7 text-xs"
+                        className="h-6 text-[10px]"
                       />
                     </div>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Allow user DTMF</Label>
+                  <Label className="text-[9px]">Allow user DTMF</Label>
                   <Switch
                     checked={Boolean(settings.allowUserDtmf)}
                     onCheckedChange={(v) => setSettings({ allowUserDtmf: v })}
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">DTMF can interrupt</Label>
+                  <Label className="text-[9px]">DTMF can interrupt</Label>
                   <Switch
                     checked={Boolean(settings.allowDtmfInterruption)}
                     onCheckedChange={(v) => setSettings({ allowDtmfInterruption: v })}
@@ -1266,7 +1266,7 @@ export function Builder({
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">Pronunciation dictionary</Label>
+                    <Label className="text-[9px]">Pronunciation dictionary</Label>
                     <Button
                       size="sm"
                       variant="outline"
@@ -1314,7 +1314,7 @@ export function Builder({
                             updatePronunciation(index, { alphabet: v as "ipa" | "cmu" })
                           }
                         >
-                          <SelectTrigger className="h-7 text-xs">
+                          <SelectTrigger className="h-6 text-[10px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1323,7 +1323,7 @@ export function Builder({
                           </SelectContent>
                         </Select>
                         <Input
-                          className="h-7 text-xs"
+                          className="h-6 text-[10px]"
                           placeholder="Phoneme"
                           value={entry.phoneme}
                           onChange={(e) => updatePronunciation(index, { phoneme: e.target.value })}
