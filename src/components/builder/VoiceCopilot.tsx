@@ -16,9 +16,11 @@ interface VoiceCommand {
   dialogue?: string;
   _ref?: string;
   properties?: Record<string, string>;
-  // CONNECT_NODES
+  // CONNECT_NODES — support both old (from/to) and new spec (from_node_id/to_node_id)
   from?: string;
   to?: string;
+  from_node_id?: string;
+  to_node_id?: string;
   via_transition?: string;
   transition_label?: string;
   // UPDATE_NODE_PROPERTIES
@@ -102,16 +104,25 @@ function mapProperties(props: Record<string, string>): Partial<FlowNodeData> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Command executor
+// Command executor — two-phase to avoid ReactFlow handle race condition.
+// Phase 1 (sync):  CREATE_NODE, CREATE_TRANSITIONS, UPDATE_*, settings
+// Phase 2 (rAF×2): CONNECT_NODES — deferred so new handles are mounted first
 // ─────────────────────────────────────────────────────────────────────────────
-function executeVoiceCommands(commands: VoiceCommand[]) {
+async function executeVoiceCommands(commands: VoiceCommand[]) {
   const idMap: Record<string, string> = {};
   let createdCount = 0, connectedCount = 0, updatedCount = 0, settingsCount = 0;
   const warnings: string[] = [];
 
-  for (const cmd of commands) {
+  // ── Phase 1: everything except CONNECT_NODES ─────────────────────────────
+  const deferred: VoiceCommand[] = [];
 
-    // ── CREATE_NODE ──────────────────────────────────────────────────────────
+  for (const cmd of commands) {
+    if (cmd.action === "CONNECT_NODES") {
+      deferred.push(cmd);
+      continue;
+    }
+
+    // CREATE_NODE ─────────────────────────────────────────────────────────────
     if (cmd.action === "CREATE_NODE") {
       const nodesBefore = useBuilderStore.getState().nodes.map((n) => n.id);
       useBuilderStore.getState().addNode(cmd.type as NodeKind);
@@ -126,78 +137,20 @@ function executeVoiceCommands(commands: VoiceCommand[]) {
         createdCount++;
       }
 
-    // ── CONNECT_NODES ────────────────────────────────────────────────────────
-    // Nodes have NO default source handle — only per-transition handles.
-    // So we MUST create a new transition (or find an existing one) to get a
-    // valid sourceHandle before calling onConnect.
-    } else if (cmd.action === "CONNECT_NODES") {
-      const fromNode = cmd.from ? findNode(cmd.from, idMap) : undefined;
-      const toNode   = cmd.to   ? findNode(cmd.to,   idMap) : undefined;
-
-      if (!fromNode || !toNode) {
-        warnings.push(`Could not find nodes: "${cmd.from ?? "?"}" → "${cmd.to ?? "?"}"`);
-        continue;
-      }
-
-      let sourceHandle: string | null = null;
-
-      // Try to match an existing transition by via_transition label
-      if (cmd.via_transition) {
-        const viaLower = cmd.via_transition.toLowerCase();
-        const match = fromNode.data.transitions?.find(
-          (t) =>
-            t.condition.toLowerCase() === viaLower ||
-            t.condition.toLowerCase().includes(viaLower),
-        );
-        if (match) sourceHandle = match.id;
-      }
-
-      // No matching handle found — create a new transition to serve as the wire
-      if (!sourceHandle) {
-        const newId = `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-        const conditionLabel = cmd.transition_label ?? cmd.via_transition ?? "Continue";
-        const existing = useBuilderStore.getState().nodes.find((n) => n.id === fromNode.id);
-        const existingTransitions = existing?.data.transitions ?? [];
-        useBuilderStore.getState().updateNode(fromNode.id, {
-          transitions: [
-            ...existingTransitions,
-            { id: newId, condition: conditionLabel, target: toNode.id },
-          ],
-        });
-        sourceHandle = newId;
-      }
-
-      useBuilderStore.getState().onConnect({
-        source: fromNode.id,
-        target: toNode.id,
-        sourceHandle,
-        targetHandle: null,
-      });
-      connectedCount++;
-
-    // ── UPDATE_NODE_PROPERTIES ───────────────────────────────────────────────
+    // UPDATE_NODE_PROPERTIES ──────────────────────────────────────────────────
     } else if (cmd.action === "UPDATE_NODE_PROPERTIES") {
       const target = cmd.node ? findNode(cmd.node, idMap) : undefined;
-      if (!target) {
-        warnings.push(`Could not find node to update: "${cmd.node ?? "?"}"`);
-        continue;
-      }
+      if (!target) { warnings.push(`Could not find node: "${cmd.node ?? "?"}"`); continue; }
       const patch: Partial<FlowNodeData> = {};
       if (cmd.label) patch.label = cmd.label;
       if (cmd.dialogue) patch.dialogue = cmd.dialogue;
       if (cmd.properties) Object.assign(patch, mapProperties(cmd.properties));
-      if (Object.keys(patch).length) {
-        useBuilderStore.getState().updateNode(target.id, patch);
-        updatedCount++;
-      }
+      if (Object.keys(patch).length) { useBuilderStore.getState().updateNode(target.id, patch); updatedCount++; }
 
-    // ── CREATE_TRANSITIONS ───────────────────────────────────────────────────
+    // CREATE_TRANSITIONS ──────────────────────────────────────────────────────
     } else if (cmd.action === "CREATE_TRANSITIONS") {
       const target = cmd.node ? findNode(cmd.node, idMap) : undefined;
-      if (!target) {
-        warnings.push(`Could not find node for transitions: "${cmd.node ?? "?"}"`);
-        continue;
-      }
+      if (!target) { warnings.push(`Could not find node: "${cmd.node ?? "?"}"`); continue; }
       const newTransitions = (cmd.transitions ?? []).map((label) => ({
         id: `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
         condition: label,
@@ -211,18 +164,70 @@ function executeVoiceCommands(commands: VoiceCommand[]) {
         updatedCount++;
       }
 
-    // ── UPDATE_GLOBAL_SETTINGS ───────────────────────────────────────────────
+    // UPDATE_GLOBAL_SETTINGS ──────────────────────────────────────────────────
     } else if (cmd.action === "UPDATE_GLOBAL_SETTINGS") {
       const patch: Record<string, unknown> = {};
-      if (cmd.agentName)   patch.agentName   = cmd.agentName;
+      if (cmd.agentName)    patch.agentName    = cmd.agentName;
       if (cmd.globalPrompt) patch.globalPrompt = cmd.globalPrompt;
-      if (cmd.language)    patch.language    = cmd.language;
-      if (cmd.voiceId)     patch.voiceId     = cmd.voiceId;
-      if (cmd.model)       patch.model       = cmd.model;
-      if (Object.keys(patch).length) {
-        useBuilderStore.getState().setSettings(patch);
-        settingsCount++;
+      if (cmd.language)     patch.language     = cmd.language;
+      if (cmd.voiceId)      patch.voiceId      = cmd.voiceId;
+      if (cmd.model)        patch.model        = cmd.model;
+      if (Object.keys(patch).length) { useBuilderStore.getState().setSettings(patch); settingsCount++; }
+    }
+  }
+
+  // ── Phase 2: connections — wait two rAF so new Handle elements mount ──────
+  if (deferred.length > 0) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+    for (const cmd of deferred) {
+      const fromRef  = cmd.from_node_id ?? cmd.from;
+      const toRef    = cmd.to_node_id   ?? cmd.to;
+      const fromNode = fromRef ? findNode(fromRef, idMap) : undefined;
+      const toNode   = toRef   ? findNode(toRef,   idMap) : undefined;
+
+      if (!fromNode || !toNode) {
+        warnings.push(`Could not find nodes: "${fromRef ?? "?"}" → "${toRef ?? "?"}"`);
+        continue;
       }
+
+      let sourceHandle: string | null = null;
+
+      // Try to match an existing transition by via_transition label
+      if (cmd.via_transition) {
+        const viaLower = cmd.via_transition.toLowerCase();
+        const liveNode = useBuilderStore.getState().nodes.find((n) => n.id === fromNode.id);
+        const match = liveNode?.data.transitions?.find(
+          (t) =>
+            t.condition.toLowerCase() === viaLower ||
+            t.condition.toLowerCase().includes(viaLower),
+        );
+        if (match) sourceHandle = match.id;
+      }
+
+      // No matching handle — create a new transition, then wait one more frame
+      if (!sourceHandle) {
+        const newId = `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        const conditionLabel = cmd.transition_label ?? cmd.via_transition ?? "Continue";
+        const liveNode = useBuilderStore.getState().nodes.find((n) => n.id === fromNode.id);
+        useBuilderStore.getState().updateNode(fromNode.id, {
+          transitions: [
+            ...(liveNode?.data.transitions ?? []),
+            { id: newId, condition: conditionLabel, target: toNode.id },
+          ],
+        });
+        sourceHandle = newId;
+        // Wait for the new Handle to mount before connecting
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      }
+
+      useBuilderStore.getState().onConnect({
+        source: fromNode.id,
+        target: toNode.id,
+        sourceHandle,
+        targetHandle: null,
+      });
+      connectedCount++;
     }
   }
 
@@ -306,7 +311,7 @@ export function VoiceCopilotButton() {
       }
 
       const { createdCount, connectedCount, updatedCount, settingsCount, warnings } =
-        executeVoiceCommands(data.commands);
+        await executeVoiceCommands(data.commands);
 
       warnings.forEach((w) => toast.warning(w, { duration: 6000 }));
 
