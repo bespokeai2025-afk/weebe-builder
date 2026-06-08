@@ -602,9 +602,34 @@ export function BuilderImproved() {
               </div>
 
               <AccordionSection label="Language Model" defaultOpen>
-                <FormRow label="Model"><SelectMock value="GPT-4o" /></FormRow>
-                <SliderMock label="Responsiveness" value={72} />
-                <SliderMock label="Interruption Sensitivity" value={45} />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 3, display: "flex", alignItems: "center", gap: 4 }}>
+                      Model
+                      <span style={{ fontSize: 8.5, color: MUTED, background: "rgba(255,255,255,0.06)", padding: "1px 4px", borderRadius: 3, letterSpacing: "0.05em" }}>builder cost</span>
+                    </div>
+                    <SelectMock value="GPT-4o · $0.035/min" />
+                  </div>
+                  <div style={{ width: 56 }}>
+                    <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 3 }}>Temp</div>
+                    <div style={{
+                      height: 26, borderRadius: 6, border: `1px solid ${BORDER}`,
+                      background: "rgba(255,255,255,0.04)", display: "flex",
+                      alignItems: "center", justifyContent: "center",
+                      fontSize: 11, color: TEXT,
+                    }}>0.7</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 3 }}>Global Prompt</div>
+                  <div style={{
+                    borderRadius: 6, border: `1px solid ${BORDER}`,
+                    background: "rgba(255,255,255,0.03)", padding: "7px 8px",
+                    fontSize: 10, color: MUTED, lineHeight: 1.6, minHeight: 54,
+                  }}>
+                    You are a helpful AI receptionist for Acme Corp. Always be professional and concise…
+                  </div>
+                </div>
                 <FormRow label="Max Duration"><SelectMock value="30 minutes" /></FormRow>
               </AccordionSection>
 
@@ -701,6 +726,121 @@ export function BuilderImproved() {
                   <p style={{ fontSize: 9.5, color: "#a78bfa", margin: "2px 0 0", paddingLeft: 2 }}>
                     Lead Gen sections active ↓
                   </p>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection label="Agent Config">
+                <FormRow label="Transition"><SelectMock value="Flex Mode" /></FormRow>
+                <FormRow label="Start speaker"><SelectMock value="Agent" /></FormRow>
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 3 }}>Webhook URL</div>
+                  <div style={{
+                    height: 26, borderRadius: 6, border: `1px solid ${BORDER}`,
+                    background: "rgba(255,255,255,0.03)", display: "flex", alignItems: "center",
+                    padding: "0 8px", fontSize: 10, color: MUTED,
+                  }}>https://hooks.example.com/agent</div>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection label="Lead Generation" defaultOpen>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div style={{ fontSize: 9.5, color: "#a78bfa", fontWeight: 600, marginBottom: 4, display: "flex", alignItems: "center", gap: 5 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#a78bfa", boxShadow: "0 0 5px #a78bfa" }} />
+                    Intelligence Tracking
+                  </div>
+                  {[
+                    ["Interest level", true],
+                    ["Buying intent", true],
+                    ["Lead score", true],
+                    ["Objections raised", false],
+                    ["Next action", true],
+                    ["Meeting requested", true],
+                    ["Callback requested", false],
+                    ["Decision maker status", false],
+                  ].map(([label, on]) => (
+                    <div key={label as string} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 0" }}>
+                      <span style={{ fontSize: 10.5, color: TEXT }}>{label as string}</span>
+                      <div style={{
+                        width: 28, height: 15, borderRadius: 8, position: "relative", cursor: "pointer",
+                        background: on ? "rgba(167,139,250,0.5)" : "rgba(255,255,255,0.1)",
+                        border: `1px solid ${on ? "rgba(167,139,250,0.5)" : BORDER}`,
+                      }}>
+                        <div style={{
+                          position: "absolute", top: 1, width: 11, height: 11, borderRadius: "50%",
+                          background: on ? "#a78bfa" : "rgba(255,255,255,0.3)",
+                          left: on ? 14 : 1, transition: "left 0.15s",
+                        }} />
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 3 }}>Campaign</div>
+                    <SelectMock value="Q3 Outbound — SMB" />
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 3 }}>Qualification criteria</div>
+                    <SelectMock value="Budget ≥ £500/mo" />
+                  </div>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection label="Agent Handbook">
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {[
+                    ["Echo verification", true],
+                    ["Speech normalization", true],
+                    ["Default personality", true],
+                    ["Scope boundaries", false],
+                    ["Natural filler words", true],
+                    ["NATO phonetic alphabet", false],
+                    ["High empathy", true],
+                    ["AI disclosure", false],
+                    ["Smart matching", true],
+                  ].map(([label, on]) => (
+                    <div key={label as string} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 0" }}>
+                      <span style={{ fontSize: 10.5, color: TEXT }}>{label as string}</span>
+                      <div style={{
+                        width: 28, height: 15, borderRadius: 8, position: "relative", cursor: "pointer",
+                        background: on ? "rgba(79,140,255,0.45)" : "rgba(255,255,255,0.1)",
+                        border: `1px solid ${on ? "rgba(79,140,255,0.4)" : BORDER}`,
+                      }}>
+                        <div style={{
+                          position: "absolute", top: 1, width: 11, height: 11, borderRadius: "50%",
+                          background: on ? ACCENT : "rgba(255,255,255,0.3)",
+                          left: on ? 14 : 1,
+                        }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </AccordionSection>
+
+              <AccordionSection label="Speech Settings">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {[
+                    { label: "Voice speed", value: "1.0" },
+                    { label: "Voice temp", value: "1.0" },
+                    { label: "Volume", value: "1.0" },
+                    { label: "Responsiveness", value: "0.9" },
+                    { label: "Interruption", value: "0.7" },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 3 }}>{label}</div>
+                      <div style={{
+                        height: 26, borderRadius: 6, border: `1px solid ${BORDER}`,
+                        background: "rgba(255,255,255,0.04)", display: "flex",
+                        alignItems: "center", justifyContent: "center",
+                        fontSize: 11, color: TEXT,
+                      }}>{value}</div>
+                    </div>
+                  ))}
+                  <div>
+                    <div style={{ fontSize: 9.5, color: MUTED, marginBottom: 3 }}>Emotion</div>
+                    <SelectMock value="Calm" />
+                  </div>
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  <FormRow label="STT mode"><SelectMock value="Fast" /></FormRow>
                 </div>
               </AccordionSection>
 
