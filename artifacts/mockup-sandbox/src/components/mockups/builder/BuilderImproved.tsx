@@ -67,36 +67,36 @@ const NODE_TYPES = [
   { id: "note",         label: "Note",           icon: StickyNote,    color: NODE_COLOR.note.color,         bg: NODE_COLOR.note.bg         },
 ];
 
-/* ── Sample canvas nodes (wider, better spaced) ── */
-const NODE_W = 272;
+/* ── Sample canvas nodes (larger, premium proportions) ── */
+const NODE_W = 300;
 const CANVAS_NODES = [
   {
     id: "n1", type: "conversation", label: "Welcome",
-    x: 68, y: 94, w: NODE_W,
+    x: 60, y: 90, w: NODE_W,
     prompt: "Hi! I'm your AI receptionist. How can I help you today?",
     transitions: ["Booking enquiry", "General question"],
   },
   {
     id: "n2", type: "function", label: "Check Availability",
-    x: 432, y: 20, w: NODE_W,
+    x: 454, y: 20, w: NODE_W,
     prompt: "cal_com_check_slots({ date: '{{today}}' })",
     transitions: ["Slots found", "No slots"],
   },
   {
     id: "n3", type: "logic", label: "Route Intent",
-    x: 432, y: 278, w: NODE_W,
+    x: 454, y: 294, w: NODE_W,
     prompt: "intent === 'booking' → Booking\nintent === 'support' → Support",
     transitions: ["Booking", "Support", "Other"],
   },
   {
     id: "n4", type: "ending", label: "Goodbye",
-    x: 800, y: 155, w: NODE_W,
+    x: 856, y: 160, w: NODE_W,
     prompt: "Thanks for calling. Have a great day!",
     transitions: [],
   },
 ];
 
-/* ── Canvas node card ── */
+/* ── Canvas node card — premium proportions ── */
 function CanvasNode({ node, selected = false }: { node: typeof CANVAS_NODES[0]; selected?: boolean }) {
   const meta = NODE_TYPES.find(t => t.id === node.type)!;
   const nc   = NODE_COLOR[node.type] ?? NODE_COLOR.note;
@@ -107,54 +107,67 @@ function CanvasNode({ node, selected = false }: { node: typeof CANVAS_NODES[0]; 
       position: "absolute", left: node.x, top: node.y, width: node.w,
       background: CARD,
       border: `1px solid ${selected ? nc.color : nc.border}`,
-      borderRadius: 10, overflow: "hidden",
+      borderRadius: 12, overflow: "hidden",
       boxShadow: selected
-        ? `0 0 0 2px ${nc.color}55, 0 8px 32px rgba(0,0,0,0.55), 0 0 24px ${nc.glow}`
-        : `0 4px 24px rgba(0,0,0,0.5), 0 0 12px ${nc.glow}`,
+        ? `0 0 0 2px ${nc.color}44, 0 12px 48px rgba(0,0,0,0.7), 0 0 40px ${nc.glow}, 0 0 60px ${nc.glow}55`
+        : `0 0 0 1px ${nc.border}44, 0 8px 40px rgba(0,0,0,0.65), 0 0 28px ${nc.glow}, 0 0 48px ${nc.glow}33`,
+      transition: "box-shadow 0.2s ease",
     }}>
       {/* Coloured top accent strip */}
-      <div style={{ height: 2, background: nc.color, opacity: 0.85 }} />
+      <div style={{ height: 3, background: `linear-gradient(90deg, ${nc.color}, ${nc.color}99)` }} />
 
+      {/* Header */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 7,
-        padding: "7px 10px", borderBottom: `1px solid ${BORDER}`,
-        background: `linear-gradient(135deg, ${nc.bg} 0%, rgba(255,255,255,0.015) 100%)`,
+        display: "flex", alignItems: "center", gap: 9,
+        padding: "10px 14px", borderBottom: `1px solid ${BORDER}`,
+        background: `linear-gradient(135deg, ${nc.bg} 0%, rgba(255,255,255,0.012) 100%)`,
       }}>
         <div style={{
-          width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+          width: 28, height: 28, borderRadius: 7, flexShrink: 0,
           background: nc.bg,
           border: `1px solid ${nc.border}`,
           display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: `0 0 10px ${nc.glow}`,
         }}>
-          <Icon size={11} color={nc.color} />
+          <Icon size={13} color={nc.color} />
         </div>
-        <span style={{ fontSize: 11, fontWeight: 600, color: TEXT, flex: 1 }}>{node.label}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: TEXT, flex: 1, letterSpacing: "-0.01em" }}>{node.label}</span>
         <span style={{
           fontSize: 9, color: nc.color, fontWeight: 600,
           background: nc.bg, border: `1px solid ${nc.border}`,
-          padding: "1px 5px", borderRadius: 4, letterSpacing: "0.04em",
+          padding: "2px 6px", borderRadius: 4, letterSpacing: "0.06em",
+          textTransform: "uppercase",
         }}>{meta.label}</span>
       </div>
 
-      <div style={{ padding: "7px 10px", borderBottom: node.transitions.length ? `1px solid ${BORDER}` : "none" }}>
+      {/* Content / prompt */}
+      <div style={{ padding: "10px 14px", borderBottom: node.transitions.length ? `1px solid ${BORDER}` : "none" }}>
         <p style={{
-          fontSize: 10, color: "rgba(255,255,255,0.5)", lineHeight: 1.55, margin: 0,
+          fontSize: 11, color: "rgba(255,255,255,0.5)", lineHeight: 1.65, margin: 0,
           fontFamily: isMono ? "'JetBrains Mono', 'Fira Code', monospace" : "inherit",
         }}>
           {node.prompt}
         </p>
       </div>
 
+      {/* Transition handles */}
       {node.transitions.length > 0 && (
-        <div style={{ padding: "5px 7px", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{ padding: "7px 10px", display: "flex", flexDirection: "column", gap: 3 }}>
           {node.transitions.map(t => (
             <div key={t} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "3px 7px", background: "rgba(255,255,255,0.03)",
-              border: `1px solid ${BORDER}`, borderRadius: 5,
+              padding: "5px 10px", background: "rgba(255,255,255,0.035)",
+              border: `1px solid ${BORDER}`, borderRadius: 6,
             }}>
-              <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.5)" }}>{t}</span>
-              <ArrowRight size={9} color={nc.color} style={{ opacity: 0.6 }} />
+              <span style={{ fontSize: 10.5, color: "rgba(255,255,255,0.55)" }}>{t}</span>
+              <div style={{
+                width: 18, height: 18, borderRadius: 4,
+                background: nc.bg, border: `1px solid ${nc.border}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: `0 0 6px ${nc.glow}`,
+              }}>
+                <ArrowRight size={9} color={nc.color} />
+              </div>
             </div>
           ))}
         </div>
@@ -163,36 +176,55 @@ function CanvasNode({ node, selected = false }: { node: typeof CANVAS_NODES[0]; 
   );
 }
 
-/* ── SVG edges (color-coded by source node type) ── */
+/* ── SVG edges — double-layer glow system ── */
 function Edges() {
-  const conv  = NODE_COLOR.conversation.color;
-  const func  = NODE_COLOR.function.color;
-  const logic = NODE_COLOR.logic.color;
-  const mkId  = (id: string) => `arr-${id}`;
-  const Marker = ({ id, color }: { id: string; color: string }) => (
-    <marker id={mkId(id)} markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-      <path d="M0,0 L0,6 L6,3 z" fill={color} fillOpacity="0.75" />
-    </marker>
-  );
+  const conv  = NODE_COLOR.conversation.color;  // #3B82F6
+  const func  = NODE_COLOR.function.color;      // #8B5CF6
+  const logic = NODE_COLOR.logic.color;         // #F59E0B
+
+  // Node geometry (must match CANVAS_NODES + CanvasNode structure)
+  // strip=3, header=48, content~52, each transition row~36
+  // n1 right=360; n2 left=454; n2 right=754; n3 left=454; n3 right=754; n4 left=856
+  const PATHS = [
+    // n1 transition "Booking enquiry" → n2
+    { d: "M 360 222 C 407 222 407 92 454 92",   color: conv,  id: "conv"  },
+    // n1 transition "General question" → n3
+    { d: "M 360 258 C 407 258 407 348 454 348", color: conv,  id: "conv2" },
+    // n2 transition "Slots found" → n4
+    { d: "M 754 138 C 805 138 805 198 856 198", color: func,  id: "func"  },
+    // n3 transition "Booking" → n4
+    { d: "M 754 420 C 805 420 805 228 856 228", color: logic, id: "logic" },
+  ];
+
   return (
     <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} overflow="visible">
       <defs>
-        <Marker id="conv"  color={conv}  />
-        <Marker id="func"  color={func}  />
-        <Marker id="logic" color={logic} />
+        {/* Soft blur for glow layer */}
+        <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" />
+        </filter>
+        {/* Arrowhead markers — larger, crisper */}
+        {PATHS.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i).map(p => (
+          <marker key={p.id} id={`arr-${p.id}`} markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0.5 L0,7.5 L7,4 z" fill={p.color} fillOpacity="0.9" />
+          </marker>
+        ))}
       </defs>
-      {/* Welcome (conv) → Check Availability */}
-      <path d={`M ${148+224} ${130+46} C ${420} ${130+46} ${420} ${54+46} ${448} ${54+46}`}
-        stroke={conv} strokeOpacity="0.45" strokeWidth="1.5" fill="none" markerEnd={`url(#${mkId("conv")})`} />
-      {/* Welcome (conv) → Route Intent */}
-      <path d={`M ${148+224} ${130+74} C ${420} ${130+74} ${420} ${270+46} ${448} ${270+46}`}
-        stroke={conv} strokeOpacity="0.45" strokeWidth="1.5" fill="none" markerEnd={`url(#${mkId("conv")})`} />
-      {/* Check Availability (func) → Goodbye */}
-      <path d={`M ${448+224} ${54+46} C ${720} ${54+46} ${720} ${174+46} ${748} ${174+46}`}
-        stroke={func} strokeOpacity="0.45" strokeWidth="1.5" fill="none" markerEnd={`url(#${mkId("func")})`} />
-      {/* Route Intent (logic) → Goodbye */}
-      <path d={`M ${448+224} ${270+46} C ${720} ${270+46} ${720} ${174+70} ${748} ${174+70}`}
-        stroke={logic} strokeOpacity="0.5" strokeWidth="1.5" fill="none" markerEnd={`url(#${mkId("logic")})`} />
+
+      {PATHS.map((p, i) => (
+        <g key={i}>
+          {/* Layer 1 — thick blur glow */}
+          <path d={p.d} stroke={p.color} strokeOpacity="0.22" strokeWidth="10"
+            fill="none" filter="url(#edge-blur)" />
+          {/* Layer 2 — medium inner glow */}
+          <path d={p.d} stroke={p.color} strokeOpacity="0.35" strokeWidth="4"
+            fill="none" filter="url(#edge-blur)" />
+          {/* Layer 3 — crisp line on top */}
+          <path d={p.d} stroke={p.color} strokeOpacity="0.85" strokeWidth="2"
+            fill="none" strokeLinecap="round"
+            markerEnd={`url(#arr-${p.id})`} />
+        </g>
+      ))}
     </svg>
   );
 }
@@ -456,53 +488,53 @@ export function BuilderImproved() {
         {/* ── Builder body ── */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-          {/* ── Node palette ── */}
+          {/* ── Node palette — narrower, denser ── */}
           <div style={{
-            width: 204, flexShrink: 0, borderRight: `1px solid ${BORDER_STRONG}`,
+            width: 170, flexShrink: 0, borderRight: `1px solid ${BORDER_STRONG}`,
             background: PANEL_BG, display: "flex", flexDirection: "column",
             boxShadow: "2px 0 8px rgba(0,0,0,0.3)",
           }}>
             {/* Tabs */}
-            <div style={{ display: "flex", padding: "8px 8px 0", gap: 2 }}>
+            <div style={{ display: "flex", padding: "7px 7px 0", gap: 2 }}>
               {(["nodes", "components"] as const).map(tab => (
                 <button key={tab} onClick={() => setLeftTab(tab)} style={{
-                  flex: 1, padding: "5px 0", fontSize: 11, fontWeight: 500,
+                  flex: 1, padding: "4px 0", fontSize: 10, fontWeight: 500,
                   background: leftTab === tab ? "rgba(79,140,255,0.08)" : "transparent",
                   color: leftTab === tab ? ACCENT : MUTED,
                   border: leftTab === tab ? `1px solid rgba(79,140,255,0.18)` : "1px solid transparent",
-                  borderRadius: 6, cursor: "pointer", textTransform: "capitalize",
+                  borderRadius: 5, cursor: "pointer",
                 }}>
                   {tab === "nodes"
-                    ? <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Layers size={11} /> Nodes</span>
-                    : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Blocks size={11} /> Components</span>}
+                    ? <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}><Layers size={10} /> Nodes</span>
+                    : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}><Blocks size={10} /> Components</span>}
                 </button>
               ))}
             </div>
 
             {/* Search */}
-            <div style={{ padding: "7px 8px 5px", position: "relative" }}>
-              <Search size={11} color={MUTED} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)" }} />
-              <input placeholder="Search nodes…" style={{
-                width: "100%", padding: "5px 8px 5px 26px", fontSize: 11,
+            <div style={{ padding: "6px 7px 4px", position: "relative" }}>
+              <Search size={10} color={MUTED} style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)" }} />
+              <input placeholder="Search…" style={{
+                width: "100%", padding: "4px 7px 4px 24px", fontSize: 10.5,
                 background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
-                borderRadius: 6, color: TEXT, outline: "none", boxSizing: "border-box",
+                borderRadius: 5, color: TEXT, outline: "none", boxSizing: "border-box",
               }} />
             </div>
 
             {/* Node list */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "2px 8px 8px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "1px 7px 8px" }}>
               <div style={{
-                fontSize: 10, fontWeight: 600, color: "rgba(100,116,139,0.7)",
-                letterSpacing: "0.12em", textTransform: "uppercase",
-                padding: "4px 4px 5px",
+                fontSize: 9, fontWeight: 700, color: "rgba(100,116,139,0.55)",
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                padding: "5px 3px 4px",
               }}>Core Nodes</div>
 
               {NODE_TYPES.map(node => {
                 const Icon = node.icon;
                 return (
                   <div key={node.id} draggable style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    padding: "6px 7px", borderRadius: 7, cursor: "grab",
+                    display: "flex", alignItems: "center", gap: 7,
+                    padding: "4px 5px", borderRadius: 6, cursor: "grab",
                     marginBottom: 1, border: "1px solid transparent",
                   }}
                     onMouseEnter={e => {
@@ -517,30 +549,30 @@ export function BuilderImproved() {
                     }}
                   >
                     <div style={{
-                      width: 26, height: 26, borderRadius: 6, flexShrink: 0,
+                      width: 22, height: 22, borderRadius: 5, flexShrink: 0,
                       background: node.bg, display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      <Icon size={12} color={node.color} />
+                      <Icon size={11} color={node.color} />
                     </div>
-                    <span style={{ fontSize: 12, color: TEXT }}>{node.label}</span>
+                    <span style={{ fontSize: 11, color: TEXT }}>{node.label}</span>
                   </div>
                 );
               })}
 
               <div style={{
-                fontSize: 10, fontWeight: 600, color: "rgba(100,116,139,0.7)",
-                letterSpacing: "0.12em", textTransform: "uppercase",
-                padding: "10px 4px 5px",
+                fontSize: 9, fontWeight: 700, color: "rgba(100,116,139,0.55)",
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                padding: "9px 3px 4px",
               }}>Integrations</div>
 
               {[
-                { label: "Cal.com Booking",  emoji: "📅" },
-                { label: "Stripe Payment",   emoji: "💳" },
-                { label: "HubSpot CRM",      emoji: "🔗" },
+                { label: "Cal.com",  emoji: "📅" },
+                { label: "Stripe",   emoji: "💳" },
+                { label: "HubSpot",  emoji: "🔗" },
               ].map(i => (
                 <div key={i.label} style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "6px 7px",
-                  borderRadius: 7, cursor: "grab", marginBottom: 1,
+                  display: "flex", alignItems: "center", gap: 7, padding: "4px 5px",
+                  borderRadius: 6, cursor: "grab", marginBottom: 1,
                   border: "1px solid transparent", opacity: 0.65,
                 }}
                   onMouseEnter={e => {
@@ -554,8 +586,8 @@ export function BuilderImproved() {
                     el.style.opacity = "0.65";
                   }}
                 >
-                  <span style={{ fontSize: 15 }}>{i.emoji}</span>
-                  <span style={{ fontSize: 12, color: TEXT }}>{i.label}</span>
+                  <span style={{ fontSize: 13 }}>{i.emoji}</span>
+                  <span style={{ fontSize: 11, color: TEXT }}>{i.label}</span>
                 </div>
               ))}
             </div>
@@ -588,7 +620,7 @@ export function BuilderImproved() {
 
             {/* START label */}
             <div style={{
-              position: "absolute", left: 68, top: 162,
+              position: "absolute", left: 10, top: 108,
               display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
             }}>
               <div style={{

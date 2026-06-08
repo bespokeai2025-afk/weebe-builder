@@ -1,0 +1,275 @@
+You are performing a full UI/UX system upgrade across the entire WEBEE platform.
+
+The new visual direction is correct, but the redesign must be applied consistently across every page while preserving all existing functionality.
+
+## Core Objective
+
+Keep the cleaner, more professional layout and spacing from the new design, but restore the visual identity, color hierarchy, and usability that existed in the original WEBEE platform.
+
+The result should feel like a premium enterprise AI platform, not a generic dark dashboard.
+
+---
+
+# GLOBAL DESIGN SYSTEM
+
+Apply this design system to ALL pages:
+
+* Dashboard
+* Analytics
+* Agents
+* Builder
+* Templates
+* Data
+* Leads
+* Qualified
+* Calls
+* Calendar
+* WhatsApp
+* Billing
+* Settings
+* Any future pages
+
+Do not allow individual pages to drift from the system.
+
+---
+
+# COLOR SYSTEM
+
+The redesign currently feels too monochromatic.
+
+Restore meaningful color hierarchy.
+
+Node and action colors:
+
+* Conversation = Blue (#3B82F6)
+* Function = Purple (#8B5CF6)
+* Call Transfer = Green (#10B981)
+* Logic Split = Amber (#F59E0B)
+* Agent Transfer = Pink (#EC4899)
+* SMS = Cyan (#06B6D4)
+* Variable Extraction = Indigo (#6366F1)
+* Code = Slate (#64748B)
+* End Call = Red (#EF4444)
+
+Use these consistently across:
+
+* Builder nodes
+* Status badges
+* Icons
+* Action indicators
+* Tables
+* Analytics charts
+* Agent states
+* Workflow visualizations
+
+---
+
+# VISUAL HIERARCHY
+
+Increase distinction between:
+
+1. Sidebar
+2. Main Content Area
+3. Canvas Area
+4. Tables
+5. Settings Panels
+6. Modals
+
+The current version blends too many surfaces together.
+
+Requirements:
+
+* Stronger contrast between layers
+* Better panel separation
+* More visible depth
+* Cleaner elevation system
+* Consistent shadows
+
+---
+
+# CANVAS & BUILDER IMPROVEMENTS
+
+Keep the new builder layout.
+
+Add:
+
+* Subtle radial background gradient
+* Slightly more visible grid
+* Improved node shadows
+* Colored node accents
+* Colored node borders
+* Colored node icons
+* Colored connection paths where appropriate
+* Better hover states
+* Better selected states
+
+Selected nodes should feel clearly active.
+
+---
+
+# TABLES & DATA PAGES
+
+Apply the same premium styling to:
+
+* Data Records
+* Leads
+* Qualified
+* Calls
+* Analytics tables
+* Billing tables
+
+Requirements:
+
+* Improved row hover states
+* Better status badge visibility
+* Consistent filters
+* Consistent search bars
+* Consistent pagination controls
+* Consistent bulk actions
+
+Maintain accessibility and readability.
+
+---
+
+# BUTTONS & ACTIONS
+
+IMPORTANT:
+
+Before making visual changes, perform a functionality audit.
+
+Compare every page against the previous implementation.
+
+Identify ALL actions users can perform.
+
+Examples:
+
+* Create
+* Add
+* Save
+* Deploy
+* Publish
+* Edit
+* Delete
+* Duplicate
+* Export
+* Import
+* Filter
+* Search
+* Assign
+* Transfer
+* Archive
+* View Details
+* Open Settings
+
+Do not remove functionality during redesign.
+
+Any action that existed previously must still exist unless intentionally deprecated.
+
+---
+
+# FUNCTIONAL REGRESSION CHECK
+
+Do not assume that because something exists in the design canvas it exists in the application.
+
+Verify using actual rendered components.
+
+For every route:
+
+1. Open the page.
+2. List available user actions.
+3. Compare against previous implementation.
+4. Restore any missing actions.
+5. Verify actions render in code.
+6. Verify actions are clickable.
+7. Verify desktop and mobile behavior.
+
+If an action is missing from the component tree, it must be added.
+
+Do not ship based solely on canvas/mockup appearance.
+
+---
+
+# UX IMPROVEMENTS
+
+Ensure users can always find:
+
+Primary Actions:
+
+* Create
+* Save
+* Deploy
+* Publish
+* Add Agent
+* Add Workflow
+
+Secondary Actions:
+
+* Edit
+* Duplicate
+* Archive
+* Export
+* Import
+
+Actions should never be hidden unnecessarily.
+
+Avoid burying critical actions inside overflow menus.
+
+---
+
+# RESPONSIVENESS
+
+Audit all pages for:
+
+* Desktop
+* Laptop
+* Tablet
+* Mobile
+
+Ensure no buttons disappear unexpectedly.
+
+Ensure all actions remain accessible.
+
+---
+
+# CONSISTENCY AUDIT
+
+Create a shared design system and reusable components for:
+
+* Buttons
+* Tables
+* Cards
+* Panels
+* Modals
+* Inputs
+* Dropdowns
+* Search bars
+* Status badges
+* Empty states
+* Loading states
+
+All pages should use the same component library.
+
+---
+
+# FINAL GOAL
+
+The finished product should feel comparable to:
+
+* Linear
+* Retool
+* Figma
+* Vercel
+* Stripe Dashboard
+
+while maintaining WEBEE's unique identity through color, workflow visualization, and AI-first interaction patterns.
+
+Prioritize:
+
+1. Functionality
+2. Usability
+3. Consistency
+4. Visual hierarchy
+5. Brand identity
+
+Do not remove functionality in pursuit of aesthetics.
+Functionality always wins.
