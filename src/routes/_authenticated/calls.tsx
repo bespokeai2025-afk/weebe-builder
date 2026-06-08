@@ -178,7 +178,7 @@ function CallsPage() {
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
-                  <th className="px-3 py-2 w-8"></th>
+                  <th className="sticky right-0 bg-card/80 px-3 py-2 w-20 backdrop-blur-sm"></th>
                 </tr>
               </thead>
               <tbody>
@@ -186,7 +186,7 @@ function CallsPage() {
                   const inbound = c.call_type === "inbound";
                   const contact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
                   return (
-                    <tr key={c.id} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                    <tr key={c.id} onClick={() => openPanel(c)} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer">
                       <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{contact}</td>
                       <td className="px-3 py-1.5">
                         <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -217,7 +217,7 @@ function CallsPage() {
                         <SummaryTooltip text={c.call_summary} lines={2} />
                       </td>
                       <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                         {c.recording_url ? (
                           <button
                             onClick={() => setRecordingPlayer({ url: c.recording_url, contact })}
@@ -232,11 +232,11 @@ function CallsPage() {
                       <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
                         {c.started_at ? new Date(c.started_at).toLocaleString() : "—"}
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => openPanel(c)}
                           title="Notes & appointment"
-                          className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
+                          className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors whitespace-nowrap"
                         >
                           <StickyNote className="h-3 w-3" />
                           <span>Notes</span>
