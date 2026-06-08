@@ -14,6 +14,9 @@ import {
   Trash2,
   ShieldCheck,
   Loader2,
+  Clock,
+  CalendarClock,
+  PlayCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +41,13 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { listLeads, setLeadStatus, startQualificationCallsForLeads } from "@/lib/dashboard/leads.functions";
+import {
+  listLeads,
+  setLeadStatus,
+  startQualificationCallsForLeads,
+  scheduleQualificationCalls,
+  fireScheduledCalls,
+} from "@/lib/dashboard/leads.functions";
 import {
   listCampaigns,
   createCampaign,
@@ -107,6 +116,8 @@ const STATUS_OPTIONS = [
   { value: "need_to_call", label: "Needs to Call", color: "bg-sky-500/15 text-sky-400 ring-sky-500/30" },
   { value: "not_interested", label: "Closed", color: "bg-red-500/15 text-red-400 ring-red-500/30" },
   { value: "completed", label: "Completed", color: "bg-blue-500/15 text-blue-400 ring-blue-500/30" },
+  { value: "no_answer", label: "No Answer", color: "bg-orange-500/15 text-orange-400 ring-orange-500/30" },
+  { value: "scheduled", label: "Scheduled", color: "bg-purple-500/15 text-purple-400 ring-purple-500/30" },
 ] as const;
 
 function statusDisplay(status: string | null) {
@@ -125,6 +136,8 @@ function LeadsPage() {
   const getCampaignStatsFn = useServerFn(getCampaignStats);
   const getAgentsFn = useServerFn(getDashboardLiveAgents);
   const startQualFn = useServerFn(startQualificationCallsForLeads);
+  const scheduleCallsFn = useServerFn(scheduleQualificationCalls);
+  const fireScheduledFn = useServerFn(fireScheduledCalls);
 
   const [tab, setTab] = useState<"leads" | "campaigns">("leads");
   const [newCampaignOpen, setNewCampaignOpen] = useState(false);
@@ -135,6 +148,9 @@ function LeadsPage() {
   const [qualAgentId, setQualAgentId] = useState<string>("");
   const [qualFromNumber, setQualFromNumber] = useState<string>("");
   const [qualRunning, setQualRunning] = useState(false);
+  const [qualSchedule, setQualSchedule] = useState(false);
+  const [qualScheduledAt, setQualScheduledAt] = useState<string>("");
+  const [firingScheduled, setFiringScheduled] = useState(false);
 
   const leadsQ = useQuery({
     queryKey: ["leads-all"],
@@ -162,6 +178,7 @@ function LeadsPage() {
   const stats = statsQ.data;
   const allAgents = (agentsQ.data ?? []) as any[];
   const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
+  const scheduledCount = leads.filter((l: any) => l.status === "scheduled").length;
 
   const filtered = leads.filter((l: any) => {
     if (!search.trim()) return true;
@@ -235,23 +252,66 @@ function LeadsPage() {
     if (!qualAgentId || selectedIds.size === 0) return;
     setQualRunning(true);
     try {
-      const result = await startQualFn({
-        data: {
-          leadIds: Array.from(selectedIds),
-          agentId: qualAgentId,
-          fromNumber: qualFromNumber || null,
-        },
-      });
-      toast.success(`Qualification started — ${result.placed} calls placed`, {
-        description: result.failed > 0 ? `${result.failed} failed` : undefined,
-      });
+      if (qualSchedule) {
+        if (!qualScheduledAt) {
+          toast.error("Pick a date and time for the scheduled calls");
+          setQualRunning(false);
+          return;
+        }
+        const result = await scheduleCallsFn({
+          data: {
+            leadIds: Array.from(selectedIds),
+            agentId: qualAgentId,
+            fromNumber: qualFromNumber || null,
+            scheduledAt: new Date(qualScheduledAt).toISOString(),
+          },
+        });
+        toast.success(`${result.scheduled} lead${result.scheduled !== 1 ? "s" : ""} scheduled`, {
+          description: `Calls will be placed at ${new Date(qualScheduledAt).toLocaleString()}`,
+        });
+      } else {
+        const result = await startQualFn({
+          data: {
+            leadIds: Array.from(selectedIds),
+            agentId: qualAgentId,
+            fromNumber: qualFromNumber || null,
+          },
+        });
+        const limitMsg = (result as any).limitReached > 0
+          ? ` · ${(result as any).limitReached} at daily limit`
+          : "";
+        toast.success(`Qualification started — ${result.placed} calls placed`, {
+          description: result.failed > 0 ? `${result.failed} failed${limitMsg}` : limitMsg || undefined,
+        });
+      }
       setQualDialogOpen(false);
+      setQualSchedule(false);
+      setQualScheduledAt("");
       setSelectedIds(new Set());
       qc.invalidateQueries({ queryKey: ["leads-all"] });
     } catch (e) {
       toast.error("Failed to start qualification", { description: (e as Error).message });
     } finally {
       setQualRunning(false);
+    }
+  }
+
+  async function handleFireScheduled() {
+    setFiringScheduled(true);
+    try {
+      const result = await fireScheduledFn();
+      if (result.fired === 0) {
+        toast.info("No scheduled calls are due yet");
+      } else {
+        toast.success(`Fired ${result.fired} scheduled call${result.fired !== 1 ? "s" : ""}`, {
+          description: (result as any).failed > 0 ? `${(result as any).failed} failed` : undefined,
+        });
+      }
+      qc.invalidateQueries({ queryKey: ["leads-all"] });
+    } catch (e) {
+      toast.error("Failed to fire scheduled calls", { description: (e as Error).message });
+    } finally {
+      setFiringScheduled(false);
     }
   }
 
@@ -277,6 +337,22 @@ function LeadsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {tab === "leads" && scheduledCount > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-purple-500/30 text-purple-400 hover:text-purple-300"
+              onClick={handleFireScheduled}
+              disabled={firingScheduled}
+            >
+              {firingScheduled ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <PlayCircle className="mr-1 h-4 w-4" />
+              )}
+              Run Scheduled ({scheduledCount})
+            </Button>
+          )}
           {tab === "leads" && selectedIds.size > 0 && (
             <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openQualDialog}>
               <ShieldCheck className="mr-1 h-4 w-4" />
@@ -532,7 +608,7 @@ function LeadsPage() {
       )}
 
       {/* Assign Qualification Agent Dialog */}
-      <Dialog open={qualDialogOpen} onOpenChange={setQualDialogOpen}>
+      <Dialog open={qualDialogOpen} onOpenChange={(o) => { setQualDialogOpen(o); if (!o) { setQualSchedule(false); setQualScheduledAt(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -542,7 +618,7 @@ function LeadsPage() {
           </DialogHeader>
           <div className="space-y-4 py-1">
             <p className="text-sm text-muted-foreground">
-              Start qualification calls for <span className="font-semibold text-foreground">{selectedIds.size}</span> selected lead{selectedIds.size !== 1 ? "s" : ""}.
+              {qualSchedule ? "Schedule" : "Start"} qualification calls for <span className="font-semibold text-foreground">{selectedIds.size}</span> selected lead{selectedIds.size !== 1 ? "s" : ""}.
             </p>
             {qualAgents.length === 0 ? (
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-400">
@@ -579,6 +655,44 @@ function LeadsPage() {
                     className="mt-1 h-8 text-xs"
                   />
                 </div>
+
+                {/* Schedule toggle */}
+                <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => setQualSchedule((v) => !v)}
+                    className="flex items-center justify-between w-full"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <CalendarClock className="h-4 w-4 text-purple-400" />
+                      Schedule for later
+                    </span>
+                    <span className={`h-5 w-9 rounded-full transition-colors relative ${qualSchedule ? "bg-purple-500" : "bg-white/10"}`}>
+                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${qualSchedule ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </span>
+                  </button>
+                  {qualSchedule && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Call date &amp; time</Label>
+                      <Input
+                        type="datetime-local"
+                        value={qualScheduledAt}
+                        onChange={(e) => setQualScheduledAt(e.target.value)}
+                        className="mt-1 h-8 text-xs"
+                        min={new Date().toISOString().slice(0, 16)}
+                      />
+                      <p className="mt-1.5 text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        Click "Run Scheduled" on the Leads page when the time arrives to fire the calls.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Daily limit notice */}
+                <p className="text-[11px] text-muted-foreground">
+                  Max 3 call attempts per lead per day — leads at the limit will be skipped.
+                </p>
               </>
             )}
           </div>
@@ -589,11 +703,17 @@ function LeadsPage() {
             <Button
               onClick={handleStartQualification}
               disabled={!qualAgentId || qualAgents.length === 0 || qualRunning}
+              className={qualSchedule ? "bg-purple-600 hover:bg-purple-500 text-white" : ""}
             >
               {qualRunning ? (
                 <>
                   <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                  Starting…
+                  {qualSchedule ? "Scheduling…" : "Starting…"}
+                </>
+              ) : qualSchedule ? (
+                <>
+                  <CalendarClock className="mr-1 h-4 w-4" />
+                  Schedule {selectedIds.size} Call{selectedIds.size !== 1 ? "s" : ""}
                 </>
               ) : (
                 <>

@@ -553,6 +553,13 @@ export async function processRetellWebhook(
     call.direction === "inbound" || call.call_type === "inbound" ? "inbound" : "outbound";
   const contactPhone = (callType === "inbound" ? call.from_number : call.to_number) ?? null;
 
+  // Detect no-answer / unanswered calls — used in multiple event handlers below.
+  const NO_ANSWER_STATUSES = new Set(["no_answer", "busy", "voicemail"]);
+  const isNoAnswerCall =
+    NO_ANSWER_STATUSES.has(call.call_status ?? "") ||
+    NO_ANSWER_STATUSES.has(call.disconnection_reason ?? "") ||
+    call.call_analysis?.in_voicemail === true;
+
   let leadId: string | null = null;
   if (contactPhone) {
     const { data: leadMatch } = await supabaseAdmin
@@ -629,6 +636,23 @@ export async function processRetellWebhook(
       } as never)
       .eq("workspace_id", workspaceId)
       .eq("mobile_number", contactPhone);
+  }
+
+  // ── No-answer / unanswered outbound lead status ───────────────────────────
+  // When a qualification call goes unanswered, set the lead to "no_answer" so
+  // the UI can display it clearly. The call_analyzed handler below will then
+  // reset it to "need_to_call" so it stays in the retry queue.
+  if (
+    leadId &&
+    callType === "outbound" &&
+    ["call_ended", "call_failed"].includes(event) &&
+    isNoAnswerCall
+  ) {
+    await supabaseAdmin
+      .from("leads")
+      .update({ status: "no_answer", updated_at: new Date().toISOString() })
+      .eq("id", leadId);
+    console.log("[RETELL WEBHOOK] Lead marked no_answer", { leadId, callStatus: call.call_status, disconnection: call.disconnection_reason });
   }
 
   // Auto-create a calendar entry for every inbound call so the Calendar tab
@@ -845,34 +869,47 @@ export async function processRetellWebhook(
     contactPhone
   ) {
     try {
-      console.log("[QUALIFY] Starting post-call qualification analysis", { callId, workspaceId });
-      const result = await analyzeQualification(
-        call.transcript ?? "",
-        call.call_analysis?.user_sentiment,
-        call.call_analysis?.call_summary,
-      );
-      const dynVars = (payload as any)?.call?.retell_llm_dynamic_variables ?? {};
-      const contactName: string | null =
-        dynVars.full_name?.trim() ||
-        [dynVars.First_name ?? dynVars.first_name, dynVars.Last_name ?? dynVars.last_name]
-          .filter(Boolean)
-          .join(" ")
-          .trim() ||
-        null;
-      const customData = (call.call_analysis?.custom_analysis_data ?? {}) as Record<string, unknown>;
-      const qualifySettings = (agentRow as any).qualifySettings ?? {};
-      await applyQualificationToLead(workspaceId, contactPhone, result, {
-        contactName,
-        agentName: agentRow.name ?? null,
-        customData,
-        qualifySettings,
-      });
-      console.log("[QUALIFY] Qualification complete", {
-        callId,
-        status: result.qualification_status,
-        score: result.qualification_score,
-        customVars: Object.keys(customData).length,
-      });
+      // No-answer / voicemail: skip AI analysis and reset lead back to need_to_call
+      // so it stays in the retry queue. The brief "no_answer" status set by the
+      // call_ended handler above gives the UI a chance to show the outcome.
+      if (isNoAnswerCall) {
+        if (leadId) {
+          await supabaseAdmin
+            .from("leads")
+            .update({ status: "need_to_call", updated_at: new Date().toISOString() })
+            .eq("id", leadId);
+          console.log("[QUALIFY] No-answer call — lead reset to need_to_call", { leadId, callId });
+        }
+      } else {
+        console.log("[QUALIFY] Starting post-call qualification analysis", { callId, workspaceId });
+        const result = await analyzeQualification(
+          call.transcript ?? "",
+          call.call_analysis?.user_sentiment,
+          call.call_analysis?.call_summary,
+        );
+        const dynVars = (payload as any)?.call?.retell_llm_dynamic_variables ?? {};
+        const contactName: string | null =
+          dynVars.full_name?.trim() ||
+          [dynVars.First_name ?? dynVars.first_name, dynVars.Last_name ?? dynVars.last_name]
+            .filter(Boolean)
+            .join(" ")
+            .trim() ||
+          null;
+        const customData = (call.call_analysis?.custom_analysis_data ?? {}) as Record<string, unknown>;
+        const qualifySettings = (agentRow as any).qualifySettings ?? {};
+        await applyQualificationToLead(workspaceId, contactPhone, result, {
+          contactName,
+          agentName: agentRow.name ?? null,
+          customData,
+          qualifySettings,
+        });
+        console.log("[QUALIFY] Qualification complete", {
+          callId,
+          status: result.qualification_status,
+          score: result.qualification_score,
+          customVars: Object.keys(customData).length,
+        });
+      }
     } catch (qErr) {
       console.error("[QUALIFY] Post-call processing error", qErr);
     }
