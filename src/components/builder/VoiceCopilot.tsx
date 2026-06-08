@@ -40,6 +40,36 @@ interface VoiceCommand {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Collision-aware placement (spec §4)
+// Sequential: place to the right of the rightmost node at +320,+0
+// If that spot is occupied: stack below at +320,+180 increments
+// Floating (no nodes): default 320, 200
+// ─────────────────────────────────────────────────────────────────────────────
+const NODE_W = 240, NODE_H = 140, MARGIN = 40;
+
+function hasCollision(pos: { x: number; y: number }, nodes: { position: { x: number; y: number } }[]) {
+  return nodes.some(
+    (n) =>
+      Math.abs(n.position.x - pos.x) < NODE_W + MARGIN &&
+      Math.abs(n.position.y - pos.y) < NODE_H + MARGIN,
+  );
+}
+
+function findFreePosition(existingNodes: { position: { x: number; y: number } }[]): { x: number; y: number } {
+  if (existingNodes.length === 0) return { x: 320, y: 200 };
+  const maxX = Math.max(...existingNodes.map((n) => n.position.x));
+  const avgY = Math.round(existingNodes.reduce((s, n) => s + n.position.y, 0) / existingNodes.length);
+  // Try sequential right placement first
+  for (let row = 0; row < 6; row++) {
+    const candidate = { x: maxX + 320, y: avgY + row * (NODE_H + MARGIN) };
+    if (!hasCollision(candidate, existingNodes)) return candidate;
+  }
+  // Fall back: far right, below all nodes
+  const maxY = Math.max(...existingNodes.map((n) => n.position.y));
+  return { x: maxX + 320, y: maxY + NODE_H + MARGIN * 2 };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Fuzzy node finder — exact ID → _ref map → exact label → includes → Levenshtein
 // ─────────────────────────────────────────────────────────────────────────────
 function levenshtein(a: string, b: string): number {
@@ -127,9 +157,10 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
 
     // CREATE_NODE ─────────────────────────────────────────────────────────────
     if (cmd.action === "CREATE_NODE") {
-      const nodesBefore = useBuilderStore.getState().nodes.map((n) => n.id);
-      useBuilderStore.getState().addNode(cmd.type as NodeKind);
-      const newNode = useBuilderStore.getState().nodes.find((n) => !nodesBefore.includes(n.id));
+      const nodesBefore = useBuilderStore.getState().nodes;
+      const pos = findFreePosition(nodesBefore);
+      useBuilderStore.getState().addNode(cmd.type as NodeKind, pos);
+      const newNode = useBuilderStore.getState().nodes.find((n) => !nodesBefore.some((b) => b.id === n.id));
       if (newNode) {
         if (cmd._ref) idMap[cmd._ref] = newNode.id;
         const patch: Partial<FlowNodeData> = {};
@@ -166,6 +197,14 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
         });
         updatedCount++;
       }
+
+    // DELETE_NODE ─────────────────────────────────────────────────────────────
+    // Permanently removes the node and all edges attached to it (store handles edges).
+    } else if (cmd.action === "DELETE_NODE") {
+      const target = cmd.node ? findNode(cmd.node, idMap) : undefined;
+      if (!target) { warnings.push(`Could not find node to delete: "${cmd.node ?? "?"}"`); continue; }
+      useBuilderStore.getState().deleteNode(target.id);
+      deletedCount++;
 
     // UPDATE_GLOBAL_SETTINGS ──────────────────────────────────────────────────
     } else if (cmd.action === "UPDATE_GLOBAL_SETTINGS") {
@@ -328,12 +367,14 @@ export function VoiceCopilotButton() {
         reader.readAsDataURL(blob);
       });
 
-      // Snapshot current canvas nodes — include transitions so GPT knows
-      // which transition handles already exist and can reference them exactly
+      // Snapshot current canvas nodes — include positions and transitions so
+      // GPT can reason about layout, reference "the last node", and reuse existing handles
       const canvasNodes = useBuilderStore.getState().nodes.map((n) => ({
         id: n.id,
         label: n.data.label,
         kind: n.data.kind,
+        x: Math.round(n.position.x),
+        y: Math.round(n.position.y),
         transitions: n.data.transitions.map((t) => ({ id: t.id, label: t.condition })),
       }));
 

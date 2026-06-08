@@ -1,0 +1,34 @@
+Title: Feature Request - Macro Flow Blueprinting Mode for Voice Copilot
+
+Please implement a "Macro Flow Blueprinting Mode" within the voice copilot engine. This will allow users to invoke a specific structural command to switch the AI from processing single actions to generating an entire, fully connected script architecture from a single multi-sentence conversational description.
+
+### 1. Macro Activation Phrase Trigger
+* **The Switch Command:** Program the phrase parser to look out for high-level activation intents such as:
+    * *"Let's build a whole new flow for..."*
+    * *"Generate a script blueprint for..."*
+    * *"Switch to architect mode and create a..."*
+* **UI Mode Transition:** When this command pattern is recognized, update the Transcription Toast to visually reflect that the system has transitioned into **"Architect Mode"** (e.g., turning the microphone icon pulsing ring to our signature golden-yellow color with a toast notification: *"Architect Mode Active: Listening to full script blueprint..."*).
+
+### 2. Multi-Node Generative Logic Pipeline
+* **Deep Context Comprehension:** In this mode, instead of analyzing commands phrase-by-phrase, the LLM backend must take the entire paragraph block of text and conceptually map a structural flowchart.
+* **Mandatory Script Parsing Blueprint:** Force the Chain-of-Thought reasoning block to step through the description and map the logic using this sequential sequence *before* compiling any JSON:
+    1. Identify the core intent of the call script (e.g., real estate inbound qualification).
+    2. Determine the exact sequence of conversational stages needed (Greeting -> Discovery -> Qualification -> Booking -> Goodbye).
+    3. Match each stage to its respective custom Node type.
+    4. Define the necessary branching decision paths (Transitions) out of every single block.
+
+### 3. Comprehensive Multi-Node Generation Payload Schema
+* The backend engine must return an aggregated array containing all nodes and their relational connector wires formatted cleanly so the canvas rendering engine drops the whole canvas at once.
+* **Example Generated Output Target Pattern:**
+```json
+{
+  "mode": "MACRO_BLUEPRINT",
+  "thought": "User wants a standard outbound property script. Generating 4 cascading nodes: Welcome, Condition Check, Booking, and Goodbye, completely wired sequentially.",
+  "commands": [
+    { "action": "CREATE_NODE", "type": "conversation", "id": "node_01", "properties": { "title": "Intro Greeting", "text": "Hi, I saw you were looking to list a property?" }, "position": { "x": 100, "y": 200 } },
+    { "action": "CREATE_NODE", "type": "logic_split", "id": "node_02", "properties": { "title": "Is Seller Interested", "conditions": ["Interested", "Not Interested"] }, "position": { "x": 420, "y": 200 } },
+    { "action": "CONNECT_NODES", "from_node_id": "node_01", "via_transition": "Next", "to_node_id": "node_02" },
+    { "action": "CREATE_NODE", "type": "function", "id": "node_03", "properties": { "title": "Check Availability", "function_name": "cal_com_check_slots" }, "position": { "x": 740, "y": 100 } },
+    { "action": "CONNECT_NODES", "from_node_id": "node_02", "via_transition": "Interested", "to_node_id": "node_03" }
+  ]
+}

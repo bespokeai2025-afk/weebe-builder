@@ -21,7 +21,7 @@ const VALID_TYPES = new Set([
 const VALID_ACTIONS = new Set([
   "CREATE_NODE", "CONNECT_NODES", "UPDATE_NODE_PROPERTIES",
   "CREATE_TRANSITIONS", "UPDATE_GLOBAL_SETTINGS",
-  "REMOVE_TRANSITION", "DISCONNECT_NODES",
+  "REMOVE_TRANSITION", "DISCONNECT_NODES", "DELETE_NODE",
 ]);
 
 const SYSTEM_PROMPT = `You are WEBEE Builder Copilot. Convert voice instructions into a structured JSON object for an AI voice agent canvas builder.
@@ -70,6 +70,9 @@ note           — sticky note, canvas comment, annotation, remind me
 7. DISCONNECT_NODES  (remove the wire(s) between two nodes; keeps the transition handles)
 {"action":"DISCONNECT_NODES","from_node_id":"<label or _ref>","to_node_id":"<label or _ref>"}
 
+8. DELETE_NODE  (permanently remove a node and all connections attached to it)
+{"action":"DELETE_NODE","node":"<label, _ref, or 'last' to target the last node in the list>"}
+
 ═══ FEW-SHOT EXAMPLES ═══
 
 Input: "Oh wait, can you make a box that says goodbye if they hang up?"
@@ -93,6 +96,12 @@ Input: "Remove the Continue transition from the Start Call node"
 Input: "Disconnect Start Call from End Call"
 {"thought":"User wants to remove the wire between 'Start Call' and 'End Call' but keep the transition handles. Both nodes exist.","commands":[{"action":"DISCONNECT_NODES","from_node_id":"Start Call","to_node_id":"End Call"}]}
 
+Input: "Delete that transfer node we just added, it's not needed."
+{"thought":"User wants to remove the most recently created node. The last entry in CURRENT CANVAS NODES is the transfer node.","commands":[{"action":"DELETE_NODE","node":"Call Transfer"}]}
+
+Input: "Get rid of the intro node"
+{"thought":"User wants to permanently delete the 'intro' node and all its connections.","commands":[{"action":"DELETE_NODE","node":"intro"}]}
+
 ═══ RULES ═══
 - ALWAYS emit "thought" before "commands"
 - Use _ref (n1, n2…) on every CREATE_NODE; reference same _ref in CONNECT_NODES within the same batch
@@ -100,7 +109,8 @@ Input: "Disconnect Start Call from End Call"
 - Chain all commands in one array for multi-step instructions — never split across responses
 - For conversation nodes, write natural brief agent instructions in dialogue
 - EXISTING TRANSITIONS: each node lists its transitions in CURRENT CANVAS NODES. When the user says "connect via [name]" or "use the [name] transition", look up that node's transition list and set via_transition to the EXACT existing label. Do NOT emit CREATE_TRANSITIONS or a new transition_label if a matching transition already exists on the source node.
-- REMOVE vs DISCONNECT: use REMOVE_TRANSITION when the user wants to delete a specific named transition handle (e.g. "delete the Connect transition", "remove that option"). Use DISCONNECT_NODES when the user wants to remove the wire/connection between two nodes but keep the handles (e.g. "disconnect A from B", "unlink those two nodes", "remove the connection between X and Y").
+- REMOVE vs DISCONNECT vs DELETE: use REMOVE_TRANSITION to delete a named transition handle + its wire. Use DISCONNECT_NODES to remove a wire while keeping the handles. Use DELETE_NODE to permanently erase an entire node and everything attached to it ("delete", "remove", "get rid of", "destroy", "erase").
+- LAST NODE: CURRENT CANVAS NODES is ordered by creation time — the last numbered entry is the most recently added node. When user says "the last node I made" or "that node we just created", target the final entry.
 - Return {"thought":"Not a builder command.","commands":[]} if the request is off-topic
 - Return ONLY valid JSON — no markdown, no code fences`;
 
@@ -117,13 +127,14 @@ export const Route = createFileRoute("/api/voice-copilot")({
 
         let audio: string;
         let mimeType: string;
-        let canvasNodes: { id: string; label: string; kind: string; transitions: { id: string; label: string }[] }[] = [];
+        type CanvasNode = { id: string; label: string; kind: string; x: number; y: number; transitions: { id: string; label: string }[] };
+        let canvasNodes: CanvasNode[] = [];
 
         try {
           const body = (await request.json()) as {
             audio: string;
             mimeType: string;
-            canvasNodes?: { id: string; label: string; kind: string; transitions: { id: string; label: string }[] }[];
+            canvasNodes?: CanvasNode[];
           };
           audio = body.audio;
           mimeType = body.mimeType ?? "audio/webm";
@@ -171,11 +182,11 @@ export const Route = createFileRoute("/api/voice-copilot")({
         // ── 3. Build user message with canvas context ─────────────────────────
         const canvasContext =
           canvasNodes.length > 0
-            ? `CURRENT CANVAS NODES:\n${canvasNodes.map((n) => {
+            ? `CURRENT CANVAS NODES (in creation order — last entry = most recently added):\n${canvasNodes.map((n, i) => {
                 const tList = n.transitions.length > 0
                   ? ` | transitions: [${n.transitions.map((t) => `"${t.label}"`).join(", ")}]`
                   : "";
-                return `- "${n.label}" (id: ${n.id}, type: ${n.kind})${tList}`;
+                return `${i + 1}. "${n.label}" (id: ${n.id}, type: ${n.kind}, pos: ${n.x},${n.y})${tList}`;
               }).join("\n")}\n\n`
             : "CURRENT CANVAS NODES: (empty canvas)\n\n";
 
