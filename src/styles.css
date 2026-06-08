@@ -623,19 +623,12 @@
   background: rgba(255, 255, 255, 0.42);
 }
 
-/* Scrollable panels — prevent layout shift when scrollbar appears */
-[data-radix-scroll-area-viewport],
-.overflow-y-auto,
-.overflow-auto,
-textarea {
-  scrollbar-gutter: stable;
+/* Firefox scrollbar fallback — thin + theme-matched */
+* {
   scrollbar-width: thin;
   scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
 }
 
-.dark [data-radix-scroll-area-viewport],
-.dark .overflow-y-auto,
-.dark .overflow-auto,
-.dark textarea {
+.dark * {
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
