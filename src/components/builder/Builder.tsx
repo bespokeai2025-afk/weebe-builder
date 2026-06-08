@@ -413,7 +413,7 @@ export function Builder({
                 requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
               }}
               title="Auto-arrange nodes"
-              className="!w-7 !p-0"
+              className="!w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
             >
               <LayoutGrid />
             </Button>
@@ -426,7 +426,7 @@ export function Builder({
               }}
               disabled={!preAutoLayoutPositions}
               title="Revert to original layout"
-              className="!w-7 !p-0"
+              className="!w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
             >
               <Undo2 />
             </Button>
@@ -435,38 +435,14 @@ export function Builder({
               variant="ghost"
               onClick={() => rf?.fitView({ padding: 0.2 })}
               title="Fit canvas"
-              className="!w-7 !p-0"
+              className="!w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
             >
               <Maximize />
             </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  title="Clear canvas"
-                  className="!w-7 !p-0 text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Clear the canvas?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This removes all nodes and leaves only an empty Start Call and End Call.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={clearAll}>Clear</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
             {/* Import / Export dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost" title="Import / Export" className="!w-7 !p-0">
+                <Button size="sm" variant="ghost" title="Import / Export" className="!w-7 !p-0 text-muted-foreground/60 hover:text-foreground">
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
@@ -489,6 +465,33 @@ export function Builder({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Divider */}
+            <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+            {/* Clear canvas (trash) — reveals destructive color on hover only */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title="Clear canvas"
+                  className="!w-7 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear the canvas?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes all nodes and leaves only an empty Start Call and End Call.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={clearAll}>Clear</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
           <ImportJsonDialog open={importOpen} onOpenChange={setImportOpen} hideTrigger />
           <ExportJsonDialog open={exportOpen} onOpenChange={setExportOpen} hideTrigger />
@@ -496,7 +499,7 @@ export function Builder({
           {/* Separator */}
           <div className="h-4 w-px bg-white/[0.06]" />
 
-          {/* Primary actions */}
+          {/* Deploy / utility cluster + trailing save actions */}
           <RetellDeployDialog />
           {toolbarTrailing}
 

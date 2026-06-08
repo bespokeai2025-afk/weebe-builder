@@ -128,26 +128,33 @@ function BuilderPage() {
   );
 
   const trailing = (
-    <>
+    <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
       <Button
         size="sm"
         variant="ghost"
         onClick={() => setSaveTemplateOpen(true)}
         title="Save as template"
-        className="!h-7 !w-7 !p-0"
+        className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
       >
         <BookmarkPlus />
       </Button>
+      <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
       <Button
         size="sm"
+        variant="ghost"
         onClick={handleSave}
         disabled={saving}
         title="Save agent (⌘S)"
-        className="!h-7 !w-7 !p-0 shadow-[0_0_0_1px_hsl(var(--primary)/0.3),0_6px_18px_-6px_hsl(var(--primary)/0.5)]"
+        className="!h-7 gap-1 px-2.5 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.06]"
       >
-        {saving ? <Loader2 className="animate-spin" /> : <Save />}
+        {saving ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <Save className="h-3 w-3" />
+        )}
+        Save
       </Button>
-    </>
+    </div>
   );
 
   return (

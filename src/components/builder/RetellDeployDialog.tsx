@@ -365,83 +365,90 @@ export function RetellDeployDialog() {
 
   return (
     <>
-      {/* Test / Run agent — icon only */}
-      {inCall ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={endCall}
-          className="!h-7 !w-7 !p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          title="End test call"
-        >
-          <PhoneOff className="h-3.5 w-3.5" />
-        </Button>
-      ) : (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleTestCall}
-          disabled={calling || !hasAgent || overLimit}
-          className="!h-7 !w-7 !p-0 text-violet-300 hover:bg-violet-500/10 hover:text-violet-200 disabled:opacity-40"
-          title={
-            overLimit
-              ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
-              : hasAgent
-                ? "Test agent (browser call)"
-                : "Deploy the agent first"
-          }
-        >
-          {calling ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Phone className="h-3.5 w-3.5" />
-          )}
-        </Button>
-      )}
-
-      {/* Load existing agent by ID — icon only */}
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={() => setLoadOpen(true)}
-        className="!h-7 !w-7 !p-0"
-        title="Load agent by ID"
-      >
-        <Download className="h-3.5 w-3.5" />
-      </Button>
-
-      {/* Update existing — icon only */}
-      {hasAgent && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => handleDeploy("update")}
-          disabled={deploying !== null}
-          className="!h-7 !w-7 !p-0 text-sky-300 hover:bg-sky-500/10 hover:text-sky-200"
-          title="Update existing agent with current flow"
-        >
-          {deploying === "update" ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-        </Button>
-      )}
-
-      {/* Create New Agent — primary icon CTA */}
-      <Button
-        size="sm"
-        onClick={() => handleDeploy("create")}
-        disabled={deploying !== null}
-        className="!h-7 !w-7 !p-0 shadow-[0_0_0_1px_hsl(var(--primary)/0.3),0_6px_18px_-6px_hsl(var(--primary)/0.5)]"
-        title="Create new agent from current flow"
-      >
-        {deploying === "create" ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      {/* Deploy / utility cluster */}
+      <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
+        {/* Test / Run agent */}
+        {inCall ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={endCall}
+            className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+            title="End test call"
+          >
+            <PhoneOff className="h-3.5 w-3.5" />
+          </Button>
         ) : (
-          <Plus className="h-3.5 w-3.5" />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleTestCall}
+            disabled={calling || !hasAgent || overLimit}
+            className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
+            title={
+              overLimit
+                ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
+                : hasAgent
+                  ? "Test agent (browser call)"
+                  : "Deploy the agent first"
+            }
+          >
+            {calling ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Phone className="h-3.5 w-3.5" />
+            )}
+          </Button>
         )}
-      </Button>
+
+        {/* Load existing agent by ID */}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setLoadOpen(true)}
+          className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
+          title="Load agent by ID"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </Button>
+
+        {/* Update existing */}
+        {hasAgent && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleDeploy("update")}
+            disabled={deploying !== null}
+            className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:bg-sky-500/10 hover:text-sky-300"
+            title="Update existing agent with current flow"
+          >
+            {deploying === "update" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        )}
+
+        {/* Divider before primary CTA */}
+        <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
+
+        {/* Create / Deploy — ghost with primary color on hover */}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => handleDeploy("create")}
+          disabled={deploying !== null}
+          className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:bg-primary/10 hover:text-primary"
+          title="Create new agent from current flow"
+        >
+          {deploying === "create" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
+        </Button>
+      </div>
 
       <Dialog open={loadOpen} onOpenChange={setLoadOpen}>
         <DialogContent>
@@ -523,10 +530,10 @@ export function RetellDeployDialog() {
         </DialogContent>
       </Dialog>
 
-      {/* Cost meter — server-tracked spend with per-account cap. */}
+      {/* Cost meter — height-matched to toolbar buttons */}
       {(inCall || spendUsedCents > 0) && (
         <div
-          className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground/80 shadow-sm"
+          className="flex h-7 items-center gap-1.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-2 text-[10px] font-medium text-foreground/70"
           title={`Total test-call spend @ $${costPerMinute.toFixed(2)}/min`}
         >
           {inCall && (
