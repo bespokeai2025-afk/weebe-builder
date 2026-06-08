@@ -1,0 +1,53 @@
+System UI Refactor Request: Minimalist Homepage Conversion
+
+Please refactor the main landing page (webespokeai.com) into a high-converting, modern, minimalist SaaS homepage. The focus should be entirely on communicating exactly what the platform does ("WEBEE Builder") with extreme clarity, ample white space (breathing room), and zero fluff.
+
+1. Brand Identity & Color Palette Constraints
+Core Background: Use a rich, premium dark theme canvas. Transition from a midnight-blue layout into a deep indigo gradient blur (referencing the dark navy/indigo depths of Screenshot 1).
+
+Branding Accent (The Bee Yellow): Use the exact vibrant golden-yellow from the WEBEE icon as your high-visibility accent color. Use this intentionally for the primary call-to-action (CTA) button, the main product logo badge, and key typographic highlights.
+
+Logo Integration: In the top navigation header, place the yellow rounded-square bee logo next to the clean, high-contrast text brand name: WEBEE Builder.
+
+2. Stripped-Back Top Navigation Header
+Keep the navbar extremely light and clean:
+
+Left: WEBEE Logo + "WEBEE Builder" text.
+
+Center: Minimal text links: Features, Pricing, Docs.
+
+Right: A single, sharp, borderless "Sign In" link and one high-contrast, compact primary action button ("Launch App" or "Start Free Trial").
+
+3. High-Impact Hero Section
+Typography & Copy Structure: >     * Kicker Label: Add a small uppercase tag above the headline: FLAGSHIP PLATFORM // A WEBESPOKE AI PRODUCT in a muted gold or off-white.
+
+Main Headline: Large, crisp font weight saying: "Design your bees. Deploy your hive."
+
+Supporting Subtext: A clean, legible dark-mode paragraph block: "WEBEE Builder is the flagship no-code platform for designing, training, and deploying your own autonomous AI workforce. No engineers. No agencies. Just intelligent agents ready to work in minutes."
+
+Primary Call to Actions: >     * Button 1: A prominent rounded pill button filled with the brand yellow accent color and dark text ("Get Started Free").
+
+Button 2: A sleek, borderless secondary button with an arrow icon ("Book a Demo").
+
+4. Premium Interface Preview Mockup
+Directly below the hero copy, display a floating viewport mockup of the WEBEE Builder workspace (using the layout style shown in Screenshot 2).
+
+Styling: Give this app preview panel rounded corners, a thin 1px boundary line (border-slate-800), and a soft, low-opacity drop shadow glow behind it so it looks like a premium application hovering over the dark gradient canvas.
+
+5. Streamlined Feature Grid (From Screenshot 1)
+Below the main app preview, create a clean 4-column feature section using the exact card style from Screenshot 1:
+
+Card Layout: Use a dark, semi-translucent slate base color for the card panels (bg-opacity/10) with thin, elegant borders.
+
+Card Content: Each card must contain its respective icon enclosed in a small circular frame, a bold title, and a short description:
+
+CLS Engine™ (Closed Loop Scripting text)
+
+Echo Loop Technology™ (Persistent customer memory text)
+
+WEBEE Builder™ (No-code AI agent platform text)
+
+WEBEE Smart Dash™ (Centralised command centre text)
+
+6. Responsive Typography Settings
+Ensure all headers are perfectly scalable on mobile screens. Use modern tracking adjustments (tracking-tight for headlines, tracking-widest for uppercase sub-labels) and font-smoothing parameters so the text looks crisp and premium on all high-density displays.
