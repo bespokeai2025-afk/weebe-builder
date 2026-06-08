@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Mic, MicOff, Loader2, HelpCircle, X, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -403,6 +404,7 @@ export function VoiceCopilotButton() {
   const [hintVisible, setHintVisible] = useState(true);
   const [showTooltip, setShowTooltip] = useState(false);
   const [showSheet, setShowSheet]     = useState(false);
+  const [portalRoot, setPortalRoot]   = useState<HTMLElement | null>(null);
   // Use a ref so processAudio always reads the current mode without stale closure
   const modeRef        = useRef<"MICRO" | "MACRO">("MICRO");
   const hoverTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -421,6 +423,9 @@ export function VoiceCopilotButton() {
     }, 3200);
     return () => clearInterval(id);
   }, []);
+
+  // Grab portal root once on client (keeps SSR safe)
+  useEffect(() => { setPortalRoot(document.body); }, []);
 
   // Close help sheet on Escape
   useEffect(() => {
@@ -658,25 +663,27 @@ export function VoiceCopilotButton() {
   return (
     <>
       {/* ────────────────────────────────────────────────────────────────────
-          Slide-out help sheet — always rendered, slides in/out via transform
+          Slide-out help sheet — portalled to body so fixed pos works correctly
       ──────────────────────────────────────────────────────────────────── */}
-      {/* Backdrop */}
-      <div
-        className={cn(
-          "fixed inset-0 z-[98] bg-black/30 transition-opacity duration-200",
-          showSheet ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
-        )}
-        onClick={() => setShowSheet(false)}
-      />
-      {/* Panel */}
-      <div
-        className={cn(
-          "fixed top-0 right-0 h-full w-[320px] z-[99] flex flex-col",
-          "bg-[#0f1117] border-l-2 border-slate-700 shadow-[0_0_60px_rgba(0,0,0,0.9)]",
-          "transition-transform duration-[250ms] ease-in-out",
-          showSheet ? "translate-x-0" : "translate-x-full",
-        )}
-      >
+      {portalRoot && createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            className={cn(
+              "fixed inset-0 z-[9998] bg-black/60 transition-opacity duration-200",
+              showSheet ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+            )}
+            onClick={() => setShowSheet(false)}
+          />
+          {/* Panel */}
+          <div
+            className={cn(
+              "fixed top-0 right-0 h-full w-[320px] z-[9999] flex flex-col",
+              "bg-[#0f1117] border-l-2 border-slate-700 shadow-[0_0_80px_rgba(0,0,0,1)]",
+              "transition-transform duration-[250ms] ease-in-out",
+              showSheet ? "translate-x-0" : "translate-x-full",
+            )}
+          >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
           <div className="flex items-center gap-2.5">
@@ -728,7 +735,10 @@ export function VoiceCopilotButton() {
         <div className="px-5 py-3.5 border-t border-slate-700 text-[10px] text-slate-500 text-center">
           Press <kbd className="px-1 py-0.5 rounded bg-slate-700 text-slate-300 font-mono">Esc</kbd> to close
         </div>
-      </div>
+          </div>
+        </>,
+        document.body,
+      )}
 
       {/* ────────────────────────────────────────────────────────────────────
           Main widget wrapper
