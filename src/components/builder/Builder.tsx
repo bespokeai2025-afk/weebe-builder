@@ -652,7 +652,7 @@ export function Builder({
           <button
             onClick={() => setRightOpen((v) => !v)}
             title={rightOpen ? "Collapse settings" : "Expand settings"}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-white/[0.15] bg-white/[0.05] text-white/60 hover:text-white/90 hover:bg-white/[0.12] hover:border-white/[0.25] transition-all duration-200"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-30 flex h-12 w-4 items-center justify-center rounded-sm border border-white/[0.07] bg-background/80 text-white/40 hover:text-white/80 hover:bg-white/[0.07] hover:border-white/[0.14] transition-all duration-200 backdrop-blur-sm"
           >
             {rightOpen
               ? <ChevronRight className="h-3 w-3 shrink-0" strokeWidth={1.5} />
