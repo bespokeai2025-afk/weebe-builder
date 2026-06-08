@@ -1,0 +1,50 @@
+Title: Feature Request - Customer Care Blueprint & Creative Extrapolation Matrix
+
+Please expand the "Creative Extrapolation Engine" inside the Macro Mode (Webee Build Mode) backend processor to natively support and creatively unpack Customer Care, Support, and Helpdesk workflows. When a user requests a "customer care" or "support" flow with minimal business context, the engine must autonomously brainstorm realistic support categories, ticket triage paths, and high-fidelity troubleshooting dialogues specific to that industry sector.
+
+### 1. The Master Customer Care / Support Playbook Blueprint
+Hardcode this mandatory structural baseline into the system prompt context for the macro flow generator. When a user requests a customer care/support system, the AI must use this framework as its architectural foundation:
+
+* **Stage 1: Greeting & Authentication (Conversation Node -> Extract Variable Node)**
+    * *Rule:* Welcome the customer warmly, introduce the AI support assistant, and immediately capture an authentication token (e.g., Order ID, Account Number, or Email address) before diagnosing the issue.
+* **Stage 2: Issue Triage Matrix (Logic Split Node)**
+    * *Rule:* Intuitively branch the conversation into 3–5 core, domain-specific support channels (e.g., Technical Troubleshooting, Billing/Invoices, Returns/Refunds, or General FAQs).
+* **Stage 3: Automated Resolution & KB Lookup (Function Node -> Logic Split Node)**
+    * *Rule:* For standard issues (like tracking an order or resetting a password), queue a Function node to simulate a live database query or Knowledge Base API lookup. Route based on the output ("Article Found" vs "Escalation Required").
+* **Stage 4: Deflection & Fallback Messaging (In-Call SMS Node)**
+    * *Rule:* If the user needs an immediate step-by-step tutorial or a secure password reset link, utilize an In-Call SMS node to push the URL text instantly to their phone to keep the call efficient.
+* **Stage 5: Graceful Escalation (Agent Transfer Node / Call Transfer Node)**
+    * *Rule:* If the issue is marked as critical, unresolved by the KB query, or billing-sensitive, map it cleanly to a live operator handoff or queue routing node.
+
+---
+
+### 2. Autonomous Support Scenario Brainstorming
+The engine must map out custom support categories natively based on the business type the user describes, completely eliminating generic placeholders:
+
+* **Example Domain - E-Commerce Retail:** * *Auto-Generated Logic Paths:* `Order Tracking`, `Returns & Refunds`, `Damaged Items`, `Promo Code Issues`.
+    * *Auto-Generated Copy:* "Thanks for calling Luxe Apparel support! I can help track your shipment or process a return. What is your 6-digit Order ID?"
+* **Example Domain - SaaS / Software Tech (e.g., We Bespoke AI):**
+    * *Auto-Generated Logic Paths:* `API Key Errors`, `Billing & Subscriptions`, `Custom Model Integration`, `System Downtime Reports`.
+    * *Auto-Generated Copy:* "Welcome to the We Bespoke AI DevCenter Helpdesk. If you are experiencing a 500-error code or an active API timeout, let me know your developer account email so I can pull up your logs."
+* **Example Domain - Home Services (e.g., HVAC / Plumbing):**
+    * *Auto-Generated Logic Paths:* `Emergency Leak/Breakdown`, `Reschedule Maintenance`, `Invoice Dispute`, `Request a Quote`.
+    * *Auto-Generated Copy:* "Thank you for dialing Rapid Plumbing Care. If you are currently experiencing active flooding or a pipe burst, say 'Emergency' to be routed to our on-call technician immediately."
+
+---
+
+### 3. Concrete Customer Care Extrapolation Payload Schema
+Ensure the generated output returns a fully hydrated multi-node JSON block, assigning unique, semantic, and domain-specific titles to every container, laid out cleanly on the grid tree:
+
+```json
+{
+  "mode": "MACRO_BLUEPRINT",
+  "domain": "CUSTOMER_CARE",
+  "thought": "User requested a support desk for a software company. Building an integrated triage flow with API verification, billing filters, and live technical fallback routing.",
+  "commands": [
+    { "action": "CREATE_NODE", "type": "conversation", "id": "support_greet", "properties": { "title": "Support Intro", "text": "Hi there! Thanks for contacting tech support. Can you please say or type your account number?" }, "position": { "x": 100, "y": 300 } },
+    { "action": "CREATE_NODE", "type": "extract_variable", "id": "get_acct", "properties": { "title": "Extract Account ID", "variable_name": "customer_account_id" }, "position": { "x": 420, "y": 300 } },
+    { "action": "CONNECT_NODES", "from_node_id": "support_greet", "via_transition": "Next", "to_node_id": "get_acct" },
+    { "action": "CREATE_NODE", "type": "logic_split", "id": "support_triage", "properties": { "title": "Diagnose Issue Type", "conditions": ["Technical Bug", "Billing Dispute", "Other FAQ"] }, "position": { "x": 740, "y": 300 } },
+    { "action": "CONNECT_NODES", "from_node_id": "get_acct", "via_transition": "Success", "to_node_id": "support_triage" }
+  ]
+}

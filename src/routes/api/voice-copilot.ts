@@ -195,6 +195,37 @@ Node 4 (function) label: "Query AI Demo Calendar"
 Node 5 (ending) label: "Close & Confirm Next Steps"
   dialogue: "Fantastic! I have noted your details and flagged your enquiry with our enterprise team. You will receive a personalised onboarding pack and calendar invite within the next 24 hours. Thank you for calling We Bespoke AI — we look forward to building your future together."
 
+── CUSTOMER CARE / SUPPORT EXTRAPOLATION EXAMPLES ──────────────────────────
+These show how to auto-generate domain-specific support paths. Use the same
+creative inference for any business type not listed here.
+
+Domain — E-Commerce Retail (e.g. Luxe Apparel):
+  Phase A: Online shoppers with post-purchase questions.
+  Phase B: Order tracking, returns/refunds, damaged items, promo code issues.
+  Phase C: order_id, registered_email, return_reason.
+  Greeting: "Thanks for calling Luxe Apparel support! I can help track your shipment or process a return. What is your 6-digit Order ID?"
+  Triage transitions: ["Order Tracking", "Returns & Refunds", "Damaged Items", "Promo Code Issues"]
+  KB function name: "query_order_management_system"
+  SMS body: "Here is your return portal link: https://luxeapparel.com/returns — your case ref is {{ticket_id}}"
+
+Domain — SaaS / AI Tech (e.g. We Bespoke AI):
+  Phase A: Developers and enterprise technical contacts.
+  Phase B: API errors, billing/subscriptions, integration help, system downtime.
+  Phase C: developer_account_email, api_key_last_four, error_code_reported.
+  Greeting: "Welcome to the We Bespoke AI DevCenter Helpdesk. If you are experiencing a 500-error code or an active API timeout, please say your developer account email so I can pull up your logs."
+  Triage transitions: ["API Key Errors", "Billing & Subscriptions", "Custom Model Integration", "System Downtime Reports"]
+  KB function name: "query_dev_logs_and_status_api"
+  SMS body: "We Bespoke AI status page & docs: https://status.webespokeai.com — your ticket ID is {{ticket_id}}"
+
+Domain — Home Services (e.g. Rapid Plumbing Care):
+  Phase A: Homeowners and property managers with urgent or scheduled needs.
+  Phase B: Emergency breakdown, reschedule maintenance, invoice dispute, request a quote.
+  Phase C: property_address, issue_urgency, preferred_callback_time.
+  Greeting: "Thank you for dialing Rapid Plumbing Care. If you are currently experiencing active flooding or a pipe burst, say 'Emergency' to be routed to our on-call technician immediately."
+  Triage transitions: ["Emergency Leak / Breakdown", "Reschedule Maintenance", "Invoice Dispute", "Request a Quote"]
+  KB function name: "check_technician_availability"
+  SMS body: "Your booking confirmation and technician ETA: https://rapidplumbing.com/track/{{booking_ref}}"
+
 ── LAYOUT SPACING RULES ──────────────────────────────────────────────────────
 - Sequential nodes: x increments by +320 per column
 - Branching nodes (alternative paths from same parent): y increments by ±180 per branch
