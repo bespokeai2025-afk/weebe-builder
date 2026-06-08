@@ -49,7 +49,7 @@ const STEPS: StepCfg[] = [
   { route: "/my-agents",         anchor: null,                      side: "center", emoji: "🏢", label: "Workspace Clone",            noOverlay: true },
   { route: "/my-agents",         anchor: null,                      side: "center", emoji: "📞", label: "Phone Number",               noOverlay: true },
   { route: "/my-agents",         anchor: null,                      side: "center", emoji: "📅", label: "Cal.com Integration",        noOverlay: true },
-  { route: "/my-agents",         anchor: null,                      side: "center", emoji: "🎉", label: "Go Live",                    noOverlay: true, clickGated: true },
+  { route: "/my-agents",         anchor: null,                      side: "center", emoji: "🎉", label: "Go Live",                    noOverlay: true },
 ];
 
 const PAD    = 10;
@@ -491,17 +491,27 @@ function Step13() {
   );
 }
 
-function Step14() {
+function Step14({ complete }: { complete: () => void }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Select the <span className="text-indigo-300 font-medium">Receptionist flow</span> from the dropdown at the top of the dialog, then click{" "}
-        <span className="text-white font-medium">Go Live</span>. Your agent will become active and the dashboard will start tracking real-time call data.
+        Phone and Cal.com are set up — you're ready. Scroll to the top of the dialog and click{" "}
+        <span className="text-white font-medium">Go Live</span> to publish your agent.
       </p>
       <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400">
-        Status change: <span className="text-amber-400">Draft</span> → <span className="text-emerald-400">Live</span>
+        Status: <span className="text-amber-400">Draft</span>{" "}→{" "}
+        <span className="text-emerald-400 font-semibold">Live</span>
       </div>
-      <WaitingFor text="Waiting for you to click Go Live in the dialog" />
+      <div className="flex items-center gap-1.5 text-[10px] text-indigo-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+        <span>Clicking Go Live will also close this tour automatically</span>
+      </div>
+      <button
+        onClick={complete}
+        className="w-full rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-900/30 hover:from-indigo-500 hover:to-violet-500 transition-all"
+      >
+        🎉 Finish Tour
+      </button>
     </div>
   );
 }
@@ -509,7 +519,7 @@ function Step14() {
 // ─── Tour card shell ──────────────────────────────────────────────────────────
 
 function TourCard({
-  step, pos, state, setState, advance, dismiss, shaking, onNextAttempt,
+  step, pos, state, setState, advance, dismiss, complete, shaking, onNextAttempt,
 }: {
   step: number;
   pos: { top: number; left: number };
@@ -517,6 +527,7 @@ function TourCard({
   setState: (p: Partial<OnboardingState>) => void;
   advance: () => void;
   dismiss: () => void;
+  complete: () => void;
   shaking: boolean;
   onNextAttempt: () => void;
 }) {
@@ -528,7 +539,8 @@ function TourCard({
     advance();
   }
 
-  const showFooter = !cfg.autoStep && !cfg.clickGated;
+  const showNextFooter  = !cfg.autoStep && !cfg.clickGated;
+  const showExitFooter  = cfg.clickGated && !cfg.autoStep;
 
   return (
     <div
@@ -539,7 +551,7 @@ function TourCard({
       }}
       className="flex flex-col rounded-xl border border-slate-700/80 bg-[#111827] shadow-2xl shadow-black/70 ring-1 ring-white/[0.04]"
     >
-      {/* Header */}
+      {/* Header — × always visible */}
       <div className="flex items-center gap-2 border-b border-slate-800 px-3.5 py-2">
         <span className="text-base leading-none">{cfg.emoji}</span>
         <div className="flex-1 min-w-0">
@@ -547,13 +559,21 @@ function TourCard({
           <div className="text-[9px] text-slate-500">Step {step + 1} / {STEPS.length}</div>
         </div>
         {/* Progress pips */}
-        <div className="flex items-center gap-0.5 shrink-0 flex-wrap max-w-[70px] justify-end">
+        <div className="flex items-center gap-0.5 shrink-0 flex-wrap max-w-[60px] justify-end">
           {STEPS.map((_, i) => (
             <div key={i} className={`h-0.5 rounded-full transition-all duration-300 ${
               i < step ? "w-2.5 bg-indigo-500" : i === step ? "w-3.5 bg-indigo-400" : "w-1 bg-slate-700"
             }`} />
           ))}
         </div>
+        {/* Always-visible exit */}
+        <button
+          onClick={dismiss}
+          title="Exit tour"
+          className="ml-1 shrink-0 flex h-5 w-5 items-center justify-center rounded text-slate-600 hover:bg-slate-800 hover:text-slate-300 transition-colors text-[10px]"
+        >
+          ✕
+        </button>
       </div>
 
       {/* Body */}
@@ -572,11 +592,11 @@ function TourCard({
         {step === 11 && <Step11 />}
         {step === 12 && <Step12 />}
         {step === 13 && <Step13 />}
-        {step === 14 && <Step14 />}
+        {step === 14 && <Step14 complete={complete} />}
       </div>
 
-      {/* Footer */}
-      {showFooter && (
+      {/* Footer — Next/Skip for form-gated steps */}
+      {showNextFooter && (
         <div className="flex items-center justify-between border-t border-slate-800 px-3.5 py-2">
           <button onClick={dismiss}
             className="text-[9px] text-slate-600 hover:text-slate-400 transition-colors">
@@ -597,6 +617,16 @@ function TourCard({
               Next →
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Exit-only footer for click-gated steps (no Next — user must click the real element) */}
+      {showExitFooter && (
+        <div className="flex items-center justify-end border-t border-slate-800 px-3.5 py-1.5">
+          <button onClick={dismiss}
+            className="text-[9px] text-slate-600 hover:text-slate-400 transition-colors">
+            Exit tour
+          </button>
         </div>
       )}
     </div>
@@ -812,6 +842,7 @@ export function OnboardingTour() {
         setState={setState}
         advance={advance}
         dismiss={dismiss}
+        complete={complete}
         shaking={shaking}
         onNextAttempt={triggerShake}
       />
