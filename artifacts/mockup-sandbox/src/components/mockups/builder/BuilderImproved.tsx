@@ -1,116 +1,131 @@
 import { useState } from "react";
 import {
-  MessageSquare, Zap, PhoneForwarded, GitBranch, User2,
+  LayoutDashboard, BarChart3, LayoutGrid, Workflow, LayoutTemplate,
+  Database, UserCheck, Check, CalendarDays, CreditCard, MessageSquare,
+  Settings, PhoneCall,
+  MessageSquare as MsgSq, Zap, PhoneForwarded, GitBranch, User2,
   MessageCircle, Code2, XCircle, StickyNote, Hash,
   Settings2, ChevronRight, ChevronDown, Save, DownloadCloud,
-  LayoutGrid, Mic, Brain, Globe, Volume2, Wand2, Play,
-  MoreHorizontal, Plus, PanelLeft, AlignLeft, Maximize2,
-  Bookmark, Search, Blocks, ArrowRight, PhoneCall, Variable,
-  Command, ZoomIn, ZoomOut, Layers, Map
+  Wand2, Play, MoreHorizontal, Plus, Maximize2,
+  Bookmark, Search, Blocks, ArrowRight, Variable,
+  Command, ZoomIn, ZoomOut, Layers, Map, PanelLeft, PhoneCall as PhoneCallIcon
 } from "lucide-react";
 
-/* ─── Color system ─────────────────────────────── */
-const bg   = "#0b0f14";
-const card = "#131c2b";
-const border = "rgba(255,255,255,0.07)";
-const muted = "rgba(255,255,255,0.35)";
+/* ── Design tokens (matching the rest of the app mockups) ── */
+const BG        = "#0b0f14";
+const SIDEBAR   = "#0d1117";
+const CARD      = "#131c2b";
+const BORDER    = "rgba(255,255,255,0.06)";
+const MUTED     = "#64748b";
+const TEXT      = "#e2e8f0";
+const ACCENT    = "#4f8cff";
 
-/* ─── Node type catalogue ──────────────────────── */
-const NODE_TYPES = [
-  { id: "conversation", label: "Conversation", icon: MessageSquare, color: "#4f8cff", bg: "rgba(79,140,255,0.12)" },
-  { id: "function",     label: "Function",     icon: Zap,           color: "#a78bfa", bg: "rgba(167,139,250,0.12)" },
-  { id: "transfer",     label: "Call Transfer", icon: PhoneForwarded,color: "#34d399", bg: "rgba(52,211,153,0.12)" },
-  { id: "logic",        label: "Logic Split",   icon: GitBranch,     color: "#fbbf24", bg: "rgba(251,191,36,0.12)" },
-  { id: "agent",        label: "Agent Transfer",icon: User2,         color: "#f472b6", bg: "rgba(244,114,182,0.12)" },
-  { id: "sms",          label: "In-Call SMS",   icon: MessageCircle, color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
-  { id: "variable",     label: "Extract Var",   icon: Variable,      color: "#fb923c", bg: "rgba(251,146,60,0.12)" },
-  { id: "code",         label: "Code",          icon: Code2,         color: "#94a3b8", bg: "rgba(148,163,184,0.12)" },
-  { id: "ending",       label: "End Call",      icon: XCircle,       color: "#f87171", bg: "rgba(248,113,113,0.12)" },
-  { id: "note",         label: "Note",          icon: StickyNote,    color: "#e2e8f0", bg: "rgba(226,232,240,0.08)" },
+/* ── App-shell sidebar nav (same as Dashboard/Calls mockups) ── */
+const NAV = [
+  { label: "Dashboard",  icon: LayoutDashboard },
+  { label: "Analytics",  icon: BarChart3 },
+  { label: "Agents",     icon: LayoutGrid },
+  { label: "Builder",    icon: Workflow,       active: true },
+  { label: "Templates",  icon: LayoutTemplate },
+  { label: "Data",       icon: Database },
+  { label: "Leads",      icon: UserCheck },
+  { label: "Qualified",  icon: Check },
+  { label: "Calls",      icon: PhoneCall },
+  { label: "Calendar",   icon: CalendarDays },
+  { label: "WhatsApp",   icon: MessageSquare },
+  { label: "Billing",    icon: CreditCard },
 ];
 
-/* ─── Sample canvas nodes ──────────────────────── */
+/* ── Node palette ── */
+const NODE_TYPES = [
+  { id: "conversation", label: "Conversation",  icon: MsgSq,         color: ACCENT,     bg: "rgba(79,140,255,0.12)"  },
+  { id: "function",     label: "Function",       icon: Zap,           color: "#a78bfa",  bg: "rgba(167,139,250,0.12)" },
+  { id: "transfer",     label: "Call Transfer",  icon: PhoneForwarded,color: "#34d399",  bg: "rgba(52,211,153,0.12)"  },
+  { id: "logic",        label: "Logic Split",    icon: GitBranch,     color: "#fbbf24",  bg: "rgba(251,191,36,0.12)"  },
+  { id: "agent",        label: "Agent Transfer", icon: User2,         color: "#f472b6",  bg: "rgba(244,114,182,0.12)" },
+  { id: "sms",          label: "In-Call SMS",    icon: MessageCircle, color: "#38bdf8",  bg: "rgba(56,189,248,0.12)"  },
+  { id: "variable",     label: "Extract Var",    icon: Variable,      color: "#fb923c",  bg: "rgba(251,146,60,0.12)"  },
+  { id: "code",         label: "Code",           icon: Code2,         color: "#94a3b8",  bg: "rgba(148,163,184,0.12)" },
+  { id: "ending",       label: "End Call",       icon: XCircle,       color: "#f87171",  bg: "rgba(248,113,113,0.12)" },
+  { id: "note",         label: "Note",           icon: StickyNote,    color: TEXT,       bg: "rgba(226,232,240,0.06)" },
+];
+
+/* ── Sample canvas nodes ── */
 const CANVAS_NODES = [
   {
     id: "n1", type: "conversation", label: "Welcome",
-    x: 200, y: 160, w: 240,
+    x: 148, y: 130, w: 224,
     prompt: "Hi! I'm your AI receptionist. How can I help you today?",
     transitions: ["Booking enquiry", "General question"],
   },
   {
     id: "n2", type: "function", label: "Check Availability",
-    x: 520, y: 80, w: 240,
+    x: 448, y: 54, w: 224,
     prompt: "cal_com_check_slots({ date: '{{today}}' })",
     transitions: ["Slots found", "No slots"],
   },
   {
     id: "n3", type: "logic", label: "Route Intent",
-    x: 520, y: 300, w: 240,
+    x: 448, y: 270, w: 224,
     prompt: "intent === 'booking' → Booking\nintent === 'support' → Support",
     transitions: ["Booking", "Support", "Other"],
   },
   {
     id: "n4", type: "ending", label: "Goodbye",
-    x: 830, y: 200, w: 240,
-    prompt: "Thanks for calling! Have a great day.",
+    x: 748, y: 174, w: 224,
+    prompt: "Thanks for calling. Have a great day!",
     transitions: [],
   },
 ];
 
-/* ─── Mini node card ───────────────────────────── */
+/* ── Canvas node card ── */
 function CanvasNode({ node }: { node: typeof CANVAS_NODES[0] }) {
   const meta = NODE_TYPES.find(t => t.id === node.type)!;
   const Icon = meta.icon;
+  const isMono = node.type === "function" || node.type === "code";
   return (
-    <div
-      style={{
-        position: "absolute", left: node.x, top: node.y, width: node.w,
-        background: card, border: `1px solid ${border}`,
-        borderRadius: 12, overflow: "hidden",
-        boxShadow: `0 2px 24px rgba(0,0,0,0.4), 0 0 0 1px ${border}`,
-      }}
-    >
-      {/* Node header */}
+    <div style={{
+      position: "absolute", left: node.x, top: node.y, width: node.w,
+      background: CARD, border: `1px solid ${BORDER}`,
+      borderRadius: 10, overflow: "hidden",
+      boxShadow: "0 2px 20px rgba(0,0,0,0.35)",
+    }}>
       <div style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "8px 12px", borderBottom: `1px solid ${border}`,
-        background: "rgba(255,255,255,0.03)",
+        display: "flex", alignItems: "center", gap: 7,
+        padding: "7px 10px", borderBottom: `1px solid ${BORDER}`,
+        background: "rgba(255,255,255,0.025)",
       }}>
         <div style={{
-          width: 24, height: 24, borderRadius: 6,
+          width: 22, height: 22, borderRadius: 6, flexShrink: 0,
           background: meta.bg, display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0,
         }}>
-          <Icon size={12} color={meta.color} />
+          <Icon size={11} color={meta.color} />
         </div>
-        <span style={{ fontSize: 11, fontWeight: 600, color: "#e2e8f0", flex: 1 }}>{node.label}</span>
-        <span style={{ fontSize: 10, color: muted, background: "rgba(255,255,255,0.05)", padding: "1px 6px", borderRadius: 4 }}>
-          {meta.label}
-        </span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: TEXT, flex: 1 }}>{node.label}</span>
+        <span style={{
+          fontSize: 9.5, color: MUTED,
+          background: "rgba(255,255,255,0.05)", padding: "1px 5px", borderRadius: 4,
+        }}>{meta.label}</span>
       </div>
 
-      {/* Prompt preview */}
-      <div style={{ padding: "8px 12px", borderBottom: node.transitions.length ? `1px solid ${border}` : "none" }}>
+      <div style={{ padding: "7px 10px", borderBottom: node.transitions.length ? `1px solid ${BORDER}` : "none" }}>
         <p style={{
-          fontSize: 10.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.55,
-          fontFamily: node.type === "function" || node.type === "code"
-            ? "'Fira Code', monospace" : "inherit",
-          margin: 0,
+          fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.55, margin: 0,
+          fontFamily: isMono ? "monospace" : "inherit",
         }}>
           {node.prompt}
         </p>
       </div>
 
-      {/* Transitions */}
       {node.transitions.length > 0 && (
-        <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 3 }}>
-          {node.transitions.map((t) => (
+        <div style={{ padding: "5px 7px", display: "flex", flexDirection: "column", gap: 2 }}>
+          {node.transitions.map(t => (
             <div key={t} style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "3px 8px", background: "rgba(255,255,255,0.04)", borderRadius: 6,
+              padding: "3px 7px", background: "rgba(255,255,255,0.03)", borderRadius: 5,
             }}>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)" }}>{t}</span>
-              <ArrowRight size={10} color="rgba(255,255,255,0.25)" />
+              <span style={{ fontSize: 9.5, color: "rgba(255,255,255,0.45)" }}>{t}</span>
+              <ArrowRight size={9} color="rgba(255,255,255,0.2)" />
             </div>
           ))}
         </div>
@@ -119,60 +134,52 @@ function CanvasNode({ node }: { node: typeof CANVAS_NODES[0] }) {
   );
 }
 
-/* ─── Connector SVG lines ──────────────────────── */
+/* ── SVG edges ── */
 function Edges() {
   return (
     <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }} overflow="visible">
       <defs>
         <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L6,3 z" fill="rgba(79,140,255,0.5)" />
+          <path d="M0,0 L0,6 L6,3 z" fill={`${ACCENT}88`} />
         </marker>
       </defs>
-      {/* n1 → n2 */}
-      <path d={`M ${200+240} ${160+52} C ${480} ${160+52} ${480} ${80+52} ${520} ${80+52}`}
-        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" strokeDasharray="none" markerEnd="url(#arr)" />
-      {/* n1 → n3 */}
-      <path d={`M ${200+240} ${160+80} C ${480} ${160+80} ${480} ${300+52} ${520} ${300+52}`}
-        stroke="rgba(79,140,255,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
-      {/* n2 → n4 */}
-      <path d={`M ${520+240} ${80+52} C ${780} ${80+52} ${780} ${200+52} ${830} ${200+52}`}
-        stroke="rgba(167,139,250,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
-      {/* n3 → n4 */}
-      <path d={`M ${520+240} ${300+52} C ${780} ${300+52} ${780} ${200+80} ${830} ${200+80}`}
-        stroke="rgba(251,191,36,0.35)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+      <path d={`M ${148+224} ${130+46} C ${420} ${130+46} ${420} ${54+46} ${448} ${54+46}`}
+        stroke={`${ACCENT}55`} strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+      <path d={`M ${148+224} ${130+74} C ${420} ${130+74} ${420} ${270+46} ${448} ${270+46}`}
+        stroke={`${ACCENT}55`} strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+      <path d={`M ${448+224} ${54+46} C ${720} ${54+46} ${720} ${174+46} ${748} ${174+46}`}
+        stroke="rgba(167,139,250,0.4)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
+      <path d={`M ${448+224} ${270+46} C ${720} ${270+46} ${720} ${174+70} ${748} ${174+70}`}
+        stroke="rgba(251,191,36,0.4)" strokeWidth="1.5" fill="none" markerEnd="url(#arr)" />
     </svg>
   );
 }
 
-/* ─── Accordion section ────────────────────────── */
+/* ── Right panel helpers ── */
 function AccordionSection({ label, children, defaultOpen = false }: {
   label: string; children: React.ReactNode; defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div style={{ borderBottom: `1px solid ${border}` }}>
-      <button
-        onClick={() => setOpen(!open)}
-        style={{
-          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 16px", background: "transparent", border: "none", cursor: "pointer",
-          color: "#e2e8f0",
-        }}
-      >
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: muted }}>
+    <div style={{ borderBottom: `1px solid ${BORDER}` }}>
+      <button onClick={() => setOpen(!open)} style={{
+        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "9px 14px", background: "transparent", border: "none", cursor: "pointer",
+      }}>
+        <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: MUTED }}>
           {label}
         </span>
-        {open ? <ChevronDown size={13} color={muted} /> : <ChevronRight size={13} color={muted} />}
+        {open ? <ChevronDown size={12} color={MUTED} /> : <ChevronRight size={12} color={MUTED} />}
       </button>
-      {open && <div style={{ padding: "0 16px 14px" }}>{children}</div>}
+      {open && <div style={{ padding: "0 14px 12px" }}>{children}</div>}
     </div>
   );
 }
 
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 500, color: muted, marginBottom: 4, letterSpacing: "0.04em" }}>{label}</div>
+    <div style={{ marginBottom: 9 }}>
+      <div style={{ fontSize: 10, color: MUTED, marginBottom: 4 }}>{label}</div>
       {children}
     </div>
   );
@@ -182,492 +189,536 @@ function SelectMock({ value }: { value: string }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "5px 10px", background: "rgba(255,255,255,0.04)", border: `1px solid ${border}`,
-      borderRadius: 7, cursor: "pointer",
+      padding: "5px 9px", background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
+      borderRadius: 6, cursor: "pointer",
     }}>
-      <span style={{ fontSize: 11, color: "#e2e8f0" }}>{value}</span>
-      <ChevronDown size={11} color={muted} />
+      <span style={{ fontSize: 11, color: TEXT }}>{value}</span>
+      <ChevronDown size={11} color={MUTED} />
     </div>
   );
 }
 
 function SliderMock({ label, value }: { label: string; value: number }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 10, color: muted, marginBottom: 3 }}>{label}</div>
-        <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, position: "relative" }}>
-          <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${value}%`, background: "#4f8cff", borderRadius: 2 }} />
-          <div style={{
-            position: "absolute", top: "50%", left: `${value}%`, transform: "translate(-50%,-50%)",
-            width: 10, height: 10, borderRadius: "50%", background: "#fff",
-            boxShadow: "0 0 0 2px #4f8cff",
-          }} />
-        </div>
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <span style={{ fontSize: 10, color: MUTED }}>{label}</span>
+        <span style={{ fontSize: 10, color: TEXT }}>{value}</span>
       </div>
-      <span style={{ fontSize: 10, color: "#e2e8f0", minWidth: 24, textAlign: "right" }}>{value}</span>
+      <div style={{ height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2, position: "relative" }}>
+        <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${value}%`, background: ACCENT, borderRadius: 2 }} />
+        <div style={{
+          position: "absolute", top: "50%", left: `${value}%`, transform: "translate(-50%,-50%)",
+          width: 9, height: 9, borderRadius: "50%", background: "#fff",
+          boxShadow: `0 0 0 2px ${ACCENT}`,
+        }} />
+      </div>
     </div>
   );
 }
 
-/* ─── Main export ──────────────────────────────── */
+/* ── Toolbar icon button ── */
+function Btn({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
+  return (
+    <button title={title} style={{
+      display: "flex", alignItems: "center", justifyContent: "center",
+      width: 28, height: 28, borderRadius: 6, background: "transparent",
+      border: `1px solid transparent`, cursor: "pointer",
+    }}
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+        (e.currentTarget as HTMLElement).style.borderColor = BORDER;
+      }}
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLElement).style.background = "transparent";
+        (e.currentTarget as HTMLElement).style.borderColor = "transparent";
+      }}
+    >
+      <Icon size={14} color={MUTED} />
+    </button>
+  );
+}
+
+/* ── Main ── */
 export function BuilderImproved() {
   const [leftTab, setLeftTab] = useState<"nodes" | "components">("nodes");
   const [rightCollapsed, setRightCollapsed] = useState(false);
 
   return (
     <div style={{
-      width: "100vw", height: "100vh", display: "flex", flexDirection: "column",
-      background: bg, fontFamily: "-apple-system, 'Inter', sans-serif",
-      overflow: "hidden", color: "#e2e8f0",
+      display: "flex", height: "100vh", background: BG,
+      color: TEXT, fontFamily: "Inter, -apple-system, sans-serif",
+      fontSize: 14, overflow: "hidden",
     }}>
 
-      {/* ── TOOLBAR ──────────────────────────────── */}
-      <div style={{
-        height: 44, display: "flex", alignItems: "center",
-        borderBottom: `1px solid ${border}`, background: "rgba(11,15,20,0.95)",
-        backdropFilter: "blur(12px)", flexShrink: 0, padding: "0 12px",
-        gap: 6,
+      {/* ════════════ APP SHELL SIDEBAR (exact match to other mockups) ════════════ */}
+      <aside style={{
+        width: 208, minWidth: 208, background: SIDEBAR,
+        borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column",
       }}>
-        {/* Left: sidebar toggle + status */}
-        <button style={toolBtn()}>
-          <PanelLeft size={15} color={muted} />
-        </button>
-        <div style={{ width: 1, height: 20, background: border, margin: "0 4px" }} />
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "3px 8px", background: "rgba(34,197,94,0.1)", borderRadius: 6,
-          border: "1px solid rgba(34,197,94,0.18)",
-        }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
-          <span style={{ fontSize: 10.5, color: "#4ade80", fontWeight: 500 }}>Draft</span>
-        </div>
-        <span style={{ fontSize: 10.5, color: muted }}>Saved 2m ago</span>
-
-        {/* Center: agent name */}
-        <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-          <input
-            defaultValue="Lead Qualification Agent"
-            style={{
-              background: "rgba(255,255,255,0.04)", border: `1px solid ${border}`,
-              borderRadius: 7, padding: "4px 12px", fontSize: 13, fontWeight: 600,
-              color: "#f1f5f9", textAlign: "center", width: 260, outline: "none",
-            }}
-          />
+        {/* Workspace switcher */}
+        <div style={{ padding: "10px 10px 6px" }}>
+          <button style={{
+            display: "flex", alignItems: "center", gap: 8, width: "100%",
+            padding: "6px 8px", borderRadius: 8, background: "transparent", border: "none",
+            cursor: "pointer", color: TEXT,
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 7, overflow: "hidden", flexShrink: 0,
+              background: "rgba(79,140,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>W</span>
+            </div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: TEXT, lineHeight: 1.2 }}>Webee</div>
+              <div style={{ fontSize: 10, color: MUTED }}>Admin · Pro</div>
+            </div>
+          </button>
         </div>
 
-        {/* Right: canvas controls + actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {/* Command palette shortcut hint */}
+        <div style={{ height: 1, background: BORDER, margin: "0 10px" }} />
+
+        {/* Nav items */}
+        <div style={{ padding: "8px 8px", flex: 1, overflowY: "auto" }}>
           <div style={{
-            display: "flex", alignItems: "center", gap: 4,
-            padding: "3px 8px", background: "rgba(255,255,255,0.04)", borderRadius: 6,
-            border: `1px solid ${border}`, cursor: "pointer", marginRight: 4,
-          }}>
-            <Command size={11} color={muted} />
-            <span style={{ fontSize: 10, color: muted }}>K</span>
-          </div>
+            fontSize: 10, fontWeight: 500, textTransform: "uppercase",
+            letterSpacing: "0.12em", color: "rgba(100,116,139,0.7)",
+            padding: "0 6px", marginBottom: 4,
+          }}>Workspace</div>
 
-          {[
-            { icon: Wand2,    tip: "Auto-layout" },
-            { icon: ZoomIn,   tip: "Zoom in" },
-            { icon: ZoomOut,  tip: "Zoom out" },
-            { icon: Maximize2,tip: "Fit view" },
-            { icon: Map,      tip: "Minimap" },
-          ].map(({ icon: I, tip }) => (
-            <button key={tip} title={tip} style={toolBtn()}>
-              <I size={14} color={muted} />
-            </button>
-          ))}
+          {NAV.map(item => {
+            const Icon = item.icon;
+            const active = !!item.active;
+            return (
+              <div key={item.label} style={{ position: "relative" }}>
+                {active && (
+                  <div style={{
+                    position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+                    width: 2, height: 18, background: ACCENT, borderRadius: "0 2px 2px 0",
+                  }} />
+                )}
+                <button style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%",
+                  padding: "0 8px", height: 32, borderRadius: 7, border: "none", cursor: "pointer",
+                  background: active ? "rgba(79,140,255,0.08)" : "transparent",
+                  color: active ? TEXT : MUTED,
+                  fontWeight: active ? 500 : 400, fontSize: 13,
+                  boxShadow: active ? "inset 0 0 0 1px rgba(79,140,255,0.14)" : "none",
+                  marginBottom: 1,
+                }}>
+                  <Icon size={14} />
+                  {item.label}
+                </button>
+              </div>
+            );
+          })}
+        </div>
 
-          <div style={{ width: 1, height: 20, background: border, margin: "0 4px" }} />
-
-          <button style={toolBtn()} title="Templates">
-            <Bookmark size={14} color={muted} />
-          </button>
-          <button style={toolBtn()} title="Export">
-            <DownloadCloud size={14} color={muted} />
-          </button>
-
-          <div style={{ width: 1, height: 20, background: border, margin: "0 4px" }} />
-
-          {/* Save */}
+        {/* Sidebar footer */}
+        <div style={{ borderTop: `1px solid rgba(255,255,255,0.05)`, padding: "8px 10px" }}>
           <button style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "5px 12px", background: "rgba(255,255,255,0.06)", border: `1px solid ${border}`,
-            borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 500, color: "#e2e8f0",
+            display: "flex", alignItems: "center", gap: 8, width: "100%",
+            padding: "6px 8px", borderRadius: 7, background: "transparent", border: "none",
+            cursor: "pointer", color: MUTED,
           }}>
-            <Save size={13} />
-            Save
-          </button>
-
-          {/* Deploy */}
-          <button style={{
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "5px 14px", background: "#4f8cff", border: "none",
-            borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600,
-            color: "#fff", boxShadow: "0 0 20px rgba(79,140,255,0.35)",
-          }}>
-            <Play size={12} />
-            Deploy
-          </button>
-
-          {/* Right panel toggle */}
-          <button
-            onClick={() => setRightCollapsed(!rightCollapsed)}
-            style={{ ...toolBtn(), marginLeft: 4, background: rightCollapsed ? "rgba(79,140,255,0.12)" : undefined }}
-          >
-            <Settings2 size={14} color={rightCollapsed ? "#4f8cff" : muted} />
+            <div style={{
+              width: 26, height: 26, borderRadius: 6, background: "#1e293b",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, fontWeight: 600, color: "#94a3b8",
+            }}>WA</div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>workspace@email.com</div>
+            </div>
+            <Settings size={13} />
           </button>
         </div>
-      </div>
+      </aside>
 
-      {/* ── BODY ─────────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      {/* ════════════ BUILDER AREA ════════════ */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
-        {/* ── LEFT PANEL ─────────────────────────── */}
-        <div style={{
-          width: 220, flexShrink: 0, borderRight: `1px solid ${border}`,
-          background: "rgba(19,28,43,0.6)", display: "flex", flexDirection: "column",
-          backdropFilter: "blur(8px)",
+        {/* ── Builder toolbar ── */}
+        <header style={{
+          height: 44, display: "flex", alignItems: "center",
+          borderBottom: `1px solid ${BORDER}`,
+          background: "rgba(11,15,20,0.9)", backdropFilter: "blur(12px)",
+          flexShrink: 0, padding: "0 10px", gap: 5,
         }}>
-          {/* Tabs */}
-          <div style={{ display: "flex", padding: "8px 8px 0", gap: 2 }}>
-            {(["nodes", "components"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setLeftTab(tab)}
-                style={{
-                  flex: 1, padding: "6px 0", fontSize: 11, fontWeight: 500,
-                  background: leftTab === tab ? "rgba(79,140,255,0.12)" : "transparent",
-                  color: leftTab === tab ? "#4f8cff" : muted,
-                  border: leftTab === tab ? "1px solid rgba(79,140,255,0.2)" : `1px solid transparent`,
-                  borderRadius: 6, cursor: "pointer", textTransform: "capitalize",
-                }}
-              >
-                {tab === "nodes" ? <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Layers size={11} />{tab}</span>
-                  : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Blocks size={11} />{tab}</span>}
-              </button>
-            ))}
+          {/* Status */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "3px 8px", background: "rgba(34,197,94,0.08)",
+            border: "1px solid rgba(34,197,94,0.16)", borderRadius: 6,
+          }}>
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#22c55e" }} />
+            <span style={{ fontSize: 10.5, color: "#4ade80", fontWeight: 500 }}>Draft</span>
           </div>
+          <span style={{ fontSize: 10.5, color: MUTED }}>Saved 2m ago</span>
 
-          {/* Search */}
-          <div style={{ padding: "8px 8px 6px", position: "relative" }}>
-            <Search size={12} color={muted} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)" }} />
+          {/* Agent name (centred) */}
+          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
             <input
-              placeholder="Search nodes…"
+              defaultValue="Lead Qualification Agent"
               style={{
-                width: "100%", padding: "5px 8px 5px 28px", fontSize: 11,
-                background: "rgba(255,255,255,0.04)", border: `1px solid ${border}`,
-                borderRadius: 6, color: "#e2e8f0", outline: "none", boxSizing: "border-box",
+                background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
+                borderRadius: 7, padding: "4px 14px", fontSize: 13, fontWeight: 600,
+                color: TEXT, textAlign: "center", width: 260, outline: "none",
               }}
             />
           </div>
 
-          {/* Node list */}
-          <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px 8px" }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: muted, letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 4px 6px" }}>
-              {leftTab === "nodes" ? "Core Nodes" : "Components"}
+          {/* Canvas controls + actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+            {/* ⌘K hint */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 4,
+              padding: "3px 7px", background: "rgba(255,255,255,0.04)",
+              border: `1px solid ${BORDER}`, borderRadius: 6, cursor: "pointer", marginRight: 2,
+            }}>
+              <Command size={10} color={MUTED} />
+              <span style={{ fontSize: 10, color: MUTED }}>K</span>
             </div>
-            {NODE_TYPES.filter(n => leftTab === "nodes" || n.id === "function").map((node) => {
-              const Icon = node.icon;
-              return (
-                <div
-                  key={node.id}
-                  draggable
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "7px 8px", borderRadius: 8, cursor: "grab",
-                    marginBottom: 2, transition: "background 0.12s",
-                    border: `1px solid transparent`,
-                  }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
-                    (e.currentTarget as HTMLElement).style.borderColor = border;
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.background = "transparent";
-                    (e.currentTarget as HTMLElement).style.borderColor = "transparent";
-                  }}
-                >
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 7, flexShrink: 0,
-                    background: node.bg, display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    <Icon size={13} color={node.color} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11.5, fontWeight: 500, color: "#e2e8f0" }}>{node.label}</div>
-                  </div>
-                  <div style={{ marginLeft: "auto", opacity: 0 }} className="drag-hint">
-                    <Plus size={11} color={muted} />
-                  </div>
-                </div>
-              );
-            })}
 
-            {leftTab === "nodes" && (
-              <>
-                <div style={{ fontSize: 10, fontWeight: 600, color: muted, letterSpacing: "0.1em", textTransform: "uppercase", padding: "10px 4px 6px" }}>
-                  Integrations
-                </div>
-                {[
-                  { label: "Cal.com Booking", icon: "📅", color: "#4f8cff" },
-                  { label: "Stripe Payment", icon: "💳", color: "#34d399" },
-                  { label: "HubSpot CRM", icon: "🔗", color: "#f97316" },
-                ].map((i) => (
-                  <div key={i.label} style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "7px 8px",
-                    borderRadius: 8, cursor: "grab", marginBottom: 2,
-                    border: "1px solid transparent", opacity: 0.7,
+            <Btn icon={Wand2}    title="Auto-layout" />
+            <Btn icon={ZoomIn}   title="Zoom in" />
+            <Btn icon={ZoomOut}  title="Zoom out" />
+            <Btn icon={Maximize2}title="Fit view" />
+
+            <div style={{ width: 1, height: 18, background: BORDER, margin: "0 3px" }} />
+
+            <Btn icon={Bookmark}     title="Save as template" />
+            <Btn icon={DownloadCloud}title="Export" />
+
+            <div style={{ width: 1, height: 18, background: BORDER, margin: "0 3px" }} />
+
+            <button style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "5px 11px", background: "rgba(255,255,255,0.05)",
+              border: `1px solid ${BORDER}`, borderRadius: 6,
+              cursor: "pointer", fontSize: 12, fontWeight: 500, color: TEXT,
+            }}>
+              <Save size={12} /> Save
+            </button>
+
+            <button style={{
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "5px 13px", background: ACCENT, border: "none",
+              borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
+              color: "#fff", boxShadow: "0 0 16px rgba(79,140,255,0.3)",
+            }}>
+              <Play size={11} /> Deploy
+            </button>
+
+            {/* Settings toggle */}
+            <button
+              onClick={() => setRightCollapsed(!rightCollapsed)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: 28, height: 28, borderRadius: 6, border: `1px solid ${BORDER}`,
+                cursor: "pointer", marginLeft: 2,
+                background: rightCollapsed ? "rgba(79,140,255,0.08)" : "rgba(255,255,255,0.04)",
+              }}
+            >
+              <Settings2 size={13} color={rightCollapsed ? ACCENT : MUTED} />
+            </button>
+          </div>
+        </header>
+
+        {/* ── Builder body ── */}
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+          {/* ── Node palette ── */}
+          <div style={{
+            width: 204, flexShrink: 0, borderRight: `1px solid ${BORDER}`,
+            background: "rgba(13,17,23,0.7)", display: "flex", flexDirection: "column",
+          }}>
+            {/* Tabs */}
+            <div style={{ display: "flex", padding: "8px 8px 0", gap: 2 }}>
+              {(["nodes", "components"] as const).map(tab => (
+                <button key={tab} onClick={() => setLeftTab(tab)} style={{
+                  flex: 1, padding: "5px 0", fontSize: 11, fontWeight: 500,
+                  background: leftTab === tab ? "rgba(79,140,255,0.08)" : "transparent",
+                  color: leftTab === tab ? ACCENT : MUTED,
+                  border: leftTab === tab ? `1px solid rgba(79,140,255,0.18)` : "1px solid transparent",
+                  borderRadius: 6, cursor: "pointer", textTransform: "capitalize",
+                }}>
+                  {tab === "nodes"
+                    ? <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Layers size={11} /> Nodes</span>
+                    : <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}><Blocks size={11} /> Components</span>}
+                </button>
+              ))}
+            </div>
+
+            {/* Search */}
+            <div style={{ padding: "7px 8px 5px", position: "relative" }}>
+              <Search size={11} color={MUTED} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)" }} />
+              <input placeholder="Search nodes…" style={{
+                width: "100%", padding: "5px 8px 5px 26px", fontSize: 11,
+                background: "rgba(255,255,255,0.04)", border: `1px solid ${BORDER}`,
+                borderRadius: 6, color: TEXT, outline: "none", boxSizing: "border-box",
+              }} />
+            </div>
+
+            {/* Node list */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "2px 8px 8px" }}>
+              <div style={{
+                fontSize: 10, fontWeight: 600, color: "rgba(100,116,139,0.7)",
+                letterSpacing: "0.12em", textTransform: "uppercase",
+                padding: "4px 4px 5px",
+              }}>Core Nodes</div>
+
+              {NODE_TYPES.map(node => {
+                const Icon = node.icon;
+                return (
+                  <div key={node.id} draggable style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "6px 7px", borderRadius: 7, cursor: "grab",
+                    marginBottom: 1, border: "1px solid transparent",
                   }}
                     onMouseEnter={e => {
-                      (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
-                      (e.currentTarget as HTMLElement).style.opacity = "1";
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.background = "rgba(255,255,255,0.04)";
+                      el.style.borderColor = BORDER;
                     }}
                     onMouseLeave={e => {
-                      (e.currentTarget as HTMLElement).style.background = "transparent";
-                      (e.currentTarget as HTMLElement).style.opacity = "0.7";
+                      const el = e.currentTarget as HTMLElement;
+                      el.style.background = "transparent";
+                      el.style.borderColor = "transparent";
                     }}
                   >
-                    <span style={{ fontSize: 16 }}>{i.icon}</span>
-                    <span style={{ fontSize: 11, color: "#e2e8f0" }}>{i.label}</span>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 6, flexShrink: 0,
+                      background: node.bg, display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <Icon size={12} color={node.color} />
+                    </div>
+                    <span style={{ fontSize: 12, color: TEXT }}>{node.label}</span>
                   </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ── CANVAS ──────────────────────────────── */}
-        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-          {/* Grid background */}
-          <div style={{
-            position: "absolute", inset: 0,
-            backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px)`,
-            backgroundSize: "28px 28px",
-          }} />
-
-          {/* Subtle gradient vignette */}
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(11,15,20,0.5) 100%)",
-            pointerEvents: "none",
-          }} />
-
-          {/* Canvas content */}
-          <div style={{ position: "relative", width: "100%", height: "100%" }}>
-            <Edges />
-            {CANVAS_NODES.map(n => <CanvasNode key={n.id} node={n} />)}
-          </div>
-
-          {/* Start indicator */}
-          <div style={{
-            position: "absolute", left: 120, top: 190,
-            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
-          }}>
-            <div style={{
-              padding: "3px 10px", background: "rgba(79,140,255,0.15)", border: "1px solid rgba(79,140,255,0.3)",
-              borderRadius: 20, fontSize: 10, fontWeight: 600, color: "#4f8cff",
-            }}>START</div>
-            <ArrowRight size={14} color="rgba(79,140,255,0.5)" />
-          </div>
-
-          {/* Canvas toolbar (bottom) */}
-          <div style={{
-            position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
-            display: "flex", alignItems: "center", gap: 4,
-            background: card, border: `1px solid ${border}`, borderRadius: 10,
-            padding: "4px 8px", boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-          }}>
-            {[
-              { icon: ZoomOut, label: "Zoom out" },
-              null,
-              { icon: ZoomIn, label: "Zoom in" },
-            ].map((item, i) =>
-              item === null ? (
-                <span key={i} style={{ fontSize: 11, color: muted, padding: "0 4px" }}>100%</span>
-              ) : (
-                <button key={item.label} title={item.label} style={toolBtn()}>
-                  <item.icon size={13} color={muted} />
-                </button>
-              )
-            )}
-            <div style={{ width: 1, height: 16, background: border, margin: "0 2px" }} />
-            {[Layers, Map].map((Icon, i) => (
-              <button key={i} style={toolBtn()}>
-                <Icon size={13} color={muted} />
-              </button>
-            ))}
-          </div>
-
-          {/* Mini map */}
-          <div style={{
-            position: "absolute", bottom: 16, right: 16,
-            width: 120, height: 80,
-            background: "rgba(19,28,43,0.85)", border: `1px solid ${border}`,
-            borderRadius: 8, overflow: "hidden",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <div style={{ position: "relative", width: 100, height: 60, transform: "scale(0.18)", transformOrigin: "top left", left: 5, top: 5 }}>
-              {CANVAS_NODES.map(n => {
-                const meta = NODE_TYPES.find(t => t.id === n.type)!;
-                return (
-                  <div key={n.id} style={{
-                    position: "absolute", left: n.x, top: n.y, width: n.w, height: 48,
-                    background: meta.bg, border: `2px solid ${meta.color}`,
-                    borderRadius: 8, opacity: 0.8,
-                  }} />
                 );
               })}
+
+              <div style={{
+                fontSize: 10, fontWeight: 600, color: "rgba(100,116,139,0.7)",
+                letterSpacing: "0.12em", textTransform: "uppercase",
+                padding: "10px 4px 5px",
+              }}>Integrations</div>
+
+              {[
+                { label: "Cal.com Booking",  emoji: "📅" },
+                { label: "Stripe Payment",   emoji: "💳" },
+                { label: "HubSpot CRM",      emoji: "🔗" },
+              ].map(i => (
+                <div key={i.label} style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "6px 7px",
+                  borderRadius: 7, cursor: "grab", marginBottom: 1,
+                  border: "1px solid transparent", opacity: 0.65,
+                }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = "rgba(255,255,255,0.04)";
+                    el.style.opacity = "1";
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement;
+                    el.style.background = "transparent";
+                    el.style.opacity = "0.65";
+                  }}
+                >
+                  <span style={{ fontSize: 15 }}>{i.emoji}</span>
+                  <span style={{ fontSize: 12, color: TEXT }}>{i.label}</span>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* ── RIGHT SETTINGS PANEL ─────────────────── */}
-        {!rightCollapsed && (
-          <div style={{
-            width: 268, flexShrink: 0, borderLeft: `1px solid ${border}`,
-            background: "rgba(19,28,43,0.6)", overflowY: "auto",
-            backdropFilter: "blur(8px)", display: "flex", flexDirection: "column",
-          }}>
-            {/* Panel header */}
+          {/* ── Canvas ── */}
+          <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+            {/* Dot grid */}
             <div style={{
-              padding: "10px 16px", borderBottom: `1px solid ${border}`,
-              display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
-            }}>
-              <Settings2 size={13} color="#4f8cff" />
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: "#e2e8f0" }}>Agent Settings</span>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-                <button style={toolBtn()}>
-                  <MoreHorizontal size={13} color={muted} />
-                </button>
-              </div>
+              position: "absolute", inset: 0,
+              backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.055) 1px, transparent 1px)`,
+              backgroundSize: "26px 26px",
+            }} />
+            {/* Vignette */}
+            <div style={{
+              position: "absolute", inset: 0, pointerEvents: "none",
+              background: "radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(11,15,20,0.45) 100%)",
+            }} />
+
+            {/* Nodes + edges */}
+            <div style={{ position: "relative", width: "100%", height: "100%" }}>
+              <Edges />
+              {CANVAS_NODES.map(n => <CanvasNode key={n.id} node={n} />)}
             </div>
 
-            {/* Accordion sections */}
-            <AccordionSection label="Language Model" defaultOpen>
-              <FormRow label="Model">
-                <SelectMock value="GPT-4o" />
-              </FormRow>
-              <SliderMock label="Responsiveness" value={72} />
-              <SliderMock label="Interruption Sensitivity" value={45} />
-              <FormRow label="Max Duration">
-                <SelectMock value="30 minutes" />
-              </FormRow>
-            </AccordionSection>
+            {/* START label */}
+            <div style={{
+              position: "absolute", left: 68, top: 162,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+            }}>
+              <div style={{
+                padding: "2px 9px", background: "rgba(79,140,255,0.12)",
+                border: `1px solid rgba(79,140,255,0.25)`, borderRadius: 20,
+                fontSize: 9.5, fontWeight: 700, color: ACCENT, letterSpacing: "0.08em",
+              }}>START</div>
+              <ArrowRight size={12} color={`${ACCENT}88`} />
+            </div>
 
-            <AccordionSection label="Voice & Language" defaultOpen>
-              <FormRow label="Voice">
-                <div style={{ display: "flex", gap: 6 }}>
-                  <SelectMock value="Emily — ElevenLabs" />
-                </div>
-              </FormRow>
-              <FormRow label="Languages">
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                  {["EN 🇬🇧", "ES 🇪🇸"].map(l => (
-                    <span key={l} style={{
-                      padding: "3px 8px", background: "rgba(79,140,255,0.12)", border: "1px solid rgba(79,140,255,0.2)",
-                      borderRadius: 5, fontSize: 10, color: "#93c5fd",
-                    }}>{l}</span>
-                  ))}
-                  <button style={{
-                    padding: "3px 7px", background: "rgba(255,255,255,0.04)", border: `1px solid ${border}`,
-                    borderRadius: 5, fontSize: 10, color: muted, cursor: "pointer",
-                  }}>+ Add</button>
-                </div>
-              </FormRow>
-              <SliderMock label="Volume" value={80} />
-              <SliderMock label="Speaking Rate" value={62} />
-            </AccordionSection>
+            {/* Bottom mini-toolbar */}
+            <div style={{
+              position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)",
+              display: "flex", alignItems: "center", gap: 3,
+              background: CARD, border: `1px solid ${BORDER}`, borderRadius: 9,
+              padding: "3px 7px", boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
+            }}>
+              <Btn icon={ZoomOut} title="Zoom out" />
+              <span style={{ fontSize: 11, color: MUTED, padding: "0 3px" }}>100%</span>
+              <Btn icon={ZoomIn}  title="Zoom in" />
+              <div style={{ width: 1, height: 14, background: BORDER, margin: "0 2px" }} />
+              <Btn icon={Layers} title="Layers" />
+              <Btn icon={Map}    title="Minimap" />
+            </div>
 
-            <AccordionSection label="Post-Call Data">
-              <FormRow label="Capture fields">
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {/* Mini-map */}
+            <div style={{
+              position: "absolute", bottom: 14, right: 14,
+              width: 112, height: 72, background: "rgba(13,17,23,0.85)",
+              border: `1px solid ${BORDER}`, borderRadius: 7, overflow: "hidden",
+            }}>
+              <div style={{ transform: "scale(0.14) translate(5px, 5px)", transformOrigin: "top left" }}>
+                {CANVAS_NODES.map(n => {
+                  const meta = NODE_TYPES.find(t => t.id === n.type)!;
+                  return (
+                    <div key={n.id} style={{
+                      position: "absolute", left: n.x, top: n.y, width: n.w, height: 50,
+                      background: meta.bg, border: `2px solid ${meta.color}`,
+                      borderRadius: 8, opacity: 0.85,
+                    }} />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Right settings panel ── */}
+          {!rightCollapsed && (
+            <div style={{
+              width: 256, flexShrink: 0, borderLeft: `1px solid ${BORDER}`,
+              background: "rgba(13,17,23,0.7)", overflowY: "auto",
+              display: "flex", flexDirection: "column",
+            }}>
+              {/* Panel header */}
+              <div style={{
+                padding: "9px 14px", borderBottom: `1px solid ${BORDER}`,
+                display: "flex", alignItems: "center", gap: 7, flexShrink: 0,
+              }}>
+                <Settings2 size={13} color={ACCENT} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: TEXT }}>Agent Settings</span>
+                <button style={{ marginLeft: "auto", background: "transparent", border: "none", cursor: "pointer" }}>
+                  <MoreHorizontal size={13} color={MUTED} />
+                </button>
+              </div>
+
+              <AccordionSection label="Language Model" defaultOpen>
+                <FormRow label="Model"><SelectMock value="GPT-4o" /></FormRow>
+                <SliderMock label="Responsiveness" value={72} />
+                <SliderMock label="Interruption Sensitivity" value={45} />
+                <FormRow label="Max Duration"><SelectMock value="30 minutes" /></FormRow>
+              </AccordionSection>
+
+              <AccordionSection label="Voice & Language" defaultOpen>
+                <FormRow label="Voice"><SelectMock value="Emily — ElevenLabs" /></FormRow>
+                <FormRow label="Languages">
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    {["EN 🇬🇧", "ES 🇪🇸"].map(l => (
+                      <span key={l} style={{
+                        padding: "3px 7px", background: "rgba(79,140,255,0.1)",
+                        border: "1px solid rgba(79,140,255,0.18)", borderRadius: 5,
+                        fontSize: 10, color: "#93c5fd",
+                      }}>{l}</span>
+                    ))}
+                    <button style={{
+                      padding: "3px 7px", background: "rgba(255,255,255,0.04)",
+                      border: `1px solid ${BORDER}`, borderRadius: 5,
+                      fontSize: 10, color: MUTED, cursor: "pointer",
+                    }}>+ Add</button>
+                  </div>
+                </FormRow>
+                <SliderMock label="Volume" value={80} />
+                <SliderMock label="Speaking Rate" value={62} />
+              </AccordionSection>
+
+              <AccordionSection label="Post-Call Data">
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                   {["customer_name", "intent", "budget_confirmed", "meeting_booked"].map(f => (
                     <div key={f} style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "4px 8px", background: "rgba(255,255,255,0.04)", borderRadius: 5,
+                      display: "flex", alignItems: "center", gap: 5,
+                      padding: "4px 7px", background: "rgba(255,255,255,0.03)", borderRadius: 5,
                     }}>
-                      <Hash size={10} color={muted} />
-                      <span style={{ fontSize: 10.5, color: "#e2e8f0", fontFamily: "monospace" }}>{f}</span>
+                      <Hash size={9} color={MUTED} />
+                      <span style={{ fontSize: 10.5, color: TEXT, fontFamily: "monospace" }}>{f}</span>
                     </div>
                   ))}
                   <button style={{
-                    display: "flex", alignItems: "center", gap: 4, padding: "5px 8px",
-                    background: "transparent", border: `1px dashed ${border}`,
-                    borderRadius: 5, fontSize: 10, color: muted, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 4, padding: "5px 7px",
+                    background: "transparent", border: `1px dashed ${BORDER}`,
+                    borderRadius: 5, fontSize: 10, color: MUTED, cursor: "pointer", marginTop: 2,
                   }}>
                     <Plus size={10} /> Add field
                   </button>
                 </div>
-              </FormRow>
-            </AccordionSection>
+              </AccordionSection>
 
-            <AccordionSection label="Booking Config">
-              <FormRow label="Provider">
-                <SelectMock value="Cal.com" />
-              </FormRow>
-              <FormRow label="Event type">
-                <SelectMock value="Discovery Call (30m)" />
-              </FormRow>
+              <AccordionSection label="Booking Config">
+                <FormRow label="Provider"><SelectMock value="Cal.com" /></FormRow>
+                <FormRow label="Event type"><SelectMock value="Discovery Call (30m)" /></FormRow>
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "6px 8px", background: "rgba(52,211,153,0.07)",
+                  border: "1px solid rgba(52,211,153,0.14)", borderRadius: 6, marginTop: 4,
+                }}>
+                  <span style={{ fontSize: 10.5, color: "#6ee7b7" }}>✓ Connected</span>
+                  <span style={{ fontSize: 10, color: MUTED }}>cal.com/alex</span>
+                </div>
+              </AccordionSection>
+
+              <AccordionSection label="Variables">
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {[
+                    { name: "{{customer_name}}", type: "string" },
+                    { name: "{{today}}",         type: "date" },
+                    { name: "{{agent_name}}",    type: "string" },
+                  ].map(v => (
+                    <div key={v.name} style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "4px 7px", background: "rgba(255,255,255,0.03)", borderRadius: 5,
+                    }}>
+                      <span style={{ fontSize: 10.5, fontFamily: "monospace", color: "#c4b5fd" }}>{v.name}</span>
+                      <span style={{ fontSize: 9.5, color: MUTED }}>{v.type}</span>
+                    </div>
+                  ))}
+                </div>
+              </AccordionSection>
+
+              {/* Live deployment banner */}
               <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "6px 8px", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)",
-                borderRadius: 7, marginTop: 4,
+                margin: 10, padding: "9px 11px",
+                background: "rgba(79,140,255,0.07)", border: `1px solid rgba(79,140,255,0.16)`,
+                borderRadius: 8,
               }}>
-                <span style={{ fontSize: 10.5, color: "#6ee7b7" }}>✓ Connected</span>
-                <span style={{ fontSize: 10, color: muted }}>cal.com/alex</span>
-              </div>
-            </AccordionSection>
-
-            <AccordionSection label="Variables">
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                {[
-                  { name: "{{customer_name}}", type: "string" },
-                  { name: "{{today}}", type: "date" },
-                  { name: "{{agent_name}}", type: "string" },
-                ].map(v => (
-                  <div key={v.name} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "4px 8px", background: "rgba(255,255,255,0.03)", borderRadius: 5,
-                  }}>
-                    <span style={{ fontSize: 10.5, fontFamily: "monospace", color: "#c4b5fd" }}>{v.name}</span>
-                    <span style={{ fontSize: 9.5, color: muted }}>{v.type}</span>
-                  </div>
-                ))}
-              </div>
-            </AccordionSection>
-
-            {/* Deploy status banner */}
-            <div style={{
-              margin: 12, padding: "10px 12px",
-              background: "rgba(79,140,255,0.08)", border: "1px solid rgba(79,140,255,0.18)",
-              borderRadius: 8,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                <PhoneCall size={12} color="#4f8cff" />
-                <span style={{ fontSize: 11, fontWeight: 600, color: "#93c5fd" }}>Live Deployment</span>
-              </div>
-              <div style={{ fontSize: 10, color: muted, lineHeight: 1.5 }}>
-                +44 7700 900 123<br />
-                <span style={{ color: "#4ade80" }}>● Active</span> · 142 calls this week
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+                  <PhoneCallIcon size={11} color={ACCENT} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#93c5fd" }}>Live Deployment</span>
+                </div>
+                <div style={{ fontSize: 10, color: MUTED, lineHeight: 1.55 }}>
+                  +44 7700 900 123<br />
+                  <span style={{ color: "#4ade80" }}>● Active</span> · 142 calls this week
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
-}
-
-/* ─── Utility ─────────────────────────────────── */
-function toolBtn(extra?: React.CSSProperties): React.CSSProperties {
-  return {
-    display: "flex", alignItems: "center", justifyContent: "center",
-    width: 30, height: 30, borderRadius: 7, background: "transparent",
-    border: "1px solid transparent", cursor: "pointer",
-    transition: "background 0.12s, border-color 0.12s",
-    ...extra,
-  };
 }
