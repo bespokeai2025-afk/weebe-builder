@@ -1,5 +1,5 @@
-import { useRef, useState, useCallback } from "react";
-import { Mic, MicOff, Loader2 } from "lucide-react";
+import { useRef, useState, useCallback, useEffect } from "react";
+import { Mic, MicOff, Loader2, HelpCircle, X, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useBuilderStore } from "@/lib/builder/store";
@@ -344,16 +344,91 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Cycling hint phrases shown under the mic button ─────────────────────────
+const HINTS = [
+  'Try: "Switch to Webee Build"',
+  'Try: "Delete the conversation node"',
+  'Try: "Connect Intro to Check Availability"',
+  'Try: "Add a logic split node"',
+  'Try: "Rename this node to Booking Confirm"',
+];
+
+// ── Cheat-sheet command catalogue ────────────────────────────────────────────
+const CHEAT_SECTIONS = [
+  {
+    title: "App Modes",
+    icon: "⚡",
+    commands: [
+      { phrase: "Switch to Webee Build", desc: "Activate Macro Blueprint mode" },
+      { phrase: "Switch back to normal", desc: "Return to single-command mode" },
+      { phrase: "Exit Webee Build",      desc: "Exit Macro mode" },
+    ],
+  },
+  {
+    title: "Node Creation",
+    icon: "＋",
+    commands: [
+      { phrase: "Add a logic split node",         desc: "Creates a Logic Split node" },
+      { phrase: "Create a code block",             desc: "Creates a Code block node" },
+      { phrase: "Add a conversation node called…", desc: "Creates & names a node" },
+      { phrase: "Create an end call node",         desc: "Creates an End Call node" },
+    ],
+  },
+  {
+    title: "Connections & Transitions",
+    icon: "↔",
+    commands: [
+      { phrase: "Connect Intro to Check Availability", desc: "Wires two nodes together" },
+      { phrase: "Add a transition labelled Yes",        desc: "Creates a handle on a node" },
+      { phrase: "Remove the wire between A and B",      desc: "Disconnects two nodes" },
+    ],
+  },
+  {
+    title: "Canvas Tweaks",
+    icon: "✏",
+    commands: [
+      { phrase: "Delete the conversation node",         desc: "Removes a node + its wires" },
+      { phrase: "Rename this node to Booking Confirm",  desc: "Updates a node's label" },
+      { phrase: "Set the welcome message to…",          desc: "Updates node dialogue" },
+    ],
+  },
+];
+
 export function VoiceCopilotButton() {
   const [state, setState]             = useState<CopilotState>("idle");
   const [copilotMode, setCopilotMode] = useState<"MICRO" | "MACRO">("MICRO");
   const [sessionCost, setSessionCost] = useState(0);
   const [lastCost, setLastCost]       = useState<number | null>(null);
+  const [hintIndex, setHintIndex]     = useState(0);
+  const [hintVisible, setHintVisible] = useState(true);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [showSheet, setShowSheet]     = useState(false);
   // Use a ref so processAudio always reads the current mode without stale closure
-  const modeRef = useRef<"MICRO" | "MACRO">("MICRO");
+  const modeRef        = useRef<"MICRO" | "MACRO">("MICRO");
+  const hoverTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef        = useRef<Blob[]>([]);
   const streamRef        = useRef<MediaStream | null>(null);
+
+  // Cycle hint text every 3 s with a short fade between items
+  useEffect(() => {
+    const id = setInterval(() => {
+      setHintVisible(false);
+      setTimeout(() => {
+        setHintIndex((i) => (i + 1) % HINTS.length);
+        setHintVisible(true);
+      }, 350);
+    }, 3200);
+    return () => clearInterval(id);
+  }, []);
+
+  // Close help sheet on Escape
+  useEffect(() => {
+    if (!showSheet) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setShowSheet(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [showSheet]);
 
   const updateMode = useCallback((m: "MICRO" | "MACRO") => {
     modeRef.current = m;
@@ -581,92 +656,220 @@ export function VoiceCopilotButton() {
   const isMacro      = copilotMode === "MACRO";
 
   return (
-    <div className="relative flex items-center justify-center" style={{ overflow: "visible" }}>
-
-      {/* ── Floating badge: only visible in MACRO mode ── */}
-      {isMacro && (
-        <div
-          className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-50"
-          style={{ whiteSpace: "nowrap" }}
-        >
-          <div className="flex items-center gap-1.5 bg-yellow-400 text-slate-900 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-yellow-500/40">
-            <span>⚡ WEBEE BUILD</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                updateMode("MICRO");
-                toast.info("Normal mode restored.", { duration: 3000 });
-              }}
-              className="opacity-60 hover:opacity-100 transition-opacity leading-none ml-0.5"
-              title="Exit Webee Build Mode"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Session cost counter (shows after first request) ── */}
-      {sessionCost > 0 && (
-        <div
-          title={`Last request: $${lastCost?.toFixed(4)} • Session total (incl. webespokeai margin): $${sessionCost.toFixed(4)}`}
-          className={cn(
-            "absolute left-full ml-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono cursor-default select-none",
-            isMacro
-              ? "bg-yellow-400/10 text-yellow-300 border border-yellow-400/20"
-              : "bg-white/[0.04] text-muted-foreground/60 border border-white/[0.06]",
-          )}
-          style={{ whiteSpace: "nowrap" }}
-        >
-          <span className="opacity-50">$</span>
-          <span>{sessionCost.toFixed(4)}</span>
-        </div>
-      )}
-
-      {/* ── Mic button ── */}
-      <Button
-        size="sm"
-        variant="ghost"
-        title={
-          isRecording  ? "Stop recording" :
-          isProcessing ? "Processing…" :
-          isMacro      ? "⚡ Webee Build — describe a full flow" :
-                         "Voice Command Copilot"
-        }
-        disabled={isProcessing}
-        onClick={() => {
-          if (isRecording) toast.dismiss("voice-listening");
-          void handleClick();
-        }}
+    <>
+      {/* ────────────────────────────────────────────────────────────────────
+          Slide-out help sheet — always rendered, slides in/out via transform
+      ──────────────────────────────────────────────────────────────────── */}
+      {/* Backdrop */}
+      <div
         className={cn(
-          "!h-8 !w-8 !p-0 relative transition-all duration-200",
-          isRecording
-            ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
-            : isProcessing
-              ? isMacro
-                ? "text-yellow-400 bg-yellow-500/10"
-                : "text-blue-400 bg-blue-500/10"
-              : isMacro
-                ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
-                : "text-muted-foreground/60 hover:text-blue-400 hover:bg-blue-500/10",
+          "fixed inset-0 z-[98] bg-black/30 transition-opacity duration-200",
+          showSheet ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none",
+        )}
+        onClick={() => setShowSheet(false)}
+      />
+      {/* Panel */}
+      <div
+        className={cn(
+          "fixed top-0 right-0 h-full w-[320px] z-[99] flex flex-col",
+          "bg-slate-950 border-l border-slate-800/60 shadow-2xl",
+          "transition-transform duration-250 ease-in-out",
+          showSheet ? "translate-x-0" : "translate-x-full",
         )}
       >
-        {isProcessing ? (
-          <Loader2 className={cn("h-3.5 w-3.5 animate-spin", isMacro && "text-yellow-400")} />
-        ) : isRecording ? (
-          <>
-            <MicOff className="h-3.5 w-3.5" />
-            <span className="absolute inset-0 rounded-md animate-ping bg-yellow-400/20 pointer-events-none" />
-          </>
-        ) : (
-          <>
-            <Mic className="h-3.5 w-3.5" />
-            {isMacro && (
-              <span className="absolute inset-0 rounded-md animate-pulse bg-yellow-400/15 pointer-events-none" />
-            )}
-          </>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-800/50">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">🎙️</span>
+            <span className="text-sm font-bold text-slate-100 tracking-tight">Voice Controls</span>
+          </div>
+          <button
+            onClick={() => setShowSheet(false)}
+            className="text-slate-500 hover:text-slate-200 transition-colors p-1 rounded"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Activation highlight */}
+        <div className="mx-4 mt-4 mb-1 px-3 py-2.5 rounded-lg border border-yellow-500/30 bg-yellow-500/[0.07]">
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1.5 font-medium">Primary activation phrase</p>
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-400 text-sm">⚡</span>
+            <span className="text-yellow-300 text-[13px] font-semibold">"Switch to Webee Build"</span>
+          </div>
+          <p className="text-[10px] text-slate-500 mt-1.5">Enables Macro Blueprint mode — describe a full multi-node flow in one sentence.</p>
+        </div>
+
+        {/* Sections */}
+        <div className="flex-1 overflow-y-auto px-4 pb-6 space-y-4 mt-3 scrollbar-none">
+          {CHEAT_SECTIONS.map((section) => (
+            <div key={section.title}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-[11px] text-slate-500">{section.icon}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{section.title}</span>
+              </div>
+              <div className="space-y-1">
+                {section.commands.map((cmd) => (
+                  <div key={cmd.phrase} className="flex items-start gap-2 rounded-md px-2.5 py-2 bg-slate-900/60 hover:bg-slate-900 transition-colors">
+                    <ChevronRight className="h-3 w-3 text-slate-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-slate-200 font-medium leading-snug">"{cmd.phrase}"</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{cmd.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3.5 border-t border-slate-800/50 text-[10px] text-slate-600 text-center">
+          Press <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">Esc</kbd> to close
+        </div>
+      </div>
+
+      {/* ────────────────────────────────────────────────────────────────────
+          Main widget wrapper
+      ──────────────────────────────────────────────────────────────────── */}
+      <div className="relative flex items-center justify-center gap-0.5" style={{ overflow: "visible" }}>
+
+        {/* ── MACRO floating badge ── */}
+        {isMacro && (
+          <div
+            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-50"
+            style={{ whiteSpace: "nowrap" }}
+          >
+            <div className="flex items-center gap-1.5 bg-yellow-400 text-slate-900 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-yellow-500/40">
+              <span>⚡ WEBEE BUILD</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateMode("MICRO");
+                  toast.info("Normal mode restored.", { duration: 3000 });
+                }}
+                className="opacity-60 hover:opacity-100 transition-opacity leading-none ml-0.5"
+                title="Exit Webee Build Mode"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
         )}
-      </Button>
-    </div>
+
+        {/* ── Hover tooltip (MICRO mode only, 500 ms delay) ── */}
+        {showTooltip && !isMacro && !isRecording && !isProcessing && (
+          <div
+            className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+            style={{ whiteSpace: "nowrap" }}
+          >
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-2xl shadow-black/60 w-56">
+              <p className="text-[11px] font-bold text-slate-100 mb-1.5">🎙️ Voice Controls</p>
+              <p className="text-[10px] text-slate-400 leading-relaxed mb-2.5">
+                Click to speak commands for single actions. To build entire layouts at once, use the phrase below:
+              </p>
+              <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-yellow-500/40 bg-yellow-500/10">
+                <span className="text-yellow-400 text-[10px]">⚡</span>
+                <span className="text-yellow-300 text-[11px] font-semibold">"Switch to Webee Build"</span>
+              </div>
+            </div>
+            {/* Arrow */}
+            <div className="flex justify-center mt-[-1px]">
+              <div className="w-2.5 h-2.5 bg-slate-900 border-r border-b border-slate-800 rotate-45 -mt-1.5" />
+            </div>
+          </div>
+        )}
+
+        {/* ── Session cost counter ── */}
+        {sessionCost > 0 && (
+          <div
+            title={`Last: $${lastCost?.toFixed(4)} · Session (w/ margin): $${sessionCost.toFixed(4)}`}
+            className={cn(
+              "absolute right-full mr-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono cursor-default select-none",
+              isMacro
+                ? "bg-yellow-400/10 text-yellow-300 border border-yellow-400/20"
+                : "bg-white/[0.04] text-muted-foreground/60 border border-white/[0.06]",
+            )}
+            style={{ whiteSpace: "nowrap" }}
+          >
+            <span className="opacity-50">$</span>
+            <span>{sessionCost.toFixed(4)}</span>
+          </div>
+        )}
+
+        {/* ── Mic button ── */}
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={isProcessing}
+          onMouseEnter={() => {
+            hoverTimerRef.current = setTimeout(() => setShowTooltip(true), 500);
+          }}
+          onMouseLeave={() => {
+            if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+            setShowTooltip(false);
+          }}
+          onClick={() => {
+            setShowTooltip(false);
+            if (isRecording) toast.dismiss("voice-listening");
+            void handleClick();
+          }}
+          className={cn(
+            "!h-8 !w-8 !p-0 relative transition-all duration-200",
+            isRecording
+              ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
+              : isProcessing
+                ? isMacro
+                  ? "text-yellow-400 bg-yellow-500/10"
+                  : "text-blue-400 bg-blue-500/10"
+                : isMacro
+                  ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
+                  : "text-muted-foreground/60 hover:text-blue-400 hover:bg-blue-500/10",
+          )}
+        >
+          {isProcessing ? (
+            <Loader2 className={cn("h-3.5 w-3.5 animate-spin", isMacro && "text-yellow-400")} />
+          ) : isRecording ? (
+            <>
+              <MicOff className="h-3.5 w-3.5" />
+              <span className="absolute inset-0 rounded-md animate-ping bg-yellow-400/20 pointer-events-none" />
+            </>
+          ) : (
+            <>
+              <Mic className="h-3.5 w-3.5" />
+              {isMacro && (
+                <span className="absolute inset-0 rounded-md animate-pulse bg-yellow-400/15 pointer-events-none" />
+              )}
+            </>
+          )}
+        </Button>
+
+        {/* ── Help (?) button ── */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowSheet((s) => !s); }}
+          title="Voice command cheat sheet"
+          className="flex items-center justify-center h-5 w-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/[0.06] transition-colors"
+        >
+          <HelpCircle className="h-3 w-3" />
+        </button>
+
+        {/* ── Cycling hint text (idle only) ── */}
+        {!isRecording && !isProcessing && (
+          <div
+            className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 pointer-events-none"
+            style={{ whiteSpace: "nowrap" }}
+          >
+            <p
+              className="text-[9px] font-medium text-slate-500 transition-opacity duration-300"
+              style={{ opacity: hintVisible ? 1 : 0 }}
+            >
+              {HINTS[hintIndex]}
+            </p>
+          </div>
+        )}
+
+      </div>
+    </>
   );
 }
