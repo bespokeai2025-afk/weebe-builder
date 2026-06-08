@@ -130,21 +130,21 @@
 
   /* Premium enterprise dark — Retell / Stripe / Linear */
   --background: #0b0f14;
-  --foreground: #f3f4f6;
+  --foreground: #f9fafb;
   --card: #151d2b;
-  --card-foreground: #f3f4f6;
+  --card-foreground: #e5e7eb;
   --popover: #151d2b;
-  --popover-foreground: #f3f4f6;
+  --popover-foreground: #e5e7eb;
 
   /* Accents — restrained, used as glow not fill saturation */
   --primary: #4f8cff;
   --primary-foreground: #ffffff;
   --secondary: #111827;
-  --secondary-foreground: #f3f4f6;
+  --secondary-foreground: #e5e7eb;
   --muted: #111827;
   --muted-foreground: #9ca3af;
   --accent: #1b2435;
-  --accent-foreground: #f3f4f6;
+  --accent-foreground: #e5e7eb;
 
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
@@ -165,11 +165,11 @@
   /* Sidebar */
   /* Sidebar — slightly darker than main background for depth */
   --sidebar: #080b10;
-  --sidebar-foreground: #f3f4f6;
-  --sidebar-primary: #f3f4f6;
+  --sidebar-foreground: #e5e7eb;
+  --sidebar-primary: #f9fafb;
   --sidebar-primary-foreground: #0b0f14;
   --sidebar-accent: rgba(255, 255, 255, 0.04);
-  --sidebar-accent-foreground: #f3f4f6;
+  --sidebar-accent-foreground: #e5e7eb;
   --sidebar-border: rgba(255, 255, 255, 0.04);
   --sidebar-ring: rgba(79, 140, 255, 0.55);
 
@@ -307,6 +307,26 @@
     font-size: 0.8125rem; /* 13px */
     font-weight: 500;
     letter-spacing: -0.005em;
+    color: var(--color-card-foreground);
+  }
+
+  /* Inputs and textareas — consistent line-height and rendering */
+  input,
+  textarea,
+  select {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.6;
+  }
+
+  textarea {
+    line-height: 1.65;
+    letter-spacing: 0.005em;
+  }
+
+  /* Uppercase section labels — crisp tracking */
+  .uppercase {
+    letter-spacing: 0.08em;
   }
 
   /* Buttons — medium weight, slight tracking refinement */
