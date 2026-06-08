@@ -73,6 +73,22 @@ note           — sticky note, canvas comment, annotation, remind me
 8. DELETE_NODE  (permanently remove a node and all connections attached to it)
 {"action":"DELETE_NODE","node":"<label, _ref, or 'last' to target the last node in the list>"}
 
+═══ MACRO BLUEPRINT MODE ═══
+Activate when the user says phrases like: "build a whole new flow", "generate a script blueprint", "architect mode", "build me a [X] script", "create a full flow for", "design a complete flow", "set up a whole", "build out a complete", "create an entire".
+
+When activated:
+1. Set "mode": "MACRO_BLUEPRINT" at the top level of the output JSON.
+2. In "thought", step through ALL FOUR of these before listing commands:
+   - Step 1 — INTENT: What is the core purpose of this call flow?
+   - Step 2 — STAGES: List the exact conversational stages in order (e.g. Greeting → Qualification → Booking → Goodbye)
+   - Step 3 — NODE MAPPING: Map each stage to its correct node type from the registry
+   - Step 4 — BRANCHES: Define all transition paths out of each node
+3. Generate ALL nodes (CREATE_NODE with _ref) then ALL connections (CONNECT_NODES) in the commands array.
+4. Nodes must be spatially laid out left-to-right: first node at x:100, y:200; each subsequent node +320 x. Branching nodes stack at +320 x, +180 y.
+
+MACRO BLUEPRINT example output:
+{"mode":"MACRO_BLUEPRINT","thought":"Step1: Outbound real-estate qualification. Step2: Greeting→Interest Check→Booking→Goodbye. Step3: conversation,logic_split,function,ending. Step4: Greeting→Next→Interest Check; Interest Check→Interested→Booking, Not Interested→Goodbye.","commands":[{"action":"CREATE_NODE","type":"conversation","label":"Intro Greeting","dialogue":"Hi, I saw you were looking to list a property. Is that right?","_ref":"n1"},{"action":"CREATE_NODE","type":"logic_split","label":"Is Seller Interested","_ref":"n2"},{"action":"CREATE_NODE","type":"function","label":"Check Availability","_ref":"n3"},{"action":"CREATE_NODE","type":"ending","label":"Goodbye","dialogue":"Thanks for your time. Have a great day!","_ref":"n4"},{"action":"CONNECT_NODES","from_node_id":"n1","to_node_id":"n2","transition_label":"Next"},{"action":"CONNECT_NODES","from_node_id":"n2","to_node_id":"n3","transition_label":"Interested"},{"action":"CONNECT_NODES","from_node_id":"n2","to_node_id":"n4","transition_label":"Not Interested"}]}
+
 ═══ FEW-SHOT EXAMPLES ═══
 
 Input: "Oh wait, can you make a box that says goodbye if they hang up?"
@@ -194,6 +210,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
 
         // ── 4. Parse commands via GPT-4o ──────────────────────────────────────
         let commands: unknown[] = [];
+        let responseMode: string | undefined;
         try {
           const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
@@ -201,7 +218,8 @@ export const Route = createFileRoute("/api/voice-copilot")({
             body: JSON.stringify({
               model: "gpt-4o",
               temperature: 0,
-              max_tokens: 1500,
+              // Blueprints can be large — use 3 000 tokens
+              max_tokens: 3000,
               response_format: { type: "json_object" },
               messages: [
                 { role: "system", content: SYSTEM_PROMPT },
@@ -216,9 +234,11 @@ export const Route = createFileRoute("/api/voice-copilot")({
           const raw =
             ((await gptRes.json() as { choices?: { message?: { content?: string } }[] })
               .choices?.[0]?.message?.content) ?? "{}";
-          const parsed = JSON.parse(raw) as { thought?: string; commands?: unknown[] };
+          const parsed = JSON.parse(raw) as { thought?: string; mode?: string; commands?: unknown[] };
           if (parsed.thought) console.log("[VoiceCopilot] CoT:", parsed.thought);
-          commands = parsed.commands ?? [];
+          if (parsed.mode)    console.log("[VoiceCopilot] Mode:", parsed.mode);
+          commands     = parsed.commands ?? [];
+          responseMode = parsed.mode;
         } catch (e) {
           console.error("[VoiceCopilot] GPT parse error:", e);
           return json({ ok: false, error: "Command parsing failed" }, 502);
@@ -233,7 +253,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
           return true;
         });
 
-        return json({ ok: true, transcript, commands: safe });
+        return json({ ok: true, transcript, commands: safe, mode: responseMode ?? null });
       },
     },
   },

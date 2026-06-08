@@ -392,6 +392,7 @@ export function VoiceCopilotButton() {
         ok: boolean;
         transcript?: string;
         commands?: VoiceCommand[];
+        mode?: string | null;
         error?: string;
       };
 
@@ -400,16 +401,37 @@ export function VoiceCopilotButton() {
         return;
       }
 
-      // Always show what was heard first, before executing
+      const isBlueprint = data.mode === "MACRO_BLUEPRINT";
+
+      // Show what was heard — with architect mode badge if applicable
       if (data.transcript) {
         toast.info(
           <span className="text-sm">
+            {isBlueprint && (
+              <span className="text-[10px] font-semibold tracking-wide text-yellow-400 block mb-0.5 uppercase">
+                ✦ Architect Mode
+              </span>
+            )}
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-medium block mb-0.5">
-              Heard
+              {isBlueprint ? "Blueprint Detected" : "Heard"}
             </span>
             "{data.transcript}"
           </span>,
-          { duration: 4000, id: "voice-transcript" },
+          { duration: isBlueprint ? 6000 : 4000, id: "voice-transcript" },
+        );
+      }
+
+      // If architect mode, announce before executing (it takes a moment)
+      if (isBlueprint) {
+        toast(
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-yellow-400 text-base">✦</span>
+            <div>
+              <span className="text-yellow-400 font-semibold">Architect Mode Active</span>
+              <span className="text-muted-foreground ml-1.5">— applying full blueprint…</span>
+            </div>
+          </div>,
+          { id: "architect-mode", duration: 8000 },
         );
       }
 
@@ -424,6 +446,9 @@ export function VoiceCopilotButton() {
       const { createdCount, connectedCount, updatedCount, settingsCount, deletedCount, warnings } =
         await executeVoiceCommands(data.commands);
 
+      // Dismiss architect mode "in progress" toast
+      if (isBlueprint) toast.dismiss("architect-mode");
+
       warnings.forEach((w) => toast.warning(w, { duration: 6000 }));
 
       const parts: string[] = [];
@@ -434,15 +459,27 @@ export function VoiceCopilotButton() {
       if (settingsCount)  parts.push("settings updated");
 
       if (parts.length) {
-        toast.success(
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wide">
-              Done
-            </span>
-            <span className="text-sm">{parts.join(" · ")}</span>
-          </div>,
-          { duration: 4000 },
-        );
+        if (isBlueprint) {
+          toast.success(
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wide">
+                ✦ Blueprint Complete
+              </span>
+              <span className="text-sm">{parts.join(" · ")} — saved to draft</span>
+            </div>,
+            { duration: 6000 },
+          );
+        } else {
+          toast.success(
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wide">
+                Done
+              </span>
+              <span className="text-sm">{parts.join(" · ")}</span>
+            </div>,
+            { duration: 4000 },
+          );
+        }
       }
     } catch (err) {
       console.error("[VoiceCopilot] Error:", err);
