@@ -4,13 +4,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { Builder } from "@/components/builder/Builder";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { BookmarkPlus, Check, CircleDot, Loader2, Save } from "lucide-react";
+import { BookmarkPlus, Check, CircleDot, Loader2, MapPin, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
 import { SaveAsTemplateDialog } from "@/components/builder/SaveAsTemplateDialog";
 import { upsertMyAgent } from "@/lib/agents/agents.functions";
 import { cn } from "@/lib/utils";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { restartTour } from "@/components/onboarding/useOnboarding";
 
 export const Route = createFileRoute("/_authenticated/builder")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -130,6 +131,16 @@ function BuilderPage() {
 
   const trailing = (
     <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => { restartTour(); }}
+        title="Start walkthrough tour"
+        className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+      >
+        <MapPin className="h-3.5 w-3.5" />
+      </Button>
+      <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
       <Button
         size="sm"
         variant="ghost"

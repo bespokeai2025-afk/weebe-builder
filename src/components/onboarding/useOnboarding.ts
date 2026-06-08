@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 
 const STORAGE_KEY = "webee_onboarding_v1";
+const RESTART_EVENT = "webee-tour-restart";
 
 export interface OnboardingState {
   completed: boolean;
@@ -52,8 +53,23 @@ function save(state: OnboardingState) {
   } catch {}
 }
 
+/** Call from anywhere (sidebar button, toolbar, etc.) to restart the tour. */
+export function restartTour() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {}
+  window.dispatchEvent(new Event(RESTART_EVENT));
+}
+
 export function useOnboarding() {
   const [state, setStateRaw] = useState<OnboardingState>(load);
+
+  // React to restartTour() calls from outside this hook instance
+  useEffect(() => {
+    const handler = () => setStateRaw({ ...DEFAULTS });
+    window.addEventListener(RESTART_EVENT, handler);
+    return () => window.removeEventListener(RESTART_EVENT, handler);
+  }, []);
 
   const setState = useCallback((updater: Partial<OnboardingState> | ((prev: OnboardingState) => Partial<OnboardingState>)) => {
     setStateRaw((prev) => {
@@ -77,9 +93,7 @@ export function useOnboarding() {
   }, [setState]);
 
   const reset = useCallback(() => {
-    const fresh = { ...DEFAULTS };
-    save(fresh);
-    setStateRaw(fresh);
+    restartTour();
   }, []);
 
   const visible = !state.completed && !state.dismissed;
