@@ -1,0 +1,90 @@
+import { useState, useCallback, useEffect } from "react";
+
+const STORAGE_KEY = "webee_onboarding_v1";
+
+export interface OnboardingState {
+  completed: boolean;
+  dismissed: boolean;
+  step: number;
+  buildPath: "template" | "scratch" | null;
+  companyName: string;
+  industry: string;
+  voice: string;
+  elevenLabsKey: string;
+  elevenLabsVoiceId: string;
+  adminVerified: boolean;
+  calConnected: boolean;
+  phoneChoice: "local" | "trunk" | null;
+  phoneValue: string;
+  deployed: boolean;
+}
+
+const DEFAULTS: OnboardingState = {
+  completed: false,
+  dismissed: false,
+  step: 0,
+  buildPath: null,
+  companyName: "",
+  industry: "",
+  voice: "emma",
+  elevenLabsKey: "",
+  elevenLabsVoiceId: "",
+  adminVerified: false,
+  calConnected: false,
+  phoneChoice: null,
+  phoneValue: "",
+  deployed: false,
+};
+
+function load(): OnboardingState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { ...DEFAULTS };
+    return { ...DEFAULTS, ...JSON.parse(raw) };
+  } catch {
+    return { ...DEFAULTS };
+  }
+}
+
+function save(state: OnboardingState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+export function useOnboarding() {
+  const [state, setStateRaw] = useState<OnboardingState>(load);
+
+  const setState = useCallback((updater: Partial<OnboardingState> | ((prev: OnboardingState) => Partial<OnboardingState>)) => {
+    setStateRaw((prev) => {
+      const patch = typeof updater === "function" ? updater(prev) : updater;
+      const next = { ...prev, ...patch };
+      save(next);
+      return next;
+    });
+  }, []);
+
+  const advance = useCallback(() => {
+    setState((prev) => ({ step: Math.min(prev.step + 1, 6) }));
+  }, [setState]);
+
+  const dismiss = useCallback(() => {
+    setState({ dismissed: true });
+  }, [setState]);
+
+  const complete = useCallback(() => {
+    setState({ completed: true, dismissed: true });
+  }, [setState]);
+
+  const reset = useCallback(() => {
+    const fresh = { ...DEFAULTS };
+    save(fresh);
+    setStateRaw(fresh);
+  }, []);
+
+  const visible = !state.completed && !state.dismissed;
+
+  return { state, setState, advance, dismiss, complete, reset, visible };
+}
+
+export type UseOnboardingReturn = ReturnType<typeof useOnboarding>;

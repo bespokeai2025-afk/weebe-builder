@@ -10,6 +10,7 @@ import { useBuilderStore } from "@/lib/builder/store";
 import { SaveAsTemplateDialog } from "@/components/builder/SaveAsTemplateDialog";
 import { upsertMyAgent } from "@/lib/agents/agents.functions";
 import { cn } from "@/lib/utils";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 
 export const Route = createFileRoute("/_authenticated/builder")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -166,6 +167,7 @@ function BuilderPage() {
         toolbarTrailing={trailing}
       />
       <SaveAsTemplateDialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen} />
+      <OnboardingTour />
     </div>
   );
 }
