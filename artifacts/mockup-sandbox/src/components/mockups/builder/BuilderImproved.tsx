@@ -664,6 +664,46 @@ export function BuilderImproved() {
                 </div>
               </AccordionSection>
 
+              <AccordionSection label="Agent Type" defaultOpen>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {[
+                    { id: "receptionist",         label: "Receptionist",          desc: "Answers & routes calls",     color: "#4f8cff",  bg: "rgba(79,140,255,0.1)",   border: "rgba(79,140,255,0.25)"  },
+                    { id: "lead_generation",       label: "Lead Generation",       desc: "Captures & nurtures leads",  color: "#a78bfa",  bg: "rgba(167,139,250,0.1)",  border: "rgba(167,139,250,0.25)" },
+                    { id: "client_qualification",  label: "Client Qualification",  desc: "Qualifies by budget/fit",    color: "#34d399",  bg: "rgba(52,211,153,0.1)",   border: "rgba(52,211,153,0.25)"  },
+                  ].map(({ id, label, desc, color, bg, border: bc }) => {
+                    const active = id === "lead_generation";
+                    return (
+                      <div key={id} style={{
+                        display: "flex", alignItems: "center", gap: 9,
+                        padding: "7px 10px", borderRadius: 8, cursor: "pointer",
+                        background: active ? bg : "rgba(255,255,255,0.02)",
+                        border: `1px solid ${active ? bc : BORDER}`,
+                      }}>
+                        <div style={{
+                          width: 6, height: 6, borderRadius: "50%", flexShrink: 0,
+                          background: active ? color : "rgba(255,255,255,0.15)",
+                          boxShadow: active ? `0 0 6px ${color}` : "none",
+                        }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 11, fontWeight: active ? 600 : 400, color: active ? color : TEXT }}>{label}</div>
+                          <div style={{ fontSize: 9.5, color: MUTED, marginTop: 1 }}>{desc}</div>
+                        </div>
+                        {active && (
+                          <div style={{
+                            fontSize: 9, fontWeight: 600, color, letterSpacing: "0.06em",
+                            background: bg, border: `1px solid ${bc}`,
+                            padding: "1px 6px", borderRadius: 4,
+                          }}>ACTIVE</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p style={{ fontSize: 9.5, color: "#a78bfa", margin: "2px 0 0", paddingLeft: 2 }}>
+                    Lead Gen sections active ↓
+                  </p>
+                </div>
+              </AccordionSection>
+
               <AccordionSection label="Variables">
                 <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                   {[
