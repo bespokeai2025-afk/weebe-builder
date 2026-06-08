@@ -1,0 +1,149 @@
+## Restore Original Builder Components & Sidebar Sizing
+
+The latest Builder redesign has moved away from several visual elements that worked better in the original WEBEE Builder.
+
+Use the original WEBEE Builder as the visual reference for all workflow components.
+
+---
+
+# Restore Prompt / Conversation Node Styling
+
+The conversation, prompt, and message boxes in the new builder do not feel as polished as the original.
+
+Restore the original styling for all prompt-based nodes.
+
+Match the original:
+
+* Width
+* Height
+* Padding
+* Corner radius
+* Border styling
+* Header height
+* Glow intensity
+* Shadow depth
+* Internal spacing
+
+The original prompt boxes felt larger, cleaner, and easier to scan.
+
+The new versions feel compressed and flatter.
+
+---
+
+# Restore Original Glow System
+
+Bring back the glow treatment used in the original builder.
+
+For nodes:
+
+* Soft outer glow
+* Hover glow
+* Selected glow
+* Active node glow
+
+For prompt boxes:
+
+* Subtle blue edge glow
+* Elevated appearance
+* Better separation from canvas
+
+Avoid excessive neon effects.
+
+The goal is premium depth and visual hierarchy.
+
+---
+
+# Restore Original Node Proportions
+
+Nodes should feel substantial.
+
+Requirements:
+
+* Increase overall node size to match the original builder.
+* Restore original spacing between labels and content.
+* Restore original output connector spacing.
+* Restore original header proportions.
+
+Do not shrink nodes to fit more on screen.
+
+Readability is more important than density.
+
+---
+
+# Reduce Left Sidebar Width
+
+The redesigned node library is taking too much horizontal space.
+
+Reduce the width of the left-hand Components / Nodes panel.
+
+Target goals:
+
+* Smaller overall width
+* More canvas visible by default
+* Better workflow focus
+
+The sidebar should remain fully usable while consuming less screen space.
+
+---
+
+# Reduce Sidebar Item Height
+
+The node/function list feels oversized.
+
+Make all sidebar items more compact.
+
+Reduce:
+
+* Row height
+* Vertical padding
+* Icon container size
+* Spacing between items
+
+Maintain readability while increasing information density.
+
+---
+
+# Improve Sidebar Visual Hierarchy
+
+The left panel should feel cleaner and more professional.
+
+Requirements:
+
+* Smaller category labels
+* Better spacing between sections
+* Tighter grouping
+* Cleaner hover states
+
+The node list should feel efficient rather than oversized.
+
+---
+
+# Builder Layout Priority
+
+Maximize workflow canvas space.
+
+The workflow itself should be the focus.
+
+Canvas > Nodes Panel > Settings Panel
+
+The left and right sidebars should support the workflow, not dominate the screen.
+
+---
+
+# Source of Truth
+
+For the following elements, use the ORIGINAL WEBEE Builder as the visual benchmark:
+
+* Prompt box sizing
+* Prompt box shape
+* Prompt box glow
+* Node dimensions
+* Node spacing
+* Node shadows
+* Node elevation
+* Connector styling
+* Connector glow
+* Sidebar proportions
+* Sidebar item sizing
+
+Keep the cleaner overall redesign architecture, but restore the visual language, proportions, and premium feel of the original WEBEE Builder.

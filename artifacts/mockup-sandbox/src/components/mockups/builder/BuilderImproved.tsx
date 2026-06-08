@@ -67,29 +67,30 @@ const NODE_TYPES = [
   { id: "note",         label: "Note",           icon: StickyNote,    color: NODE_COLOR.note.color,         bg: NODE_COLOR.note.bg         },
 ];
 
-/* ── Sample canvas nodes ── */
+/* ── Sample canvas nodes (wider, better spaced) ── */
+const NODE_W = 272;
 const CANVAS_NODES = [
   {
     id: "n1", type: "conversation", label: "Welcome",
-    x: 148, y: 130, w: 224,
+    x: 68, y: 94, w: NODE_W,
     prompt: "Hi! I'm your AI receptionist. How can I help you today?",
     transitions: ["Booking enquiry", "General question"],
   },
   {
     id: "n2", type: "function", label: "Check Availability",
-    x: 448, y: 54, w: 224,
+    x: 432, y: 20, w: NODE_W,
     prompt: "cal_com_check_slots({ date: '{{today}}' })",
     transitions: ["Slots found", "No slots"],
   },
   {
     id: "n3", type: "logic", label: "Route Intent",
-    x: 448, y: 270, w: 224,
+    x: 432, y: 278, w: NODE_W,
     prompt: "intent === 'booking' → Booking\nintent === 'support' → Support",
     transitions: ["Booking", "Support", "Other"],
   },
   {
     id: "n4", type: "ending", label: "Goodbye",
-    x: 748, y: 174, w: 224,
+    x: 800, y: 155, w: NODE_W,
     prompt: "Thanks for calling. Have a great day!",
     transitions: [],
   },
