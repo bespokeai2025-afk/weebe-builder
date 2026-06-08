@@ -13,6 +13,21 @@ export type UnifiedBooking = {
   attendee_name: string | null;
   attendee_email: string | null;
   meeting_url: string | null;
+  db_id: string | null;
+  external_id: string | null;
+  notes: string | null;
+};
+
+export type BookingDetail = {
+  booking: UnifiedBooking;
+  summary: {
+    summary: string | null;
+    appointment_reason: string | null;
+    customer_name: string | null;
+    customer_phone: string | null;
+    appointment_date: string | null;
+    appointment_booked: boolean | null;
+  } | null;
 };
 
 export function normalizeCalcomStatus(s: string | null | undefined): string {
@@ -136,6 +151,9 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
       attendee_name: b.attendee_name ?? null,
       attendee_email: b.attendee_email ?? null,
       meeting_url: b.meeting_url ?? null,
+      db_id: b.id as string,
+      external_id: b.external_id ?? null,
+      notes: b.notes ?? null,
     }));
 
     const token = (settings as any)?.calcom_api_key ?? null;
@@ -145,7 +163,6 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
 
     if (token) {
       try {
-        // v2 API: GET /bookings with Bearer auth
         const payload = await calFetch<{ bookings?: any[] } | any[]>(token, "/bookings", {
           apiVersion: "2024-08-13",
         });
@@ -157,8 +174,13 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
         calcom = list.map((b: any) => {
           const attendee =
             Array.isArray(b.attendees) && b.attendees.length > 0 ? b.attendees[0] : null;
+          const calcomUid = b.uid ?? b.id ?? null;
+          // Check if there's a local calendar_bookings row for this calcom booking
+          const localMatch = ((localRows ?? []) as any[]).find(
+            (r) => r.external_id === String(calcomUid),
+          );
           return {
-            id: `calcom:${b.uid ?? b.id}`,
+            id: `calcom:${calcomUid}`,
             source: "calcom" as const,
             title: b.title ?? b.eventType?.title ?? "Meeting",
             start_at: b.start ?? b.startTime ?? "",
@@ -169,7 +191,10 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
             meeting_url:
               b.metadata?.videoCallUrl ??
               (typeof b.location === "string" ? b.location : null) ??
-              (b.uid ? `https://app.cal.com/booking/${b.uid}` : null),
+              (calcomUid ? `https://app.cal.com/booking/${calcomUid}` : null),
+            db_id: localMatch?.id ?? null,
+            external_id: calcomUid ? String(calcomUid) : null,
+            notes: localMatch?.notes ?? null,
           };
         });
       } catch (e: any) {
@@ -177,7 +202,13 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
       }
     }
 
-    const combined = [...calcom, ...local].filter((b) => !!b.start_at);
+    // De-duplicate: if a local row has an external_id that matches a calcom entry, skip the local one
+    const calcomExternalIds = new Set(calcom.map((b) => b.external_id).filter(Boolean));
+    const localFiltered = local.filter(
+      (b) => !b.external_id || !calcomExternalIds.has(b.external_id),
+    );
+
+    const combined = [...calcom, ...localFiltered].filter((b) => !!b.start_at);
     combined.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
 
     return {
@@ -185,4 +216,139 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
       calcomConfigured,
       calcomError,
     };
+  });
+
+export const getBookingDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        db_id: z.string().uuid().optional(),
+        external_id: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    let bookingRow: any = null;
+
+    if (data.db_id) {
+      const { data: row } = await (supabase as any)
+        .from("calendar_bookings" as never)
+        .select("*")
+        .eq("id", data.db_id)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      bookingRow = row;
+    } else if (data.external_id) {
+      const { data: row } = await (supabase as any)
+        .from("calendar_bookings" as never)
+        .select("*")
+        .eq("external_id", data.external_id)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      bookingRow = row;
+    }
+
+    // Fetch booking summary
+    let summaryRow: any = null;
+    if (bookingRow?.id) {
+      const { data: s } = await (supabase as any)
+        .from("booking_summaries" as never)
+        .select("summary,appointment_reason,customer_name,customer_phone,appointment_date,appointment_booked")
+        .eq("booking_id", bookingRow.id)
+        .maybeSingle();
+      summaryRow = s;
+    }
+    if (!summaryRow && data.external_id) {
+      const { data: s } = await (supabase as any)
+        .from("booking_summaries" as never)
+        .select("summary,appointment_reason,customer_name,customer_phone,appointment_date,appointment_booked")
+        .eq("calcom_booking_uid", data.external_id)
+        .maybeSingle();
+      summaryRow = s;
+    }
+
+    return {
+      notes: (bookingRow?.notes ?? null) as string | null,
+      db_id: (bookingRow?.id ?? null) as string | null,
+      summary: summaryRow
+        ? {
+            summary: summaryRow.summary ?? null,
+            appointment_reason: summaryRow.appointment_reason ?? null,
+            customer_name: summaryRow.customer_name ?? null,
+            customer_phone: summaryRow.customer_phone ?? null,
+            appointment_date: summaryRow.appointment_date ?? null,
+            appointment_booked: summaryRow.appointment_booked ?? null,
+          }
+        : null,
+    };
+  });
+
+export const updateBookingNotes = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        db_id: z.string().uuid().optional(),
+        external_id: z.string().optional(),
+        title: z.string().optional(),
+        attendee_name: z.string().nullable().optional(),
+        attendee_email: z.string().nullable().optional(),
+        start_at: z.string().optional(),
+        notes: z.string(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    if (data.db_id) {
+      const { error } = await (supabase as any)
+        .from("calendar_bookings" as never)
+        .update({ notes: data.notes })
+        .eq("id", data.db_id)
+        .eq("workspace_id", workspaceId);
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    }
+
+    if (data.external_id) {
+      // Try to find existing local row for this calcom booking
+      const { data: existing } = await (supabase as any)
+        .from("calendar_bookings" as never)
+        .select("id")
+        .eq("external_id", data.external_id)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await (supabase as any)
+          .from("calendar_bookings" as never)
+          .update({ notes: data.notes })
+          .eq("id", existing.id);
+      } else {
+        // Create a local shadow row to hold the notes
+        await (supabase as any)
+          .from("calendar_bookings" as never)
+          .insert({
+            workspace_id: workspaceId,
+            source: "calcom",
+            external_id: data.external_id,
+            title: data.title ?? "Meeting",
+            attendee_name: data.attendee_name ?? null,
+            attendee_email: data.attendee_email ?? null,
+            start_at: data.start_at ?? new Date().toISOString(),
+            notes: data.notes,
+          });
+      }
+      return { ok: true };
+    }
+
+    throw new Error("Either db_id or external_id is required");
   });
