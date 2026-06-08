@@ -672,33 +672,33 @@ export function VoiceCopilotButton() {
       <div
         className={cn(
           "fixed top-0 right-0 h-full w-[320px] z-[99] flex flex-col",
-          "bg-slate-950 border-l border-slate-800/60 shadow-2xl",
-          "transition-transform duration-250 ease-in-out",
+          "bg-[#0f1117] border-l-2 border-slate-700 shadow-[0_0_60px_rgba(0,0,0,0.9)]",
+          "transition-transform duration-[250ms] ease-in-out",
           showSheet ? "translate-x-0" : "translate-x-full",
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-800/50">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-700">
           <div className="flex items-center gap-2.5">
             <span className="text-lg">🎙️</span>
-            <span className="text-sm font-bold text-slate-100 tracking-tight">Voice Controls</span>
+            <span className="text-sm font-bold text-white tracking-tight">Voice Controls</span>
           </div>
           <button
             onClick={() => setShowSheet(false)}
-            className="text-slate-500 hover:text-slate-200 transition-colors p-1 rounded"
+            className="text-slate-400 hover:text-white transition-colors p-1 rounded hover:bg-slate-700"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Activation highlight */}
-        <div className="mx-4 mt-4 mb-1 px-3 py-2.5 rounded-lg border border-yellow-500/30 bg-yellow-500/[0.07]">
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1.5 font-medium">Primary activation phrase</p>
+        <div className="mx-4 mt-4 mb-1 px-3 py-3 rounded-lg border border-yellow-500/50 bg-yellow-500/10">
+          <p className="text-[10px] text-yellow-500/80 uppercase tracking-widest mb-1.5 font-bold">Primary activation phrase</p>
           <div className="flex items-center gap-2">
             <span className="text-yellow-400 text-sm">⚡</span>
             <span className="text-yellow-300 text-[13px] font-semibold">"Switch to Webee Build"</span>
           </div>
-          <p className="text-[10px] text-slate-500 mt-1.5">Enables Macro Blueprint mode — describe a full multi-node flow in one sentence.</p>
+          <p className="text-[10px] text-slate-400 mt-1.5">Enables Macro Blueprint mode — describe a full multi-node flow in one sentence.</p>
         </div>
 
         {/* Sections */}
@@ -706,16 +706,16 @@ export function VoiceCopilotButton() {
           {CHEAT_SECTIONS.map((section) => (
             <div key={section.title}>
               <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-[11px] text-slate-500">{section.icon}</span>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{section.title}</span>
+                <span className="text-[11px] text-slate-400">{section.icon}</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{section.title}</span>
               </div>
               <div className="space-y-1">
                 {section.commands.map((cmd) => (
-                  <div key={cmd.phrase} className="flex items-start gap-2 rounded-md px-2.5 py-2 bg-slate-900/60 hover:bg-slate-900 transition-colors">
-                    <ChevronRight className="h-3 w-3 text-slate-600 mt-0.5 shrink-0" />
+                  <div key={cmd.phrase} className="flex items-start gap-2 rounded-md px-2.5 py-2 bg-slate-800 hover:bg-slate-700 transition-colors">
+                    <ChevronRight className="h-3 w-3 text-slate-500 mt-0.5 shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-[11px] text-slate-200 font-medium leading-snug">"{cmd.phrase}"</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{cmd.desc}</p>
+                      <p className="text-[11px] text-slate-100 font-medium leading-snug">"{cmd.phrase}"</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{cmd.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -725,8 +725,8 @@ export function VoiceCopilotButton() {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-slate-800/50 text-[10px] text-slate-600 text-center">
-          Press <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">Esc</kbd> to close
+        <div className="px-5 py-3.5 border-t border-slate-700 text-[10px] text-slate-500 text-center">
+          Press <kbd className="px-1 py-0.5 rounded bg-slate-700 text-slate-300 font-mono">Esc</kbd> to close
         </div>
       </div>
 
