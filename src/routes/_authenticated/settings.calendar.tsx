@@ -181,7 +181,7 @@ function CalendarSettingsPage() {
         </div>
 
         {/* Cal.com workspace connection */}
-        <Card>
+        <Card data-tour="cal-connect">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
