@@ -380,7 +380,7 @@ const CHEAT_SECTIONS = [
     commands: [
       { phrase: "How do I configure a Logic Split?",       desc: "Step-by-step configuration guide" },
       { phrase: "How do I pass variables between nodes?",  desc: "Learn variable extraction & usage" },
-      { phrase: "How do I check my Retell config?",        desc: "Troubleshoot Retell setup" },
+      { phrase: "How do I set up a custom voice?",          desc: "ElevenLabs voice configuration" },
       { phrase: "Open the receptionist go-live guide",     desc: "Opens documentation in a new tab" },
       { phrase: "Open the customer care build guide",      desc: "Opens documentation in a new tab" },
       { phrase: "How do I deploy my agent?",               desc: "Publishing & Go Live walkthrough" },

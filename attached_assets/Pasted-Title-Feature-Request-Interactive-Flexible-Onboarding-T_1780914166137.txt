@@ -1,0 +1,61 @@
+Title: Feature Request - Interactive Flexible Onboarding Tour with Branching Build Paths, Voice Configuration, and Compliance Gates
+
+Please implement a highly flexible, step-by-step "Click-Through Onboarding Tour" that automatically triggers when a new user signs up. The tour must guide the user through setting up a Virtual Receptionist agent, dynamically accommodating choices between building from scratch versus utilizing an existing template, configuration of voice assets, compliance gating, and provisioning phone numbers.
+
+CRITICAL CAPACITY CLAUSE: You (Replit Agent) are fully authorized to dynamically optimize the user interface mechanics, merge consecutive screens, or refine specific tooltip steps if you see a cleaner, lower-friction execution layout. However, you must strictly preserve and include all integration dependencies, branching build choices, telephony states, and compliance landmarks outlined below.
+
+---
+
+### 1. Guided Tour Engine & UI Mechanics
+* **Step-by-Step Controller:** Maintain an interactive tour state engine. Lock user focus onto specific canvas elements or form fields sequentially.
+* **Navigation Overlay:** Dim the surrounding workspace layout with a low-opacity dark mask (`bg-slate-950/50`) and draw an animated focus ring around the target container, button, or input row for the active step.
+* **The Progression Controller:** Every card in the onboarding wizard must feature a distinct header, a concise user action instruction, a step progress indicator, and a primary navigation button labeled **"Next"** or **"Done"** to advance the onboarding state.
+
+---
+
+### 2. Guided Onboarding milestones (Replit-Optimized Sequence)
+
+Configure the wizard pipeline to handle the following operational and structural checkpoints:
+
+#### Milestone 1: Choose Your Build Strategy (Template vs. Scratch)
+* **Focus Area:** A prompt dialog box offering two distinct workspace configuration paths:
+    * **Path A (Use a Template):** User selects a pre-built template layout (e.g., "Virtual Receptionist"). The tour tooltips immediately focus on a configuration module containing two clean form fields: `Company Name` and `Industry`. Updating these fields automatically updates the base copy inside the canvas nodes.
+    * **Path B (Create a Fresh Agent):** User opts to clone an empty workspace wireframe to build from scratch.
+
+#### Milestone 2: Voice Asset Configuration & Optional ElevenLabs Import
+* **Focus Area:** The system "Voice Selection" interface panel.
+* **Instruction:** "Give your agent a brand signature identity. Choose from our high-fidelity native platform voices, or optionally connect your custom provider."
+* **Optional ElevenLabs Gateway:** Provide an input wrapper within the onboarding step allowing users to switch a tab to "Import Custom Voice", providing placeholder fields for an `ElevenLabs API Key` and `Voice ID`. If skipped, fallback to default platform selections.
+
+#### Milestone 3: Admin Panel Verification Gate (Compliance State)
+* **Focus Area:** A high-visibility status banner blocking full platform actions over the canvas view.
+* **Instruction:** "Workspace configured! For network compliance, a validation ping has been forwarded to our Admin Panel. Our team will verify your account details shortly to unlock live communications."
+* **Simulation Rule:** Show a clean live transition where the banner shifts from a yellow `⏳ Pending Admin Verification` status to a green `✅ Workspace Verified` badge after a brief 3-second delay, enabling the **Next** navigation link.
+
+#### Milestone 4: Calendar Sync (Cal.com Integration)
+* **Focus Area:** The functional calendar mapping card.
+* **Instruction:** "Link your scheduling availability. Click 'Connect Cal.com' to bridge your live calendar booking slots directly to the agent's routing decisions."
+* **Action:** User logs or confirms the calendar action step to advance.
+
+#### Milestone 5: Telephony Provisioning (Phone Number / IP Trunk Purchase)
+* **Focus Area:** The communications routing panel layout.
+* **Instruction:** "Your agent needs a voice path. Purchase a dedicated local phone number or securely bind your company's existing enterprise IP Trunk infrastructure right here."
+* **Action:** User simulates selecting a route, satisfying the final communication parameter.
+
+#### Milestone 6: Gated "Go Live" Deployment
+* **Focus Area:** The primary top navigation "Deploy / Go Live" action button pill.
+* **Constraint Rule:** This button must remain fully disabled (`disabled: true`) throughout all preceding milestones. It must dynamically unlock *only* after a build path is set, admin verification is approved, and a telephone line/trunk is bound.
+* **Instruction:** "All operational criteria achieved! Your parameters are locked. Click 'Deploy' to push your script configuration live."
+* **Action:** User triggers deployment.
+
+#### Milestone 7: Live Dashboard Activation & Data Population
+* **Focus Area:** The live performance reporting viewport screen.
+* **Action:** Programmatically transition the user's view away from the workspace canvas over to the High-Density Analytics Dashboard.
+* **Instruction:** "You are officially live! The moment your provisioned number catches a call, this dashboard dynamically populates your summaries, caller sentiments, and raw post-call webhook arrays in real-time."
+* **Action:** User confirms the final step, permanently clearing the tour from view.
+
+---
+
+### 3. Layout Constraints & Style Integrity
+* **Graceful Skip Hatch:** Include an "Exit Onboarding" link on all card templates to drop the user straight into a clean, empty workspace layout safely without corrupting backend arrays.
+* **Typographic Density:** Ensure all instructional text layers remain highly compact (`text-xs` or `text-sm`), prioritizing scannable sentence fragments and clean, crisp off-white labels over dense paragraphs to match our premium SaaS dark-theme layout.

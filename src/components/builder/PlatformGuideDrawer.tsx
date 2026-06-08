@@ -88,7 +88,7 @@ const SECTIONS: Array<{
         label: "Function",
         body: (
           <p className="text-[11px] text-slate-300 leading-relaxed">
-            Calls an external API or tool mid-call. Set <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">function_name</code> to match a tool registered in your Retell dashboard (e.g. <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">check_availability</code>).
+            Calls an external API or tool mid-call. Set <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">function_name</code> to match a tool registered in your platform account (e.g. <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">check_availability</code>).
           </p>
         ),
       },
@@ -112,7 +112,7 @@ const SECTIONS: Array<{
         label: "Agent Transfer",
         body: (
           <p className="text-[11px] text-slate-300 leading-relaxed">
-            Hands off to a live agent queue. Configure the transfer destination in your Retell dashboard under your agent's transfer settings.
+            Hands off to a live agent queue. Configure the transfer destination in your agent's platform settings.
           </p>
         ),
       },
@@ -192,7 +192,7 @@ const SECTIONS: Array<{
         label: "Post-call extraction",
         body: (
           <p className="text-[11px] text-slate-300 leading-relaxed">
-            Captured variable names must match the post-call extraction fields in your Retell dashboard under <strong className="text-white">Agent → Post-Call Data Retrieval</strong> exactly (case-sensitive).
+            Captured variable names must match the post-call extraction fields configured in your agent settings under <strong className="text-white">Agent → Post-Call Data Retrieval</strong> exactly (case-sensitive).
           </p>
         ),
       },
@@ -230,33 +230,35 @@ const SECTIONS: Array<{
     ],
   },
   {
-    id: "retell",
+    id: "integrations",
     emoji: "🔧",
-    title: "Retell Configuration",
+    title: "Voice & Integrations",
     items: [
       {
-        label: "API key setup",
+        label: "Cal.com — appointment booking",
         body: (
           <ol className="space-y-1 list-decimal list-inside text-[11px] text-slate-300 leading-relaxed">
-            <li>Go to <strong className="text-white">Account → Integrations</strong>.</li>
-            <li>Paste your Retell API key (found under your Retell dashboard → API).</li>
-            <li>Click Save. The builder uses this key for all test calls and previews.</li>
+            <li>Go to <strong className="text-white">Account → Integrations → Cal.com</strong>.</li>
+            <li>Paste your Cal.com API key (found under Cal.com → Settings → API keys).</li>
+            <li>Click Save. Your booking Function nodes will now use <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">check_availability</code> and <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">book_appointment</code> automatically.</li>
           </ol>
         ),
       },
       {
-        label: "Matching variable names",
+        label: "ElevenLabs — custom voice",
         body: (
-          <p className="text-[11px] text-slate-300 leading-relaxed">
-            Every <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">variable_name</code> in your Extract Variable nodes must match the corresponding field name in Retell's post-call extraction config exactly — including case and underscores.
-          </p>
+          <ol className="space-y-1 list-decimal list-inside text-[11px] text-slate-300 leading-relaxed">
+            <li>Go to <strong className="text-white">Account → Integrations → ElevenLabs</strong>.</li>
+            <li>Paste your ElevenLabs API key and select or clone a voice.</li>
+            <li>Back in the Builder, open <strong className="text-white">Agent Settings → Voice</strong> and choose your ElevenLabs voice from the dropdown.</li>
+          </ol>
         ),
       },
       {
         label: "Function tools",
         body: (
           <p className="text-[11px] text-slate-300 leading-relaxed">
-            Register your function tools in Retell first, then set <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">function_name</code> on your Function node to the exact tool name from Retell. A mismatch will silently skip the call.
+            Register your function tools in your platform account first, then set <code className="text-amber-300 bg-amber-500/10 rounded px-1 text-[10px]">function_name</code> on your Function node to the exact registered tool name. A mismatch will silently skip the call.
           </p>
         ),
       },
@@ -273,10 +275,10 @@ const SECTIONS: Array<{
           <ul className="space-y-1 text-[11px] text-slate-300 leading-relaxed">
             {[
               "All Call Transfer nodes have a phone_number set",
-              "All Function nodes have a function_name that matches Retell",
+              "All Function nodes have a function_name matching a registered tool",
               "All Extract Variable nodes have a snake_case variable_name",
               "Every flow path ends at an Ending node",
-              "Your Retell API key is saved in Account → Integrations",
+              "Cal.com API key saved in Account → Integrations (if using booking)",
             ].map((item) => (
               <li key={item} className="flex items-start gap-1.5">
                 <span className="text-emerald-400 mt-0.5 shrink-0">✓</span>
@@ -292,8 +294,8 @@ const SECTIONS: Array<{
           <ol className="space-y-1 list-decimal list-inside text-[11px] text-slate-300 leading-relaxed">
             <li>Click <strong className="text-white">Go Live</strong> in the top toolbar.</li>
             <li>The platform validates all required fields — fix any flagged errors.</li>
-            <li>On success, the flow is published to your Retell workspace using your production API key.</li>
-            <li>Test the live agent via your assigned Retell phone number.</li>
+            <li>On success, the flow is published and activated using your production credentials.</li>
+            <li>Test the live agent via your assigned phone number.</li>
           </ol>
         ),
       },
