@@ -10,9 +10,9 @@ export interface OnboardingState {
   buildPath: "template" | "scratch" | null;
   companyName: string;
   industry: string;
-  voice: string;
+  voiceChosen: string;
+  voiceInteracted: boolean;
   elevenLabsKey: string;
-  elevenLabsVoiceId: string;
   adminVerified: boolean;
   calConnected: boolean;
   phoneChoice: "local" | "trunk" | null;
@@ -27,9 +27,9 @@ const DEFAULTS: OnboardingState = {
   buildPath: null,
   companyName: "",
   industry: "",
-  voice: "emma",
+  voiceChosen: "",
+  voiceInteracted: false,
   elevenLabsKey: "",
-  elevenLabsVoiceId: "",
   adminVerified: false,
   calConnected: false,
   phoneChoice: null,
@@ -53,25 +53,23 @@ function save(state: OnboardingState) {
   } catch {}
 }
 
-/** Call from anywhere (sidebar button, toolbar, etc.) to restart the tour. */
 export function restartTour() {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {}
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
   window.dispatchEvent(new Event(RESTART_EVENT));
 }
 
 export function useOnboarding() {
   const [state, setStateRaw] = useState<OnboardingState>(load);
 
-  // React to restartTour() calls from outside this hook instance
   useEffect(() => {
     const handler = () => setStateRaw({ ...DEFAULTS });
     window.addEventListener(RESTART_EVENT, handler);
     return () => window.removeEventListener(RESTART_EVENT, handler);
   }, []);
 
-  const setState = useCallback((updater: Partial<OnboardingState> | ((prev: OnboardingState) => Partial<OnboardingState>)) => {
+  const setState = useCallback((
+    updater: Partial<OnboardingState> | ((prev: OnboardingState) => Partial<OnboardingState>),
+  ) => {
     setStateRaw((prev) => {
       const patch = typeof updater === "function" ? updater(prev) : updater;
       const next = { ...prev, ...patch };
@@ -84,19 +82,10 @@ export function useOnboarding() {
     setState((prev) => ({ step: Math.min(prev.step + 1, 6) }));
   }, [setState]);
 
-  const dismiss = useCallback(() => {
-    setState({ dismissed: true });
-  }, [setState]);
-
-  const complete = useCallback(() => {
-    setState({ completed: true, dismissed: true });
-  }, [setState]);
-
-  const reset = useCallback(() => {
-    restartTour();
-  }, []);
-
-  const visible = !state.completed && !state.dismissed;
+  const dismiss   = useCallback(() => setState({ dismissed: true }),              [setState]);
+  const complete  = useCallback(() => setState({ completed: true, dismissed: true }), [setState]);
+  const reset     = useCallback(() => restartTour(),                              []);
+  const visible   = !state.completed && !state.dismissed;
 
   return { state, setState, advance, dismiss, complete, reset, visible };
 }

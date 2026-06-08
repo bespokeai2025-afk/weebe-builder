@@ -1,0 +1,61 @@
+Title: Feature Request - Strict Event-Driven Onboarding Tour with Forced Step-by-Step App Navigation
+
+Please implement an advanced, strict, event-driven "Interactive Onboarding Walkthrough" that forces new users to physically navigate through our platform layout and fulfill precise application tasks one by one before they are allowed to progress. 
+
+CRITICAL COGNITIVE LAYER: The "Next / Done" buttons on the tour tooltips must be programmatically disabled by default for every interactive step. They should only unlock and become clickable once the frontend detects that the user has successfully executed the requested app mutation or navigation event.
+
+---
+
+### 1. Hardened Tour Engine & Strict State Lock
+* **Action-Conditional Progression:** The onboarding controller must listen for specific state changes or DOM events. If a user tries to click outside the targeted area or click "Next" prematurely, shake the tooltip box or flash the highlighted container to enforce compliance.
+* **Layout Isolation Mask:** Utilize a heavy backdrop overlay (`bg-slate-950/70`) that cuts off pointer-events to the rest of the application, leaving only the targeted input field, button, or selector interactive.
+* **Contextual UI Auto-Navigation:** As the user finishes a step, the tour engine must programmatically alter the platform state to slide open the required side-panels, scroll text containers into view, or switch dashboard view tabs automatically so the user is positioned exactly where the next action lives.
+
+---
+
+### 2. The Forced 7-Step Operational Setup Sequence
+
+Configure the engine to strictly execute and validate these exact physical milestones:
+
+#### Step 1: Choose Build Strategy & Force Data Input
+* **UI State:** Pop up a blocking modal with two choices: "Start from Scratch" or "Use Receptionist Template".
+* **Forced Action:** The user *must* click "Use Receptionist Template". Once clicked, reveal two form inputs: `Company Name` and `Industry`. The "Next" button remains disabled until both text fields contain at least 3 characters. 
+* **Validation Trigger:** Upon typing compliance, update the canvas nodes with their data dynamically, illuminate the "Next" button, and let them proceed.
+
+#### Step 2: Forced Voice Audition & Optional ElevenLabs Configuration
+* **UI State:** Auto-scroll and point the user directly to the "Voice Selection Dropdown" in the configuration layout.
+* **Forced Action:** The user *must* open the dropdown and click the "Play Preview" button on any native voice asset, OR toggle the "Import from ElevenLabs" tab and type a mock value into the `API Key` container. 
+* **Validation Trigger:** Capturing a voice preview play event or a valid key text length unlocks the progression handler.
+
+#### Step 3: Forced Compliance Gate (Simulated Admin Verification)
+* **UI State:** Programmatically lock down the entire workspace view and show a prominent layout banner over the middle screen: `⏳ Pending Admin Panel Review...`
+* **Forced Action:** The user is forced to wait for account provisioning. 
+* **Validation Trigger:** Run a strict 3-second visual timer countdown script. Once the timer hits zero, transition the layout dynamically to a green `✅ Account Verified & Cloned to Workspace` checkmark banner, and programmatically auto-advance the user to Step 4.
+
+#### Step 4: Forced Integration Link (Cal.com Setup)
+* **UI State:** Automatically highlight and flash the "Connect Cal.com" action button inside the integration widgets section.
+* **Forced Action:** The user *must* physically click the "Connect Cal.com" button.
+* **Validation Trigger:** Catch the button’s click handler, spawn a quick simulated "Calendar Syncing..." micro-spinner, flip the integration state to `Connected`, and automatically unlock the step's completion button.
+
+#### Step 5: Forced Telephony Purchase
+* **UI State:** Auto-navigate the application view away from the canvas and push the user directly into the "Numbers & Provisioning" billing panel dashboard tab.
+* **Forced Action:** Highlight a mock phone list row. The user *must* click the action tile labeled "Claim Number / Bind IP Trunk".
+* **Validation Trigger:** On successful selection, update the workspace state variable to `is_phone_provisioned: true`, update the header indicator with their new number, and activate the "Next" progression link.
+
+#### Step 6: The Locked "Go Live" Deployment Trigger
+* **UI State:** Programmatically scroll the viewport back to the main builder layout, centering focus completely onto the far-right top navigation "Deploy / Go Live" primary action pill button.
+* **Strict Constraint Layer:** Ensure this button has been entirely disabled (`disabled: true`) through steps 1-5. It must now dynamically illuminate and become fully active.
+* **Forced Action:** The user *must* physically click the "Deploy" button.
+* **Validation Trigger:** Clicking the button triggers our layout compilation function, changing the workspace status badge from `Draft` to `Live`.
+
+#### Step 7: Redirection to Live Post-Call Data View
+* **UI State:** The instant the user hits Deploy in Step 6, programmatically wipe the canvas layout from view and redirect the browser screen layout entirely over to our High-Density Analytics Dashboard view.
+* **Forced Action:** Highlight the data streaming container matrix where Retell payloads live. 
+* **Instruction Tooltip:** "Your Receptionist is officially active! The moment your provisioned phone number picks up an inbound call, this dashboard dynamically populates your operational metrics, sentiment trends, and raw post-call data extraction arrays here in real-time."
+* **The Final Breakout:** The user clicks a final high-contrast button labeled **"Launch My Console"** to terminate the onboarding tour state completely, saving their verified setup, removing all masks, and granting unrestricted platform access.
+
+---
+
+### 3. Graceful Escape Hatch & Layout Integrity
+* **The Exit Option:** Provide a tiny, low-visibility "Skip Tour" link at the very bottom corner of the cards. If clicked, cleanly purge all overlay code masks, reset active session variables safely, and drop the user into an empty default canvas layout without breaking any operational code layers.
+* **UI Spacing Density:** Keep all tooltip text highly compact (`text-xs` or `text-sm`) using crisp off-white layers that fit effortlessly within our dark SaaS premium design ecosystem.

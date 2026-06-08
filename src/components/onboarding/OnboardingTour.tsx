@@ -1,459 +1,213 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useOnboarding } from "./useOnboarding";
-import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  CheckCircle2,
-  ChevronRight,
-  ExternalLink,
-  Loader2,
-  Mic,
-  Phone,
-  PhoneCall,
-  Rocket,
-  X,
-  Zap,
-} from "lucide-react";
+import type { OnboardingState } from "./useOnboarding";
 
-/* ─── step config ───────────────────────────────────────────────── */
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type Side = "center" | "left" | "right" | "bottom" | "top";
+type Side = "left" | "right" | "bottom" | "center";
+interface StepCfg { route: string; anchor: string | null; side: Side; emoji: string; label: string; }
+interface Rect     { top: number; left: number; width: number; height: number; }
 
-interface StepConfig {
-  route: string;
-  anchor: string | null;
-  side: Side;
-  emoji: string;
-  label: string;
-  hint: string;           // small area label shown under spotlight
-}
+// ─── Step config ──────────────────────────────────────────────────────────────
 
-const STEPS: StepConfig[] = [
-  {
-    route: "/builder",
-    anchor: null,
-    side: "center",
-    emoji: "🛠️",
-    label: "Build Strategy",
-    hint: "Canvas workspace",
-  },
-  {
-    route: "/builder",
-    anchor: "right-panel",
-    side: "left",
-    emoji: "🎙️",
-    label: "Voice Setup",
-    hint: "Agent Settings panel →",
-  },
-  {
-    route: "/builder",
-    anchor: null,
-    side: "center",
-    emoji: "🔐",
-    label: "Admin Verification",
-    hint: "Compliance check",
-  },
-  {
-    route: "/settings/calendar",
-    anchor: "cal-connect",
-    side: "right",
-    emoji: "📅",
-    label: "Calendar Sync",
-    hint: "Cal.com connection card",
-  },
-  {
-    route: "/builder",
-    anchor: "deploy-btn",
-    side: "bottom",
-    emoji: "📞",
-    label: "Phone Provisioning",
-    hint: "Deploy toolbar ↑",
-  },
-  {
-    route: "/builder",
-    anchor: "deploy-btn",
-    side: "bottom",
-    emoji: "🚀",
-    label: "Go Live",
-    hint: "Deploy toolbar ↑",
-  },
-  {
-    route: "/dashboard",
-    anchor: null,
-    side: "center",
-    emoji: "📊",
-    label: "Dashboard",
-    hint: "Live analytics",
-  },
+const STEPS: StepCfg[] = [
+  { route: "/builder",           anchor: null,          side: "center", emoji: "🛠️", label: "Choose Your Setup"    },
+  { route: "/builder",           anchor: "right-panel", side: "left",   emoji: "🎙️", label: "Voice Configuration"  },
+  { route: "/builder",           anchor: null,          side: "center", emoji: "🔐", label: "Admin Verification"   },
+  { route: "/settings/calendar", anchor: "cal-connect", side: "right",  emoji: "📅", label: "Calendar Integration" },
+  { route: "/builder",           anchor: null,          side: "center", emoji: "📞", label: "Phone Provisioning"   },
+  { route: "/builder",           anchor: "deploy-btn",  side: "bottom", emoji: "🚀", label: "Go Live"              },
+  { route: "/dashboard",         anchor: null,          side: "center", emoji: "📊", label: "Console Active"       },
 ];
 
-const TOTAL = STEPS.length;
-const CARD_W = 400;
-const CARD_H_APPROX = 420;
-const SPOTLIGHT_PAD = 8;
-const MARGIN = 16;
+const PAD    = 10;
+const CARD_W = 340;
 
-/* ─── main export ───────────────────────────────────────────────── */
+// ─── Per-step unlock logic ────────────────────────────────────────────────────
 
-export function OnboardingTour() {
-  const { state, setState, advance, dismiss, complete, visible } = useOnboarding();
-  const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // Navigate to the correct route when the step changes
-  useEffect(() => {
-    if (!visible) return;
-    const target = STEPS[state.step]?.route;
-    if (target && pathname !== target) {
-      navigate({ to: target as never });
-    }
-  }, [state.step, visible]);
-
-  if (!mounted || !visible) return null;
-
-  return createPortal(
-    <TourLayer
-      step={state.step}
-      state={state}
-      setState={setState}
-      advance={advance}
-      dismiss={dismiss}
-      complete={complete}
-      navigate={navigate}
-      pathname={pathname}
-    />,
-    document.body,
-  );
+function isUnlocked(step: number, s: OnboardingState): boolean {
+  switch (step) {
+    case 0: return s.buildPath === "template" && s.companyName.trim().length >= 3 && s.industry.trim().length >= 3;
+    case 1: return s.voiceInteracted;
+    case 2: return s.adminVerified;
+    case 3: return s.calConnected;
+    case 4: return s.phoneChoice !== null;
+    case 5: return s.deployed;
+    default: return true;
+  }
 }
 
-/* ─── layer (spotlight + card) ──────────────────────────────────── */
+// ─── Card position ────────────────────────────────────────────────────────────
 
-interface LayerProps {
-  step: number;
-  state: ReturnType<typeof useOnboarding>["state"];
-  setState: ReturnType<typeof useOnboarding>["setState"];
-  advance: () => void;
-  dismiss: () => void;
-  complete: () => void;
-  navigate: ReturnType<typeof useNavigate>;
-  pathname: string;
+function cardPos(rect: Rect | null, side: Side): { top: number; left: number } {
+  const vw = typeof window !== "undefined" ? window.innerWidth  : 1280;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+
+  if (!rect || side === "center") {
+    return { top: Math.max(40, vh / 2 - 230), left: vw / 2 - CARD_W / 2 };
+  }
+
+  const cy = rect.top + rect.height / 2;
+  const cx = rect.left + rect.width / 2;
+
+  if (side === "left") {
+    return {
+      top:  Math.max(8, Math.min(cy - 160, vh - 380)),
+      left: Math.max(8, rect.left - PAD - CARD_W - 16),
+    };
+  }
+  if (side === "right") {
+    return {
+      top:  Math.max(8, Math.min(cy - 160, vh - 380)),
+      left: Math.min(rect.right + PAD + 16, vw - CARD_W - 8),
+    };
+  }
+  return {
+    top:  Math.min(rect.bottom + PAD + 16, vh - 380),
+    left: Math.max(8, Math.min(cx - CARD_W / 2, vw - CARD_W - 8)),
+  };
 }
 
-interface Rect { top: number; left: number; width: number; height: number; }
+// ─── Quad overlay ─────────────────────────────────────────────────────────────
+// Four blocking panels surrounding the spotlight gap. Anything outside the
+// spotlight gets pointer-events blocked so users can only interact with the
+// targeted element (or the tour card itself).
 
-function TourLayer(props: LayerProps) {
-  const { step } = props;
-  const cfg = STEPS[step];
-  const [anchorRect, setAnchorRect] = useState<Rect | null>(null);
-  const attemptRef = useRef(0);
+function QuadOverlay({
+  rect,
+  onOutsideClick,
+  flash,
+}: {
+  rect: Rect | null;
+  onOutsideClick: () => void;
+  flash: boolean;
+}) {
+  const bg: React.CSSProperties = {
+    position: "fixed",
+    zIndex: 9997,
+    backgroundColor: flash ? "rgba(2,6,23,0.88)" : "rgba(2,6,23,0.76)",
+    transition: "background-color 0.15s",
+    cursor: "not-allowed",
+  };
 
-  const findAnchor = useCallback(() => {
-    if (!cfg.anchor) { setAnchorRect(null); return; }
-    const el = document.querySelector(`[data-tour="${cfg.anchor}"]`) as HTMLElement | null;
-    if (el) {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0) {
-        setAnchorRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-        return;
-      }
-    }
-    // retry up to 10 times / 2s
-    if (attemptRef.current < 10) {
-      attemptRef.current += 1;
-      setTimeout(findAnchor, 200);
-    } else {
-      setAnchorRect(null);
-    }
-  }, [cfg.anchor]);
+  if (!rect) {
+    return <div style={{ ...bg, inset: 0 }} onClick={onOutsideClick} />;
+  }
 
-  // Re-anchor whenever step changes or route settles
-  useEffect(() => {
-    attemptRef.current = 0;
-    setAnchorRect(null);
-    const t = setTimeout(findAnchor, 350);
-    return () => clearTimeout(t);
-  }, [step, props.pathname, findAnchor]);
-
-  // Re-anchor on window resize
-  useEffect(() => {
-    const onResize = () => { attemptRef.current = 0; findAnchor(); };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [findAnchor]);
-
-  const cardPos = computeCardPos(anchorRect, cfg.side);
-  const useCentered = cfg.anchor === null || anchorRect === null;
+  const sTop  = rect.top    - PAD;
+  const sLeft = rect.left   - PAD;
+  const sW    = rect.width  + PAD * 2;
+  const sH    = rect.height + PAD * 2;
 
   return (
     <>
-      {/* Dark overlay */}
-      {useCentered ? (
-        <div className="fixed inset-0 z-[9997] bg-slate-950/65 backdrop-blur-[2px]" />
-      ) : (
-        <div className="fixed inset-0 z-[9997] pointer-events-none" />
-      )}
-
-      {/* Spotlight over anchor */}
-      {!useCentered && anchorRect && (
-        <div
-          className="fixed z-[9998] rounded-lg pointer-events-none transition-all duration-300"
-          style={{
-            top:    anchorRect.top    - SPOTLIGHT_PAD,
-            left:   anchorRect.left   - SPOTLIGHT_PAD,
-            width:  anchorRect.width  + SPOTLIGHT_PAD * 2,
-            height: anchorRect.height + SPOTLIGHT_PAD * 2,
-            boxShadow: "0 0 0 9999px rgba(2, 6, 23, 0.72)",
-            border: "1.5px solid rgba(99, 102, 241, 0.55)",
-            animation: "tour-ring 2.4s ease-in-out infinite",
-          }}
-        />
-      )}
-
-      {/* Hint label above spotlight */}
-      {!useCentered && anchorRect && (
-        <div
-          className="fixed z-[9999] pointer-events-none"
-          style={{
-            top:  anchorRect.top - SPOTLIGHT_PAD - 22,
-            left: anchorRect.left - SPOTLIGHT_PAD,
-          }}
-        >
-          <span className="text-[10px] font-medium text-indigo-300/80 bg-indigo-500/10 rounded px-1.5 py-0.5 border border-indigo-500/20">
-            {cfg.hint}
-          </span>
-        </div>
-      )}
-
-      {/* Tour card */}
-      <div
-        className={cn(
-          "fixed z-[9999] transition-all duration-200",
-          useCentered && "inset-0 flex items-center justify-center pointer-events-none",
-        )}
-        style={useCentered ? undefined : {
-          top:  cardPos.top,
-          left: cardPos.left,
-          width: CARD_W,
-        }}
-      >
-        <div
-          className={cn(
-            "w-full rounded-2xl border border-white/[0.09] bg-slate-900/97",
-            "shadow-[0_24px_56px_rgba(0,0,0,0.65)] backdrop-blur-xl",
-            "flex flex-col overflow-hidden pointer-events-auto",
-            useCentered && `max-w-[${CARD_W}px] w-full`,
-          )}
-          style={useCentered ? { maxWidth: CARD_W } : undefined}
-        >
-          <CardHeader step={step} cfg={cfg} dismiss={props.dismiss} />
-          <div className="px-5 py-4 flex-1 overflow-y-auto max-h-[60vh]">
-            <StepBody {...props} />
-          </div>
-          {step < 6 && <CardFooter step={step} state={props.state} advance={props.advance} dismiss={props.dismiss} />}
-        </div>
-      </div>
-
-      <style>{`
-        @keyframes tour-ring {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.65; }
-        }
-      `}</style>
+      {/* top strip */}
+      <div style={{ ...bg, top: 0, left: 0, right: 0, height: Math.max(0, sTop) }} onClick={onOutsideClick} />
+      {/* left strip */}
+      <div style={{ ...bg, top: sTop, left: 0, width: Math.max(0, sLeft), height: sH }} onClick={onOutsideClick} />
+      {/* right strip */}
+      <div style={{ ...bg, top: sTop, left: sLeft + sW, right: 0, height: sH }} onClick={onOutsideClick} />
+      {/* bottom strip */}
+      <div style={{ ...bg, top: sTop + sH, left: 0, right: 0, bottom: 0 }} onClick={onOutsideClick} />
     </>
   );
 }
 
-/* ─── position maths ────────────────────────────────────────────── */
+// ─── Spotlight ring ───────────────────────────────────────────────────────────
 
-function computeCardPos(rect: Rect | null, side: Side): { top: number; left: number } {
-  const vw = typeof window !== "undefined" ? window.innerWidth  : 1280;
-  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-
-  if (!rect) {
-    return { top: vh / 2 - CARD_H_APPROX / 2, left: vw / 2 - CARD_W / 2 };
-  }
-
-  const clampTop  = (t: number) => Math.max(MARGIN, Math.min(t, vh - CARD_H_APPROX - MARGIN));
-  const clampLeft = (l: number) => Math.max(MARGIN, Math.min(l, vw - CARD_W - MARGIN));
-
-  switch (side) {
-    case "left":
-      return {
-        top:  clampTop(rect.top),
-        left: clampLeft(rect.left - CARD_W - MARGIN),
-      };
-    case "right":
-      return {
-        top:  clampTop(rect.top),
-        left: clampLeft(rect.right + MARGIN),
-      };
-    case "bottom":
-      return {
-        top:  clampTop(rect.bottom + MARGIN),
-        left: clampLeft(rect.left + rect.width / 2 - CARD_W / 2),
-      };
-    case "top":
-      return {
-        top:  clampTop(rect.top - CARD_H_APPROX - MARGIN),
-        left: clampLeft(rect.left + rect.width / 2 - CARD_W / 2),
-      };
-    default:
-      return { top: vh / 2 - CARD_H_APPROX / 2, left: vw / 2 - CARD_W / 2 };
-  }
-}
-
-/* ─── card chrome ────────────────────────────────────────────────── */
-
-function CardHeader({ step, cfg, dismiss }: { step: number; cfg: StepConfig; dismiss: () => void }) {
+function SpotlightRing({ rect, flash }: { rect: Rect | null; flash: boolean }) {
+  if (!rect) return null;
   return (
-    <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-3.5">
-      <span className="text-lg leading-none">{cfg.emoji}</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">
-          Step {step + 1} / {TOTAL}
-        </p>
-        <h2 className="text-sm font-semibold text-white leading-tight mt-0.5">{cfg.label}</h2>
-      </div>
-      <div className="flex gap-[3px] items-center">
-        {STEPS.map((_, i) => (
-          <div
-            key={i}
-            className={cn(
-              "rounded-full transition-all duration-300",
-              i < step   ? "h-1.5 w-3 bg-primary"                       :
-              i === step  ? "h-1.5 w-3 bg-primary/70 animate-pulse"      :
-                            "h-1.5 w-1.5 bg-white/[0.10]",
-            )}
-          />
-        ))}
-      </div>
-      <button
-        onClick={dismiss}
-        className="ml-1 text-slate-600 hover:text-slate-300 transition-colors shrink-0"
-        title="Exit tour"
-      >
-        <X className="h-4 w-4" />
-      </button>
-    </div>
+    <div
+      style={{
+        position: "fixed",
+        zIndex: 9998,
+        top:    rect.top    - PAD,
+        left:   rect.left   - PAD,
+        width:  rect.width  + PAD * 2,
+        height: rect.height + PAD * 2,
+        borderRadius: 10,
+        border: flash
+          ? "2px solid rgba(239,68,68,0.85)"
+          : "2px solid rgba(99,102,241,0.65)",
+        boxShadow: flash
+          ? "0 0 0 4px rgba(239,68,68,0.18)"
+          : "0 0 0 4px rgba(99,102,241,0.12), inset 0 0 0 1px rgba(99,102,241,0.06)",
+        transition: "border-color 0.18s, box-shadow 0.18s",
+        pointerEvents: "none",
+      }}
+    />
   );
 }
 
-function CardFooter({
-  step,
+// ─── Step 0 — Build strategy + company info ───────────────────────────────────
+
+function Step0({
   state,
-  advance,
-  dismiss,
+  setState,
 }: {
-  step: number;
-  state: LayerProps["state"];
-  advance: () => void;
-  dismiss: () => void;
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
 }) {
-  const disabled = nextDisabled(step, state);
   return (
-    <div className="flex items-center justify-between border-t border-white/[0.06] px-5 py-3">
-      <button
-        onClick={dismiss}
-        className="text-[10px] text-slate-600 hover:text-slate-400 underline underline-offset-2 transition-colors"
-      >
-        Exit tour
-      </button>
-      <Button
-        size="sm"
-        onClick={advance}
-        disabled={disabled}
-        className="gap-1.5 text-xs font-semibold h-7 px-3"
-      >
-        {step === 5 ? "Finish" : "Next"}
-        <ChevronRight className="h-3.5 w-3.5" />
-      </Button>
-    </div>
-  );
-}
-
-function nextDisabled(step: number, state: LayerProps["state"]): boolean {
-  if (step === 0) return state.buildPath === null;
-  if (step === 2) return !state.adminVerified;
-  if (step === 4) return state.phoneChoice === null;
-  if (step === 5) return !state.deployed;
-  return false;
-}
-
-/* ─── step bodies ───────────────────────────────────────────────── */
-
-function StepBody(props: LayerProps) {
-  switch (props.step) {
-    case 0: return <Step0 {...props} />;
-    case 1: return <Step1 {...props} />;
-    case 2: return <Step2 {...props} />;
-    case 3: return <Step3 {...props} />;
-    case 4: return <Step4 {...props} />;
-    case 5: return <Step5 {...props} />;
-    case 6: return <Step6 {...props} />;
-    default: return null;
-  }
-}
-
-/* Step 0 — Build Strategy */
-function Step0({ state, setState }: LayerProps) {
-  return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        How would you like to build your first AI agent?
+        Pick your starting point. You <span className="text-indigo-300 font-medium">must</span> use the
+        Receptionist Template — it pre-populates your agent canvas automatically.
       </p>
-      <div className="grid grid-cols-2 gap-2.5">
-        {(["template", "scratch"] as const).map((path) => (
-          <button
-            key={path}
-            onClick={() => setState({ buildPath: path })}
-            className={cn(
-              "rounded-xl border p-3.5 text-left transition-all duration-150",
-              state.buildPath === path
-                ? "border-primary/60 bg-primary/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.25)]"
-                : "border-white/[0.07] bg-white/[0.03] hover:border-white/[0.13] hover:bg-white/[0.05]",
-            )}
-          >
-            <div className="text-lg mb-2">{path === "template" ? "📋" : "✏️"}</div>
-            <p className="text-xs font-semibold text-white mb-0.5">
-              {path === "template" ? "Use a Template" : "Build from Scratch"}
-            </p>
-            <p className="text-[10px] text-slate-500 leading-snug">
-              {path === "template"
-                ? "Start with a pre-built Virtual Receptionist flow and personalise it."
-                : "Open an empty canvas and design your agent node-by-node."}
-            </p>
-          </button>
-        ))}
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setState({ buildPath: "template" })}
+          className={`relative rounded-lg border px-3 py-3 text-left transition-all ${
+            state.buildPath === "template"
+              ? "border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30"
+              : "border-slate-700 bg-slate-800/60 hover:border-slate-600"
+          }`}
+        >
+          <div className="text-sm font-semibold text-slate-100">📋 Receptionist</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">Template — required</div>
+          {state.buildPath === "template" && (
+            <span className="absolute top-1.5 right-2 text-[10px] text-indigo-400 font-bold">✓</span>
+          )}
+        </button>
+        <button
+          disabled
+          className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-3 text-left opacity-35 cursor-not-allowed"
+        >
+          <div className="text-sm font-semibold text-slate-500">✏️ From Scratch</div>
+          <div className="text-[10px] text-slate-600 mt-0.5">Locked for new users</div>
+        </button>
       </div>
+
       {state.buildPath === "template" && (
-        <div className="rounded-lg border border-white/[0.07] bg-white/[0.03] p-3.5 space-y-2.5">
-          <p className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">
-            Personalise your template
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-[10px] text-slate-500 mb-1 block">Company name</label>
-              <Input
-                className="h-7 text-xs bg-slate-800/60 border-white/[0.08]"
-                placeholder="e.g. Bloom Dental"
-                value={state.companyName}
-                onChange={(e) => setState({ companyName: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="text-[10px] text-slate-500 mb-1 block">Industry</label>
-              <Input
-                className="h-7 text-xs bg-slate-800/60 border-white/[0.08]"
-                placeholder="e.g. Healthcare"
-                value={state.industry}
-                onChange={(e) => setState({ industry: e.target.value })}
-              />
-            </div>
+        <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div>
+            <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Company Name</label>
+            <input
+              autoFocus
+              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+              placeholder="e.g. Acme Medical Group"
+              value={state.companyName}
+              onChange={(e) => setState({ companyName: e.target.value })}
+            />
+            {state.companyName.length > 0 && state.companyName.trim().length < 3 && (
+              <p className="text-[10px] text-red-400 mt-0.5">Minimum 3 characters required</p>
+            )}
+          </div>
+          <div>
+            <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Industry</label>
+            <input
+              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+              placeholder="e.g. Healthcare, Real Estate"
+              value={state.industry}
+              onChange={(e) => setState({ industry: e.target.value })}
+            />
+            {state.industry.length > 0 && state.industry.trim().length < 3 && (
+              <p className="text-[10px] text-red-400 mt-0.5">Minimum 3 characters required</p>
+            )}
           </div>
         </div>
       )}
@@ -461,285 +215,568 @@ function Step0({ state, setState }: LayerProps) {
   );
 }
 
-/* Step 1 — Voice Setup */
-const NATIVE_VOICES = [
-  { id: "emma",  label: "Emma",  desc: "Warm • US English"  },
-  { id: "james", label: "James", desc: "Confident • UK"     },
-  { id: "sofia", label: "Sofia", desc: "Friendly • Neutral" },
+// ─── Step 1 — Voice selection ─────────────────────────────────────────────────
+
+const VOICES = [
+  { id: "emma",  label: "Emma",  desc: "Warm · Professional" },
+  { id: "james", label: "James", desc: "Deep · Authoritative" },
+  { id: "sofia", label: "Sofia", desc: "Friendly · Upbeat" },
 ];
 
-function Step1({ state, setState }: LayerProps) {
-  const [showEL, setShowEL] = useState(false);
+function Step1({
+  state,
+  setState,
+}: {
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+}) {
+  const [tab,     setTab]     = useState<"native" | "elevenlabs">("native");
+  const [playing, setPlaying] = useState<string | null>(null);
+
+  function handlePreview(id: string) {
+    if (playing) return;
+    setPlaying(id);
+    setTimeout(() => {
+      setPlaying(null);
+      setState({ voiceChosen: id, voiceInteracted: true });
+    }, 1500);
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        The <strong className="text-white">Agent Settings panel</strong> (highlighted →) controls your voice, prompt, and configuration. Choose a native voice or connect ElevenLabs for a custom one.
+        Select the voice your receptionist uses on calls. Preview one native voice <em>or</em>{" "}
+        configure ElevenLabs to unlock this step.
       </p>
-      <div className="flex gap-2">
-        {NATIVE_VOICES.map((v) => (
+
+      <div className="flex rounded-lg border border-slate-700 bg-slate-800/50 p-0.5 gap-0.5">
+        {(["native", "elevenlabs"] as const).map((t) => (
           <button
-            key={v.id}
-            onClick={() => setState({ voice: v.id })}
-            className={cn(
-              "flex-1 rounded-lg border p-2.5 text-left transition-all duration-150",
-              state.voice === v.id
-                ? "border-primary/60 bg-primary/10"
-                : "border-white/[0.07] bg-white/[0.03] hover:border-white/[0.12]",
-            )}
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 rounded-md py-1 text-[11px] font-medium transition-all ${
+              tab === t ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
+            }`}
           >
-            <Mic className={cn("h-3 w-3 mb-1.5", state.voice === v.id ? "text-primary" : "text-slate-500")} />
-            <p className="text-[10px] font-semibold text-white">{v.label}</p>
-            <p className="text-[9px] text-slate-500 mt-0.5">{v.desc}</p>
+            {t === "native" ? "🎙 Native Voices" : "⚡ ElevenLabs"}
           </button>
         ))}
       </div>
-      <button
-        onClick={() => setShowEL((p) => !p)}
-        className="flex w-full items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2 text-left hover:bg-white/[0.04] transition-colors"
-      >
-        <span className="text-sm">🎚️</span>
-        <span className="text-[10px] text-slate-300 flex-1">Import Custom Voice (ElevenLabs)</span>
-        <span className="text-[9px] text-slate-600">{showEL ? "▲" : "▼ Optional"}</span>
-      </button>
-      {showEL && (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3 space-y-2">
+
+      {tab === "native" ? (
+        <div className="flex flex-col gap-1.5">
+          {VOICES.map((v) => (
+            <div
+              key={v.id}
+              className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-all ${
+                state.voiceChosen === v.id
+                  ? "border-indigo-500 bg-indigo-500/10"
+                  : "border-slate-700 bg-slate-800/40 hover:border-slate-600"
+              }`}
+            >
+              <div>
+                <div className="text-xs font-semibold text-slate-100">{v.label}</div>
+                <div className="text-[10px] text-slate-500">{v.desc}</div>
+              </div>
+              <button
+                onClick={() => handlePreview(v.id)}
+                disabled={playing !== null}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] font-medium transition-all ${
+                  playing === v.id
+                    ? "bg-indigo-600 text-white"
+                    : "border border-slate-600 bg-slate-700/80 text-slate-300 hover:bg-slate-600"
+                }`}
+              >
+                {playing === v.id ? (
+                  <><span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> Playing…</>
+                ) : "▶ Preview"}
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
           <div>
-            <label className="text-[10px] text-slate-500 mb-1 block">ElevenLabs API Key</label>
-            <Input className="h-7 text-xs bg-slate-800/60 border-white/[0.08] font-mono" placeholder="xi-..." type="password"
-              value={state.elevenLabsKey} onChange={(e) => setState({ elevenLabsKey: e.target.value })} />
+            <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">API Key</label>
+            <input
+              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+              placeholder="xi_xxxxxxxxxxxxxxxxxxxxxxxx"
+              value={state.elevenLabsKey}
+              onChange={(e) => setState({ elevenLabsKey: e.target.value, voiceInteracted: e.target.value.length >= 6 })}
+            />
           </div>
           <div>
-            <label className="text-[10px] text-slate-500 mb-1 block">Voice ID</label>
-            <Input className="h-7 text-xs bg-slate-800/60 border-white/[0.08] font-mono" placeholder="21m00Tcm4TlvDq8ikWAM"
-              value={state.elevenLabsVoiceId} onChange={(e) => setState({ elevenLabsVoiceId: e.target.value })} />
+            <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Voice ID</label>
+            <input
+              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
+              placeholder="ElevenLabs Voice ID"
+            />
           </div>
-          <p className="text-[9px] text-amber-400/70">Save your key under Account → Integrations → ElevenLabs to use in production.</p>
+        </div>
+      )}
+
+      {state.voiceInteracted && (
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
+          <span>✓</span><span>Voice configured — proceed to next step</span>
         </div>
       )}
     </div>
   );
 }
 
-/* Step 2 — Admin Verification */
-function Step2({ state, setState }: LayerProps) {
-  const [verifying, setVerifying] = useState(!state.adminVerified);
+// ─── Step 2 — Admin verification (auto-advance) ───────────────────────────────
+
+function Step2({ setState, advance }: {
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+  advance: () => void;
+}) {
+  const [count,    setCount]    = useState(3);
+  const [verified, setVerified] = useState(false);
+
   useEffect(() => {
-    if (state.adminVerified) return;
-    const t = setTimeout(() => { setState({ adminVerified: true }); setVerifying(false); }, 3000);
-    return () => clearTimeout(t);
+    const id = setInterval(() => {
+      setCount((c) => {
+        if (c <= 1) {
+          clearInterval(id);
+          setVerified(true);
+          setState({ adminVerified: true });
+          setTimeout(() => advance(), 1200);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-slate-400 leading-relaxed">
-        For network compliance, a validation ping has been sent to our Admin Panel. Our team verifies your account to unlock live communications.
-      </p>
-      <div className={cn(
-        "rounded-xl border px-4 py-4 flex items-center gap-3 transition-all duration-700",
-        verifying ? "border-amber-500/30 bg-amber-500/[0.07]" : "border-emerald-500/30 bg-emerald-500/[0.07]",
-      )}>
-        {verifying ? (
-          <>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/20">
-              <Loader2 className="h-4 w-4 text-amber-400 animate-spin" />
+    <div className="flex flex-col items-center gap-4 py-2">
+      {!verified ? (
+        <>
+          <div className="relative h-16 w-16">
+            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="5" />
+              <circle
+                cx="32" cy="32" r="26" fill="none"
+                stroke="rgba(99,102,241,0.85)" strokeWidth="5"
+                strokeDasharray={`${2 * Math.PI * 26}`}
+                strokeDashoffset={`${2 * Math.PI * 26 * (count / 3)}`}
+                strokeLinecap="round"
+                style={{ transition: "stroke-dashoffset 0.9s linear" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center text-xl font-bold text-indigo-300">
+              {count}
             </div>
-            <div>
-              <p className="text-xs font-semibold text-amber-300">⏳ Pending Admin Verification</p>
-              <p className="text-[10px] text-amber-400/60 mt-0.5">Sending validation ping…</p>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-emerald-300">✅ Workspace Verified</p>
-              <p className="text-[10px] text-emerald-400/60 mt-0.5">Account validated — live communications unlocked.</p>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* Step 3 — Calendar Sync */
-function Step3({ state, setState }: LayerProps) {
-  const [connecting, setConnecting] = useState(false);
-  function handleConnect() {
-    setConnecting(true);
-    setTimeout(() => { setState({ calConnected: true }); setConnecting(false); }, 1500);
-  }
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-slate-400 leading-relaxed">
-        This is your <strong className="text-white">Cal.com connection card</strong> (highlighted). Paste your Cal.com API key and save to bridge live calendar slots into your agent's booking decisions.
-      </p>
-      <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-xl">📅</span>
-          <div>
-            <p className="text-xs font-semibold text-white">Cal.com</p>
-            <p className="text-[10px] text-slate-500">Real-time appointment booking</p>
           </div>
-          {state.calConnected && (
-            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-              <CheckCircle2 className="h-2.5 w-2.5" /> Connected
-            </span>
-          )}
+          <div className="text-center">
+            <div className="text-sm font-semibold text-slate-100">⏳ Pending Admin Panel Review…</div>
+            <div className="text-[11px] text-slate-500 mt-1">Verifying your workspace credentials</div>
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-300">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/40">
+            <span className="text-2xl">✅</span>
+          </div>
+          <div className="text-center">
+            <div className="text-sm font-semibold text-emerald-400">Account Verified &amp; Cloned to Workspace</div>
+            <div className="text-[11px] text-slate-500 mt-1">Advancing automatically…</div>
+          </div>
         </div>
-        {!state.calConnected ? (
-          <Button size="sm" variant="outline"
-            className="w-full h-7 text-xs gap-1.5 border-white/[0.08] hover:bg-white/[0.06]"
-            onClick={handleConnect} disabled={connecting}>
-            {connecting
-              ? <><Loader2 className="h-3 w-3 animate-spin" /> Connecting…</>
-              : <><ExternalLink className="h-3 w-3" /> Connect Cal.com</>}
-          </Button>
-        ) : (
-          <p className="text-[10px] text-slate-500 text-center">
-            Your agent will route booking requests to your live calendar.
-          </p>
-        )}
-      </div>
-      {!state.calConnected && (
-        <p className="text-[9px] text-slate-600 text-center">
-          Skip and connect later under Account → Integrations.
-        </p>
       )}
     </div>
   );
 }
 
-/* Step 4 — Phone Provisioning */
-const LOCAL_NUMBERS = ["+1 (212) 555-0141", "+1 (310) 555-0182", "+1 (415) 555-0109"];
+// ─── Step 3 — Cal.com integration ────────────────────────────────────────────
 
-function Step4({ state, setState }: LayerProps) {
+function Step3({ state, setState }: {
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+}) {
+  const [syncing, setSyncing] = useState(false);
+
+  function handleConnect() {
+    setSyncing(true);
+    setTimeout(() => { setSyncing(false); setState({ calConnected: true }); }, 1600);
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Your agent needs a voice path. Purchase a dedicated local number, or bind your existing enterprise SIP trunk. This setting lives in the <strong className="text-white">Deploy panel</strong> (highlighted ↑).
+        Link your Cal.com account so the receptionist can book appointments. Click the highlighted
+        button in the settings panel <em>or</em> use the button below.
       </p>
-      <div className="grid grid-cols-2 gap-2.5">
-        {(["local", "trunk"] as const).map((type) => (
-          <button key={type} onClick={() => setState({ phoneChoice: type, phoneValue: "" })}
-            className={cn(
-              "rounded-xl border p-3 text-left transition-all",
-              state.phoneChoice === type ? "border-primary/60 bg-primary/10" : "border-white/[0.07] bg-white/[0.03] hover:border-white/[0.12]",
-            )}>
-            {type === "local"
-              ? <Phone className="h-4 w-4 mb-1.5 text-sky-400" />
-              : <PhoneCall className="h-4 w-4 mb-1.5 text-violet-400" />}
-            <p className="text-[11px] font-semibold text-white">{type === "local" ? "Local Number" : "IP Trunk (SIP)"}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-              {type === "local" ? "Provision a dedicated DID." : "Bind your SIP trunk."}
-            </p>
+
+      {!state.calConnected ? (
+        <button
+          onClick={handleConnect}
+          disabled={syncing}
+          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/50 bg-indigo-600/20 py-2.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/30 transition-all disabled:opacity-60"
+        >
+          {syncing ? (
+            <><span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" /> Calendar Syncing…</>
+          ) : "📅 Connect Cal.com"}
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5">
+          <span className="text-emerald-400">✓</span>
+          <span className="text-xs font-semibold text-emerald-400">Cal.com Connected</span>
+        </div>
+      )}
+
+      <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
+        <div className="text-[10px] text-slate-500">Your booking link:</div>
+        <div className="mt-0.5 text-xs font-mono text-slate-300">cal.com/your-workspace/receptionist</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 4 — Phone provisioning ─────────────────────────────────────────────
+
+const PHONE_OPTS = [
+  { id: "local-us", label: "+1 (415) 555-0198", type: "Local US",       kind: "local" as const, price: "$4/mo" },
+  { id: "local-uk", label: "+44 20 7946 0321",  type: "Local UK",       kind: "local" as const, price: "$5/mo" },
+  { id: "trunk",    label: "Bring Your Own Trunk", type: "SIP / IP Trunk", kind: "trunk" as const, price: "Free" },
+];
+
+function Step4({ state, setState }: {
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Your receptionist will answer inbound calls on this number. Select one to continue.
+      </p>
+
+      <div className="flex flex-col gap-1.5">
+        {PHONE_OPTS.map((opt) => (
+          <button
+            key={opt.id}
+            onClick={() => setState({ phoneChoice: opt.kind, phoneValue: opt.label })}
+            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-all ${
+              state.phoneValue === opt.label
+                ? "border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30"
+                : "border-slate-700 bg-slate-800/40 hover:border-slate-600"
+            }`}
+          >
+            <div>
+              <div className="text-xs font-semibold font-mono text-slate-100">{opt.label}</div>
+              <div className="text-[10px] text-slate-500">{opt.type}</div>
+            </div>
+            <div className="text-right shrink-0 ml-2">
+              <div className="text-[10px] text-slate-400">{opt.price}</div>
+              {state.phoneValue === opt.label && (
+                <div className="text-[10px] text-indigo-400 font-bold mt-0.5">Selected ✓</div>
+              )}
+            </div>
           </button>
         ))}
       </div>
-      {state.phoneChoice === "local" && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Select a number</p>
-          {LOCAL_NUMBERS.map((n) => (
-            <button key={n} onClick={() => setState({ phoneValue: n })}
-              className={cn(
-                "w-full flex items-center justify-between rounded-lg border px-3 py-1.5 transition-all",
-                state.phoneValue === n ? "border-primary/50 bg-primary/10 text-white" : "border-white/[0.07] bg-white/[0.02] text-slate-400 hover:border-white/[0.12]",
-              )}>
-              <span className="text-xs font-mono">{n}</span>
-              {state.phoneValue === n && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
-            </button>
-          ))}
-        </div>
-      )}
-      {state.phoneChoice === "trunk" && (
-        <div>
-          <label className="text-[10px] text-slate-500 mb-1 block">SIP Trunk URI</label>
-          <Input className="h-7 text-xs bg-slate-800/60 border-white/[0.08] font-mono"
-            placeholder="sip:trunk.yourcompany.com"
-            value={state.phoneValue}
-            onChange={(e) => setState({ phoneValue: e.target.value })} />
+
+      {state.phoneChoice && (
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
+          <span>✓</span><span>{state.phoneValue} reserved — click Next</span>
         </div>
       )}
     </div>
   );
 }
 
-/* Step 5 — Go Live */
-function Step5({ state, setState }: LayerProps) {
-  const [deploying, setDeploying] = useState(false);
-  const criteria = [
-    { label: "Build path selected",         met: !!state.buildPath    },
-    { label: "Voice configured",            met: !!state.voice        },
-    { label: "Admin verification approved", met: state.adminVerified  },
-    { label: "Phone line bound",            met: !!state.phoneChoice  },
-  ];
-  const allMet = criteria.every((c) => c.met);
-  function handleDeploy() {
-    setDeploying(true);
-    setTimeout(() => { setState({ deployed: true }); setDeploying(false); }, 2000);
-  }
+// ─── Step 5 — Go Live (listens for real deploy button click) ──────────────────
+
+function Step5({ deployed }: { deployed: boolean }) {
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        All criteria met. Click <strong className="text-white">Deploy Agent</strong> to push your configuration live — the button is active in the <strong className="text-white">toolbar above</strong> (highlighted ↑).
+        Your agent is fully configured. Click the{" "}
+        <span className="font-semibold text-indigo-300">Deploy button</span> in the toolbar above —
+        it has been unlocked and is waiting for you.
       </p>
-      <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3.5 space-y-2">
-        {criteria.map((c) => (
-          <div key={c.label} className="flex items-center gap-2">
-            <span className={cn("text-[11px] w-4 text-center", c.met ? "text-emerald-400" : "text-slate-600")}>
-              {c.met ? "✓" : "○"}
-            </span>
-            <span className={cn("text-[11px]", c.met ? "text-slate-300" : "text-slate-600")}>{c.label}</span>
-          </div>
-        ))}
+
+      <div className="rounded-lg border border-indigo-500/25 bg-indigo-500/5 px-3 py-2.5">
+        <div className="text-[10px] text-slate-400 mb-1">What happens on deploy:</div>
+        <ul className="flex flex-col gap-0.5 text-[10px] text-slate-300">
+          <li>• Agent nodes compiled to Retell workflow</li>
+          <li>• Phone number bound to agent endpoint</li>
+          <li>• Status badge: <span className="text-amber-400">Draft</span> → <span className="text-emerald-400">Live</span></li>
+        </ul>
       </div>
-      {state.deployed ? (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] px-4 py-3 flex items-center gap-3">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-          <div>
-            <p className="text-xs font-semibold text-emerald-300">Agent deployed successfully</p>
-            <p className="text-[10px] text-emerald-400/60 mt-0.5">Click Finish to view your live dashboard.</p>
-          </div>
+
+      {!deployed ? (
+        <div className="flex items-center gap-2 text-[11px] text-indigo-400 animate-pulse">
+          <span className="inline-block h-2 w-2 rounded-full bg-indigo-500" />
+          Waiting for you to click Deploy ↑
         </div>
       ) : (
-        <Button className="w-full h-8 gap-1.5 text-xs font-semibold" disabled={!allMet || deploying} onClick={handleDeploy}>
-          {deploying
-            ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Deploying…</>
-            : <><Rocket className="h-3.5 w-3.5" /> Deploy Agent</>}
-        </Button>
+        <div className="flex items-center gap-2 text-[11px] text-emerald-400 animate-in fade-in duration-300">
+          <span>🚀</span>
+          <span className="font-semibold">Deployed! Redirecting to your console…</span>
+        </div>
       )}
     </div>
   );
 }
 
-/* Step 6 — Dashboard */
-function Step6({ navigate, complete }: LayerProps) {
+// ─── Step 6 — Live console ────────────────────────────────────────────────────
+
+function Step6({ complete }: { complete: () => void }) {
   return (
-    <div className="space-y-3">
-      <div className="text-center py-1">
-        <div className="text-3xl mb-2">🎉</div>
-        <h3 className="text-sm font-semibold text-white mb-1">You're officially live!</h3>
-        <p className="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
-          The moment your number receives a call, this dashboard populates with summaries, caller sentiments, and post-call data in real-time.
-        </p>
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Your receptionist is{" "}
+        <span className="font-semibold text-emerald-400">officially active</span>. The moment
+        your provisioned number picks up a call, this dashboard populates with operational metrics,
+        sentiment trends, and post-call data arrays in real-time.
+      </p>
+
+      <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
+        <div className="flex items-center gap-2 text-[11px] text-slate-300 mb-1.5">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          Live data streaming active
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {["Calls Today", "Avg Duration", "Sentiment"].map((m) => (
+            <div key={m} className="rounded border border-slate-700 bg-slate-800/60 px-2 py-1.5 text-center">
+              <div className="text-sm font-bold text-slate-100">—</div>
+              <div className="text-[9px] text-slate-500">{m}</div>
+            </div>
+          ))}
+        </div>
       </div>
-      <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3.5 space-y-1.5">
-        {["📊  Live call volume & trends", "💬  Caller sentiment analysis", "📋  Post-call variable extraction", "📅  Booking confirmation logs"].map((item) => (
-          <p key={item} className="text-[11px] text-slate-400">{item}</p>
-        ))}
-      </div>
-      <div className="flex flex-col gap-2 pt-1">
-        <Button className="w-full h-8 gap-1.5 text-xs font-semibold"
-          onClick={() => { complete(); navigate({ to: "/dashboard" }); }}>
-          <Zap className="h-3.5 w-3.5" /> View Live Dashboard
-        </Button>
-        <button onClick={complete}
-          className="text-[10px] text-slate-600 hover:text-slate-400 underline underline-offset-2 transition-colors text-center">
-          Stay in Builder
-        </button>
-      </div>
+
+      <button
+        onClick={complete}
+        className="w-full rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-900/40 hover:from-indigo-500 hover:to-violet-500 transition-all"
+      >
+        🚀 Launch My Console
+      </button>
     </div>
+  );
+}
+
+// ─── Tour card shell ──────────────────────────────────────────────────────────
+
+function TourCard({
+  step, pos, state, setState, advance, dismiss, complete, shaking, onNextAttempt,
+}: {
+  step: number;
+  pos: { top: number; left: number };
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+  advance: () => void;
+  dismiss: () => void;
+  complete: () => void;
+  shaking: boolean;
+  onNextAttempt: () => void;
+}) {
+  const cfg      = STEPS[step];
+  const unlocked = isUnlocked(step, state);
+
+  function handleNext() {
+    if (!unlocked) { onNextAttempt(); return; }
+    advance();
+  }
+
+  const showFooter = step !== 2 && step !== 6;
+
+  return (
+    <div
+      style={{
+        position:  "fixed",
+        zIndex:    9999,
+        top:       pos.top,
+        left:      pos.left,
+        width:     CARD_W,
+        animation: shaking ? "tour-shake 0.52s ease-in-out" : undefined,
+      }}
+      className="flex flex-col rounded-xl border border-slate-700/80 bg-slate-900 shadow-2xl shadow-black/70 ring-1 ring-white/[0.04]"
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2.5 border-b border-slate-800 px-4 py-2.5">
+        <span className="text-lg leading-none">{cfg.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-bold text-slate-100 truncate">{cfg.label}</div>
+          <div className="text-[9px] text-slate-500 mt-0.5">Step {step + 1} of {STEPS.length}</div>
+        </div>
+        {/* Progress pips */}
+        <div className="flex items-center gap-0.5 shrink-0">
+          {STEPS.map((_, i) => (
+            <div
+              key={i}
+              className={`h-1 rounded-full transition-all duration-300 ${
+                i < step ? "w-3 bg-indigo-500" : i === step ? "w-4 bg-indigo-400" : "w-1.5 bg-slate-700"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="px-4 py-3">
+        {step === 0 && <Step0 state={state} setState={setState} />}
+        {step === 1 && <Step1 state={state} setState={setState} />}
+        {step === 2 && <Step2 state={state} setState={setState} advance={advance} />}
+        {step === 3 && <Step3 state={state} setState={setState} />}
+        {step === 4 && <Step4 state={state} setState={setState} />}
+        {step === 5 && <Step5 deployed={state.deployed} />}
+        {step === 6 && <Step6 complete={complete} />}
+      </div>
+
+      {/* Footer */}
+      {showFooter && (
+        <div className="flex items-center justify-between border-t border-slate-800 px-4 py-2.5">
+          <button
+            onClick={dismiss}
+            className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
+          >
+            Skip Tour
+          </button>
+
+          <div className="flex items-center gap-2">
+            {!unlocked && (
+              <span className="text-[9px] text-slate-600">Complete step above first</span>
+            )}
+            <button
+              onClick={handleNext}
+              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[11px] font-semibold transition-all ${
+                unlocked
+                  ? "bg-indigo-600 text-white hover:bg-indigo-500 shadow-sm shadow-indigo-900/60"
+                  : "bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700"
+              }`}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Root ─────────────────────────────────────────────────────────────────────
+
+export function OnboardingTour() {
+  const [mounted, setMounted] = useState(false);
+  const navigate = useNavigate();
+  const { state, setState, advance, dismiss, complete, visible } = useOnboarding();
+
+  const [anchorRect, setAnchorRect] = useState<Rect | null>(null);
+  const [shaking,    setShaking]    = useState(false);
+  const [flash,      setFlash]      = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Navigate when step changes
+  useEffect(() => {
+    if (!mounted || !visible) return;
+    const cfg = STEPS[state.step];
+    if (cfg) navigate({ to: cfg.route as "/builder" | "/settings/calendar" | "/dashboard" });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.step, mounted, visible]);
+
+  // Resolve anchor element bounding rect
+  useEffect(() => {
+    if (!mounted || !visible) return;
+    const anchor = STEPS[state.step]?.anchor;
+    if (!anchor) { setAnchorRect(null); return; }
+
+    if (pollRef.current) clearInterval(pollRef.current);
+
+    let attempts = 0;
+    function measure() {
+      const el = document.querySelector(`[data-tour="${anchor}"]`);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setAnchorRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      }
+    }
+
+    measure();
+    pollRef.current = setInterval(() => {
+      measure();
+      if (++attempts > 30) { clearInterval(pollRef.current!); }
+    }, 200);
+
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [state.step, mounted, visible]);
+
+  // Step 3: also listen for a real click on the cal-connect card button
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 3 || state.calConnected) return;
+    const card = document.querySelector('[data-tour="cal-connect"]');
+    if (!card) return;
+    function handler() { setState({ calConnected: true }); }
+    card.addEventListener("click", handler);
+    return () => card.removeEventListener("click", handler);
+  }, [state.step, mounted, visible, state.calConnected, setState]);
+
+  // Step 5: listen for a real click on the deploy button
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 5 || state.deployed) return;
+    const el = document.querySelector('[data-tour="deploy-btn"]');
+    if (!el) return;
+    function handler() {
+      setState({ deployed: true });
+      setTimeout(() => advance(), 1500);
+    }
+    el.addEventListener("click", handler);
+    return () => el.removeEventListener("click", handler);
+  }, [state.step, mounted, visible, state.deployed, setState, advance]);
+
+  const triggerShake = useCallback(() => {
+    setShaking(true);
+    setTimeout(() => setShaking(false), 550);
+  }, []);
+
+  const triggerFlash = useCallback(() => {
+    setFlash(true);
+    setTimeout(() => setFlash(false), 380);
+  }, []);
+
+  function handleOutsideClick() {
+    triggerFlash();
+    if (!isUnlocked(state.step, state)) triggerShake();
+  }
+
+  if (!mounted || !visible) return null;
+
+  const cfg = STEPS[state.step];
+  const pos = cardPos(anchorRect, cfg.side);
+
+  return createPortal(
+    <>
+      <style>{`
+        @keyframes tour-shake {
+          0%,100% { transform: translateX(0); }
+          15%     { transform: translateX(-6px); }
+          30%     { transform: translateX(6px); }
+          50%     { transform: translateX(-4px); }
+          70%     { transform: translateX(4px); }
+          85%     { transform: translateX(-2px); }
+        }
+      `}</style>
+
+      <QuadOverlay rect={anchorRect} onOutsideClick={handleOutsideClick} flash={flash} />
+      <SpotlightRing rect={anchorRect} flash={flash} />
+      <TourCard
+        step={state.step}
+        pos={pos}
+        state={state}
+        setState={setState}
+        advance={advance}
+        dismiss={dismiss}
+        complete={complete}
+        shaking={shaking}
+        onNextAttempt={triggerShake}
+      />
+    </>,
+    document.body,
   );
 }

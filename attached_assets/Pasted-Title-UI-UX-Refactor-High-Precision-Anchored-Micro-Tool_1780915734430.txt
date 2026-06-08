@@ -1,0 +1,68 @@
+Title: UI/UX Refactor - High-Precision Anchored Micro-Tooltip Onboarding Tour
+
+Please completely overhaul the onboarding tour architecture. Remove all large, centralized, screen-blocking pop-up boxes. Replace them with a lightweight, hyper-focused "Micro-Tooltip" step-by-step engine that anchors directly to specific DOM elements across the platform using sharp directional pointers (arrows). 
+
+The user must be forced to complete each specific interface action chronologically before the next microscopic step initializes.
+
+---
+
+### 1. Visual Specification for the Micro-Tooltip Elements
+* **Compact Footprint:** Tooltip boxes must be tiny and unobtrusive (maximum width: `260px`). No walls of text.
+* **Strict Element Anchoring:** Each card must be physically pinned to its target UI element (`top`, `bottom`, `left`, or `right`) using dynamic absolute layout positioning. Include a small, sleek triangle pointer pointing directly at the target component.
+* **Aesthetics:** Match our dark premium theme: background `#111827` (slate-900), ultra-crisp border `1px solid #1F2937` (slate-800), and a clean horizontal progress tracker bar at the card's baseline.
+* **Step-Specific Isolation:** Apply an active element spotlight overlay (`box-shadow` or high-contrast element ring) that keeps only the targeted input or button active while preventing accidental clicks on the rest of the workspace canvas.
+
+---
+
+### 2. Strict Chronological 8-Step Onboarding Execution
+
+Please build the tour step-by-step, strictly following this exact sequence from initial signup to live deployment:
+
+#### 📋 STEP 1: Choose Build Strategy
+* **Target Anchor:** The onboarding start container or layout options wizard.
+* **Instruction:** "Welcome! Let's build your receptionist. Select **'Use Template'** to begin instantly."
+* **Forced Event Gate:** The user must click the "Use Template" option block. This click triggers a smooth slide-out form layer.
+
+#### 🏢 STEP 2: Configure Brand Details
+* **Target Anchor:** The `Company Name` text field within the template configuration overlay.
+* **Instruction:** "Type your company name here to customize your agent's greetings."
+* **Forced Event Gate:** Keep the "Next" action fully disabled until the user physically fills in the text inputs (`Company Name` and `Industry`). Upon typing compliance, the tooltip dynamically updates the text values inside the background canvas nodes.
+
+#### 🎙️ STEP 3: Voice Selection & ElevenLabs Gateway
+* **Target Anchor:** The system "Voice Selection Dropdown" layer.
+* **Instruction:** "Pick a default platform voice, or click the **'ElevenLabs'** tab to paste your custom voice API keys."
+* **Forced Event Gate:** The user must click either a voice preview play handler or provide strings inside the optional ElevenLabs form container to proceed.
+
+#### ⏳ STEP 4: Compliance Gate (Admin Verification Simulation)
+* **Target Anchor:** Center-screen status layer banner overlaying the node graph.
+* **Instruction:** "Your setup parameters look great! A security validation request has been sent to our Admin Panel for verification."
+* **Forced Event Gate:** Auto-lock the workspace and trigger a visible 3-second processing countdown. Once the timer completes, flip the text to `✅ Account Verified & Cleoned to Workspace` and instantly auto-advance the viewport view to Step 5.
+
+#### 📅 STEP 5: Sync Scheduling Availability
+* **Target Anchor:** The **"Connect Cal.com"** interface integration tile inside the settings configuration tree.
+* **Instruction:** "Click here to link your live booking calendar slots directly to the receptionist agent."
+* **Forced Event Gate:** The user must click the button. Upon click, run a quick "Calendar Synced Successfully" state change event to unlock step progression.
+
+#### 📞 STEP 6: Provision Dedicated Telephony
+* **Target Anchor:** The "Numbers / IP Trunk Provisioning" dashboard selector panel.
+* **Action:** Programmatically slide this panel open or transition the workspace view to the number purchase dashboard.
+* **Instruction:** "Click **'Claim Number'** or bind an existing company IP Trunk line to assign a phone path to this workspace."
+* **Forced Event Gate:** The user must select and click a number provisioning button, mapping the number to their profile variables.
+
+#### 🚀 STEP 7: The Locked "Go Live" Deployment Trigger
+* **Target Anchor:** The far-right top-navigation **"Deploy / Go Live"** primary action pill button.
+* **Strict Constraint:** This specific button must remain absolutely un-clickable (`disabled: true`) through steps 1-6. It must now dynamically illuminate.
+* **Instruction:** "All criteria checked! Click **'Deploy'** to push your receptionist agent live."
+* **Forced Event Gate:** The user must physically click this button, flipping the system state from `Draft` to `Live`.
+
+#### 📊 STEP 8: Redirecting to Live Data Streams
+* **Target Anchor:** The High-Density Analytics Dashboard data container cards.
+* **Action:** The millisecond "Deploy" is clicked in Step 7, wipe the canvas from the screen and transition the layout over to the active analytics summary view layout.
+* **Instruction:** "You are live! When your number handles an inbound call, your post-call webhooks and sentiment data streams will populate right here."
+* **The Final Breakout:** Provide a high-contrast text button reading **"Launch App Console"** that wipes all tutorial tracking logic and grants full workspace access.
+
+---
+
+### 3. Safety Fallbacks & Technical Guardrails
+* **Failsafe Clean Slate:** If the user exits the tutorial early by hitting a tiny, low-visibility "Skip" link, immediately drop all mask views and default the workspace environment cleanly to a standard empty layout.
+* **Scannability Rules:** Keep tooltip copy brief and crisp using explicit `text-xs` font parameters, ensuring text remains clean, sharp, and easy to execute.
