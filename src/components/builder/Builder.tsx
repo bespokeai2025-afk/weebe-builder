@@ -340,6 +340,48 @@ export function Builder({
     a.click();
   };
 
+  const SliderField = ({
+    label,
+    value,
+    min,
+    max,
+    step,
+    onChange,
+  }: {
+    label: string;
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    onChange: (v: number) => void;
+  }) => {
+    const decimals = step < 0.1 ? 2 : step < 1 ? 1 : 0;
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+          <span className="text-[10px] tabular-nums text-foreground/70 font-mono">{value.toFixed(decimals)}</span>
+        </div>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="w-full h-[3px] cursor-pointer rounded-full appearance-none bg-white/[0.08]
+            [&::-webkit-slider-thumb]:appearance-none
+            [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3
+            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
+            [&::-webkit-slider-thumb]:shadow-[0_0_0_2px_hsl(var(--background))]
+            [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:w-3
+            [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary
+            [&::-moz-range-thumb]:border-0"
+        />
+      </div>
+    );
+  };
+
   return (
     <div
       className={cn(
@@ -347,115 +389,131 @@ export function Builder({
         heightClass,
       )}
     >
-      {/* Canvas toolbar — panel toggles + canvas actions only */}
-      <div className="flex flex-nowrap items-center gap-1 border-b border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5">
-        {toolbarStart}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setLeftOpen((v) => !v)}
-          title={leftOpen ? "Hide nodes panel" : "Show nodes panel"}
-          className="!w-7 !p-0"
-        >
-          {leftOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
-        </Button>
-        <Input
-          value={settings.agentName}
-          onChange={(e) => setSettings({ agentName: e.target.value })}
-          className="h-7 max-w-[160px] border-transparent bg-transparent px-1.5 text-[11px] font-medium text-foreground hover:border-white/[0.06] focus-visible:border-white/[0.1]"
-          placeholder="Agent name"
-        />
-        {toolbarLeading}
-        <div className="ml-auto flex flex-nowrap items-center gap-1">
+      {/* Canvas toolbar */}
+      <div className="flex flex-nowrap items-center gap-1.5 border-b border-white/[0.04] bg-background/60 px-2 py-1 backdrop-blur-sm [&_button]:h-7 [&_button]:px-2 [&_button]:text-[11px] [&_button]:gap-1 [&_button_svg]:h-3.5 [&_button_svg]:w-3.5">
+        {/* Left: panel toggle + agent name + status */}
+        <div className="flex flex-1 items-center gap-1 min-w-0">
+          {toolbarStart}
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => {
-              autoLayout();
-              requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
-            }}
-            title="Auto-arrange nodes"
-            className="!w-7 !p-0"
+            onClick={() => setLeftOpen((v) => !v)}
+            title={leftOpen ? "Hide nodes panel" : "Show nodes panel"}
+            className="!w-7 !p-0 shrink-0"
           >
-            <LayoutGrid />
+            {leftOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              revertLayout();
-              requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
-            }}
-            disabled={!preAutoLayoutPositions}
-            title="Revert to original layout"
-            className="!w-7 !p-0"
-          >
-            <Undo2 />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => rf?.fitView({ padding: 0.2 })}
-            title="Fit canvas"
-            className="!w-7 !p-0"
-          >
-            <Maximize />
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                title="Clear canvas"
-                className="!w-7 !p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Clear the canvas?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes all nodes and leaves only an empty Start Call and End Call.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={clearAll}>Clear</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          {/* Import / Export grouped dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="ghost" title="Import / Export">
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Import
-              </DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => setImportOpen(true)}>
-                <Upload className="mr-2 h-3.5 w-3.5" /> Import JSON
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Export
-              </DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => setExportOpen(true)}>
-                <FileJson className="mr-2 h-3.5 w-3.5" /> Download JSON
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={downloadPng}>
-                <ImageIcon className="mr-2 h-3.5 w-3.5" /> Export PNG
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="mx-0.5 h-4 w-px bg-white/[0.05] shrink-0" />
+          <Input
+            value={settings.agentName}
+            onChange={(e) => setSettings({ agentName: e.target.value })}
+            className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-white/[0.06] focus-visible:border-white/[0.1]"
+            placeholder="Agent name"
+          />
+          {toolbarLeading}
+        </div>
+
+        {/* Right: canvas utilities + primary actions */}
+        <div className="flex flex-nowrap items-center gap-1.5">
+          {/* Canvas utility cluster */}
+          <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                autoLayout();
+                requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
+              }}
+              title="Auto-arrange nodes"
+              className="!w-7 !p-0"
+            >
+              <LayoutGrid />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                revertLayout();
+                requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
+              }}
+              disabled={!preAutoLayoutPositions}
+              title="Revert to original layout"
+              className="!w-7 !p-0"
+            >
+              <Undo2 />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => rf?.fitView({ padding: 0.2 })}
+              title="Fit canvas"
+              className="!w-7 !p-0"
+            >
+              <Maximize />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  title="Clear canvas"
+                  className="!w-7 !p-0 text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear the canvas?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes all nodes and leaves only an empty Start Call and End Call.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={clearAll}>Clear</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            {/* Import / Export dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="ghost" title="Import / Export" className="!w-7 !p-0">
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Import
+                </DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+                  <Upload className="mr-2 h-3.5 w-3.5" /> Import JSON
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Export
+                </DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => setExportOpen(true)}>
+                  <FileJson className="mr-2 h-3.5 w-3.5" /> Download JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={downloadPng}>
+                  <ImageIcon className="mr-2 h-3.5 w-3.5" /> Export PNG
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
           <ImportJsonDialog open={importOpen} onOpenChange={setImportOpen} hideTrigger />
           <ExportJsonDialog open={exportOpen} onOpenChange={setExportOpen} hideTrigger />
-          <div className="mx-0.5 h-4 w-px bg-white/[0.06]" />
+
+          {/* Separator */}
+          <div className="h-4 w-px bg-white/[0.06]" />
+
+          {/* Primary actions */}
           <RetellDeployDialog />
           {toolbarTrailing}
+
+          {/* Settings panel toggle */}
+          <div className="h-4 w-px bg-white/[0.06]" />
           <Button
             size="sm"
             variant="ghost"
@@ -607,13 +665,26 @@ export function Builder({
 
         {/* Right global settings */}
         {rightOpen && (
-          <aside className="w-60 shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto p-2 space-y-2 hidden md:block text-xs [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px]">
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Global Settings
-            </h3>
+          <aside className="w-64 shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto p-3 space-y-3 hidden md:block text-xs [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px]">
+            {/* Panel header */}
+            <div className="flex items-center justify-between pb-2.5 border-b border-white/[0.06]">
+              <h3 className="text-sm font-semibold tracking-tight text-foreground">Agent Settings</h3>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex h-6 w-6 items-center justify-center rounded hover:bg-white/[0.06] text-muted-foreground hover:text-foreground transition-colors">
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onSelect={() => rf?.fitView({ padding: 0.2 })}>
+                    Fit canvas view
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
-            <div className="rounded-lg border p-2 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Voice & Language</div>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Voice & Language</p>
               <div>
                 <Label className="text-xs">Language</Label>
                 <LanguagePicker
@@ -675,83 +746,77 @@ export function Builder({
               />
             </div>
 
-            <div className="rounded-lg border p-2 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Global Prompt</div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs flex items-center gap-1.5">
-                    Model
-                    <span
-                      className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground"
-                      title="Internal cost (Retell rate + $0.15/min margin). Not shown to customers."
-                    >
-                      builder cost
-                    </span>
-                  </Label>
-                  <Select value={settings.model} onValueChange={(v) => setSettings({ model: v })}>
-                    <SelectTrigger className="h-7 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Standard</SelectLabel>
-                        {MODELS.filter((m) => m.tier === "standard").map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            <span className="flex items-center justify-between gap-3 w-full">
-                              <span className="flex items-center gap-1.5">
-                                {m.label}
-                                {m.recommended && (
-                                  <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                                    Recommended
-                                  </span>
-                                )}
-                              </span>
-                              <span className="text-muted-foreground text-[11px]">
-                                ${m.costPerMin.toFixed(3)}/min
-                              </span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Fast Tier — lower latency</SelectLabel>
-                        {MODELS.filter((m) => m.tier === "fast").map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            <span className="flex items-center justify-between gap-3 w-full">
-                              <span className="flex items-center gap-1.5">
-                                {m.label}
-                                {m.recommended && (
-                                  <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                                    Recommended
-                                  </span>
-                                )}
-                                <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
-                                  Fast
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Global Prompt</p>
+              <div>
+                <Label className="text-xs flex items-center gap-1.5">
+                  Model
+                  <span
+                    className="text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground"
+                    title="Internal cost (Retell rate + $0.15/min margin). Not shown to customers."
+                  >
+                    builder cost
+                  </span>
+                </Label>
+                <Select value={settings.model} onValueChange={(v) => setSettings({ model: v })}>
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Standard</SelectLabel>
+                      {MODELS.filter((m) => m.tier === "standard").map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          <span className="flex items-center justify-between gap-3 w-full">
+                            <span className="flex items-center gap-1.5">
+                              {m.label}
+                              {m.recommended && (
+                                <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                  Recommended
                                 </span>
-                              </span>
-                              <span className="text-muted-foreground text-[11px]">
-                                ${m.costPerMin.toFixed(3)}/min
+                              )}
+                            </span>
+                            <span className="text-muted-foreground text-[11px]">
+                              ${m.costPerMin.toFixed(3)}/min
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Fast Tier — lower latency</SelectLabel>
+                      {MODELS.filter((m) => m.tier === "fast").map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          <span className="flex items-center justify-between gap-3 w-full">
+                            <span className="flex items-center gap-1.5">
+                              {m.label}
+                              {m.recommended && (
+                                <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                  Recommended
+                                </span>
+                              )}
+                              <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                                Fast
                               </span>
                             </span>
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Temperature</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min={0}
-                    max={2}
-                    value={settings.temperature}
-                    onChange={(e) => setSettings({ temperature: parseFloat(e.target.value) || 0 })}
-                    className="h-7 text-xs"
-                  />
-                </div>
+                            <span className="text-muted-foreground text-[11px]">
+                              ${m.costPerMin.toFixed(3)}/min
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
+              <SliderField
+                label="Temperature"
+                value={settings.temperature ?? 1}
+                min={0}
+                max={2}
+                step={0.1}
+                onChange={(v) => setSettings({ temperature: v })}
+              />
               <Textarea
                 rows={5}
                 value={settings.globalPrompt}
@@ -761,10 +826,8 @@ export function Builder({
               />
             </div>
 
-            <div className="rounded-lg border p-2 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">
-                Transition Flexibility
-              </div>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Transition</p>
               <Select
                 value={settings.transitionFlexibility ?? "flex"}
                 onValueChange={(v) =>
@@ -781,8 +844,8 @@ export function Builder({
               </Select>
             </div>
 
-            <div className="rounded-lg border p-2 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Agent</div>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Agent</p>
               <div>
                 <Label className="text-xs">Webhook URL</Label>
                 <Input
@@ -814,8 +877,8 @@ export function Builder({
             <BookingConfigSection />
 
             {/* Agent type selector — controls which sections appear below */}
-            <div className="rounded-lg border p-2 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">Agent Type</div>
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-2.5">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60">Agent Type</p>
               <Select
                 value={settings.agentType ?? "receptionist"}
                 onValueChange={(v) =>
@@ -846,10 +909,10 @@ export function Builder({
             {settings.agentType === "lead_generation" && <LeadGenSection />}
             {settings.agentType === "client_qualification" && <ClientQualificationSection />}
 
-            <Collapsible className="rounded-lg border">
-              <CollapsibleTrigger className="flex w-full items-center justify-between p-2 text-xs font-medium text-muted-foreground">
+            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-2.5 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 hover:text-muted-foreground transition-colors">
                 <span>Agent Handbook</span>
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-3.5 w-3.5" />
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1.5 px-2 pb-2">
                 {(
@@ -876,75 +939,53 @@ export function Builder({
               </CollapsibleContent>
             </Collapsible>
 
-            <Collapsible className="rounded-lg border">
-              <CollapsibleTrigger className="flex w-full items-center justify-between p-2 text-xs font-medium text-muted-foreground">
+            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-2.5 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60 hover:text-muted-foreground transition-colors">
                 <span>Speech Settings</span>
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-3.5 w-3.5" />
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2 px-2 pb-2">
+              <CollapsibleContent className="space-y-3 px-2.5 pb-2.5">
+                <SliderField
+                  label="Voice Speed"
+                  value={settings.voiceSpeed ?? 1}
+                  min={0.5}
+                  max={2}
+                  step={0.1}
+                  onChange={(v) => setNumericSetting("voiceSpeed", String(v), 1)}
+                />
+                <SliderField
+                  label="Voice Temp"
+                  value={settings.voiceTemperature ?? 1}
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  onChange={(v) => setNumericSetting("voiceTemperature", String(v), 1)}
+                />
+                <SliderField
+                  label="Volume"
+                  value={settings.volume ?? 1}
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  onChange={(v) => setNumericSetting("volume", String(v), 1)}
+                />
+                <SliderField
+                  label="Responsiveness"
+                  value={settings.responsiveness ?? 1}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={(v) => setNumericSetting("responsiveness", String(v), 1)}
+                />
+                <SliderField
+                  label="Interruption"
+                  value={settings.interruptionSensitivity ?? 0.7}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={(v) => setNumericSetting("interruptionSensitivity", String(v), 0.7)}
+                />
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-xs">Voice speed</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min={0.5}
-                      max={2}
-                      value={settings.voiceSpeed ?? 1}
-                      onChange={(e) => setNumericSetting("voiceSpeed", e.target.value, 1)}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Voice temp</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min={0}
-                      max={2}
-                      value={settings.voiceTemperature ?? 1}
-                      onChange={(e) => setNumericSetting("voiceTemperature", e.target.value, 1)}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Volume</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min={0}
-                      max={2}
-                      value={settings.volume ?? 1}
-                      onChange={(e) => setNumericSetting("volume", e.target.value, 1)}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Responsiveness</Label>
-                    <Input
-                      type="number"
-                      step="0.05"
-                      min={0}
-                      max={1}
-                      value={settings.responsiveness ?? 1}
-                      onChange={(e) => setNumericSetting("responsiveness", e.target.value, 1)}
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Interruption</Label>
-                    <Input
-                      type="number"
-                      step="0.05"
-                      min={0}
-                      max={1}
-                      value={settings.interruptionSensitivity ?? 0.7}
-                      onChange={(e) =>
-                        setNumericSetting("interruptionSensitivity", e.target.value, 0.7)
-                      }
-                      className="h-7 text-xs"
-                    />
-                  </div>
                   <div>
                     <Label className="text-xs">Emotion</Label>
                     <Select

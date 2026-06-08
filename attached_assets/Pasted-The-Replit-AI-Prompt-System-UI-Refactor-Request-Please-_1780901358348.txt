@@ -1,0 +1,26 @@
+The Replit AI Prompt
+System UI Refactor Request
+
+Please refactor the user interface layout for the node builder page. The goal is to clean up the spacing, component layout, and structural hierarchy to look significantly more polished, modern, and organized—using the architectural layout of Screenshot 2 (Reference) as inspiration.
+
+CRITICAL: Do NOT change the current color scheme, dark theme tones, font families, or node styling. Retain the exact background shades, dark panel colors, and vibrant node accent colors. Focus entirely on layout alignment, spacing, and component cleaning.
+
+1. Top Navigation Row Alignment
+Left Alignment: Keep the Agent Name ("Real estate lead gen") and the "Draft/Saved" status badges cleanly aligned on the far left.
+
+Right Utility Group: Clean up the cluttered buttons on the top right. Group the canvas utility icons (Zoom in/out, Fullscreen, Delete, History, Bookmark) into a tight, consistent row of minimal outline icons, exactly like the top-right utility cluster in Reference Image 2.
+
+Primary Actions: Position the main action buttons on the far right. Use a clean, text-only or minimally framed button for "Save", and a prominent, rounded pill-shaped button for the primary action (e.g., "Deploy" or your main action button) with an integrated icon, matching the layout structure in Reference Image 2.
+
+2. Right-Hand Settings Panel Refactor
+Header: Change the panel title to a clean, bold header (e.g., "Agent Settings") with a subtle triple-dot context menu icon on the far right.
+
+Section Layout & Typography: Break the panel into distinct, clean vertical sections. Section titles should use a smaller, uppercase, muted/semi-transparent font styling (e.g., GLOBAL SETTINGS, VOICE & LANGUAGE, GLOBAL PROMPT) to establish a clear visual hierarchy.
+
+Form Controls & Inputs: >     * Refactor the dropdown selectors (Language, Voice, Model) to have clean, full-width borders, consistent padding, and a sleek down-arrow chevron.
+
+For numerical values like "Temperature" or sliders, replace bulky input fields with sleek, minimalist slider tracks using the theme's accent colors, similar to the responsiveness/volume sliders in Reference Image 2.
+
+Ensure the "Global Prompt" text area box has clean, rounded corners, a subtle background contrast, and fits neatly within the vertical flow without crowding adjacent items.
+
+Spacing & Padding: Introduce consistent internal padding inside the right panel and uniform margins between different setting cards to maximize breathing room and eliminate a cramped feel.
