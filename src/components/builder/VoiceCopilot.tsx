@@ -400,7 +400,7 @@ const CHEAT_SECTIONS = [
 
 export function VoiceCopilotButton() {
   const [state, setState]             = useState<CopilotState>("idle");
-  const [copilotMode, setCopilotMode] = useState<"MICRO" | "MACRO">("MICRO");
+  const [copilotMode, setCopilotMode] = useState<"MICRO" | "MACRO" | "PLATFORM_HELP">("MICRO");
   const [sessionCost, setSessionCost] = useState(0);
   const [lastCost, setLastCost]       = useState<number | null>(null);
   const [hintIndex, setHintIndex]     = useState(0);
@@ -409,7 +409,7 @@ export function VoiceCopilotButton() {
   const [showSheet, setShowSheet]     = useState(false);
   const [portalRoot, setPortalRoot]   = useState<HTMLElement | null>(null);
   // Use a ref so processAudio always reads the current mode without stale closure
-  const modeRef        = useRef<"MICRO" | "MACRO">("MICRO");
+  const modeRef        = useRef<"MICRO" | "MACRO" | "PLATFORM_HELP">("MICRO");
   const hoverTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef        = useRef<Blob[]>([]);
@@ -438,7 +438,7 @@ export function VoiceCopilotButton() {
     return () => document.removeEventListener("keydown", onKey);
   }, [showSheet]);
 
-  const updateMode = useCallback((m: "MICRO" | "MACRO") => {
+  const updateMode = useCallback((m: "MICRO" | "MACRO" | "PLATFORM_HELP") => {
     modeRef.current = m;
     setCopilotMode(m);
   }, []);
@@ -488,6 +488,7 @@ export function VoiceCopilotButton() {
         ok: boolean;
         transcript?: string;
         commands?: VoiceCommand[];
+        helpResponse?: string;
         mode?: string | null;
         error?: string;
         usage?: {
@@ -510,6 +511,31 @@ export function VoiceCopilotButton() {
         return;
       }
 
+      // ── PLATFORM_HELP mode: show helpResponse + execute doc-link commands only ──
+      if (currentMode === "PLATFORM_HELP") {
+        if (data.helpResponse) {
+          toast.success(
+            <div className="flex items-start gap-2 text-sm max-w-[280px]">
+              <span className="text-purple-400 text-base shrink-0 mt-0.5">📘</span>
+              <div>
+                <span className="text-[10px] font-semibold tracking-wide text-purple-400 block mb-0.5 uppercase">
+                  Platform Helper
+                </span>
+                <span className="text-slate-200 text-[12px] leading-snug">{data.helpResponse}</span>
+              </div>
+            </div>,
+            { duration: 12000 },
+          );
+        }
+        // Execute only OPEN_DOCUMENTATION_LINK commands from the help response
+        for (const cmd of data.commands) {
+          if (cmd.action === "OPEN_DOCUMENTATION_LINK" && (cmd as Record<string, unknown>).target_url) {
+            window.open((cmd as Record<string, unknown>).target_url as string, "_blank", "noopener,noreferrer");
+          }
+        }
+        return;
+      }
+
       // ── Mode-switch detection (client-side, checked before any commands) ──
       if (data.transcript) {
         const lower = data.transcript.toLowerCase();
@@ -524,6 +550,11 @@ export function VoiceCopilotButton() {
         const isActivate = /\b(switch\s+to|activate|enable|start\s+webee?)\b/i;
         const isExit     = /\bexit\b|\bswitch\s+back\b|\breturn\s+to\s+normal\b|\bnormal\s+mode\b/i;
 
+        // PLATFORM_HELP: (webee/WB fingerprint OR webee? word) AND "help" present
+        const isHelpActivate = (WB.test(lower) || /\bwebee?\b/i.test(lower)) && /\bhelp\b/i.test(lower);
+        // Explicit "exit help" / "close help" → back to MICRO (no WB required)
+        const isExitHelp = /\bexit\s+help\b|\bclose\s+help\b/i.test(lower);
+
         // MACRO: activation verb present AND phonetic "webee" present
         const isMacroSwitch = isActivate.test(lower) && WB.test(lower);
         // MICRO: exit verb present AND (phonetic "webee" OR "build" present)
@@ -532,6 +563,21 @@ export function VoiceCopilotButton() {
           (isExit.test(lower) && (WB.test(lower) || /\bbuild\b/i.test(lower))) ||
           /\b(switch\s+back|return\s+to\s+normal|normal\s+mode)\b/i.test(lower);
 
+        // Check PLATFORM_HELP first so "switch to webee help" doesn't trigger MACRO
+        if (isHelpActivate) {
+          updateMode("PLATFORM_HELP");
+          toast.success(
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-purple-400 text-base">📘</span>
+              <div>
+                <span className="text-purple-400 font-bold">Platform Helper</span>
+                <span className="text-muted-foreground ml-1.5">activated — ask me anything about the platform</span>
+              </div>
+            </div>,
+            { duration: 5000 },
+          );
+          return;
+        }
         if (isMacroSwitch) {
           updateMode("MACRO");
           toast.success(
@@ -546,7 +592,7 @@ export function VoiceCopilotButton() {
           );
           return;
         }
-        if (MICRO_REGEX.test(lower)) {
+        if (isMicroSwitch || isExitHelp) {
           updateMode("MICRO");
           toast.info("Normal mode restored.", { duration: 3000 });
           return;
@@ -679,6 +725,7 @@ export function VoiceCopilotButton() {
   const isRecording  = state === "recording";
   const isProcessing = state === "processing";
   const isMacro      = copilotMode === "MACRO";
+  const isHelp       = copilotMode === "PLATFORM_HELP";
 
   return (
     <>
@@ -788,8 +835,31 @@ export function VoiceCopilotButton() {
           </div>
         )}
 
+        {/* ── PLATFORM_HELP floating badge ── */}
+        {isHelp && (
+          <div
+            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-50"
+            style={{ whiteSpace: "nowrap" }}
+          >
+            <div className="flex items-center gap-1.5 bg-purple-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg shadow-purple-500/40">
+              <span>📘 PLATFORM HELPER ACTIVE</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateMode("MICRO");
+                  toast.info("Normal mode restored.", { duration: 3000 });
+                }}
+                className="opacity-60 hover:opacity-100 transition-opacity leading-none ml-0.5"
+                title="Exit Platform Helper"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Hover tooltip (MICRO mode only, 500 ms delay) ── */}
-        {showTooltip && !isMacro && !isRecording && !isProcessing && (
+        {showTooltip && !isMacro && !isHelp && !isRecording && !isProcessing && (
           <div
             className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
             style={{ whiteSpace: "nowrap" }}
@@ -842,28 +912,40 @@ export function VoiceCopilotButton() {
           className={cn(
             "!h-8 !w-8 !p-0 relative transition-all duration-200",
             isRecording
-              ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
+              ? isHelp
+                ? "text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 hover:text-purple-300"
+                : "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
               : isProcessing
                 ? isMacro
                   ? "text-yellow-400 bg-yellow-500/10"
-                  : "text-blue-400 bg-blue-500/10"
+                  : isHelp
+                    ? "text-purple-400 bg-purple-500/10"
+                    : "text-blue-400 bg-blue-500/10"
                 : isMacro
                   ? "text-yellow-400 bg-yellow-500/10 hover:bg-yellow-500/20 hover:text-yellow-300"
-                  : "text-muted-foreground/60 hover:text-blue-400 hover:bg-blue-500/10",
+                  : isHelp
+                    ? "text-purple-400 bg-purple-500/10 hover:bg-purple-500/20 hover:text-purple-300"
+                    : "text-muted-foreground/60 hover:text-blue-400 hover:bg-blue-500/10",
           )}
         >
           {isProcessing ? (
-            <Loader2 className={cn("h-3.5 w-3.5 animate-spin", isMacro && "text-yellow-400")} />
+            <Loader2 className={cn("h-3.5 w-3.5 animate-spin", isMacro && "text-yellow-400", isHelp && "text-purple-400")} />
           ) : isRecording ? (
             <>
               <MicOff className="h-3.5 w-3.5" />
-              <span className="absolute inset-0 rounded-md animate-ping bg-yellow-400/20 pointer-events-none" />
+              <span className={cn(
+                "absolute inset-0 rounded-md animate-ping pointer-events-none",
+                isHelp ? "bg-purple-400/20" : "bg-yellow-400/20",
+              )} />
             </>
           ) : (
             <>
               <Mic className="h-3.5 w-3.5" />
               {isMacro && (
                 <span className="absolute inset-0 rounded-md animate-pulse bg-yellow-400/15 pointer-events-none" />
+              )}
+              {isHelp && (
+                <span className="absolute inset-0 rounded-md animate-pulse bg-purple-400/15 pointer-events-none" />
               )}
             </>
           )}

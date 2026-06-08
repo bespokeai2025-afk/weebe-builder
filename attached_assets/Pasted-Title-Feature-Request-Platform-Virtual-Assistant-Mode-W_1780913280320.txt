@@ -1,0 +1,33 @@
+Title: Feature Request - Platform Virtual Assistant Mode ("Webee Help") with Programmatic Documentation Linking
+
+Please implement a complete platform onboarding and virtual assistant state called "Webee Help Mode". When activated via voice, the copilot pivots away from mutating the canvas and instead operates as an interactive documentation guide to help users learn how to use our platform, troubleshoot specific requests, and dynamically open step-by-step guides for each agent workflow type.
+
+### 1. Voice Trigger & Functional State Interception
+* **The Switch Command:** Program the vocal parser to look out for the commands: **"switch to webee help"**, **"activate webee help"**, or **"webee help"**. This toggles `copilotMode: 'PLATFORM_HELP'`.
+* **The Exit Command:** Speaking **"exit help"** or **"switch back to normal mode"** instantly returns the copilot to the standard canvas builder state.
+* **UI Mode Feedback Overlay:** When Webee Help mode is active:
+    * Change the microphone's glowing pulse indicator to a soft, readable purple or distinct secondary accent color.
+    * Overlay a floating UI badge near the workspace: `📘 PLATFORM HELPER ACTIVE`.
+    * Shift the input text placeholder hint to: *"Ask me how to use the platform or open a guide... (e.g., 'How do I pass variables?')"*.
+
+---
+
+### 2. Interactive Platform Q&A Engine (Handling Specific Requests)
+When the user asks specific platform execution questions in this mode, the backend must parse the query against an internal platform documentation schema and return a clear text-to-speech / chat bubble response instead of dropping nodes:
+* *Example Input:* "How do I configure a Logic Split node?"
+    * *Response:* "To configure a Logic Split, click the node on your canvas, add your conditional matching phrases in the right-hand panel, and make sure to wire each output port to your next intended stage."
+* *Example Input:* "How do I check my Retell configuration?"
+    * *Response:* "Ensure your Retell API key is saved under your account settings, and make sure your agent variables match your Retell post-call extraction mapping rules exactly."
+
+---
+
+### 3. Programmatic Link-Opening Mechanic (Deep-Linked Guides)
+* **The Redirection Engine:** Implement a dedicated frontend action inside our copilot command processor called `OPEN_DOCUMENTATION_LINK`. 
+* **Execution Logic:** When the LLM detects that a user wants a walkthrough guide on how to **Build, Deploy, or Go Live** with a specific agent style, it must output a clean window-opening instruction structure:
+  ```json
+  {
+    "action": "OPEN_DOCUMENTATION_LINK",
+    "workflow_type": "receptionist",
+    "stage": "go_live",
+    "target_url": "[https://docs.webespokebuilder.com/receptionist/go-live](https://docs.webespokebuilder.com/receptionist/go-live)"
+  }

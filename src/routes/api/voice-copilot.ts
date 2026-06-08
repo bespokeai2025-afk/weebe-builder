@@ -23,7 +23,52 @@ const VALID_ACTIONS = new Set([
   "CREATE_NODE", "CONNECT_NODES", "UPDATE_NODE_PROPERTIES",
   "CREATE_TRANSITIONS", "UPDATE_GLOBAL_SETTINGS",
   "REMOVE_TRANSITION", "DISCONNECT_NODES", "DELETE_NODE",
+  "OPEN_DOCUMENTATION_LINK",
 ]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Platform Help Mode system prompt — answers questions, opens doc links, never
+// generates canvas mutations.
+// ─────────────────────────────────────────────────────────────────────────────
+const PLATFORM_HELP_PROMPT = `You are WEBEE Platform Helper — a friendly documentation assistant for the Webee AI voice agent builder platform. You answer platform usage questions and open guide links. You NEVER generate canvas commands or modify the canvas.
+
+═══ REQUIRED OUTPUT SHAPE ═══
+Always output a JSON object with exactly TWO keys:
+1. "helpResponse" — a clear, helpful 1–4 sentence answer in plain conversational English. No markdown, no bullet lists, no code fences.
+2. "commands" — an array containing ONLY OPEN_DOCUMENTATION_LINK items, or an empty array.
+
+═══ OPEN_DOCUMENTATION_LINK ═══
+Emit this when the user asks to open a guide, walkthrough, or "show me how to" for a specific workflow or stage.
+{"action":"OPEN_DOCUMENTATION_LINK","workflow_type":"<receptionist|customer_care|lead_gen|general>","stage":"<build|deploy|go_live|configuration>","target_url":"https://docs.webespokebuilder.com/<workflow_type>/<stage>"}
+
+═══ PLATFORM KNOWLEDGE ═══
+NODES: conversation (agent speaks), logic_split (branches on intent), extract_variable (captures caller data into {{variable_name}}), function (calls external API — set properties.function_name), call_transfer (dials a number — set properties.phone_number), agent_transfer (live agent handoff), sms (sends mid-call SMS — set properties.sms_body), press_digit (DTMF/IVR key routing), code (custom JS), ending (terminates call), note (canvas annotation).
+TRANSITIONS: The + button on a node adds a named handle. Drag from handle to target node to wire them. "Connect A to B via [label]" voice command works too.
+VARIABLES: Captured by extract_variable. Use {{variable_name}} in downstream dialogues. Names must be snake_case.
+RETELL: API key lives in Account → Integrations. Agent variable names must exactly match extract_variable node variable_name values. Function tool names in Retell must match function_name property values.
+CAL.COM: Function node with function_name "check_availability" or "book_appointment" integrates with Cal.com. Save Cal.com API key under Account → Integrations → Cal.com.
+GO LIVE: Click "Go Live" in the toolbar. The platform validates all required fields — empty phone_number on call_transfer nodes will block deployment.
+
+═══ EXAMPLE Q&A ═══
+Q: "How do I configure a Logic Split node?"
+A: {"helpResponse":"To configure a Logic Split, click the node on your canvas and add your conditional matching phrases in the right-hand panel — each phrase becomes a handle. Then drag from each handle to the next intended node to wire the paths.","commands":[]}
+
+Q: "How do I pass variables between nodes?"
+A: {"helpResponse":"Use an Extract Variable node to capture the caller's input — set a snake_case variable_name like caller_name. You can then reference that value downstream in any dialogue field using double curly braces, for example 'Thanks for calling, I have you down as {{caller_name}}.'.","commands":[]}
+
+Q: "Open the receptionist go-live guide"
+A: {"helpResponse":"Opening the receptionist go-live guide for you now.","commands":[{"action":"OPEN_DOCUMENTATION_LINK","workflow_type":"receptionist","stage":"go_live","target_url":"https://docs.webespokebuilder.com/receptionist/go-live"}]}
+
+Q: "How do I check my Retell configuration?"
+A: {"helpResponse":"Make sure your Retell API key is saved under Account → Integrations. Check that each extract_variable node's variable_name matches the corresponding post-call extraction field name in your Retell dashboard exactly — any mismatch will silently drop the captured value.","commands":[]}
+
+═══ RULES ═══
+- helpResponse must be plain conversational English — no markdown, no lists
+- Keep answers to 1–3 sentences for simple questions, up to 4 for configuration steps
+- If the question is off-topic, respond: "I am in Platform Help mode and can only answer questions about using the Webee builder. Say exit help to return to the canvas builder."
+- NEVER emit CREATE_NODE, CONNECT_NODES, or any canvas mutation commands
+- Return ONLY valid JSON — no markdown, no code fences`;
+
 
 const SYSTEM_PROMPT = `You are WEBEE Builder Copilot. Convert voice instructions into a structured JSON object for an AI voice agent canvas builder.
 
@@ -355,14 +400,14 @@ export const Route = createFileRoute("/api/voice-copilot")({
         let mimeType: string;
         type CanvasNode = { id: string; label: string; kind: string; x: number; y: number; transitions: { id: string; label: string }[] };
         let canvasNodes: CanvasNode[] = [];
-        let clientMode: "MICRO" | "MACRO" = "MICRO";
+        let clientMode: "MICRO" | "MACRO" | "PLATFORM_HELP" = "MICRO";
 
         try {
           const body = (await request.json()) as {
             audio: string;
             mimeType: string;
             canvasNodes?: CanvasNode[];
-            copilotMode?: "MICRO" | "MACRO";
+            copilotMode?: "MICRO" | "MACRO" | "PLATFORM_HELP";
           };
           audio = body.audio;
           mimeType = body.mimeType ?? "audio/webm";
@@ -408,6 +453,64 @@ export const Route = createFileRoute("/api/voice-copilot")({
 
         if (!transcript) return json({ ok: false, error: "Could not transcribe audio" }, 422);
         console.log("[VoiceCopilot] Transcript:", JSON.stringify(transcript));
+
+        // ── PLATFORM_HELP mode: Q&A engine (no canvas mutations) ─────────────
+        if (clientMode === "PLATFORM_HELP") {
+          type HelpGptResponse = {
+            choices?: { message?: { content?: string } }[];
+            usage?: { prompt_tokens?: number; completion_tokens?: number };
+          };
+          let helpRes: HelpGptResponse;
+          try {
+            const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: "gpt-4o",
+                temperature: 0.3,
+                max_tokens: 512,
+                response_format: { type: "json_object" },
+                messages: [
+                  { role: "system", content: PLATFORM_HELP_PROMPT },
+                  { role: "user",   content: transcript },
+                ],
+              }),
+            });
+            if (!gptRes.ok) throw new Error(await gptRes.text());
+            helpRes = await gptRes.json() as HelpGptResponse;
+          } catch (e) {
+            console.error("[VoiceCopilot] Help GPT error:", e);
+            return json({ ok: false, error: "Platform helper failed" }, 502);
+          }
+
+          let helpResponse = "";
+          let helpCommands: unknown[] = [];
+          try {
+            const raw = helpRes.choices?.[0]?.message?.content ?? "{}";
+            const parsed = JSON.parse(raw) as { helpResponse?: string; commands?: unknown[] };
+            helpResponse = parsed.helpResponse ?? "";
+            helpCommands = (parsed.commands ?? []).filter(
+              (c) => (c as Record<string, unknown>).action === "OPEN_DOCUMENTATION_LINK",
+            );
+          } catch {
+            helpResponse = "I had trouble understanding that. Could you rephrase your question?";
+          }
+
+          const { calcVoiceCopilotCost } = await import("../../lib/builder/pricing");
+          const whisperSecs = Math.max(1, Math.ceil((audio.length * 0.75) / 2000));
+          const pt = helpRes.usage?.prompt_tokens ?? 0;
+          const ct = helpRes.usage?.completion_tokens ?? 0;
+          const cost = calcVoiceCopilotCost({ whisperSeconds: pt + ct > 0 ? whisperSecs : 1, promptTokens: pt, completionTokens: ct });
+
+          return json({
+            ok: true,
+            transcript,
+            helpResponse,
+            commands: helpCommands,
+            mode: "PLATFORM_HELP",
+            usage: cost,
+          });
+        }
 
         // ── 3. Build user message with canvas context ─────────────────────────
         const canvasContext =
