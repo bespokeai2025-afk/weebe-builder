@@ -87,8 +87,39 @@ When activated:
 3. Generate ALL nodes (CREATE_NODE with _ref) then ALL connections (CONNECT_NODES) in the commands array.
 4. Nodes must be spatially laid out left-to-right: first node at x:100, y:200; each subsequent node +320 x. Branching nodes stack at +320 x, +180 y.
 
+═══ MANDATORY DEPTH & QUALITY RULES (MACRO MODE ONLY) ═══
+
+RULE 1 — MINIMUM NODE COUNT:
+Any business flow (receptionist, lead gen, intake, sales, support) REQUIRES a minimum of 5 nodes. Complex multi-stage flows MUST produce 6–8 nodes. Generating 4 or fewer nodes for a real business script is FORBIDDEN and constitutes an incomplete output.
+
+RULE 2 — DIVERSE NODE TYPE MANDATE:
+You MUST use a functionally diverse set of node types. It is STRICTLY FORBIDDEN to generate a flow using only "conversation" nodes. Every non-trivial business blueprint MUST include ALL of the following where applicable:
+  - At least one logic_split (for branching intent or conditions)
+  - At least one extract_variable (for capturing caller data — name, phone, reason)
+  - At least one function (for external API calls — availability, CRM lookup, booking)
+  - At least one ending (for call termination)
+Relying solely on conversation blocks produces a non-functional script. This is a hard requirement.
+
+RULE 3 — ZERO PLACEHOLDER POLICY:
+Every single property field in every CREATE_NODE command MUST contain complete, business-specific, production-ready text. The following are STRICTLY FORBIDDEN inside any string value:
+  - Ellipsis or truncation: "...", "…"
+  - Placeholder markers: "<fill in>", "<text here>", "<your text>", "[placeholder]", "TODO", "TBD"
+  - Code comments: "// fill in later", "/* add content */", "# placeholder"
+  - Generic filler: "Sample text", "Example dialogue", "Insert greeting here"
+Every dialogue, label, sms_body, variable_name, function_name, and transition label MUST be fully articulated, contextually specific to the business described, and ready to deploy.
+
+RULE 4 — REQUIRED PROPERTY HYDRATION BY NODE TYPE:
+  - conversation: "dialogue" must contain the full agent script for that stage (2–4 sentences minimum)
+  - logic_split: "dialogue" must describe the branching condition in plain language
+  - function: "dialogue" must describe what the API call does; "properties.function_name" must be set
+  - extract_variable: "dialogue" must contain the agent's extraction prompt; "properties.variable_name" must be set
+  - call_transfer: "properties.phone_number" MUST be set (use +10000000000 as placeholder only if the user did not specify)
+  - sms: "properties.sms_body" must contain the full SMS message text, including a booking/callback link placeholder
+  - agent_transfer: "dialogue" must describe the handoff context for the live agent
+  - ending: "dialogue" must contain the agent's sign-off phrase
+
 MACRO BLUEPRINT example output:
-{"mode":"MACRO_BLUEPRINT","thought":"Step1: Outbound real-estate qualification. Step2: Greeting→Interest Check→Booking→Goodbye. Step3: conversation,logic_split,function,ending. Step4: Greeting→Next→Interest Check; Interest Check→Interested→Booking, Not Interested→Goodbye.","commands":[{"action":"CREATE_NODE","type":"conversation","label":"Intro Greeting","dialogue":"Hi, I saw you were looking to list a property. Is that right?","_ref":"n1"},{"action":"CREATE_NODE","type":"logic_split","label":"Is Seller Interested","_ref":"n2"},{"action":"CREATE_NODE","type":"function","label":"Check Availability","_ref":"n3"},{"action":"CREATE_NODE","type":"ending","label":"Goodbye","dialogue":"Thanks for your time. Have a great day!","_ref":"n4"},{"action":"CONNECT_NODES","from_node_id":"n1","to_node_id":"n2","transition_label":"Next"},{"action":"CONNECT_NODES","from_node_id":"n2","to_node_id":"n3","transition_label":"Interested"},{"action":"CONNECT_NODES","from_node_id":"n2","to_node_id":"n4","transition_label":"Not Interested"}]}
+{"mode":"MACRO_BLUEPRINT","thought":"Step1: Outbound real-estate qualification. Step2: Greeting→Interest Check→Booking→Goodbye. Step3: conversation,logic_split,function,ending. Step4: Greeting→Next→Interest Check; Interest Check→Interested→Booking, Not Interested→Goodbye.","commands":[{"action":"CREATE_NODE","type":"conversation","label":"Intro Greeting","dialogue":"Hi there, I noticed you recently enquired about listing a property with us. My name is Alex and I am calling on behalf of Prestige Realty. Are you still considering putting your property on the market?","_ref":"n1"},{"action":"CREATE_NODE","type":"logic_split","label":"Seller Interest Check","dialogue":"Route based on whether the prospect confirms interest in listing their property.","_ref":"n2"},{"action":"CREATE_NODE","type":"function","label":"Check Agent Availability","dialogue":"Query the CRM calendar API to find the next available appointment slot for a property valuation visit.","properties":{"function_name":"check_agent_availability"},"_ref":"n3"},{"action":"CREATE_NODE","type":"extract_variable","label":"Capture Contact Details","dialogue":"Before I book that in, could I just confirm your full name and the best number to reach you on?","properties":{"variable_name":"seller_contact_info"},"_ref":"n4"},{"action":"CREATE_NODE","type":"ending","label":"Goodbye","dialogue":"Wonderful, your valuation appointment is confirmed. We will send a confirmation to you shortly. Have a great day and we look forward to speaking with you soon!","_ref":"n5"},{"action":"CONNECT_NODES","from_node_id":"n1","to_node_id":"n2","transition_label":"Response Received"},{"action":"CONNECT_NODES","from_node_id":"n2","to_node_id":"n3","transition_label":"Interested in Listing"},{"action":"CONNECT_NODES","from_node_id":"n2","to_node_id":"n5","transition_label":"Not Interested"},{"action":"CONNECT_NODES","from_node_id":"n3","to_node_id":"n4","transition_label":"Slot Found"},{"action":"CONNECT_NODES","from_node_id":"n4","to_node_id":"n5","transition_label":"Details Captured"}]}
 
 ═══ FEW-SHOT EXAMPLES ═══
 
@@ -130,6 +161,101 @@ Input: "Get rid of the intro node"
 - LAST NODE: CURRENT CANVAS NODES is ordered by creation time — the last numbered entry is the most recently added node. When user says "the last node I made" or "that node we just created", target the final entry.
 - Return {"thought":"Not a builder command.","commands":[]} if the request is off-topic
 - Return ONLY valid JSON — no markdown, no code fences`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Blueprint Validator — enforces depth, diversity, and property completeness
+// Returns an array of human-readable failure reasons (empty = valid).
+// ─────────────────────────────────────────────────────────────────────────────
+const PLACEHOLDER_PATTERN =
+  /\.\.\.|…|<fill\s*in>|<text\s*here>|<your\s*text>|<[^>]*placeholder[^>]*>|\[placeholder\]|\bTODO\b|\bTBD\b|\/\/\s*fill|\/\*[^*]*\*\/|#\s*placeholder|sample\s*text|example\s*dialogue|insert\s*greeting/i;
+
+type RawCommand = Record<string, unknown>;
+
+function validateGeneratedBlueprint(
+  commands: unknown[],
+  isMacro: boolean,
+): string[] {
+  const failures: string[] = [];
+  if (!isMacro) return failures;
+
+  const cmds = commands.filter(
+    (c): c is RawCommand => typeof c === "object" && c !== null,
+  );
+  const creates = cmds.filter((c) => c.action === "CREATE_NODE");
+
+  // ── Rule 1: minimum node count ─────────────────────────────────────────────
+  if (creates.length < 5) {
+    failures.push(
+      `Only ${creates.length} CREATE_NODE commands found. Business flows require a minimum of 5 nodes. ` +
+      `Add more nodes covering all required stages.`,
+    );
+  }
+
+  // ── Rule 2: diverse node types ─────────────────────────────────────────────
+  const types = new Set(creates.map((c) => c.type as string));
+  const requiredTypes: Array<[string, string]> = [
+    ["logic_split",      "at least one logic_split node for intent branching"],
+    ["extract_variable", "at least one extract_variable node to capture caller data"],
+    ["ending",           "at least one ending node to terminate the call"],
+  ];
+  for (const [t, reason] of requiredTypes) {
+    if (!types.has(t)) {
+      failures.push(`Missing required node type "${t}" — ${reason}.`);
+    }
+  }
+
+  // ── Rule 3: zero-placeholder policy ────────────────────────────────────────
+  for (const cmd of creates) {
+    const label = (cmd.label as string | undefined) ?? "";
+    const dialogue = (cmd.dialogue as string | undefined) ?? "";
+    const props = (cmd.properties as Record<string, string> | undefined) ?? {};
+
+    if (!label.trim()) {
+      failures.push(`A CREATE_NODE command has an empty label. Every node must have a meaningful label.`);
+    }
+    for (const [field, value] of [
+      ["label",    label],
+      ["dialogue", dialogue],
+      ...Object.entries(props).map(([k, v]) => [k, v] as [string, string]),
+    ]) {
+      if (PLACEHOLDER_PATTERN.test(value)) {
+        failures.push(
+          `Node "${label || "(unlabelled)"}" field "${field}" contains a placeholder or truncation ` +
+          `("${value.slice(0, 60)}"). Replace with fully articulated, business-specific text.`,
+        );
+      }
+    }
+
+    // ── Rule 4: required property hydration ────────────────────────────────
+    const type = cmd.type as string;
+    if (type === "call_transfer" && !props.phone_number) {
+      failures.push(
+        `Node "${label}" is type call_transfer but "properties.phone_number" is missing or empty. ` +
+        `Set it to the actual transfer number (or +10000000000 if the user did not specify).`,
+      );
+    }
+    if (type === "sms" && !props.sms_body) {
+      failures.push(
+        `Node "${label}" is type sms but "properties.sms_body" is missing or empty. ` +
+        `Write the complete SMS message text including a booking/callback link.`,
+      );
+    }
+    if (type === "function" && !props.function_name) {
+      failures.push(
+        `Node "${label}" is type function but "properties.function_name" is missing or empty. ` +
+        `Set it to a descriptive snake_case function identifier (e.g. check_calendar_availability).`,
+      );
+    }
+    if (type === "extract_variable" && !props.variable_name) {
+      failures.push(
+        `Node "${label}" is type extract_variable but "properties.variable_name" is missing or empty. ` +
+        `Set it to a descriptive snake_case variable name (e.g. caller_full_name).`,
+      );
+    }
+  }
+
+  return failures;
+}
 
 export const Route = createFileRoute("/api/voice-copilot")({
   server: {
@@ -224,51 +350,108 @@ export const Route = createFileRoute("/api/voice-copilot")({
 
         const userMessage = `${modeContext}${recipeContext}${canvasContext}USER COMMAND: ${transcript}`;
 
-        // ── 4. Parse commands via GPT-4o ──────────────────────────────────────
+        // ── 4. Parse commands via GPT-4o (with one-shot validation retry) ───────
         let commands: unknown[] = [];
         let responseMode: string | undefined;
         let voiceUsage: import("../../lib/builder/pricing").VoiceCopilotUsage | null = null;
-        try {
-          const gptRes = await fetch("https://api.openai.com/v1/chat/completions", {
+
+        type GptResponse = {
+          choices?: { message?: { content?: string } }[];
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
+        };
+
+        const callGpt = async (messages: { role: string; content: string }[]) => {
+          const res = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               model: "gpt-4o",
               temperature: 0,
-              // Blueprints can be large — use 3 000 tokens
-              max_tokens: 3000,
+              max_tokens: 4000,
               response_format: { type: "json_object" },
-              messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: userMessage },
-              ],
+              messages,
             }),
           });
-          if (!gptRes.ok) {
-            console.error("[VoiceCopilot] GPT error:", await gptRes.text());
-            return json({ ok: false, error: "Command parsing failed" }, 502);
-          }
-          type GptResponse = {
-            choices?: { message?: { content?: string } }[];
-            usage?: { prompt_tokens?: number; completion_tokens?: number };
-          };
-          const gptBody = await gptRes.json() as GptResponse;
-          const raw = gptBody.choices?.[0]?.message?.content ?? "{}";
-          const gptUsage = gptBody.usage ?? {};
-          const parsed = JSON.parse(raw) as { thought?: string; mode?: string; commands?: unknown[] };
-          if (parsed.thought) console.log("[VoiceCopilot] CoT:", parsed.thought);
-          if (parsed.mode)    console.log("[VoiceCopilot] Mode:", parsed.mode);
-          commands     = parsed.commands ?? [];
-          responseMode = parsed.mode;
+          if (!res.ok) throw new Error(await res.text());
+          return res.json() as Promise<GptResponse>;
+        };
 
-          // ── Cost accounting ─────────────────────────────────────────────────
-          // Whisper: estimate audio duration from base64 size.
-          // WebM/Opus at ~16kbps mono → bytes/2000 ≈ seconds (conservative).
+        try {
           const { calcVoiceCopilotCost } = await import("../../lib/builder/pricing");
           const whisperSecs = Math.max(1, Math.ceil((audio.length * 0.75) / 2000));
+
+          let totalPromptTokens = 0;
+          let totalCompletionTokens = 0;
+
+          // ── Attempt 1 ────────────────────────────────────────────────────────
+          const firstMessages = [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user",   content: userMessage },
+          ];
+          const firstBody = await callGpt(firstMessages);
+          const firstRaw  = firstBody.choices?.[0]?.message?.content ?? "{}";
+          const firstUsage = firstBody.usage ?? {};
+          totalPromptTokens     += firstUsage.prompt_tokens     ?? 0;
+          totalCompletionTokens += firstUsage.completion_tokens ?? 0;
+
+          const firstParsed = JSON.parse(firstRaw) as { thought?: string; mode?: string; commands?: unknown[] };
+          if (firstParsed.thought) console.log("[VoiceCopilot] CoT:", firstParsed.thought);
+          if (firstParsed.mode)    console.log("[VoiceCopilot] Mode:", firstParsed.mode);
+
+          commands     = firstParsed.commands ?? [];
+          responseMode = firstParsed.mode;
+
+          // ── Validate & retry once if blueprint is under-quality ───────────────
+          const isMacroResponse = responseMode === "MACRO_BLUEPRINT" || clientMode === "MACRO";
+          const validationFailures = validateGeneratedBlueprint(commands, isMacroResponse);
+
+          if (validationFailures.length > 0) {
+            console.warn(
+              `[VoiceCopilot] Blueprint validation failed (${validationFailures.length} issue(s)) — retrying:\n` +
+              validationFailures.map((f, i) => `  ${i + 1}. ${f}`).join("\n"),
+            );
+
+            const correctionPrompt =
+              `Your previous output was incomplete and did not meet the mandatory blueprint quality rules. ` +
+              `You must regenerate the full output from scratch, fixing ALL of the following issues:\n\n` +
+              validationFailures.map((f, i) => `${i + 1}. ${f}`).join("\n") +
+              `\n\nRe-generate the complete JSON blueprint now, ensuring every field is fully hydrated ` +
+              `with business-specific, production-ready content and all structural requirements are met.`;
+
+            const retryMessages = [
+              { role: "system",    content: SYSTEM_PROMPT },
+              { role: "user",      content: userMessage },
+              { role: "assistant", content: firstRaw },
+              { role: "user",      content: correctionPrompt },
+            ];
+            const retryBody  = await callGpt(retryMessages);
+            const retryRaw   = retryBody.choices?.[0]?.message?.content ?? "{}";
+            const retryUsage = retryBody.usage ?? {};
+            totalPromptTokens     += retryUsage.prompt_tokens     ?? 0;
+            totalCompletionTokens += retryUsage.completion_tokens ?? 0;
+
+            const retryParsed = JSON.parse(retryRaw) as { thought?: string; mode?: string; commands?: unknown[] };
+            if (retryParsed.thought) console.log("[VoiceCopilot] CoT (retry):", retryParsed.thought);
+            if (retryParsed.mode)    console.log("[VoiceCopilot] Mode (retry):", retryParsed.mode);
+
+            commands     = retryParsed.commands ?? [];
+            responseMode = retryParsed.mode ?? responseMode;
+
+            const retryFailures = validateGeneratedBlueprint(commands, isMacroResponse);
+            if (retryFailures.length > 0) {
+              console.warn(
+                `[VoiceCopilot] Blueprint still has issues after retry (${retryFailures.length}) — proceeding anyway:\n` +
+                retryFailures.map((f, i) => `  ${i + 1}. ${f}`).join("\n"),
+              );
+            } else {
+              console.log("[VoiceCopilot] Blueprint passed validation after retry.");
+            }
+          }
+
+          // ── Cost accounting ─────────────────────────────────────────────────
           voiceUsage = calcVoiceCopilotCost(
-            gptUsage.prompt_tokens     ?? 0,
-            gptUsage.completion_tokens ?? 0,
+            totalPromptTokens,
+            totalCompletionTokens,
             whisperSecs,
           );
           console.log(

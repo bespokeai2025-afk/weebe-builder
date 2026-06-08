@@ -1,0 +1,40 @@
+Title: Feature Request - Domain-Specific Creative Extrapolation Engine for Macro Mode
+
+Please implement an intelligent "Creative Extrapolation Engine" inside the Macro Mode (Webee Build Mode) backend processor. This ensures that when a user gives a minimal description (e.g., just providing a company name and industry sector), the LLM will automatically brainstorm, invent, and fully articulate a comprehensive, domain-specific conversation flow, logic parameters, and node values rather than falling back on generic text placeholders.
+
+### 1. Autonomous Context & Scenario Brainstorming Logic
+* **Industry Sector Mapping:** When a user initializes a script flow with a brief profile (e.g., *"Build a receptionist for my company, my company is called We Bespoke AI, and I'm in the AI tech industry"*), instruct the LLM to run an immediate analytical parsing phase to deduce:
+    1. The core target audience/caller demographic for that industry.
+    2. The top 3–4 highest-probability call drivers/reasons for calling that type of business.
+    3. The exact data variables a professional business in that domain needs to capture.
+* **Prohibiting Generic Content:** Explicitly ban the AI from outputting generic text strings like *"How can I help your company?"* or *"Select option 1 or 2"*. The engine must autonomously invent contextual, high-fidelity script copywriting tailored to that brand name.
+
+---
+
+### 2. Concrete Extrapolation Blueprint Template (Example Behavior)
+Train the system prompt's generation blueprint with this exact example of how to creatively unpack a minimal user prompt into a multi-node workflow:
+
+* **User Vocal Input:** *"Build a receptionist for my company, my company is called We Bespoke AI, and I'm in the AI tech industry."*
+* **Expected Autonomous Node Synthesization:**
+    * **Node 1 (Conversation - Greeting):** Auto-invent conversational copy matching a high-tech tone: *"Thank you for calling We Bespoke AI, the voice of the future. I am your autonomous AI receptionist. Are you calling to build a custom voice solution for your enterprise, or do you need support with an active project dashboard?"*
+    * **Node 2 (Logic Split - Intent Triage):** Autonomously brainstorm 4 highly realistic target paths for an AI software firm:
+        * Path A: `Enterprise AI Consulting`
+        * Path B: `Technical API Support`
+        * Path C: `Pricing & Whitelabel Inquiries`
+        * Path D: `General Press / Job Applications`
+    * **Node 3 (Extract Variable - Dynamic Data Gathering):** Autonomously map out and name realistic data keys to capture relative to tech sales:
+        * Target Variable 1: `{{caller_company_name}}`
+        * Target Variable 2: `{{estimated_monthly_call_volume}}`
+        * Target Variable 3: `{{preferred_llm_model}}` (e.g., GPT-4o, Claude)
+    * **Node 4 (Function - Smart Routing):** Dynamically connect to the proper functional integrations (e.g., checking an AI Demo Calendar slot link or querying a technical docs database script).
+
+---
+
+### 3. Text Hydration & Dynamic Field Generation Rules
+* **Title Automation:** Every single generated node must be assigned a unique, creative, semantic title based on its function (e.g., change generic "Function 1" to `"Query Knowledge Base API"`, change generic "Logic Split" to `"Qualify Tech Budget"`).
+* **Condition Population:** For `logic_split` or `press_digit` nodes, the condition arrays must be filled with hyper-relevant strings specific to the company's inferred business model, ensuring clear, branched visual paths drop down onto the canvas automatically.
+
+---
+
+### 4. Layout Spacing Synchronization
+* Ensure that these dynamically invented branches follow our strict horizontal cascading rules ($x + 320px$ per sequential layer) and vertical distribution spacing ($y \pm 180px$ per alternative path link) so that even the most complex, auto-extrapolated script layouts never trigger node collisions or wire overlap bugs on render.
