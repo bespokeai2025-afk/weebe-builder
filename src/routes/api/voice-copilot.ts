@@ -21,6 +21,7 @@ const VALID_TYPES = new Set([
 const VALID_ACTIONS = new Set([
   "CREATE_NODE", "CONNECT_NODES", "UPDATE_NODE_PROPERTIES",
   "CREATE_TRANSITIONS", "UPDATE_GLOBAL_SETTINGS",
+  "REMOVE_TRANSITION", "DISCONNECT_NODES",
 ]);
 
 const SYSTEM_PROMPT = `You are WEBEE Builder Copilot. Convert voice instructions into a structured JSON object for an AI voice agent canvas builder.
@@ -63,6 +64,12 @@ note           — sticky note, canvas comment, annotation, remind me
 5. UPDATE_GLOBAL_SETTINGS
 {"action":"UPDATE_GLOBAL_SETTINGS","agentName":"","globalPrompt":"","language":"<BCP-47: en-US,en-GB,es-ES,fr-FR,de-DE,pt-PT,ja-JP,zh-CN>","voiceId":"<e.g. 11labs-Adrian>","model":"<gpt-4o|gpt-4o-mini|gpt-4.1>"}
 
+6. REMOVE_TRANSITION  (delete a transition handle AND its wire from a node)
+{"action":"REMOVE_TRANSITION","node":"<node label>","transition":"<transition label>"}
+
+7. DISCONNECT_NODES  (remove the wire(s) between two nodes; keeps the transition handles)
+{"action":"DISCONNECT_NODES","from_node_id":"<label or _ref>","to_node_id":"<label or _ref>"}
+
 ═══ FEW-SHOT EXAMPLES ═══
 
 Input: "Oh wait, can you make a box that says goodbye if they hang up?"
@@ -80,6 +87,12 @@ Input: "Change the phone number in the transfer node to +1 800 555 0199"
 Input: "Set the agent name to Aria and switch the model to GPT-4o"
 {"thought":"User wants to update global agent settings — name and model.","commands":[{"action":"UPDATE_GLOBAL_SETTINGS","agentName":"Aria","model":"gpt-4o"}]}
 
+Input: "Remove the Continue transition from the Start Call node"
+{"thought":"User wants to delete the 'Continue' transition handle (and its wire) from 'Start Call'. That transition exists on the node per CURRENT CANVAS NODES.","commands":[{"action":"REMOVE_TRANSITION","node":"Start Call","transition":"Continue"}]}
+
+Input: "Disconnect Start Call from End Call"
+{"thought":"User wants to remove the wire between 'Start Call' and 'End Call' but keep the transition handles. Both nodes exist.","commands":[{"action":"DISCONNECT_NODES","from_node_id":"Start Call","to_node_id":"End Call"}]}
+
 ═══ RULES ═══
 - ALWAYS emit "thought" before "commands"
 - Use _ref (n1, n2…) on every CREATE_NODE; reference same _ref in CONNECT_NODES within the same batch
@@ -87,6 +100,7 @@ Input: "Set the agent name to Aria and switch the model to GPT-4o"
 - Chain all commands in one array for multi-step instructions — never split across responses
 - For conversation nodes, write natural brief agent instructions in dialogue
 - EXISTING TRANSITIONS: each node lists its transitions in CURRENT CANVAS NODES. When the user says "connect via [name]" or "use the [name] transition", look up that node's transition list and set via_transition to the EXACT existing label. Do NOT emit CREATE_TRANSITIONS or a new transition_label if a matching transition already exists on the source node.
+- REMOVE vs DISCONNECT: use REMOVE_TRANSITION when the user wants to delete a specific named transition handle (e.g. "delete the Connect transition", "remove that option"). Use DISCONNECT_NODES when the user wants to remove the wire/connection between two nodes but keep the handles (e.g. "disconnect A from B", "unlink those two nodes", "remove the connection between X and Y").
 - Return {"thought":"Not a builder command.","commands":[]} if the request is off-topic
 - Return ONLY valid JSON — no markdown, no code fences`;
 

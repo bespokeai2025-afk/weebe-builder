@@ -33,6 +33,9 @@ interface VoiceCommand {
   language?: string;
   voiceId?: string;
   model?: string;
+  // REMOVE_TRANSITION
+  transition?: string;
+  // DISCONNECT_NODES (reuses from_node_id/to_node_id)
   [key: string]: unknown;
 }
 
@@ -110,7 +113,7 @@ function mapProperties(props: Record<string, string>): Partial<FlowNodeData> {
 // ─────────────────────────────────────────────────────────────────────────────
 async function executeVoiceCommands(commands: VoiceCommand[]) {
   const idMap: Record<string, string> = {};
-  let createdCount = 0, connectedCount = 0, updatedCount = 0, settingsCount = 0;
+  let createdCount = 0, connectedCount = 0, updatedCount = 0, settingsCount = 0, deletedCount = 0;
   const warnings: string[] = [];
 
   // ── Phase 1: everything except CONNECT_NODES ─────────────────────────────
@@ -173,6 +176,62 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
       if (cmd.voiceId)      patch.voiceId      = cmd.voiceId;
       if (cmd.model)        patch.model        = cmd.model;
       if (Object.keys(patch).length) { useBuilderStore.getState().setSettings(patch); settingsCount++; }
+
+    // REMOVE_TRANSITION ───────────────────────────────────────────────────────
+    // Removes the named transition handle AND any edges wired through it.
+    } else if (cmd.action === "REMOVE_TRANSITION") {
+      const target = cmd.node ? findNode(cmd.node, idMap) : undefined;
+      if (!target) { warnings.push(`Could not find node: "${cmd.node ?? "?"}"`); continue; }
+      const liveNode = useBuilderStore.getState().nodes.find((n) => n.id === target.id);
+      const allTransitions = liveNode?.data.transitions ?? [];
+      const transLabel = (cmd.transition ?? "").toLowerCase();
+      // Fuzzy match the named transition
+      let match = allTransitions.find(
+        (t) => t.condition.toLowerCase() === transLabel || t.condition.toLowerCase().includes(transLabel) || transLabel.includes(t.condition.toLowerCase()),
+      );
+      if (!match) {
+        const thresh = Math.max(2, Math.floor(transLabel.length * 0.35));
+        match = allTransitions.find((t) => levenshtein(t.condition.toLowerCase(), transLabel) <= thresh);
+      }
+      if (!match) { warnings.push(`Could not find transition "${cmd.transition ?? "?"}" on "${target.data.label}"`); continue; }
+      // Remove the transition from the node
+      useBuilderStore.getState().updateNode(target.id, {
+        transitions: allTransitions.filter((t) => t.id !== match!.id),
+      });
+      // Remove edges that used this handle
+      useBuilderStore.setState({
+        edges: useBuilderStore.getState().edges.filter((e) => e.sourceHandle !== match!.id),
+      });
+      deletedCount++;
+
+    // DISCONNECT_NODES ────────────────────────────────────────────────────────
+    // Removes all edges between two nodes; keeps the transition handles intact
+    // (they are just left unconnected so the user can reconnect later).
+    } else if (cmd.action === "DISCONNECT_NODES") {
+      const fromRef  = cmd.from_node_id ?? cmd.from;
+      const toRef    = cmd.to_node_id   ?? cmd.to;
+      const fromNode = fromRef ? findNode(fromRef, idMap) : undefined;
+      const toNode   = toRef   ? findNode(toRef,   idMap) : undefined;
+      if (!fromNode || !toNode) {
+        warnings.push(`Could not find nodes: "${fromRef ?? "?"}" → "${toRef ?? "?"}"`);
+        continue;
+      }
+      const { edges } = useBuilderStore.getState();
+      const toRemove = new Set(
+        edges.filter((e) => e.source === fromNode.id && e.target === toNode.id).map((e) => e.id),
+      );
+      if (toRemove.size === 0) { warnings.push(`No connection found between "${fromNode.data.label}" and "${toNode.data.label}"`); continue; }
+      // Remove edges
+      useBuilderStore.setState({ edges: edges.filter((e) => !toRemove.has(e.id)) });
+      // Clear target on affected transitions so handles show as unconnected
+      const removedHandles = new Set(
+        edges.filter((e) => toRemove.has(e.id)).map((e) => e.sourceHandle).filter(Boolean),
+      );
+      useBuilderStore.getState().updateNode(fromNode.id, {
+        transitions: (useBuilderStore.getState().nodes.find((n) => n.id === fromNode.id)?.data.transitions ?? [])
+          .map((t) => removedHandles.has(t.id) ? { ...t, target: null } : t),
+      });
+      deletedCount++;
     }
   }
 
@@ -240,7 +299,7 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
     }
   }
 
-  return { createdCount, connectedCount, updatedCount, settingsCount, warnings };
+  return { createdCount, connectedCount, updatedCount, settingsCount, deletedCount, warnings };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -321,16 +380,17 @@ export function VoiceCopilotButton() {
         return;
       }
 
-      const { createdCount, connectedCount, updatedCount, settingsCount, warnings } =
+      const { createdCount, connectedCount, updatedCount, settingsCount, deletedCount, warnings } =
         await executeVoiceCommands(data.commands);
 
       warnings.forEach((w) => toast.warning(w, { duration: 6000 }));
 
       const parts: string[] = [];
-      if (createdCount)  parts.push(`${createdCount} node${createdCount > 1 ? "s" : ""} added`);
+      if (createdCount)   parts.push(`${createdCount} node${createdCount > 1 ? "s" : ""} added`);
       if (connectedCount) parts.push(`${connectedCount} connection${connectedCount > 1 ? "s" : ""} made`);
-      if (updatedCount)  parts.push(`${updatedCount} update${updatedCount > 1 ? "s" : ""} applied`);
-      if (settingsCount) parts.push("settings updated");
+      if (updatedCount)   parts.push(`${updatedCount} update${updatedCount > 1 ? "s" : ""} applied`);
+      if (deletedCount)   parts.push(`${deletedCount} removed`);
+      if (settingsCount)  parts.push("settings updated");
 
       if (parts.length) {
         toast.success(
