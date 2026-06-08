@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -64,6 +65,7 @@ function AuthenticatedLayout() {
           <Outlet />
         </SidebarInset>
       </div>
+      <OnboardingTour />
     </SidebarProvider>
   );
 }
