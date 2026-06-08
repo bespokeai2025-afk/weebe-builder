@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { createBooking, getCalcomUserTimezone } from "@/lib/calendar/calcom.server";
 
 const ENTITY_TYPES = ["lead", "contact", "call"] as const;
 
@@ -101,6 +102,8 @@ export const createManualBooking = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context as any;
     if (!workspaceId) throw new Error("No active workspace");
+
+    // Save to local DB first
     const { data: row, error } = await (supabase as any)
       .from("calendar_bookings")
       .insert({
@@ -119,5 +122,54 @@ export const createManualBooking = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    return { id: row.id as string };
+
+    const localId = row.id as string;
+
+    // Attempt to push to Cal.com if configured and we have enough info
+    const email = data.attendeeEmail?.trim() || null;
+    const name = data.attendeeName?.trim() || "Guest";
+
+    if (email) {
+      try {
+        const { data: settings } = await (supabase as any)
+          .from("workspace_settings")
+          .select("calcom_api_key, default_event_type_id, calcom_event_type_id, timezone")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+
+        const apiKey: string | null = settings?.calcom_api_key ?? null;
+        const eventTypeId: number =
+          Number(settings?.default_event_type_id || settings?.calcom_event_type_id || 0) || 0;
+
+        if (apiKey && eventTypeId) {
+          let timezone: string | null = settings?.timezone ?? null;
+          if (!timezone) timezone = await getCalcomUserTimezone(apiKey);
+          timezone = timezone ?? "UTC";
+
+          const booking = await createBooking(apiKey, {
+            eventTypeId,
+            start: data.startAt,
+            name,
+            email,
+            phone: data.attendeePhone ?? undefined,
+            notes: data.notes ?? undefined,
+            timeZone: timezone,
+          });
+
+          // Link the local row to the new Cal.com booking
+          await (supabase as any)
+            .from("calendar_bookings")
+            .update({
+              external_id: booking.uid,
+              meeting_url: booking.meetingUrl ?? null,
+            })
+            .eq("id", localId);
+        }
+      } catch (calErr) {
+        // Cal.com push failed — log but don't fail the whole operation
+        console.warn("[createManualBooking] Cal.com sync failed:", (calErr as Error).message);
+      }
+    }
+
+    return { id: localId };
   });
