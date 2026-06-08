@@ -16,6 +16,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
+import { Route as ApiVoiceCopilotRouteImport } from './routes/api/voice-copilot'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedQualifiedRouteImport } from './routes/_authenticated/qualified'
@@ -91,6 +92,11 @@ const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVoiceCopilotRoute = ApiVoiceCopilotRouteImport.update({
+  id: '/api/voice-copilot',
+  path: '/api/voice-copilot',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
@@ -339,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/qualified': typeof AuthenticatedQualifiedRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
@@ -388,6 +395,7 @@ export interface FileRoutesByTo {
   '/qualified': typeof AuthenticatedQualifiedRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
@@ -440,6 +448,7 @@ export interface FileRoutesById {
   '/_authenticated/qualified': typeof AuthenticatedQualifiedRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
@@ -492,6 +501,7 @@ export interface FileRouteTypes {
     | '/qualified'
     | '/templates'
     | '/whatsapp'
+    | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/admin/user-activity'
@@ -541,6 +551,7 @@ export interface FileRouteTypes {
     | '/qualified'
     | '/templates'
     | '/whatsapp'
+    | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/admin/user-activity'
@@ -592,6 +603,7 @@ export interface FileRouteTypes {
     | '/_authenticated/qualified'
     | '/_authenticated/templates'
     | '/_authenticated/whatsapp'
+    | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/_authenticated/admin/user-activity'
@@ -630,6 +642,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  ApiVoiceCopilotRoute: typeof ApiVoiceCopilotRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ApiAdminTestRetellWebhookRoute: typeof ApiAdminTestRetellWebhookRoute
@@ -702,6 +715,13 @@ declare module '@tanstack/react-router' {
       path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/voice-copilot': {
+      id: '/api/voice-copilot'
+      path: '/api/voice-copilot'
+      fullPath: '/api/voice-copilot'
+      preLoaderRoute: typeof ApiVoiceCopilotRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/whatsapp': {
@@ -1096,6 +1116,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  ApiVoiceCopilotRoute: ApiVoiceCopilotRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ApiAdminTestRetellWebhookRoute: ApiAdminTestRetellWebhookRoute,

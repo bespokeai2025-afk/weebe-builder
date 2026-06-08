@@ -65,6 +65,7 @@ import { NodeEditorDialog } from "./NodeEditorDialog";
 import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
 import { RetellDeployDialog } from "./RetellDeployDialog";
+import { VoiceCopilotButton } from "./VoiceCopilot";
 import { PostCallDataSection } from "./PostCallDataSection";
 import { BookingConfigSection } from "./BookingConfigSection";
 import { LeadGenSection } from "./LeadGenSection";
@@ -495,6 +496,11 @@ export function Builder({
           </div>
           <ImportJsonDialog open={importOpen} onOpenChange={setImportOpen} hideTrigger />
           <ExportJsonDialog open={exportOpen} onOpenChange={setExportOpen} hideTrigger />
+
+          {/* Voice Copilot — own small capsule */}
+          <div className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5">
+            <VoiceCopilotButton />
+          </div>
 
           {/* Separator */}
           <div className="h-4 w-px bg-white/[0.06]" />
