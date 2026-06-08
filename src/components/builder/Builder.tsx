@@ -413,7 +413,7 @@ export function Builder({
                 requestAnimationFrame(() => rf?.fitView({ padding: 0.2, duration: 200 }));
               }}
               title="Auto-arrange nodes"
-              className="!w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
+              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
             >
               <LayoutGrid />
             </Button>
@@ -426,7 +426,7 @@ export function Builder({
               }}
               disabled={!preAutoLayoutPositions}
               title="Revert to original layout"
-              className="!w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
+              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
             >
               <Undo2 />
             </Button>
@@ -435,14 +435,14 @@ export function Builder({
               variant="ghost"
               onClick={() => rf?.fitView({ padding: 0.2 })}
               title="Fit canvas"
-              className="!w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
+              className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
             >
               <Maximize />
             </Button>
             {/* Import / Export dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost" title="Import / Export" className="!w-7 !p-0 text-muted-foreground/60 hover:text-foreground">
+                <Button size="sm" variant="ghost" title="Import / Export" className="!w-8 !p-0 text-muted-foreground/60 hover:text-foreground">
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
@@ -474,7 +474,7 @@ export function Builder({
                   size="sm"
                   variant="ghost"
                   title="Clear canvas"
-                  className="!w-7 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+                  className="!w-8 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash />
                 </Button>
@@ -667,7 +667,7 @@ export function Builder({
 
         {/* Right global settings */}
         {rightOpen && (
-          <aside className="w-[15vw] min-w-[200px] max-w-[240px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-2 py-1.5 space-y-1.5 hidden md:block text-[10px] [&_label]:text-[9px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[10px] [&_button[role=combobox]]:h-6 [&_button[role=combobox]]:text-[10px] [&_input]:text-[10px] [&_select]:text-[10px]">
+          <aside className="w-[320px] min-w-[300px] max-w-[360px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]">
             {/* Panel header */}
             <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
               <h3 className="text-[11px] font-semibold tracking-tight text-foreground">Agent Settings</h3>
@@ -686,7 +686,7 @@ export function Builder({
             </div>
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
-              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Mic className="h-3 w-3" />Voice & Language</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
@@ -745,7 +745,7 @@ export function Builder({
             </Collapsible>
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
-              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><MsgSq className="h-3 w-3" />Global Prompt</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
@@ -800,7 +800,7 @@ export function Builder({
             </Collapsible>
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
-              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><ArrowLeftRight className="h-3 w-3" />Transition</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
@@ -816,7 +816,7 @@ export function Builder({
             </Collapsible>
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
-              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Settings2 className="h-3 w-3" />Agent</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
@@ -844,7 +844,7 @@ export function Builder({
 
             {/* Agent type selector — controls which sections appear below */}
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
-              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Globe className="h-3 w-3" />Agent Type</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
@@ -873,7 +873,7 @@ export function Builder({
             {settings.agentType === "client_qualification" && <ClientQualificationSection />}
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
-              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span>Agent Handbook</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
@@ -903,7 +903,7 @@ export function Builder({
             </Collapsible>
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
-              <CollapsibleTrigger className="group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+              <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span>Speech Settings</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>

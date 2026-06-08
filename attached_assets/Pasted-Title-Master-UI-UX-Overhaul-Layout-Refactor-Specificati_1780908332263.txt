@@ -1,0 +1,69 @@
+Title: Master UI/UX Overhaul & Layout Refactor Specification
+
+Please execute a comprehensive visual and layout overhaul across the entire platform. The goal is to maximize workspace density, clean up visual clutter, and establish perfect structural uniformity. 
+
+CRITICAL GUARDRAIL: Do NOT change the existing dark theme tones, core background canvas colors, font families, or node-canvas styling. Focus entirely on layout geometry, alignment, spacing, component scaling, and text legibility.
+
+---
+
+### 1. Top Navigation Bar & Button Uniformity
+* **Standardized Button Proportions:** Enforce a strict horizontal baseline grid where every standalone icon button shares identical bounding box dimensions (e.g., `36px × 36px`) and corner border-radius.
+* **Eliminate Shape Mismatches:** Standardize button geometry. Remove the mismatch between large circular buttons (like the blue `+`) and sharp rounded-square tiles. Make them all uniform utility tiles or ghost items.
+* **Functional Tool Clustering:** Group the top-row icons into distinct, logical clusters separated by subtle, low-opacity vertical divider lines:
+    * Group 1 (Canvas Layout): Grid toggle, Undo/Redo, Fullscreen, and Trash can.
+    * Group 2 (Utilities/Triggers): Phone, Download/Export, Refresh, and Add (`+`).
+* **Sleek Account/Wallet Pill:** Scale the balance display capsule (`$ 0.540 / $5.00`) to match the exact `36px` height of the neighboring tool clusters and center it perfectly on the horizontal axis.
+* **Normalized Hover States:** Mute the default idle color of all action icons (e.g., the trash can should not be bright red when idle). Use a cohesive light-gray/off-white palette for idle states, and only flash semantic colors (red for delete, blue for primary actions) on mouse hover.
+* **Primary Call-to-Action:** Refactor the far-right Save/Deploy action into a clean text-based or minimal outline pill button with symmetrical padding, matching the premium design language of clean modern SaaS apps.
+
+---
+
+### 2. Panel Proportions & Sleek Collapse Triggers
+* **Right Panel Sidebar Dimensions:** Resize the right-hand settings panel to occupy a sleeker, fixed footprint of the workspace width (approximately 20% to 25% maximum, or a bounding range of `min-width: 300px` and `max-width: 360px`).
+* **Canvas Auto-Recalibration:** Ensure the central node canvas flexes and automatically fills any horizontal space reclaimed by downsizing the sidebars.
+* **Ghost Collapse Buttons:** Replace bulky, high-contrast, or boxed panel collapse controls with borderless, transparent "ghost" triggers that anchor directly onto intersecting panel boundary lines.
+* **Micro-Interactions:** Apply smooth transitions (`transition: all 0.2s ease`). Icons should remain completely unobtrusive when idle and gently illuminate on hover with a soft, low-opacity tint (e.g., a white mask at 5% opacity).
+
+---
+
+### 3. Typography, Contrast & Text Legibility
+* **Strict Typographic Hierarchy:** Implement clean sans-serif typography rules using varying weights to establish immediate clarity against the dark theme:
+    * Primary Titles/Headers: Semi-bold/Medium, high-contrast crisp off-white (`#F9FAFB`).
+    * Body Text & UI Labels: Regular weight, soft light-gray (`#E5E7EB`) for effortless readability without eye strain.
+    * Secondary/Muted Elements: Soft muted gray (`#9CA3AF`) for captions or placeholders.
+* **Spacing Rules:** Adjust text containers to use a line height of roughly `1.5` for extended reading (such as in the Global Prompt or Booking Instructions text areas). Apply a subtle letter-spacing track to uppercase headers to ensure crisp legibility.
+* **Font Rendering:** Apply explicit font-smoothing CSS flags globally (`-webkit-font-smoothing: antialiased`).
+
+---
+
+### 4. Right Panel Component Uniformity & Compact Scale
+* **Standardized Accordion Templates:** Force every single collapsible section wrapper (`Lead Source`, `Voice & Language`, `Booking & Calendar`, etc.) to use a identical card wrapper template:
+    * Ensure all header text is strictly left-aligned (correcting any layout centering anomalies).
+    * Enforce a unified vertical height for all closed accordion states (e.g., `44px` or `48px`).
+    * Match the corner border-radius (`8px` or `rounded-lg`) seamlessly across all sections.
+* **Global Component Sizing Drop (Compact Mode):** Scale down the footprint of all inputs, forms, sliders, and buttons inside the settings panel by roughly 20% to 30%. Drop main text elements down to a clean `text-sm` scale and sub-labels down to `text-xs`.
+* **Dense Internal Padding:** Reduce excessive margins inside open accordion containers to a tight, uniform padding setting (e.g., `12px` or `14px`). For repeated list data (like the calendar day slots), tighten line-heights and strip out heavy vertical gaps to prevent excessive scrolling.
+
+---
+
+### 5. Custom Sleek Scrollbars
+* Apply a universal scrollbar override layout across the main viewports, the settings panel, and all text area input fields to replace the default clunky browser elements with the following style block:
+
+```css
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15); 
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3); 
+}
+::-webkit-scrollbar-button {
+  display: none;
+}

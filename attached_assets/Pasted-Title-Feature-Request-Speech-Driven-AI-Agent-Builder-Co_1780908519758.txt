@@ -1,0 +1,26 @@
+Title: Feature Request - Speech-Driven AI Agent Builder Copilot
+
+Please implement a "Voice Command AI Copilot" feature within our node builder workspace. This feature will allow users to speak instructions into a microphone, which will automatically trigger our builder's existing frontend state functions to dynamically assemble, update, or connect nodes on the canvas.
+
+### 1. UI/UX Interface Elements
+* **The Microphone Trigger:** Add a sleek, compact microphone icon button directly into the Top Navigation bar or floating next to the central canvas. It should match our exact dark theme and use our signature blue/yellow accents for active states.
+* **Recording UI Feedback:** When clicked, the button transitions into a "Listening..." state with a subtle, glowing wave animation (no bulky overlays) to indicate active audio recording. Clicking it again stops the recording.
+* **Transcription Toast:** Display a tiny, minimalist toast notification at the bottom of the screen showing a preview of the processed text (e.g., "Voice command detected: 'Add a logic split node'").
+
+### 2. The Backend Voice Processing Pipeline
+* **Speech-to-Text Integration:** Stream or send the captured audio blob to a fast Speech-to-Text API (e.g., OpenAI Whisper) to return a clean text string.
+* **Intent-to-Function Schema (LLM Parsing):** Pass the transcribed text to a lightweight LLM completion endpoint. Instruct the LLM via a strict system prompt to map the user's natural language request *only* into an array of our pre-defined builder function schemas. 
+
+The LLM must strictly output a clean JSON payload mapping to our existing tool blocks, for example:
+{
+  "commands": [
+    { "action": "CREATE_NODE", "type": "conversation", "properties": { "text": "Hi! How can I help you today?" } },
+    { "action": "CREATE_NODE", "type": "logic_split", "properties": { "intent": "booking" } },
+    { "action": "CONNECT_NODES", "from": "node_id_1", "to": "node_id_2" }
+  ]
+}
+
+### 3. Frontend Execution & Canvas Mutation
+* **Function-Only Constraints:** Create a command processor function in our frontend (`executeVoiceCommands(commands)`) that reads the LLM's JSON payload.
+* **State Mapping:** Map these incoming JSON commands directly to our tool's existing state actions (e.g., spawning nodes on the canvas, filling out the internal node properties, or creating connector wires between them).
+* **Safe Error Handling:** If the LLM returns an unrecognized command or references a component type that does not exist in our system, abort gracefully and show a gentle toast error: "Could not understand layout instruction. Please try again."

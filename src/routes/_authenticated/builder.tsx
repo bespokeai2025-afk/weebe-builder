@@ -134,7 +134,7 @@ function BuilderPage() {
         variant="ghost"
         onClick={() => setSaveTemplateOpen(true)}
         title="Save as template"
-        className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
+        className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
       >
         <BookmarkPlus />
       </Button>
@@ -145,7 +145,7 @@ function BuilderPage() {
         onClick={handleSave}
         disabled={saving}
         title="Save agent (⌘S)"
-        className="!h-7 gap-1 px-2.5 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.06]"
+        className="!h-8 gap-1 px-2.5 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.06]"
       >
         {saving ? (
           <Loader2 className="h-3 w-3 animate-spin" />

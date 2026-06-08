@@ -63,7 +63,7 @@ function parsePlaceholdersFromAll(globalPrompt: string, nodes: FlowNode[]): stri
   return Array.from(seen);
 }
 
-const TRIGGER = "group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:brightness-110 transition-colors";
+const TRIGGER = "group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:brightness-110 transition-colors";
 const CONTENT = "space-y-1.5 px-2.5 pb-2.5";
 
 export function ClientQualificationSection() {

@@ -110,7 +110,7 @@ export function PostCallVariableMappingSection({
   if (variables.length === 0) {
     return (
       <Collapsible className={`rounded-lg border ${borderClass}`}>
-        <CollapsibleTrigger className={`group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
+        <CollapsibleTrigger className={`group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
           <span className="flex items-center gap-1.5">
             <ArrowRight className="h-3 w-3" />
             Post-Call Variable Mapping
@@ -129,7 +129,7 @@ export function PostCallVariableMappingSection({
 
   return (
     <Collapsible className={`rounded-lg border ${borderClass}`}>
-      <CollapsibleTrigger className={`group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
+      <CollapsibleTrigger className={`group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
         <span className="flex items-center gap-1.5">
           <ArrowRight className="h-3 w-3" />
           Post-Call Variable Mapping
@@ -264,7 +264,7 @@ export function PreCallLeadMappingSection({
 
   return (
     <Collapsible className={`rounded-lg border ${borderClass}`}>
-      <CollapsibleTrigger className={`group flex w-full min-h-[40px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
+      <CollapsibleTrigger className={`group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium ${accentClass} hover:brightness-110 transition-colors`}>
         <span className="flex items-center gap-1.5">
           <ArrowRight className="h-3 w-3" />
           Pre-Call Data Injection

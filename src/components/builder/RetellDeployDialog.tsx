@@ -373,7 +373,7 @@ export function RetellDeployDialog() {
             size="sm"
             variant="ghost"
             onClick={endCall}
-            className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
             title="End test call"
           >
             <PhoneOff className="h-3.5 w-3.5" />
@@ -384,7 +384,7 @@ export function RetellDeployDialog() {
             variant="ghost"
             onClick={handleTestCall}
             disabled={calling || !hasAgent || overLimit}
-            className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
+            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
             title={
               overLimit
                 ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
@@ -406,7 +406,7 @@ export function RetellDeployDialog() {
           size="sm"
           variant="ghost"
           onClick={() => setLoadOpen(true)}
-          className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:text-foreground"
+          className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
           title="Load agent by ID"
         >
           <Download className="h-3.5 w-3.5" />
@@ -419,7 +419,7 @@ export function RetellDeployDialog() {
             variant="ghost"
             onClick={() => handleDeploy("update")}
             disabled={deploying !== null}
-            className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:bg-sky-500/10 hover:text-sky-300"
+            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-sky-500/10 hover:text-sky-300"
             title="Update existing agent with current flow"
           >
             {deploying === "update" ? (
@@ -439,7 +439,7 @@ export function RetellDeployDialog() {
           variant="ghost"
           onClick={() => handleDeploy("create")}
           disabled={deploying !== null}
-          className="!h-7 !w-7 !p-0 text-muted-foreground/60 hover:bg-primary/10 hover:text-primary"
+          className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-primary/10 hover:text-primary"
           title="Create new agent from current flow"
         >
           {deploying === "create" ? (
@@ -533,7 +533,7 @@ export function RetellDeployDialog() {
       {/* Cost meter — height-matched to toolbar buttons */}
       {(inCall || spendUsedCents > 0) && (
         <div
-          className="flex h-7 items-center gap-1.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-2 text-[10px] font-medium text-foreground/70"
+          className="flex h-8 items-center gap-1.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-2 text-[10px] font-medium text-foreground/70"
           title={`Total test-call spend @ $${costPerMinute.toFixed(2)}/min`}
         >
           {inCall && (
