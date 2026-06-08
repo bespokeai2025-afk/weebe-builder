@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { calFetch } from "@/lib/calendar/calcom.server";
+import { calFetch, cancelBooking as calcomCancelBooking } from "@/lib/calendar/calcom.server";
 
 export type UnifiedBooking = {
   id: string;
@@ -239,8 +239,34 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
       }
     }
 
-    // Only return Cal.com bookings — local/manual call records are excluded from the calendar view
-    const combined = calcom.filter((b) => !!b.start_at);
+    // Collect external_ids already covered by Cal.com results
+    const calcomExternalIds = new Set(calcom.map((b) => b.external_id).filter(Boolean));
+
+    // Include manual bookings that are NOT already represented by a Cal.com entry
+    const manualBookings: UnifiedBooking[] = ((localRows ?? []) as any[])
+      .filter(
+        (b) =>
+          b.source === "manual" &&
+          b.start_at &&
+          (!b.external_id || !calcomExternalIds.has(b.external_id)),
+      )
+      .map((b) => ({
+        id: `local:${b.id}`,
+        source: "local" as const,
+        title: b.title,
+        start_at: b.start_at,
+        end_at: b.end_at ?? null,
+        status: b.status ?? "confirmed",
+        attendee_name: b.attendee_name ?? null,
+        attendee_email: b.attendee_email ?? null,
+        meeting_url: b.meeting_url ?? null,
+        db_id: b.id as string,
+        external_id: b.external_id ?? null,
+        notes: b.notes ?? null,
+        agent_name: null,
+      }));
+
+    const combined = [...calcom, ...manualBookings].filter((b) => !!b.start_at);
     combined.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
 
     return {
@@ -383,4 +409,61 @@ export const updateBookingNotes = createServerFn({ method: "POST" })
     }
 
     throw new Error("Either db_id or external_id is required");
+  });
+
+export const cancelBookingFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        db_id: z.string().uuid().optional(),
+        external_id: z.string().optional(),
+        reason: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    // Resolve db_id if we only have external_id
+    let resolvedDbId = data.db_id;
+    if (!resolvedDbId && data.external_id) {
+      const { data: row } = await (supabase as any)
+        .from("calendar_bookings" as never)
+        .select("id")
+        .eq("external_id", data.external_id)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      resolvedDbId = row?.id;
+    }
+
+    // If it's a real Cal.com booking, cancel via the API
+    const calcomUid = data.external_id && !data.external_id.startsWith("retell-call:")
+      ? data.external_id
+      : null;
+
+    if (calcomUid) {
+      const { data: settings } = await (supabase as any)
+        .from("workspace_settings" as never)
+        .select("calcom_api_key")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      const apiKey: string | null = (settings as any)?.calcom_api_key ?? null;
+      if (apiKey) {
+        await calcomCancelBooking(apiKey, calcomUid, data.reason ?? "Cancelled via dashboard");
+      }
+    }
+
+    // Always mark the local row as cancelled
+    if (resolvedDbId) {
+      await (supabase as any)
+        .from("calendar_bookings" as never)
+        .update({ status: "cancelled" })
+        .eq("id", resolvedDbId)
+        .eq("workspace_id", workspaceId);
+    }
+
+    return { ok: true };
   });

@@ -16,6 +16,7 @@ import {
   Save,
   Loader2,
   X,
+  XCircle,
 } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
   listCalendarBookings,
   getBookingDetail,
   updateBookingNotes,
+  cancelBookingFn,
 } from "@/lib/dashboard/bookings.functions";
 import type { UnifiedBooking } from "@/lib/dashboard/bookings.functions";
 
@@ -92,14 +94,17 @@ function BookingDetailDialog({
   open,
   onOpenChange,
   onNotesSaved,
+  onCancelled,
 }: {
   booking: UnifiedBooking | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onNotesSaved: (bookingId: string, notes: string) => void;
+  onCancelled: (bookingId: string) => void;
 }) {
   const getDetailFn = useServerFn(getBookingDetail);
   const updateNotesFn = useServerFn(updateBookingNotes);
+  const cancelFn = useServerFn(cancelBookingFn);
 
   const detailQ = useQuery({
     queryKey: ["booking-detail", booking?.id],
@@ -115,6 +120,7 @@ function BookingDetailDialog({
 
   const [notes, setNotes] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Sync notes from fetched detail whenever dialog opens / detail loads
   useEffect(() => {
@@ -146,6 +152,28 @@ function BookingDetailDialog({
       toast.error("Failed to save notes", { description: (e as Error).message });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!booking) return;
+    if (!window.confirm("Cancel this appointment? This cannot be undone.")) return;
+    setCancelling(true);
+    try {
+      await cancelFn({
+        data: {
+          db_id: detailQ.data?.db_id ?? booking.db_id ?? undefined,
+          external_id: booking.external_id ?? undefined,
+          reason: "Cancelled via dashboard",
+        },
+      });
+      toast.success("Appointment cancelled");
+      onCancelled(booking.id);
+      onOpenChange(false);
+    } catch (e) {
+      toast.error("Failed to cancel appointment", { description: (e as Error).message });
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -291,23 +319,41 @@ function BookingDetailDialog({
               className="min-h-[120px] text-sm resize-none border-white/[0.08] bg-white/[0.03] focus:border-blue-500/40"
               rows={5}
             />
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] text-muted-foreground">
-                Notes attach to this client's record across all screens
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] text-muted-foreground shrink-0">
+                Notes attach to this client's record
               </p>
-              <Button
-                size="sm"
-                className="h-7 text-xs"
-                onClick={handleSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                ) : (
-                  <Save className="mr-1.5 h-3 w-3" />
+              <div className="flex items-center gap-2">
+                {booking.status !== "cancelled" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/50"
+                    onClick={handleCancel}
+                    disabled={cancelling || saving}
+                  >
+                    {cancelling ? (
+                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                    ) : (
+                      <XCircle className="mr-1.5 h-3 w-3" />
+                    )}
+                    {cancelling ? "Cancelling…" : "Cancel Appt"}
+                  </Button>
                 )}
-                {saving ? "Saving…" : "Save Notes"}
-              </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleSave}
+                  disabled={saving || cancelling}
+                >
+                  {saving ? (
+                    <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                  ) : (
+                    <Save className="mr-1.5 h-3 w-3" />
+                  )}
+                  {saving ? "Saving…" : "Save Notes"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -374,6 +420,10 @@ function CalendarPage() {
 
   function handleNotesSaved(bookingId: string, notes: string) {
     setLocalNotes((prev) => ({ ...prev, [bookingId]: notes }));
+    qc.invalidateQueries({ queryKey: ["calendar-bookings"] });
+  }
+
+  function handleCancelled(_bookingId: string) {
     qc.invalidateQueries({ queryKey: ["calendar-bookings"] });
   }
 
@@ -626,6 +676,7 @@ function CalendarPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onNotesSaved={handleNotesSaved}
+        onCancelled={handleCancelled}
       />
     </div>
   );
