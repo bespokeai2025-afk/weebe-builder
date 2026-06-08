@@ -572,3 +572,72 @@
     animation: none;
   }
 }
+
+/* ============================================================
+   Custom scrollbars — slim, pill-shaped, theme-matched
+   Applies globally; specific overrides for dark panels.
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.38);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: rgba(128, 128, 128, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.dark ::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+/* Scrollable panels — prevent layout shift when scrollbar appears */
+aside,
+[data-radix-scroll-area-viewport],
+.overflow-y-auto,
+.overflow-auto,
+textarea {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.2) transparent;
+}
+
+.dark aside,
+.dark [data-radix-scroll-area-viewport],
+.dark .overflow-y-auto,
+.dark .overflow-auto,
+.dark textarea {
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
