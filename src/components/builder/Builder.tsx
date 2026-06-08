@@ -396,6 +396,7 @@ export function Builder({
         <div className="flex flex-1 items-center gap-1 min-w-0">
           {toolbarStart}
           <Input
+            data-tour="agent-name-input"
             value={settings.agentName}
             onChange={(e) => setSettings({ agentName: e.target.value })}
             className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-white/[0.06] focus-visible:border-white/[0.1]"
@@ -697,7 +698,7 @@ export function Builder({
               </DropdownMenu>
             </div>
 
-            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+            <Collapsible data-tour="voice-section" className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Mic className="h-3 w-3" />Voice & Language</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -855,7 +856,7 @@ export function Builder({
             <BookingConfigSection />
 
             {/* Agent type selector — controls which sections appear below */}
-            <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+            <Collapsible data-tour="agent-type-select" className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Globe className="h-3 w-3" />Agent Type</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />

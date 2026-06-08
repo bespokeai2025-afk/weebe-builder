@@ -53,17 +53,17 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Agents", url: "/my-agents", icon: LayoutGrid },
-  { title: "Builder", url: "/builder", icon: Workflow },
-  { title: "Templates", url: "/templates", icon: LayoutTemplate },
-  { title: "Data", url: "/data", icon: Database },
-  { title: "Contacts", url: "/contacts", icon: BookUser },
-  { title: "Leads", url: "/leads", icon: UserCheck },
+  { title: "Agents",    url: "/my-agents", icon: LayoutGrid,    tourId: "nav-agents" },
+  { title: "Builder",   url: "/builder",   icon: Workflow },
+  { title: "Templates", url: "/templates", icon: LayoutTemplate, tourId: "nav-templates" },
+  { title: "Data",      url: "/data",      icon: Database },
+  { title: "Contacts",  url: "/contacts",  icon: BookUser },
+  { title: "Leads",     url: "/leads",     icon: UserCheck },
   { title: "Qualified", url: "/qualified", icon: Check },
-  { title: "Calls", url: "/calls", icon: PhoneCall },
-  { title: "Calendar", url: "/calendar", icon: CalendarDays },
-  { title: "WhatsApp", url: "/whatsapp", icon: MessageSquare },
-  { title: "Billing", url: "/billing", icon: CreditCard },
+  { title: "Calls",     url: "/calls",     icon: PhoneCall },
+  { title: "Calendar",  url: "/calendar",  icon: CalendarDays },
+  { title: "WhatsApp",  url: "/whatsapp",  icon: MessageSquare },
+  { title: "Billing",   url: "/billing",   icon: CreditCard },
 ];
 
 export function AppSidebar() {
@@ -205,7 +205,7 @@ export function AppSidebar() {
               {navItems.map((item) => {
                 const active = isActive(item.url);
                 return (
-                  <SidebarMenuItem key={item.url} className="group-data-[collapsible=icon]:w-auto">
+                  <SidebarMenuItem key={item.url} className="group-data-[collapsible=icon]:w-auto" data-tour={(item as { tourId?: string }).tourId}>
                     <SidebarMenuButton
                       asChild
                       tooltip={item.title}

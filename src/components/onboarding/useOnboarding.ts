@@ -7,16 +7,28 @@ export interface OnboardingState {
   completed: boolean;
   dismissed: boolean;
   step: number;
-  buildPath: "template" | "scratch" | null;
-  companyName: string;
-  industry: string;
+  // Step 3
+  agentNameSet: boolean;
+  // Step 4
+  companyContext: string;
+  // Step 5
   voiceChosen: string;
   voiceInteracted: boolean;
   elevenLabsKey: string;
-  adminVerified: boolean;
-  calConnected: boolean;
+  // Step 6
+  agentTypeSet: boolean;
+  // Step 7
+  agentSaved: boolean;
+  // Step 9
+  deployWorkspaceClicked: boolean;
+  // Step 10
+  authAllowed: boolean;
+  // Step 11
   phoneChoice: "local" | "trunk" | null;
   phoneValue: string;
+  // Step 12
+  calConnected: boolean;
+  // Step 13
   deployed: boolean;
 }
 
@@ -24,16 +36,18 @@ const DEFAULTS: OnboardingState = {
   completed: false,
   dismissed: false,
   step: 0,
-  buildPath: null,
-  companyName: "",
-  industry: "",
+  agentNameSet: false,
+  companyContext: "",
   voiceChosen: "",
   voiceInteracted: false,
   elevenLabsKey: "",
-  adminVerified: false,
-  calConnected: false,
+  agentTypeSet: false,
+  agentSaved: false,
+  deployWorkspaceClicked: false,
+  authAllowed: false,
   phoneChoice: null,
   phoneValue: "",
+  calConnected: false,
   deployed: false,
 };
 
@@ -48,9 +62,7 @@ function load(): OnboardingState {
 }
 
 function save(state: OnboardingState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
 }
 
 export function restartTour() {
@@ -78,14 +90,11 @@ export function useOnboarding() {
     });
   }, []);
 
-  const advance = useCallback(() => {
-    setState((prev) => ({ step: Math.min(prev.step + 1, 6) }));
-  }, [setState]);
-
-  const dismiss   = useCallback(() => setState({ dismissed: true }),              [setState]);
-  const complete  = useCallback(() => setState({ completed: true, dismissed: true }), [setState]);
-  const reset     = useCallback(() => restartTour(),                              []);
-  const visible   = !state.completed && !state.dismissed;
+  const advance  = useCallback(() => setState((p) => ({ step: Math.min(p.step + 1, 14) })), [setState]);
+  const dismiss  = useCallback(() => setState({ dismissed: true }),                           [setState]);
+  const complete = useCallback(() => setState({ completed: true, dismissed: true }),          [setState]);
+  const reset    = useCallback(() => restartTour(),                                           []);
+  const visible  = !state.completed && !state.dismissed;
 
   return { state, setState, advance, dismiss, complete, reset, visible };
 }

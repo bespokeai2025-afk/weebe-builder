@@ -1,0 +1,99 @@
+Title: Production-Grade Event-Driven Onboarding Tour Specification
+
+Please implement a highly rigid, chronological, event-driven "Interactive Onboarding Tour" for newly signed-up users. The system must use a micro-tooltip anchoring engine (pins tooltips with directional pointers directly to HTML targets) and step the user through a forced 15-stage workflow from initial canvas loading to live call routing.
+
+### CRITICAL CORE ENGINE RULES:
+1. **Forced Completion Locks:** The "Next" or "Done" triggers on all tooltip elements must be programmatically disabled by default. They can ONLY unlock when the frontend detects that the user has physically completed the requested DOM input, navigation link, selection, or click action.
+2. **Contextual Auto-Routing:** When a step is successfully completed, the tour engine must automatically transition the workspace view state (e.g., scroll forms into position, flip side panels open, or redirect active route views) to position the user exactly where the subsequent action target lives.
+3. **Sleek Dark UI Aesthetics:** Tooltips must be compact (max-width: 280px), using our SaaS dark design palette: background `#111827` (slate-900), borders `1px solid #1F2937` (slate-800), text weights optimized for legibility (`text-xs` / `text-sm`), and a clean progress indicator baseline tracking steps 1 through 15.
+
+---
+
+### THE STRICT 15-STEP ONBOARDING SEQUENCING MATRIX
+
+Please build the tour configuration state machine exactly according to this precise chronological roadmap:
+
+#### 💻 STAGE 1: Builder Canvas Workspace Initialization
+* **Target Anchor:** Main Canvas Page Layout view container.
+* **Instruction:** "Welcome to Webee! Let's build your voice agent. Your design workspace is now loaded and ready."
+* **Event Progression Gate:** Auto-advances after a 1.5-second load verification check.
+
+#### 📋 STAGE 2: Navigate to Templates Registry
+* **Target Anchor:** The "Templates" tab menu or button selector.
+* **Instruction:** "Click the **'Templates'** button to choose a baseline script framework."
+* **Event Progression Gate:** User must click the designated template navigation tab.
+
+#### 🚀 STAGE 3: Select the Base Blueprint
+* **Target Anchor:** The "Virtual Receptionist" template card option.
+* **Instruction:** "Click **'Select Template'** on the Virtual Receptionist layout card to import its node tree structure."
+* **Event Progression Gate:** User must click the template activation tile, rendering the node elements onto the grid.
+
+#### ✍️ STAGE 4: Local Node Configuration
+* **Target Anchor:** The string fields (`Company Name` and `Agent Name`) inside the primary root node card.
+* **Instruction:** "Type your target Company Name and Agent Name into this starting conversation node."
+* **Event Progression Gate:** Both input elements must contain a valid text string length (minimum 3 characters) before unlocking.
+
+#### 🌐 STAGE 5: Global Configuration Matching
+* **Target Anchor:** The `Company Name` and `Agent Name` variable fields inside the main Global Node setup block.
+* **Instruction:** "Now, input your identical Company Name and Agent Name variables inside the Global Node settings to link systemic responses."
+* **Event Progression Gate:** User text matching values are successfully typed into both fields.
+
+#### 🎙️ STAGE 6: Voice Profile Assignment & API Gateway
+* **Target Anchor:** The Right-Hand Configuration Panel Voice Selector Tab.
+* **Instruction:** "Choose a voice model from our native audio picker dropdown. *Optional:* Select the **'ElevenLabs'** tab and input your external API Key and unique Voice ID strings to bridge custom assets."
+* **Event Progression Gate:** System registers either a standard audio preview event or catches text values inside the conditional ElevenLabs inputs.
+
+#### ⚙️ STAGE 7: Define Agent Operational Type
+* **Target Anchor:** The "Agent Type" configuration dropdown menu (located by scrolling down the global panel tab).
+* **Instruction:** "Scroll down the global options sidebar and change the Agent Type dropdown strictly to **'Receptionist'**."
+* **Event Progression Gate:** Selection state variables change to update `agent_type: 'receptionist'`.
+
+#### 🛠️ STAGE 8: Compile the Canvas Blueprint
+* **Target Anchor:** The **"Create Agent"** primary text button at the top-right corner of the builder screen.
+* **Instruction:** "Click the **'Create Agent'** action button to compile your layout settings and instantiate your agent routing instance."
+* **Event Progression Gate:** User clicks the creation handler, saving the workspace draft metadata parameters.
+
+#### 📡 STAGE 9: Accessing the Global Deployment Registry
+* **Target Anchor:** The left-hand navigation sidebar menu labeled **"Agents"**.
+* **Instruction:** "Click on the **'Agents'** icon tab in the left-hand scroll navigation bar, then locate your card and click **'Deploy'**."
+* **Event Progression Gate:** Catch click event on deployment link, triggering standard viewport routing updates.
+
+#### 🏢 STAGE 10: Initializing Company Workspace Sync
+* **Action:** Programmatically trigger a browser behavior simulating opening a new configuration workspace view tab.
+* **Target Anchor:** The central action button labeled **"Deploy to Company Workspace"**.
+* **Instruction:** "Click the **'Deploy to Company Workspace'** button to initialize connection layers."
+* **Event Progression Gate:** User clicks the workspace deployment button layout.
+
+#### 🔐 STAGE 11: Compliance Gate & Workspace Authorization
+* **Target Anchor:** The secure dashboard dialog overlay labeled `Awaiting Authentication for Workspace`.
+* **Instruction:** "Our network security protocols are validating your instance configuration. Click **'Allow Access'** to grant system permissions."
+* **Event Progression Gate:** User clicks the authorization node confirmation step, clearing the authentication restriction veil.
+
+#### 📞 STAGE 12: Telephony Assignment (Number Purchase vs. SIP Trunking)
+* **Target Anchor:** The Telephony Setup panel container row (located by scrolling down the workspace manager page).
+* **Instruction:** "Choose how your agent catches calls. Select **'Purchase Number'** to claim a standard line instantly, or select **'SIP Trunk'** to bridge your pre-existing telecom architecture."
+* **Branching Execution Logic:**
+    * *If user clicks SIP Trunk:* Expose a miniature instruction list layout within the tooltip box showing manual routing details: *"1. Input SIP URI domain, 2. Authenticate credentials, 3. Bind connection endpoints."* Open next gate when data fields save.
+    * *If user clicks Purchase Number:* Execute an automated mock-number claim action state, moving the guide loop straight forward to Stage 13.
+
+#### 📅 STAGE 13: Core Cal.com Calendar Integration Sync
+* **Target Anchor:** The **"Cal.com Integration"** link or setting module widget.
+* **Instruction:** "Let's connect your booking scheduling. Follow these steps to sync Cal.com: Click the connect module, authorize your scheduling profile token, and choose your primary calendar availability queue."
+* **Event Progression Gate:** Listen for the system webhook or state hook callback to transition to `calendar_synced: true`.
+
+#### 🚀 STAGE 14: Executing the "Go Live" Operational Launch
+* **Target Anchor:** The primary screen action button labeled **"Go Live"** (with your verified Receptionist agent active).
+* **Instruction:** "Scroll back to the top of your console window, ensure your newly configured Receptionist is highlighted, and click **'Go Live'**."
+* **Event Progression Gate:** User physically clicks the Go Live action element, changing our backend pipeline status variables from `Draft/Staging` over to `Active/Production`.
+
+#### 📊 STAGE 15: Redirecting to Live Data Destinations
+* **Action:** The millisecond Stage 14 is finalized, clear the canvas engine layout entirely and redirect the active browser panel routing straight to the native platform **Calendar Section Dashboard**.
+* **Target Anchor:** The active incoming metrics stream summary visualization container grid.
+* **Instruction:** "Congratulations, your AI Receptionist is officially live! The moment a call answers, your operational summaries, caller sentiments, and structured post-call webhook extractions will stream right here into your Calendar Section data banks in real-time."
+* **The Final Breakout Gate:** Render a final high-contrast button inside the tooltip container labeled **"Finish & Open Console"**. Clicking it removes all tour masks, clears onboarding tracking flags from memory, and unlocks full platform operations.
+
+---
+
+### 4. Technical Guardrails & Session Error Isolation
+* **Immediate Cleanup Loop:** If the user exits the onboarding experience mid-flight by clicking a small, low-visibility "Skip Guide" link in the card corner, completely drop all UI masking parameters, purge the layout masks, and safely revert the interface back to an empty builder staging state.
+* **Absolute Element Target Validation:** If a user resizes their window frame or handles responsive viewport shifts, the absolute position anchors must recalculate coordinates on the fly to avoid arrow pointer misalignments or clipping UI boundaries.

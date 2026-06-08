@@ -4,112 +4,115 @@ import { useNavigate } from "@tanstack/react-router";
 import { useOnboarding } from "./useOnboarding";
 import type { OnboardingState } from "./useOnboarding";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Config ──────────────────────────────────────────────────────────────────
 
 type Side = "left" | "right" | "bottom" | "center";
-interface StepCfg { route: string; anchor: string | null; side: Side; emoji: string; label: string; }
-interface Rect     { top: number; left: number; width: number; height: number; }
 
-// ─── Step config ──────────────────────────────────────────────────────────────
+interface StepCfg {
+  route: string;
+  anchor: string | null;
+  side: Side;
+  emoji: string;
+  label: string;
+  /** If true the Next button is hidden — step only advances via DOM event. */
+  clickGated?: boolean;
+  /** If true no footer is shown at all (auto-advance step). */
+  autoStep?: boolean;
+}
 
 const STEPS: StepCfg[] = [
-  { route: "/builder",           anchor: null,          side: "center", emoji: "🛠️", label: "Choose Your Setup"    },
-  { route: "/builder",           anchor: "right-panel", side: "left",   emoji: "🎙️", label: "Voice Configuration"  },
-  { route: "/builder",           anchor: null,          side: "center", emoji: "🔐", label: "Admin Verification"   },
-  { route: "/settings/calendar", anchor: "cal-connect", side: "right",  emoji: "📅", label: "Calendar Integration" },
-  { route: "/builder",           anchor: null,          side: "center", emoji: "📞", label: "Phone Provisioning"   },
-  { route: "/builder",           anchor: "deploy-btn",  side: "bottom", emoji: "🚀", label: "Go Live"              },
-  { route: "/dashboard",         anchor: null,          side: "center", emoji: "📊", label: "Console Active"       },
+  { route: "/builder",           anchor: null,                    side: "center", emoji: "👋", label: "Welcome to Webee",       autoStep: true        }, // 0
+  { route: "/builder",           anchor: "nav-templates",         side: "right",  emoji: "📋", label: "Browse Templates",       clickGated: true      }, // 1
+  { route: "/templates",         anchor: "template-receptionist", side: "bottom", emoji: "🚀", label: "Select Blueprint",        clickGated: true      }, // 2
+  { route: "/builder",           anchor: "agent-name-input",      side: "bottom", emoji: "✍️", label: "Name Your Agent"                                }, // 3
+  { route: "/builder",           anchor: "right-panel",           side: "left",   emoji: "🌐", label: "Global Configuration"                           }, // 4
+  { route: "/builder",           anchor: "voice-section",         side: "left",   emoji: "🎙️", label: "Voice Profile"                                  }, // 5
+  { route: "/builder",           anchor: "agent-type-select",     side: "left",   emoji: "⚙️", label: "Agent Type"                                     }, // 6
+  { route: "/builder",           anchor: "save-btn",              side: "bottom", emoji: "🛠️", label: "Compile Agent",           clickGated: true      }, // 7
+  { route: "/builder",           anchor: "nav-agents",            side: "right",  emoji: "📡", label: "Agents Registry",         clickGated: true      }, // 8
+  { route: "/my-agents",         anchor: null,                    side: "center", emoji: "🏢", label: "Deploy to Workspace"                            }, // 9
+  { route: "/my-agents",         anchor: null,                    side: "center", emoji: "🔐", label: "Authorization Gate"                             }, // 10
+  { route: "/my-agents",         anchor: null,                    side: "center", emoji: "📞", label: "Telephony Setup"                                }, // 11
+  { route: "/settings/calendar", anchor: "cal-connect",           side: "right",  emoji: "📅", label: "Calendar Integration"                          }, // 12
+  { route: "/builder",           anchor: "deploy-btn",            side: "bottom", emoji: "🚀", label: "Go Live",                 clickGated: true      }, // 13
+  { route: "/dashboard",         anchor: null,                    side: "center", emoji: "📊", label: "You're Live!"                                   }, // 14
 ];
 
 const PAD    = 10;
-const CARD_W = 340;
+const CARD_W = 300;
 
-// ─── Per-step unlock logic ────────────────────────────────────────────────────
+// ─── Unlock logic ─────────────────────────────────────────────────────────────
 
 function isUnlocked(step: number, s: OnboardingState): boolean {
   switch (step) {
-    case 0: return s.buildPath === "template" && s.companyName.trim().length >= 3 && s.industry.trim().length >= 3;
-    case 1: return s.voiceInteracted;
-    case 2: return s.adminVerified;
-    case 3: return s.calConnected;
-    case 4: return s.phoneChoice !== null;
-    case 5: return s.deployed;
+    case 3:  return s.agentNameSet;
+    case 4:  return s.companyContext.trim().length >= 3;
+    case 5:  return s.voiceInteracted;
+    case 6:  return s.agentTypeSet;
+    case 9:  return s.deployWorkspaceClicked;
+    case 10: return s.authAllowed;
+    case 11: return s.phoneChoice !== null;
+    case 12: return s.calConnected;
     default: return true;
   }
 }
 
-// ─── Card position ────────────────────────────────────────────────────────────
+// ─── Card positioning ─────────────────────────────────────────────────────────
+
+interface Rect { top: number; left: number; width: number; height: number; }
 
 function cardPos(rect: Rect | null, side: Side): { top: number; left: number } {
   const vw = typeof window !== "undefined" ? window.innerWidth  : 1280;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
 
   if (!rect || side === "center") {
-    return { top: Math.max(40, vh / 2 - 230), left: vw / 2 - CARD_W / 2 };
+    return { top: Math.max(40, vh / 2 - 210), left: vw / 2 - CARD_W / 2 };
   }
 
   const cy = rect.top + rect.height / 2;
   const cx = rect.left + rect.width / 2;
 
-  if (side === "left") {
-    return {
-      top:  Math.max(8, Math.min(cy - 160, vh - 380)),
-      left: Math.max(8, rect.left - PAD - CARD_W - 16),
-    };
-  }
-  if (side === "right") {
-    return {
-      top:  Math.max(8, Math.min(cy - 160, vh - 380)),
-      left: Math.min(rect.right + PAD + 16, vw - CARD_W - 8),
-    };
-  }
+  if (side === "left") return {
+    top:  Math.max(8, Math.min(cy - 150, vh - 360)),
+    left: Math.max(8, rect.left - PAD - CARD_W - 14),
+  };
+  if (side === "right") return {
+    top:  Math.max(8, Math.min(cy - 150, vh - 360)),
+    left: Math.min(rect.left + rect.width + PAD + 14, vw - CARD_W - 8),
+  };
   return {
-    top:  Math.min(rect.bottom + PAD + 16, vh - 380),
+    top:  Math.min(rect.top + rect.height + PAD + 14, vh - 360),
     left: Math.max(8, Math.min(cx - CARD_W / 2, vw - CARD_W - 8)),
   };
 }
 
 // ─── Quad overlay ─────────────────────────────────────────────────────────────
-// Four blocking panels surrounding the spotlight gap. Anything outside the
-// spotlight gets pointer-events blocked so users can only interact with the
-// targeted element (or the tour card itself).
 
 function QuadOverlay({
-  rect,
-  onOutsideClick,
-  flash,
+  rect, flash, onOutsideClick,
 }: {
   rect: Rect | null;
-  onOutsideClick: () => void;
   flash: boolean;
+  onOutsideClick: () => void;
 }) {
   const bg: React.CSSProperties = {
     position: "fixed",
     zIndex: 9997,
-    backgroundColor: flash ? "rgba(2,6,23,0.88)" : "rgba(2,6,23,0.76)",
-    transition: "background-color 0.15s",
+    backgroundColor: flash ? "rgba(2,6,23,0.90)" : "rgba(2,6,23,0.78)",
+    transition: "background-color 0.14s",
     cursor: "not-allowed",
   };
 
-  if (!rect) {
-    return <div style={{ ...bg, inset: 0 }} onClick={onOutsideClick} />;
-  }
+  if (!rect) return <div style={{ ...bg, inset: 0 }} onClick={onOutsideClick} />;
 
-  const sTop  = rect.top    - PAD;
-  const sLeft = rect.left   - PAD;
-  const sW    = rect.width  + PAD * 2;
-  const sH    = rect.height + PAD * 2;
+  const sTop = rect.top - PAD, sLeft = rect.left - PAD;
+  const sW = rect.width + PAD * 2, sH = rect.height + PAD * 2;
 
   return (
     <>
-      {/* top strip */}
       <div style={{ ...bg, top: 0, left: 0, right: 0, height: Math.max(0, sTop) }} onClick={onOutsideClick} />
-      {/* left strip */}
       <div style={{ ...bg, top: sTop, left: 0, width: Math.max(0, sLeft), height: sH }} onClick={onOutsideClick} />
-      {/* right strip */}
       <div style={{ ...bg, top: sTop, left: sLeft + sW, right: 0, height: sH }} onClick={onOutsideClick} />
-      {/* bottom strip */}
       <div style={{ ...bg, top: sTop + sH, left: 0, right: 0, bottom: 0 }} onClick={onOutsideClick} />
     </>
   );
@@ -120,102 +123,133 @@ function QuadOverlay({
 function SpotlightRing({ rect, flash }: { rect: Rect | null; flash: boolean }) {
   if (!rect) return null;
   return (
-    <div
-      style={{
-        position: "fixed",
-        zIndex: 9998,
-        top:    rect.top    - PAD,
-        left:   rect.left   - PAD,
-        width:  rect.width  + PAD * 2,
-        height: rect.height + PAD * 2,
-        borderRadius: 10,
-        border: flash
-          ? "2px solid rgba(239,68,68,0.85)"
-          : "2px solid rgba(99,102,241,0.65)",
-        boxShadow: flash
-          ? "0 0 0 4px rgba(239,68,68,0.18)"
-          : "0 0 0 4px rgba(99,102,241,0.12), inset 0 0 0 1px rgba(99,102,241,0.06)",
-        transition: "border-color 0.18s, box-shadow 0.18s",
-        pointerEvents: "none",
-      }}
-    />
+    <div style={{
+      position: "fixed", zIndex: 9998, pointerEvents: "none",
+      top: rect.top - PAD, left: rect.left - PAD,
+      width: rect.width + PAD * 2, height: rect.height + PAD * 2,
+      borderRadius: 10,
+      border: flash ? "2px solid rgba(239,68,68,0.85)" : "2px solid rgba(99,102,241,0.65)",
+      boxShadow: flash
+        ? "0 0 0 4px rgba(239,68,68,0.18)"
+        : "0 0 0 4px rgba(99,102,241,0.12)",
+      transition: "border-color 0.18s, box-shadow 0.18s",
+    }} />
   );
 }
 
-// ─── Step 0 — Build strategy + company info ───────────────────────────────────
+// ─── Waiting indicator ────────────────────────────────────────────────────────
 
-function Step0({
-  state,
-  setState,
-}: {
+function WaitingFor({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-indigo-500/25 bg-indigo-500/8 px-3 py-2">
+      <span className="inline-block h-2 w-2 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+      <span className="text-[11px] text-indigo-300">{text}</span>
+    </div>
+  );
+}
+
+// ─── Step bodies ──────────────────────────────────────────────────────────────
+
+function Step0({ onDone }: { onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 1500);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div className="flex flex-col items-center gap-3 py-1">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/15 ring-1 ring-indigo-500/30">
+        <span className="text-2xl">🤖</span>
+      </div>
+      <div className="text-center">
+        <div className="text-sm font-semibold text-slate-100">Welcome to Webee!</div>
+        <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+          Your design workspace is now loaded and ready. Let's build your voice agent step by step.
+        </div>
+      </div>
+      <div className="flex gap-1">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="h-1 w-1.5 rounded-full bg-indigo-500 animate-pulse" style={{ animationDelay: `${i * 0.2}s` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Step1() {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Click the <span className="text-indigo-300 font-medium">Templates</span> item in the navigation panel to choose a baseline script framework for your agent.
+      </p>
+      <WaitingFor text="Waiting for you to click Templates →" />
+    </div>
+  );
+}
+
+function Step2() {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Click <span className="text-indigo-300 font-medium">Use template</span> on the{" "}
+        <span className="text-white font-medium">Virtual Receptionist</span> card to import its node tree into your builder canvas.
+      </p>
+      <WaitingFor text="Waiting for you to click Use template ↓" />
+    </div>
+  );
+}
+
+function Step3({ state, setState }: {
   state: OnboardingState;
   setState: (p: Partial<OnboardingState>) => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Pick your starting point. You <span className="text-indigo-300 font-medium">must</span> use the
-        Receptionist Template — it pre-populates your agent canvas automatically.
+        Click the <span className="text-indigo-300 font-medium">Agent name</span> field in the toolbar above and type your agent's name (minimum 3 characters).
       </p>
-
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          onClick={() => setState({ buildPath: "template" })}
-          className={`relative rounded-lg border px-3 py-3 text-left transition-all ${
-            state.buildPath === "template"
-              ? "border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30"
-              : "border-slate-700 bg-slate-800/60 hover:border-slate-600"
-          }`}
-        >
-          <div className="text-sm font-semibold text-slate-100">📋 Receptionist</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Template — required</div>
-          {state.buildPath === "template" && (
-            <span className="absolute top-1.5 right-2 text-[10px] text-indigo-400 font-bold">✓</span>
-          )}
-        </button>
-        <button
-          disabled
-          className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-3 text-left opacity-35 cursor-not-allowed"
-        >
-          <div className="text-sm font-semibold text-slate-500">✏️ From Scratch</div>
-          <div className="text-[10px] text-slate-600 mt-0.5">Locked for new users</div>
-        </button>
-      </div>
-
-      {state.buildPath === "template" && (
-        <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-          <div>
-            <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Company Name</label>
-            <input
-              autoFocus
-              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
-              placeholder="e.g. Acme Medical Group"
-              value={state.companyName}
-              onChange={(e) => setState({ companyName: e.target.value })}
-            />
-            {state.companyName.length > 0 && state.companyName.trim().length < 3 && (
-              <p className="text-[10px] text-red-400 mt-0.5">Minimum 3 characters required</p>
-            )}
-          </div>
-          <div>
-            <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Industry</label>
-            <input
-              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
-              placeholder="e.g. Healthcare, Real Estate"
-              value={state.industry}
-              onChange={(e) => setState({ industry: e.target.value })}
-            />
-            {state.industry.length > 0 && state.industry.trim().length < 3 && (
-              <p className="text-[10px] text-red-400 mt-0.5">Minimum 3 characters required</p>
-            )}
-          </div>
+      {state.agentNameSet ? (
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
+          <span>✓</span><span>Agent name set — click Next to continue</span>
         </div>
+      ) : (
+        <WaitingFor text="Waiting for you to type an agent name ↑" />
       )}
     </div>
   );
 }
 
-// ─── Step 1 — Voice selection ─────────────────────────────────────────────────
+function Step4({ state, setState }: {
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Type your <span className="text-indigo-300 font-medium">Company Name</span> and{" "}
+        <span className="text-indigo-300 font-medium">Agent Name</span> variables in the Global Node settings to link systemic responses.
+      </p>
+      <div>
+        <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Company Context</label>
+        <textarea
+          rows={2}
+          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 resize-none"
+          placeholder="e.g. Acme Medical — AI Receptionist for scheduling"
+          value={state.companyContext}
+          onChange={(e) => setState({ companyContext: e.target.value })}
+        />
+        {state.companyContext.length > 0 && state.companyContext.trim().length < 3 && (
+          <p className="text-[10px] text-red-400 mt-0.5">Minimum 3 characters</p>
+        )}
+      </div>
+      {state.companyContext.trim().length >= 3 && (
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
+          <span>✓</span><span>Context saved — proceed to voice setup</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const VOICES = [
   { id: "emma",  label: "Emma",  desc: "Warm · Professional" },
@@ -223,10 +257,7 @@ const VOICES = [
   { id: "sofia", label: "Sofia", desc: "Friendly · Upbeat" },
 ];
 
-function Step1({
-  state,
-  setState,
-}: {
+function Step5({ state, setState }: {
   state: OnboardingState;
   setState: (p: Partial<OnboardingState>) => void;
 }) {
@@ -243,200 +274,182 @@ function Step1({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2.5">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Select the voice your receptionist uses on calls. Preview one native voice <em>or</em>{" "}
-        configure ElevenLabs to unlock this step.
+        Choose a voice model or configure an ElevenLabs custom voice.
       </p>
-
       <div className="flex rounded-lg border border-slate-700 bg-slate-800/50 p-0.5 gap-0.5">
         {(["native", "elevenlabs"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 rounded-md py-1 text-[11px] font-medium transition-all ${
+          <button key={t} onClick={() => setTab(t)}
+            className={`flex-1 rounded-md py-0.5 text-[10px] font-medium transition-all ${
               tab === t ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
-            }`}
-          >
-            {t === "native" ? "🎙 Native Voices" : "⚡ ElevenLabs"}
+            }`}>
+            {t === "native" ? "🎙 Native" : "⚡ ElevenLabs"}
           </button>
         ))}
       </div>
-
       {tab === "native" ? (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           {VOICES.map((v) => (
-            <div
-              key={v.id}
-              className={`flex items-center justify-between rounded-lg border px-3 py-2 transition-all ${
-                state.voiceChosen === v.id
-                  ? "border-indigo-500 bg-indigo-500/10"
-                  : "border-slate-700 bg-slate-800/40 hover:border-slate-600"
-              }`}
-            >
+            <div key={v.id} className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 ${
+              state.voiceChosen === v.id ? "border-indigo-500 bg-indigo-500/10" : "border-slate-700 bg-slate-800/40"
+            }`}>
               <div>
-                <div className="text-xs font-semibold text-slate-100">{v.label}</div>
-                <div className="text-[10px] text-slate-500">{v.desc}</div>
+                <div className="text-[11px] font-semibold text-slate-100">{v.label}</div>
+                <div className="text-[9px] text-slate-500">{v.desc}</div>
               </div>
-              <button
-                onClick={() => handlePreview(v.id)}
-                disabled={playing !== null}
-                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] font-medium transition-all ${
-                  playing === v.id
-                    ? "bg-indigo-600 text-white"
-                    : "border border-slate-600 bg-slate-700/80 text-slate-300 hover:bg-slate-600"
-                }`}
-              >
-                {playing === v.id ? (
-                  <><span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> Playing…</>
-                ) : "▶ Preview"}
+              <button onClick={() => handlePreview(v.id)} disabled={playing !== null}
+                className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[9px] font-medium ${
+                  playing === v.id ? "bg-indigo-600 text-white" : "border border-slate-600 bg-slate-700/80 text-slate-300 hover:bg-slate-600"
+                }`}>
+                {playing === v.id ? <><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> Playing</> : "▶ Preview"}
               </button>
             </div>
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          <div>
-            <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">API Key</label>
-            <input
-              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
-              placeholder="xi_xxxxxxxxxxxxxxxxxxxxxxxx"
-              value={state.elevenLabsKey}
-              onChange={(e) => setState({ elevenLabsKey: e.target.value, voiceInteracted: e.target.value.length >= 6 })}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">Voice ID</label>
-            <input
-              className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30"
-              placeholder="ElevenLabs Voice ID"
-            />
-          </div>
+        <div>
+          <label className="text-[10px] font-medium tracking-wide uppercase text-slate-400">API Key</label>
+          <input
+            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none focus:border-indigo-500"
+            placeholder="xi_xxxxxxxxxxxxxxxx"
+            value={state.elevenLabsKey}
+            onChange={(e) => setState({ elevenLabsKey: e.target.value, voiceInteracted: e.target.value.length >= 6 })}
+          />
         </div>
       )}
-
       {state.voiceInteracted && (
-        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
-          <span>✓</span><span>Voice configured — proceed to next step</span>
-        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400"><span>✓</span><span>Voice configured</span></div>
       )}
     </div>
   );
 }
 
-// ─── Step 2 — Admin verification (auto-advance) ───────────────────────────────
-
-function Step2({ setState, advance }: {
-  state: OnboardingState;
-  setState: (p: Partial<OnboardingState>) => void;
-  advance: () => void;
-}) {
-  const [count,    setCount]    = useState(3);
-  const [verified, setVerified] = useState(false);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setCount((c) => {
-        if (c <= 1) {
-          clearInterval(id);
-          setVerified(true);
-          setState({ adminVerified: true });
-          setTimeout(() => advance(), 1200);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center gap-4 py-2">
-      {!verified ? (
-        <>
-          <div className="relative h-16 w-16">
-            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 64 64">
-              <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(99,102,241,0.15)" strokeWidth="5" />
-              <circle
-                cx="32" cy="32" r="26" fill="none"
-                stroke="rgba(99,102,241,0.85)" strokeWidth="5"
-                strokeDasharray={`${2 * Math.PI * 26}`}
-                strokeDashoffset={`${2 * Math.PI * 26 * (count / 3)}`}
-                strokeLinecap="round"
-                style={{ transition: "stroke-dashoffset 0.9s linear" }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center text-xl font-bold text-indigo-300">
-              {count}
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-sm font-semibold text-slate-100">⏳ Pending Admin Panel Review…</div>
-            <div className="text-[11px] text-slate-500 mt-1">Verifying your workspace credentials</div>
-          </div>
-        </>
-      ) : (
-        <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-300">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/40">
-            <span className="text-2xl">✅</span>
-          </div>
-          <div className="text-center">
-            <div className="text-sm font-semibold text-emerald-400">Account Verified &amp; Cloned to Workspace</div>
-            <div className="text-[11px] text-slate-500 mt-1">Advancing automatically…</div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Step 3 — Cal.com integration ────────────────────────────────────────────
-
-function Step3({ state, setState }: {
+function Step6({ state, setState }: {
   state: OnboardingState;
   setState: (p: Partial<OnboardingState>) => void;
 }) {
-  const [syncing, setSyncing] = useState(false);
-
-  function handleConnect() {
-    setSyncing(true);
-    setTimeout(() => { setSyncing(false); setState({ calConnected: true }); }, 1600);
+  function setReceptionist() {
+    try {
+      // Write directly to builder store
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { useBuilderStore } = require("@/lib/builder/store");
+      useBuilderStore.getState().setSettings?.({ agentType: "receptionist" });
+    } catch { /* no-op if store not loaded */ }
+    setState({ agentTypeSet: true });
   }
 
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Link your Cal.com account so the receptionist can book appointments. Click the highlighted
-        button in the settings panel <em>or</em> use the button below.
+        Scroll down the Agent Settings panel and set the{" "}
+        <span className="text-indigo-300 font-medium">Agent Type</span> dropdown to{" "}
+        <span className="text-white font-medium">Receptionist</span>.
       </p>
-
-      {!state.calConnected ? (
-        <button
-          onClick={handleConnect}
-          disabled={syncing}
-          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/50 bg-indigo-600/20 py-2.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/30 transition-all disabled:opacity-60"
-        >
-          {syncing ? (
-            <><span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" /> Calendar Syncing…</>
-          ) : "📅 Connect Cal.com"}
+      {!state.agentTypeSet ? (
+        <button onClick={setReceptionist}
+          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-600/15 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/25 transition-all">
+          ⚙️ Set Agent Type → Receptionist
         </button>
       ) : (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5">
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
           <span className="text-emerald-400">✓</span>
-          <span className="text-xs font-semibold text-emerald-400">Cal.com Connected</span>
+          <span className="text-xs font-semibold text-emerald-400">Agent Type: Receptionist</span>
         </div>
       )}
-
-      <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
-        <div className="text-[10px] text-slate-500">Your booking link:</div>
-        <div className="mt-0.5 text-xs font-mono text-slate-300">cal.com/your-workspace/receptionist</div>
-      </div>
     </div>
   );
 }
 
-// ─── Step 4 — Phone provisioning ─────────────────────────────────────────────
+function Step7({ saved }: { saved: boolean }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Click the <span className="text-indigo-300 font-medium">Save</span> button in the toolbar to compile your layout settings and instantiate your agent routing instance.
+      </p>
+      {!saved ? (
+        <WaitingFor text="Waiting for you to click Save ↑" />
+      ) : (
+        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 animate-in fade-in">
+          <span>🛠️</span><span className="font-semibold">Agent compiled! Redirecting…</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Step8() {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Click the <span className="text-indigo-300 font-medium">Agents</span> icon in the navigation panel to access your deployment registry and locate your new agent card.
+      </p>
+      <WaitingFor text="Waiting for you to click Agents →" />
+    </div>
+  );
+}
+
+function Step9({ state, setState }: {
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  function deploy() {
+    setLoading(true);
+    setTimeout(() => { setLoading(false); setState({ deployWorkspaceClicked: true }); }, 1800);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Locate your agent card in the list and click{" "}
+        <span className="text-indigo-300 font-medium">Deploy to Company Workspace</span> to initialize connection layers.
+      </p>
+      {!state.deployWorkspaceClicked ? (
+        <button onClick={deploy} disabled={loading}
+          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-600/15 py-2.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/25 transition-all disabled:opacity-60">
+          {loading ? <><span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" /> Deploying…</> : "🏢 Deploy to Company Workspace"}
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+          <span className="text-emerald-400">✓</span>
+          <span className="text-xs font-semibold text-emerald-400">Workspace deployment initiated</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Step10({ state, setState }: {
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5">
+        <div className="flex items-center gap-2 text-[11px] text-amber-300 font-medium">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+          Awaiting Authentication for Workspace
+        </div>
+        <p className="text-[10px] text-slate-400 mt-1">
+          Network security protocols are validating your instance configuration.
+        </p>
+      </div>
+      {!state.authAllowed ? (
+        <button onClick={() => setState({ authAllowed: true })}
+          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-600/15 py-2.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/25 transition-all">
+          🔐 Allow Access
+        </button>
+      ) : (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+          <span className="text-emerald-400">✓</span>
+          <span className="text-xs font-semibold text-emerald-400">Access granted</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PHONE_OPTS = [
   { id: "local-us", label: "+1 (415) 555-0198", type: "Local US",       kind: "local" as const, price: "$4/mo" },
@@ -444,117 +457,118 @@ const PHONE_OPTS = [
   { id: "trunk",    label: "Bring Your Own Trunk", type: "SIP / IP Trunk", kind: "trunk" as const, price: "Free" },
 ];
 
-function Step4({ state, setState }: {
+function Step11({ state, setState }: {
   state: OnboardingState;
   setState: (p: Partial<OnboardingState>) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2.5">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Your receptionist will answer inbound calls on this number. Select one to continue.
+        Choose how your agent catches calls — purchase a number or bind your SIP trunk.
       </p>
-
       <div className="flex flex-col gap-1.5">
         {PHONE_OPTS.map((opt) => (
-          <button
-            key={opt.id}
-            onClick={() => setState({ phoneChoice: opt.kind, phoneValue: opt.label })}
-            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-all ${
-              state.phoneValue === opt.label
-                ? "border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30"
-                : "border-slate-700 bg-slate-800/40 hover:border-slate-600"
-            }`}
-          >
+          <button key={opt.id} onClick={() => setState({ phoneChoice: opt.kind, phoneValue: opt.label })}
+            className={`flex items-center justify-between rounded-lg border px-2.5 py-2 text-left transition-all ${
+              state.phoneValue === opt.label ? "border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500/30" : "border-slate-700 bg-slate-800/40 hover:border-slate-600"
+            }`}>
             <div>
-              <div className="text-xs font-semibold font-mono text-slate-100">{opt.label}</div>
-              <div className="text-[10px] text-slate-500">{opt.type}</div>
+              <div className="text-[11px] font-semibold font-mono text-slate-100">{opt.label}</div>
+              <div className="text-[9px] text-slate-500">{opt.type}</div>
             </div>
             <div className="text-right shrink-0 ml-2">
-              <div className="text-[10px] text-slate-400">{opt.price}</div>
-              {state.phoneValue === opt.label && (
-                <div className="text-[10px] text-indigo-400 font-bold mt-0.5">Selected ✓</div>
-              )}
+              <div className="text-[9px] text-slate-400">{opt.price}</div>
+              {state.phoneValue === opt.label && <div className="text-[9px] text-indigo-400 font-bold mt-0.5">✓ Selected</div>}
             </div>
           </button>
         ))}
       </div>
-
-      {state.phoneChoice && (
-        <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
-          <span>✓</span><span>{state.phoneValue} reserved — click Next</span>
+      {state.phoneChoice === "trunk" && (
+        <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-0.5">
+          <div className="font-medium text-slate-300">SIP Trunk Setup:</div>
+          <div>1. Input your SIP URI domain</div>
+          <div>2. Authenticate credentials</div>
+          <div>3. Bind connection endpoints</div>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Step 5 — Go Live (listens for real deploy button click) ──────────────────
+function Step12({ state, setState }: {
+  state: OnboardingState;
+  setState: (p: Partial<OnboardingState>) => void;
+}) {
+  const [syncing, setSyncing] = useState(false);
 
-function Step5({ deployed }: { deployed: boolean }) {
+  function connect() {
+    setSyncing(true);
+    setTimeout(() => { setSyncing(false); setState({ calConnected: true }); }, 1600);
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Your agent is fully configured. Click the{" "}
-        <span className="font-semibold text-indigo-300">Deploy button</span> in the toolbar above —
-        it has been unlocked and is waiting for you.
+        Connect your Cal.com account to enable appointment booking. Click the highlighted card or use the button below.
       </p>
-
-      <div className="rounded-lg border border-indigo-500/25 bg-indigo-500/5 px-3 py-2.5">
-        <div className="text-[10px] text-slate-400 mb-1">What happens on deploy:</div>
-        <ul className="flex flex-col gap-0.5 text-[10px] text-slate-300">
-          <li>• Agent nodes compiled to Retell workflow</li>
-          <li>• Phone number bound to agent endpoint</li>
-          <li>• Status badge: <span className="text-amber-400">Draft</span> → <span className="text-emerald-400">Live</span></li>
-        </ul>
-      </div>
-
-      {!deployed ? (
-        <div className="flex items-center gap-2 text-[11px] text-indigo-400 animate-pulse">
-          <span className="inline-block h-2 w-2 rounded-full bg-indigo-500" />
-          Waiting for you to click Deploy ↑
-        </div>
+      {!state.calConnected ? (
+        <button onClick={connect} disabled={syncing}
+          className="flex items-center justify-center gap-2 rounded-lg border border-indigo-500/50 bg-indigo-600/20 py-2.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/30 transition-all disabled:opacity-60">
+          {syncing ? <><span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" /> Calendar Syncing…</> : "📅 Connect Cal.com"}
+        </button>
       ) : (
-        <div className="flex items-center gap-2 text-[11px] text-emerald-400 animate-in fade-in duration-300">
-          <span>🚀</span>
-          <span className="font-semibold">Deployed! Redirecting to your console…</span>
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5">
+          <span className="text-emerald-400">✓</span>
+          <span className="text-xs font-semibold text-emerald-400">Cal.com Connected</span>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Step 6 — Live console ────────────────────────────────────────────────────
-
-function Step6({ complete }: { complete: () => void }) {
+function Step13({ deployed }: { deployed: boolean }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Your receptionist is{" "}
-        <span className="font-semibold text-emerald-400">officially active</span>. The moment
-        your provisioned number picks up a call, this dashboard populates with operational metrics,
-        sentiment trends, and post-call data arrays in real-time.
+        Ensure your Receptionist is highlighted in the top panel, then click the{" "}
+        <span className="text-indigo-300 font-medium">Go Live</span> button — your agent will go from Draft to Active.
       </p>
+      <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/5 px-3 py-2 text-[10px] text-slate-400">
+        Status change: <span className="text-amber-400">Draft</span> → <span className="text-emerald-400">Live</span>
+      </div>
+      {!deployed ? (
+        <WaitingFor text="Waiting for you to click Go Live / Deploy ↑" />
+      ) : (
+        <div className="flex items-center gap-2 text-[11px] text-emerald-400 animate-in fade-in">
+          <span>🚀</span><span className="font-semibold">Deployed! Redirecting to console…</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
+function Step14({ complete }: { complete: () => void }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-slate-400 leading-relaxed">
+        🎉 Your AI Receptionist is <span className="text-emerald-400 font-semibold">officially live</span>. The moment your number answers an inbound call, this dashboard streams operational metrics, sentiment trends, and post-call data in real-time.
+      </p>
       <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2">
         <div className="flex items-center gap-2 text-[11px] text-slate-300 mb-1.5">
-          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          Live data streaming active
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />Live data streaming active
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-3 gap-1">
           {["Calls Today", "Avg Duration", "Sentiment"].map((m) => (
-            <div key={m} className="rounded border border-slate-700 bg-slate-800/60 px-2 py-1.5 text-center">
+            <div key={m} className="rounded border border-slate-700 bg-slate-800/60 px-1.5 py-1 text-center">
               <div className="text-sm font-bold text-slate-100">—</div>
-              <div className="text-[9px] text-slate-500">{m}</div>
+              <div className="text-[8px] text-slate-500">{m}</div>
             </div>
           ))}
         </div>
       </div>
-
-      <button
-        onClick={complete}
-        className="w-full rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-900/40 hover:from-indigo-500 hover:to-violet-500 transition-all"
-      >
-        🚀 Launch My Console
+      <button onClick={complete}
+        className="w-full rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-900/40 hover:from-indigo-500 hover:to-violet-500 transition-all">
+        🚀 Finish &amp; Open Console
       </button>
     </div>
   );
@@ -583,76 +597,84 @@ function TourCard({
     advance();
   }
 
-  const showFooter = step !== 2 && step !== 6;
+  const showFooter  = !cfg.autoStep && !cfg.clickGated && step !== 14;
+  const isLastInput = step === 14;
 
   return (
     <div
       style={{
-        position:  "fixed",
-        zIndex:    9999,
-        top:       pos.top,
-        left:      pos.left,
-        width:     CARD_W,
+        position: "fixed", zIndex: 9999,
+        top: pos.top, left: pos.left, width: CARD_W,
         animation: shaking ? "tour-shake 0.52s ease-in-out" : undefined,
       }}
-      className="flex flex-col rounded-xl border border-slate-700/80 bg-slate-900 shadow-2xl shadow-black/70 ring-1 ring-white/[0.04]"
+      className="flex flex-col rounded-xl border border-slate-700/80 bg-[#111827] shadow-2xl shadow-black/70 ring-1 ring-white/[0.04]"
     >
       {/* Header */}
-      <div className="flex items-center gap-2.5 border-b border-slate-800 px-4 py-2.5">
-        <span className="text-lg leading-none">{cfg.emoji}</span>
+      <div className="flex items-center gap-2 border-b border-slate-800 px-3.5 py-2">
+        <span className="text-base leading-none">{cfg.emoji}</span>
         <div className="flex-1 min-w-0">
           <div className="text-[11px] font-bold text-slate-100 truncate">{cfg.label}</div>
-          <div className="text-[9px] text-slate-500 mt-0.5">Step {step + 1} of {STEPS.length}</div>
+          <div className="text-[9px] text-slate-500">Step {step + 1} / {STEPS.length}</div>
         </div>
         {/* Progress pips */}
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0 flex-wrap max-w-[70px] justify-end">
           {STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                i < step ? "w-3 bg-indigo-500" : i === step ? "w-4 bg-indigo-400" : "w-1.5 bg-slate-700"
-              }`}
-            />
+            <div key={i} className={`h-0.5 rounded-full transition-all duration-300 ${
+              i < step ? "w-2.5 bg-indigo-500" : i === step ? "w-3.5 bg-indigo-400" : "w-1 bg-slate-700"
+            }`} />
           ))}
         </div>
       </div>
 
       {/* Body */}
-      <div className="px-4 py-3">
-        {step === 0 && <Step0 state={state} setState={setState} />}
-        {step === 1 && <Step1 state={state} setState={setState} />}
-        {step === 2 && <Step2 state={state} setState={setState} advance={advance} />}
-        {step === 3 && <Step3 state={state} setState={setState} />}
-        {step === 4 && <Step4 state={state} setState={setState} />}
-        {step === 5 && <Step5 deployed={state.deployed} />}
-        {step === 6 && <Step6 complete={complete} />}
+      <div className="px-3.5 py-3">
+        {step === 0  && <Step0  onDone={advance} />}
+        {step === 1  && <Step1  />}
+        {step === 2  && <Step2  />}
+        {step === 3  && <Step3  state={state} setState={setState} />}
+        {step === 4  && <Step4  state={state} setState={setState} />}
+        {step === 5  && <Step5  state={state} setState={setState} />}
+        {step === 6  && <Step6  state={state} setState={setState} />}
+        {step === 7  && <Step7  saved={state.agentSaved} />}
+        {step === 8  && <Step8  />}
+        {step === 9  && <Step9  state={state} setState={setState} />}
+        {step === 10 && <Step10 state={state} setState={setState} />}
+        {step === 11 && <Step11 state={state} setState={setState} />}
+        {step === 12 && <Step12 state={state} setState={setState} />}
+        {step === 13 && <Step13 deployed={state.deployed} />}
+        {step === 14 && <Step14 complete={complete} />}
       </div>
 
       {/* Footer */}
       {showFooter && (
-        <div className="flex items-center justify-between border-t border-slate-800 px-4 py-2.5">
-          <button
-            onClick={dismiss}
-            className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
-          >
-            Skip Tour
+        <div className="flex items-center justify-between border-t border-slate-800 px-3.5 py-2">
+          <button onClick={dismiss}
+            className="text-[9px] text-slate-600 hover:text-slate-400 transition-colors">
+            Skip Guide
           </button>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {!unlocked && (
-              <span className="text-[9px] text-slate-600">Complete step above first</span>
+              <span className="text-[8px] text-slate-600 max-w-[100px] text-right leading-tight">
+                Complete step above
+              </span>
             )}
-            <button
-              onClick={handleNext}
-              className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[11px] font-semibold transition-all ${
+            <button onClick={handleNext}
+              className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-semibold transition-all ${
                 unlocked
-                  ? "bg-indigo-600 text-white hover:bg-indigo-500 shadow-sm shadow-indigo-900/60"
+                  ? "bg-indigo-600 text-white hover:bg-indigo-500 shadow-sm"
                   : "bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700"
-              }`}
-            >
+              }`}>
               Next →
             </button>
           </div>
+        </div>
+      )}
+
+      {isLastInput && !cfg.clickGated && step !== 14 && (
+        <div className="border-t border-slate-800 px-3.5 py-2 text-right">
+          <button onClick={dismiss} className="text-[9px] text-slate-600 hover:text-slate-400 transition-colors">
+            Skip Guide
+          </button>
         </div>
       )}
     </div>
@@ -673,20 +695,19 @@ export function OnboardingTour() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Navigate when step changes
+  // Navigate to step's route
   useEffect(() => {
     if (!mounted || !visible) return;
     const cfg = STEPS[state.step];
-    if (cfg) navigate({ to: cfg.route as "/builder" | "/settings/calendar" | "/dashboard" });
+    if (cfg) navigate({ to: cfg.route as never });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.step, mounted, visible]);
 
-  // Resolve anchor element bounding rect
+  // Resolve anchor rect with polling (handles async renders + SPA route changes)
   useEffect(() => {
     if (!mounted || !visible) return;
     const anchor = STEPS[state.step]?.anchor;
     if (!anchor) { setAnchorRect(null); return; }
-
     if (pollRef.current) clearInterval(pollRef.current);
 
     let attempts = 0;
@@ -697,19 +718,97 @@ export function OnboardingTour() {
         setAnchorRect({ top: r.top, left: r.left, width: r.width, height: r.height });
       }
     }
-
     measure();
-    pollRef.current = setInterval(() => {
-      measure();
-      if (++attempts > 30) { clearInterval(pollRef.current!); }
-    }, 200);
-
+    pollRef.current = setInterval(() => { measure(); if (++attempts > 40) clearInterval(pollRef.current!); }, 150);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [state.step, mounted, visible]);
 
-  // Step 3: also listen for a real click on the cal-connect card button
+  // Re-measure on window resize
   useEffect(() => {
-    if (!mounted || !visible || state.step !== 3 || state.calConnected) return;
+    if (!mounted || !visible) return;
+    const anchor = STEPS[state.step]?.anchor;
+    if (!anchor) return;
+    function onResize() {
+      const el = document.querySelector(`[data-tour="${anchor}"]`);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        setAnchorRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      }
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [state.step, mounted, visible]);
+
+  // ── Step 1: nav-templates click ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 1) return;
+    function handler() { setTimeout(() => advance(), 80); }
+    const el = document.querySelector('[data-tour="nav-templates"]');
+    if (!el) return;
+    el.addEventListener("click", handler);
+    return () => el.removeEventListener("click", handler);
+  }, [state.step, mounted, visible, advance]);
+
+  // ── Step 2: template-receptionist "Use template" click ───────────────────────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 2) return;
+    let attempts = 0;
+    function attach() {
+      const card = document.querySelector('[data-tour="template-receptionist"]');
+      if (!card) { if (++attempts < 30) setTimeout(attach, 300); return; }
+      function handler() { setTimeout(() => advance(), 200); }
+      card.addEventListener("click", handler);
+      return () => card.removeEventListener("click", handler);
+    }
+    const cleanup = attach();
+    return () => { if (typeof cleanup === "function") cleanup(); };
+  }, [state.step, mounted, visible, advance]);
+
+  // ── Step 3: agent-name-input typing ──────────────────────────────────────────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 3) return;
+    let attempts = 0;
+    function attach() {
+      const el = document.querySelector('[data-tour="agent-name-input"]') as HTMLInputElement | null;
+      if (!el) { if (++attempts < 30) setTimeout(attach, 250); return; }
+      // Check existing value immediately
+      if (el.value.trim().length >= 3) setState({ agentNameSet: true });
+      function handler() {
+        if (el.value.trim().length >= 3) setState({ agentNameSet: true });
+      }
+      el.addEventListener("input", handler);
+      return () => el.removeEventListener("input", handler);
+    }
+    const cleanup = attach();
+    return () => { if (typeof cleanup === "function") cleanup(); };
+  }, [state.step, mounted, visible, setState]);
+
+  // ── Step 7: save-btn click ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 7 || state.agentSaved) return;
+    function handler() {
+      setState({ agentSaved: true });
+      setTimeout(() => advance(), 1200);
+    }
+    const el = document.querySelector('[data-tour="save-btn"]');
+    if (!el) return;
+    el.addEventListener("click", handler);
+    return () => el.removeEventListener("click", handler);
+  }, [state.step, mounted, visible, state.agentSaved, setState, advance]);
+
+  // ── Step 8: nav-agents click ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 8) return;
+    function handler() { setTimeout(() => advance(), 80); }
+    const el = document.querySelector('[data-tour="nav-agents"]');
+    if (!el) return;
+    el.addEventListener("click", handler);
+    return () => el.removeEventListener("click", handler);
+  }, [state.step, mounted, visible, advance]);
+
+  // ── Step 12: cal-connect click ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!mounted || !visible || state.step !== 12 || state.calConnected) return;
     const card = document.querySelector('[data-tour="cal-connect"]');
     if (!card) return;
     function handler() { setState({ calConnected: true }); }
@@ -717,27 +816,25 @@ export function OnboardingTour() {
     return () => card.removeEventListener("click", handler);
   }, [state.step, mounted, visible, state.calConnected, setState]);
 
-  // Step 5: listen for a real click on the deploy button
+  // ── Step 13: deploy-btn click ────────────────────────────────────────────────
   useEffect(() => {
-    if (!mounted || !visible || state.step !== 5 || state.deployed) return;
-    const el = document.querySelector('[data-tour="deploy-btn"]');
-    if (!el) return;
+    if (!mounted || !visible || state.step !== 13 || state.deployed) return;
     function handler() {
       setState({ deployed: true });
       setTimeout(() => advance(), 1500);
     }
+    const el = document.querySelector('[data-tour="deploy-btn"]');
+    if (!el) return;
     el.addEventListener("click", handler);
     return () => el.removeEventListener("click", handler);
   }, [state.step, mounted, visible, state.deployed, setState, advance]);
 
   const triggerShake = useCallback(() => {
-    setShaking(true);
-    setTimeout(() => setShaking(false), 550);
+    setShaking(true); setTimeout(() => setShaking(false), 550);
   }, []);
 
   const triggerFlash = useCallback(() => {
-    setFlash(true);
-    setTimeout(() => setFlash(false), 380);
+    setFlash(true); setTimeout(() => setFlash(false), 380);
   }, []);
 
   function handleOutsideClick() {
@@ -762,8 +859,7 @@ export function OnboardingTour() {
           85%     { transform: translateX(-2px); }
         }
       `}</style>
-
-      <QuadOverlay rect={anchorRect} onOutsideClick={handleOutsideClick} flash={flash} />
+      <QuadOverlay rect={anchorRect} flash={flash} onOutsideClick={handleOutsideClick} />
       <SpotlightRing rect={anchorRect} flash={flash} />
       <TourCard
         step={state.step}

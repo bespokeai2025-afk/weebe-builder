@@ -374,7 +374,7 @@ function TemplateGrid({
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {items.map((t) => (
-        <Card key={t.id}>
+        <Card key={t.id} data-tour={t.name.toLowerCase().includes("receptionist") ? "template-receptionist" : undefined}>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">{t.name}</CardTitle>
             <CardDescription className="line-clamp-2">

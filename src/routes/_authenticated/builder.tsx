@@ -150,21 +150,23 @@ function BuilderPage() {
         <BookmarkPlus />
       </Button>
       <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={handleSave}
-        disabled={saving}
-        title="Save agent (⌘S)"
-        className="!h-8 gap-1 px-2.5 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.06]"
-      >
-        {saving ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
-        ) : (
-          <Save className="h-3 w-3" />
-        )}
-        Save
-      </Button>
+      <div data-tour="save-btn" style={{ display: "inline-flex" }}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleSave}
+          disabled={saving}
+          title="Save agent (⌘S)"
+          className="!h-8 gap-1 px-2.5 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.06]"
+        >
+          {saving ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Save className="h-3 w-3" />
+          )}
+          Save
+        </Button>
+      </div>
     </div>
   );
 
