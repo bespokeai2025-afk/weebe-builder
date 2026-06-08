@@ -571,9 +571,10 @@ function LeadsPage() {
                           <button
                             onClick={() => openLeadPanel(lead)}
                             title="Notes & appointment"
-                            className="rounded p-1 text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
                           >
-                            <StickyNote className="h-3.5 w-3.5" />
+                            <StickyNote className="h-3 w-3" />
+                            <span>Notes</span>
                           </button>
                         </td>
                       </tr>
