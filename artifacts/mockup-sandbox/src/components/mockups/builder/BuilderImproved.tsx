@@ -198,20 +198,31 @@ function SelectMock({ value }: { value: string }) {
   );
 }
 
+/* Segmented pip control — replaces old white-ball slider */
 function SliderMock({ label, value }: { label: string; value: number }) {
+  const STEPS = 8;
+  const filled = Math.round((value / 100) * STEPS);
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
         <span style={{ fontSize: 10, color: MUTED }}>{label}</span>
-        <span style={{ fontSize: 10, color: TEXT }}>{value}</span>
+        <span style={{
+          fontSize: 9.5, fontWeight: 600, color: ACCENT,
+          background: "rgba(79,140,255,0.1)", border: "1px solid rgba(79,140,255,0.2)",
+          padding: "1px 6px", borderRadius: 4,
+        }}>{value}</span>
       </div>
-      <div style={{ height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2, position: "relative" }}>
-        <div style={{ position: "absolute", left: 0, top: 0, height: "100%", width: `${value}%`, background: ACCENT, borderRadius: 2 }} />
-        <div style={{
-          position: "absolute", top: "50%", left: `${value}%`, transform: "translate(-50%,-50%)",
-          width: 9, height: 9, borderRadius: "50%", background: "#fff",
-          boxShadow: `0 0 0 2px ${ACCENT}`,
-        }} />
+      <div style={{ display: "flex", gap: 3 }}>
+        {Array.from({ length: STEPS }).map((_, i) => (
+          <div key={i} style={{
+            flex: 1, height: 4, borderRadius: 3,
+            background: i < filled
+              ? i < filled * 0.5
+                ? `rgba(79,140,255,0.5)`
+                : ACCENT
+              : "rgba(255,255,255,0.07)",
+          }} />
+        ))}
       </div>
     </div>
   );
@@ -251,46 +262,30 @@ export function BuilderImproved() {
       fontSize: 14, overflow: "hidden",
     }}>
 
-      {/* ════════════ APP SHELL SIDEBAR (exact match to other mockups) ════════════ */}
+      {/* ════════════ COLLAPSED ICON-RAIL SIDEBAR ════════════ */}
       <aside style={{
-        width: 208, minWidth: 208, background: SIDEBAR,
+        width: 56, minWidth: 56, background: SIDEBAR,
         borderRight: `1px solid ${BORDER}`, display: "flex", flexDirection: "column",
+        alignItems: "center", paddingTop: 8,
       }}>
-        {/* Workspace switcher */}
-        <div style={{ padding: "10px 10px 6px" }}>
-          <button style={{
-            display: "flex", alignItems: "center", gap: 8, width: "100%",
-            padding: "6px 8px", borderRadius: 8, background: "transparent", border: "none",
-            cursor: "pointer", color: TEXT,
-          }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 7, overflow: "hidden", flexShrink: 0,
-              background: "rgba(79,140,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>W</span>
-            </div>
-            <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: TEXT, lineHeight: 1.2 }}>Webee</div>
-              <div style={{ fontSize: 10, color: MUTED }}>Admin · Pro</div>
-            </div>
-          </button>
+        {/* Logo avatar */}
+        <div style={{
+          width: 32, height: 32, borderRadius: 8, marginBottom: 8,
+          background: "rgba(79,140,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: ACCENT }}>W</span>
         </div>
 
-        <div style={{ height: 1, background: BORDER, margin: "0 10px" }} />
+        <div style={{ width: 32, height: 1, background: BORDER, marginBottom: 6 }} />
 
-        {/* Nav items */}
-        <div style={{ padding: "8px 8px", flex: 1, overflowY: "auto" }}>
-          <div style={{
-            fontSize: 10, fontWeight: 500, textTransform: "uppercase",
-            letterSpacing: "0.12em", color: "rgba(100,116,139,0.7)",
-            padding: "0 6px", marginBottom: 4,
-          }}>Workspace</div>
-
+        {/* Icon-only nav */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: "100%", padding: "0 8px" }}>
           {NAV.map(item => {
             const Icon = item.icon;
             const active = !!item.active;
             return (
-              <div key={item.label} style={{ position: "relative" }}>
+              <div key={item.label} title={item.label} style={{ position: "relative", width: "100%" }}>
                 {active && (
                   <div style={{
                     position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
@@ -298,39 +293,26 @@ export function BuilderImproved() {
                   }} />
                 )}
                 <button style={{
-                  display: "flex", alignItems: "center", gap: 8, width: "100%",
-                  padding: "0 8px", height: 32, borderRadius: 7, border: "none", cursor: "pointer",
-                  background: active ? "rgba(79,140,255,0.08)" : "transparent",
-                  color: active ? TEXT : MUTED,
-                  fontWeight: active ? 500 : 400, fontSize: 13,
-                  boxShadow: active ? "inset 0 0 0 1px rgba(79,140,255,0.14)" : "none",
-                  marginBottom: 1,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: "100%", height: 32, borderRadius: 7, border: "none", cursor: "pointer",
+                  background: active ? "rgba(79,140,255,0.1)" : "transparent",
+                  color: active ? ACCENT : MUTED,
+                  boxShadow: active ? "inset 0 0 0 1px rgba(79,140,255,0.16)" : "none",
                 }}>
-                  <Icon size={14} />
-                  {item.label}
+                  <Icon size={15} />
                 </button>
               </div>
             );
           })}
         </div>
 
-        {/* Sidebar footer */}
-        <div style={{ borderTop: `1px solid rgba(255,255,255,0.05)`, padding: "8px 10px" }}>
-          <button style={{
-            display: "flex", alignItems: "center", gap: 8, width: "100%",
-            padding: "6px 8px", borderRadius: 7, background: "transparent", border: "none",
-            cursor: "pointer", color: MUTED,
-          }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: 6, background: "#1e293b",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 10, fontWeight: 600, color: "#94a3b8",
-            }}>WA</div>
-            <div style={{ flex: 1, textAlign: "left" }}>
-              <div style={{ fontSize: 12, color: "#94a3b8" }}>workspace@email.com</div>
-            </div>
-            <Settings size={13} />
-          </button>
+        {/* Footer avatar */}
+        <div style={{ padding: "8px 0", borderTop: `1px solid ${BORDER}`, width: "100%", display: "flex", justifyContent: "center" }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 6, background: "#1e293b",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 9, fontWeight: 600, color: "#94a3b8", cursor: "pointer",
+          }}>WA</div>
         </div>
       </aside>
 
