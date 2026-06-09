@@ -30,7 +30,7 @@ import {
 } from "@/lib/agents/agents.functions";
 import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getTotalCostPerMinute } from "@/lib/builder/pricing";
+import { getTotalCostPerMinute, getHyperStreamCostPerMinute } from "@/lib/builder/pricing";
 
 export function RetellDeployDialog() {
   const {
@@ -60,6 +60,8 @@ export function RetellDeployDialog() {
   const wsRelayRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const workletRef = useRef<AudioWorkletNode | null>(null);
+  const captureSinkRef = useRef<GainNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef(0);
   const startedAtRef = useRef<number | null>(null);
@@ -102,6 +104,10 @@ export function RetellDeployDialog() {
       wsRelayRef.current = null;
       processorRef.current?.disconnect();
       processorRef.current = null;
+      workletRef.current?.disconnect();
+      workletRef.current = null;
+      captureSinkRef.current?.disconnect();
+      captureSinkRef.current = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       audioCtxRef.current?.close().catch(() => {});
@@ -399,6 +405,10 @@ export function RetellDeployDialog() {
     function cleanupHyperStream() {
       processorRef.current?.disconnect();
       processorRef.current = null;
+      workletRef.current?.disconnect();
+      workletRef.current = null;
+      captureSinkRef.current?.disconnect();
+      captureSinkRef.current = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       audioCtxRef.current?.close().catch(() => {});
@@ -424,32 +434,93 @@ export function RetellDeployDialog() {
       streamRef.current = micStream;
 
       const source = audioCtx.createMediaStreamSource(micStream);
-      // ScriptProcessorNode is deprecated but universally supported.
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-      source.connect(processor);
-      // Connect to destination to keep the node alive (output is silent — AI audio uses separate buffers).
-      processor.connect(audioCtx.destination);
 
       let sessionReady = false;
 
-      processor.onaudioprocess = (e) => {
+      // Convert an Int16 PCM buffer → base64 and stream to OpenAI.
+      const sendPcm = (int16: Int16Array) => {
         if (!sessionReady || ws.readyState !== WebSocket.OPEN) return;
-        const float32 = e.inputBuffer.getChannelData(0);
-        const int16 = new Int16Array(float32.length);
-        for (let i = 0; i < float32.length; i++) {
-          const s = Math.max(-1, Math.min(1, float32[i]));
-          int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-        }
-        // Float32Array → base64 PCM16
-        const uint8 = new Uint8Array(int16.buffer);
+        const uint8 = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
         let binary = "";
-        // Send in 32-byte chunks to avoid large string construction for btoa.
         for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
-        ws.send(
-          JSON.stringify({ type: "input_audio_buffer.append", audio: btoa(binary) }),
-        );
+        ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: btoa(binary) }));
       };
+
+      // Prefer AudioWorklet: it runs mic capture on the audio render thread, so
+      // a busy main thread (React re-renders, audio decoding) can no longer drop
+      // input frames — which is what caused laggy / clipped speech with the old
+      // ScriptProcessorNode. Fall back to ScriptProcessor where unsupported.
+      let usingWorklet = false;
+      if (audioCtx.audioWorklet) {
+        try {
+          // 24 kHz mono, emit ~100 ms (2400-sample) Int16 chunks to the main thread.
+          const workletCode = `
+            class CaptureProcessor extends AudioWorkletProcessor {
+              constructor() {
+                super();
+                this._buf = new Int16Array(2400);
+                this._n = 0;
+              }
+              process(inputs) {
+                const ch = inputs[0] && inputs[0][0];
+                if (ch) {
+                  for (let i = 0; i < ch.length; i++) {
+                    let s = ch[i];
+                    s = s < -1 ? -1 : s > 1 ? 1 : s;
+                    this._buf[this._n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+                    if (this._n === this._buf.length) {
+                      const out = this._buf.slice(0, this._n);
+                      this.port.postMessage(out.buffer, [out.buffer]);
+                      this._n = 0;
+                    }
+                  }
+                }
+                return true;
+              }
+            }
+            registerProcessor('capture-processor', CaptureProcessor);
+          `;
+          const blobUrl = URL.createObjectURL(
+            new Blob([workletCode], { type: "application/javascript" }),
+          );
+          try {
+            await audioCtx.audioWorklet.addModule(blobUrl);
+          } finally {
+            URL.revokeObjectURL(blobUrl);
+          }
+          const node = new AudioWorkletNode(audioCtx, "capture-processor");
+          workletRef.current = node;
+          node.port.onmessage = (ev) => sendPcm(new Int16Array(ev.data as ArrayBuffer));
+          source.connect(node);
+          // Keep the node pulled by the graph without emitting audible output.
+          const sink = audioCtx.createGain();
+          sink.gain.value = 0;
+          captureSinkRef.current = sink;
+          node.connect(sink);
+          sink.connect(audioCtx.destination);
+          usingWorklet = true;
+        } catch (err) {
+          console.warn("[hyperstream] AudioWorklet unavailable, falling back:", err);
+        }
+      }
+
+      if (!usingWorklet) {
+        // ScriptProcessorNode fallback (deprecated, main-thread).
+        const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+        processorRef.current = processor;
+        source.connect(processor);
+        processor.connect(audioCtx.destination);
+        processor.onaudioprocess = (e) => {
+          if (!sessionReady || ws.readyState !== WebSocket.OPEN) return;
+          const float32 = e.inputBuffer.getChannelData(0);
+          const int16 = new Int16Array(float32.length);
+          for (let i = 0; i < float32.length; i++) {
+            const s = Math.max(-1, Math.min(1, float32[i]));
+            int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+          }
+          sendPcm(int16);
+        };
+      }
 
       ws.binaryType = "arraybuffer";
       ws.onmessage = (ev) => {
@@ -547,7 +618,14 @@ export function RetellDeployDialog() {
             const src = ctx.createBufferSource();
             src.buffer = buf;
             src.connect(ctx.destination);
-            const startAt = Math.max(ctx.currentTime, nextPlayTimeRef.current);
+            // Small jitter buffer: when playback has caught up (or this is the
+            // first chunk), start ~120 ms ahead so network jitter between audio
+            // deltas can't cause audible gaps/crackle.
+            const JITTER = 0.12;
+            const startAt =
+              nextPlayTimeRef.current > ctx.currentTime
+                ? nextPlayTimeRef.current
+                : ctx.currentTime + JITTER;
             src.start(startAt);
             nextPlayTimeRef.current = startAt + buf.duration;
           }
@@ -579,6 +657,7 @@ export function RetellDeployDialog() {
         description: (e as Error).message,
       });
       setCalling(false);
+      cleanupHyperStream();
     }
   }
 
@@ -592,6 +671,10 @@ export function RetellDeployDialog() {
     wsRelayRef.current = null;
     processorRef.current?.disconnect();
     processorRef.current = null;
+    workletRef.current?.disconnect();
+    workletRef.current = null;
+    captureSinkRef.current?.disconnect();
+    captureSinkRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     audioCtxRef.current?.close().catch(() => {});
@@ -602,7 +685,9 @@ export function RetellDeployDialog() {
     startedAtRef.current = null;
   }
 
-  const costPerMinute = getTotalCostPerMinute(settings.model);
+  const costPerMinute = isOpenAI
+    ? getHyperStreamCostPerMinute()
+    : getTotalCostPerMinute(settings.model);
   const minutes = elapsedSec / 60;
   const cost = minutes * costPerMinute;
   const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");

@@ -255,3 +255,20 @@ export function getTotalCostPerMinute(modelId: string | undefined | null): numbe
   const m = MODELS.find((x) => x.id === modelId) ?? MODELS.find((x) => x.id === "gpt-4.1") ?? MODELS[0];
   return BUILDER_INFRA_PER_MIN + m.costPerMin;
 }
+
+// ── HyperStream (OpenAI Realtime) per-minute estimate ───────────────────────
+// HyperStream calls bill against OpenAI's Realtime API (gpt-realtime), NOT
+// Retell. Pricing is per audio token, not a flat per-minute LLM rate, so the
+// Retell model meter above does not apply. OpenAI gpt-realtime (GA) audio
+// rates: input $32/1M tokens, output $64/1M tokens. A typical two-way
+// conversation runs ~800 audio tokens/min each direction once you account for
+// silence, giving roughly:
+//   input  ~800 tok/min * $32/1M  ≈ $0.026/min
+//   output ~800 tok/min * $64/1M  ≈ $0.051/min
+// We round up to a conservative blended estimate so the spend cap never
+// undercounts. This is an ESTIMATE — real cost depends on talk ratio.
+export const HYPERSTREAM_PER_MIN = 0.09;
+
+export function getHyperStreamCostPerMinute(): number {
+  return HYPERSTREAM_PER_MIN;
+}
