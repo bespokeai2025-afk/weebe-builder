@@ -48,6 +48,7 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as ApiRuntimeAgentIdRouteImport } from './routes/api/runtime/agent.$id'
 import { Route as ApiPublicWhatsappWebhookWorkspaceIdRouteImport } from './routes/api/public/whatsapp-webhook.$workspaceId'
 import { Route as ApiPublicVoiceWebhookHealthRouteImport } from './routes/api/public/voice-webhook.health'
 import { Route as ApiPublicRetellRescheduleRouteImport } from './routes/api/public/retell/reschedule'
@@ -60,6 +61,7 @@ import { Route as ApiPublicRetellWebhookDebugRouteImport } from './routes/api/pu
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
+import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -263,6 +265,11 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   path: '/lovable/email/auth/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRuntimeAgentIdRoute = ApiRuntimeAgentIdRouteImport.update({
+  id: '/api/runtime/agent/$id',
+  path: '/api/runtime/agent/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWhatsappWebhookWorkspaceIdRoute =
   ApiPublicWhatsappWebhookWorkspaceIdRouteImport.update({
     id: '/api/public/whatsapp-webhook/$workspaceId',
@@ -332,6 +339,11 @@ const ApiPublicAgentsRegisterRoute = ApiPublicAgentsRegisterRouteImport.update({
   path: '/api/public/agents/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRuntimeAgentIdExportRoute = ApiRuntimeAgentIdExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => ApiRuntimeAgentIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -379,11 +391,13 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
+  '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -430,11 +444,13 @@ export interface FileRoutesByTo {
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
+  '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -484,11 +500,13 @@ export interface FileRoutesById {
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
+  '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -538,11 +556,13 @@ export interface FileRouteTypes {
     | '/api/public/retell/reschedule'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
+    | '/api/runtime/agent/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/api/runtime/agent/$id/export'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -589,11 +609,13 @@ export interface FileRouteTypes {
     | '/api/public/retell/reschedule'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
+    | '/api/runtime/agent/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/api/runtime/agent/$id/export'
   id:
     | '__root__'
     | '/'
@@ -642,11 +664,13 @@ export interface FileRouteTypes {
     | '/api/public/retell/reschedule'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
+    | '/api/runtime/agent/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/api/runtime/agent/$id/export'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -673,6 +697,7 @@ export interface RootRouteChildren {
   ApiPublicRetellEventTypesRoute: typeof ApiPublicRetellEventTypesRoute
   ApiPublicRetellRescheduleRoute: typeof ApiPublicRetellRescheduleRoute
   ApiPublicWhatsappWebhookWorkspaceIdRoute: typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
+  ApiRuntimeAgentIdRoute: typeof ApiRuntimeAgentIdRouteWithChildren
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -955,6 +980,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/runtime/agent/$id': {
+      id: '/api/runtime/agent/$id'
+      path: '/api/runtime/agent/$id'
+      fullPath: '/api/runtime/agent/$id'
+      preLoaderRoute: typeof ApiRuntimeAgentIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp-webhook/$workspaceId': {
       id: '/api/public/whatsapp-webhook/$workspaceId'
       path: '/api/public/whatsapp-webhook/$workspaceId'
@@ -1038,6 +1070,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/public/agents/register'
       preLoaderRoute: typeof ApiPublicAgentsRegisterRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/runtime/agent/$id/export': {
+      id: '/api/runtime/agent/$id/export'
+      path: '/export'
+      fullPath: '/api/runtime/agent/$id/export'
+      preLoaderRoute: typeof ApiRuntimeAgentIdExportRouteImport
+      parentRoute: typeof ApiRuntimeAgentIdRoute
     }
   }
 }
@@ -1131,6 +1170,17 @@ const ApiPublicVoiceWebhookRouteWithChildren =
     ApiPublicVoiceWebhookRouteChildren,
   )
 
+interface ApiRuntimeAgentIdRouteChildren {
+  ApiRuntimeAgentIdExportRoute: typeof ApiRuntimeAgentIdExportRoute
+}
+
+const ApiRuntimeAgentIdRouteChildren: ApiRuntimeAgentIdRouteChildren = {
+  ApiRuntimeAgentIdExportRoute: ApiRuntimeAgentIdExportRoute,
+}
+
+const ApiRuntimeAgentIdRouteWithChildren =
+  ApiRuntimeAgentIdRoute._addFileChildren(ApiRuntimeAgentIdRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
@@ -1157,6 +1207,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellRescheduleRoute: ApiPublicRetellRescheduleRoute,
   ApiPublicWhatsappWebhookWorkspaceIdRoute:
     ApiPublicWhatsappWebhookWorkspaceIdRoute,
+  ApiRuntimeAgentIdRoute: ApiRuntimeAgentIdRouteWithChildren,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
