@@ -128,8 +128,18 @@ function MyAgentsPage() {
   }
 
   const agents: AgentCardData[] = (agentsQ.data ?? []) as AgentCardData[];
+
+  const queryMatch = (a: AgentCardData) =>
+    !query.trim() || a.name.toLowerCase().includes(query.trim().toLowerCase());
+
+  const engineCounts = {
+    ALL: agents.filter(queryMatch).length,
+    RETELL: agents.filter((a) => queryMatch(a) && deriveVoiceProvider(a) === "RETELL").length,
+    OPENAI_REALTIME: agents.filter((a) => queryMatch(a) && deriveVoiceProvider(a) === "OPENAI_REALTIME").length,
+  };
+
   const filtered = agents.filter((a) => {
-    if (query.trim() && !a.name.toLowerCase().includes(query.trim().toLowerCase())) return false;
+    if (!queryMatch(a)) return false;
     if (voiceFilter !== "ALL" && deriveVoiceProvider(a) !== voiceFilter) return false;
     return true;
   });
@@ -172,6 +182,15 @@ function MyAgentsPage() {
                 >
                   {icon}
                   {label}
+                  {value !== "ALL" && (
+                    <span className={`rounded px-1 py-px text-[10px] font-semibold tabular-nums leading-none ${
+                      voiceFilter === value
+                        ? "bg-white/[0.10] text-foreground"
+                        : "bg-white/[0.05] text-muted-foreground"
+                    }`}>
+                      {engineCounts[value]}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
