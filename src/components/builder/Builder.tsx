@@ -809,45 +809,74 @@ export function Builder({
                   <span className="flex items-center gap-1.5"><Zap className="h-3 w-3 text-primary" />OpenAI Engine</span>
                   <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                 </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-2 px-2.5 pb-2.5">
+                <CollapsibleContent className="space-y-2.5 px-2.5 pb-2.5">
+                  {/* Native Voice Profile */}
                   <div>
-                    <Label className="text-[9px]">Voice Profile</Label>
+                    <Label className="text-[9px]">Native Voice Profile</Label>
                     <Select
                       value={settings.openaiVoice ?? "alloy"}
                       onValueChange={(v) => setSettings({ openaiVoice: v as BuilderSettings["openaiVoice"] })}
                     >
-                      <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 text-[10px] mt-0.5"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {(["alloy","ash","shimmer","echo","coral","marine","verse","cedar","sage"] as const).map((v) => (
-                          <SelectItem key={v} value={v} className="capitalize">{v.charAt(0).toUpperCase() + v.slice(1)}</SelectItem>
+                        {(
+                          [
+                            { id: "alloy",   desc: "Neutral, Balanced" },
+                            { id: "ash",     desc: "Casual, Warm" },
+                            { id: "ballad",  desc: "Professional, Deep" },
+                            { id: "coral",   desc: "Clear, Friendly" },
+                            { id: "echo",    desc: "Confident, Crispy" },
+                            { id: "shimmer", desc: "Bright, Professional" },
+                            { id: "sage",    desc: "Calm, Measured" },
+                            { id: "verse",   desc: "Expressive, Dynamic" },
+                            { id: "marine",  desc: "Smooth, Polite" },
+                          ] as const
+                        ).map(({ id, desc }) => (
+                          <SelectItem key={id} value={id}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span className="capitalize font-medium">{id.charAt(0).toUpperCase() + id.slice(1)}</span>
+                              <span className="text-muted-foreground text-[10px]">{desc}</span>
+                            </span>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Model Reasoning Optimization Profile */}
                   <div>
-                    <Label className="text-[9px]">Reasoning Effort</Label>
-                    <div className="flex rounded-md overflow-hidden border border-white/[0.08] mt-1">
-                      {(["minimal","low","medium","high","xhigh"] as const).map((level) => {
-                        const active = (settings.openaiReasoningEffort ?? "low") === level;
-                        return (
-                          <button
-                            key={level}
-                            onClick={() => setSettings({ openaiReasoningEffort: level })}
-                            className={`flex-1 py-1 text-[9px] font-medium transition-colors ${
-                              active
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-white/[0.02] text-muted-foreground hover:bg-white/[0.06]"
-                            }`}
-                          >
-                            {level}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <Label className="text-[9px]">Model Reasoning Optimization Profile</Label>
+                    <Select
+                      value={settings.openaiReasoningEffort ?? "low"}
+                      onValueChange={(v) => setSettings({ openaiReasoningEffort: v as BuilderSettings["openaiReasoningEffort"] })}
+                    >
+                      <SelectTrigger className="h-7 text-[10px] mt-0.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(
+                          [
+                            { id: "minimal", label: "Minimal",  desc: "Lowest Latency — Ideal for basic smart triggers" },
+                            { id: "low",     label: "Low",      desc: "Optimized Balanced — Recommended for fast receptionists" },
+                            { id: "medium",  label: "Medium",   desc: "Multi-Step Logic — Best for advanced CRM lookups" },
+                            { id: "high",    label: "High",     desc: "Deep Analytical — Higher accuracy, slightly slower start" },
+                            { id: "xhigh",   label: "X-High",   desc: "Maximum Reasoning — Complex multi-branch tool handling" },
+                          ] as const
+                        ).map(({ id, label, desc }) => (
+                          <SelectItem key={id} value={id}>
+                            <span className="flex flex-col gap-0.5">
+                              <span className="font-medium text-[10px]">{label}</span>
+                              <span className="text-muted-foreground text-[9px] leading-tight">{desc}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[9px] text-muted-foreground/50 mt-1">Default: Low (Optimized Balanced)</p>
                   </div>
-                  <p className="text-[9px] text-muted-foreground/60 leading-relaxed">
-                    API key managed server-side. No credentials required.
-                  </p>
+
+                  <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-1 w-fit">
+                    <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                    <span className="text-[9px] text-muted-foreground">Engine Routed via Master Admin Enterprise Line</span>
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
             )}

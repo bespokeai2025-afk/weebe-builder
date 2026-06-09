@@ -1,0 +1,33 @@
+Title: Refactor Hotfix - Force UI Rendering of OpenAI Realtime Voice and Reasoning Selection Controls
+
+Please fix the Agent Builder layout view. Our previous implementation successfully hid the Retell options when "HyperStream Engine (Instant Response)" is toggled on, but it failed to physically inject the new OpenAI dropdown menus and selector components. 
+
+Please modify our builder sidebar/configuration panel component to explicitly render these inputs inside our 'voice_provider === OPENAI_REALTIME' UI code branch:
+
+### 1. Force Render: Native Voice Selector Dropdown
+Add an explicit HTML/React select dropdown component labeled "Native Voice Profile". 
+* **State Binding:** Bind this dropdown selection directly to our agent metadata save object under the database column 'voice_id'.
+* **Populate with these exact 9 native OpenAI voice string options:**
+  - 'alloy' (Neutral, Balanced)
+  - 'ash' (Casual, Warm)
+  - 'ballad' (Professional, Deep)
+  - 'coral' (Clear, Friendly)
+  - 'echo' (Confident, Crispy)
+  - 'shimmer' (Bright, Professional)
+  - 'sage' (Calm, Measured)
+  - 'verse' (Expressive, Dynamic)
+  - 'marine' (Smooth, Polite)
+
+### 2. Force Render: Reasoning Effort Select/Slider Control
+Directly below the voice profile selector, inject an options selector or sliding layout control component labeled "Model Reasoning Optimization Profile".
+* **State Binding:** Bind this selection to our agent's backend config payload under the variable key 'reasoning_effort' (defaulting to 'low').
+* **Populate with these exact OpenAI parameters and user-friendly subtitles:**
+  - 'minimal' (Lowest Latency — Ideal for basic smart triggers)
+  - 'low' (Optimized Balanced — Recommended for fast receptionists)
+  - 'medium' (Multi-Step Logic — Best for advanced CRM lookups)
+  - 'high' (Deep Analytical — Higher accuracy, slightly slower start)
+  - 'xhigh' (Maximum Reasoning — Complex multi-branch tool handling)
+
+### 3. Data Integrity & Verification Ensure
+* Make sure that changing these values modifies the active application state in real time.
+* When the user hits the global canvas "Save" button, verify that both the chosen voice string ('alloy', 'ash', etc.) and the chosen reasoning token weight ('low', 'medium', etc.) are cleanly bundled into the JSON payload and saved to the database.

@@ -228,7 +228,7 @@ export interface BuilderSettings {
    */
   voiceProvider?: "RETELL" | "OPENAI_REALTIME";
   /** OpenAI Realtime voice profile (only used when voiceProvider === "OPENAI_REALTIME") */
-  openaiVoice?: "alloy" | "ash" | "shimmer" | "echo" | "coral" | "marine" | "verse" | "cedar" | "sage";
+  openaiVoice?: "alloy" | "ash" | "ballad" | "coral" | "echo" | "shimmer" | "sage" | "verse" | "marine";
   /** OpenAI Realtime reasoning effort level (only used when voiceProvider === "OPENAI_REALTIME") */
   openaiReasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
   /**
