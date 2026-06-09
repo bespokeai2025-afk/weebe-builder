@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
 import { exportAgentJson } from "@/lib/builder/export-conversation-flow";
+import { compileRealtimePrompt } from "@/lib/builder/compile-realtime-prompt";
 import { importAgentJson } from "@/lib/builder/import-conversation-flow";
 import {
   deployAgentToRetell,
@@ -469,9 +470,7 @@ export function RetellDeployDialog() {
                 session: {
                   type: "realtime",
                   output_modalities: ["audio"],
-                  instructions: settings.agentName
-                    ? `You are an AI voice agent named ${settings.agentName}. Be helpful and concise.`
-                    : "You are a helpful AI voice assistant.",
+                  instructions: compileRealtimePrompt(nodes, edges, settings, variables),
                   audio: {
                     input: {
                       format: { type: "audio/pcm", rate: 24000 },

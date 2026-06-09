@@ -4,3 +4,4 @@
 - [Merging from Lovable source app](lovable-source-merge.md) — old app shares identical TanStack structure; analytics merges by copying page+PageShell & fixing import; templates are DB rows, not code.
 - [Voice provider & Supabase DDL constraint](voice-provider-ddl.md) — voice_provider stored in agents.settings JSON; Supabase DDL can't run via JS client in sandbox; migration file kept for CLI apply.
 - [HyperStream relay pitfalls](hyperstream-relay-pitfalls.md) — four bugs to know: model name, beta header, sync upgrade, binary frames.
+- [OpenAI Realtime flow prompt](openai-realtime-prompt-compile.md) — OpenAI takes one instruction string, not Retell's flow graph; must compile whole flow into a prompt for test + deploy.

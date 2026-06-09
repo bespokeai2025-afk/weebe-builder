@@ -695,7 +695,7 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
     // Load the agent row to get the compiled openaiSchema and flow.
     const { data: agent, error } = await supabase
       .from("agents")
-      .select("flow_data, settings")
+      .select("flow_data, settings, variables")
       .eq("id", data.agentRowId)
       .maybeSingle();
     if (error || !agent) throw new Error(error?.message ?? "Agent not found");
@@ -707,18 +707,23 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
       reasoning_effort?: string;
     };
 
-    // Build instruction from start conversation node dialogue (if present).
-    const nodes = (
-      ((agent.flow_data as Record<string, unknown>)?.nodes ?? []) as Array<{
-        data?: { isStart?: boolean; kind?: string; dialogue?: string };
-      }>
+    // Compile the full conversation flow into a single OpenAI Realtime prompt
+    // (global prompt + greeting + every reachable step and its transitions),
+    // mirroring the builder test-call path so the deployed agent follows the
+    // user's actual script rather than just the start node's dialogue.
+    const flowData = (agent.flow_data ?? {}) as Record<string, unknown>;
+    const { compileRealtimePrompt } = await import(
+      "@/lib/builder/compile-realtime-prompt"
     );
-    const startNode =
-      nodes.find((n) => n.data?.isStart && n.data?.kind === "conversation") ??
-      nodes.find((n) => n.data?.kind === "conversation");
-    const instructions = startNode?.data?.dialogue?.trim()
-      ? `You are an AI voice agent. ${startNode.data.dialogue.trim()}`
-      : "You are a helpful AI voice agent. Assist callers professionally and efficiently.";
+    const compiled = compileRealtimePrompt(
+      (flowData.nodes ?? []) as never,
+      (flowData.edges ?? []) as never,
+      settings as never,
+      (agent.variables ?? settings.variables ?? flowData.variables ?? []) as never,
+    ).trim();
+    const instructions =
+      compiled ||
+      "You are a helpful AI voice agent. Assist callers professionally and efficiently.";
 
     const model = "gpt-realtime";
     const voice = schema.voice ?? "alloy";
