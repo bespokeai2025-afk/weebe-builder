@@ -673,3 +673,77 @@ export const setAgentVoiceProvider = createServerFn({ method: "POST" })
 
     return { ok: true, twilioWarning };
   });
+
+// ---------------------------------------------------------------------------
+// HyperStream Engine — browser test-call support via OpenAI Realtime WebRTC
+// Creates an ephemeral session token that the browser exchanges directly with
+// the OpenAI Realtime API (no server relay needed after this point).
+// ---------------------------------------------------------------------------
+
+export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { agentRowId: string }) => input)
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY is not configured on this server");
+
+    // Load the agent row to get the compiled openaiSchema and flow.
+    const { data: agent, error } = await supabase
+      .from("agents")
+      .select("flow_data, settings")
+      .eq("id", data.agentRowId)
+      .maybeSingle();
+    if (error || !agent) throw new Error(error?.message ?? "Agent not found");
+
+    const settings = (agent.settings ?? {}) as Record<string, unknown>;
+    const schema = (settings.openaiSchema ?? {}) as {
+      voice?: string;
+      tools?: unknown[];
+      reasoning_effort?: string;
+    };
+
+    // Build instruction from start conversation node dialogue (if present).
+    const nodes = (
+      ((agent.flow_data as Record<string, unknown>)?.nodes ?? []) as Array<{
+        data?: { isStart?: boolean; kind?: string; dialogue?: string };
+      }>
+    );
+    const startNode =
+      nodes.find((n) => n.data?.isStart && n.data?.kind === "conversation") ??
+      nodes.find((n) => n.data?.kind === "conversation");
+    const instructions = startNode?.data?.dialogue?.trim()
+      ? `You are an AI voice agent. ${startNode.data.dialogue.trim()}`
+      : "You are a helpful AI voice agent. Assist callers professionally and efficiently.";
+
+    const model = "gpt-4o-realtime-preview-2025-06-03";
+    const voice = schema.voice ?? "alloy";
+
+    const sessionRes = await fetch("https://api.openai.com/v1/realtime/sessions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        voice,
+        instructions,
+        tools: (schema.tools ?? []) as object[],
+        input_audio_transcription: { model: "whisper-1" },
+        turn_detection: { type: "server_vad" },
+      }),
+    });
+
+    if (!sessionRes.ok) {
+      const errText = await sessionRes.text();
+      throw new Error(`OpenAI session creation failed: ${errText}`);
+    }
+
+    const session = (await sessionRes.json()) as {
+      client_secret: { value: string };
+    };
+
+    return { clientSecret: session.client_secret.value, model, voice };
+  });

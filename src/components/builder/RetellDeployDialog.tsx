@@ -22,7 +22,12 @@ import {
   createRetellWebCall,
   fetchRetellAgent,
 } from "@/lib/builder/retell.functions";
-import { listMyAgents, upsertMyAgent, getMyAgentByRetellId } from "@/lib/agents/agents.functions";
+import {
+  listMyAgents,
+  upsertMyAgent,
+  getMyAgentByRetellId,
+  createOpenAIRealtimeSession,
+} from "@/lib/agents/agents.functions";
 import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTotalCostPerMinute } from "@/lib/builder/pricing";
@@ -52,11 +57,15 @@ export function RetellDeployDialog() {
   const [loadId, setLoadId] = useState("");
   const [loading, setLoading] = useState(false);
   const clientRef = useRef<RetellWebClient | null>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const dcRef = useRef<RTCDataChannel | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const recordedCallRef = useRef(false);
 
   const deploy = useServerFn(deployAgentToRetell);
   const startCall = useServerFn(createRetellWebCall);
+  const createSession = useServerFn(createOpenAIRealtimeSession);
   const fetchAgent = useServerFn(fetchRetellAgent);
   const listAgents = useServerFn(listMyAgents);
   const upsertAgent = useServerFn(upsertMyAgent);
@@ -88,6 +97,14 @@ export function RetellDeployDialog() {
     return () => {
       clientRef.current?.stopCall();
       clientRef.current = null;
+      pcRef.current?.close();
+      pcRef.current = null;
+      dcRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.srcObject = null;
+        audioRef.current.remove();
+        audioRef.current = null;
+      }
       setActiveNode(null);
     };
   }, [setActiveNode]);
@@ -366,10 +383,113 @@ export function RetellDeployDialog() {
     }
   }
 
+  // ── HyperStream WebRTC test call ─────────────────────────────────────────
+  async function handleHyperStreamTestCall() {
+    if (!currentAgentRowId) {
+      toast.error("Save the agent first", {
+        description: "Click the + button to save before testing",
+      });
+      return;
+    }
+    setCalling(true);
+    try {
+      const { clientSecret, model } = await createSession({
+        data: { agentRowId: currentAgentRowId },
+      });
+
+      const pc = new RTCPeerConnection();
+      pcRef.current = pc;
+
+      // Pipe microphone to the peer connection.
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      for (const track of stream.getTracks()) pc.addTrack(track, stream);
+
+      // Play back the AI audio in the browser.
+      pc.ontrack = (ev) => {
+        const el = document.createElement("audio");
+        el.srcObject = ev.streams[0];
+        el.autoplay = true;
+        document.body.appendChild(el);
+        audioRef.current = el;
+      };
+
+      // Data channel: fires when the connection is live.
+      const dc = pc.createDataChannel("oai-events");
+      dcRef.current = dc;
+
+      dc.onopen = () => {
+        startedAtRef.current = Date.now();
+        recordedCallRef.current = false;
+        setElapsedSec(0);
+        setInCall(true);
+        const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
+        if (startNode) setActiveNode(startNode.id);
+      };
+
+      dc.onclose = () => {
+        recordCurrentCallCost();
+        setInCall(false);
+        setActiveNode(null);
+        startedAtRef.current = null;
+        pcRef.current = null;
+        dcRef.current = null;
+      };
+
+      dc.onerror = (ev) => {
+        toast.error("HyperStream call error", {
+          description: (ev as RTCErrorEvent).error?.message ?? "Unknown WebRTC error",
+        });
+      };
+
+      // SDP offer → exchange with OpenAI Realtime.
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const sdpRes = await fetch(
+        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${clientSecret}`,
+            "Content-Type": "application/sdp",
+          },
+          body: offer.sdp,
+        },
+      );
+
+      if (!sdpRes.ok) {
+        const errText = await sdpRes.text();
+        throw new Error(`WebRTC SDP exchange failed: ${errText}`);
+      }
+
+      const answerSdp = await sdpRes.text();
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+    } catch (e) {
+      toast.error("HyperStream test call failed", {
+        description: (e as Error).message,
+      });
+      pcRef.current?.close();
+      pcRef.current = null;
+      dcRef.current = null;
+    } finally {
+      setCalling(false);
+    }
+  }
+
   function endCall() {
     recordCurrentCallCost();
+    // OmniVoice (Retell) path
     clientRef.current?.stopCall();
     clientRef.current = null;
+    // HyperStream (WebRTC) path
+    pcRef.current?.close();
+    pcRef.current = null;
+    dcRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.srcObject = null;
+      audioRef.current.remove();
+      audioRef.current = null;
+    }
     setInCall(false);
     setActiveNode(null);
     startedAtRef.current = null;
@@ -459,40 +579,40 @@ export function RetellDeployDialog() {
     <>
       {/* Deploy / utility cluster */}
       <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
-        {/* Test / Run agent — OmniVoice only (Retell web-call SDK) */}
-        {!isOpenAI && (
-          inCall ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={endCall}
-              className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
-              title="End test call"
-            >
-              <PhoneOff className="h-3.5 w-3.5" />
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleTestCall}
-              disabled={calling || !hasAgent || overLimit}
-              className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
-              title={
-                overLimit
+        {/* Test / Run agent */}
+        {inCall ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={endCall}
+            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+            title="End test call"
+          >
+            <PhoneOff className="h-3.5 w-3.5" />
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={isOpenAI ? handleHyperStreamTestCall : handleTestCall}
+            disabled={calling || !hasAgent || (!isOpenAI && overLimit)}
+            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
+            title={
+              !hasAgent
+                ? "Save the agent first"
+                : !isOpenAI && overLimit
                   ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
-                  : hasAgent
-                    ? "Test agent (browser call)"
-                    : "Deploy the agent first"
-              }
-            >
-              {calling ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Phone className="h-3.5 w-3.5" />
-              )}
-            </Button>
-          )
+                  : isOpenAI
+                    ? "Test HyperStream agent (browser WebRTC)"
+                    : "Test agent (browser call)"
+            }
+          >
+            {calling ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Phone className="h-3.5 w-3.5" />
+            )}
+          </Button>
         )}
 
         {/* Load existing agent by ID — OmniVoice only */}
