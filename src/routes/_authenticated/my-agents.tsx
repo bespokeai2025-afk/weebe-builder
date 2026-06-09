@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
+import type { BuilderSettings } from "@/lib/builder/types";
 import { listMyAgents, getMyAgent, deleteMyAgent } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/my-agents")({
@@ -75,6 +76,22 @@ function MyAgentsPage() {
         settings: settings as never,
         variables: variables as never,
         agentRowId: row.id,
+      });
+      // Explicitly restore voice provider fields so the builder sidebar
+      // always shows the engine card that was saved, not the previous
+      // session's value or the localStorage default.
+      const rowAny = row as unknown as Record<string, unknown>;
+      const vp =
+        (settings.voiceProvider as BuilderSettings["voiceProvider"] | undefined) ??
+        (rowAny.voice_provider as BuilderSettings["voiceProvider"] | undefined) ??
+        "RETELL";
+      useBuilderStore.getState().setSettings({
+        voiceProvider: vp,
+        openaiVoice:
+          (settings.openaiVoice as BuilderSettings["openaiVoice"] | undefined) ?? "alloy",
+        openaiReasoningEffort:
+          (settings.openaiReasoningEffort as BuilderSettings["openaiReasoningEffort"] | undefined) ??
+          "low",
       });
       if (row.retell_agent_id) {
         useBuilderStore.getState().setSettings({ agentId: row.retell_agent_id });
