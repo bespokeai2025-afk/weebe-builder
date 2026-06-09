@@ -27,6 +27,20 @@ export function compileRealtimePrompt(
       : "You are an AI voice agent. Speak naturally and conversationally.",
   );
 
+  // Turn-taking rules are critical for OpenAI Realtime: without them the model
+  // tends to read the whole script in one breath and talk over the caller.
+  sections.push(
+    [
+      "# How to run the call",
+      "- Follow the conversation script below strictly, ONE step at a time, in order.",
+      "- After you speak or ask something, STOP talking and WAIT for the caller to respond. Do not continue until they have replied.",
+      "- Never read or combine multiple steps in a single turn. Cover exactly one step per turn.",
+      "- Keep each turn short and conversational — one or two sentences.",
+      "- Only move to the next step once the current step's transition condition is satisfied by the caller's response.",
+      "- Do not invent steps, information, or questions that are not in the script.",
+    ].join("\n"),
+  );
+
   const globalPrompt = settings.globalPrompt?.trim();
   if (globalPrompt) {
     sections.push(`# Overall instructions\n${globalPrompt}`);

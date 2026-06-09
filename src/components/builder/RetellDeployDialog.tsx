@@ -427,6 +427,11 @@ export function RetellDeployDialog() {
 
       // 24 kHz mono — matches OpenAI Realtime PCM16 format.
       const audioCtx = new AudioContext({ sampleRate: 24000 });
+      // Browsers don't always honor the requested 24 kHz. The worklet resamples
+      // capture to a guaranteed 24 kHz, but log the real rate for diagnostics.
+      console.log(
+        `[hyperstream] AudioContext sampleRate=${audioCtx.sampleRate} (requested 24000)`,
+      );
       audioCtxRef.current = audioCtx;
       nextPlayTimeRef.current = 0;
 
@@ -453,19 +458,33 @@ export function RetellDeployDialog() {
       let usingWorklet = false;
       if (audioCtx.audioWorklet) {
         try {
-          // 24 kHz mono, emit ~100 ms (2400-sample) Int16 chunks to the main thread.
+          // Resample mic input (whatever rate the browser actually gave the
+          // context) down to a guaranteed 24 kHz, mono, and emit ~100 ms
+          // (2400-sample) Int16 chunks. If the context is already 24 kHz the
+          // ratio is 1 and this is a straight copy.
           const workletCode = `
             class CaptureProcessor extends AudioWorkletProcessor {
               constructor() {
                 super();
+                this._ratio = sampleRate / 24000; // input frames per output frame
+                this._pos = 0;                     // fractional read cursor
+                this._prev = 0;                    // last sample of previous block
                 this._buf = new Int16Array(2400);
                 this._n = 0;
               }
               process(inputs) {
                 const ch = inputs[0] && inputs[0][0];
-                if (ch) {
-                  for (let i = 0; i < ch.length; i++) {
-                    let s = ch[i];
+                if (ch && ch.length) {
+                  const len = ch.length;
+                  // Virtual index 0 = previous block's last sample, 1..len = ch[0..len-1].
+                  // This lets interpolation stitch correctly across block boundaries.
+                  const at = (idx) => (idx <= 0 ? this._prev : ch[idx - 1]);
+                  while (this._pos < len) {
+                    const i = Math.floor(this._pos);
+                    const frac = this._pos - i;
+                    const s0 = at(i);
+                    const s1 = at(i + 1);
+                    let s = s0 + (s1 - s0) * frac;
                     s = s < -1 ? -1 : s > 1 ? 1 : s;
                     this._buf[this._n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
                     if (this._n === this._buf.length) {
@@ -473,7 +492,10 @@ export function RetellDeployDialog() {
                       this.port.postMessage(out.buffer, [out.buffer]);
                       this._n = 0;
                     }
+                    this._pos += this._ratio;
                   }
+                  this._pos -= len;           // carry remainder into next block
+                  this._prev = ch[len - 1];   // carry boundary sample for interpolation
                 }
                 return true;
               }
@@ -545,7 +567,11 @@ export function RetellDeployDialog() {
                   audio: {
                     input: {
                       format: { type: "audio/pcm", rate: 24000 },
-                      turn_detection: { type: "server_vad" },
+                      // semantic_vad uses a model to decide when the caller has
+                      // actually finished, instead of a fixed silence timer, so
+                      // the agent stops cutting people off mid-sentence. Low
+                      // eagerness = wait longer before taking the turn.
+                      turn_detection: { type: "semantic_vad", eagerness: "low" },
                     },
                     output: {
                       format: { type: "audio/pcm", rate: 24000 },
