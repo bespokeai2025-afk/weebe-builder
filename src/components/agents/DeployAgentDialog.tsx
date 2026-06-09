@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link } from "@tanstack/react-router";
-import { Loader2, Phone, PhoneCall, Calendar, ExternalLink, Check, Rocket, AlertTriangle } from "lucide-react";
+import { Loader2, Phone, PhoneCall, Calendar, ExternalLink, Check, Rocket, AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -181,6 +181,9 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     connectedAt: string;
   } | null>(null);
 
+  // Detach phone state
+  const [detachingPhone, setDetachingPhone] = useState(false);
+
   // Production-workspace clone state
   const [cloning, setCloning] = useState(false);
 
@@ -243,6 +246,23 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     qc.invalidateQueries({
       queryKey: isOpenAiRealtime ? ["twilio-numbers", agent!.id] : ["retell-numbers"],
     });
+  }
+
+  async function handleDetachPhone() {
+    if (!agent) return;
+    setDetachingPhone(true);
+    try {
+      await savePhoneFn({ data: { id: agent.id, phoneNumber: null } });
+      qc.invalidateQueries({ queryKey: ["my-agents"] });
+      qc.invalidateQueries({
+        queryKey: isOpenAiRealtime ? ["twilio-numbers", agent.id] : ["retell-numbers"],
+      });
+      toast.success("Phone number detached");
+    } catch (e) {
+      toast.error("Detach failed", { description: (e as Error).message });
+    } finally {
+      setDetachingPhone(false);
+    }
   }
 
   async function handleClone() {
@@ -494,6 +514,27 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                       : "Attach a phone number to the agent first."}
                   </p>
                 </div>
+                {isOpenAiRealtime && savedPhone && (
+                  <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="font-mono text-sm truncate">{savedPhone}</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0 ml-2"
+                      disabled={detachingPhone}
+                      onClick={handleDetachPhone}
+                    >
+                      {detachingPhone ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <><X className="h-3 w-3 mr-1" />Detach</>
+                      )}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex items-end gap-2">
                   <div className="flex-1 space-y-1">
                     <Label className="text-[11px] text-muted-foreground">Flow type</Label>
@@ -834,29 +875,45 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                                     </div>
                                   )}
                                 </div>
-                                <Button
-                                  size="sm"
-                                  variant={attached ? "ghost" : "outline"}
-                                  disabled={attached || needsDeploy || !hasProductionKeyForOps}
-                                  onClick={async () => {
-                                    try {
-                                      await attachAndSave(n.phoneNumber);
-                                      toast.success("Number attached");
-                                    } catch (e) {
-                                      toast.error("Attach failed", {
-                                        description: (e as Error).message,
-                                      });
-                                    }
-                                  }}
-                                >
-                                  {attached ? (
-                                    <>
-                                      <Check className="h-3 w-3 mr-1" /> Attached
-                                    </>
-                                  ) : (
-                                    "Attach"
-                                  )}
-                                </Button>
+                                {attached && isOpenAiRealtime ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    disabled={detachingPhone}
+                                    onClick={handleDetachPhone}
+                                  >
+                                    {detachingPhone ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <><X className="h-3 w-3 mr-1" />Detach</>
+                                    )}
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant={attached ? "ghost" : "outline"}
+                                    disabled={attached || needsDeploy || !hasProductionKeyForOps}
+                                    onClick={async () => {
+                                      try {
+                                        await attachAndSave(n.phoneNumber);
+                                        toast.success("Number attached");
+                                      } catch (e) {
+                                        toast.error("Attach failed", {
+                                          description: (e as Error).message,
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    {attached ? (
+                                      <>
+                                        <Check className="h-3 w-3 mr-1" /> Attached
+                                      </>
+                                    ) : (
+                                      "Attach"
+                                    )}
+                                  </Button>
+                                )}
                               </div>
                             );
                           })}
