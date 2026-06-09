@@ -41,8 +41,12 @@ export type CustomTelemetryPayload = {
    * Custom post-call variables produced by the OpenAI Realtime engine.
    * Mirrors Retell's `call_analysis.custom_analysis_data` and is forwarded
    * into lead scoring, field mappings, and qualification scoring rules.
-   * Also accepted under the alias `post_call_variables` for flexibility.
+   * Accepted under any of the following aliases (checked in order):
+   *   1. `custom_data`          — top-level key (primary)
+   *   2. `custom_analysis_data` — mirrors Retell naming
+   *   3. `post_call_variables`  — legacy alias
    */
+  custom_data?: Record<string, unknown>;
   custom_analysis_data?: Record<string, unknown>;
   post_call_variables?: Record<string, unknown>;
 };
@@ -269,9 +273,9 @@ async function runLeadGenAnalysis(
   const autoUpdate = (lgSettings as any).autoUpdateLead !== false;
   if (!autoUpdate) return;
 
-  // Merge both accepted custom-variable field names; prefer custom_analysis_data
+  // Merge all accepted custom-variable field names; prefer custom_data (primary)
   const customData: Record<string, unknown> =
-    payload.custom_analysis_data ?? payload.post_call_variables ?? {};
+    payload.custom_data ?? payload.custom_analysis_data ?? payload.post_call_variables ?? {};
 
   try {
     console.log("[CUSTOM TELEMETRY] [LEAD-GEN] Starting post-call intelligence extraction", {
@@ -317,9 +321,9 @@ async function runQualificationAnalysis(
     return;
   }
 
-  // Merge both accepted custom-variable field names; prefer custom_analysis_data
+  // Merge all accepted custom-variable field names; prefer custom_data (primary)
   const customData: Record<string, unknown> =
-    payload.custom_analysis_data ?? payload.post_call_variables ?? {};
+    payload.custom_data ?? payload.custom_analysis_data ?? payload.post_call_variables ?? {};
 
   try {
     console.log("[CUSTOM TELEMETRY] [QUALIFY] Starting post-call qualification analysis", {
