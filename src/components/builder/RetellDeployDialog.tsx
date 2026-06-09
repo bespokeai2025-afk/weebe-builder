@@ -577,13 +577,12 @@ export function RetellDeployDialog() {
                   instructions: compileRealtimePrompt(nodes, edges, settings, variables),
                   audio: {
                     input: {
-                      // Raise silence threshold so the agent waits longer before
-                      // deciding the user has finished speaking.
                       turn_detection: {
                         type: "server_vad",
                         threshold: 0.5,
                         prefix_padding_ms: 300,
-                        silence_duration_ms: 600,
+                        // 300 ms is the OpenAI default — keeps response latency low.
+                        silence_duration_ms: 300,
                         create_response: true,
                         interrupt_response: true,
                       },
@@ -646,6 +645,9 @@ export function RetellDeployDialog() {
           ) {
             const ctx = audioCtxRef.current;
             if (!ctx) return;
+            // Browser can auto-suspend the AudioContext after a period of
+            // inactivity. Resume it before scheduling so audio actually plays.
+            if (ctx.state === "suspended") void ctx.resume();
             const binaryStr = atob(msg.delta as string);
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++)
@@ -659,9 +661,9 @@ export function RetellDeployDialog() {
             src.buffer = buf;
             src.connect(ctx.destination);
             // Small jitter buffer: when playback has caught up (or this is the
-            // first chunk), start ~120 ms ahead so network jitter between audio
+            // first chunk), start ~80 ms ahead so network jitter between audio
             // deltas can't cause audible gaps/crackle.
-            const JITTER = 0.12;
+            const JITTER = 0.08;
             const startAt =
               nextPlayTimeRef.current > ctx.currentTime
                 ? nextPlayTimeRef.current
