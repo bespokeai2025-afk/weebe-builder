@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Loader2, Trash2, Plus, Globe2, User } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Plus, Globe2, User, Radio, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -361,6 +361,7 @@ interface TemplateItem {
   scope: "global" | "personal";
   name: string;
   description: string;
+  settings: Record<string, unknown> | null;
   updated_at: string;
 }
 
@@ -391,7 +392,26 @@ function TemplateGrid({
       {items.map((t) => (
         <Card key={t.id} data-tour={t.name.toLowerCase().includes("receptionist") ? "template-receptionist" : undefined}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">{t.name}</CardTitle>
+            <div className="flex items-start justify-between gap-2">
+              <CardTitle className="text-base">{t.name}</CardTitle>
+              {t.settings?.voiceProvider === "OPENAI_REALTIME" ? (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 text-xs gap-1 px-1.5 py-0.5"
+                >
+                  <Zap className="h-3 w-3" />
+                  HyperStream
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 border-sky-500/40 bg-sky-500/10 text-sky-300 text-xs gap-1 px-1.5 py-0.5"
+                >
+                  <Radio className="h-3 w-3" />
+                  OmniVoice
+                </Badge>
+              )}
+            </div>
             <CardDescription className="line-clamp-2">
               {t.description || "No description."}
             </CardDescription>

@@ -48,7 +48,7 @@ export const listAgentTemplates = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("agent_templates")
-      .select("id, scope, owner_user_id, name, description, updated_at, created_at")
+      .select("id, scope, owner_user_id, name, description, settings, updated_at, created_at")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []) as Array<{
@@ -57,6 +57,7 @@ export const listAgentTemplates = createServerFn({ method: "GET" })
       owner_user_id: string | null;
       name: string;
       description: string;
+      settings: Record<string, unknown> | null;
       updated_at: string;
       created_at: string;
     }>;
