@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { RetellWebClient } from "retell-client-js-sdk";
-import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download } from "lucide-react";
+import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -38,7 +39,12 @@ export function RetellDeployDialog() {
     addTestCallSeconds,
     loadFlow,
   } = useBuilderStore();
+  const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
+  const setCurrentAgentRowId = useBuilderStore((s) => s.setCurrentAgentRowId);
+
   const [deploying, setDeploying] = useState<"create" | "update" | null>(null);
+  const [openaiConfirmOpen, setOpenaiConfirmOpen] = useState(false);
+  const [openaiDeploying, setOpenaiDeploying] = useState(false);
   const [calling, setCalling] = useState(false);
   const [inCall, setInCall] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -97,7 +103,43 @@ export function RetellDeployDialog() {
     return () => clearInterval(t);
   }, [inCall]);
 
+  async function handleOpenAIRealtimeDeploy() {
+    setOpenaiDeploying(true);
+    try {
+      const { nodes: n, edges: e, settings: s, variables: v } = useBuilderStore.getState();
+      const result = await upsertAgent({
+        data: {
+          id: currentAgentRowId ?? undefined,
+          retellAgentId: null,
+          name: s.agentName || "Untitled agent",
+          flowData: { nodes: n, edges: e } as never,
+          settings: s as never,
+          variables: v as never,
+        },
+      });
+      if (!currentAgentRowId) {
+        setCurrentAgentRowId(result.id);
+      }
+      setOpenaiConfirmOpen(false);
+      toast.success("Enterprise Line agent saved", {
+        description: `Schema compiled with voice "${s.openaiVoice ?? "alloy"}" · reasoning "${s.openaiReasoningEffort ?? "low"}".`,
+      });
+      qc.invalidateQueries({ queryKey: ["my-agents"] });
+    } catch (e) {
+      toast.error("Save failed", { description: (e as Error).message });
+    } finally {
+      setOpenaiDeploying(false);
+    }
+  }
+
   async function handleDeploy(kind: "create" | "update") {
+    // OpenAI Realtime agents skip Retell provisioning entirely — show the
+    // Enterprise Line confirmation dialog and save schema locally only.
+    if (settings.voiceProvider === "OPENAI_REALTIME") {
+      setOpenaiConfirmOpen(true);
+      return;
+    }
+
     // If the agent name changed since last deploy, always create a new agent
     // regardless of whether the user clicked + or ↺.
     const nameChanged = Boolean(
@@ -512,6 +554,63 @@ export function RetellDeployDialog() {
           )}
         </Button>
       </div>
+
+      {/* Enterprise Line confirmation dialog — shown for OpenAI Realtime agents */}
+      <Dialog open={openaiConfirmOpen} onOpenChange={setOpenaiConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className="border-violet-500/40 bg-violet-500/10 text-violet-300 gap-1 px-2 py-0.5 text-xs font-semibold"
+              >
+                <Zap className="h-3 w-3" />
+                Enterprise Line
+              </Badge>
+              Save OpenAI Realtime Agent
+            </DialogTitle>
+            <DialogDescription>
+              This agent routes through the OpenAI Realtime engine. Retell provisioning is skipped —
+              your tool schema and voice settings are compiled and saved directly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-24">Voice</span>
+              <span className="font-mono text-foreground">{settings.openaiVoice ?? "alloy"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-24">Reasoning</span>
+              <span className="font-mono text-foreground">{settings.openaiReasoningEffort ?? "low"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground w-24">Agent name</span>
+              <span className="truncate text-foreground">{settings.agentName || "Untitled agent"}</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setOpenaiConfirmOpen(false)}
+              disabled={openaiDeploying}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleOpenAIRealtimeDeploy}
+              disabled={openaiDeploying}
+              className="gap-1.5"
+            >
+              {openaiDeploying ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4" />
+              )}
+              Save Agent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={loadOpen} onOpenChange={setLoadOpen}>
         <DialogContent>
