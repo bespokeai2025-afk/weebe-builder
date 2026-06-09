@@ -452,7 +452,7 @@ export const Route = createFileRoute("/api/voice-copilot")({
           return json({ ok: false, error: "Transcription request failed" }, 502);
         }
 
-        if (!transcript) return json({ ok: false, error: "Could not transcribe audio" }, 422);
+        if (!transcript) return json({ ok: false, error: "No speech detected — please try again" }, 422);
         console.log("[VoiceCopilot] Transcript:", JSON.stringify(transcript));
 
         // ── PLATFORM_HELP mode: Q&A engine (no canvas mutations) ─────────────

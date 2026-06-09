@@ -476,14 +476,14 @@ export function RetellDeployDialog() {
                 const ch = inputs[0] && inputs[0][0];
                 if (ch && ch.length) {
                   const len = ch.length;
-                  // Virtual index 0 = previous block's last sample, 1..len = ch[0..len-1].
-                  // This lets interpolation stitch correctly across block boundaries.
-                  const at = (idx) => (idx <= 0 ? this._prev : ch[idx - 1]);
+                  // Inlined to avoid allocating a closure per process() call.
+                  // Virtual layout: index 0 → this._prev, index k → ch[k-1].
+                  // Loop invariant: Math.floor(this._pos) < len, so ch[i] is always valid.
                   while (this._pos < len) {
                     const i = Math.floor(this._pos);
                     const frac = this._pos - i;
-                    const s0 = at(i);
-                    const s1 = at(i + 1);
+                    const s0 = i === 0 ? this._prev : ch[i - 1];
+                    const s1 = ch[i]; // i ≤ len-1 guaranteed by while condition
                     let s = s0 + (s1 - s0) * frac;
                     s = s < -1 ? -1 : s > 1 ? 1 : s;
                     this._buf[this._n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
