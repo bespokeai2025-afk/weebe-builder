@@ -770,3 +770,89 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
 
     return { clientSecret, model, voice };
   });
+
+/** Buy a Twilio phone number directly (used for OpenAI Realtime agents). */
+export const buyTwilioPhoneNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: { areaCode?: number; tollFree?: boolean; nickname?: string }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { data: ws } = await (supabase as any)
+      .from("workspace_settings")
+      .select("twilio_auth_token")
+      .eq("workspace_id", context.workspaceId)
+      .maybeSingle();
+
+    const sid = process.env.TWILIO_ACCOUNT_SID ?? null;
+    const token =
+      (ws?.twilio_auth_token as string | null) ??
+      process.env.TWILIO_AUTH_TOKEN ??
+      null;
+    if (!sid || !token) {
+      throw new Error(
+        "Twilio not configured. Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN (or set twilio_auth_token in workspace settings).",
+      );
+    }
+
+    const Twilio = (await import("twilio")).default;
+    const client = Twilio(sid, token);
+
+    let available: Array<{ phoneNumber: string }>;
+    if (data.tollFree) {
+      available = (await client.availablePhoneNumbers("US").tollFree.list({ limit: 1 })) as Array<{ phoneNumber: string }>;
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const listOpts: any = { limit: 1 };
+      if (data.areaCode) listOpts.areaCode = data.areaCode;
+      available = (await client.availablePhoneNumbers("US").local.list(listOpts)) as Array<{ phoneNumber: string }>;
+    }
+
+    if (!available.length) {
+      throw new Error(
+        "No available numbers found. Try a different area code or switch to toll-free.",
+      );
+    }
+
+    const purchased = await client.incomingPhoneNumbers.create({
+      phoneNumber: available[0].phoneNumber,
+      ...(data.nickname ? { friendlyName: data.nickname } : {}),
+    });
+
+    return {
+      phoneNumber: purchased.phoneNumber as string,
+      nickname: (purchased.friendlyName ?? "") as string,
+    };
+  });
+
+/** List Twilio phone numbers owned by this workspace (for OpenAI Realtime agents). */
+export const listTwilioPhoneNumbers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: Record<string, never> | undefined) => input ?? {})
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data: ws } = await (supabase as any)
+      .from("workspace_settings")
+      .select("twilio_auth_token")
+      .eq("workspace_id", context.workspaceId)
+      .maybeSingle();
+
+    const sid = process.env.TWILIO_ACCOUNT_SID ?? null;
+    const token =
+      (ws?.twilio_auth_token as string | null) ??
+      process.env.TWILIO_AUTH_TOKEN ??
+      null;
+    if (!sid || !token) {
+      return [] as Array<{ phoneNumber: string; nickname: string; inboundAgentId: string | null }>;
+    }
+
+    const Twilio = (await import("twilio")).default;
+    const client = Twilio(sid, token);
+    const numbers = await client.incomingPhoneNumbers.list({ limit: 100 });
+    return numbers.map((n) => ({
+      phoneNumber: n.phoneNumber as string,
+      nickname: (n.friendlyName ?? "") as string,
+      inboundAgentId: null as string | null,
+    }));
+  });

@@ -30,6 +30,8 @@ import {
   saveAgentDeployedRetellId,
   goLiveAgent,
   fetchCalcomEventTypes,
+  buyTwilioPhoneNumber,
+  listTwilioPhoneNumbers,
   type AgentGoLiveType,
 } from "@/lib/agents/agents.functions";
 import {
@@ -95,8 +97,10 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   }
 
   const buyFn = useServerFn(buyRetellPhoneNumber);
+  const buyTwilioFn = useServerFn(buyTwilioPhoneNumber);
   const importFn = useServerFn(importSipPhoneNumber);
   const listFn = useServerFn(listRetellPhoneNumbers);
+  const listTwilioFn = useServerFn(listTwilioPhoneNumbers);
   const assignFn = useServerFn(assignNumberToAgent);
   const saveCalFn = useServerFn(saveAgentCalcom);
   const fetchEventTypesFn = useServerFn(fetchCalcomEventTypes);
@@ -189,9 +193,14 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   const hasProductionKeyForOps = true;
 
   const numbersQ = useQuery({
-    queryKey: ["retell-numbers", agent?.id, deployedId ? "prod" : "dev"],
-    queryFn: () => listFn({ data: { agentRowId: agent!.id } }),
-    enabled: open && !!agent && hasProductionKeyForOps,
+    queryKey: isOpenAiRealtime
+      ? ["twilio-numbers", agent?.id]
+      : ["retell-numbers", agent?.id, deployedId ? "prod" : "dev"],
+    queryFn: () =>
+      isOpenAiRealtime
+        ? listTwilioFn({ data: {} })
+        : listFn({ data: { agentRowId: agent!.id } }),
+    enabled: open && !!agent,
   });
 
   if (!agent) return null;
@@ -216,7 +225,9 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     }
     await savePhoneFn({ data: { id: agent!.id, phoneNumber } });
     qc.invalidateQueries({ queryKey: ["my-agents"] });
-    qc.invalidateQueries({ queryKey: ["retell-numbers"] });
+    qc.invalidateQueries({
+      queryKey: isOpenAiRealtime ? ["twilio-numbers", agent!.id] : ["retell-numbers"],
+    });
   }
 
   async function handleClone() {
@@ -257,20 +268,34 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   async function handleBuy() {
     setBuying(true);
     try {
-      const res = await buyFn({
-        data: {
-          tollFree,
-          areaCode: areaCode ? Number(areaCode) : undefined,
-          nickname: nickname || agent!.name,
-          ...dirIds(),
-          agentRowId: agent!.id,
-        },
-      });
+      let phoneNumber: string;
+      if (isOpenAiRealtime) {
+        const res = await buyTwilioFn({
+          data: {
+            tollFree,
+            areaCode: areaCode ? Number(areaCode) : undefined,
+            nickname: nickname || agent!.name,
+          },
+        });
+        phoneNumber = res.phoneNumber;
+        qc.invalidateQueries({ queryKey: ["twilio-numbers", agent!.id] });
+      } else {
+        const res = await buyFn({
+          data: {
+            tollFree,
+            areaCode: areaCode ? Number(areaCode) : undefined,
+            nickname: nickname || agent!.name,
+            ...dirIds(),
+            agentRowId: agent!.id,
+          },
+        });
+        phoneNumber = res.phoneNumber;
+        qc.invalidateQueries({ queryKey: ["retell-numbers"] });
+      }
 
-      await savePhoneFn({ data: { id: agent!.id, phoneNumber: res.phoneNumber } });
+      await savePhoneFn({ data: { id: agent!.id, phoneNumber } });
       qc.invalidateQueries({ queryKey: ["my-agents"] });
-      qc.invalidateQueries({ queryKey: ["retell-numbers"] });
-      toast.success("Number purchased", { description: res.phoneNumber });
+      toast.success("Number purchased", { description: phoneNumber });
       setAreaCode("");
       setNickname("");
     } catch (e) {
@@ -283,26 +308,40 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   async function handleSipImport() {
     setImporting(true);
     try {
-      const res = await importFn({
-        data: {
-          phoneNumber: sipPhone.trim(),
-          terminationUri: sipUri,
-          sipUsername: sipUser || undefined,
-          sipPassword: sipPass || undefined,
-          nickname: sipNick || agent!.name,
-          ...dirIds(),
-          agentRowId: agent!.id,
-        },
-      });
-
-      await savePhoneFn({ data: { id: agent!.id, phoneNumber: res.phoneNumber } });
-      qc.invalidateQueries({ queryKey: ["my-agents"] });
-      toast.success("SIP number connected", { description: res.phoneNumber });
-      setSipPhone("");
-      setSipUri("");
-      setSipUser("");
-      setSipPass("");
-      setSipNick("");
+      if (isOpenAiRealtime) {
+        // For OpenAI Realtime agents: no SIP trunk registration with Retell —
+        // just validate and save the phone number. The Twilio webhook is set
+        // automatically when the agent goes live.
+        const num = sipPhone.trim();
+        if (!/^\+\d{7,15}$/.test(num)) {
+          throw new Error("Phone number must be in E.164 format, e.g. +14155552671");
+        }
+        await savePhoneFn({ data: { id: agent!.id, phoneNumber: num } });
+        qc.invalidateQueries({ queryKey: ["my-agents"] });
+        qc.invalidateQueries({ queryKey: ["twilio-numbers", agent!.id] });
+        toast.success("Phone number saved", { description: num });
+        setSipPhone("");
+      } else {
+        const res = await importFn({
+          data: {
+            phoneNumber: sipPhone.trim(),
+            terminationUri: sipUri,
+            sipUsername: sipUser || undefined,
+            sipPassword: sipPass || undefined,
+            nickname: sipNick || agent!.name,
+            ...dirIds(),
+            agentRowId: agent!.id,
+          },
+        });
+        await savePhoneFn({ data: { id: agent!.id, phoneNumber: res.phoneNumber } });
+        qc.invalidateQueries({ queryKey: ["my-agents"] });
+        toast.success("SIP number connected", { description: res.phoneNumber });
+        setSipPhone("");
+        setSipUri("");
+        setSipUser("");
+        setSipPass("");
+        setSipNick("");
+      }
     } catch (e) {
       toast.error("SIP import failed", { description: (e as Error).message });
     } finally {
@@ -696,7 +735,10 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                       </Label>
                       <div className="mt-2 max-h-48 overflow-y-auto rounded-md border divide-y">
                         {numbersQ.data.map((n) => {
-                          const attached = n.inboundAgentId === retellId;
+                          const savedPhone = (settings.phoneNumber as string | undefined) ?? null;
+                          const attached = isOpenAiRealtime
+                            ? n.phoneNumber === savedPhone
+                            : n.inboundAgentId === retellId;
                           return (
                             <div
                               key={n.phoneNumber}
@@ -744,58 +786,86 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
               {/* SIP */}
               <TabsContent value="sip" className="space-y-3 mt-4">
-                <p className="text-xs text-muted-foreground">
-                  Bring your own carrier number via SIP trunking. Phone number must be in E.164
-                  format (e.g. +447533043457).
-                </p>
-                <div className="space-y-1">
-                  <Label className="text-xs">Phone Number</Label>
-                  <Input
-                    placeholder="+447533043457"
-                    value={sipPhone}
-                    onChange={(e) => setSipPhone(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Termination URI</Label>
-                  <Input
-                    placeholder="your-trunk.pstn.twilio.com"
-                    value={sipUri}
-                    onChange={(e) => setSipUri(e.target.value)}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">SIP Username (optional)</Label>
-                    <Input value={sipUser} onChange={(e) => setSipUser(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">SIP Password (optional)</Label>
-                    <Input
-                      type="password"
-                      value={sipPass}
-                      onChange={(e) => setSipPass(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Nickname (optional)</Label>
-                  <Input
-                    placeholder={agent.name}
-                    value={sipNick}
-                    onChange={(e) => setSipNick(e.target.value)}
-                  />
-                </div>
-                <Button
-                  onClick={handleSipImport}
-                  disabled={
-                    importing || needsDeploy || !sipPhone || !sipUri || !hasProductionKeyForOps
-                  }
-                  className="w-full"
-                >
-                  {importing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                  Save SIP number
-                </Button>
+                {isOpenAiRealtime ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Enter the phone number you want to attach (E.164 format). Configure the
+                      corresponding SIP trunk in your Twilio console — the inbound webhook will be
+                      set automatically when you go live.
+                    </p>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Phone Number</Label>
+                      <Input
+                        placeholder="+14155552671"
+                        value={sipPhone}
+                        onChange={(e) => setSipPhone(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSipImport}
+                      disabled={importing || !sipPhone}
+                      className="w-full"
+                    >
+                      {importing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Save phone number
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Bring your own carrier number via SIP trunking. Phone number must be in E.164
+                      format (e.g. +447533043457).
+                    </p>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Phone Number</Label>
+                      <Input
+                        placeholder="+447533043457"
+                        value={sipPhone}
+                        onChange={(e) => setSipPhone(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Termination URI</Label>
+                      <Input
+                        placeholder="your-trunk.pstn.twilio.com"
+                        value={sipUri}
+                        onChange={(e) => setSipUri(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">SIP Username (optional)</Label>
+                        <Input value={sipUser} onChange={(e) => setSipUser(e.target.value)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">SIP Password (optional)</Label>
+                        <Input
+                          type="password"
+                          value={sipPass}
+                          onChange={(e) => setSipPass(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Nickname (optional)</Label>
+                      <Input
+                        placeholder={agent.name}
+                        value={sipNick}
+                        onChange={(e) => setSipNick(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSipImport}
+                      disabled={
+                        importing || needsDeploy || !sipPhone || !sipUri || !hasProductionKeyForOps
+                      }
+                      className="w-full"
+                    >
+                      {importing && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Save SIP number
+                    </Button>
+                  </>
+                )}
               </TabsContent>
 
               {/* CAL.COM */}
