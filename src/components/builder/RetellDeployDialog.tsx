@@ -467,13 +467,47 @@ export function RetellDeployDialog() {
 
       let sessionReady = false;
 
+      // ── Instrumentation helpers ──────────────────────────────────────────
+      // t0 is set when the call object is created; all log timestamps are
+      // relative offsets from that moment so the trace is easy to read.
+      const t0 = performance.now();
+      const hsLog = (
+        direction: "OUT" | "IN " | "   ",
+        event: string,
+        extra: Record<string, unknown> = {},
+      ) => {
+        const ms = (performance.now() - t0).toFixed(0).padStart(6);
+        const pairs = Object.entries(extra)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(" ");
+        console.log(`[HS ${ms}ms] ${direction} ${event}${pairs ? "  " + pairs : ""}`);
+      };
+
+      // Audio-append throttle: log a summary every 50 packets instead of
+      // every single one (100ms chunks × 50 = ~5 s between log lines).
+      let appendPktCount = 0;
+      let appendByteTotal = 0;
+
+      // Track which response_id we last saw so we can label "first delta".
+      let currentResponseId = "";
+      let deltaCountForResponse = 0;
+
       // Convert an Int16 PCM buffer → base64 and stream to OpenAI.
       const sendPcm = (int16: Int16Array) => {
         if (!sessionReady || ws.readyState !== WebSocket.OPEN) return;
         const uint8 = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
         let binary = "";
         for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
-        ws.send(JSON.stringify({ type: "input_audio_buffer.append", audio: btoa(binary) }));
+        const payload = JSON.stringify({ type: "input_audio_buffer.append", audio: btoa(binary) });
+        ws.send(payload);
+        appendPktCount += 1;
+        appendByteTotal += payload.length;
+        if (appendPktCount % 50 === 0) {
+          hsLog("OUT", "input_audio_buffer.append", {
+            packets: appendPktCount,
+            totalBytes: appendByteTotal,
+          });
+        }
       };
 
       // Prefer AudioWorklet: it runs mic capture on the audio render thread, so
@@ -579,6 +613,7 @@ export function RetellDeployDialog() {
           const msg = JSON.parse(raw) as Record<string, unknown>;
 
           if (msg.type === "relay.connected") {
+            hsLog("IN ", "relay.connected");
             // Configure the session. Wait for session.updated before
             // streaming mic audio — avoids sending audio before OpenAI
             // has applied the configuration.
@@ -589,8 +624,8 @@ export function RetellDeployDialog() {
             // Using a nested schema causes OpenAI to silently ignore turn_detection,
             // leaving the session in manual mode (no VAD → user speech never triggers
             // a response after the greeting).
-            ws.send(
-              JSON.stringify({
+            const compiledPrompt = compileRealtimePrompt(nodes, edges, settings, variables);
+            const updatePayload = JSON.stringify({
                 type: "session.update",
                 session: {
                   // Schema derived from session.created response (gpt-realtime model).
@@ -599,7 +634,7 @@ export function RetellDeployDialog() {
                   // with "unknown_parameter".
                   type: "realtime",
                   output_modalities: ["audio"],
-                  instructions: compileRealtimePrompt(nodes, edges, settings, variables),
+                  instructions: compiledPrompt,
                   audio: {
                     input: {
                       turn_detection: {
@@ -618,20 +653,25 @@ export function RetellDeployDialog() {
                     },
                   },
                 },
-              }),
-            );
+              });
+            hsLog("OUT", "session.update", {
+              payloadBytes: updatePayload.length,
+              instructionsChars: compiledPrompt.length,
+              voice: settings.openaiVoice ?? "alloy",
+              hasInstructions: compiledPrompt.length > 0,
+            });
+            ws.send(updatePayload);
             return;
           }
 
           // Session confirmed — safe to start mic streaming and trigger greeting.
           if (msg.type === "session.updated") {
-            console.log(
-              `[hyperstream] session.updated received, ws.readyState=${ws.readyState}`,
-            );
+            hsLog("IN ", "session.updated", { payloadBytes: raw.length });
             // Ask the agent to greet the caller FIRST so a re-render can't block it.
             try {
-              ws.send(JSON.stringify({ type: "response.create" }));
-              console.log("[hyperstream] response.create sent");
+              const rcPayload = JSON.stringify({ type: "response.create" });
+              ws.send(rcPayload);
+              hsLog("OUT", "response.create", { payloadBytes: rcPayload.length });
             } catch (err) {
               console.error("[hyperstream] response.create send failed:", err);
             }
@@ -658,23 +698,85 @@ export function RetellDeployDialog() {
             const detail = (msg.error as Record<string, unknown> | undefined)?.message
               ?? msg.message
               ?? "Unknown error";
+            hsLog("IN ", "error", { detail: String(detail).slice(0, 120) });
             toast.error("HyperStream session error", { description: String(detail) });
             return;
           }
 
-          // Decode and schedule AI audio playback.
+          // ── Speech detection events (confirms user audio is reaching OpenAI VAD)
+          if (msg.type === "input_audio_buffer.speech_started") {
+            hsLog("IN ", "input_audio_buffer.speech_started", {
+              audio_start_ms: msg.audio_start_ms,
+              item_id: msg.item_id,
+              appendPacketsSoFar: appendPktCount,
+            });
+            return;
+          }
+
+          if (msg.type === "input_audio_buffer.speech_stopped") {
+            hsLog("IN ", "input_audio_buffer.speech_stopped", {
+              audio_end_ms: msg.audio_end_ms,
+              item_id: msg.item_id,
+            });
+            return;
+          }
+
+          if (msg.type === "input_audio_buffer.committed") {
+            hsLog("IN ", "input_audio_buffer.committed", {
+              item_id: msg.item_id,
+              previous_item_id: msg.previous_item_id,
+            });
+            return;
+          }
+
+          // ── Response lifecycle
+          if (msg.type === "response.created") {
+            const resp = msg.response as Record<string, unknown> | undefined;
+            currentResponseId = (resp?.id as string) ?? "";
+            deltaCountForResponse = 0;
+            hsLog("IN ", "response.created", {
+              response_id: currentResponseId,
+              payloadBytes: raw.length,
+            });
+            return;
+          }
+
+          if (msg.type === "response.done") {
+            const resp = msg.response as Record<string, unknown> | undefined;
+            const usage = resp?.usage as Record<string, unknown> | undefined;
+            hsLog("IN ", "response.done", {
+              response_id: resp?.id,
+              status: resp?.status,
+              audioDeltas: deltaCountForResponse,
+              inputTokens: usage?.input_tokens,
+              outputTokens: usage?.output_tokens,
+            });
+            return;
+          }
+
+          // ── Decode and schedule AI audio playback.
           // GA Realtime renamed "response.audio.delta" → "response.output_audio.delta".
           if (
             (msg.type === "response.output_audio.delta" ||
               msg.type === "response.audio.delta") &&
             typeof msg.delta === "string"
           ) {
+            deltaCountForResponse += 1;
+            // Log only the first delta per response so the console doesn't flood.
+            if (deltaCountForResponse === 1) {
+              hsLog("IN ", msg.type as string, {
+                response_id: msg.response_id ?? currentResponseId,
+                deltaBytes: (msg.delta as string).length,
+                note: "first-delta",
+              });
+            }
+
             const ctx = audioCtxRef.current;
             if (!ctx) return;
             // Resume if suspended (belt-and-suspenders — the keep-alive
             // oscillator should prevent suspension, but just in case).
             if (ctx.state === "suspended") {
-              console.log("[hyperstream] ctx suspended on audio delta — resuming");
+              hsLog("   ", "AudioContext suspended on delta — resuming");
               void ctx.resume();
             }
             const binaryStr = atob(msg.delta as string);
