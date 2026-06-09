@@ -1,0 +1,73 @@
+CRITICAL ARCHITECTURE AUDIT
+
+Before making any code changes, perform a full architecture assessment of this Builder application and the Core Architecture Runtime.
+
+NON-NEGOTIABLE REQUIREMENTS:
+
+1. Retell functionality must remain 100% unchanged.
+2. Existing Retell agents must continue working.
+3. Existing Retell deployments must continue working.
+4. Existing Retell API integrations must continue working.
+5. Existing Retell workflows must continue working.
+6. Existing Retell voice configurations must continue working.
+7. Existing Retell clients must experience zero behavioural changes.
+8. No Retell database schema changes unless absolutely required.
+9. No Retell deployment path modifications.
+10. No Retell runtime code replacements.
+
+Treat Retell as a protected system.
+
+Current Builder responsibilities that must remain authoritative:
+
+* Agent Builder
+* Workflow Builder
+* Prompt Compiler
+* Variables
+* Knowledge Bases
+* Qualification Logic
+* User Dashboard
+* Retell Deployment
+* Retell Configuration
+
+Determine how the Core Architecture Runtime can be added as a SECOND deployment option without modifying the existing Retell deployment path.
+
+Required target architecture:
+
+Builder
+├── Deploy to Retell
+└── Deploy to Native Runtime
+
+Core Architecture responsibilities:
+
+* OpenAI Runtime
+* Gemini Runtime
+* Claude Runtime
+* Tool Execution
+* MCP Execution
+* Voice Runtime
+* Realtime Session Management
+
+Produce:
+
+1. Current architecture diagram.
+2. Retell dependency map.
+3. Retell code paths.
+4. Core Architecture code paths.
+5. Shared components.
+6. Safe integration points.
+7. Components that must never be modified.
+8. Risk assessment.
+9. Migration strategy.
+10. Rollback strategy.
+
+IMPORTANT:
+
+Do not implement any code changes.
+
+Do not refactor any Retell code.
+
+Do not replace any Retell functionality.
+
+Produce a detailed report only.
+
+After the report, recommend the safest implementation plan that preserves complete Retell compatibility.
