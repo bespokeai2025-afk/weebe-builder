@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+
 import { useState } from "react";
 import { FilePlus2, LayoutTemplate, Zap, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,11 +49,21 @@ function AgentsNewPage() {
   const navigate = useNavigate();
   const [provider, setProvider] = useState<VoiceProvider>("RETELL");
 
+  function applyProviderToStore() {
+    const store = useBuilderStore.getState();
+    store.setSettings({ voiceProvider: provider } as Partial<BuilderSettings>);
+  }
+
   function startFromScratch() {
     const store = useBuilderStore.getState();
     store.clearAll();
     store.setSettings({ voiceProvider: provider } as Partial<BuilderSettings>);
     navigate({ to: "/builder", search: { new: "1" } });
+  }
+
+  function browseTemplates() {
+    applyProviderToStore();
+    navigate({ to: "/templates", search: { mode: "picker" } });
   }
 
   return (
@@ -137,10 +148,8 @@ function AgentsNewPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="mt-auto pt-0">
-              <Button asChild className="w-full">
-                <Link to="/templates" search={{ mode: "picker" }}>
-                  Browse templates
-                </Link>
+              <Button className="w-full" onClick={browseTemplates}>
+                Browse templates
               </Button>
             </CardContent>
           </Card>
