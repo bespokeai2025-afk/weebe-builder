@@ -159,42 +159,51 @@ async function recordTelemetryEvent(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Calls table upsert (mirrors retell processor pattern)
+// Calls table upsert — propagates errors to caller
 // ---------------------------------------------------------------------------
 
-async function upsertCall(row: Record<string, unknown>): Promise<void> {
+async function upsertCall(row: Record<string, unknown>): Promise<{ error: string | null }> {
   const callId = row.retell_call_id as string | undefined;
-  if (!callId) {
-    await supabaseAdmin.from("calls").insert(row as never);
-    return;
-  }
 
   try {
-    const { data: existing } = await supabaseAdmin
+    if (!callId) {
+      const { error } = await supabaseAdmin.from("calls").insert(row as never);
+      return { error: error?.message ?? null };
+    }
+
+    const { data: existing, error: lookupError } = await supabaseAdmin
       .from("calls")
       .select("id")
       .eq("retell_call_id", callId)
       .maybeSingle();
 
+    if (lookupError) return { error: lookupError.message };
+
     if (existing?.id) {
-      await supabaseAdmin
+      const { error } = await supabaseAdmin
         .from("calls")
         .update(row as never)
         .eq("id", existing.id as string);
-    } else {
-      const inserted = await supabaseAdmin.from("calls").insert(row as never);
-      if (inserted.error) {
-        const msg = inserted.error.message.toLowerCase();
-        if (msg.includes("duplicate") || msg.includes("unique")) {
-          await supabaseAdmin
-            .from("calls")
-            .update(row as never)
-            .eq("retell_call_id", callId);
-        }
-      }
+      return { error: error?.message ?? null };
     }
+
+    const { error: insertError } = await supabaseAdmin.from("calls").insert(row as never);
+    if (!insertError) return { error: null };
+
+    const msg = insertError.message.toLowerCase();
+    if (msg.includes("duplicate") || msg.includes("unique")) {
+      const { error: retryError } = await supabaseAdmin
+        .from("calls")
+        .update(row as never)
+        .eq("retell_call_id", callId);
+      return { error: retryError?.message ?? null };
+    }
+
+    return { error: insertError.message };
   } catch (e) {
-    console.error("[CUSTOM TELEMETRY] calls upsert failed", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[CUSTOM TELEMETRY] upsertCall threw", msg);
+    return { error: msg };
   }
 }
 
@@ -220,9 +229,7 @@ export async function processCustomTelemetry(
   }
 
   // Resolve workspace from agent_id
-  const agentResolution = payload.agent_id
-    ? await resolveAgent(payload.agent_id)
-    : null;
+  const agentResolution = payload.agent_id ? await resolveAgent(payload.agent_id) : null;
   const workspaceId = agentResolution?.workspace_id ?? null;
   const internalAgentId = agentResolution?.id ?? null;
 
@@ -234,13 +241,41 @@ export async function processCustomTelemetry(
         ? Math.round(payload.duration_seconds)
         : null;
 
+  // Write audit row first (best-effort — never blocks)
+  await recordTelemetryEvent({
+    workspaceId,
+    callId,
+    agentId: payload.agent_id ?? null,
+    signatureValid,
+    status: "received",
+    payload,
+  });
+
+  // workspace_id is required by the calls table — skip the insert if we
+  // could not resolve it, but still return ok so the audit row stands.
+  if (!workspaceId) {
+    console.warn("[CUSTOM TELEMETRY] Could not resolve workspace_id — skipping calls insert", {
+      agent_id: payload.agent_id,
+      call_id: callId,
+    });
+    return {
+      ok: true,
+      message: "audit_only — workspace not resolved",
+      callId: callId ?? undefined,
+      signatureValid: signatureValid ?? undefined,
+    };
+  }
+
+  // Build the calls row — match Retell column semantics exactly.
+  // to_number and workspace_id are the only non-nullable required fields.
   const callRow: Record<string, unknown> = {
-    workspace_id: workspaceId ?? null,
+    workspace_id: workspaceId,
     agent_id: internalAgentId ?? null,
     retell_call_id: callId,
     call_status: mapStatus(payload.call_status),
+    call_type: "inbound",                              // default for custom engine calls
     from_number: payload.from_number ?? null,
-    to_number: payload.to_number ?? null,
+    to_number: payload.to_number ?? payload.from_number ?? "unknown",  // required non-null
     started_at: timestampToIso(payload.start_timestamp),
     ended_at: timestampToIso(payload.end_timestamp),
     duration_seconds: durationSeconds,
@@ -250,7 +285,30 @@ export async function processCustomTelemetry(
     sentiment: mapSentiment(payload.user_sentiment),
   };
 
-  // Write audit row first (best-effort)
+  const { error: callsError } = await upsertCall(callRow);
+
+  if (callsError) {
+    console.error("[CUSTOM TELEMETRY] calls write failed", callsError);
+    // Update audit row with error status (best-effort)
+    await recordTelemetryEvent({
+      workspaceId,
+      callId,
+      agentId: payload.agent_id ?? null,
+      signatureValid,
+      status: "error",
+      payload,
+      error: callsError,
+    });
+    return {
+      ok: false,
+      message: `calls write failed: ${callsError}`,
+      callId: callId ?? undefined,
+      workspaceId,
+      signatureValid: signatureValid ?? undefined,
+    };
+  }
+
+  // Update audit row to processed
   await recordTelemetryEvent({
     workspaceId,
     callId,
@@ -259,20 +317,6 @@ export async function processCustomTelemetry(
     status: "processed",
     payload,
   });
-
-  // Write / upsert to calls table
-  try {
-    await upsertCall(callRow);
-  } catch (e) {
-    console.error("[CUSTOM TELEMETRY] Unexpected error in upsertCall", e);
-    return {
-      ok: false,
-      message: "calls write failed",
-      callId: callId ?? undefined,
-      workspaceId: workspaceId ?? undefined,
-      signatureValid: signatureValid ?? undefined,
-    };
-  }
 
   console.log("[CUSTOM TELEMETRY] Processed successfully", {
     callId,
@@ -284,7 +328,7 @@ export async function processCustomTelemetry(
     ok: true,
     message: "processed",
     callId: callId ?? undefined,
-    workspaceId: workspaceId ?? undefined,
+    workspaceId,
     signatureValid: signatureValid ?? undefined,
   };
 }
