@@ -450,9 +450,14 @@ export function RetellDeployDialog() {
         );
       };
 
+      ws.binaryType = "arraybuffer";
       ws.onmessage = (ev) => {
         try {
-          const msg = JSON.parse(ev.data as string) as Record<string, unknown>;
+          const raw =
+            typeof ev.data === "string"
+              ? ev.data
+              : new TextDecoder().decode(ev.data as ArrayBuffer);
+          const msg = JSON.parse(raw) as Record<string, unknown>;
 
           if (msg.type === "relay.connected") {
             // Configure the session. Wait for session.updated before

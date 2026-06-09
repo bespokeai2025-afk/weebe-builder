@@ -67,7 +67,7 @@ export function hyperStreamRelayPlugin(): Plugin {
               }
             });
 
-            openaiWs.on("message", (data: import("ws").RawData) => {
+            openaiWs.on("message", (data: import("ws").RawData, isBinary: boolean) => {
               try {
                 const msg = JSON.parse(data.toString()) as Record<string, unknown>;
                 if (
@@ -78,7 +78,11 @@ export function hyperStreamRelayPlugin(): Plugin {
                 }
               } catch { /* binary frame */ }
               if (browserWs.readyState === WebSocket.OPEN) {
-                browserWs.send(data);
+                // Forward with the correct frame type. OpenAI sends TEXT frames,
+                // but the ws library delivers them as Buffer; sending a Buffer
+                // without binary:false re-sends as a BINARY frame, which the
+                // browser receives as a Blob and JSON.parse silently drops.
+                browserWs.send(data, { binary: isBinary });
               }
             });
 

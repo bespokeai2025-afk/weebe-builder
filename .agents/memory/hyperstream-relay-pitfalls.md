@@ -22,16 +22,16 @@ The `httpServer.on("upgrade", ...)` handler **must not** `await` anything before
 If the upgrade handler is `async` and awaits (e.g. `await import("ws")`), Replit's reverse proxy drops the socket before `handleUpgrade` runs.
 Fix: import `ws` at the top level of the plugin file so the handler stays synchronous.
 
-## 4 — Binary frames
-The `ws` library receives all WebSocket messages as `Buffer` even when the original was a text frame.
-Forwarding `openaiWs.send(data)` with a Buffer sends a **binary** frame.
-OpenAI Realtime rejects binary frames with `invalid_event`.
-Fix:
+## 4 — Binary frames (BOTH directions — this is the subtle one)
+The `ws` library hands every message to its `message` listener as a `Buffer`, even when the peer sent a TEXT frame. If you then `.send(buffer)` without `{ binary: false }`, ws re-emits it as a BINARY frame. So a relay that blindly forwards `Buffer` payloads silently converts every text frame to binary.
+- Browser → OpenAI: binary frame → OpenAI rejects with `invalid_event`.
+- OpenAI → browser: binary frame → arrives in the browser as a `Blob`/`ArrayBuffer`, and `JSON.parse(ev.data)` throws and (if wrapped in try/catch) is silently dropped — `session.created`/`session.updated`/audio deltas all vanish. Symptom: only `relay.connected` (which the relay sends as a real JS string) is ever parsed; the call configures then hangs and closes 1005.
+Fix — forward with the original frame type in BOTH directions using the `isBinary` arg:
 ```typescript
-browserWs.on("message", (data: RawData, isBinary: boolean) => {
-  openaiWs.send(data, { binary: isBinary });
-});
+openaiWs.on("message", (data, isBinary) => browserWs.send(data, { binary: isBinary }));
+browserWs.on("message", (data, isBinary) => openaiWs.send(data, { binary: isBinary }));
 ```
+Defensive belt-and-suspenders on the browser: set `ws.binaryType = "arraybuffer"` and decode non-string frames with `TextDecoder` before `JSON.parse`.
 
 ## How to apply
 Any time the relay plugin or session creator is modified, verify all four points above are still in place before testing.
