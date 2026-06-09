@@ -33,6 +33,7 @@ import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
@@ -179,6 +180,12 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   path: '/lovable/email/suppression',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWebhookCustomTelemetryRoute =
+  ApiWebhookCustomTelemetryRouteImport.update({
+    id: '/api/webhook/custom-telemetry',
+    path: '/api/webhook/custom-telemetry',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicVoiceWebhookRoute = ApiPublicVoiceWebhookRouteImport.update({
   id: '/api/public/voice-webhook',
   path: '/api/public/voice-webhook',
@@ -357,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -407,6 +415,7 @@ export interface FileRoutesByTo {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -460,6 +469,7 @@ export interface FileRoutesById {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -513,6 +523,7 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
+    | '/api/webhook/custom-telemetry'
     | '/lovable/email/suppression'
     | '/admin/'
     | '/api/public/agents/register'
@@ -563,6 +574,7 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
+    | '/api/webhook/custom-telemetry'
     | '/lovable/email/suppression'
     | '/admin'
     | '/api/public/agents/register'
@@ -615,6 +627,7 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
+    | '/api/webhook/custom-telemetry'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
     | '/api/public/agents/register'
@@ -649,6 +662,7 @@ export interface RootRouteChildren {
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
+  ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
   ApiPublicCalcomWebhookWorkspaceIdRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -834,6 +848,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhook/custom-telemetry': {
+      id: '/api/webhook/custom-telemetry'
+      path: '/api/webhook/custom-telemetry'
+      fullPath: '/api/webhook/custom-telemetry'
+      preLoaderRoute: typeof ApiWebhookCustomTelemetryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/voice-webhook': {
@@ -1123,6 +1144,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
+  ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
   ApiPublicCalcomWebhookWorkspaceIdRoute:
