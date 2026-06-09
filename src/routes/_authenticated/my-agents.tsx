@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { z } from "zod";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Radio, Search, Zap } from "lucide-react";
@@ -22,7 +23,12 @@ import { useBuilderStore } from "@/lib/builder/store";
 import type { BuilderSettings } from "@/lib/builder/types";
 import { listMyAgents, getMyAgent, deleteMyAgent } from "@/lib/agents/agents.functions";
 
+const voiceEngineSchema = z.object({
+  engine: z.enum(["ALL", "RETELL", "OPENAI_REALTIME"]).optional().default("ALL"),
+});
+
 export const Route = createFileRoute("/_authenticated/my-agents")({
+  validateSearch: voiceEngineSchema,
   head: () => ({
     meta: [
       { title: "Agents — Webee" },
@@ -45,7 +51,7 @@ function MyAgentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [query, setQuery] = useState("");
-  const [voiceFilter, setVoiceFilter] = useState<"ALL" | "RETELL" | "OPENAI_REALTIME">("ALL");
+  const { engine: voiceFilter } = useSearch({ from: "/_authenticated/my-agents" });
   const [deployTarget, setDeployTarget] = useState<{
     id: string;
     name: string;
@@ -151,7 +157,13 @@ function MyAgentsPage() {
               ).map(({ value, label, icon }) => (
                 <button
                   key={value}
-                  onClick={() => setVoiceFilter(value)}
+                  onClick={() =>
+                    navigate({
+                      to: "/my-agents",
+                      search: { engine: value === "ALL" ? undefined : value },
+                      replace: true,
+                    })
+                  }
                   className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-all ${
                     voiceFilter === value
                       ? "bg-white/[0.08] text-foreground shadow-sm ring-1 ring-white/[0.10]"
