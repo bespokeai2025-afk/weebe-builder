@@ -68,6 +68,12 @@ export function hyperStreamRelayPlugin(): Plugin {
             });
 
             openaiWs.on("message", (data: import("ws").RawData) => {
+              try {
+                const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+                if (msg.type !== "response.audio.delta") {
+                  console.log(`[hyperstream-relay] OpenAI → browser: ${JSON.stringify(msg).slice(0, 200)}`);
+                }
+              } catch { /* binary frame */ }
               if (browserWs.readyState === WebSocket.OPEN) {
                 browserWs.send(data);
               }
