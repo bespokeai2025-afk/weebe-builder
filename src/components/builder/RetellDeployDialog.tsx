@@ -568,17 +568,30 @@ export function RetellDeployDialog() {
               JSON.stringify({
                 type: "session.update",
                 session: {
-                  // The gpt-realtime model requires this field in session.update.
+                  // Schema derived from session.created response (gpt-realtime model).
+                  // This model uses nested audio.input/output — NOT the flat schema
+                  // in the public OpenAI docs. Fields outside this shape are rejected
+                  // with "unknown_parameter".
                   type: "realtime",
-                  // This model uses output_modalities (not the standard modalities).
                   output_modalities: ["audio"],
                   instructions: compileRealtimePrompt(nodes, edges, settings, variables),
-                  voice: settings.openaiVoice ?? "alloy",
-                  // semantic_vad uses a model to decide when the caller has
-                  // actually finished, instead of a fixed silence timer, so
-                  // the agent stops cutting people off mid-sentence. Low
-                  // eagerness = wait longer before taking the turn.
-                  turn_detection: { type: "semantic_vad", eagerness: "low" },
+                  audio: {
+                    input: {
+                      // Raise silence threshold so the agent waits longer before
+                      // deciding the user has finished speaking.
+                      turn_detection: {
+                        type: "server_vad",
+                        threshold: 0.5,
+                        prefix_padding_ms: 300,
+                        silence_duration_ms: 600,
+                        create_response: true,
+                        interrupt_response: true,
+                      },
+                    },
+                    output: {
+                      voice: settings.openaiVoice ?? "alloy",
+                    },
+                  },
                 },
               }),
             );

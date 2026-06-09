@@ -33,30 +33,41 @@ browserWs.on("message", (data, isBinary) => openaiWs.send(data, { binary: isBina
 ```
 Defensive belt-and-suspenders on the browser: set `ws.binaryType = "arraybuffer"` and decode non-string frames with `TextDecoder` before `JSON.parse`.
 
-## 5 — session.update: FLAT schema required, AND session.type is mandatory
-The OpenAI Realtime `session.update` event uses flat top-level fields on `session` — NOT a nested `audio.input` / `audio.output` structure. Sending the wrong nested shape causes OpenAI to silently ignore `turn_detection`, leaving the session in **manual mode**: agent speaks the greeting (via explicit `response.create`) but never reacts to user speech (no VAD).
+## 5 — session.update exact schema for gpt-realtime (confirmed from session.created)
+The `gpt-realtime` model uses a **nested** `audio.input` / `audio.output` structure — the opposite of the public OpenAI Realtime API flat schema. Fields sent outside this shape are rejected with `unknown_parameter`. `session.type` is also **required** on every update.
 
-**Wrong** (all ignored by OpenAI):
-```json
-{ "session": { "audio": { "input": { "turn_detection": { "type": "semantic_vad" } } } } }
-```
+Confirmed from parsing the full `session.created` payload:
+- `output_modalities` (not `modalities`, not `input_audio_format`/`output_audio_format`)
+- `audio.input.turn_detection` — nested, NOT top-level
+- `audio.output.voice` — nested, NOT top-level
+- Format is `{ type: "audio/pcm", rate: 24000 }` (not `"pcm16"` string)
 
-**Correct** flat schema:
+**Correct shape**:
 ```json
 {
   "type": "session.update",
   "session": {
-    "modalities": ["text", "audio"],
+    "type": "realtime",
+    "output_modalities": ["audio"],
     "instructions": "...",
-    "voice": "alloy",
-    "input_audio_format": "pcm16",
-    "output_audio_format": "pcm16",
-    "turn_detection": { "type": "semantic_vad", "eagerness": "low" }
+    "audio": {
+      "input": {
+        "turn_detection": {
+          "type": "server_vad",
+          "threshold": 0.5,
+          "prefix_padding_ms": 300,
+          "silence_duration_ms": 600,
+          "create_response": true,
+          "interrupt_response": true
+        }
+      },
+      "output": { "voice": "alloy" }
+    }
   }
 }
 ```
 
-`pcm16` = signed 16-bit PCM at 24 kHz (the only rate OpenAI Realtime accepts; do not pass `{ type: "audio/pcm", rate: 24000 }`).
+`server_vad` is the confirmed valid type; `semantic_vad` may not be supported by this model.
 
 ## How to apply
 Any time the relay plugin or session creator is modified, verify all five points above are still in place before testing.
