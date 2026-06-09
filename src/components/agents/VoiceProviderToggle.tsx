@@ -29,12 +29,23 @@ export function VoiceProviderToggle({ agentId, currentProvider, hasPhone }: Prop
     if (next === active || loading) return;
     setLoading(true);
     try {
-      await setProviderFn({ data: { id: agentId, provider: next } });
+      const result = await setProviderFn({ data: { id: agentId, provider: next } });
       setActive(next);
       qc.invalidateQueries({ queryKey: ["my-agents"] });
-      toast.success("Voice Engine successfully reassigned!", {
-        description: next === "RETELL" ? "Traffic now routes via Retell AI." : "Traffic now routes via In-House OpenAI Fast.",
-      });
+
+      if (result?.twilioWarning) {
+        // DB saved successfully but Twilio webhook flip hit a non-fatal error
+        toast.success("Voice Engine saved.", {
+          description: `Provider updated, but the Twilio webhook could not be flipped: ${result.twilioWarning}`,
+        });
+      } else {
+        toast.success("Voice Engine successfully reassigned!", {
+          description:
+            next === "RETELL"
+              ? "Traffic now routes via Retell AI."
+              : "Traffic now routes via In-House OpenAI Fast.",
+        });
+      }
     } catch (e) {
       toast.error("Routing switch failed", { description: (e as Error).message });
     } finally {

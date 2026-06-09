@@ -521,66 +521,78 @@ export const setAgentVoiceProvider = createServerFn({ method: "POST" })
       (settings.phoneNumber as string | null) ??
       null;
 
+    // Twilio webhook flip — wrapped in try-catch so telephony errors NEVER
+    // crash the primary backend or affect other users (spec §2 isolation rule).
+    let twilioWarning: string | null = null;
     if (phoneNumber && agent.workspace_id) {
-      const { data: ws } = await sb
-        .from("workspace_settings")
-        .select("twilio_auth_token, retell_workspace_id")
-        .eq("workspace_id", agent.workspace_id)
-        .maybeSingle();
+      try {
+        const { data: ws } = await sb
+          .from("workspace_settings")
+          .select("twilio_auth_token, retell_workspace_id")
+          .eq("workspace_id", agent.workspace_id)
+          .maybeSingle();
 
-      // TWILIO_ACCOUNT_SID comes from the workspace env var per the spec
-      const twilioSid = process.env.TWILIO_ACCOUNT_SID ?? null;
-      const twilioToken =
-        (ws?.twilio_auth_token as string | null) ??
-        process.env.TWILIO_AUTH_TOKEN ??
-        null;
+        const twilioSid = process.env.TWILIO_ACCOUNT_SID ?? null;
+        const twilioToken =
+          (ws?.twilio_auth_token as string | null) ??
+          process.env.TWILIO_AUTH_TOKEN ??
+          null;
 
-      if (!twilioSid || !twilioToken) {
-        throw new Error(
-          "Twilio credentials not configured. Add TWILIO_ACCOUNT_SID and auth token in workspace settings.",
-        );
-      }
-
-      const Twilio = (await import("twilio")).default;
-      const client = Twilio(twilioSid, twilioToken);
-
-      const numbers = await client.incomingPhoneNumbers.list({ phoneNumber });
-      const numRecord = numbers[0];
-      if (!numRecord) {
-        throw new Error(
-          `Phone number ${phoneNumber} was not found in your Twilio account.`,
-        );
-      }
-
-      let voiceUrl: string;
-      if (data.provider === "RETELL") {
-        const retellKey =
-          (ws?.retell_workspace_id as string | null) ??
-          process.env.RETELL_API_KEY ??
-          "";
-        if (!retellKey) {
+        if (!twilioSid || !twilioToken) {
           throw new Error(
-            "Retell API key not configured — set it in workspace settings.",
+            "Twilio credentials not configured. Add TWILIO_ACCOUNT_SID and auth token in workspace settings.",
           );
         }
-        voiceUrl = `https://api.retellai.com/twilio-voice-webhook/${retellKey}`;
-      } else {
-        // OpenAI Realtime inbound URL — set via OPENAI_REALTIME_INBOUND_URL env var
-        // or openai_realtime_inbound_url in workspace_settings once migrated
-        const baseUrl =
-          process.env.OPENAI_REALTIME_INBOUND_URL ??
-          (ws as any)?.openai_realtime_inbound_url ??
-          "";
-        if (!baseUrl) {
+
+        const Twilio = (await import("twilio")).default;
+        const client = Twilio(twilioSid, twilioToken);
+
+        const numbers = await client.incomingPhoneNumbers.list({ phoneNumber });
+        const numRecord = numbers[0];
+        if (!numRecord) {
           throw new Error(
-            "OpenAI Realtime inbound URL not configured. Set OPENAI_REALTIME_INBOUND_URL in your environment.",
+            `Phone number ${phoneNumber} was not found in your Twilio account.`,
           );
         }
-        voiceUrl = `${baseUrl.replace(/\/$/, "")}/api/telephony/inbound-call`;
-      }
 
-      await client.incomingPhoneNumbers(numRecord.sid).update({ voiceUrl });
+        let voiceUrl: string;
+        if (data.provider === "RETELL") {
+          // Revert exactly to the production Retell webhook — no guessing
+          const retellKey =
+            (ws?.retell_workspace_id as string | null) ??
+            process.env.RETELL_API_KEY ??
+            "";
+          if (!retellKey) {
+            throw new Error(
+              "Retell API key not configured — set it in workspace settings.",
+            );
+          }
+          voiceUrl = `https://api.retellai.com/twilio-voice-webhook/${retellKey}`;
+        } else {
+          // OpenAI Realtime — only activated when explicitly chosen
+          const baseUrl =
+            process.env.OPENAI_REALTIME_INBOUND_URL ??
+            (ws as any)?.openai_realtime_inbound_url ??
+            "";
+          if (!baseUrl) {
+            throw new Error(
+              "OpenAI Realtime inbound URL not configured. Set OPENAI_REALTIME_INBOUND_URL in your environment.",
+            );
+          }
+          voiceUrl = `${baseUrl.replace(/\/$/, "")}/api/telephony/inbound-call`;
+        }
+
+        await client.incomingPhoneNumbers(numRecord.sid).update({ voiceUrl });
+      } catch (twilioErr: unknown) {
+        // Capture the error as a non-fatal warning — the DB record was already
+        // saved successfully; the caller can surface this to the user.
+        twilioWarning =
+          twilioErr instanceof Error
+            ? twilioErr.message
+            : "Twilio webhook update failed for an unknown reason.";
+        console.warn("[VoiceProvider] Twilio flip failed (non-fatal):", twilioWarning);
+      }
     }
 
-    return { ok: true };
+    return { ok: true, twilioWarning };
   });
