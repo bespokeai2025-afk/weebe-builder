@@ -485,6 +485,16 @@ export function RetellDeployDialog() {
 
           // Session confirmed — safe to start mic streaming and trigger greeting.
           if (msg.type === "session.updated") {
+            console.log(
+              `[hyperstream] session.updated received, ws.readyState=${ws.readyState}`,
+            );
+            // Ask the agent to greet the caller FIRST so a re-render can't block it.
+            try {
+              ws.send(JSON.stringify({ type: "response.create" }));
+              console.log("[hyperstream] response.create sent");
+            } catch (err) {
+              console.error("[hyperstream] response.create send failed:", err);
+            }
             sessionReady = true;
             startedAtRef.current = Date.now();
             recordedCallRef.current = false;
@@ -493,8 +503,6 @@ export function RetellDeployDialog() {
             setCalling(false);
             const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
             if (startNode) setActiveNode(startNode.id);
-            // Ask the agent to greet the caller so there's immediate audio feedback.
-            ws.send(JSON.stringify({ type: "response.create" }));
             return;
           }
 
@@ -544,7 +552,10 @@ export function RetellDeployDialog() {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        console.log(
+          `[hyperstream] browser ws.onclose code=${ev.code} reason="${ev.reason}" wasClean=${ev.wasClean}`,
+        );
         recordCurrentCallCost();
         setInCall(false);
         setActiveNode(null);
@@ -553,7 +564,8 @@ export function RetellDeployDialog() {
         cleanupHyperStream();
       };
 
-      ws.onerror = () => {
+      ws.onerror = (ev) => {
+        console.error("[hyperstream] browser ws.onerror", ev);
         toast.error("HyperStream connection failed");
         setCalling(false);
         cleanupHyperStream();
