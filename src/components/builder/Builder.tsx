@@ -295,6 +295,8 @@ export function Builder({
 }) {
   const { addNode, addBookingNode, clearAll, autoLayout, revertLayout, settings, setSettings } =
     useBuilderStore();
+  const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
+  const [pendingEngine, setPendingEngine] = useState<"RETELL" | "OPENAI_REALTIME" | null>(null);
 
   const isRetell = (settings.voiceProvider ?? "RETELL") !== "OPENAI_REALTIME";
   const isOpenAI = settings.voiceProvider === "OPENAI_REALTIME";
@@ -513,6 +515,29 @@ export function Builder({
           <ImportJsonDialog open={importOpen} onOpenChange={setImportOpen} hideTrigger />
           <ExportJsonDialog open={exportOpen} onOpenChange={setExportOpen} hideTrigger />
 
+          {/* Engine-switch confirmation dialog */}
+          <AlertDialog open={pendingEngine !== null} onOpenChange={(open) => { if (!open) setPendingEngine(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Switch voice engine?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This agent is already saved. Switching to a different voice engine will reset engine-specific settings such as voice selection and reasoning effort. This change takes effect the next time you save the agent.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setPendingEngine(null)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (pendingEngine) setSettings({ voiceProvider: pendingEngine });
+                    setPendingEngine(null);
+                  }}
+                >
+                  Switch engine
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
           {/* Voice Copilot — own small capsule */}
           <div className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5">
             <VoiceCopilotButton
@@ -725,7 +750,14 @@ export function Builder({
                   return (
                     <button
                       key={value}
-                      onClick={() => setSettings({ voiceProvider: value })}
+                      onClick={() => {
+                        if (active) return;
+                        if (currentAgentRowId) {
+                          setPendingEngine(value);
+                        } else {
+                          setSettings({ voiceProvider: value });
+                        }
+                      }}
                       className={`flex-1 flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-left transition-all duration-150 ${
                         active
                           ? "border-primary/60 bg-primary/10 ring-1 ring-primary/30"
