@@ -717,7 +717,7 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
       ? `You are an AI voice agent. ${startNode.data.dialogue.trim()}`
       : "You are a helpful AI voice agent. Assist callers professionally and efficiently.";
 
-    const model = "gpt-4o-realtime-preview-2025-06-03";
+    const model = "gpt-4o-realtime-preview-2024-12-17";
     const voice = schema.voice ?? "alloy";
 
     const sessionRes = await fetch("https://api.openai.com/v1/realtime/sessions", {
@@ -725,6 +725,7 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "OpenAI-Beta": "realtime=v1",
       },
       body: JSON.stringify({
         model,
