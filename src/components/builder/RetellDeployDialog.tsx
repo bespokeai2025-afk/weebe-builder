@@ -659,22 +659,26 @@ export function RetellDeployDialog() {
       {/* Deploy / utility cluster */}
       <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
         {/* Test / Run agent */}
-        {inCall ? (
+        {inCall || calling ? (
           <Button
             size="sm"
             variant="ghost"
             onClick={endCall}
             className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
-            title="End test call"
+            title={calling ? "Cancel connecting" : "End test call"}
           >
-            <PhoneOff className="h-3.5 w-3.5" />
+            {calling ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <PhoneOff className="h-3.5 w-3.5" />
+            )}
           </Button>
         ) : (
           <Button
             size="sm"
             variant="ghost"
             onClick={isOpenAI ? handleHyperStreamTestCall : handleTestCall}
-            disabled={calling || !hasAgent || (!isOpenAI && overLimit)}
+            disabled={!hasAgent || (!isOpenAI && overLimit)}
             className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
             title={
               !hasAgent
@@ -686,11 +690,7 @@ export function RetellDeployDialog() {
                     : "Test agent (browser call)"
             }
           >
-            {calling ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Phone className="h-3.5 w-3.5" />
-            )}
+            <Phone className="h-3.5 w-3.5" />
           </Button>
         )}
 

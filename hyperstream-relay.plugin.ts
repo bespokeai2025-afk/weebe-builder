@@ -99,9 +99,11 @@ export function hyperStreamRelayPlugin(): Plugin {
               }
             });
 
-            browserWs.on("message", (data: import("ws").RawData) => {
+            browserWs.on("message", (data: import("ws").RawData, isBinary: boolean) => {
               if (openaiWs.readyState === WebSocket.OPEN) {
-                openaiWs.send(data);
+                // Forward with the correct frame type — without isBinary the ws
+                // library treats Buffer payloads as binary frames, which OpenAI rejects.
+                openaiWs.send(data, { binary: isBinary });
               }
             });
 
