@@ -74,7 +74,7 @@ export function hyperStreamRelayPlugin(): Plugin {
                   msg.type !== "response.output_audio.delta" &&
                   msg.type !== "response.audio.delta"
                 ) {
-                  console.log(`[hyperstream-relay] OpenAI → browser: ${JSON.stringify(msg).slice(0, 300)}`);
+                  console.log(`[hyperstream-relay] OpenAI → browser: ${JSON.stringify(msg).slice(0, 2000)}`);
                 }
               } catch { /* binary frame */ }
               if (browserWs.readyState === WebSocket.OPEN) {

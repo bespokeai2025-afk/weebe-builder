@@ -570,12 +570,10 @@ export function RetellDeployDialog() {
                 session: {
                   // The gpt-realtime model requires this field in session.update.
                   type: "realtime",
-                  modalities: ["text", "audio"],
+                  // This model uses output_modalities (not the standard modalities).
+                  output_modalities: ["audio"],
                   instructions: compileRealtimePrompt(nodes, edges, settings, variables),
                   voice: settings.openaiVoice ?? "alloy",
-                  // pcm16 = signed 16-bit PCM at 24 kHz (the only rate OpenAI accepts).
-                  input_audio_format: "pcm16",
-                  output_audio_format: "pcm16",
                   // semantic_vad uses a model to decide when the caller has
                   // actually finished, instead of a fixed silence timer, so
                   // the agent stops cutting people off mid-sentence. Low
