@@ -18,9 +18,15 @@ export function hyperStreamRelayPlugin(): Plugin {
     name: "hyperstream-relay",
 
     configureServer(server) {
-      server.httpServer?.on("upgrade", async (req, socket, head) => {
+      if (!server.httpServer) {
+        console.error("[hyperstream-relay] server.httpServer is null — plugin inactive");
+        return;
+      }
+      console.log("[hyperstream-relay] registered on httpServer ✓");
+      server.httpServer.on("upgrade", async (req, socket, head) => {
         try {
           const urlPath = req.url?.split("?")[0] ?? "";
+          console.log(`[hyperstream-relay] upgrade event: ${urlPath}`);
           if (urlPath !== RELAY_PATH) return;
 
           const apiKey = process.env.OPENAI_API_KEY;
