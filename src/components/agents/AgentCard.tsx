@@ -237,9 +237,20 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentC
               )}
             </Badge>
           </div>
-          <h3 className="mt-3 truncate text-lg font-semibold tracking-tight text-foreground">
-            {agent.name}
-          </h3>
+          <div className="mt-3 flex items-center gap-2">
+            <h3 className="truncate text-lg font-semibold tracking-tight text-foreground">
+              {agent.name}
+            </h3>
+            {voiceProvider === "OPENAI_REALTIME" && (
+              <Badge
+                variant="outline"
+                className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 gap-1 px-2 py-0.5 text-[10px] font-semibold"
+              >
+                <Zap className="h-3 w-3" />
+                Enterprise Line
+              </Badge>
+            )}
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
             {phone ? (
               <span className="inline-flex items-center gap-1 font-mono">
