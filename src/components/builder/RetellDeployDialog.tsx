@@ -462,14 +462,21 @@ export function RetellDeployDialog() {
               JSON.stringify({
                 type: "session.update",
                 session: {
-                  modalities: ["text", "audio"],
+                  type: "realtime",
+                  output_modalities: ["audio"],
                   instructions: settings.agentName
                     ? `You are an AI voice agent named ${settings.agentName}. Be helpful and concise.`
                     : "You are a helpful AI voice assistant.",
-                  voice: settings.openaiVoice ?? "alloy",
-                  input_audio_format: "pcm16",
-                  output_audio_format: "pcm16",
-                  turn_detection: { type: "server_vad" },
+                  audio: {
+                    input: {
+                      format: { type: "audio/pcm", rate: 24000 },
+                      turn_detection: { type: "server_vad" },
+                    },
+                    output: {
+                      format: { type: "audio/pcm", rate: 24000 },
+                      voice: settings.openaiVoice ?? "alloy",
+                    },
+                  },
                 },
               }),
             );
@@ -508,7 +515,12 @@ export function RetellDeployDialog() {
           }
 
           // Decode and schedule AI audio playback.
-          if (msg.type === "response.audio.delta" && typeof msg.delta === "string") {
+          // GA Realtime renamed "response.audio.delta" → "response.output_audio.delta".
+          if (
+            (msg.type === "response.output_audio.delta" ||
+              msg.type === "response.audio.delta") &&
+            typeof msg.delta === "string"
+          ) {
             const ctx = audioCtxRef.current;
             if (!ctx) return;
             const binaryStr = atob(msg.delta as string);
