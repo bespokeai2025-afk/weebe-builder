@@ -1,0 +1,47 @@
+Title: Master Architecture Blueprint - Conditional Agent Lifecycle Routing with Strict Global Node Panel State Guardrails
+
+Please upgrade our entire backend API routing layer, controller endpoints, and frontend canvas action handlers on the builder page. Every function managing an agent's lifecycle must branch conditionally based on the active state of our global nodes configuration panel switch ('voice_provider'). 
+
+This implementation must use an absolute top-level guard condition: our existing Retell ("OmniVoice Engine") production pipelines must remain 100% untouched, locked, and safe by default. The new local database architecture must ONLY trigger if a user explicitly selects "HyperStream Engine" from the global nodes panel.
+
+---
+
+### 1. The Global Node Panel Guardrail (Strict Fail-Safe)
+* Identify the active state variable bound to the global nodes configuration panel switch (`voice_provider`). 
+* Every page action handler must run a strict conditional check against this panel state before initiating any backend requests. If the state is null, undefined, or explicitly set to "OmniVoice Engine" ('RETELL'), the codebase must blindly execute our legacy Retell pipelines.
+
+---
+
+### 2. "Create New Agent From Current Flow" Action Handler
+When the user clicks the creation button on the top header of the canvas:
+* **IF AND ONLY IF** the global panel has "HyperStream Engine" ('OPENAI_REALTIME') actively selected:
+  - Completely bypass all outbound HTTP API calls to external platforms.
+  - Generate a secure, local internal UUID string to serve as the primary 'agent_id'.
+  - Extract the active sidebar configuration states: chosen voice profile (e.g., 'alloy'), reasoning effort tier (e.g., 'low'), global system prompt text layout, temperature value, and the visual canvas nodes array.
+  - Execute a direct SQL INSERT into our shared database, setting 'voice_provider' explicitly to 'OPENAI_REALTIME'.
+* **OTHERWISE (Default State):** Run our legacy Retell registration and token collection code path without any alteration.
+
+---
+
+### 3. "Save / Update Agent" Configuration Handler
+When a user modifies prompt text, edits a node path, or adjusts a sidebar setting, and clicks the global top-right "Save" button:
+* **IF AND ONLY IF** the global panel has "HyperStream Engine" ('OPENAI_REALTIME') actively selected:
+  - Completely bypass all external Retell API PUT/POST request sequences.
+  - Compile the current visual canvas node map, global prompt text string, temperature, voice profile selection, and reasoning effort variables into a clean, unified JSON database object configured explicitly to match OpenAI's real-time parameters.
+  - Execute a direct SQL UPDATE against our database table where `agent_id === current_agent_id` to overwrite the existing blueprint locally in a single transaction loop.
+* **OTHERWISE (Default State):** Execute our legacy compilation script, pushing prompt updates to Retell's server via their API and updating our layout configurations locally.
+
+---
+
+### 4. "Load / Fetch Agent" Initialization Handler
+When a user selects an agent from their dashboard to load this builder canvas workspace page:
+* Fetch the targeted agent configuration row from our database and inspect the 'voice_provider' value BEFORE rendering any UI modules.
+* **IF 'RETELL' (OmniVoice Engine):** Boot up the builder in standard view mode. Reveal all legacy Retell selectors, ambient noise drop-downs, and custom voice catalogs.
+* **IF 'OPENAI_REALTIME' (HyperStream Engine):** Automatically trigger our morphed UI state layout. Clean-sweep the sidebar to hide Retell properties, set the global "Voice Infrastructure" toggle panel to highlight HyperStream, render the native OpenAI voice dropdown options, and map the reasoning effort slider value directly from the database row.
+
+---
+
+### 5. "Delete Agent" Destruction Handler
+When a user clicks the trash icon or delete button to remove an agent profile completely from the workspace:
+* **IF AND ONLY IF** the targeted agent record is explicitly mapped to the 'OPENAI_REALTIME' database provider:
+  - Bypass external connection loops completely.

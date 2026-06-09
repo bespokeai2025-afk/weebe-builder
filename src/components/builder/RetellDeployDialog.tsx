@@ -76,6 +76,7 @@ export function RetellDeployDialog() {
   });
 
   const hasAgent = Boolean(settings.agentId);
+  const isOpenAI = settings.voiceProvider === "OPENAI_REALTIME";
 
   useEffect(() => {
     return () => {
@@ -113,6 +114,55 @@ export function RetellDeployDialog() {
         ? "update"
         : kind;
     setDeploying(effectiveKind);
+
+    // ── HyperStream Engine guard ────────────────────────────────────────────
+    // When voice_provider === "OPENAI_REALTIME" we skip ALL outbound Retell
+    // API calls and write directly to our local database instead.
+    if (isOpenAI) {
+      try {
+        const { nodes: n, edges: e, settings: s, variables: v } =
+          useBuilderStore.getState();
+        // Reuse existing local ID if already saved; otherwise generate one.
+        const existingLocalId =
+          s.agentId && !String(s.agentId).startsWith("agent_")
+            ? (s.agentId as string)
+            : undefined;
+        const localId =
+          existingLocalId ??
+          `hs_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
+        const updatedSettings = {
+          ...s,
+          agentId: localId,
+          deployedAgentName: s.agentName,
+        };
+        setSettings({ agentId: localId, deployedAgentName: s.agentName });
+        const { id: rowId } = await upsertAgent({
+          data: {
+            id: useBuilderStore.getState().currentAgentRowId ?? undefined,
+            retellAgentId: null,
+            name: s.agentName || "Untitled agent",
+            flowData: { nodes: n, edges: e } as never,
+            settings: updatedSettings as never,
+            variables: v as never,
+          },
+        });
+        useBuilderStore.getState().setCurrentAgentRowId(rowId);
+        qc.invalidateQueries({ queryKey: ["my-agents"] });
+        toast.success(
+          effectiveKind === "update"
+            ? "HyperStream agent updated"
+            : "HyperStream agent saved",
+          { description: "Saved locally — routed via Master Admin Enterprise Line" },
+        );
+      } catch (e) {
+        toast.error("Save failed", { description: (e as Error).message });
+      } finally {
+        setDeploying(null);
+      }
+      return;
+    }
+    // ── End HyperStream guard — OmniVoice (Retell) path below is unchanged ──
+
     try {
       const agent = exportAgentJson(nodes, edges, settings, variables);
       const isUpdate = effectiveKind === "update";
@@ -367,50 +417,54 @@ export function RetellDeployDialog() {
     <>
       {/* Deploy / utility cluster */}
       <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
-        {/* Test / Run agent */}
-        {inCall ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={endCall}
-            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
-            title="End test call"
-          >
-            <PhoneOff className="h-3.5 w-3.5" />
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleTestCall}
-            disabled={calling || !hasAgent || overLimit}
-            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
-            title={
-              overLimit
-                ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
-                : hasAgent
-                  ? "Test agent (browser call)"
-                  : "Deploy the agent first"
-            }
-          >
-            {calling ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Phone className="h-3.5 w-3.5" />
-            )}
-          </Button>
+        {/* Test / Run agent — OmniVoice only (Retell web-call SDK) */}
+        {!isOpenAI && (
+          inCall ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={endCall}
+              className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
+              title="End test call"
+            >
+              <PhoneOff className="h-3.5 w-3.5" />
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleTestCall}
+              disabled={calling || !hasAgent || overLimit}
+              className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
+              title={
+                overLimit
+                  ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
+                  : hasAgent
+                    ? "Test agent (browser call)"
+                    : "Deploy the agent first"
+              }
+            >
+              {calling ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Phone className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )
         )}
 
-        {/* Load existing agent by ID */}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setLoadOpen(true)}
-          className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
-          title="Load agent by ID"
-        >
-          <Download className="h-3.5 w-3.5" />
-        </Button>
+        {/* Load existing agent by ID — OmniVoice only */}
+        {!isOpenAI && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setLoadOpen(true)}
+            className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:text-foreground"
+            title="Load agent by ID"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+        )}
 
         {/* Update existing */}
         {hasAgent && (
@@ -420,7 +474,11 @@ export function RetellDeployDialog() {
             onClick={() => handleDeploy("update")}
             disabled={deploying !== null}
             className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-sky-500/10 hover:text-sky-300"
-            title="Update existing agent with current flow"
+            title={
+              isOpenAI
+                ? "Sync current changes to local database"
+                : "Update existing agent with current flow"
+            }
           >
             {deploying === "update" ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -433,7 +491,7 @@ export function RetellDeployDialog() {
         {/* Divider before primary CTA */}
         <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
 
-        {/* Create / Deploy — ghost with primary color on hover */}
+        {/* Create / Deploy */}
         <Button
           data-tour="builder-create-deploy-btn"
           size="sm"
@@ -441,7 +499,11 @@ export function RetellDeployDialog() {
           onClick={() => handleDeploy("create")}
           disabled={deploying !== null}
           className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-primary/10 hover:text-primary"
-          title="Create new agent from current flow"
+          title={
+            isOpenAI
+              ? "Save agent to HyperStream local database"
+              : "Create new agent from current flow"
+          }
         >
           {deploying === "create" ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
