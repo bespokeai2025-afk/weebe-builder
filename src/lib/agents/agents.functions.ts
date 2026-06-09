@@ -720,7 +720,7 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
       ? `You are an AI voice agent. ${startNode.data.dialogue.trim()}`
       : "You are a helpful AI voice agent. Assist callers professionally and efficiently.";
 
-    const model = "gpt-4o-realtime-preview-2024-12-17";
+    const model = "gpt-realtime";
     const voice = schema.voice ?? "alloy";
 
     // Use node:https directly to avoid any Vinxi/undici fetch interceptors

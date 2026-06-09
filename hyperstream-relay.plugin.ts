@@ -17,7 +17,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { Plugin } from "vite";
 
 const RELAY_PATH = "/api/hyperstream-relay";
-const OPENAI_MODEL = "gpt-4o-realtime-preview-2024-12-17";
+const OPENAI_MODEL = "gpt-realtime";
 
 export function hyperStreamRelayPlugin(): Plugin {
   return {
