@@ -10,6 +10,14 @@
  */
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import {
+  analyzeCallTranscript,
+  updateLeadIntelligence,
+} from "@/lib/lead-gen/lead-intelligence.server";
+import {
+  analyzeQualification,
+  applyQualificationToLead,
+} from "@/lib/qualification/qualification-engine.server";
 
 // ---------------------------------------------------------------------------
 // Payload type expected from Project B
@@ -29,6 +37,14 @@ export type CustomTelemetryPayload = {
   recording_url?: string;
   call_summary?: string;
   user_sentiment?: string;
+  /**
+   * Custom post-call variables produced by the OpenAI Realtime engine.
+   * Mirrors Retell's `call_analysis.custom_analysis_data` and is forwarded
+   * into lead scoring, field mappings, and qualification scoring rules.
+   * Also accepted under the alias `post_call_variables` for flexibility.
+   */
+  custom_analysis_data?: Record<string, unknown>;
+  post_call_variables?: Record<string, unknown>;
 };
 
 export type CustomTelemetryResult = {
@@ -90,23 +106,39 @@ function truncate(value: string, max = 4000): string {
 }
 
 // ---------------------------------------------------------------------------
-// Agent resolution
+// Agent resolution — fetches all fields needed for post-call analysis
 // ---------------------------------------------------------------------------
 
-async function resolveAgent(agentId: string): Promise<{
-  id?: string;
-  workspace_id?: string;
-} | null> {
+type ResolvedAgent = {
+  id: string;
+  workspace_id: string;
+  agent_type: string | null;
+  dashboardAgentType: string | null;
+  leadGenSettings: Record<string, unknown> | null;
+  qualifySettings: Record<string, unknown> | null;
+};
+
+async function resolveAgent(agentId: string): Promise<ResolvedAgent | null> {
   if (!agentId) return null;
 
   // 1. Try matching by retell_agent_id
   try {
     const { data } = await supabaseAdmin
       .from("agents")
-      .select("id, workspace_id")
+      .select("id, workspace_id, agent_type, settings")
       .eq("retell_agent_id", agentId)
       .maybeSingle();
-    if (data) return { id: data.id as string, workspace_id: data.workspace_id as string };
+    if (data) {
+      const s = ((data.settings ?? {}) as Record<string, unknown>);
+      return {
+        id: data.id as string,
+        workspace_id: data.workspace_id as string,
+        agent_type: (data.agent_type as string | null) ?? null,
+        dashboardAgentType: (s.dashboardAgentType as string | undefined) ?? null,
+        leadGenSettings: (s.leadGen as Record<string, unknown> | undefined) ?? null,
+        qualifySettings: (s.qualify as Record<string, unknown> | undefined) ?? null,
+      };
+    }
   } catch (e) {
     console.warn("[CUSTOM TELEMETRY] retell_agent_id lookup failed", e);
   }
@@ -115,10 +147,20 @@ async function resolveAgent(agentId: string): Promise<{
   try {
     const { data } = await supabaseAdmin
       .from("agents")
-      .select("id, workspace_id")
+      .select("id, workspace_id, agent_type, settings")
       .eq("id", agentId)
       .maybeSingle();
-    if (data) return { id: data.id as string, workspace_id: data.workspace_id as string };
+    if (data) {
+      const s = ((data.settings ?? {}) as Record<string, unknown>);
+      return {
+        id: data.id as string,
+        workspace_id: data.workspace_id as string,
+        agent_type: (data.agent_type as string | null) ?? null,
+        dashboardAgentType: (s.dashboardAgentType as string | undefined) ?? null,
+        leadGenSettings: (s.leadGen as Record<string, unknown> | undefined) ?? null,
+        qualifySettings: (s.qualify as Record<string, unknown> | undefined) ?? null,
+      };
+    }
   } catch (e) {
     console.warn("[CUSTOM TELEMETRY] UUID agent lookup failed", e);
   }
@@ -204,6 +246,107 @@ async function upsertCall(row: Record<string, unknown>): Promise<{ error: string
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[CUSTOM TELEMETRY] upsertCall threw", msg);
     return { error: msg };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Post-call analysis — lead generation
+// ---------------------------------------------------------------------------
+
+async function runLeadGenAnalysis(
+  workspaceId: string,
+  agentRow: ResolvedAgent,
+  payload: CustomTelemetryPayload,
+  callId: string | null,
+): Promise<void> {
+  const contactPhone = payload.from_number ?? null;
+  if (!contactPhone) {
+    console.warn("[CUSTOM TELEMETRY] [LEAD-GEN] No contact phone — skipping analysis", { callId });
+    return;
+  }
+
+  const lgSettings = agentRow.leadGenSettings ?? {};
+  const autoUpdate = (lgSettings as any).autoUpdateLead !== false;
+  if (!autoUpdate) return;
+
+  // Merge both accepted custom-variable field names; prefer custom_analysis_data
+  const customData: Record<string, unknown> =
+    payload.custom_analysis_data ?? payload.post_call_variables ?? {};
+
+  try {
+    console.log("[CUSTOM TELEMETRY] [LEAD-GEN] Starting post-call intelligence extraction", {
+      callId,
+      workspaceId,
+      customVars: Object.keys(customData).length,
+    });
+    const intelligence = await analyzeCallTranscript(
+      payload.transcript ?? "",
+      payload.user_sentiment,
+      payload.call_summary,
+    );
+    await updateLeadIntelligence(workspaceId, contactPhone, intelligence, {
+      contactName: null,
+      agentName: null,
+      customData,
+      postCallMappings: ((lgSettings as any).postCallMappings as Record<string, string> | undefined) ?? {},
+      customScoringRules: ((lgSettings as any).customScoringRules as Array<{ variable: string; points: number }> | undefined) ?? [],
+    });
+    console.log("[CUSTOM TELEMETRY] [LEAD-GEN] Intelligence update complete", {
+      callId,
+      score: intelligence.lead_score,
+      customVars: Object.keys(customData).length,
+    });
+  } catch (lgErr) {
+    console.error("[CUSTOM TELEMETRY] [LEAD-GEN] Post-call processing error", lgErr);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Post-call analysis — client qualification
+// ---------------------------------------------------------------------------
+
+async function runQualificationAnalysis(
+  workspaceId: string,
+  agentRow: ResolvedAgent,
+  payload: CustomTelemetryPayload,
+  callId: string | null,
+): Promise<void> {
+  const contactPhone = payload.from_number ?? null;
+  if (!contactPhone) {
+    console.warn("[CUSTOM TELEMETRY] [QUALIFY] No contact phone — skipping analysis", { callId });
+    return;
+  }
+
+  // Merge both accepted custom-variable field names; prefer custom_analysis_data
+  const customData: Record<string, unknown> =
+    payload.custom_analysis_data ?? payload.post_call_variables ?? {};
+
+  try {
+    console.log("[CUSTOM TELEMETRY] [QUALIFY] Starting post-call qualification analysis", {
+      callId,
+      workspaceId,
+      customVars: Object.keys(customData).length,
+    });
+    const result = await analyzeQualification(
+      payload.transcript ?? "",
+      payload.user_sentiment,
+      payload.call_summary,
+    );
+    const qualifySettings = agentRow.qualifySettings ?? {};
+    await applyQualificationToLead(workspaceId, contactPhone, result, {
+      contactName: null,
+      agentName: null,
+      customData,
+      qualifySettings,
+    });
+    console.log("[CUSTOM TELEMETRY] [QUALIFY] Qualification complete", {
+      callId,
+      status: result.qualification_status,
+      score: result.qualification_score,
+      customVars: Object.keys(customData).length,
+    });
+  } catch (qErr) {
+    console.error("[CUSTOM TELEMETRY] [QUALIFY] Post-call processing error", qErr);
   }
 }
 
@@ -306,6 +449,23 @@ export async function processCustomTelemetry(
       workspaceId,
       signatureValid: signatureValid ?? undefined,
     };
+  }
+
+  // ── Post-call analysis pipeline ──────────────────────────────────────────
+  // Mirrors the secondary analysis the Retell webhook runs on call_analyzed
+  // events for lead_generation and client_qualification agent types.
+  // All failures are non-fatal — the call record is already written above.
+  if (agentResolution) {
+    const isLeadGen =
+      agentResolution.dashboardAgentType === "lead_generation" ||
+      agentResolution.agent_type === "lead_gen";
+    const isQualification = agentResolution.dashboardAgentType === "client_qualification";
+
+    if (isLeadGen) {
+      await runLeadGenAnalysis(workspaceId, agentResolution, payload, callId);
+    } else if (isQualification) {
+      await runQualificationAnalysis(workspaceId, agentResolution, payload, callId);
+    }
   }
 
   // Update audit row to processed
