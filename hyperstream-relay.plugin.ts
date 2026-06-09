@@ -30,7 +30,9 @@ export function hyperStreamRelayPlugin(): Plugin {
           if (urlPath !== RELAY_PATH) return;
 
           const apiKey = process.env.OPENAI_API_KEY;
+          console.log(`[hyperstream-relay] apiKey present: ${!!apiKey}`);
           if (!apiKey) {
+            console.error("[hyperstream-relay] OPENAI_API_KEY not configured");
             socket.write(
               "HTTP/1.1 503 Service Unavailable\r\n" +
                 "Content-Type: text/plain\r\n\r\n" +
@@ -41,6 +43,7 @@ export function hyperStreamRelayPlugin(): Plugin {
           }
 
           const { WebSocketServer, WebSocket } = await import("ws");
+          console.log("[hyperstream-relay] connecting to OpenAI Realtime…");
 
           const wss = new WebSocketServer({ noServer: true });
           wss.handleUpgrade(req, socket, head, (browserWs) => {
