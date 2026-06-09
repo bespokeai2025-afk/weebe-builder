@@ -7,7 +7,13 @@
  * using the server-side OPENAI_API_KEY, then relays all frames bidirectionally.
  *
  * Only active in the Vite dev server (configureServer hook).
+ *
+ * IMPORTANT: ws is imported at the top level so that the upgrade handler can
+ * call handleUpgrade synchronously. If the import is deferred with
+ * `await import("ws")` inside the async handler, the Replit reverse-proxy
+ * drops the socket before handleUpgrade runs.
  */
+import { WebSocket, WebSocketServer } from "ws";
 import type { Plugin } from "vite";
 
 const RELAY_PATH = "/api/hyperstream-relay";
@@ -23,14 +29,13 @@ export function hyperStreamRelayPlugin(): Plugin {
         return;
       }
       console.log("[hyperstream-relay] registered on httpServer ✓");
-      server.httpServer.on("upgrade", async (req, socket, head) => {
+
+      server.httpServer.on("upgrade", (req, socket, head) => {
         try {
           const urlPath = req.url?.split("?")[0] ?? "";
-          console.log(`[hyperstream-relay] upgrade event: ${urlPath}`);
           if (urlPath !== RELAY_PATH) return;
 
           const apiKey = process.env.OPENAI_API_KEY;
-          console.log(`[hyperstream-relay] apiKey present: ${!!apiKey}`);
           if (!apiKey) {
             console.error("[hyperstream-relay] OPENAI_API_KEY not configured");
             socket.write(
@@ -42,11 +47,10 @@ export function hyperStreamRelayPlugin(): Plugin {
             return;
           }
 
-          const { WebSocketServer, WebSocket } = await import("ws");
-          console.log("[hyperstream-relay] connecting to OpenAI Realtime…");
-
+          console.log("[hyperstream-relay] upgrading browser socket…");
           const wss = new WebSocketServer({ noServer: true });
           wss.handleUpgrade(req, socket, head, (browserWs) => {
+            console.log("[hyperstream-relay] browser WS upgraded, connecting to OpenAI…");
             const openaiWs = new WebSocket(
               `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(OPENAI_MODEL)}`,
               {
@@ -58,6 +62,7 @@ export function hyperStreamRelayPlugin(): Plugin {
             );
 
             openaiWs.on("open", () => {
+              console.log("[hyperstream-relay] OpenAI WS open — sending relay.connected");
               if (browserWs.readyState === WebSocket.OPEN) {
                 browserWs.send(JSON.stringify({ type: "relay.connected" }));
               }
@@ -79,7 +84,8 @@ export function hyperStreamRelayPlugin(): Plugin {
               browserWs.close(1011, "OpenAI WebSocket error");
             });
 
-            openaiWs.on("close", () => {
+            openaiWs.on("close", (code, reason) => {
+              console.log(`[hyperstream-relay] OpenAI WS closed: ${code} ${reason}`);
               if (
                 browserWs.readyState === WebSocket.OPEN ||
                 browserWs.readyState === WebSocket.CONNECTING
@@ -95,6 +101,7 @@ export function hyperStreamRelayPlugin(): Plugin {
             });
 
             browserWs.on("close", () => {
+              console.log("[hyperstream-relay] browser WS closed");
               if (
                 openaiWs.readyState === WebSocket.OPEN ||
                 openaiWs.readyState === WebSocket.CONNECTING
