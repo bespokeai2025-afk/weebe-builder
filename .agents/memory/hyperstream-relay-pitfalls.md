@@ -1,12 +1,12 @@
 ---
 name: HyperStream relay pitfalls
-description: Four bugs fixed to get the OpenAI Realtime WebSocket relay working in the Vite dev server.
+description: Bugs fixed to get the OpenAI Realtime WebSocket relay working in the Vite dev server.
 ---
 
 ## Rule
-When touching the HyperStream relay (`hyperstream-relay.plugin.ts`) or `createOpenAIRealtimeSession`, keep these four fixes in place.
+When touching the HyperStream relay (`hyperstream-relay.plugin.ts`) or `createOpenAIRealtimeSession`, keep these fixes in place.
 
-**Why:** Each was a silent failure that looked like "call hangs up immediately."
+**Why:** Each was a silent failure that looked like "call hangs up immediately" or "agent never responds to user speech."
 
 ## 1 — Model name (as of June 2026)
 Old model `gpt-4o-realtime-preview-2024-12-17` no longer exists.
@@ -33,5 +33,30 @@ browserWs.on("message", (data, isBinary) => openaiWs.send(data, { binary: isBina
 ```
 Defensive belt-and-suspenders on the browser: set `ws.binaryType = "arraybuffer"` and decode non-string frames with `TextDecoder` before `JSON.parse`.
 
+## 5 — session.update uses a FLAT schema (NOT nested audio.input / audio.output)
+The OpenAI Realtime `session.update` event uses flat top-level fields on `session` — NOT a nested `audio.input` / `audio.output` structure. Sending the wrong nested shape causes OpenAI to silently ignore `turn_detection`, leaving the session in **manual mode**: agent speaks the greeting (via explicit `response.create`) but never reacts to user speech (no VAD).
+
+**Wrong** (all ignored by OpenAI):
+```json
+{ "session": { "audio": { "input": { "turn_detection": { "type": "semantic_vad" } } } } }
+```
+
+**Correct** flat schema:
+```json
+{
+  "type": "session.update",
+  "session": {
+    "modalities": ["text", "audio"],
+    "instructions": "...",
+    "voice": "alloy",
+    "input_audio_format": "pcm16",
+    "output_audio_format": "pcm16",
+    "turn_detection": { "type": "semantic_vad", "eagerness": "low" }
+  }
+}
+```
+
+`pcm16` = signed 16-bit PCM at 24 kHz (the only rate OpenAI Realtime accepts; do not pass `{ type: "audio/pcm", rate: 24000 }`).
+
 ## How to apply
-Any time the relay plugin or session creator is modified, verify all four points above are still in place before testing.
+Any time the relay plugin or session creator is modified, verify all five points above are still in place before testing.

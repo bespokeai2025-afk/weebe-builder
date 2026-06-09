@@ -557,27 +557,28 @@ export function RetellDeployDialog() {
             // Configure the session. Wait for session.updated before
             // streaming mic audio — avoids sending audio before OpenAI
             // has applied the configuration.
+            //
+            // IMPORTANT: OpenAI Realtime session.update uses a FLAT schema —
+            // turn_detection, voice, and audio formats are all top-level fields
+            // on `session`, NOT nested under audio.input / audio.output.
+            // Using a nested schema causes OpenAI to silently ignore turn_detection,
+            // leaving the session in manual mode (no VAD → user speech never triggers
+            // a response after the greeting).
             ws.send(
               JSON.stringify({
                 type: "session.update",
                 session: {
-                  type: "realtime",
-                  output_modalities: ["audio"],
+                  modalities: ["text", "audio"],
                   instructions: compileRealtimePrompt(nodes, edges, settings, variables),
-                  audio: {
-                    input: {
-                      format: { type: "audio/pcm", rate: 24000 },
-                      // semantic_vad uses a model to decide when the caller has
-                      // actually finished, instead of a fixed silence timer, so
-                      // the agent stops cutting people off mid-sentence. Low
-                      // eagerness = wait longer before taking the turn.
-                      turn_detection: { type: "semantic_vad", eagerness: "low" },
-                    },
-                    output: {
-                      format: { type: "audio/pcm", rate: 24000 },
-                      voice: settings.openaiVoice ?? "alloy",
-                    },
-                  },
+                  voice: settings.openaiVoice ?? "alloy",
+                  // pcm16 = signed 16-bit PCM at 24 kHz (the only rate OpenAI accepts).
+                  input_audio_format: "pcm16",
+                  output_audio_format: "pcm16",
+                  // semantic_vad uses a model to decide when the caller has
+                  // actually finished, instead of a fixed silence timer, so
+                  // the agent stops cutting people off mid-sentence. Low
+                  // eagerness = wait longer before taking the turn.
+                  turn_detection: { type: "semantic_vad", eagerness: "low" },
                 },
               }),
             );
