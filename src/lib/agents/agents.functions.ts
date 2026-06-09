@@ -723,10 +723,9 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
     // Use node:https directly to avoid any Vinxi/undici fetch interceptors
     // that can re-route absolute HTTPS URLs back through the app server.
     const sessionPayload = JSON.stringify({ model, voice, instructions });
+    const { request: httpsRequest } = await import("node:https");
     const clientSecret = await new Promise<string>((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const https = require("node:https") as typeof import("node:https");
-      const req = https.request(
+      const req = httpsRequest(
         {
           hostname: "api.openai.com",
           port: 443,
