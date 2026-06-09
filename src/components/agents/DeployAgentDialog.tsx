@@ -24,6 +24,7 @@ import {
   assignNumberToAgent,
   cloneRetellAgentForDeploy,
 } from "@/lib/builder/retell.functions";
+import { VoiceProviderToggle, type VoiceProvider } from "@/components/agents/VoiceProviderToggle";
 import {
   saveAgentCalcom,
   saveAgentPhoneNumber,
@@ -50,6 +51,8 @@ interface Props {
     name: string;
     retell_agent_id: string | null;
     settings?: Record<string, unknown> | null;
+    voice_provider?: string | null;
+    inbound_phone_number?: string | null;
   } | null;
 }
 
@@ -540,6 +543,22 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
           </div>
         ) : (
           <>
+            {/* Voice Engine Routing */}
+            {!needsDeploy && (
+              <VoiceProviderToggle
+                agentId={agent.id}
+                currentProvider={
+                  ((settings.voiceProvider ?? agent.voice_provider) as VoiceProvider | null | undefined) ?? "RETELL"
+                }
+                hasPhone={
+                  !!(
+                    (settings.phoneNumber as string | undefined) ??
+                    agent.inbound_phone_number
+                  )
+                }
+              />
+            )}
+
             {/* Production workspace clone */}
             {agent.retell_agent_id && (
               <div className="rounded-md border p-3 text-xs space-y-3">

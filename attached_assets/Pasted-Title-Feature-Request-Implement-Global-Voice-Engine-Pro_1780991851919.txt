@@ -1,0 +1,23 @@
+Title: Feature Request - Implement Global Voice Engine Provider Toggle and Twilio Webhook Automation
+
+Please update our main platform builder application (Project 1) to support hot-swapping our underlying voice engine provider between Retell AI and our custom native OpenAI Realtime microservice.
+
+### 1. Database & UI Component Modification
+* Ensure the 'agents' or 'workspace_settings' table schema has a 'voice_provider' text column (enum: ['RETELL', 'OPENAI_REALTIME'], default: 'RETELL').
+* On our Agent Profile / Settings UI panel, add a clean layout dropdown or button group toggle labeled: "Voice Engine Routing: [ Retell AI | In-House OpenAI Fast ]".
+* Clicking this component should make an immediate API call to update the 'voice_provider' row state in our database.
+
+### 2. Automated Twilio Webhook Flipping Logic
+Create a backend trigger hook that executes immediately after a user successfully changes the 'voice_provider' state in the UI panel:
+* **Twilio SDK Initialization:** Initialize the official 'twilio' Node package utilizing our workspace's 'TWILIO_ACCOUNT_SID' and 'TWILIO_AUTH_TOKEN'.
+* Look up the active phone number string currently assigned to this specific agent profile.
+* **Conditional URL Flipping:** Execute a Twilio IncomingPhoneNumber update API call (`client.incomingPhoneNumbers(sid).update({...})`) to rewrite the phone line's primary Voice Webhook incoming URL depending on the switch target:
+  
+  1. If selected provider is 'RETELL':
+     - Update the 'voiceUrl' parameter to target Retell's primary carrier webhook: `https://api.retellai.com/twilio-voice-webhook/<RETELL_API_KEY>`
+  2. If selected provider is 'OPENAI_REALTIME':
+     - Update the 'voiceUrl' parameter to target our newly deployed Project B inbound routing endpoint: `https://your-project-b.replit.app/api/telephony/inbound-call`
+
+### 3. State Propagation Feedback
+* Ensure the UI displays a processing spinner state ("Configuring Telecom Routing Carrier...") during the Twilio API swap execution. 
+* Return a clear toast alert notification: "Voice Engine successfully reassigned!" upon completion.

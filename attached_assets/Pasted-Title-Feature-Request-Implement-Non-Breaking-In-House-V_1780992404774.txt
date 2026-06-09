@@ -1,0 +1,20 @@
+Title: Feature Request - Implement Non-Breaking In-House Voice Provider Toggle (Retell Infrastructure Preservation)
+
+Please implement an opt-in Voice Engine Provider toggle to allow testing our native OpenAI Realtime microservice (Project B) WITHOUT disrupting, altering, or breaking any of our existing Retell AI agents, configurations, webhooks, or infrastructure. 
+
+### 1. Zero-Disruption Database & UI Component
+* **Schema Safety:** Add an optional text column named 'voice_provider' to our 'agents' or 'workspace_settings' table. This MUST strictly default to 'RETELL'. Do not alter, rename, or drop any existing columns used for Retell metadata (such as 'retell_agent_id' or existing webhook tokens).
+* **Isolated UI Control:** On the Agent Configuration panel, add a discrete toggle component: "Voice Engine: [ Retell AI (Default) | Native OpenAI Fast ]". 
+* **State Execution:** If an agent is set to 'RETELL', the platform must follow our exact existing codebase paths with zero interference. The new engine logic must only activate if 'voice_provider' is explicitly saved as 'OPENAI_REALTIME'.
+
+### 2. Isolated, Safe Twilio Webhook Flipping
+Create a defensive background function that triggers ONLY when a user actively modifies the 'voice_provider' state in the UI panel:
+* **Dependency Isolation:** Use a try-catch block around the entire Twilio SDK initialization to guarantee that any telephony configuration errors never crash our primary application backend or disrupt other users.
+* **Conditional Overwrite Safeguard:** 1. If the user selects 'OPENAI_REALTIME': 
+     - Read the agent's assigned phone number and update its Twilio 'voiceUrl' webhook parameter to target our new Project B endpoint: `https://your-project-b.replit.app/api/telephony/inbound-call`.
+  2. If the user selects (or reverts back to) 'RETELL':
+     - Revert the phone number's Twilio 'voiceUrl' back to our exact production Retell webhook string: `https://api.retellai.com/twilio-voice-webhook/<YOUR_RETELL_API_KEY>`. 
+     - Ensure that our existing Retell setup maps cleanly back to its original state.
+
+### 3. Webhook Infrastructure Preservation
+* Do not touch, alter, or intercept any existing webhook endpoints currently listening for Retell post-call data, recording files, or call logs (e.g., `/api/retell-webhook`). These must remain completely active and open to handle traffic from your ongoing Retell configurations exactly as they do right now.

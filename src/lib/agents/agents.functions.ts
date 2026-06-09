@@ -27,7 +27,7 @@ export const listMyAgents = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("agents")
-      .select("id, retell_agent_id, name, cost_seconds, settings, updated_at, created_at")
+      .select("id, retell_agent_id, name, cost_seconds, settings, updated_at, created_at, inbound_phone_number")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
     return (data ?? []) as Array<{
@@ -38,6 +38,7 @@ export const listMyAgents = createServerFn({ method: "GET" })
       settings: Json;
       updated_at: string;
       created_at: string;
+      inbound_phone_number: string | null;
     }>;
   });
 
@@ -485,4 +486,101 @@ export const goLiveAgent = createServerFn({ method: "POST" })
     }
 
     return { ok: true, live: true };
+  });
+
+/**
+ * Update an agent's voice engine provider and atomically flip the Twilio
+ * inbound webhook URL on the attached phone number.
+ */
+export const setAgentVoiceProvider = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { id: string; provider: "RETELL" | "OPENAI_REALTIME" }) => input)
+  .handler(async ({ context, data }) => {
+    const { supabase } = context;
+    const sb = supabase as any;
+
+    const { data: agent, error: agentErr } = await sb
+      .from("agents")
+      .select("inbound_phone_number, settings, workspace_id")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (agentErr) throw new Error(agentErr.message);
+    if (!agent) throw new Error("Agent not found");
+
+    // Persist voice provider in the settings JSON (no schema migration required)
+    const settings = ((agent.settings ?? {}) as Record<string, unknown>);
+    const nextSettings = { ...settings, voiceProvider: data.provider };
+    const { error: updateErr } = await sb
+      .from("agents")
+      .update({ settings: nextSettings })
+      .eq("id", data.id);
+    if (updateErr) throw new Error(updateErr.message);
+
+    const phoneNumber =
+      (agent.inbound_phone_number as string | null) ??
+      (settings.phoneNumber as string | null) ??
+      null;
+
+    if (phoneNumber && agent.workspace_id) {
+      const { data: ws } = await sb
+        .from("workspace_settings")
+        .select("twilio_auth_token, retell_workspace_id")
+        .eq("workspace_id", agent.workspace_id)
+        .maybeSingle();
+
+      // TWILIO_ACCOUNT_SID comes from the workspace env var per the spec
+      const twilioSid = process.env.TWILIO_ACCOUNT_SID ?? null;
+      const twilioToken =
+        (ws?.twilio_auth_token as string | null) ??
+        process.env.TWILIO_AUTH_TOKEN ??
+        null;
+
+      if (!twilioSid || !twilioToken) {
+        throw new Error(
+          "Twilio credentials not configured. Add TWILIO_ACCOUNT_SID and auth token in workspace settings.",
+        );
+      }
+
+      const Twilio = (await import("twilio")).default;
+      const client = Twilio(twilioSid, twilioToken);
+
+      const numbers = await client.incomingPhoneNumbers.list({ phoneNumber });
+      const numRecord = numbers[0];
+      if (!numRecord) {
+        throw new Error(
+          `Phone number ${phoneNumber} was not found in your Twilio account.`,
+        );
+      }
+
+      let voiceUrl: string;
+      if (data.provider === "RETELL") {
+        const retellKey =
+          (ws?.retell_workspace_id as string | null) ??
+          process.env.RETELL_API_KEY ??
+          "";
+        if (!retellKey) {
+          throw new Error(
+            "Retell API key not configured — set it in workspace settings.",
+          );
+        }
+        voiceUrl = `https://api.retellai.com/twilio-voice-webhook/${retellKey}`;
+      } else {
+        // OpenAI Realtime inbound URL — set via OPENAI_REALTIME_INBOUND_URL env var
+        // or openai_realtime_inbound_url in workspace_settings once migrated
+        const baseUrl =
+          process.env.OPENAI_REALTIME_INBOUND_URL ??
+          (ws as any)?.openai_realtime_inbound_url ??
+          "";
+        if (!baseUrl) {
+          throw new Error(
+            "OpenAI Realtime inbound URL not configured. Set OPENAI_REALTIME_INBOUND_URL in your environment.",
+          );
+        }
+        voiceUrl = `${baseUrl.replace(/\/$/, "")}/api/telephony/inbound-call`;
+      }
+
+      await client.incomingPhoneNumbers(numRecord.sid).update({ voiceUrl });
+    }
+
+    return { ok: true };
   });

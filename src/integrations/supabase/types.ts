@@ -111,6 +111,7 @@ export type Database = {
           updated_at: string;
           user_id: string;
           variables: Json;
+          voice_provider: string;
           workspace_id: string | null;
         };
         Insert: {
@@ -127,6 +128,7 @@ export type Database = {
           updated_at?: string;
           user_id: string;
           variables?: Json;
+          voice_provider?: string;
           workspace_id?: string | null;
         };
         Update: {
@@ -143,6 +145,7 @@ export type Database = {
           updated_at?: string;
           user_id?: string;
           variables?: Json;
+          voice_provider?: string;
           workspace_id?: string | null;
         };
         Relationships: [
@@ -1435,8 +1438,10 @@ export type Database = {
           min_notice_hours: number;
           notification_email: string | null;
           retell_default_agent_id: string | null;
+          openai_realtime_inbound_url: string | null;
           retell_workspace_id: string | null;
           timezone: string;
+          twilio_account_sid: string | null;
           twilio_auth_token: string | null;
           updated_at: string;
           whatsapp_phone_id: string | null;
@@ -1458,9 +1463,11 @@ export type Database = {
           last_synced_at?: string | null;
           min_notice_hours?: number;
           notification_email?: string | null;
+          openai_realtime_inbound_url?: string | null;
           retell_default_agent_id?: string | null;
           retell_workspace_id?: string | null;
           timezone?: string;
+          twilio_account_sid?: string | null;
           twilio_auth_token?: string | null;
           updated_at?: string;
           whatsapp_phone_id?: string | null;
@@ -1482,9 +1489,11 @@ export type Database = {
           last_synced_at?: string | null;
           min_notice_hours?: number;
           notification_email?: string | null;
+          openai_realtime_inbound_url?: string | null;
           retell_default_agent_id?: string | null;
           retell_workspace_id?: string | null;
           timezone?: string;
+          twilio_account_sid?: string | null;
           twilio_auth_token?: string | null;
           updated_at?: string;
           whatsapp_phone_id?: string | null;

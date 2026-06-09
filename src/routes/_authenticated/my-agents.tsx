@@ -49,6 +49,8 @@ function MyAgentsPage() {
     name: string;
     retell_agent_id: string | null;
     settings?: Record<string, unknown> | null;
+    voice_provider?: string | null;
+    inbound_phone_number?: string | null;
   } | null>(null);
 
   const agentsQ = useQuery({
@@ -171,6 +173,7 @@ function MyAgentsPage() {
                     name: a.name,
                     retell_agent_id: a.retell_agent_id,
                     settings: a.settings,
+                    inbound_phone_number: (a as any).inbound_phone_number ?? null,
                   })
                 }
                 onDelete={() => setDeleteTarget({ id: a.id, name: a.name })}
