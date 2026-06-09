@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Zap, Radio } from "lucide-react";
+import { Loader2, Zap, Radio, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { setAgentVoiceProvider } from "@/lib/agents/agents.functions";
@@ -112,6 +112,15 @@ export function VoiceProviderToggle({ agentId, currentProvider, hasPhone }: Prop
           );
         })}
       </div>
+
+      {active === "OPENAI_REALTIME" && (
+        <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 w-fit">
+          <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <span className="text-[10px] text-muted-foreground">
+            Routed via Master Admin Enterprise Line
+          </span>
+        </div>
+      )}
     </div>
   );
 }
