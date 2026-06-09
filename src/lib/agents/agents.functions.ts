@@ -490,10 +490,13 @@ export const goLiveAgent = createServerFn({ method: "POST" })
     const deployedRetellId = (settings.deployedRetellAgentId as string | undefined) ?? null;
     const deployedFlowId = (settings.deployedConversationFlowId as string | undefined) ?? null;
     const phoneNumber = (settings.phoneNumber as string | undefined) ?? null;
+    const voiceProvider = (settings.voiceProvider as string | undefined) ?? null;
+    const isOpenAiRealtime = voiceProvider === "OPENAI_REALTIME";
     // Allow Go Live when the agent has been deployed to Retell in any form
     // (dedicated production clone OR the builder agent itself).
+    // OpenAI Realtime agents have no Retell ID — skip the guard for them.
     const activeRetellId = deployedRetellId ?? row.retell_agent_id;
-    if (!activeRetellId) {
+    if (!activeRetellId && !isOpenAiRealtime) {
       throw new Error("Deploy this agent from the builder first.");
     }
     if (!phoneNumber) {

@@ -181,6 +181,8 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
   const settings = (agent?.settings ?? {}) as Record<string, unknown>;
   const deployedId = (settings.deployedRetellAgentId as string | undefined) ?? null;
+  const voiceProvider = (settings.voiceProvider as string | undefined) ?? null;
+  const isOpenAiRealtime = voiceProvider === "OPENAI_REALTIME";
 
   // The production API key is now stored server-side (workspace_settings.retell_workspace_id).
   // Phone-number operations always send productionApiKey: undefined and the server resolves it.
@@ -195,7 +197,9 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   if (!agent) return null;
   // Prefer the cloned production agent for number attachment; fall back to the source.
   const retellId = deployedId ?? agent.retell_agent_id;
-  const needsDeploy = !retellId;
+  // OpenAI Realtime agents have no Retell ID — they are saved directly and don't
+  // need a builder deploy step before going live.
+  const needsDeploy = !retellId && !isOpenAiRealtime;
 
   function dirIds(): { inboundAgentId?: string; outboundAgentId?: string } {
     if (!retellId) return {};
