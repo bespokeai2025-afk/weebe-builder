@@ -152,6 +152,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
   // Buy state
   const [tollFree, setTollFree] = useState(false);
+  const [countryCode, setCountryCode] = useState("US");
   const [areaCode, setAreaCode] = useState("");
   const [nickname, setNickname] = useState("");
   const [buying, setBuying] = useState(false);
@@ -273,7 +274,8 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
         const res = await buyTwilioFn({
           data: {
             tollFree,
-            areaCode: areaCode ? Number(areaCode) : undefined,
+            countryCode,
+            areaCode: areaCode && countryCode === "US" ? Number(areaCode) : undefined,
             nickname: nickname || agent!.name,
           },
         });
@@ -692,17 +694,59 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                   </div>
                 </RadioGroup>
 
-                <div className="grid grid-cols-2 gap-3">
+                {isOpenAiRealtime && (
                   <div className="space-y-1">
-                    <Label className="text-xs">Area code (optional)</Label>
-                    <Input
-                      placeholder="e.g. 415"
-                      value={areaCode}
-                      onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      disabled={tollFree}
-                    />
+                    <Label className="text-xs">Country</Label>
+                    <Select value={countryCode} onValueChange={(v) => { setCountryCode(v); setAreaCode(""); }}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="US">🇺🇸 United States</SelectItem>
+                        <SelectItem value="CA">🇨🇦 Canada</SelectItem>
+                        <SelectItem value="GB">🇬🇧 United Kingdom</SelectItem>
+                        <SelectItem value="AU">🇦🇺 Australia</SelectItem>
+                        <SelectItem value="DE">🇩🇪 Germany</SelectItem>
+                        <SelectItem value="FR">🇫🇷 France</SelectItem>
+                        <SelectItem value="ES">🇪🇸 Spain</SelectItem>
+                        <SelectItem value="IT">🇮🇹 Italy</SelectItem>
+                        <SelectItem value="NL">🇳🇱 Netherlands</SelectItem>
+                        <SelectItem value="SE">🇸🇪 Sweden</SelectItem>
+                        <SelectItem value="NO">🇳🇴 Norway</SelectItem>
+                        <SelectItem value="DK">🇩🇰 Denmark</SelectItem>
+                        <SelectItem value="FI">🇫🇮 Finland</SelectItem>
+                        <SelectItem value="CH">🇨🇭 Switzerland</SelectItem>
+                        <SelectItem value="AT">🇦🇹 Austria</SelectItem>
+                        <SelectItem value="BE">🇧🇪 Belgium</SelectItem>
+                        <SelectItem value="IE">🇮🇪 Ireland</SelectItem>
+                        <SelectItem value="PT">🇵🇹 Portugal</SelectItem>
+                        <SelectItem value="PL">🇵🇱 Poland</SelectItem>
+                        <SelectItem value="CZ">🇨🇿 Czech Republic</SelectItem>
+                        <SelectItem value="NZ">🇳🇿 New Zealand</SelectItem>
+                        <SelectItem value="ZA">🇿🇦 South Africa</SelectItem>
+                        <SelectItem value="MX">🇲🇽 Mexico</SelectItem>
+                        <SelectItem value="BR">🇧🇷 Brazil</SelectItem>
+                        <SelectItem value="JP">🇯🇵 Japan</SelectItem>
+                        <SelectItem value="SG">🇸🇬 Singapore</SelectItem>
+                        <SelectItem value="HK">🇭🇰 Hong Kong</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="space-y-1">
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  {(!isOpenAiRealtime || countryCode === "US") && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Area code (optional)</Label>
+                      <Input
+                        placeholder="e.g. 415"
+                        value={areaCode}
+                        onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        disabled={tollFree}
+                      />
+                    </div>
+                  )}
+                  <div className={(!isOpenAiRealtime || countryCode === "US") ? "space-y-1" : "col-span-2 space-y-1"}>
                     <Label className="text-xs">Nickname (optional)</Label>
                     <Input
                       placeholder={agent.name}

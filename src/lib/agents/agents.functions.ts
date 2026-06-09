@@ -775,7 +775,7 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
 export const buyTwilioPhoneNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (input: { areaCode?: number; tollFree?: boolean; nickname?: string }) => input,
+    (input: { areaCode?: number; tollFree?: boolean; nickname?: string; countryCode?: string }) => input,
   )
   .handler(async ({ data, context }) => {
     const { supabase } = context;
@@ -799,14 +799,15 @@ export const buyTwilioPhoneNumber = createServerFn({ method: "POST" })
     const Twilio = (await import("twilio")).default;
     const client = Twilio(sid, token);
 
+    const countryCode = data.countryCode ?? "US";
     let available: Array<{ phoneNumber: string }>;
     if (data.tollFree) {
-      available = (await client.availablePhoneNumbers("US").tollFree.list({ limit: 1 })) as Array<{ phoneNumber: string }>;
+      available = (await client.availablePhoneNumbers(countryCode).tollFree.list({ limit: 1 })) as Array<{ phoneNumber: string }>;
     } else {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const listOpts: any = { limit: 1 };
-      if (data.areaCode) listOpts.areaCode = data.areaCode;
-      available = (await client.availablePhoneNumbers("US").local.list(listOpts)) as Array<{ phoneNumber: string }>;
+      if (data.areaCode && countryCode === "US") listOpts.areaCode = data.areaCode;
+      available = (await client.availablePhoneNumbers(countryCode).local.list(listOpts)) as Array<{ phoneNumber: string }>;
     }
 
     if (!available.length) {
