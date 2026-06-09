@@ -720,31 +720,51 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
     const model = "gpt-4o-realtime-preview-2024-12-17";
     const voice = schema.voice ?? "alloy";
 
-    const sessionRes = await fetch("https://api.openai.com/v1/realtime/sessions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "OpenAI-Beta": "realtime=v1",
-      },
-      body: JSON.stringify({
-        model,
-        voice,
-        instructions,
-        tools: (schema.tools ?? []) as object[],
-        input_audio_transcription: { model: "whisper-1" },
-        turn_detection: { type: "server_vad" },
-      }),
+    // Use node:https directly to avoid any Vinxi/undici fetch interceptors
+    // that can re-route absolute HTTPS URLs back through the app server.
+    const sessionPayload = JSON.stringify({ model, voice, instructions });
+    const clientSecret = await new Promise<string>((resolve, reject) => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const https = require("node:https") as typeof import("node:https");
+      const req = https.request(
+        {
+          hostname: "api.openai.com",
+          port: 443,
+          path: "/v1/realtime/sessions",
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "OpenAI-Beta": "realtime=v1",
+            "Content-Length": Buffer.byteLength(sessionPayload),
+          },
+        },
+        (res) => {
+          let body = "";
+          res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+          res.on("end", () => {
+            try {
+              const parsed = JSON.parse(body) as {
+                client_secret?: { value?: string };
+                error?: { message?: string };
+              };
+              if (!res.statusCode || res.statusCode >= 400) {
+                reject(new Error(parsed.error?.message ?? body));
+              } else if (!parsed.client_secret?.value) {
+                reject(new Error(`Unexpected response: ${body}`));
+              } else {
+                resolve(parsed.client_secret.value);
+              }
+            } catch {
+              reject(new Error(`Non-JSON response: ${body}`));
+            }
+          });
+        },
+      );
+      req.on("error", (e: Error) => reject(e));
+      req.write(sessionPayload);
+      req.end();
     });
 
-    if (!sessionRes.ok) {
-      const errText = await sessionRes.text();
-      throw new Error(`OpenAI session creation failed: ${errText}`);
-    }
-
-    const session = (await sessionRes.json()) as {
-      client_secret: { value: string };
-    };
-
-    return { clientSecret: session.client_secret.value, model, voice };
+    return { clientSecret, model, voice };
   });
