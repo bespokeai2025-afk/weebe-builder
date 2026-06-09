@@ -773,6 +773,17 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                     </div>
                   </RadioGroup>
 
+                  {tollFree && isOpenAiRealtime && countryCode !== "US" && (
+                    <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 p-2.5 flex gap-2 text-xs">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                      <p className="text-amber-700 dark:text-amber-400">
+                        Toll-free numbers are primarily available in the US. Availability in{" "}
+                        <strong>{countryCode}</strong> is limited and the purchase may fail.
+                        Consider switching to a <strong>Standard</strong> number for this country.
+                      </p>
+                    </div>
+                  )}
+
                   {isOpenAiRealtime && (
                     <div className="space-y-1">
                       <Label className="text-xs">Country</Label>
