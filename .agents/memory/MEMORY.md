@@ -3,3 +3,4 @@
 - [Resend transactional emails](resend-emails.md) — auto user-emails use direct Resend REST (not Lovable queue); escapeHtml user values; prod needs a verified domain + RESEND_FROM.
 - [Merging from Lovable source app](lovable-source-merge.md) — old app shares identical TanStack structure; analytics merges by copying page+PageShell & fixing import; templates are DB rows, not code.
 - [Voice provider & Supabase DDL constraint](voice-provider-ddl.md) — voice_provider stored in agents.settings JSON; Supabase DDL can't run via JS client in sandbox; migration file kept for CLI apply.
+- [HyperStream relay pitfalls](hyperstream-relay-pitfalls.md) — four bugs to know: model name, beta header, sync upgrade, binary frames.
