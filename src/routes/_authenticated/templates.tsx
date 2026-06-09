@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useBuilderStore } from "@/lib/builder/store";
+import type { BuilderSettings } from "@/lib/builder/types";
 import {
   listAgentTemplates,
   getAgentTemplate,
@@ -120,6 +121,20 @@ function TemplatesPage() {
         settings: cleanSettings as never,
         variables: variables as never,
         agentRowId: null,
+      });
+      // Explicitly restore voice provider fields so the builder sidebar
+      // always shows the engine card that matches the template's engine,
+      // not whatever was left over from a previous session.
+      const vp =
+        (cleanSettings.voiceProvider as BuilderSettings["voiceProvider"] | undefined) ??
+        "RETELL";
+      useBuilderStore.getState().setSettings({
+        voiceProvider: vp,
+        openaiVoice:
+          (cleanSettings.openaiVoice as BuilderSettings["openaiVoice"] | undefined) ?? "alloy",
+        openaiReasoningEffort:
+          (cleanSettings.openaiReasoningEffort as BuilderSettings["openaiReasoningEffort"] | undefined) ??
+          "low",
       });
       toast.success("Template loaded", { description: row.name });
       navigate({ to: "/builder", search: { new: undefined } });
