@@ -63,7 +63,7 @@ const STATUS_STYLES: Record<AgentStatus, string> = {
 
 type VoiceProvider = "RETELL" | "OPENAI_REALTIME";
 
-function deriveVoiceProvider(a: AgentCardData): VoiceProvider {
+export function deriveVoiceProvider(a: AgentCardData): VoiceProvider {
   const vp = (a.settings ?? {}).voiceProvider;
   return vp === "OPENAI_REALTIME" ? "OPENAI_REALTIME" : "RETELL";
 }

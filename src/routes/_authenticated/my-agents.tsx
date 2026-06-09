@@ -2,11 +2,11 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, Search } from "lucide-react";
+import { Loader2, Plus, Radio, Search, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DeployAgentDialog } from "@/components/agents/DeployAgentDialog";
-import { AgentCard, type AgentCardData } from "@/components/agents/AgentCard";
+import { AgentCard, type AgentCardData, deriveVoiceProvider } from "@/components/agents/AgentCard";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +45,7 @@ function MyAgentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [query, setQuery] = useState("");
+  const [voiceFilter, setVoiceFilter] = useState<"ALL" | "RETELL" | "OPENAI_REALTIME">("ALL");
   const [deployTarget, setDeployTarget] = useState<{
     id: string;
     name: string;
@@ -121,9 +122,11 @@ function MyAgentsPage() {
   }
 
   const agents: AgentCardData[] = (agentsQ.data ?? []) as AgentCardData[];
-  const filtered = query.trim()
-    ? agents.filter((a) => a.name.toLowerCase().includes(query.trim().toLowerCase()))
-    : agents;
+  const filtered = agents.filter((a) => {
+    if (query.trim() && !a.name.toLowerCase().includes(query.trim().toLowerCase())) return false;
+    if (voiceFilter !== "ALL" && deriveVoiceProvider(a) !== voiceFilter) return false;
+    return true;
+  });
 
   return (
     <main className="min-h-screen">
@@ -136,7 +139,31 @@ function MyAgentsPage() {
               Voice agents you've designed, deployed, and shipped.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Voice engine filter */}
+            <div className="flex items-center rounded-lg bg-white/[0.03] p-0.5 ring-1 ring-white/[0.06]">
+              {(
+                [
+                  { value: "ALL", label: "All" },
+                  { value: "RETELL", label: "OmniVoice", icon: <Radio className="h-3 w-3 text-sky-400" /> },
+                  { value: "OPENAI_REALTIME", label: "HyperStream", icon: <Zap className="h-3 w-3 text-violet-400" /> },
+                ] as const
+              ).map(({ value, label, icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setVoiceFilter(value)}
+                  className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-all ${
+                    voiceFilter === value
+                      ? "bg-white/[0.08] text-foreground shadow-sm ring-1 ring-white/[0.10]"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -174,7 +201,11 @@ function MyAgentsPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="rounded-2xl bg-card/60 p-10 text-center ring-1 ring-white/[0.06] text-sm text-muted-foreground">
-            No agents match "{query}".
+            {query.trim() && voiceFilter !== "ALL"
+              ? `No ${voiceFilter === "OPENAI_REALTIME" ? "HyperStream" : "OmniVoice"} agents match "${query}".`
+              : query.trim()
+              ? `No agents match "${query}".`
+              : `No ${voiceFilter === "OPENAI_REALTIME" ? "HyperStream" : "OmniVoice"} agents yet.`}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
