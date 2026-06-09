@@ -58,6 +58,11 @@ function TemplatesPage() {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [engineMismatch, setEngineMismatch] = useState<{
+    templateId: string;
+    selectedEngine: string;
+    templateEngine: string;
+  } | null>(null);
 
   const templatesQ = useQuery({
     queryKey: ["agent-templates"],
@@ -71,7 +76,21 @@ function TemplatesPage() {
     refetchOnWindowFocus: false,
   });
 
-  async function handleUse(id: string) {
+  async function handleUse(id: string, skipMismatchCheck = false) {
+    // In picker mode, warn if the template's engine differs from what the user
+    // selected on the new-agent page before opening the template browser.
+    if (isPicker && !skipMismatchCheck) {
+      const storeProvider = useBuilderStore.getState().settings.voiceProvider ?? "RETELL";
+      // Peek at the template list for the engine without a full fetch.
+      const templateItem = (Array.isArray(templatesQ.data) ? (templatesQ.data as TemplateItem[]) : []).find((t) => t.id === id);
+      const templateProvider =
+        (templateItem?.settings?.voiceProvider as string | undefined) ?? "RETELL";
+      if (storeProvider !== templateProvider) {
+        setEngineMismatch({ templateId: id, selectedEngine: storeProvider, templateEngine: templateProvider });
+        return;
+      }
+    }
+
     setLoadingId(id);
     try {
       const row = await getFn({ data: { id } });
@@ -348,6 +367,56 @@ function TemplatesPage() {
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting}>
               {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!engineMismatch} onOpenChange={(o) => !o && setEngineMismatch(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Engine mismatch</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  You selected{" "}
+                  <span className="font-medium text-foreground">
+                    {engineMismatch?.selectedEngine === "OPENAI_REALTIME"
+                      ? "HyperStream"
+                      : "OmniVoice"}
+                  </span>{" "}
+                  on the new-agent page, but this template is built for{" "}
+                  <span className="font-medium text-foreground">
+                    {engineMismatch?.templateEngine === "OPENAI_REALTIME"
+                      ? "HyperStream"
+                      : "OmniVoice"}
+                  </span>
+                  .
+                </p>
+                <p>
+                  Loading it will switch your agent to{" "}
+                  <span className="font-medium text-foreground">
+                    {engineMismatch?.templateEngine === "OPENAI_REALTIME"
+                      ? "HyperStream"
+                      : "OmniVoice"}
+                  </span>{" "}
+                  and apply the template's engine-specific settings (voice, reasoning effort, etc.).
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setEngineMismatch(null)}>
+              Go back
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const id = engineMismatch!.templateId;
+                setEngineMismatch(null);
+                handleUse(id, true);
+              }}
+            >
+              Switch engine &amp; use template
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
