@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { toPng } from "html-to-image";
 import { useBuilderStore } from "@/lib/builder/store";
@@ -75,6 +75,7 @@ import { ClientQualificationSection } from "./ClientQualificationSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS } from "@/lib/builder/pricing";
+import { toast } from "sonner";
 
 const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
   { kind: "conversation", label: "Conversation", icon: MessageCircle, color: "text-sky-600" },
@@ -296,7 +297,20 @@ export function Builder({
   const { addNode, addBookingNode, clearAll, autoLayout, revertLayout, settings, setSettings } =
     useBuilderStore();
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
+  const saveVersion = useBuilderStore((s) => s.saveVersion);
   const [pendingEngine, setPendingEngine] = useState<"RETELL" | "OPENAI_REALTIME" | null>(null);
+  const undoToastIdRef = useRef<string | number | null>(null);
+  const saveVersionRef = useRef(saveVersion);
+
+  useEffect(() => {
+    if (saveVersion !== saveVersionRef.current) {
+      saveVersionRef.current = saveVersion;
+      if (undoToastIdRef.current !== null) {
+        toast.dismiss(undoToastIdRef.current);
+        undoToastIdRef.current = null;
+      }
+    }
+  }, [saveVersion]);
 
   const isRetell = (settings.voiceProvider ?? "RETELL") !== "OPENAI_REALTIME";
   const isOpenAI = settings.voiceProvider === "OPENAI_REALTIME";
@@ -528,8 +542,28 @@ export function Builder({
                 <AlertDialogCancel onClick={() => setPendingEngine(null)}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
-                    if (pendingEngine) setSettings({ voiceProvider: pendingEngine });
-                    setPendingEngine(null);
+                    if (pendingEngine) {
+                      const snapshot = { ...settings };
+                      setSettings({ voiceProvider: pendingEngine });
+                      setPendingEngine(null);
+                      const id = toast("Voice engine switched", {
+                        description: "Engine-specific settings have been reset.",
+                        duration: 5000,
+                        action: {
+                          label: "Undo",
+                          onClick: () => {
+                            setSettings(snapshot);
+                            undoToastIdRef.current = null;
+                          },
+                        },
+                        onDismiss: () => {
+                          undoToastIdRef.current = null;
+                        },
+                      });
+                      undoToastIdRef.current = id;
+                    } else {
+                      setPendingEngine(null);
+                    }
                   }}
                 >
                   Switch engine

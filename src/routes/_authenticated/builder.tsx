@@ -78,6 +78,7 @@ function BuilderPage() {
         },
       });
       if (!s.currentAgentRowId) s.setCurrentAgentRowId(id);
+      s.bumpSaveVersion();
       setLastSavedAt(Date.now());
       toast.success("Agent saved", { description: s.settings.agentName });
     } catch (e) {

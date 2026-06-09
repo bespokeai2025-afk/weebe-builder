@@ -46,6 +46,7 @@ export function RetellDeployDialog() {
   } = useBuilderStore();
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const setCurrentAgentRowId = useBuilderStore((s) => s.setCurrentAgentRowId);
+  const bumpSaveVersion = useBuilderStore((s) => s.bumpSaveVersion);
 
   const [deploying, setDeploying] = useState<"create" | "update" | null>(null);
   const [openaiConfirmOpen, setOpenaiConfirmOpen] = useState(false);
@@ -145,6 +146,7 @@ export function RetellDeployDialog() {
       // hasAgent becomes true and the test-call button enables.
       setCurrentAgentRowId(result.id);
       setSettings({ agentId: result.id, deployedAgentName: s.agentName });
+      bumpSaveVersion();
       setOpenaiConfirmOpen(false);
       toast.success("Enterprise Line agent saved", {
         description: `Schema compiled with voice "${s.openaiVoice ?? "alloy"}" · reasoning "${s.openaiReasoningEffort ?? "low"}".`,
@@ -214,6 +216,7 @@ export function RetellDeployDialog() {
           },
         });
         useBuilderStore.getState().setCurrentAgentRowId(rowId);
+        bumpSaveVersion();
         qc.invalidateQueries({ queryKey: ["my-agents"] });
         toast.success(
           effectiveKind === "update"
@@ -280,6 +283,7 @@ export function RetellDeployDialog() {
         deployedAgentName: settings.agentName,
       });
       await persistAgent(res.agentId);
+      bumpSaveVersion();
       const bookingNote =
         settings.booking?.enabled === false
           ? "Booking disabled for this agent (no calendar tools attached)."

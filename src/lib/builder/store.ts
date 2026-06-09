@@ -46,6 +46,9 @@ interface State {
     agentRowId?: string | null;
   }) => void;
   setCurrentAgentRowId: (id: string | null) => void;
+  /** Bumped on every successful agent save so the Builder can dismiss the undo toast. */
+  saveVersion: number;
+  bumpSaveVersion: () => void;
 }
 
 const defaultSettings: BuilderSettings = {
@@ -168,6 +171,7 @@ export const useBuilderStore = create<State>()(
       activeNodeId: null,
       currentAgentRowId: null,
       flowVersion: 0,
+      saveVersion: 0,
       onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
       onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
       onConnect: (c) => {
@@ -316,6 +320,7 @@ export const useBuilderStore = create<State>()(
           flowVersion: get().flowVersion + 1,
         }),
       setCurrentAgentRowId: (id) => set({ currentAgentRowId: id }),
+      bumpSaveVersion: () => set({ saveVersion: get().saveVersion + 1 }),
       preAutoLayoutPositions: null,
       autoLayout: () => {
         const snapshot: Record<string, { x: number; y: number }> = {};
