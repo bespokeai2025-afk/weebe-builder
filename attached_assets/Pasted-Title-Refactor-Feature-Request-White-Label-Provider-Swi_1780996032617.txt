@@ -1,0 +1,37 @@
+Title: Refactor Feature Request - White-Label Provider Switch, Mask Vendor Identities, and Implement Dynamic UI Morphing
+
+Please update our voice provider selection infrastructure inside the "Create New Agent" modal and the active canvas builder panel. All underlying references to third-party providers must be completely white-labeled to match our proprietary branding definitions, and the user interface must dynamically morph based on the selection.
+
+### 1. Proprietary White-Label Name Mapping
+Please eliminate all raw occurrences of vendor names in the UI text blocks and replace them with our new enterprise routing schema:
+* **Old Name 'RETELL'** ──► Rename in UI to: "OmniVoice Engine (Premium Catalog)"
+* **Old Name 'OPENAI_REALTIME'** ──► Rename in UI to: "HyperStream Engine (Instant Response)"
+
+* Ensure that all new and future agents default automatically to the 'RETELL' engine under the hood, but display as "OmniVoice Engine (Premium Catalog)" on the front end.
+
+---
+
+### 2. State-Driven UI Morphing Layouts
+Implement a dynamic conditional layout system inside our main builder configuration sidebars based on the selected engine type:
+
+* **When "OmniVoice Engine (Premium Catalog)" is Selected:**
+  - Render the standard configuration panels exactly as they exist right now (cloned voices library dropdowns, background ambient noises, legacy LLM selection triggers, and original webhook targets).
+  - Hide any elements specific to our direct streaming gateway.
+
+* **When "HyperStream Engine (Instant Response)" is Selected:**
+  - HIDE all legacy voice library dropdowns, ambient noise configurations, and custom token inputs to completely remove interface clutter.
+  - REVEAL a clean dropdown selector exposing the native system voice choices: (Alloy, Ash, Shimmer, Echo, Coral, Marine, Verse, Cedar, Sage).
+  - REVEAL an adjustable sliding control panel for 'Reasoning Effort Level' (Options mapping directly onto backend logic: 'minimal', 'low', 'medium', 'high', 'xhigh' — defaulting to 'low').
+
+---
+
+### 3. Server-Side Administrative Key Masking
+* When a user changes an agent configuration to "HyperStream Engine", do not show any input boxes asking for their own API keys. 
+* Display a clean system confirmation banner: "Engine Routed via Master Admin Enterprise Line". 
+* On the server-side controller, automatically auto-wire and bind our system root variable ('process.env.MASTER_OPENAI_API_KEY') to this agent's dataset execution block so our internal billing configurations remain completely sandboxed.
+
+---
+
+### 4. Background Endpoint Safety & Non-Breaking Isolation
+* Ensure that selecting the "HyperStream Engine" during agent creation or adjustment passes telemetry markers cleanly down the line, ensuring post-call summaries and metadata route directly to our parallel `/api/webhook/custom-telemetry` endpoint to update our user dashboard statistics.
+* Wrap all secondary routing switches in explicit logic gates. If an agent is assigned to OmniVoice, the platform must process the call exactly as it does now on our production infrastructure, guaranteeing zero disruption to running agent accounts.
