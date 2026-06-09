@@ -19,14 +19,14 @@ const PROVIDER_OPTIONS: {
 }[] = [
   {
     value: "RETELL",
-    label: "Retell AI",
-    sub: "Managed cloud — default",
+    label: "OmniVoice Engine",
+    sub: "Premium Catalog — default",
     icon: Radio,
   },
   {
     value: "OPENAI_REALTIME",
-    label: "Native OpenAI Fast Engine",
-    sub: "In-house realtime streaming",
+    label: "HyperStream Engine",
+    sub: "Instant Response",
     icon: Zap,
     badge: "Enterprise",
   },

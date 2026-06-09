@@ -707,8 +707,8 @@ export function Builder({
               <div className="flex gap-1.5">
                 {(
                   [
-                    { value: "RETELL", label: "Retell AI", sub: "Managed cloud", icon: Radio },
-                    { value: "OPENAI_REALTIME", label: "Native OpenAI Fast", sub: "In-house realtime", icon: Zap },
+                    { value: "RETELL", label: "OmniVoice Engine", sub: "Premium Catalog", icon: Radio },
+                    { value: "OPENAI_REALTIME", label: "HyperStream Engine", sub: "Instant Response", icon: Zap },
                   ] as const
                 ).map(({ value, label, sub, icon: Icon }) => {
                   const active = (settings.voiceProvider ?? "RETELL") === value;

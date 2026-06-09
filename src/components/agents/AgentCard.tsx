@@ -222,17 +222,17 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentC
             <Badge
               variant="secondary"
               className="h-5 gap-1 rounded-full bg-white/[0.04] px-2 text-[10px] font-normal ring-1 ring-white/[0.06] hover:bg-white/[0.06]"
-              title={voiceProvider === "OPENAI_REALTIME" ? "OpenAI Realtime" : "Retell"}
+              title={voiceProvider === "OPENAI_REALTIME" ? "HyperStream Engine (Instant Response)" : "OmniVoice Engine (Premium Catalog)"}
             >
               {voiceProvider === "OPENAI_REALTIME" ? (
                 <>
                   <Zap className="h-2.5 w-2.5 text-violet-400" />
-                  <span className="text-violet-300">OpenAI</span>
+                  <span className="text-violet-300">HyperStream</span>
                 </>
               ) : (
                 <>
                   <Radio className="h-2.5 w-2.5 text-sky-400" />
-                  <span className="text-sky-300">Retell</span>
+                  <span className="text-sky-300">OmniVoice</span>
                 </>
               )}
             </Badge>
