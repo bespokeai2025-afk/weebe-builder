@@ -158,6 +158,52 @@ export const getMyAgentByRetellId = createServerFn({ method: "POST" })
  * Create or update an agent row. If `id` is supplied, update; otherwise insert.
  * Returns the persisted row id.
  */
+// ---------------------------------------------------------------------------
+// OpenAI Realtime schema compiler
+// Converts canvas function nodes into the tool-calling format expected by
+// the OpenAI Realtime API (gpt-realtime-2).  Only runs when voice_provider
+// is explicitly "OPENAI_REALTIME" — the Retell path is completely untouched.
+// ---------------------------------------------------------------------------
+
+function toSnakeCase(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+interface OpenAITool {
+  type: "function";
+  name: string;
+  description: string;
+  parameters: {
+    type: "object";
+    properties: Record<string, never>;
+    required: never[];
+  };
+}
+
+function compileOpenAISchema(nodes: Array<{ data?: Record<string, unknown> }>): OpenAITool[] {
+  const tools: OpenAITool[] = [];
+  for (const node of nodes) {
+    const d = node.data ?? {};
+    if (d.kind !== "function") continue;
+    const rawName = (d.toolName as string | undefined) || (d.label as string | undefined) || "tool";
+    const rawDesc =
+      (d.toolDescription as string | undefined) ||
+      (d.dialogue as string | undefined) ||
+      "";
+    tools.push({
+      type: "function",
+      name: toSnakeCase(rawName) || "tool",
+      description: rawDesc.length > 1024 ? `${rawDesc.slice(0, 1021)}…` : rawDesc,
+      parameters: { type: "object", properties: {}, required: [] },
+    });
+  }
+  return tools;
+}
+
 export const upsertMyAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -174,13 +220,30 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, userId, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+
+    // If voice_provider is OPENAI_REALTIME, compile function nodes into the
+    // OpenAI Realtime tool-calling schema and store it in settings.openaiSchema.
+    // The Retell path (default) is completely unchanged.
+    const settingsObj = (data.settings ?? {}) as Record<string, unknown>;
+    const compiledSettings: Record<string, unknown> =
+      settingsObj.voiceProvider === "OPENAI_REALTIME"
+        ? {
+            ...settingsObj,
+            openaiSchema: compileOpenAISchema(
+              ((data.flowData as Record<string, unknown>)?.nodes as Array<{
+                data?: Record<string, unknown>;
+              }>) ?? [],
+            ),
+          }
+        : settingsObj;
+
     const base = {
       user_id: userId,
       workspace_id: workspaceId,
       retell_agent_id: data.retellAgentId ?? null,
       name: data.name,
       flow_data: data.flowData,
-      settings: data.settings,
+      settings: compiledSettings,
       variables: data.variables,
       ...(typeof data.costSeconds === "number" ? { cost_seconds: data.costSeconds } : {}),
     };
