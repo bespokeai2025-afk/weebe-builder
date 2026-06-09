@@ -33,7 +33,7 @@ browserWs.on("message", (data, isBinary) => openaiWs.send(data, { binary: isBina
 ```
 Defensive belt-and-suspenders on the browser: set `ws.binaryType = "arraybuffer"` and decode non-string frames with `TextDecoder` before `JSON.parse`.
 
-## 5 — session.update uses a FLAT schema (NOT nested audio.input / audio.output)
+## 5 — session.update: FLAT schema required, AND session.type is mandatory
 The OpenAI Realtime `session.update` event uses flat top-level fields on `session` — NOT a nested `audio.input` / `audio.output` structure. Sending the wrong nested shape causes OpenAI to silently ignore `turn_detection`, leaving the session in **manual mode**: agent speaks the greeting (via explicit `response.create`) but never reacts to user speech (no VAD).
 
 **Wrong** (all ignored by OpenAI):

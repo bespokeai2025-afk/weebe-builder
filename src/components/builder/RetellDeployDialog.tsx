@@ -568,6 +568,8 @@ export function RetellDeployDialog() {
               JSON.stringify({
                 type: "session.update",
                 session: {
+                  // The gpt-realtime model requires this field in session.update.
+                  type: "realtime",
                   modalities: ["text", "audio"],
                   instructions: compileRealtimePrompt(nodes, edges, settings, variables),
                   voice: settings.openaiVoice ?? "alloy",
