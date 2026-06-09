@@ -455,11 +455,14 @@ export function RetellDeployDialog() {
           const msg = JSON.parse(ev.data as string) as Record<string, unknown>;
 
           if (msg.type === "relay.connected") {
-            // Configure the session, then start streaming mic audio.
+            // Configure the session. Wait for session.updated before
+            // streaming mic audio — avoids sending audio before OpenAI
+            // has applied the configuration.
             ws.send(
               JSON.stringify({
                 type: "session.update",
                 session: {
+                  modalities: ["text", "audio"],
                   instructions: settings.agentName
                     ? `You are an AI voice agent named ${settings.agentName}. Be helpful and concise.`
                     : "You are a helpful AI voice assistant.",
@@ -470,6 +473,11 @@ export function RetellDeployDialog() {
                 },
               }),
             );
+            return;
+          }
+
+          // Session confirmed — safe to start mic streaming and trigger greeting.
+          if (msg.type === "session.updated") {
             sessionReady = true;
             startedAtRef.current = Date.now();
             recordedCallRef.current = false;
@@ -478,6 +486,8 @@ export function RetellDeployDialog() {
             setCalling(false);
             const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
             if (startNode) setActiveNode(startNode.id);
+            // Ask the agent to greet the caller so there's immediate audio feedback.
+            ws.send(JSON.stringify({ type: "response.create" }));
             return;
           }
 
@@ -485,6 +495,15 @@ export function RetellDeployDialog() {
             toast.error("HyperStream error", {
               description: msg.message as string,
             });
+            return;
+          }
+
+          // Forward OpenAI-native error events so they aren't silently swallowed.
+          if (msg.type === "error") {
+            const detail = (msg.error as Record<string, unknown> | undefined)?.message
+              ?? msg.message
+              ?? "Unknown error";
+            toast.error("HyperStream session error", { description: String(detail) });
             return;
           }
 
