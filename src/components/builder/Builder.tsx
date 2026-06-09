@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
@@ -405,6 +406,15 @@ export function Builder({
             className="h-7 max-w-[180px] border-transparent bg-transparent px-1.5 text-[11px] font-semibold text-foreground hover:border-white/[0.06] focus-visible:border-white/[0.1]"
             placeholder="Agent name"
           />
+          {settings.voiceProvider === "OPENAI_REALTIME" && (
+            <Badge
+              variant="outline"
+              className="shrink-0 border-violet-500/40 bg-violet-500/10 text-violet-300 text-[10px] gap-1 px-1.5 py-0.5 h-5"
+            >
+              <Zap className="h-2.5 w-2.5" />
+              Enterprise Line
+            </Badge>
+          )}
           {toolbarLeading}
         </div>
 
