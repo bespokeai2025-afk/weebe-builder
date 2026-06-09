@@ -103,12 +103,20 @@ export function compileRealtimePrompt(
       : "";
   };
 
+  // Retell uses sentinel strings in the dialogue field to mean "stay silent."
+  // Filter them out so OpenAI doesn't read them aloud.
+  const SILENT_SENTINELS = /^NO_RESPONSE_NEEDED$/i;
+
   const renderNode = (node: FlowNode, headerPrefix: string): string | null => {
     const d = node.data;
     const transitionText = transitionTextFor(node);
     switch (d.kind) {
       case "conversation": {
-        const body = d.dialogue?.trim() || "(no instructions provided)";
+        const rawDialogue = d.dialogue?.trim() ?? "";
+        const isSilent = SILENT_SENTINELS.test(rawDialogue);
+        const body = isSilent
+          ? "Do NOT say anything here. Stay silent and wait for the caller's next input, then follow the transition below."
+          : rawDialogue || "(no instructions provided)";
         return `${headerPrefix} ${d.label || "Conversation"}\n${body}${transitionText}`;
       }
       case "function":
