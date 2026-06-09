@@ -223,6 +223,15 @@ export interface BuilderSettings {
    */
   agentType?: "lead_generation" | "receptionist" | "client_qualification";
   /**
+   * Voice infrastructure provider. Defaults to "RETELL" for all new agents.
+   * "OPENAI_REALTIME" routes through the in-house OpenAI Realtime microservice.
+   */
+  voiceProvider?: "RETELL" | "OPENAI_REALTIME";
+  /** OpenAI Realtime voice profile (only used when voiceProvider === "OPENAI_REALTIME") */
+  openaiVoice?: "alloy" | "ash" | "shimmer" | "echo" | "coral" | "marine" | "verse" | "cedar" | "sage";
+  /** OpenAI Realtime reasoning effort level (only used when voiceProvider === "OPENAI_REALTIME") */
+  openaiReasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
+  /**
    * Maximum number of call attempts per data record per calendar day.
    * Only enforced when the agent is live (has deployedRetellAgentId).
    */

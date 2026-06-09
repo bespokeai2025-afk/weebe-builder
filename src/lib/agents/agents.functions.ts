@@ -184,7 +184,16 @@ interface OpenAITool {
   };
 }
 
-function compileOpenAISchema(nodes: Array<{ data?: Record<string, unknown> }>): OpenAITool[] {
+interface OpenAISchema {
+  tools: OpenAITool[];
+  voice: string;
+  reasoning_effort: string;
+}
+
+function compileOpenAISchema(
+  nodes: Array<{ data?: Record<string, unknown> }>,
+  settingsObj: Record<string, unknown>,
+): OpenAISchema {
   const tools: OpenAITool[] = [];
   for (const node of nodes) {
     const d = node.data ?? {};
@@ -201,7 +210,11 @@ function compileOpenAISchema(nodes: Array<{ data?: Record<string, unknown> }>): 
       parameters: { type: "object", properties: {}, required: [] },
     });
   }
-  return tools;
+  return {
+    tools,
+    voice: (settingsObj.openaiVoice as string | undefined) ?? "alloy",
+    reasoning_effort: (settingsObj.openaiReasoningEffort as string | undefined) ?? "low",
+  };
 }
 
 export const upsertMyAgent = createServerFn({ method: "POST" })
@@ -233,6 +246,7 @@ export const upsertMyAgent = createServerFn({ method: "POST" })
               ((data.flowData as Record<string, unknown>)?.nodes as Array<{
                 data?: Record<string, unknown>;
               }>) ?? [],
+              settingsObj,
             ),
           }
         : settingsObj;

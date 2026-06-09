@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2 } from "lucide-react";
+import { ChevronDown, MoreHorizontal, FileJson, Upload, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
@@ -294,6 +294,9 @@ export function Builder({
 }) {
   const { addNode, addBookingNode, clearAll, autoLayout, revertLayout, settings, setSettings } =
     useBuilderStore();
+
+  const isRetell = (settings.voiceProvider ?? "RETELL") !== "OPENAI_REALTIME";
+  const isOpenAI = settings.voiceProvider === "OPENAI_REALTIME";
   const preAutoLayoutPositions = useBuilderStore((s) => s.preAutoLayoutPositions);
   const [rf, setRf] = useState<ReturnType<typeof useReactFlow> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -698,6 +701,45 @@ export function Builder({
               </DropdownMenu>
             </div>
 
+            {/* Voice Infrastructure Routing */}
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-1.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Voice Infrastructure</p>
+              <div className="flex gap-1.5">
+                {(
+                  [
+                    { value: "RETELL", label: "Retell AI", sub: "Managed cloud", icon: Radio },
+                    { value: "OPENAI_REALTIME", label: "Native OpenAI Fast", sub: "In-house realtime", icon: Zap },
+                  ] as const
+                ).map(({ value, label, sub, icon: Icon }) => {
+                  const active = (settings.voiceProvider ?? "RETELL") === value;
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setSettings({ voiceProvider: value })}
+                      className={`flex-1 flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-left transition-all duration-150 ${
+                        active
+                          ? "border-primary/60 bg-primary/10 ring-1 ring-primary/30"
+                          : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <Icon className={`h-3 w-3 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                      <div className="min-w-0">
+                        <div className={`text-[10px] font-medium truncate ${active ? "text-foreground" : "text-muted-foreground"}`}>{label}</div>
+                        <div className="text-[9px] text-muted-foreground/60">{sub}</div>
+                      </div>
+                      {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+              {isOpenAI && (
+                <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
+                  <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                  <span className="text-[9px] text-muted-foreground">Routed via Master Admin Enterprise Line</span>
+                </div>
+              )}
+            </div>
+
             <Collapsible data-tour="voice-section" className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Mic className="h-3 w-3" />Voice & Language</span>
@@ -711,51 +753,104 @@ export function Builder({
                     onChange={(v) => setSettings({ speechLanguages: v, language: v[0] === "multi" ? "en-US" : v[0] })}
                   />
                 </div>
-                <div>
-                  <Label className="text-[9px]">Voice</Label>
-                  <Select
-                    value={
-                      DEFAULT_VOICES.some((v) => v.id === settings.voiceId)
-                        ? settings.voiceId
-                        : settings.voiceId
-                          ? "__custom__"
-                          : ""
-                    }
-                    onValueChange={(v) => {
-                      if (v !== "__custom__") setSettings({ voiceId: v });
-                    }}
-                  >
-                    <SelectTrigger className="h-6 text-[10px]">
-                      <SelectValue placeholder="Pick a voice" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {VOICE_GROUPS.map((group) => (
-                        <SelectGroup key={group}>
-                          <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">{group}</SelectLabel>
-                          {DEFAULT_VOICES.filter((v) => v.group === group).map((v) => (
-                            <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                {isRetell && (
+                  <>
+                    <div>
+                      <Label className="text-[9px]">Voice</Label>
+                      <Select
+                        value={
+                          DEFAULT_VOICES.some((v) => v.id === settings.voiceId)
+                            ? settings.voiceId
+                            : settings.voiceId
+                              ? "__custom__"
+                              : ""
+                        }
+                        onValueChange={(v) => {
+                          if (v !== "__custom__") setSettings({ voiceId: v });
+                        }}
+                      >
+                        <SelectTrigger className="h-6 text-[10px]">
+                          <SelectValue placeholder="Pick a voice" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VOICE_GROUPS.map((group) => (
+                            <SelectGroup key={group}>
+                              <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">{group}</SelectLabel>
+                              {DEFAULT_VOICES.filter((v) => v.group === group).map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
                           ))}
-                        </SelectGroup>
-                      ))}
-                      {settings.voiceId && !DEFAULT_VOICES.some((v) => v.id === settings.voiceId) && (
-                        <SelectGroup>
-                          <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Custom</SelectLabel>
-                          <SelectItem value="__custom__">
-                            {(() => {
-                              const id = settings.voiceId;
-                              if (id.startsWith("11labs-")) return `ElevenLabs: ${id.slice(7)}`;
-                              if (id.startsWith("custom_voice_")) return `Cloned voice: ${id.slice(13)}`;
-                              return id;
-                            })()}
-                          </SelectItem>
-                        </SelectGroup>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <CustomVoiceUploadDialog onUploaded={(voiceId) => setSettings({ voiceId })} />
+                          {settings.voiceId && !DEFAULT_VOICES.some((v) => v.id === settings.voiceId) && (
+                            <SelectGroup>
+                              <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Custom</SelectLabel>
+                              <SelectItem value="__custom__">
+                                {(() => {
+                                  const id = settings.voiceId;
+                                  if (id.startsWith("11labs-")) return `ElevenLabs: ${id.slice(7)}`;
+                                  if (id.startsWith("custom_voice_")) return `Cloned voice: ${id.slice(13)}`;
+                                  return id;
+                                })()}
+                              </SelectItem>
+                            </SelectGroup>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <CustomVoiceUploadDialog onUploaded={(voiceId) => setSettings({ voiceId })} />
+                  </>
+                )}
               </CollapsibleContent>
             </Collapsible>
+
+            {isOpenAI && (
+              <Collapsible className="rounded-lg border border-primary/20 bg-primary/[0.03]" defaultOpen>
+                <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+                  <span className="flex items-center gap-1.5"><Zap className="h-3 w-3 text-primary" />OpenAI Engine</span>
+                  <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 px-2.5 pb-2.5">
+                  <div>
+                    <Label className="text-[9px]">Voice Profile</Label>
+                    <Select
+                      value={settings.openaiVoice ?? "alloy"}
+                      onValueChange={(v) => setSettings({ openaiVoice: v as BuilderSettings["openaiVoice"] })}
+                    >
+                      <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(["alloy","ash","shimmer","echo","coral","marine","verse","cedar","sage"] as const).map((v) => (
+                          <SelectItem key={v} value={v} className="capitalize">{v.charAt(0).toUpperCase() + v.slice(1)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[9px]">Reasoning Effort</Label>
+                    <div className="flex rounded-md overflow-hidden border border-white/[0.08] mt-1">
+                      {(["minimal","low","medium","high","xhigh"] as const).map((level) => {
+                        const active = (settings.openaiReasoningEffort ?? "low") === level;
+                        return (
+                          <button
+                            key={level}
+                            onClick={() => setSettings({ openaiReasoningEffort: level })}
+                            className={`flex-1 py-1 text-[9px] font-medium transition-colors ${
+                              active
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-white/[0.02] text-muted-foreground hover:bg-white/[0.06]"
+                            }`}
+                          >
+                            {level}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground/60 leading-relaxed">
+                    API key managed server-side. No credentials required.
+                  </p>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
             <Collapsible data-tour="global-prompt" className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
@@ -763,6 +858,7 @@ export function Builder({
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
+                {isRetell && (
                 <div>
                   <Label className="text-[9px] flex items-center gap-1">
                     Model
@@ -807,6 +903,7 @@ export function Builder({
                     </SelectContent>
                   </Select>
                 </div>
+                )}
                 <SliderField label="Temperature" value={settings.temperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => setSettings({ temperature: v })} />
                 <Textarea rows={4} value={settings.globalPrompt} onChange={(e) => setSettings({ globalPrompt: e.target.value })} placeholder="Enter your global prompt here" className="text-[10px] leading-relaxed" />
               </CollapsibleContent>
@@ -834,10 +931,12 @@ export function Builder({
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1.5 px-2.5 pb-2.5">
-                <div>
-                  <Label className="text-[9px]">Webhook URL</Label>
-                  <Input value={settings.webhookUrl ?? ""} onChange={(e) => setSettings({ webhookUrl: e.target.value })} className="h-6 text-[10px]" placeholder="https://…" />
-                </div>
+                {isRetell && (
+                  <div>
+                    <Label className="text-[9px]">Webhook URL</Label>
+                    <Input value={settings.webhookUrl ?? ""} onChange={(e) => setSettings({ webhookUrl: e.target.value })} className="h-6 text-[10px]" placeholder="https://…" />
+                  </div>
+                )}
                 <div>
                   <Label className="text-[9px]">Start speaker</Label>
                   <Select value={settings.startSpeaker ?? "agent"} onValueChange={(v) => setSettings({ startSpeaker: v as "agent" | "user" })}>
@@ -1115,29 +1214,32 @@ export function Builder({
                     />
                   </div>
                 </div>
-                <div>
-                  <Label className="text-[9px]">Ambient sound</Label>
-                  <Select
-                    value={settings.ambientSound ?? "none"}
-                    onValueChange={(v) =>
-                      setSettings({ ambientSound: v as BuilderSettings["ambientSound"] })
-                    }
-                  >
-                    <SelectTrigger className="h-6 text-[10px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      <SelectItem value="coffee-shop">Coffee shop</SelectItem>
-                      <SelectItem value="convention-hall">Convention hall</SelectItem>
-                      <SelectItem value="summer-outdoor">Summer outdoor</SelectItem>
-                      <SelectItem value="mountain-outdoor">Mountain outdoor</SelectItem>
-                      <SelectItem value="static-noise">Static noise</SelectItem>
-                      <SelectItem value="call-center">Call center</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {isRetell && (
+                  <div>
+                    <Label className="text-[9px]">Ambient sound</Label>
+                    <Select
+                      value={settings.ambientSound ?? "none"}
+                      onValueChange={(v) =>
+                        setSettings({ ambientSound: v as BuilderSettings["ambientSound"] })
+                      }
+                    >
+                      <SelectTrigger className="h-6 text-[10px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="coffee-shop">Coffee shop</SelectItem>
+                        <SelectItem value="convention-hall">Convention hall</SelectItem>
+                        <SelectItem value="summer-outdoor">Summer outdoor</SelectItem>
+                        <SelectItem value="mountain-outdoor">Mountain outdoor</SelectItem>
+                        <SelectItem value="static-noise">Static noise</SelectItem>
+                        <SelectItem value="call-center">Call center</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
+                  {isRetell && (
                   <div>
                     <Label className="text-[9px]">Ambient volume</Label>
                     <Input
@@ -1150,6 +1252,7 @@ export function Builder({
                       className="h-6 text-[10px]"
                     />
                   </div>
+                  )}
                   <div>
                     <Label className="text-[9px]">Denoising</Label>
                     <Select

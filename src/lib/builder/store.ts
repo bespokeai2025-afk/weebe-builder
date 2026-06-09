@@ -99,6 +99,9 @@ const defaultSettings: BuilderSettings = {
   enableDynamicVoiceSpeed: false,
   enableDynamicResponsiveness: false,
   normalizeForSpeech: true,
+  voiceProvider: "RETELL",
+  openaiVoice: "alloy",
+  openaiReasoningEffort: "low",
 };
 
 const NODE_LABELS: Record<NodeKind, string> = {
