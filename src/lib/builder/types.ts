@@ -225,8 +225,19 @@ export interface BuilderSettings {
   /**
    * Voice infrastructure provider. Defaults to "RETELL" for all new agents.
    * "OPENAI_REALTIME" routes through the in-house OpenAI Realtime microservice.
+   *
+   * @deprecated Prefer deploymentMode. This field is preserved for backward
+   * compatibility with existing agents and is read by resolveDeploymentMode()
+   * as a legacy fallback. Never remove or rename it.
    */
   voiceProvider?: "RETELL" | "OPENAI_REALTIME";
+  /**
+   * New unified deployment mode. When set, takes precedence over voiceProvider.
+   * All existing agents will have this resolved to "RETELL" by the adapter even
+   * if the field is absent (adapter fallback logic handles this).
+   * Set by the Builder when the user explicitly chooses a runtime.
+   */
+  deploymentMode?: "RETELL" | "OPENAI_NATIVE" | "CLAUDE_NATIVE" | "GEMINI_NATIVE";
   /** OpenAI Realtime voice profile (only used when voiceProvider === "OPENAI_REALTIME") */
   openaiVoice?: "alloy" | "ash" | "ballad" | "coral" | "echo" | "shimmer" | "sage" | "verse" | "marine";
   /** OpenAI Realtime reasoning effort level (only used when voiceProvider === "OPENAI_REALTIME") */

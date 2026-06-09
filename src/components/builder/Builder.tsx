@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { toPng } from "html-to-image";
 import { useBuilderStore } from "@/lib/builder/store";
+import { resolveDeploymentMode, isRetellMode, isOpenAINativeMode } from "@/lib/runtime/adapter";
+import type { DeploymentMode } from "@/lib/runtime/types";
 import { CustomVoiceUploadDialog } from "@/components/builder/CustomVoiceUploadDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock } from "lucide-react";
+import { ChevronDown, MoreHorizontal, FileJson, Upload, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
@@ -298,7 +300,7 @@ export function Builder({
     useBuilderStore();
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const saveVersion = useBuilderStore((s) => s.saveVersion);
-  const [pendingEngine, setPendingEngine] = useState<"RETELL" | "OPENAI_REALTIME" | null>(null);
+  const [pendingEngine, setPendingEngine] = useState<DeploymentMode | null>(null);
   const undoToastIdRef = useRef<string | number | null>(null);
   const saveVersionRef = useRef(saveVersion);
 
@@ -312,8 +314,12 @@ export function Builder({
     }
   }, [saveVersion]);
 
-  const isRetell = (settings.voiceProvider ?? "RETELL") !== "OPENAI_REALTIME";
-  const isOpenAI = settings.voiceProvider === "OPENAI_REALTIME";
+  // All runtime branching goes through the adapter — never read voiceProvider directly.
+  // resolveDeploymentMode() handles legacy agents (voiceProvider="OPENAI_REALTIME") and
+  // new agents (deploymentMode="OPENAI_NATIVE") transparently.
+  const activeMode = resolveDeploymentMode(settings);
+  const isRetell = isRetellMode(activeMode);
+  const isOpenAI = isOpenAINativeMode(activeMode);
   const preAutoLayoutPositions = useBuilderStore((s) => s.preAutoLayoutPositions);
   const [rf, setRf] = useState<ReturnType<typeof useReactFlow> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -544,7 +550,13 @@ export function Builder({
                   onClick={() => {
                     if (pendingEngine) {
                       const snapshot = { ...settings };
-                      setSettings({ voiceProvider: pendingEngine });
+                      // Write deploymentMode (new) AND keep voiceProvider in sync
+                      // (legacy field) so existing Retell code that reads voiceProvider
+                      // continues to work without modification.
+                      setSettings({
+                        deploymentMode: pendingEngine,
+                        voiceProvider: pendingEngine === "OPENAI_NATIVE" ? "OPENAI_REALTIME" : "RETELL",
+                      });
                       setPendingEngine(null);
                       const id = toast("Voice engine switched", {
                         description: "Engine-specific settings have been reset.",
@@ -773,29 +785,38 @@ export function Builder({
             {/* Voice Infrastructure Routing */}
             <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-1.5">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Voice Infrastructure</p>
-              <div className="flex gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {(
                   [
-                    { value: "RETELL", label: "OmniVoice Engine", sub: "Premium Catalog", icon: Radio },
-                    { value: "OPENAI_REALTIME", label: "HyperStream Engine", sub: "Instant Response", icon: Zap },
-                  ] as const
-                ).map(({ value, label, sub, icon: Icon }) => {
-                  const active = (settings.voiceProvider ?? "RETELL") === value;
+                    { mode: "RETELL"        as DeploymentMode, label: "OmniVoice",   sub: "Premium Catalog",  icon: Radio,    available: true  },
+                    { mode: "OPENAI_NATIVE" as DeploymentMode, label: "HyperStream", sub: "Instant Response", icon: Zap,      available: true  },
+                    { mode: "CLAUDE_NATIVE" as DeploymentMode, label: "Claude",      sub: "Coming Soon",      icon: Sparkles, available: false },
+                    { mode: "GEMINI_NATIVE" as DeploymentMode, label: "Gemini",      sub: "Coming Soon",      icon: Gem,      available: false },
+                  ]
+                ).map(({ mode, label, sub, icon: Icon, available }) => {
+                  const active = activeMode === mode;
                   return (
                     <button
-                      key={value}
+                      key={mode}
+                      disabled={!available}
                       onClick={() => {
-                        if (active) return;
+                        if (active || !available) return;
                         if (currentAgentRowId) {
-                          setPendingEngine(value);
+                          setPendingEngine(mode);
                         } else {
-                          setSettings({ voiceProvider: value });
+                          // Keep voiceProvider in sync for backward compat.
+                          setSettings({
+                            deploymentMode: mode,
+                            voiceProvider: mode === "OPENAI_NATIVE" ? "OPENAI_REALTIME" : "RETELL",
+                          });
                         }
                       }}
-                      className={`flex-1 flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-left transition-all duration-150 ${
+                      className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 text-left transition-all duration-150 ${
                         active
                           ? "border-primary/60 bg-primary/10 ring-1 ring-primary/30"
-                          : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04]"
+                          : !available
+                            ? "border-white/[0.04] bg-white/[0.01] opacity-40 cursor-not-allowed"
+                            : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04]"
                       }`}
                     >
                       <Icon className={`h-3 w-3 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} />

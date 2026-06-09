@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
 import { exportAgentJson } from "@/lib/builder/export-conversation-flow";
 import { compileRealtimePrompt } from "@/lib/builder/compile-realtime-prompt";
+import { resolveDeploymentMode } from "@/lib/runtime/adapter";
 import { importAgentJson } from "@/lib/builder/import-conversation-flow";
 import {
   deployAgentToRetell,
@@ -96,7 +97,10 @@ export function RetellDeployDialog() {
   });
 
   const hasAgent = Boolean(settings.agentId);
-  const isOpenAI = settings.voiceProvider === "OPENAI_REALTIME";
+  // Use the adapter so the mode resolves correctly for both legacy agents
+  // (voiceProvider="OPENAI_REALTIME") and new agents (deploymentMode="OPENAI_NATIVE").
+  const deploymentMode = resolveDeploymentMode(settings);
+  const isOpenAI = deploymentMode === "OPENAI_NATIVE";
 
   useEffect(() => {
     return () => {
