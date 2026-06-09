@@ -737,7 +737,6 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
           headers: {
             Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            "OpenAI-Beta": "realtime=v1",
             "Content-Length": Buffer.byteLength(sessionPayload),
           },
         },

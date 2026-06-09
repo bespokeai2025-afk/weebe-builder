@@ -56,7 +56,6 @@ export function hyperStreamRelayPlugin(): Plugin {
               {
                 headers: {
                   Authorization: `Bearer ${apiKey}`,
-                  "OpenAI-Beta": "realtime=v1",
                 },
               },
             );
