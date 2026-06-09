@@ -845,15 +845,21 @@ export const listTwilioPhoneNumbers = createServerFn({ method: "POST" })
       process.env.TWILIO_AUTH_TOKEN ??
       null;
     if (!sid || !token) {
-      return [] as Array<{ phoneNumber: string; nickname: string; inboundAgentId: string | null }>;
+      return {
+        configured: false,
+        numbers: [] as Array<{ phoneNumber: string; nickname: string; inboundAgentId: string | null }>,
+      };
     }
 
     const Twilio = (await import("twilio")).default;
     const client = Twilio(sid, token);
     const numbers = await client.incomingPhoneNumbers.list({ limit: 100 });
-    return numbers.map((n) => ({
-      phoneNumber: n.phoneNumber as string,
-      nickname: (n.friendlyName ?? "") as string,
-      inboundAgentId: null as string | null,
-    }));
+    return {
+      configured: true,
+      numbers: numbers.map((n) => ({
+        phoneNumber: n.phoneNumber as string,
+        nickname: (n.friendlyName ?? "") as string,
+        inboundAgentId: null as string | null,
+      })),
+    };
   });

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Loader2, Phone, PhoneCall, Calendar, ExternalLink, Check, Rocket } from "lucide-react";
+import { useNavigate, Link } from "@tanstack/react-router";
+import { Loader2, Phone, PhoneCall, Calendar, ExternalLink, Check, Rocket, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -197,7 +197,8 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     queryKey: isOpenAiRealtime
       ? ["twilio-numbers", agent?.id]
       : ["retell-numbers", agent?.id, deployedId ? "prod" : "dev"],
-    queryFn: () =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    queryFn: (): Promise<any> =>
       isOpenAiRealtime
         ? listTwilioFn({ data: {} })
         : listFn({ data: { agentRowId: agent!.id } }),
@@ -205,6 +206,19 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   });
 
   if (!agent) return null;
+
+  // Derive Twilio config status and number list from the query result.
+  // listTwilioPhoneNumbers now returns { configured, numbers } for OpenAI Realtime;
+  // listRetellPhoneNumbers still returns a plain array.
+  type TwilioNumber = { phoneNumber: string; nickname: string; inboundAgentId: string | null };
+  type RetellNumber = { phoneNumber: string; nickname: string; inboundAgentId: string | null };
+  const twilioConfigured: boolean = isOpenAiRealtime
+    ? ((numbersQ.data as { configured: boolean } | undefined)?.configured ?? true)
+    : true;
+  const displayNumbers: TwilioNumber[] | RetellNumber[] = isOpenAiRealtime
+    ? ((numbersQ.data as { numbers: TwilioNumber[] } | undefined)?.numbers ?? [])
+    : ((numbersQ.data as RetellNumber[] | undefined) ?? []);
+
   // Prefer the cloned production agent for number attachment; fall back to the source.
   const retellId = deployedId ?? agent.retell_agent_id;
   // OpenAI Realtime agents have no Retell ID — they are saved directly and don't
@@ -668,164 +682,189 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
               {/* BUY */}
               <TabsContent value="buy" className="space-y-4 mt-4">
-                <div className="rounded-md border p-3 text-xs text-muted-foreground">
-                  Numbers are provisioned via Twilio. Pricing:{" "}
-                  <strong className="text-foreground">$5/mo standard</strong>,{" "}
-                  <strong className="text-foreground">$10/mo toll-free</strong>. Per-minute call
-                  charges apply separately.
-                </div>
-
-                <RadioGroup
-                  value={tollFree ? "toll" : "standard"}
-                  onValueChange={(v) => setTollFree(v === "toll")}
-                  className="flex gap-6"
-                >
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="standard" id="std" />
-                    <Label htmlFor="std" className="cursor-pointer text-sm">
-                      Standard ($5/mo)
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="toll" id="toll" />
-                    <Label htmlFor="toll" className="cursor-pointer text-sm">
-                      Toll-free ($10/mo)
-                    </Label>
-                  </div>
-                </RadioGroup>
-
-                {isOpenAiRealtime && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">Country</Label>
-                    <Select value={countryCode} onValueChange={(v) => { setCountryCode(v); setAreaCode(""); }}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="US">🇺🇸 United States</SelectItem>
-                        <SelectItem value="CA">🇨🇦 Canada</SelectItem>
-                        <SelectItem value="GB">🇬🇧 United Kingdom</SelectItem>
-                        <SelectItem value="AU">🇦🇺 Australia</SelectItem>
-                        <SelectItem value="DE">🇩🇪 Germany</SelectItem>
-                        <SelectItem value="FR">🇫🇷 France</SelectItem>
-                        <SelectItem value="ES">🇪🇸 Spain</SelectItem>
-                        <SelectItem value="IT">🇮🇹 Italy</SelectItem>
-                        <SelectItem value="NL">🇳🇱 Netherlands</SelectItem>
-                        <SelectItem value="SE">🇸🇪 Sweden</SelectItem>
-                        <SelectItem value="NO">🇳🇴 Norway</SelectItem>
-                        <SelectItem value="DK">🇩🇰 Denmark</SelectItem>
-                        <SelectItem value="FI">🇫🇮 Finland</SelectItem>
-                        <SelectItem value="CH">🇨🇭 Switzerland</SelectItem>
-                        <SelectItem value="AT">🇦🇹 Austria</SelectItem>
-                        <SelectItem value="BE">🇧🇪 Belgium</SelectItem>
-                        <SelectItem value="IE">🇮🇪 Ireland</SelectItem>
-                        <SelectItem value="PT">🇵🇹 Portugal</SelectItem>
-                        <SelectItem value="PL">🇵🇱 Poland</SelectItem>
-                        <SelectItem value="CZ">🇨🇿 Czech Republic</SelectItem>
-                        <SelectItem value="NZ">🇳🇿 New Zealand</SelectItem>
-                        <SelectItem value="ZA">🇿🇦 South Africa</SelectItem>
-                        <SelectItem value="MX">🇲🇽 Mexico</SelectItem>
-                        <SelectItem value="BR">🇧🇷 Brazil</SelectItem>
-                        <SelectItem value="JP">🇯🇵 Japan</SelectItem>
-                        <SelectItem value="SG">🇸🇬 Singapore</SelectItem>
-                        <SelectItem value="HK">🇭🇰 Hong Kong</SelectItem>
-                      </SelectContent>
-                    </Select>
+                {isOpenAiRealtime && !twilioConfigured && !numbersQ.isLoading && (
+                  <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 p-3 flex gap-2 text-sm">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                    <div className="space-y-1">
+                      <p className="font-medium text-amber-800 dark:text-amber-300">
+                        Twilio is not configured
+                      </p>
+                      <p className="text-amber-700 dark:text-amber-400 text-xs">
+                        Add your <strong>TWILIO_ACCOUNT_SID</strong> and auth token to purchase or
+                        attach phone numbers.{" "}
+                        <Link
+                          to="/settings/integrations"
+                          className="underline underline-offset-2 font-medium"
+                          onClick={() => onOpenChange(false)}
+                        >
+                          Go to Settings → Integrations
+                          <ExternalLink className="inline h-3 w-3 ml-0.5" />
+                        </Link>
+                      </p>
+                    </div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  {(!isOpenAiRealtime || countryCode === "US") && (
+                {(!isOpenAiRealtime || twilioConfigured) && (<>
+                  <div className="rounded-md border p-3 text-xs text-muted-foreground">
+                    Numbers are provisioned via Twilio. Pricing:{" "}
+                    <strong className="text-foreground">$5/mo standard</strong>,{" "}
+                    <strong className="text-foreground">$10/mo toll-free</strong>. Per-minute call
+                    charges apply separately.
+                  </div>
+
+                  <RadioGroup
+                    value={tollFree ? "toll" : "standard"}
+                    onValueChange={(v) => setTollFree(v === "toll")}
+                    className="flex gap-6"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="standard" id="std" />
+                      <Label htmlFor="std" className="cursor-pointer text-sm">
+                        Standard ($5/mo)
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="toll" id="toll" />
+                      <Label htmlFor="toll" className="cursor-pointer text-sm">
+                        Toll-free ($10/mo)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+
+                  {isOpenAiRealtime && (
                     <div className="space-y-1">
-                      <Label className="text-xs">Area code (optional)</Label>
-                      <Input
-                        placeholder="e.g. 415"
-                        value={areaCode}
-                        onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                        disabled={tollFree}
-                      />
+                      <Label className="text-xs">Country</Label>
+                      <Select value={countryCode} onValueChange={(v) => { setCountryCode(v); setAreaCode(""); }}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="US">🇺🇸 United States</SelectItem>
+                          <SelectItem value="CA">🇨🇦 Canada</SelectItem>
+                          <SelectItem value="GB">🇬🇧 United Kingdom</SelectItem>
+                          <SelectItem value="AU">🇦🇺 Australia</SelectItem>
+                          <SelectItem value="DE">🇩🇪 Germany</SelectItem>
+                          <SelectItem value="FR">🇫🇷 France</SelectItem>
+                          <SelectItem value="ES">🇪🇸 Spain</SelectItem>
+                          <SelectItem value="IT">🇮🇹 Italy</SelectItem>
+                          <SelectItem value="NL">🇳🇱 Netherlands</SelectItem>
+                          <SelectItem value="SE">🇸🇪 Sweden</SelectItem>
+                          <SelectItem value="NO">🇳🇴 Norway</SelectItem>
+                          <SelectItem value="DK">🇩🇰 Denmark</SelectItem>
+                          <SelectItem value="FI">🇫🇮 Finland</SelectItem>
+                          <SelectItem value="CH">🇨🇭 Switzerland</SelectItem>
+                          <SelectItem value="AT">🇦🇹 Austria</SelectItem>
+                          <SelectItem value="BE">🇧🇪 Belgium</SelectItem>
+                          <SelectItem value="IE">🇮🇪 Ireland</SelectItem>
+                          <SelectItem value="PT">🇵🇹 Portugal</SelectItem>
+                          <SelectItem value="PL">🇵🇱 Poland</SelectItem>
+                          <SelectItem value="CZ">🇨🇿 Czech Republic</SelectItem>
+                          <SelectItem value="NZ">🇳🇿 New Zealand</SelectItem>
+                          <SelectItem value="ZA">🇿🇦 South Africa</SelectItem>
+                          <SelectItem value="MX">🇲🇽 Mexico</SelectItem>
+                          <SelectItem value="BR">🇧🇷 Brazil</SelectItem>
+                          <SelectItem value="JP">🇯🇵 Japan</SelectItem>
+                          <SelectItem value="SG">🇸🇬 Singapore</SelectItem>
+                          <SelectItem value="HK">🇭🇰 Hong Kong</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
-                  <div className={(!isOpenAiRealtime || countryCode === "US") ? "space-y-1" : "col-span-2 space-y-1"}>
-                    <Label className="text-xs">Nickname (optional)</Label>
-                    <Input
-                      placeholder={agent.name}
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                    />
-                  </div>
-                </div>
 
-                <Button
-                  onClick={handleBuy}
-                  disabled={buying || needsDeploy || !hasProductionKeyForOps}
-                  className="w-full"
-                >
-                  {buying && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                  Purchase number
-                </Button>
-
-                {numbersQ.error && (
-                  <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
-                    {(numbersQ.error as Error).message}
-                  </div>
-                )}
-                {numbersQ.data && numbersQ.data.length > 0 && (
-                  <>
-                    <Separator />
-                    <div>
-                      <Label className="text-xs text-muted-foreground">
-                        Or attach an existing number you already own:
-                      </Label>
-                      <div className="mt-2 max-h-48 overflow-y-auto rounded-md border divide-y">
-                        {numbersQ.data.map((n) => {
-                          const savedPhone = (settings.phoneNumber as string | undefined) ?? null;
-                          const attached = isOpenAiRealtime
-                            ? n.phoneNumber === savedPhone
-                            : n.inboundAgentId === retellId;
-                          return (
-                            <div
-                              key={n.phoneNumber}
-                              className="flex items-center justify-between px-3 py-2 text-sm"
-                            >
-                              <div className="min-w-0">
-                                <div className="font-mono">{n.phoneNumber}</div>
-                                {n.nickname && (
-                                  <div className="text-xs text-muted-foreground truncate">
-                                    {n.nickname}
-                                  </div>
-                                )}
-                              </div>
-                              <Button
-                                size="sm"
-                                variant={attached ? "ghost" : "outline"}
-                                disabled={attached || needsDeploy || !hasProductionKeyForOps}
-                                onClick={async () => {
-                                  try {
-                                    await attachAndSave(n.phoneNumber);
-                                    toast.success("Number attached");
-                                  } catch (e) {
-                                    toast.error("Attach failed", {
-                                      description: (e as Error).message,
-                                    });
-                                  }
-                                }}
-                              >
-                                {attached ? (
-                                  <>
-                                    <Check className="h-3 w-3 mr-1" /> Attached
-                                  </>
-                                ) : (
-                                  "Attach"
-                                )}
-                              </Button>
-                            </div>
-                          );
-                        })}
+                  <div className="grid grid-cols-2 gap-3">
+                    {(!isOpenAiRealtime || countryCode === "US") && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Area code (optional)</Label>
+                        <Input
+                          placeholder="e.g. 415"
+                          value={areaCode}
+                          onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          disabled={tollFree}
+                        />
                       </div>
+                    )}
+                    <div className={(!isOpenAiRealtime || countryCode === "US") ? "space-y-1" : "col-span-2 space-y-1"}>
+                      <Label className="text-xs">Nickname (optional)</Label>
+                      <Input
+                        placeholder={agent.name}
+                        value={nickname}
+                        onChange={(e) => setNickname(e.target.value)}
+                      />
                     </div>
-                  </>
-                )}
+                  </div>
+
+                  <Button
+                    onClick={handleBuy}
+                    disabled={buying || needsDeploy || !hasProductionKeyForOps}
+                    className="w-full"
+                  >
+                    {buying && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    Purchase number
+                  </Button>
+
+                  {numbersQ.error && (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
+                      {(numbersQ.error as Error).message}
+                    </div>
+                  )}
+                  {displayNumbers.length > 0 && (
+                    <>
+                      <Separator />
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          Or attach an existing number you already own:
+                        </Label>
+                        <div className="mt-2 max-h-48 overflow-y-auto rounded-md border divide-y">
+                          {displayNumbers.map((n) => {
+                            const savedPhone = (settings.phoneNumber as string | undefined) ?? null;
+                            const attached = isOpenAiRealtime
+                              ? n.phoneNumber === savedPhone
+                              : n.inboundAgentId === retellId;
+                            return (
+                              <div
+                                key={n.phoneNumber}
+                                className="flex items-center justify-between px-3 py-2 text-sm"
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-mono">{n.phoneNumber}</div>
+                                  {n.nickname && (
+                                    <div className="text-xs text-muted-foreground truncate">
+                                      {n.nickname}
+                                    </div>
+                                  )}
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant={attached ? "ghost" : "outline"}
+                                  disabled={attached || needsDeploy || !hasProductionKeyForOps}
+                                  onClick={async () => {
+                                    try {
+                                      await attachAndSave(n.phoneNumber);
+                                      toast.success("Number attached");
+                                    } catch (e) {
+                                      toast.error("Attach failed", {
+                                        description: (e as Error).message,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  {attached ? (
+                                    <>
+                                      <Check className="h-3 w-3 mr-1" /> Attached
+                                    </>
+                                  ) : (
+                                    "Attach"
+                                  )}
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>)}
               </TabsContent>
 
               {/* SIP */}
