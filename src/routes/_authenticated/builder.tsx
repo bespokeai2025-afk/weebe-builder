@@ -48,7 +48,12 @@ function BuilderPage() {
 
   useEffect(() => {
     if (newAgent === "1") {
-      useBuilderStore.getState().clearAll();
+      const store = useBuilderStore.getState();
+      const voiceProvider = store.settings.voiceProvider;
+      store.clearAll();
+      if (voiceProvider) {
+        store.setSettings({ voiceProvider } as Parameters<typeof store.setSettings>[0]);
+      }
     }
   }, [newAgent]);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
