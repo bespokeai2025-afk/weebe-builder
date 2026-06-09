@@ -63,6 +63,7 @@ export function RetellDeployDialog() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const captureSinkRef = useRef<GainNode | null>(null);
+  const keepAliveRef = useRef<OscillatorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef(0);
   const startedAtRef = useRef<number | null>(null);
@@ -109,6 +110,8 @@ export function RetellDeployDialog() {
       workletRef.current = null;
       captureSinkRef.current?.disconnect();
       captureSinkRef.current = null;
+      keepAliveRef.current?.stop();
+      keepAliveRef.current = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       audioCtxRef.current?.close().catch(() => {});
@@ -413,6 +416,8 @@ export function RetellDeployDialog() {
       workletRef.current = null;
       captureSinkRef.current?.disconnect();
       captureSinkRef.current = null;
+      keepAliveRef.current?.stop();
+      keepAliveRef.current = null;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       audioCtxRef.current?.close().catch(() => {});
@@ -436,6 +441,22 @@ export function RetellDeployDialog() {
       console.log(
         `[hyperstream] AudioContext sampleRate=${audioCtx.sampleRate} (requested 24000)`,
       );
+      // Log any state changes so we can detect auto-suspension.
+      audioCtx.onstatechange = () => {
+        console.log(`[hyperstream] AudioContext state → ${audioCtx.state}`);
+      };
+      // Keep-alive oscillator: a silent (gain=0) sine wave running for the
+      // entire call. Without it browsers can auto-suspend the AudioContext
+      // when no audio is actively playing, which kills the worklet's
+      // process() loop and stops mic audio from reaching OpenAI's VAD.
+      const keepAliveOsc = audioCtx.createOscillator();
+      const keepAliveGain = audioCtx.createGain();
+      keepAliveGain.gain.value = 0;
+      keepAliveOsc.connect(keepAliveGain);
+      keepAliveGain.connect(audioCtx.destination);
+      keepAliveOsc.start();
+      keepAliveRef.current = keepAliveOsc;
+
       audioCtxRef.current = audioCtx;
       nextPlayTimeRef.current = 0;
 
@@ -585,8 +606,9 @@ export function RetellDeployDialog() {
                         type: "server_vad",
                         threshold: 0.5,
                         prefix_padding_ms: 300,
-                        // 300 ms is the OpenAI default — keeps response latency low.
-                        silence_duration_ms: 300,
+                        // 200 ms is the OpenAI default — minimises dead time after
+                        // the user stops speaking before the model starts generating.
+                        silence_duration_ms: 200,
                         create_response: true,
                         interrupt_response: true,
                       },
@@ -649,9 +671,12 @@ export function RetellDeployDialog() {
           ) {
             const ctx = audioCtxRef.current;
             if (!ctx) return;
-            // Browser can auto-suspend the AudioContext after a period of
-            // inactivity. Resume it before scheduling so audio actually plays.
-            if (ctx.state === "suspended") void ctx.resume();
+            // Resume if suspended (belt-and-suspenders — the keep-alive
+            // oscillator should prevent suspension, but just in case).
+            if (ctx.state === "suspended") {
+              console.log("[hyperstream] ctx suspended on audio delta — resuming");
+              void ctx.resume();
+            }
             const binaryStr = atob(msg.delta as string);
             const bytes = new Uint8Array(binaryStr.length);
             for (let i = 0; i < binaryStr.length; i++)
@@ -721,6 +746,8 @@ export function RetellDeployDialog() {
     workletRef.current = null;
     captureSinkRef.current?.disconnect();
     captureSinkRef.current = null;
+    keepAliveRef.current?.stop();
+    keepAliveRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     audioCtxRef.current?.close().catch(() => {});
