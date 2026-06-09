@@ -70,8 +70,11 @@ export function hyperStreamRelayPlugin(): Plugin {
             openaiWs.on("message", (data: import("ws").RawData) => {
               try {
                 const msg = JSON.parse(data.toString()) as Record<string, unknown>;
-                if (msg.type !== "response.audio.delta") {
-                  console.log(`[hyperstream-relay] OpenAI → browser: ${JSON.stringify(msg).slice(0, 200)}`);
+                if (
+                  msg.type !== "response.output_audio.delta" &&
+                  msg.type !== "response.audio.delta"
+                ) {
+                  console.log(`[hyperstream-relay] OpenAI → browser: ${JSON.stringify(msg).slice(0, 300)}`);
                 }
               } catch { /* binary frame */ }
               if (browserWs.readyState === WebSocket.OPEN) {
@@ -100,6 +103,14 @@ export function hyperStreamRelayPlugin(): Plugin {
             });
 
             browserWs.on("message", (data: import("ws").RawData, isBinary: boolean) => {
+              if (!isBinary) {
+                try {
+                  const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+                  if (msg.type !== "input_audio_buffer.append") {
+                    console.log(`[hyperstream-relay] browser → OpenAI: ${JSON.stringify(msg).slice(0, 300)}`);
+                  }
+                } catch { /* non-JSON */ }
+              }
               if (openaiWs.readyState === WebSocket.OPEN) {
                 // Forward with the correct frame type — without isBinary the ws
                 // library treats Buffer payloads as binary frames, which OpenAI rejects.
