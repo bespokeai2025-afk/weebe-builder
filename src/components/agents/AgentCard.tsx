@@ -14,6 +14,8 @@ import {
   Copy as CopyIcon,
   AlertTriangle,
   CircleDot,
+  Radio,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +60,13 @@ const STATUS_STYLES: Record<AgentStatus, string> = {
   draft: "bg-white/[0.04] text-muted-foreground ring-1 ring-white/10",
   failed: "bg-destructive/15 text-red-300 ring-1 ring-red-400/30",
 };
+
+type VoiceProvider = "RETELL" | "OPENAI_REALTIME";
+
+function deriveVoiceProvider(a: AgentCardData): VoiceProvider {
+  const vp = (a.settings ?? {}).voiceProvider;
+  return vp === "OPENAI_REALTIME" ? "OPENAI_REALTIME" : "RETELL";
+}
 
 function deriveStatus(a: AgentCardData): AgentStatus {
   const s = a.settings ?? {};
@@ -133,6 +142,7 @@ function Metric({
 export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentCardProps) {
   const status = deriveStatus(agent);
   const tags = deriveTags(agent);
+  const voiceProvider = deriveVoiceProvider(agent);
   const settings = agent.settings ?? {};
   const phone = settings.phoneNumber as string | undefined;
   const deployedId = settings.deployedRetellAgentId as string | undefined;
@@ -209,6 +219,23 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentC
                 {t}
               </Badge>
             ))}
+            <Badge
+              variant="secondary"
+              className="h-5 gap-1 rounded-full bg-white/[0.04] px-2 text-[10px] font-normal ring-1 ring-white/[0.06] hover:bg-white/[0.06]"
+              title={voiceProvider === "OPENAI_REALTIME" ? "OpenAI Realtime" : "Retell"}
+            >
+              {voiceProvider === "OPENAI_REALTIME" ? (
+                <>
+                  <Zap className="h-2.5 w-2.5 text-violet-400" />
+                  <span className="text-violet-300">OpenAI</span>
+                </>
+              ) : (
+                <>
+                  <Radio className="h-2.5 w-2.5 text-sky-400" />
+                  <span className="text-sky-300">Retell</span>
+                </>
+              )}
+            </Badge>
           </div>
           <h3 className="mt-3 truncate text-lg font-semibold tracking-tight text-foreground">
             {agent.name}
