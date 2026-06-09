@@ -1,0 +1,28 @@
+Title: Refactor Feature Request - Shift Provider Switch to Agent Creation/Builder View with Dynamic Conditional UI Rendering
+
+Please refactor our voice provider configuration infrastructure. The current deployment-level toggle setting must be relocated directly into our "Create New Agent" configuration modal and the active canvas builder panel. 
+
+The user interface must dynamically morph based on the selected infrastructure profile, completely masking unnecessary fields while remaining 100% non-breaking to existing and future Retell setups.
+
+### 1. Relocate to Agent Creation Modal & Main Builder Sidebars
+* Move the 'Voice Infrastructure Routing' selection step out of the deployment options page and place it directly inside the initial "Create New Agent" form modal, as well as the active Agent Configuration sidebars.
+* **Default State Safety:** Every newly created agent must automatically default to 'RETELL' out of the box. The custom engine must be an explicit, conscious user toggle choice.
+
+### 2. Dynamic UI Morphing (Conditional Interface Fields)
+Implement a state-driven conditional rendering loop inside the canvas builder layout view to adjust displayed fields based on our 'voice_provider' variable:
+
+* **IF 'RETELL' is Active (Standard Platform Layout):**
+  - Show all existing configurations exactly as they operate right now (Retell Ambient Noises, Custom Retell LLM selections, Retell custom webhook keys, and deep integration settings).
+  - Hide all OpenAI-specific system parameters.
+
+* **IF 'Native OpenAI Fast Engine' is Active (Morphed OpenAI Layout):**
+  - HIDE all Retell-specific drop-downs, keys, ambient sounds, and operational parameters entirely from the screen to eliminate interface clutter.
+  - REVEAL exclusively the parameters relevant to OpenAI's native streaming engine. Show a dropdown selector for the 9 native OpenAI Realtime Voice Profiles (Alloy, Ash, Shimmer, Echo, Coral, Marine, Verse, Cedar, Sage). 
+  - Expose a clean sliding toggle control for OpenAI's native 'Reasoning Effort Level' (Options: 'minimal', 'low', 'medium', 'high', 'xhigh' — defaulting to 'low').
+
+### 3. Maintain Background Admin Key Wiring & Metadata Security
+* When 'Native OpenAI Fast Engine' is toggled during agent creation or editing, ensure no text input fields for an OpenAI API key appear to the user.
+* Maintain our hidden server-side auto-wiring interceptor: when compiling and writing this agent's canvas data block to the database, automatically bind our backend root variable 'process.env.MASTER_OPENAI_API_KEY' to its background operations so the end-user remains completely sandboxed from our billing details.
+
+### 4. Continuous Webhook Tracking & Data Ingestion
+* Ensure that selecting the custom engine during agent creation doesn't interfere with our parallel analytics data collection tracking pipelines. The system must still map all outputs cleanly to the `/api/webhook/custom-telemetry` endpoint to feed charts, logs, and summaries into our primary dashboard tables cleanly upon call terminations.
