@@ -26,7 +26,6 @@ import {
   listMyAgents,
   upsertMyAgent,
   getMyAgentByRetellId,
-  createOpenAIRealtimeSession,
 } from "@/lib/agents/agents.functions";
 import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -57,15 +56,16 @@ export function RetellDeployDialog() {
   const [loadId, setLoadId] = useState("");
   const [loading, setLoading] = useState(false);
   const clientRef = useRef<RetellWebClient | null>(null);
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-  const dcRef = useRef<RTCDataChannel | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wsRelayRef = useRef<WebSocket | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const nextPlayTimeRef = useRef(0);
   const startedAtRef = useRef<number | null>(null);
   const recordedCallRef = useRef(false);
 
   const deploy = useServerFn(deployAgentToRetell);
   const startCall = useServerFn(createRetellWebCall);
-  const createSession = useServerFn(createOpenAIRealtimeSession);
   const fetchAgent = useServerFn(fetchRetellAgent);
   const listAgents = useServerFn(listMyAgents);
   const upsertAgent = useServerFn(upsertMyAgent);
@@ -97,14 +97,14 @@ export function RetellDeployDialog() {
     return () => {
       clientRef.current?.stopCall();
       clientRef.current = null;
-      pcRef.current?.close();
-      pcRef.current = null;
-      dcRef.current = null;
-      if (audioRef.current) {
-        audioRef.current.srcObject = null;
-        audioRef.current.remove();
-        audioRef.current = null;
-      }
+      wsRelayRef.current?.close();
+      wsRelayRef.current = null;
+      processorRef.current?.disconnect();
+      processorRef.current = null;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
       setActiveNode(null);
     };
   }, [setActiveNode]);
@@ -386,7 +386,6 @@ export function RetellDeployDialog() {
 
   // ── HyperStream WebRTC test call ─────────────────────────────────────────
   async function handleHyperStreamTestCall() {
-    // For HyperStream, settings.agentId IS the DB row UUID (no separate Retell ID).
     const rowId = currentAgentRowId ?? (settings.agentId as string | null);
     if (!rowId) {
       toast.error("Save the agent first", {
@@ -395,86 +394,143 @@ export function RetellDeployDialog() {
       return;
     }
     setCalling(true);
+
+    function cleanupHyperStream() {
+      processorRef.current?.disconnect();
+      processorRef.current = null;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      wsRelayRef.current?.close();
+      wsRelayRef.current = null;
+      nextPlayTimeRef.current = 0;
+    }
+
     try {
-      const { clientSecret, model } = await createSession({
-        data: { agentRowId: rowId },
-      });
+      const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(
+        `${wsProto}//${window.location.host}/api/hyperstream-relay?agentRowId=${encodeURIComponent(rowId)}`,
+      );
+      wsRelayRef.current = ws;
 
-      const pc = new RTCPeerConnection();
-      pcRef.current = pc;
+      // 24 kHz mono — matches OpenAI Realtime PCM16 format.
+      const audioCtx = new AudioContext({ sampleRate: 24000 });
+      audioCtxRef.current = audioCtx;
+      nextPlayTimeRef.current = 0;
 
-      // Pipe microphone to the peer connection.
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      for (const track of stream.getTracks()) pc.addTrack(track, stream);
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = micStream;
 
-      // Play back the AI audio in the browser.
-      pc.ontrack = (ev) => {
-        const el = document.createElement("audio");
-        el.srcObject = ev.streams[0];
-        el.autoplay = true;
-        document.body.appendChild(el);
-        audioRef.current = el;
+      const source = audioCtx.createMediaStreamSource(micStream);
+      // ScriptProcessorNode is deprecated but universally supported.
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      source.connect(processor);
+      // Connect to destination to keep the node alive (output is silent — AI audio uses separate buffers).
+      processor.connect(audioCtx.destination);
+
+      let sessionReady = false;
+
+      processor.onaudioprocess = (e) => {
+        if (!sessionReady || ws.readyState !== WebSocket.OPEN) return;
+        const float32 = e.inputBuffer.getChannelData(0);
+        const int16 = new Int16Array(float32.length);
+        for (let i = 0; i < float32.length; i++) {
+          const s = Math.max(-1, Math.min(1, float32[i]));
+          int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        // Float32Array → base64 PCM16
+        const uint8 = new Uint8Array(int16.buffer);
+        let binary = "";
+        // Send in 32-byte chunks to avoid large string construction for btoa.
+        for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+        ws.send(
+          JSON.stringify({ type: "input_audio_buffer.append", audio: btoa(binary) }),
+        );
       };
 
-      // Data channel: fires when the connection is live.
-      const dc = pc.createDataChannel("oai-events");
-      dcRef.current = dc;
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data as string) as Record<string, unknown>;
 
-      dc.onopen = () => {
-        startedAtRef.current = Date.now();
-        recordedCallRef.current = false;
-        setElapsedSec(0);
-        setInCall(true);
-        const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
-        if (startNode) setActiveNode(startNode.id);
+          if (msg.type === "relay.connected") {
+            // Configure the session, then start streaming mic audio.
+            ws.send(
+              JSON.stringify({
+                type: "session.update",
+                session: {
+                  instructions: settings.agentName
+                    ? `You are an AI voice agent named ${settings.agentName}. Be helpful and concise.`
+                    : "You are a helpful AI voice assistant.",
+                  voice: settings.openaiVoice ?? "alloy",
+                  input_audio_format: "pcm16",
+                  output_audio_format: "pcm16",
+                  turn_detection: { type: "server_vad" },
+                },
+              }),
+            );
+            sessionReady = true;
+            startedAtRef.current = Date.now();
+            recordedCallRef.current = false;
+            setElapsedSec(0);
+            setInCall(true);
+            setCalling(false);
+            const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
+            if (startNode) setActiveNode(startNode.id);
+            return;
+          }
+
+          if (msg.type === "relay.error") {
+            toast.error("HyperStream error", {
+              description: msg.message as string,
+            });
+            return;
+          }
+
+          // Decode and schedule AI audio playback.
+          if (msg.type === "response.audio.delta" && typeof msg.delta === "string") {
+            const ctx = audioCtxRef.current;
+            if (!ctx) return;
+            const binaryStr = atob(msg.delta as string);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++)
+              bytes[i] = binaryStr.charCodeAt(i);
+            const int16 = new Int16Array(bytes.buffer);
+            const float32 = new Float32Array(int16.length);
+            for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+            const buf = ctx.createBuffer(1, float32.length, 24000);
+            buf.copyToChannel(float32, 0);
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.connect(ctx.destination);
+            const startAt = Math.max(ctx.currentTime, nextPlayTimeRef.current);
+            src.start(startAt);
+            nextPlayTimeRef.current = startAt + buf.duration;
+          }
+        } catch {
+          // ignore parse errors
+        }
       };
 
-      dc.onclose = () => {
+      ws.onclose = () => {
         recordCurrentCallCost();
         setInCall(false);
         setActiveNode(null);
         startedAtRef.current = null;
-        pcRef.current = null;
-        dcRef.current = null;
+        setCalling(false);
+        cleanupHyperStream();
       };
 
-      dc.onerror = (ev) => {
-        toast.error("HyperStream call error", {
-          description: (ev as RTCErrorEvent).error?.message ?? "Unknown WebRTC error",
-        });
+      ws.onerror = () => {
+        toast.error("HyperStream connection failed");
+        setCalling(false);
+        cleanupHyperStream();
       };
-
-      // SDP offer → exchange with OpenAI Realtime.
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const sdpRes = await fetch(
-        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${clientSecret}`,
-            "Content-Type": "application/sdp",
-          },
-          body: offer.sdp,
-        },
-      );
-
-      if (!sdpRes.ok) {
-        const errText = await sdpRes.text();
-        throw new Error(`WebRTC SDP exchange failed: ${errText}`);
-      }
-
-      const answerSdp = await sdpRes.text();
-      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
     } catch (e) {
       toast.error("HyperStream test call failed", {
         description: (e as Error).message,
       });
-      pcRef.current?.close();
-      pcRef.current = null;
-      dcRef.current = null;
-    } finally {
       setCalling(false);
     }
   }
@@ -484,15 +540,16 @@ export function RetellDeployDialog() {
     // OmniVoice (Retell) path
     clientRef.current?.stopCall();
     clientRef.current = null;
-    // HyperStream (WebRTC) path
-    pcRef.current?.close();
-    pcRef.current = null;
-    dcRef.current = null;
-    if (audioRef.current) {
-      audioRef.current.srcObject = null;
-      audioRef.current.remove();
-      audioRef.current = null;
-    }
+    // HyperStream (WebSocket relay) path
+    wsRelayRef.current?.close();
+    wsRelayRef.current = null;
+    processorRef.current?.disconnect();
+    processorRef.current = null;
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    nextPlayTimeRef.current = 0;
     setInCall(false);
     setActiveNode(null);
     startedAtRef.current = null;
