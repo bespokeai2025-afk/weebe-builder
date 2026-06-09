@@ -134,9 +134,10 @@ export function RetellDeployDialog() {
           variables: v as never,
         },
       });
-      if (!currentAgentRowId) {
-        setCurrentAgentRowId(result.id);
-      }
+      // Always update the row ID pointer and stamp agentId into settings so
+      // hasAgent becomes true and the test-call button enables.
+      setCurrentAgentRowId(result.id);
+      setSettings({ agentId: result.id, deployedAgentName: s.agentName });
       setOpenaiConfirmOpen(false);
       toast.success("Enterprise Line agent saved", {
         description: `Schema compiled with voice "${s.openaiVoice ?? "alloy"}" · reasoning "${s.openaiReasoningEffort ?? "low"}".`,
@@ -385,7 +386,9 @@ export function RetellDeployDialog() {
 
   // ── HyperStream WebRTC test call ─────────────────────────────────────────
   async function handleHyperStreamTestCall() {
-    if (!currentAgentRowId) {
+    // For HyperStream, settings.agentId IS the DB row UUID (no separate Retell ID).
+    const rowId = currentAgentRowId ?? (settings.agentId as string | null);
+    if (!rowId) {
       toast.error("Save the agent first", {
         description: "Click the + button to save before testing",
       });
@@ -394,7 +397,7 @@ export function RetellDeployDialog() {
     setCalling(true);
     try {
       const { clientSecret, model } = await createSession({
-        data: { agentRowId: currentAgentRowId },
+        data: { agentRowId: rowId },
       });
 
       const pc = new RTCPeerConnection();
