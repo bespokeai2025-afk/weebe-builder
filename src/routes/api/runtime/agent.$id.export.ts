@@ -29,6 +29,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { buildAgentRuntimeDefinition, unpackAgentRow } from "@/lib/runtime/export";
+import { validateRuntimeDefinition } from "@/lib/runtime/schema";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -36,7 +37,11 @@ const CORS = {
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
 } as const;
 
-function jsonResponse(body: unknown, status = 200, extra: Record<string, string> = {}) {
+function jsonResponse(
+  body: unknown,
+  status = 200,
+  extra: Record<string, string> = {},
+) {
   return new Response(JSON.stringify(body, null, 2), {
     status,
     headers: { ...CORS, "Content-Type": "application/json", ...extra },
@@ -88,7 +93,6 @@ export const Route = createFileRoute("/api/runtime/agent/$id/export")({
           );
         }
 
-        // Verify token
         const { data: claimsData, error: claimsErr } =
           await supabase.auth.getClaims(token);
         if (claimsErr || !claimsData?.claims?.sub) {
@@ -132,9 +136,26 @@ export const Route = createFileRoute("/api/runtime/agent/$id/export")({
           );
         }
 
+        // Schema guard — the final exported JSON must match the contract exactly.
+        // This catches any assembly bug before it leaves the Builder boundary.
+        const validation = validateRuntimeDefinition(definition);
+        if (!validation.ok) {
+          console.error(
+            "[runtime/agent/export] Schema validation failed",
+            validation.errors,
+          );
+          return jsonResponse(
+            {
+              error: "Runtime definition failed schema validation",
+              details: validation.errors,
+            },
+            500,
+          );
+        }
+
         // ── Return as downloadable JSON ──────────────────────────────────────
         const filename = `agent-${agentId}-runtime.json`;
-        return jsonResponse(definition, 200, {
+        return jsonResponse(validation.data, 200, {
           "Content-Disposition": `attachment; filename="${filename}"`,
         });
       },

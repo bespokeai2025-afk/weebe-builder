@@ -17,6 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { buildAgentRuntimeDefinition, unpackAgentRow } from "@/lib/runtime/export";
 import { summariseDefinition } from "@/lib/runtime/definition";
+import { validateRuntimeDefinition } from "@/lib/runtime/schema";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -35,10 +36,6 @@ function unauthorizedResponse(detail: string) {
   return jsonResponse({ error: "Unauthorized", detail }, 401);
 }
 
-/**
- * Verify a Bearer JWT and return a user-scoped Supabase client.
- * The user-scoped client respects RLS — ownership checks are implicit.
- */
 function createUserSupabase(token: string) {
   const SUPABASE_URL =
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -80,7 +77,6 @@ export const Route = createFileRoute("/api/runtime/agent/$id")({
           );
         }
 
-        // Verify token
         const { data: claimsData, error: claimsErr } =
           await supabase.auth.getClaims(token);
         if (claimsErr || !claimsData?.claims?.sub) {
@@ -110,17 +106,36 @@ export const Route = createFileRoute("/api/runtime/agent/$id")({
           return jsonResponse({ error: "Agent not found" }, 404);
         }
 
-        // ── Assemble summary ────────────────────────────────────────────────
+        // ── Assemble + validate definition ──────────────────────────────────
+        let definition: ReturnType<typeof buildAgentRuntimeDefinition>;
         try {
           const typedRow = row as Parameters<typeof unpackAgentRow>[0];
-          const params2 = unpackAgentRow(typedRow);
-          const definition = buildAgentRuntimeDefinition(params2);
-          const summary = summariseDefinition(definition, typedRow.updated_at);
-          return jsonResponse({ ok: true, data: summary });
+          const assemblyParams = unpackAgentRow(typedRow);
+          definition = buildAgentRuntimeDefinition(assemblyParams);
         } catch (err) {
           console.error("[runtime/agent] Assembly error", err);
-          return jsonResponse({ error: "Failed to assemble runtime definition" }, 500);
+          return jsonResponse(
+            { error: "Failed to assemble runtime definition" },
+            500,
+          );
         }
+
+        // Schema guard — ensures what we return matches the contract exactly.
+        const validation = validateRuntimeDefinition(definition);
+        if (!validation.ok) {
+          console.error("[runtime/agent] Schema validation failed", validation.errors);
+          return jsonResponse(
+            {
+              error: "Runtime definition failed schema validation",
+              details: validation.errors,
+            },
+            500,
+          );
+        }
+
+        const typedRow = row as Parameters<typeof unpackAgentRow>[0];
+        const summary = summariseDefinition(validation.data, typedRow.updated_at);
+        return jsonResponse({ ok: true, data: summary });
       },
     },
   },

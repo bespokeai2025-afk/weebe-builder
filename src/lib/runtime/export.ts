@@ -18,16 +18,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "@/lib/builder/store";
-import type { BuilderSettings, BuilderVariable } from "@/lib/builder/types";
+import type { BuilderSettings } from "@/lib/builder/types";
 import { exportAgentJson } from "@/lib/builder/export-conversation-flow";
 import { compileRealtimePrompt } from "@/lib/builder/compile-realtime-prompt";
 import { resolveDeploymentMode } from "./adapter";
 import {
   RUNTIME_VERSION,
   BUILDER_VERSION,
-  summariseDefinition,
-} from "./definition";
-import type { AgentRuntimeDefinition, AgentRuntimeSummary } from "./definition";
+  parseRuntimeDefinition,
+} from "./schema";
+import type { AgentRuntimeDefinition, BuilderVariable } from "./schema";
+import { summariseDefinition } from "./definition";
+import type { AgentRuntimeSummary } from "./definition";
 
 // ─── Pure assembly function ───────────────────────────────────────────────────
 
@@ -35,7 +37,10 @@ import type { AgentRuntimeDefinition, AgentRuntimeSummary } from "./definition";
  * Assemble a fully self-contained AgentRuntimeDefinition from the raw Builder
  * data. This is a pure function — no database access, no side effects.
  *
- * This is also the function used by the API route handlers so they share
+ * The output is validated by the canonical Zod schema before returning.
+ * A validation failure here is always a Builder assembly bug, not user error.
+ *
+ * This function is also used by the API route handlers so they share
  * exactly the same assembly logic as the server function.
  */
 export function buildAgentRuntimeDefinition(params: {
@@ -54,6 +59,8 @@ export function buildAgentRuntimeDefinition(params: {
   const provider = resolveDeploymentMode(settings);
 
   // ── Compiled prompt (provider-agnostic) ─────────────────────────────────
+  // Builder compiles once here. Runtime MUST read compiledPrompt / runtimeConfig.openai.systemPrompt.
+  // Runtime must never call compileRealtimePrompt() or any Builder function.
   const compiledPrompt = compileRealtimePrompt(nodes, edges, settings, variables).trim();
 
   // ── Retell-compatible agent JSON ─────────────────────────────────────────
@@ -77,7 +84,7 @@ export function buildAgentRuntimeDefinition(params: {
     startNodeId: startNode?.id ?? null,
     globalPrompt: settings.globalPrompt ?? "",
     beginMessage: settings.beginMessage ?? "",
-    startSpeaker: settings.startSpeaker ?? "agent",
+    startSpeaker: (settings.startSpeaker ?? "agent") as "agent" | "user",
   };
 
   // ── Voice config ─────────────────────────────────────────────────────────
@@ -99,7 +106,7 @@ export function buildAgentRuntimeDefinition(params: {
     denoisingMode:
       settings.denoisingMode ?? "noise-and-background-speech-cancellation",
     normalizeForSpeech: settings.normalizeForSpeech ?? true,
-    startSpeaker: settings.startSpeaker ?? "agent",
+    startSpeaker: (settings.startSpeaker ?? "agent") as "agent" | "user",
     beginMessage: settings.beginMessage ?? "",
     beginAfterUserSilenceMs: settings.beginAfterUserSilenceMs ?? 0,
     endCallAfterSilenceMs: settings.endCallAfterSilenceMs ?? 600000,
@@ -132,7 +139,7 @@ export function buildAgentRuntimeDefinition(params: {
       reasoningEffort: settings.openaiReasoningEffort ?? "low",
       systemPrompt: compiledPrompt,
     };
-    // Also attach the Retell-format JSON as a reference for migration tooling.
+    // Retell JSON also included as a migration/reference artefact.
     runtimeConfig.retell = {
       agentId: retellAgentId,
       webhookUrl: settings.webhookUrl ?? "",
@@ -140,8 +147,7 @@ export function buildAgentRuntimeDefinition(params: {
     };
   }
 
-  // For future providers (CLAUDE_NATIVE, GEMINI_NATIVE), attach the compiled
-  // prompt and Retell JSON so migration tooling has a starting point.
+  // Future providers: attach Retell JSON as a migration starting point.
   if (provider === "CLAUDE_NATIVE" || provider === "GEMINI_NATIVE") {
     runtimeConfig.retell = {
       agentId: retellAgentId,
@@ -150,7 +156,7 @@ export function buildAgentRuntimeDefinition(params: {
     };
   }
 
-  return {
+  const raw = {
     runtimeVersion: RUNTIME_VERSION,
     builderVersion: BUILDER_VERSION,
     exportedAt: new Date().toISOString(),
@@ -178,6 +184,11 @@ export function buildAgentRuntimeDefinition(params: {
     voiceConfig,
     runtimeConfig,
   };
+
+  // Validate the assembled definition against the canonical schema.
+  // A failure here is always a Builder assembly bug — it should never happen
+  // in production. The parse() call catches regressions in CI / staging.
+  return parseRuntimeDefinition(raw);
 }
 
 // ─── Row → params helper ──────────────────────────────────────────────────────
@@ -213,22 +224,20 @@ export function unpackAgentRow(row: {
     retellAgentId: row.retell_agent_id,
     agentName: row.name,
     updatedAt: row.updated_at,
-    nodes: ((flowData.nodes ?? []) as FlowNode[]),
-    edges: ((flowData.edges ?? []) as Edge[]),
+    nodes: (flowData.nodes ?? []) as FlowNode[],
+    edges: (flowData.edges ?? []) as Edge[],
     settings,
     variables,
   };
 }
 
-// ─── Server function (for Builder-internal use) ───────────────────────────────
+// ─── Server functions (Builder-internal use) ──────────────────────────────────
 
 /**
- * Server function that loads an agent by ID and returns its full runtime
- * definition. Requires Supabase auth — only the owning user can export.
+ * Load an agent by ID and return its full runtime definition.
+ * Requires Supabase auth — only the owning user can export.
  *
- * Intended for Builder-internal use (e.g. from a UI "Export" button).
- * The API route handlers at /api/runtime/agent/:id/export perform the same
- * work using the same helpers but with inline auth (route handler context).
+ * For external access use GET /api/runtime/agent/:id/export instead.
  */
 export const exportAgentRuntimeDefinition = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -244,14 +253,13 @@ export const exportAgentRuntimeDefinition = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     if (!row) throw new Error("Agent not found");
 
-    const params = unpackAgentRow(row as Parameters<typeof unpackAgentRow>[0]);
-    return buildAgentRuntimeDefinition(params);
+    const assemblyParams = unpackAgentRow(row as Parameters<typeof unpackAgentRow>[0]);
+    return buildAgentRuntimeDefinition(assemblyParams);
   });
 
 /**
- * Server function that returns a lightweight summary of an agent's runtime
- * definition (no workflow graph or compiled prompt). Useful for listing
- * metadata without the full payload.
+ * Return a lightweight summary of an agent's runtime definition.
+ * No workflow graph or compiled prompt included.
  */
 export const getAgentRuntimeSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -268,7 +276,7 @@ export const getAgentRuntimeSummary = createServerFn({ method: "POST" })
     if (!row) throw new Error("Agent not found");
 
     const typedRow = row as Parameters<typeof unpackAgentRow>[0];
-    const params = unpackAgentRow(typedRow);
-    const definition = buildAgentRuntimeDefinition(params);
+    const assemblyParams = unpackAgentRow(typedRow);
+    const definition = buildAgentRuntimeDefinition(assemblyParams);
     return summariseDefinition(definition, typedRow.updated_at);
   });
