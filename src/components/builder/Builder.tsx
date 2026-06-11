@@ -67,7 +67,7 @@ import { FlowCanvas } from "./FlowCanvas";
 import { NodeEditorDialog } from "./NodeEditorDialog";
 import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
-import { RetellDeployDialog } from "./RetellDeployDialog";
+import { RetellDeployDialog, type TxEntry } from "./RetellDeployDialog";
 import { VoiceCopilotButton } from "./VoiceCopilot";
 import { PlatformGuideDrawer } from "./PlatformGuideDrawer";
 import { PostCallDataSection } from "./PostCallDataSection";
@@ -326,6 +326,20 @@ export function Builder({
   const [tab, setTab] = useState<"node" | "components">("node");
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [callActive, setCallActive] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState<TxEntry[]>([]);
+  const transcriptPanelRef = useRef<HTMLDivElement | null>(null);
+
+  // Force the right panel open and auto-scroll when a call is active.
+  useEffect(() => {
+    if (callActive) setRightOpen(true);
+  }, [callActive]);
+
+  useEffect(() => {
+    if (transcriptPanelRef.current) {
+      transcriptPanelRef.current.scrollTop = transcriptPanelRef.current.scrollHeight;
+    }
+  }, [liveTranscript]);
   const [guideOpen, setGuideOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -596,7 +610,10 @@ export function Builder({
 
           {/* Deploy / utility cluster + trailing save actions */}
           <div data-tour="deploy-btn" className="inline-flex items-center">
-            <RetellDeployDialog />
+            <RetellDeployDialog
+              onCallActive={setCallActive}
+              onTranscriptUpdate={setLiveTranscript}
+            />
           </div>
           {toolbarTrailing}
 
@@ -762,9 +779,68 @@ export function Builder({
           <FlowCanvas canvasRef={canvasRef} onReady={setRf} />
         </div>
 
-        {/* Right global settings */}
-        {rightOpen && (
+        {/* Right global settings / live transcript */}
+        {(rightOpen || callActive || liveTranscript.length > 0) && (
           <aside data-tour="right-panel" className="w-[320px] min-w-[300px] max-w-[360px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]">
+
+            {/* ── Live transcript view (replaces settings during/after a call) ── */}
+            {(callActive || liveTranscript.length > 0) ? (
+              <div className="flex flex-col h-full">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <MessageSquare className="h-3.5 w-3.5 text-violet-400" />
+                    <span className="text-[11px] font-semibold tracking-tight text-foreground">Live Transcript</span>
+                    {callActive && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ml-0.5" />}
+                    {!callActive && <span className="text-[10px] text-muted-foreground ml-1">· ended</span>}
+                  </div>
+                  {!callActive && (
+                    <button
+                      type="button"
+                      onClick={() => setLiveTranscript([])}
+                      className="text-[10px] text-muted-foreground/60 hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-white/[0.06]"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                {/* Conversation */}
+                <div
+                  ref={transcriptPanelRef}
+                  className="flex-1 overflow-y-auto space-y-2 pr-0.5"
+                  style={{ maxHeight: "calc(100% - 32px)" }}
+                >
+                  {liveTranscript.length === 0 ? (
+                    <p className="py-8 text-center text-[11px] text-muted-foreground">
+                      Waiting for conversation…
+                    </p>
+                  ) : (
+                    liveTranscript.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className={`flex ${entry.role === "user" ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`max-w-[90%] rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed ${
+                            entry.role === "user"
+                              ? entry.partial
+                                ? "bg-violet-500/10 text-violet-300/60 italic"
+                                : "bg-violet-500/15 text-violet-200"
+                              : "bg-white/[0.06] text-foreground/80"
+                          }`}
+                        >
+                          {entry.text}
+                          {entry.partial && entry.role === "agent" && (
+                            <span className="ml-0.5 inline-block h-3 w-0.5 animate-pulse bg-current align-middle opacity-70" />
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+            <>
             {/* Panel header */}
             <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
               <h3 className="text-[11px] font-semibold tracking-tight text-foreground">Agent Settings</h3>
@@ -1580,6 +1656,8 @@ export function Builder({
                 </div>
               </CollapsibleContent>
             </Collapsible>
+            </>
+            )}
           </aside>
         )}
 

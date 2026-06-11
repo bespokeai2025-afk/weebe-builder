@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { useServerFn } from "@tanstack/react-start";
 import { RetellWebClient } from "retell-client-js-sdk";
-import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap, MessageSquare, X } from "lucide-react";
+import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +37,15 @@ import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN } from "@/lib/builder/pricing";
 
-export function RetellDeployDialog() {
+export type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
+
+export function RetellDeployDialog({
+  onCallActive,
+  onTranscriptUpdate,
+}: {
+  onCallActive?: (active: boolean) => void;
+  onTranscriptUpdate?: (entries: TxEntry[]) => void;
+} = {}) {
   const {
     nodes,
     edges,
@@ -65,9 +72,7 @@ export function RetellDeployDialog() {
   const [elapsedSec, setElapsedSec] = useState(0);
   // Live transcript — built incrementally during a call from WS / SDK events.
   // Each entry is either partial (streaming) or done.
-  type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
   const [transcript, setTranscript] = useState<TxEntry[]>([]);
-  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
   const [loadId, setLoadId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -145,10 +150,12 @@ export function RetellDeployDialog() {
     if (transcriptScrollRef.current) {
       transcriptScrollRef.current.scrollTop = transcriptScrollRef.current.scrollHeight;
     }
+    onTranscriptUpdate?.(transcript);
   }, [transcript]);
 
-  // Tick elapsed seconds while in a call.
+  // Tick elapsed seconds while in a call; notify parent of call state.
   useEffect(() => {
+    onCallActive?.(inCall);
     if (!inCall) return;
     const t = setInterval(() => {
       if (startedAtRef.current) {
@@ -370,7 +377,6 @@ export function RetellDeployDialog() {
         recordedCallRef.current = false;
         setElapsedSec(0);
         setTranscript([]);
-        setTranscriptOpen(true);
         setInCall(true);
         // Highlight the start node immediately.
         const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
@@ -907,7 +913,6 @@ export function RetellDeployDialog() {
             setElapsedSec(0);
             setTranscript([]);
             setHsExactCostUsd(null);
-            setTranscriptOpen(true);
             setInCall(true);
             setCalling(false);
             const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
@@ -982,6 +987,12 @@ export function RetellDeployDialog() {
               vadActive: true,
               activeResponseId: currentResponseId || "none",
             });
+            // Show a live "speaking…" bubble in the transcript panel.
+            const speakItemId = typeof msg.item_id === "string" ? msg.item_id : crypto.randomUUID();
+            setTranscript((prev) => [
+              ...prev,
+              { id: `user-${speakItemId}`, role: "user", text: "speaking…", partial: true },
+            ]);
             return;
           }
 
@@ -1005,6 +1016,23 @@ export function RetellDeployDialog() {
               tOffset_ms: (speechStoppedAt - t0).toFixed(0),
               speechDurationMs,
               commitSentByClient: false,
+            });
+            // Update the "speaking…" bubble to show turn duration.
+            const stoppedItemId = typeof msg.item_id === "string" ? msg.item_id : "";
+            const durSec = speechStartedAt !== null
+              ? ((speechStoppedAt - speechStartedAt) / 1000).toFixed(1)
+              : null;
+            setTranscript((prev) => {
+              const targetId = `user-${stoppedItemId}`;
+              const idx = prev.findIndex((e) => e.id === targetId && e.partial);
+              if (idx === -1) return prev;
+              const updated = [...prev];
+              updated[idx] = {
+                ...updated[idx],
+                text: durSec ? `you spoke (${durSec}s)` : "you spoke",
+                partial: false,
+              };
+              return updated;
             });
             return;
           }
@@ -1391,7 +1419,6 @@ export function RetellDeployDialog() {
 
   function endCall() {
     recordCurrentCallCost();
-    setTranscriptOpen(false);
     // OmniVoice (Retell) path
     clientRef.current?.stopCall();
     clientRef.current = null;
@@ -1541,22 +1568,6 @@ export function RetellDeployDialog() {
           </Button>
         )}
 
-        {/* Live transcript toggle — visible once a call is active */}
-        {inCall && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setTranscriptOpen((o) => !o)}
-            className={`!h-8 !w-8 !p-0 transition-colors ${
-              transcriptOpen
-                ? "text-violet-300 bg-violet-500/10 hover:bg-violet-500/20"
-                : "text-muted-foreground/60 hover:text-foreground"
-            }`}
-            title={transcriptOpen ? "Hide live transcript" : "Show live transcript"}
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-          </Button>
-        )}
 
         {/* Load existing agent by ID — OmniVoice only */}
         {!isOpenAI && (
@@ -1618,64 +1629,7 @@ export function RetellDeployDialog() {
         </Button>
       </div>
 
-      {/* ── Live transcript popup ─────────────────────────────────────────── */}
-      {/* Rendered via portal so it escapes the Dialog's CSS transform context  */}
-      {/* (Radix Dialog animates with transform, which breaks fixed positioning) */}
-      {transcriptOpen && createPortal(
-        <div className="fixed bottom-16 right-4 z-[9999] flex w-80 flex-col rounded-xl border border-white/[0.08] bg-[#0d0d10]/95 shadow-2xl backdrop-blur-sm overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
-            <div className="flex items-center gap-1.5">
-              <MessageSquare className="h-3.5 w-3.5 text-violet-400" />
-              <span className="text-[11px] font-semibold text-foreground/80">Live Transcript</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {inCall && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />}
-              <button
-                type="button"
-                onClick={() => setTranscriptOpen(false)}
-                className="text-muted-foreground/60 hover:text-foreground transition-colors"
-                aria-label="Close transcript"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-          {/* Scrollable conversation */}
-          <div
-            ref={transcriptScrollRef}
-            className="flex-1 overflow-y-auto p-3 space-y-2"
-            style={{ maxHeight: "300px", minHeight: "80px" }}
-          >
-            {transcript.length === 0 ? (
-              <p className="py-6 text-center text-[11px] text-muted-foreground">
-                {inCall ? "Waiting for conversation…" : "No transcript yet."}
-              </p>
-            ) : (
-              transcript.map((entry) => (
-                <div
-                  key={entry.id}
-                  className={`flex ${entry.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed ${
-                      entry.role === "user"
-                        ? "bg-violet-500/20 text-violet-200"
-                        : "bg-white/[0.06] text-foreground/80"
-                    }`}
-                  >
-                    {entry.text}
-                    {entry.partial && (
-                      <span className="ml-0.5 inline-block h-3 w-0.5 animate-pulse bg-current align-middle opacity-70" />
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* Transcript is now rendered in Builder's right panel via onTranscriptUpdate/onCallActive props */}
 
       {/* Enterprise Line confirmation dialog — shown for OpenAI Realtime agents */}
       <Dialog open={openaiConfirmOpen} onOpenChange={setOpenaiConfirmOpen}>
