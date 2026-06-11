@@ -210,13 +210,31 @@ OUTPUT ONLY valid JSON — no markdown, no code fences:
       "segId": "<id>",
       "destination": "flow",
       "label": "<3-6 word node name>",
-      "kind": "conversation | logic_split | ending",
+      "kind": "conversation | logic_split | ending | booking_sequence | function | call_transfer",
+      "toolId": "check_availability | book_appointment",
+      "transferHint": "<destination team or person name, e.g. 'sales team' or 'manager'>",
       "transitions": [
         { "id": "<unique t-id>", "condition": "default", "target": "<segId of a FLOW segment>" }
       ]
     }
   ]
 }
+
+SMART DETECTION — automatically use these special kinds:
+
+BOOKING / SCHEDULING DETECTION:
+Use kind "booking_sequence" when a segment discusses ANY of:
+  booking, scheduling, appointments, calendar, availability, reservations, "find a time", "pick a slot", "set up a meeting".
+The system expands this automatically into 5 nodes: collect details → check availability (Cal.com function) → offer slots → book appointment (Cal.com function) → confirm booking.
+Use kind "function" + toolId "check_availability" ONLY if the segment is exclusively about checking availability (not the full booking flow).
+Use kind "function" + toolId "book_appointment" ONLY if the segment is exclusively about creating the booking (not the full flow).
+toolId and transferHint are OPTIONAL — omit them for all other kinds.
+
+CALL TRANSFER DETECTION:
+Use kind "call_transfer" when a segment discusses:
+  transferring to a human agent, connecting to a department or team, live handoff, escalation, "speak to someone", "press to talk to a person".
+Add "transferHint": "<destination description from the script>" — e.g. "sales team", "billing department", "manager".
+The builder user will supply the actual phone number; leave it blank in the output.
 
 GLOBAL PROMPT FORMAT (for segments with destination "global_prompt"):
 ${isRetell ? `
@@ -244,7 +262,10 @@ CRITICAL RULES:
 - Transition ids must be unique across the entire output
 - The final "flow" segment must be kind "ending" with "transitions": []
 - kind "logic_split": multiple transitions each with a specific human-readable condition string
-- kind "conversation": single transition with "condition": "default"
+- kind "conversation" and "function" and "call_transfer": single transition with "condition": "default"
+- kind "booking_sequence": single transition pointing to the NEXT segment after the booking flow
+- toolId is ONLY valid when kind is "function"; omit it for all other kinds
+- transferHint is ONLY valid when kind is "call_transfer"; omit it for all other kinds
 - If ALL segments are context/reference material, still produce at least one "flow" ending node`);
 
   return lines.join("\n");
@@ -328,6 +349,8 @@ async function generateFlow(
           destination: "flow";
           label: string;
           kind: string;
+          toolId?: string;
+          transferHint?: string;
           transitions: Array<{ id: string; condition: string; target: string }>;
         }
     >;
@@ -367,74 +390,238 @@ async function generateFlow(
   if (flowSegments.length === 0)
     throw new Error("No conversation flow segments found — all content was classified as context/settings");
 
-  // segId → prefixed nodeId (flow segments only)
+  // ── Tool configs for Cal.com function nodes ──────────────────────────────
+  const TOOL_CONFIGS: Record<string, { label: string; description: string; defaultDialogue: string }> = {
+    check_availability: {
+      label: "Check Availability",
+      description: "Checks the Cal.com calendar for open appointment slots",
+      defaultDialogue: "Check the calendar for available slots matching the caller's preferred date and time.",
+    },
+    book_appointment: {
+      label: "Book Appointment",
+      description: "Creates a confirmed appointment booking via Cal.com",
+      defaultDialogue: "Create the confirmed appointment booking with the caller's chosen time and contact details.",
+    },
+  };
+
+  // segId → first nodeId of the expansion (for resolving transition targets)
   const segToNodeId: Record<string, string> = {};
-  flowSegments.forEach((s, idx) => {
-    segToNodeId[s.segId] = `pdf-${s.segId ?? `n${idx + 1}`}`;
-  });
 
-  const nodes = flowSegments.map((n, idx) => {
-    const nodeId = segToNodeId[n.segId] ?? `pdf-n${idx + 1}`;
-    const isLast = idx === flowSegments.length - 1;
-    let kind = VALID_KINDS.has(n.kind) ? n.kind : "conversation";
-    if (isLast && kind !== "ending") kind = "ending";
-
-    return {
-      id: nodeId,
-      type: kind,
-      position: { x: idx * 340, y: 100 },
-      data: {
-        kind,
-        label: String(n.label ?? `Step ${idx + 1}`),
-        dialogue: cleanDialogue(contentMap[n.segId] ?? ""),
-        isStart: idx === 0 ? true : undefined,
-        transitions: [] as Array<{ id: string; condition: string; target: string | null }>,
-      },
-      _aiTransitions: n.transitions ?? null,
-    };
-  });
-
-  const edges: Array<{
+  type BuiltNode = {
     id: string;
-    source: string;
-    target: string;
-    sourceHandle: string;
-  }> = [];
-  const usedIds = new Set<string>();
+    type: string;
+    position: { x: number; y: number };
+    data: {
+      kind: string;
+      label: string;
+      dialogue: string;
+      isStart?: boolean;
+      transitions: Array<{ id: string; condition: string; target: string | null }>;
+      toolId?: string;
+      toolName?: string;
+      toolDescription?: string;
+      speakDuringExecution?: boolean;
+      waitForResult?: boolean;
+      transferType?: string;
+    };
+    _aiTransitions: Array<{ id: string; condition: string; target: string }> | null;
+  };
 
-  nodes.forEach((node, idx) => {
+  const builtNodes: BuiltNode[] = [];
+  let posCounter = 0;
+
+  for (let segIdx = 0; segIdx < flowSegments.length; segIdx++) {
+    const seg = flowSegments[segIdx];
+    const isFirstSeg = segIdx === 0;
+    const baseId = `pdf-${seg.segId}`;
+    const rawDialogue = cleanDialogue(contentMap[seg.segId] ?? "");
+
+    if (seg.kind === "booking_sequence") {
+      // Expand to a 5-node booking micro-flow
+      const bk = {
+        collect: `${baseId}-bk1`,
+        check:   `${baseId}-bk2`,
+        slots:   `${baseId}-bk3`,
+        book:    `${baseId}-bk4`,
+        confirm: `${baseId}-bk5`,
+      };
+      segToNodeId[seg.segId] = bk.collect;
+
+      builtNodes.push(
+        {
+          id: bk.collect,
+          type: "conversation",
+          position: { x: posCounter++ * 340, y: 100 },
+          data: {
+            kind: "conversation",
+            label: "Collect Booking Details",
+            dialogue: rawDialogue || "Ask the caller for their preferred date and time, full name, and best contact number for the appointment.",
+            isStart: isFirstSeg ? true : undefined,
+            transitions: [],
+          },
+          _aiTransitions: [{ id: `ti-${bk.collect}`, condition: "default", target: bk.check }],
+        },
+        {
+          id: bk.check,
+          type: "function",
+          position: { x: posCounter++ * 340, y: 100 },
+          data: {
+            kind: "function",
+            label: "Check Availability",
+            dialogue: "Check the calendar for available slots matching the caller's preferred date and time.",
+            transitions: [],
+            toolId: "check_availability",
+            toolName: "Check Availability",
+            toolDescription: "Checks the Cal.com calendar for open appointment slots",
+            speakDuringExecution: false,
+            waitForResult: true,
+          },
+          _aiTransitions: [{ id: `ti-${bk.check}`, condition: "default", target: bk.slots }],
+        },
+        {
+          id: bk.slots,
+          type: "conversation",
+          position: { x: posCounter++ * 340, y: 100 },
+          data: {
+            kind: "conversation",
+            label: "Offer Available Slots",
+            dialogue: "Share the available time slots with the caller and ask them to choose one.",
+            transitions: [],
+          },
+          _aiTransitions: [{ id: `ti-${bk.slots}`, condition: "default", target: bk.book }],
+        },
+        {
+          id: bk.book,
+          type: "function",
+          position: { x: posCounter++ * 340, y: 100 },
+          data: {
+            kind: "function",
+            label: "Book Appointment",
+            dialogue: "Create the confirmed appointment booking with the caller's chosen time and contact details.",
+            transitions: [],
+            toolId: "book_appointment",
+            toolName: "Book Appointment",
+            toolDescription: "Creates a confirmed appointment booking via Cal.com",
+            speakDuringExecution: false,
+            waitForResult: true,
+          },
+          _aiTransitions: [{ id: `ti-${bk.book}`, condition: "default", target: bk.confirm }],
+        },
+        {
+          id: bk.confirm,
+          type: "conversation",
+          position: { x: posCounter++ * 340, y: 100 },
+          data: {
+            kind: "conversation",
+            label: "Booking Confirmed",
+            dialogue: "Confirm the appointment details with the caller. Provide the date, time, and any preparation instructions.",
+            transitions: [],
+          },
+          // last booking node inherits the original segment's outgoing transitions
+          _aiTransitions: seg.transitions?.length ? seg.transitions : null,
+        },
+      );
+
+    } else if (seg.kind === "function" && seg.toolId && TOOL_CONFIGS[seg.toolId]) {
+      // Explicit single Cal.com function node
+      segToNodeId[seg.segId] = baseId;
+      const cfg = TOOL_CONFIGS[seg.toolId]!;
+      builtNodes.push({
+        id: baseId,
+        type: "function",
+        position: { x: posCounter++ * 340, y: 100 },
+        data: {
+          kind: "function",
+          label: seg.label || cfg.label,
+          dialogue: cfg.defaultDialogue,
+          isStart: isFirstSeg ? true : undefined,
+          transitions: [],
+          toolId: seg.toolId,
+          toolName: cfg.label,
+          toolDescription: cfg.description,
+          speakDuringExecution: false,
+          waitForResult: true,
+        },
+        _aiTransitions: seg.transitions ?? null,
+      });
+
+    } else {
+      // Standard node (conversation, logic_split, call_transfer, ending, etc.)
+      segToNodeId[seg.segId] = baseId;
+      let kind = VALID_KINDS.has(seg.kind) ? seg.kind : "conversation";
+
+      const nodeData: BuiltNode["data"] = {
+        kind,
+        label: String(seg.label ?? `Node ${segIdx + 1}`),
+        dialogue: rawDialogue,
+        isStart: isFirstSeg ? true : undefined,
+        transitions: [],
+      };
+
+      if (kind === "call_transfer") {
+        nodeData.transferType = "cold_transfer";
+        if (!nodeData.dialogue.trim()) {
+          const hint = seg.transferHint?.trim();
+          nodeData.dialogue = `Transfer the call${hint ? ` to the ${hint}` : " to a live agent"}. Let the caller know they are being connected.`;
+        }
+      }
+
+      builtNodes.push({
+        id: baseId,
+        type: kind,
+        position: { x: posCounter++ * 340, y: 100 },
+        data: nodeData,
+        _aiTransitions: seg.transitions ?? null,
+      });
+    }
+  }
+
+  // Ensure last node is an ending
+  const lastBuilt = builtNodes[builtNodes.length - 1];
+  if (lastBuilt && lastBuilt.data.kind !== "ending") {
+    lastBuilt.data.kind = "ending";
+    lastBuilt.type = "ending";
+    lastBuilt._aiTransitions = null;
+  }
+
+  // ── Build edges ───────────────────────────────────────────────────────────
+  const edges: Array<{ id: string; source: string; target: string; sourceHandle: string }> = [];
+  const usedIds = new Set<string>();
+  const builtNodeIds = new Set(builtNodes.map((n) => n.id));
+
+  builtNodes.forEach((node, idx) => {
     if (node.data.kind === "ending") return;
 
     const aiTx = node._aiTransitions;
 
     if (Array.isArray(aiTx) && aiTx.length > 0) {
       for (const t of aiTx) {
-        const resolvedTarget = segToNodeId[String(t.target)] ?? null;
+        // Resolve: try segId map first, then direct nodeId (internal booking transitions)
+        const resolvedTarget =
+          segToNodeId[String(t.target)] ??
+          (builtNodeIds.has(t.target) ? t.target : null);
         if (!resolvedTarget) continue;
 
         let tId = String(t.id ?? `t-${node.id}-${resolvedTarget}`);
         if (usedIds.has(tId)) tId = `${tId}-${idx}`;
         usedIds.add(tId);
 
-        node.data.transitions.push({
-          id: tId,
-          condition: String(t.condition ?? "default"),
-          target: resolvedTarget,
-        });
+        node.data.transitions.push({ id: tId, condition: String(t.condition ?? "default"), target: resolvedTarget });
         edges.push({ id: tId, source: node.id, target: resolvedTarget, sourceHandle: tId });
       }
     } else {
       // Sequential fallback
-      const next = nodes[idx + 1];
+      const next = builtNodes[idx + 1];
       if (!next) return;
       const tId = `t-${node.id}-${next.id}`;
+      if (usedIds.has(tId)) return;
       usedIds.add(tId);
       node.data.transitions.push({ id: tId, condition: "default", target: next.id });
       edges.push({ id: tId, source: node.id, target: next.id, sourceHandle: tId });
     }
   });
 
-  const cleanNodes = nodes.map(({ _aiTransitions: _a, ...rest }) => rest);
+  const cleanNodes = builtNodes.map(({ _aiTransitions: _a, ...rest }) => rest);
 
   return {
     title: String(enriched.title ?? "Imported Script"),
