@@ -68,15 +68,23 @@ export function hyperStreamRelayPlugin(): Plugin {
             });
 
             openaiWs.on("message", (data: import("ws").RawData, isBinary: boolean) => {
-              try {
-                const msg = JSON.parse(data.toString()) as Record<string, unknown>;
-                if (
-                  msg.type !== "response.output_audio.delta" &&
-                  msg.type !== "response.audio.delta"
-                ) {
-                  console.log(`[hyperstream-relay] OpenAI → browser: ${JSON.stringify(msg).slice(0, 2000)}`);
+              // Fast-path: skip full JSON.parse for audio delta frames.
+              // They arrive at ~20 ms intervals and are the hot path — parsing
+              // every one just to suppress the log wastes CPU and GC.
+              // We check with a cheap substring scan instead:
+              //   '{"type":"response.output_audio.delta"' or '{"type":"response.audio.delta"'
+              if (!isBinary) {
+                const str = data.toString();
+                const isAudioDelta =
+                  str.indexOf('"response.output_audio.delta"') !== -1 ||
+                  str.indexOf('"response.audio.delta"') !== -1;
+                if (!isAudioDelta) {
+                  try {
+                    const msg = JSON.parse(str) as Record<string, unknown>;
+                    console.log(`[hyperstream-relay] OpenAI → browser: ${JSON.stringify(msg).slice(0, 2000)}`);
+                  } catch { /* malformed frame — skip */ }
                 }
-              } catch { /* binary frame */ }
+              }
               if (browserWs.readyState === WebSocket.OPEN) {
                 // Forward with the correct frame type. OpenAI sends TEXT frames,
                 // but the ws library delivers them as Buffer; sending a Buffer

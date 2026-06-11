@@ -488,13 +488,22 @@ export function RetellDeployDialog() {
       };
 
       // Audio-append throttle: log a summary every 50 packets instead of
-      // every single one (100ms chunks × 50 = ~5 s between log lines).
+      // every single one (50ms chunks × 50 = ~2.5 s between log lines).
       let appendPktCount = 0;
       let appendByteTotal = 0;
 
       // Track which response_id we last saw so we can label "first delta".
       let currentResponseId = "";
       let deltaCountForResponse = 0;
+
+      // ── TTFA (Time to First Audio) tracking ──────────────────────────────
+      // speechStoppedAt records the performance.now() timestamp when OpenAI
+      // confirms VAD detected end-of-speech. The first audio delta for each
+      // response uses this to compute the end-to-end TTFA:
+      //   TTFA = t(first_delta) − t(speech_stopped)
+      // This covers: silence_duration_ms + committed + response.created +
+      //              LLM first token + relay return hop.
+      let speechStoppedAt: number | null = null;
 
       // Convert an Int16 PCM buffer → base64 and stream to OpenAI.
       const sendPcm = (int16: Int16Array) => {
@@ -532,7 +541,10 @@ export function RetellDeployDialog() {
                 this._ratio = sampleRate / 24000; // input frames per output frame
                 this._pos = 0;                     // fractional read cursor
                 this._prev = 0;                    // last sample of previous block
-                this._buf = new Int16Array(2400);
+                // 1200 samples @ 24 kHz = 50 ms chunks.
+                // Smaller chunks reduce mic-to-OpenAI capture latency vs the
+                // previous 2400-sample (100 ms) accumulator.
+                this._buf = new Int16Array(1200);
                 this._n = 0;
               }
               process(inputs) {
@@ -591,6 +603,16 @@ export function RetellDeployDialog() {
 
       if (!usingWorklet) {
         // ScriptProcessorNode fallback (deprecated, main-thread).
+        // WARNING: this path does NOT resample. The AudioContext was requested
+        // at 24 kHz but the browser may supply a different native rate (e.g.
+        // 44100 Hz). If the actual rate differs, OpenAI receives audio at the
+        // wrong speed — VAD fires erratically and ASR produces garbled output.
+        // Use a browser that supports AudioWorklet to avoid this path.
+        console.warn(
+          `[hyperstream] ScriptProcessorNode fallback active. ` +
+          `AudioContext.sampleRate=${audioCtx.sampleRate}. ` +
+          `OpenAI expects 24000 Hz PCM16 — if this differs, audio will be garbled.`,
+        );
         const processor = audioCtx.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
         source.connect(processor);
@@ -644,9 +666,9 @@ export function RetellDeployDialog() {
                       turn_detection: {
                         type: "server_vad",
                         threshold: 0.5,
-                        prefix_padding_ms: 300,
-                        // 200 ms is the OpenAI default — minimises dead time after
-                        // the user stops speaking before the model starts generating.
+                        prefix_padding_ms: 200,
+                        // 200 ms silence_duration_ms is the OpenAI minimum —
+                        // minimises dead time after the user stops speaking.
                         silence_duration_ms: 200,
                         create_response: true,
                         interrupt_response: true,
@@ -709,18 +731,29 @@ export function RetellDeployDialog() {
 
           // ── Speech detection events (confirms user audio is reaching OpenAI VAD)
           if (msg.type === "input_audio_buffer.speech_started") {
+            // ── Interruption support ──────────────────────────────────────
+            // Reset the playback scheduler so the next response's audio is
+            // scheduled from the current moment, not relative to where the
+            // interrupted response would have finished. Without this reset,
+            // the new response plays in the future (audible silence gap) or
+            // is completely skipped if nextPlayTime is far ahead.
+            nextPlayTimeRef.current = 0;
             hsLog("IN ", "input_audio_buffer.speech_started", {
               audio_start_ms: msg.audio_start_ms,
               item_id: msg.item_id,
               appendPacketsSoFar: appendPktCount,
+              schedulerReset: true,
             });
             return;
           }
 
           if (msg.type === "input_audio_buffer.speech_stopped") {
+            // Record the moment speech ends — used to compute TTFA below.
+            speechStoppedAt = performance.now();
             hsLog("IN ", "input_audio_buffer.speech_stopped", {
               audio_end_ms: msg.audio_end_ms,
               item_id: msg.item_id,
+              tOffset_ms: (speechStoppedAt - t0).toFixed(0),
             });
             return;
           }
@@ -768,11 +801,21 @@ export function RetellDeployDialog() {
             deltaCountForResponse += 1;
             // Log only the first delta per response so the console doesn't flood.
             if (deltaCountForResponse === 1) {
+              const now = performance.now();
+              // TTFA: time from user stop-speaking → first audio byte received.
+              // Covers: silence_duration_ms + committed + response.created +
+              //         LLM first token + relay return trip.
+              const ttfa = speechStoppedAt !== null
+                ? `${(now - speechStoppedAt).toFixed(0)}ms`
+                : "n/a (greeting or no speech_stopped received)";
               hsLog("IN ", msg.type as string, {
                 response_id: msg.response_id ?? currentResponseId,
                 deltaBytes: (msg.delta as string).length,
                 note: "first-delta",
+                ttfa_ms: ttfa,
               });
+              // Reset so the next user turn gets a fresh measurement.
+              speechStoppedAt = null;
             }
 
             const ctx = audioCtxRef.current;
@@ -795,10 +838,10 @@ export function RetellDeployDialog() {
             const src = ctx.createBufferSource();
             src.buffer = buf;
             src.connect(ctx.destination);
-            // Small jitter buffer: when playback has caught up (or this is the
-            // first chunk), start ~80 ms ahead so network jitter between audio
-            // deltas can't cause audible gaps/crackle.
-            const JITTER = 0.08;
+            // Jitter buffer: start 25 ms ahead of now on the first chunk so
+            // single-packet network jitter can't cause audible gaps or crackle.
+            // 25 ms is sufficient for the local relay; 80 ms was over-provisioned.
+            const JITTER = 0.025;
             const startAt =
               nextPlayTimeRef.current > ctx.currentTime
                 ? nextPlayTimeRef.current
