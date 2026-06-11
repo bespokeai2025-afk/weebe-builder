@@ -212,8 +212,9 @@ Route to global_prompt when the section heading OR content matches ANY of these 
 
 OUTPUT ONLY valid JSON — no markdown, no code fences:
 {
-  "title": "<2-4 word overall flow title>",
+  "title": "<company name extracted from the document, e.g. 'SolarEdge Solutions' — fall back to a 2-4 word flow title if no company name is found>",
   "suggestedAgentName": "<agent's first name or persona name from the document — empty string if not found>",
+  "suggestedCompanyName": "<the full company or business name exactly as written in the document — empty string if not found>",
   "suggestedBeginMessage": "<the exact opening line the agent says at the start of a call, ready to be spoken aloud — empty string if not determinable>",
   "segments": [
     { "segId": "<id>", "destination": "global_prompt" },
@@ -423,6 +424,7 @@ async function generateFlow(
   const enriched = JSON.parse(aiJson.choices[0].message.content) as {
     title: string;
     suggestedAgentName?: string;
+    suggestedCompanyName?: string;
     suggestedBeginMessage?: string;
     segments: Array<
       | { segId: string; destination: "global_prompt" }
@@ -739,7 +741,8 @@ async function generateFlow(
   return {
     title: String(enriched.title ?? "Imported Script"),
     globalPromptSuggestion,
-    suggestedAgentName: enriched.suggestedAgentName?.trim() ?? "",
+    suggestedAgentName:   enriched.suggestedAgentName?.trim()   ?? "",
+    suggestedCompanyName: enriched.suggestedCompanyName?.trim() ?? "",
     suggestedBeginMessage: enriched.suggestedBeginMessage?.trim() ?? "",
     voiceProvider,
     nodes: cleanNodes,

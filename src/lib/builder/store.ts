@@ -53,6 +53,7 @@ interface State {
 
 const defaultSettings: BuilderSettings = {
   agentName: "Conversation Flow Agent",
+  companyName: "",
   globalPrompt:
     "You should be polite and humble to the user. Stay on script, keep responses concise.",
   beginMessage: "",

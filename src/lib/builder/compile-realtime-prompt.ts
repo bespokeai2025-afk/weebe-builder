@@ -20,12 +20,10 @@ export function compileRealtimePrompt(
 ): string {
   const sections: string[] = [];
 
-  const agentName = settings.agentName?.trim();
-  sections.push(
-    agentName
-      ? `You are ${agentName}, an AI voice agent. Speak naturally and conversationally.`
-      : "You are an AI voice agent. Speak naturally and conversationally.",
-  );
+  const agentName   = settings.agentName?.trim();
+  const companyName = settings.companyName?.trim();
+  const identity    = [agentName || "an AI voice agent", companyName ? `working for ${companyName}` : ""].filter(Boolean).join(", ");
+  sections.push(`You are ${identity}. Speak naturally and conversationally.`);
 
   // Turn-taking rules are critical for OpenAI Realtime: without them the model
   // tends to read the whole script in one breath and talk over the caller.

@@ -113,6 +113,7 @@ export interface FlowNodeData {
 
 export interface BuilderSettings {
   agentName: string;
+  companyName?: string;
   globalPrompt: string;
   beginMessage: string;
   model: string;

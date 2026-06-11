@@ -55,6 +55,7 @@ interface FlowResult {
   title: string;
   globalPromptSuggestion: string;
   suggestedAgentName: string;
+  suggestedCompanyName: string;
   suggestedBeginMessage: string;
   voiceProvider: "RETELL" | "OPENAI_REALTIME";
   nodes: FlowNode[];
@@ -102,9 +103,10 @@ export function ImportPDFDialog({
   const [selectedAgent, setSelectedAgent]       = useState<ScannedAgent | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<ScannedCampaign | null>(null);
   const [flowResult, setFlowResult]         = useState<FlowResult | null>(null);
-  const [applyGlobalPrompt, setApplyGlobalPrompt]   = useState(true);
-  const [applyAgentName, setApplyAgentName]         = useState(true);
-  const [applyBeginMessage, setApplyBeginMessage]   = useState(true);
+  const [applyGlobalPrompt, setApplyGlobalPrompt]     = useState(true);
+  const [applyAgentName, setApplyAgentName]           = useState(true);
+  const [applyCompanyName, setApplyCompanyName]       = useState(true);
+  const [applyBeginMessage, setApplyBeginMessage]     = useState(true);
 
   const reset = () => {
     setPhase("idle");
@@ -212,6 +214,8 @@ export function ImportPDFDialog({
       settingsUpdate.globalPrompt = flowResult.globalPromptSuggestion;
     if (applyAgentName && flowResult.suggestedAgentName)
       settingsUpdate.agentName = flowResult.suggestedAgentName;
+    if (applyCompanyName && flowResult.suggestedCompanyName)
+      settingsUpdate.companyName = flowResult.suggestedCompanyName;
     if (applyBeginMessage && flowResult.suggestedBeginMessage)
       settingsUpdate.beginMessage = flowResult.suggestedBeginMessage;
     if (Object.keys(settingsUpdate).length > 0)
@@ -575,8 +579,8 @@ export function ImportPDFDialog({
               })}
             </div>
 
-            {/* Agent name + Begin message */}
-            {(flowResult.suggestedAgentName || flowResult.suggestedBeginMessage) && (
+            {/* Agent name + Company name + Begin message */}
+            {(flowResult.suggestedAgentName || flowResult.suggestedCompanyName || flowResult.suggestedBeginMessage) && (
               <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2.5">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   Agent Settings
@@ -592,6 +596,23 @@ export function ImportPDFDialog({
                         type="checkbox"
                         checked={applyAgentName}
                         onChange={(e) => setApplyAgentName(e.target.checked)}
+                        className="h-3 w-3 rounded accent-violet-500"
+                      />
+                      <span className="text-[10px] text-muted-foreground">Apply</span>
+                    </label>
+                  </div>
+                )}
+                {flowResult.suggestedCompanyName && (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-muted-foreground/60 mb-0.5">Company Name</p>
+                      <p className="text-xs font-medium truncate">{flowResult.suggestedCompanyName}</p>
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={applyCompanyName}
+                        onChange={(e) => setApplyCompanyName(e.target.checked)}
                         className="h-3 w-3 rounded accent-violet-500"
                       />
                       <span className="text-[10px] text-muted-foreground">Apply</span>
