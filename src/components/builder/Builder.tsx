@@ -29,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem } from "lucide-react";
+import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
@@ -67,6 +67,7 @@ import { FlowCanvas } from "./FlowCanvas";
 import { NodeEditorDialog } from "./NodeEditorDialog";
 import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
+import { ImportPDFDialog } from "./ImportPDFDialog";
 import { RetellDeployDialog, type TxEntry } from "./RetellDeployDialog";
 import { VoiceCopilotButton } from "./VoiceCopilot";
 import { PlatformGuideDrawer } from "./PlatformGuideDrawer";
@@ -346,6 +347,7 @@ export function Builder({
   }, [liveTranscript]);
   const [guideOpen, setGuideOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [importPdfOpen, setImportPdfOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
   const setNumericSetting = (key: keyof BuilderSettings, value: string, fallback: number) => {
@@ -510,6 +512,9 @@ export function Builder({
                 <DropdownMenuItem onSelect={() => setImportOpen(true)}>
                   <Upload className="mr-2 h-3.5 w-3.5" /> Import JSON
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setImportPdfOpen(true)}>
+                  <FileUp className="mr-2 h-3.5 w-3.5" /> Upload Script (PDF)
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Export
@@ -551,6 +556,7 @@ export function Builder({
             </AlertDialog>
           </div>
           <ImportJsonDialog open={importOpen} onOpenChange={setImportOpen} hideTrigger />
+          <ImportPDFDialog open={importPdfOpen} onOpenChange={setImportPdfOpen} />
           <ExportJsonDialog open={exportOpen} onOpenChange={setExportOpen} hideTrigger />
 
           {/* Engine-switch confirmation dialog */}
