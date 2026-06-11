@@ -567,9 +567,17 @@ export function RetellDeployDialog() {
       // logs (export, validation, model resolve) and WS event logs share the
       // same clock reference.
       let sessionUpdateSentAt: number | null = null;  // relay.connected → session.updated
-      let speechStartedAt:    number | null = null;   // speech_started timestamp
+      let speechStartedAt:    number | null = null;   // speech_started (TTFA ref, cleared after use)
       let responseCreatedAt:  number | null = null;   // response.created → response.done
       let toolCallStartedAt:  number | null = null;   // fn_call received → output sent
+      // Turn timeline refs — persist from speech_started → response.done so the
+      // timeline report at response.done has all its anchor points available.
+      let turnSpeechStartAt: number | null = null;   // kept until response.done
+      let turnSpeechStopAt:  number | null = null;   // kept until response.done
+      let firstAudioDeltaAt: number | null = null;   // first delta timestamp
+      // Audio delta accumulation for the turn — reset at response.created.
+      let audioDeltaCount   = 0;
+      let audioDeltaByteTotal = 0;
 
       // Emit Core Runtime identity once at WS open.  All subsequent logs share t0.
       hsLog("   ", "core.runtime.activated", {
@@ -858,31 +866,67 @@ export function RetellDeployDialog() {
             // response plays in the future (audible silence gap) or is
             // skipped entirely if nextPlayTime is far ahead.
             nextPlayTimeRef.current = 0;
-            speechStartedAt = performance.now();
-            // vadActive: true confirms server_vad is working — this event
-            // only fires when OpenAI VAD detects speech in the audio stream.
-            // If this event never appears, mic audio is not reaching OpenAI.
+            const now = performance.now();
+            speechStartedAt = now;
+            turnSpeechStartAt = now;
+            // Reset audio accumulators for the new turn.
+            firstAudioDeltaAt = null;
+            audioDeltaCount = 0;
+            audioDeltaByteTotal = 0;
+            // ── response.cancel outbound ──────────────────────────────────
+            // Send response.cancel explicitly when the user starts speaking
+            // mid-response.  Belt-and-suspenders with interrupt_response:true
+            // in the session config — both mechanisms are now active.
+            // This answers "is response.cancel sent when user interrupts":
+            //   YES — logged below as OUT response.cancel when active.
+            //   server_vad interrupt_response:true handles it server-side too.
+            // NOTE: input_audio_buffer.commit is NOT sent here or anywhere.
+            //   In server_vad mode OpenAI auto-commits the buffer when VAD
+            //   detects end-of-speech — the client never sends commit.
+            if (currentResponseId && ws.readyState === WebSocket.OPEN) {
+              const cancelPayload = JSON.stringify({ type: "response.cancel" });
+              ws.send(cancelPayload);
+              hsLog("OUT", "response.cancel", {
+                response_id: currentResponseId,
+                payloadBytes: cancelPayload.length,
+                reason: "barge-in (speech_started)",
+              });
+            }
+            // vadActive:true confirms server_vad is working — this event only
+            // fires when OpenAI VAD detects speech.  If absent, mic audio is
+            // not reaching OpenAI.
             hsLog("IN ", "input_audio_buffer.speech_started", {
               audio_start_ms: msg.audio_start_ms,
               item_id: msg.item_id,
+              payloadBytes: raw.length,
               appendPacketsSoFar: appendPktCount,
               schedulerReset: true,
               vadActive: true,
+              activeResponseId: currentResponseId || "none",
             });
             return;
           }
 
           if (msg.type === "input_audio_buffer.speech_stopped") {
             // Record the moment speech ends — t0 reference for TTFA below.
-            speechStoppedAt = performance.now();
+            // Also captured in turnSpeechStopAt which persists to response.done.
+            const now = performance.now();
+            speechStoppedAt = now;
+            turnSpeechStopAt = now;
             const speechDurationMs = speechStartedAt !== null
               ? (speechStoppedAt - speechStartedAt).toFixed(0)
               : "n/a";
+            // input_audio_buffer.commit: NOT sent by the client in server_vad
+            // mode.  OpenAI auto-commits the buffer when VAD detects
+            // end-of-speech and sends input_audio_buffer.committed (logged
+            // below).  The client never sends input_audio_buffer.commit.
             hsLog("IN ", "input_audio_buffer.speech_stopped", {
               audio_end_ms: msg.audio_end_ms,
               item_id: msg.item_id,
+              payloadBytes: raw.length,
               tOffset_ms: (speechStoppedAt - t0).toFixed(0),
               speechDurationMs,
+              commitSentByClient: false,
             });
             return;
           }
@@ -901,6 +945,10 @@ export function RetellDeployDialog() {
             currentResponseId = (resp?.id as string) ?? "";
             deltaCountForResponse = 0;
             responseCreatedAt = performance.now();
+            // Reset audio delta accumulators for this response.
+            firstAudioDeltaAt = null;
+            audioDeltaCount = 0;
+            audioDeltaByteTotal = 0;
             // lagFromSpeechStop: covers silence_duration_ms (200ms) + VAD
             // commit + relay round-trip.  Typical range: 200–500ms.
             // n/a on the greeting (no preceding speech_stopped event).
@@ -915,21 +963,88 @@ export function RetellDeployDialog() {
             return;
           }
 
+          if (msg.type === "response.output_item.added") {
+            const item = msg.item as Record<string, unknown> | undefined;
+            hsLog("IN ", "response.output_item.added", {
+              response_id: msg.response_id ?? currentResponseId,
+              output_index: msg.output_index,
+              item_id: item?.id,
+              item_type: item?.type,
+              item_role: item?.role,
+              payloadBytes: raw.length,
+            });
+            return;
+          }
+
           if (msg.type === "response.done") {
             const resp = msg.response as Record<string, unknown> | undefined;
             const usage = resp?.usage as Record<string, unknown> | undefined;
-            const responseDurationMs = responseCreatedAt !== null
-              ? (performance.now() - responseCreatedAt).toFixed(0)
+            const tDone = performance.now();
+            const capturedResponseCreatedAt = responseCreatedAt;
+            const responseDurationMs = capturedResponseCreatedAt !== null
+              ? (tDone - capturedResponseCreatedAt).toFixed(0)
               : "n/a";
             responseCreatedAt = null;
             hsLog("IN ", "response.done", {
               response_id: resp?.id,
               status: resp?.status,
+              payloadBytes: raw.length,
               audioDeltas: deltaCountForResponse,
+              audioDeltaByteTotal,
               inputTokens: usage?.input_tokens,
               outputTokens: usage?.output_tokens,
               responseDurationMs,
             });
+
+            // ── Turn timeline report ──────────────────────────────────────
+            // Printed at every response.done so each turn has a complete
+            // latency breakdown visible in the console.
+            // Reference point: turnSpeechStopAt (when user stopped speaking).
+            // n/a for greeting responses (no speech_stopped preceded them).
+            const ref = turnSpeechStopAt;
+            const fmtMs = (t: number | null): string =>
+              t !== null ? `t0+${(t - t0).toFixed(0)}ms` : "n/a";
+            const fmtDelta = (t: number | null, base: number | null): string =>
+              t !== null && base !== null
+                ? `${t >= base ? "+" : ""}${(t - base).toFixed(0)}ms`
+                : "n/a";
+
+            const stopToCreated =
+              ref !== null && capturedResponseCreatedAt !== null
+                ? `${(capturedResponseCreatedAt - ref).toFixed(0)}ms`
+                : "n/a";
+            const createdToAudio =
+              capturedResponseCreatedAt !== null && firstAudioDeltaAt !== null
+                ? `${(firstAudioDeltaAt - capturedResponseCreatedAt).toFixed(0)}ms`
+                : "n/a";
+            const totalTurnLatency =
+              ref !== null && firstAudioDeltaAt !== null
+                ? `${(firstAudioDeltaAt - ref).toFixed(0)}ms`
+                : "n/a";
+
+            console.groupCollapsed(
+              `[HS turn] response_id=${resp?.id ?? "?"} ` +
+              `stop→created=${stopToCreated}  created→audio=${createdToAudio}  ` +
+              `total=${totalTurnLatency}  duration=${responseDurationMs}ms`,
+            );
+            console.log("  User Starts Speaking  ", fmtMs(turnSpeechStartAt),  fmtDelta(turnSpeechStartAt, ref));
+            console.log("  User Stops Speaking   ", fmtMs(ref),                "(reference)");
+            console.log("  Response Created      ", fmtMs(capturedResponseCreatedAt), fmtDelta(capturedResponseCreatedAt, ref));
+            console.log("  First Audio Delta     ", fmtMs(firstAudioDeltaAt),  fmtDelta(firstAudioDeltaAt, ref));
+            console.log("  Response Done         ", fmtMs(tDone),              fmtDelta(tDone, ref));
+            console.log("  ──────────────────────────────────────────────────────");
+            console.log("  Speech Stop → Response Created  :", stopToCreated);
+            console.log("  Response Created → First Audio  :", createdToAudio);
+            console.log("  Total Turn Latency (stop→audio) :", totalTurnLatency);
+            console.log("  Response Duration               :", `${responseDurationMs}ms`);
+            console.log("  Audio deltas / total bytes      :", `${audioDeltaCount} / ${audioDeltaByteTotal}B`);
+            console.log("  Input tokens / Output tokens    :", usage?.input_tokens, "/", usage?.output_tokens);
+            console.groupEnd();
+
+            // Clear turn timeline refs for next turn.
+            turnSpeechStartAt = null;
+            turnSpeechStopAt  = null;
+            firstAudioDeltaAt = null;
             return;
           }
 
@@ -1013,23 +1128,35 @@ export function RetellDeployDialog() {
             typeof msg.delta === "string"
           ) {
             deltaCountForResponse += 1;
-            // Log only the first delta per response so the console doesn't flood.
+            audioDeltaCount += 1;
+            const deltaB64 = msg.delta as string;
+            audioDeltaByteTotal += deltaB64.length;
+            const now = performance.now();
+
             if (deltaCountForResponse === 1) {
-              const now = performance.now();
-              // TTFA: time from user stop-speaking → first audio byte received.
-              // Covers: silence_duration_ms + committed + response.created +
-              //         LLM first token + relay return trip.
+              // ── First delta: compute TTFA and record timeline anchor ────
+              firstAudioDeltaAt = now;
               const ttfa = speechStoppedAt !== null
                 ? `${(now - speechStoppedAt).toFixed(0)}ms`
-                : "n/a (greeting or no speech_stopped received)";
+                : "n/a (greeting)";
               hsLog("IN ", msg.type as string, {
+                seq: deltaCountForResponse,
                 response_id: msg.response_id ?? currentResponseId,
-                deltaBytes: (msg.delta as string).length,
-                note: "first-delta",
+                payloadBytes: raw.length,
+                deltaBytes: deltaB64.length,
                 ttfa_ms: ttfa,
               });
-              // Reset so the next user turn gets a fresh measurement.
+              // Clear so next turn gets a fresh TTFA measurement.
               speechStoppedAt = null;
+            } else {
+              // ── Subsequent deltas: log every event per trace requirement ─
+              hsLog("IN ", msg.type as string, {
+                seq: deltaCountForResponse,
+                response_id: msg.response_id ?? currentResponseId,
+                payloadBytes: raw.length,
+                deltaBytes: deltaB64.length,
+                totalBytes: audioDeltaByteTotal,
+              });
             }
 
             const ctx = audioCtxRef.current;
@@ -1062,6 +1189,23 @@ export function RetellDeployDialog() {
                 : ctx.currentTime + JITTER;
             src.start(startAt);
             nextPlayTimeRef.current = startAt + buf.duration;
+          }
+
+          // ── Audio stream complete ─────────────────────────────────────────
+          // response.output_audio.done fires when ALL audio deltas for a
+          // response have been delivered.  Logs the total delta count and byte
+          // total so we know the full audio stream was received intact.
+          if (
+            msg.type === "response.output_audio.done" ||
+            msg.type === "response.audio.done"
+          ) {
+            hsLog("IN ", msg.type as string, {
+              response_id: msg.response_id ?? currentResponseId,
+              payloadBytes: raw.length,
+              totalDeltasSoFar: audioDeltaCount,
+              totalBytesSoFar: audioDeltaByteTotal,
+            });
+            return;
           }
         } catch {
           // ignore parse errors
