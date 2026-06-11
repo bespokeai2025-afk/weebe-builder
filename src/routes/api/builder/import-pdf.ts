@@ -296,14 +296,27 @@ HOW TO SPLIT A SEGMENT:
 - Replace the single segment entry with multiple entries, all with "virtual": true and "content" set to each sub-instruction's dialogue
 - Use derived segIds: "<originalSegId>-1", "<originalSegId>-2", etc.
 - Set "virtual": true on every sub-node so the system uses your "content" field directly
-- Wire them in order: [seg-1] default→ [seg-2] default→ [seg-3] …
+- Wire INTERMEDIATE sub-nodes with a single "default" transition to the next sub-node
+- The LAST sub-node MUST carry ALL of the original segment's outgoing transitions — this preserves every branch (yes/no, interested/not interested, etc.) that the original segment had
+- If the original segment was a logic_split, the last sub-node inherits kind "logic_split" and all its branch transitions
 - Make sure no original content is lost — every instruction from the source segment appears in exactly one sub-node
 
-Example — segment seg_abc: "Ask for their name, then ask for their phone number, then confirm their email."
-Output:
-  { "segId": "seg_abc-1", "virtual": true, "content": "Could I get your first and last name?", "label": "Ask Name", "kind": "conversation", "destination": "flow", "transitions": [{"id": "t-abc-1-2", "condition": "default", "target": "seg_abc-2"}] },
-  { "segId": "seg_abc-2", "virtual": true, "content": "And what's the best phone number for you?", "label": "Ask Phone", "kind": "conversation", "destination": "flow", "transitions": [{"id": "t-abc-2-3", "condition": "default", "target": "seg_abc-3"}] },
-  { "segId": "seg_abc-3", "virtual": true, "content": "Great, can I confirm your email address?", "label": "Confirm Email", "kind": "conversation", "destination": "flow", "transitions": [...next...] }
+Example A — plain conversation split (seg_abc: "Ask name, then ask phone, then confirm email"):
+  { "segId": "seg_abc-1", "virtual": true, "content": "Could I get your first and last name?", "label": "Ask Name", "kind": "conversation", "destination": "flow",
+    "transitions": [{"id": "t-abc-1-2", "condition": "default", "target": "seg_abc-2"}] },
+  { "segId": "seg_abc-2", "virtual": true, "content": "And what's the best phone number for you?", "label": "Ask Phone", "kind": "conversation", "destination": "flow",
+    "transitions": [{"id": "t-abc-2-3", "condition": "default", "target": "seg_abc-3"}] },
+  { "segId": "seg_abc-3", "virtual": true, "content": "Great, can I confirm your email address?", "label": "Confirm Email", "kind": "conversation", "destination": "flow",
+    "transitions": [<< ORIGINAL seg_abc outgoing transitions go here >>] }
+
+Example B — logic_split with an intro line (seg_xyz: "Introduce the offer. Ask if they are interested."):
+  { "segId": "seg_xyz-1", "virtual": true, "content": "I'd love to tell you about our special offer.", "label": "Introduce Offer", "kind": "conversation", "destination": "flow",
+    "transitions": [{"id": "t-xyz-1-2", "condition": "default", "target": "seg_xyz-2"}] },
+  { "segId": "seg_xyz-2", "virtual": true, "content": "Does that sound like something you'd be interested in?", "label": "Gauge Interest", "kind": "logic_split", "destination": "flow",
+    "transitions": [
+      {"id": "t-xyz-yes", "condition": "yes / interested", "target": "<next segment in script>"},
+      {"id": "t-xyz-no",  "condition": "no / not interested", "target": "<objection virtual node>"}
+    ] }
 
 Do NOT merge multiple instructions into a single node's dialogue.
 
