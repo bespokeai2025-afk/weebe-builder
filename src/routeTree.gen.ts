@@ -37,6 +37,7 @@ import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webh
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
+import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
 import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admin/test-retell-webhook'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
@@ -202,6 +203,11 @@ const ApiPublicRetellWebhookRoute = ApiPublicRetellWebhookRouteImport.update({
 const ApiPublicApproveUserRoute = ApiPublicApproveUserRouteImport.update({
   id: '/api/public/approve-user',
   path: '/api/public/approve-user',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBuilderScanPdfRoute = ApiBuilderScanPdfRouteImport.update({
+  id: '/api/builder/scan-pdf',
+  path: '/api/builder/scan-pdf',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiBuilderImportPdfRoute = ApiBuilderImportPdfRouteImport.update({
@@ -380,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
+  '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -434,6 +441,7 @@ export interface FileRoutesByTo {
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
+  '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -491,6 +499,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
+  '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -548,6 +557,7 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
+    | '/api/builder/scan-pdf'
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -602,6 +612,7 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
+    | '/api/builder/scan-pdf'
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -658,6 +669,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/integrations'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
+    | '/api/builder/scan-pdf'
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -696,6 +708,7 @@ export interface RootRouteChildren {
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ApiAdminTestRetellWebhookRoute: typeof ApiAdminTestRetellWebhookRoute
   ApiBuilderImportPdfRoute: typeof ApiBuilderImportPdfRoute
+  ApiBuilderScanPdfRoute: typeof ApiBuilderScanPdfRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -914,6 +927,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/approve-user'
       fullPath: '/api/public/approve-user'
       preLoaderRoute: typeof ApiPublicApproveUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/builder/scan-pdf': {
+      id: '/api/builder/scan-pdf'
+      path: '/api/builder/scan-pdf'
+      fullPath: '/api/builder/scan-pdf'
+      preLoaderRoute: typeof ApiBuilderScanPdfRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/builder/import-pdf': {
@@ -1212,6 +1232,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ApiAdminTestRetellWebhookRoute: ApiAdminTestRetellWebhookRoute,
   ApiBuilderImportPdfRoute: ApiBuilderImportPdfRoute,
+  ApiBuilderScanPdfRoute: ApiBuilderScanPdfRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
