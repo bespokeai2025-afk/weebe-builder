@@ -309,3 +309,76 @@ export const HYPERSTREAM_PER_MIN = 0.09;
 export function getHyperStreamCostPerMinute(modelId?: string): number {
   return HYPERSTREAM_MODELS.find((m) => m.id === modelId)?.costPerMin ?? HYPERSTREAM_PER_MIN;
 }
+
+// ── Exact per-token billing rates for HyperStream ──────────────────────────
+// Source: https://openai.com/api/pricing/
+// OpenAI Realtime API bills audio and text tokens at different rates.
+// The response.done event carries input_token_details / output_token_details
+// with the exact split — use these for the most accurate cost figure.
+//
+// gpt-4o-realtime-preview:  audioIn $40/1M  audioOut $80/1M  textIn $5/1M  textOut $20/1M
+// gpt-4o-mini-realtime-preview: audioIn $10/1M audioOut $20/1M textIn $1.25/1M textOut $5/1M
+// gpt-realtime (gpt-4.1):   same rates as gpt-4o-realtime-preview (same endpoint)
+
+export type HyperStreamTokenRates = {
+  textIn:   number;   // USD per token
+  audioIn:  number;
+  textOut:  number;
+  audioOut: number;
+};
+
+export const HYPERSTREAM_TOKEN_RATES: Record<string, HyperStreamTokenRates> = {
+  "gpt-4o-realtime-preview": {
+    textIn:    5.00 / 1_000_000,
+    audioIn:  40.00 / 1_000_000,
+    textOut:  20.00 / 1_000_000,
+    audioOut: 80.00 / 1_000_000,
+  },
+  "gpt-4o-mini-realtime-preview": {
+    textIn:   1.25 / 1_000_000,
+    audioIn: 10.00 / 1_000_000,
+    textOut:  5.00 / 1_000_000,
+    audioOut: 20.00 / 1_000_000,
+  },
+  "gpt-realtime": {
+    textIn:    5.00 / 1_000_000,
+    audioIn:  40.00 / 1_000_000,
+    textOut:  20.00 / 1_000_000,
+    audioOut: 80.00 / 1_000_000,
+  },
+};
+
+/**
+ * Calculate exact USD cost for one response.done turn.
+ *
+ * Pass `inputDetails` / `outputDetails` from `usage.input_token_details` /
+ * `usage.output_token_details` when present (full accuracy).
+ * Provide `fallbackInputTokens` / `fallbackOutputTokens` as a safety net for
+ * models that don't return the detail breakdown — they're billed at audio rates
+ * (conservative worst-case).
+ */
+export function calcHyperStreamTurnCost(
+  realtimeModelId: string,
+  inputDetails:  { text_tokens?: number; audio_tokens?: number } | undefined,
+  outputDetails: { text_tokens?: number; audio_tokens?: number } | undefined,
+  fallbackInputTokens?:  number,
+  fallbackOutputTokens?: number,
+): number {
+  const rates =
+    HYPERSTREAM_TOKEN_RATES[realtimeModelId] ??
+    HYPERSTREAM_TOKEN_RATES["gpt-4o-realtime-preview"];
+
+  if (inputDetails !== undefined && outputDetails !== undefined) {
+    return (
+      (inputDetails.text_tokens   ?? 0) * rates.textIn  +
+      (inputDetails.audio_tokens  ?? 0) * rates.audioIn +
+      (outputDetails.text_tokens  ?? 0) * rates.textOut +
+      (outputDetails.audio_tokens ?? 0) * rates.audioOut
+    );
+  }
+  // Fallback: charge all tokens at audio rates (conservative)
+  return (
+    (fallbackInputTokens  ?? 0) * rates.audioIn +
+    (fallbackOutputTokens ?? 0) * rates.audioOut
+  );
+}

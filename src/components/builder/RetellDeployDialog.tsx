@@ -35,7 +35,7 @@ import {
 } from "@/lib/agents/agents.functions";
 import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getTotalCostPerMinute, getHyperStreamCostPerMinute } from "@/lib/builder/pricing";
+import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost } from "@/lib/builder/pricing";
 
 export function RetellDeployDialog() {
   const {
@@ -58,6 +58,9 @@ export function RetellDeployDialog() {
   const [openaiDeploying, setOpenaiDeploying] = useState(false);
   const [calling, setCalling] = useState(false);
   const [inCall, setInCall] = useState(false);
+  // Exact token-based USD cost accumulated from response.done events during a
+  // HyperStream call. null = no call active / no response.done received yet.
+  const [hsExactCostUsd, setHsExactCostUsd] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [loadOpen, setLoadOpen] = useState(false);
   const [loadId, setLoadId] = useState("");
@@ -418,6 +421,7 @@ export function RetellDeployDialog() {
       return;
     }
     setCalling(true);
+    setHsExactCostUsd(null);
 
     function cleanupHyperStream() {
       processorRef.current?.disconnect();
@@ -536,6 +540,10 @@ export function RetellDeployDialog() {
       panelModelId: panelModelId ?? "(none — legacy fallback)",
       realtimeModel,
     });
+
+    // Running exact token cost accumulated from response.done events.
+    // Closed over by the WS message handler so each turn adds to it.
+    let callExactCostUsd = 0;
 
     try {
       const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -1011,14 +1019,32 @@ export function RetellDeployDialog() {
               : "n/a";
             responseCreatedAt = null;
             isResponseInProgress = false;
+            // ── Exact token cost for this turn ────────────────────────────
+            const inputDetails  = usage?.input_token_details  as { text_tokens?: number; audio_tokens?: number } | undefined;
+            const outputDetails = usage?.output_token_details as { text_tokens?: number; audio_tokens?: number } | undefined;
+            const turnCostUsd = calcHyperStreamTurnCost(
+              realtimeModel,
+              inputDetails,
+              outputDetails,
+              usage?.input_tokens  as number | undefined,
+              usage?.output_tokens as number | undefined,
+            );
+            callExactCostUsd += turnCostUsd;
+            setHsExactCostUsd(callExactCostUsd);
             hsLog("IN ", "response.done", {
               response_id: resp?.id,
               status: resp?.status,
               payloadBytes: raw.length,
               audioDeltas: deltaCountForResponse,
               audioDeltaByteTotal,
-              inputTokens: usage?.input_tokens,
-              outputTokens: usage?.output_tokens,
+              inputTokens:    usage?.input_tokens,
+              outputTokens:   usage?.output_tokens,
+              audioInTokens:  inputDetails?.audio_tokens,
+              textInTokens:   inputDetails?.text_tokens,
+              audioOutTokens: outputDetails?.audio_tokens,
+              textOutTokens:  outputDetails?.text_tokens,
+              turnCostUsd:    `$${turnCostUsd.toFixed(6)}`,
+              callTotalUsd:   `$${callExactCostUsd.toFixed(6)}`,
               responseDurationMs,
             });
 
@@ -1065,6 +1091,10 @@ export function RetellDeployDialog() {
             console.log("  Response Duration               :", `${responseDurationMs}ms`);
             console.log("  Audio deltas / total bytes      :", `${audioDeltaCount} / ${audioDeltaByteTotal}B`);
             console.log("  Input tokens / Output tokens    :", usage?.input_tokens, "/", usage?.output_tokens);
+            console.log("  Audio in / text in tokens       :", inputDetails?.audio_tokens, "/", inputDetails?.text_tokens);
+            console.log("  Audio out / text out tokens     :", outputDetails?.audio_tokens, "/", outputDetails?.text_tokens);
+            console.log("  Turn cost (exact)               :", `$${turnCostUsd.toFixed(6)}`);
+            console.log("  Call cumulative cost            :", `$${callExactCostUsd.toFixed(6)}`);
             console.groupEnd();
 
             // Clear turn timeline refs for next turn.
@@ -1291,10 +1321,13 @@ export function RetellDeployDialog() {
   }
 
   const costPerMinute = isOpenAI
-    ? getHyperStreamCostPerMinute()
+    ? getHyperStreamCostPerMinute(settings.openaiRealtimeModel)
     : getTotalCostPerMinute(settings.model);
   const minutes = elapsedSec / 60;
-  const cost = minutes * costPerMinute;
+  // HyperStream: use exact token cost once available; fall back to time estimate
+  // until the first response.done arrives (e.g. during greeting).
+  const costIsExact = isOpenAI && hsExactCostUsd !== null;
+  const cost = costIsExact ? hsExactCostUsd! : minutes * costPerMinute;
   const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
   const ss = String(elapsedSec % 60).padStart(2, "0");
 
@@ -1613,7 +1646,7 @@ export function RetellDeployDialog() {
       {(inCall || spendUsedCents > 0) && (
         <div
           className="flex h-8 items-center gap-1.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-2 text-[10px] font-medium text-foreground/70"
-          title={`Total test-call spend @ $${costPerMinute.toFixed(2)}/min`}
+          title={costIsExact ? "Exact OpenAI token cost (audio + text tokens from response.done)" : `Estimated test-call spend @ $${costPerMinute.toFixed(3)}/min`}
         >
           {inCall && (
             <>
@@ -1630,7 +1663,12 @@ export function RetellDeployDialog() {
             <span className="text-muted-foreground"> / ${(spendLimitCents / 100).toFixed(2)}</span>
           </span>
           <span className="hidden lg:inline text-muted-foreground">
-            {inCall ? `· live $${cost.toFixed(3)} ` : ""}· @ ${costPerMinute.toFixed(2)}/min
+            {inCall
+              ? costIsExact
+                ? `· exact $${cost.toFixed(5)} `
+                : `· ~est. $${cost.toFixed(3)} `
+              : ""}
+            {costIsExact ? "· token-exact" : `· ~$${costPerMinute.toFixed(3)}/min est.`}
           </span>
         </div>
       )}
