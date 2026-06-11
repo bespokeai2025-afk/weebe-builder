@@ -635,7 +635,17 @@ export function RetellDeployDialog({
       audioCtxRef.current = audioCtx;
       nextPlayTimeRef.current = 0;
 
-      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Echo cancellation is CRITICAL: without it the mic picks up the AI's
+      // speaker output, VAD fires on the AI's own voice, and the model
+      // "responds" to itself — causing repetition, false input detection,
+      // and the apparent 37-second silence gap on the first turn.
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       streamRef.current = micStream;
 
       const source = audioCtx.createMediaStreamSource(micStream);
@@ -905,6 +915,14 @@ export function RetellDeployDialog({
               payloadBytes: raw.length,
               sessionCreationMs,
             });
+            // Clear any ambient noise that accumulated in the audio buffer
+            // during AudioWorklet setup (before sessionReady was true).
+            // Prevents stale mic audio from contaminating the first VAD window.
+            try {
+              const clearPayload = JSON.stringify({ type: "input_audio_buffer.clear" });
+              ws.send(clearPayload);
+              hsLog("OUT", "input_audio_buffer.clear", { reason: "pre-greeting flush" });
+            } catch { /* non-fatal */ }
             // Ask the agent to greet the caller FIRST so a re-render can't block it.
             try {
               const rcPayload = JSON.stringify({ type: "response.create" });
