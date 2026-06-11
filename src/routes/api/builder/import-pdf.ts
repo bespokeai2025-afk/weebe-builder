@@ -354,7 +354,7 @@ async function generateFlow(
   for (const s of enriched.segments) {
     if (s.destination === "global_prompt") {
       const text = contentMap[s.segId];
-      if (text?.trim()) globalPromptParts.push(text.trim());
+      if (text?.trim()) globalPromptParts.push(cleanDialogue(text.trim()));
     }
   }
   const globalPromptSuggestion = globalPromptParts.join("\n\n");
@@ -386,7 +386,7 @@ async function generateFlow(
       data: {
         kind,
         label: String(n.label ?? `Step ${idx + 1}`),
-        dialogue: contentMap[n.segId] ?? "",
+        dialogue: cleanDialogue(contentMap[n.segId] ?? ""),
         isStart: idx === 0 ? true : undefined,
         transitions: [] as Array<{ id: string; condition: string; target: string | null }>,
       },
@@ -458,6 +458,32 @@ function cleanText(raw: string): string {
     .replace(/\n{4,}/g, "\n\n\n")
     .trim()
     .slice(0, 16000);
+}
+
+// ── Dialogue cleaner — strips step headers, emoji, decorative symbols ─────────
+// Converts raw PDF/DOCX extracted text into clean voice-prompt copy.
+
+function cleanDialogue(raw: string): string {
+  return raw
+    // ── Emoji (broad unicode blocks) ──────────────────────────────────────────
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+    .replace(/[\u{2300}-\u{27BF}]/gu, "")   // misc technical + dingbats
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, "") // supplemental symbols
+    .replace(/\uFE0F/gu, "")                // variation selector-16
+    // ── Step / phase / section headers at line start ──────────────────────────
+    // e.g. "Step 1:", "STEP 1 -", "Phase 2.", "Section 3 —", "1.", "1)"
+    .replace(/^(step|phase|section|part|stage|module)\s*\d+\s*[:\-–—.]?\s*/gim, "")
+    .replace(/^\d+[.)]\s+/gm, "")
+    // ── Markdown heading markers ───────────────────────────────────────────────
+    .replace(/^#{1,6}\s+/gm, "")
+    // ── Bold / italic markdown ────────────────────────────────────────────────
+    .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1")
+    .replace(/_([^_\n]+)_/g, "$1")
+    // ── Decorative bullet / arrow symbols at line start (keep the text) ───────
+    .replace(/^[•►▶→▷◆■□●○✓✗✔✘➤➜➔]+\s*/gm, "")
+    // ── Collapse excessive blank lines ────────────────────────────────────────
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 // ── Route ────────────────────────────────────────────────────────────────────
