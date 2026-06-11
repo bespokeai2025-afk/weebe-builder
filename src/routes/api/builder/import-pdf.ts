@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createRequire } from "module";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -63,8 +64,8 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
 
           // Extract text from PDF
           const buffer = Buffer.from(await file.arrayBuffer());
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (
+          const _require = createRequire(import.meta.url);
+          const pdfParse = _require("pdf-parse/lib/pdf-parse.js") as (
             buf: Buffer,
           ) => Promise<{ text: string }>;
           const { text: rawText } = await pdfParse(buffer);
