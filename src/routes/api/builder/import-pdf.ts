@@ -243,22 +243,36 @@ DIALOGUE CONTENT RULES — every "content" field must be speech-only:
 - Variables in spoken lines use {{variable_name}} format only
 - One question or statement per node — split multi-part segments into sequential nodes
 
-TRANSITION RULES — keep it simple, use default everywhere possible:
+TRANSITION RULES:
 
-RULE 1 — DEFAULT TRANSITIONS: Use kind "conversation" with a single "default" transition for the vast
-majority of nodes. The voice engine handles what the caller says naturally based on the global prompt.
-Do NOT create logic_splits for every possible caller response — that creates bloated, broken flows.
+RULE 1 — HONOUR EXPLICIT SCRIPT TRANSITIONS: If the script explicitly states what happens next
+(e.g. "if yes go to X", "if they agree move to Y", "then ask Z"), use those exact conditions and
+targets verbatim. Never replace an explicit script transition with "default".
 
-RULE 2 — LOGIC SPLITS only at EXPLICIT decision points: Only use kind "logic_split" when the script
-EXPLICITLY states a fork — e.g. "if interested go to X, if not go to Y". Keep to 2 transitions max.
-Condition phrases must be short and natural: "yes / interested"  "no / not interested"  "call me back"
+RULE 2 — PREDICT REALISTIC CONDITIONS when the script has no explicit transition:
+For a sequential node where you must invent the condition, predict the most realistic caller
+response or action — a short natural phrase that describes what the caller would say or do.
+  Examples by node type:
+    Asking for a name     → "caller provides their name"
+    Asking for a number   → "caller provides their number"
+    Asking for a date     → "caller gives a date or time"
+    Confirming details    → "caller confirms"
+    Delivering information → "caller acknowledges"
+    Asking if interested  → "caller is interested"  /  "caller is not interested"
+    Asking a yes/no question → "yes"  /  "no"
+  Write conditions as 2–5 word lowercase phrases. Never write bare "default" unless it is truly
+  a catch-all fallback on a logic_split node (to catch any response not covered by other branches).
 
-RULE 3 — NO DEAD ENDS: Every path through the graph MUST end at a node with kind "ending".
-For any branch that doesn't rejoin the main flow, add one short graceful closing virtual node then ending.
+RULE 3 — LOGIC SPLITS only at explicit decision points: Only use kind "logic_split" when the
+script explicitly states a fork. Keep to 2–3 transitions. Add a "default" catch-all only if
+there are genuinely unhandled responses beyond the named branches.
+
+RULE 4 — NO DEAD ENDS: Every path MUST end at a node with kind "ending".
+For branches that don't rejoin the main flow, add one short graceful closing virtual node then ending.
 Virtual node "content" must be clean spoken dialogue only — no labels, no metadata, no instructions.
 
-RULE 4 — VIRTUAL NODES sparingly: Only add virtual nodes when a logic_split branch has no existing
-target in the script. One or two sentences of spoken dialogue maximum.
+RULE 5 — VIRTUAL NODES sparingly: Only add virtual nodes when a logic_split branch has no existing
+script target. One or two sentences of spoken dialogue maximum.
 
 SMART DETECTION — automatically use these special kinds:
 
