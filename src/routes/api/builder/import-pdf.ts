@@ -141,11 +141,18 @@ function buildEnrichmentPrompt(
     keyStages: string[];
     branchingPoints?: string[];
   },
+  voiceProvider: "RETELL" | "OPENAI_REALTIME" = "RETELL",
 ): string {
+  const isRetell = voiceProvider === "RETELL";
   const lines = [
     `You are a conversation flow formatter for a voice agent builder.`,
     `You receive pre-segmented text blocks extracted from a script by a state-machine parser.`,
     `The segments already contain ALL content — your job is enrichment only, not extraction.`,
+    ``,
+    `TARGET VOICE ENGINE: ${isRetell ? "Retell AI" : "OpenAI Realtime (OmniVoice / HyperStream)"}`,
+    isRetell
+      ? `Retell uses the "global_prompt" as a concise general_prompt field fed directly to its LLM before the conversation graph executes. The graph nodes carry the actual dialogue.`
+      : `OpenAI Realtime uses the "global_prompt" as the "# Overall instructions" section of a compiled system prompt. The conversation script (nodes) is appended automatically by the system. Turn-taking rules are also injected automatically — do NOT add them.`,
   ];
 
   if (focusAgent) {
@@ -195,6 +202,8 @@ FIRST: classify every segment. Each segment has exactly one destination:
 OUTPUT ONLY valid JSON — no markdown, no code fences:
 {
   "title": "<2-4 word overall flow title>",
+  "suggestedAgentName": "<agent's first name or persona name from the document — empty string if not found>",
+  "suggestedBeginMessage": "<the exact opening line the agent says at the start of a call, ready to be spoken aloud — empty string if not determinable>",
   "segments": [
     { "segId": "<id>", "destination": "global_prompt" },
     {
@@ -208,6 +217,24 @@ OUTPUT ONLY valid JSON — no markdown, no code fences:
     }
   ]
 }
+
+GLOBAL PROMPT FORMAT (for segments with destination "global_prompt"):
+${isRetell ? `
+Retell general_prompt style — the collected global_prompt segments will be joined and used as the Retell "general_prompt" field:
+- Open with: "You are [Name], [Role] at [Company]."
+- 1-2 sentences of company/product context
+- Short bullet list of behavioral rules and tone guidelines
+- Any compliance constraints or prohibited topics
+- Keep total length 100–250 words — Retell works best with concise, directive prompts
+- Do NOT add conversation steps, greetings, or turn-taking instructions` : `
+OpenAI Realtime overall-instructions style — the collected global_prompt segments become the "# Overall instructions" section of the system prompt. The conversation script and turn-taking rules are injected automatically elsewhere:
+- Open with: "You are [Name], [Role] for [Company]."
+- 2-3 sentences of rich company/product/service context
+- Communication style, tone, and personality guidelines
+- Behavioral rules and compliance constraints
+- Prohibited topics and escalation paths
+- Target length 150–350 words — be thorough, this is the agent's primary context
+- Do NOT add turn-taking rules or conversation steps`}
 
 CRITICAL RULES:
 - Every input segment MUST appear exactly once in the output — no omissions
@@ -243,6 +270,7 @@ async function generateFlow(
     keyStages: string[];
     branchingPoints?: string[];
   },
+  voiceProvider: "RETELL" | "OPENAI_REALTIME" = "RETELL",
 ) {
   // ── Step 1: state-machine segmentation (100% line coverage) ──────────────
   const rawSegments = segmentByStateMachine(scriptText);
@@ -251,7 +279,7 @@ async function generateFlow(
   if (segments.length === 0) throw new Error("No content segments extracted from PDF");
 
   // ── Step 2: AI enrichment (labels, kinds, transitions, global prompt) ─────
-  const systemPrompt = buildEnrichmentPrompt(focusAgent, focusCampaign);
+  const systemPrompt = buildEnrichmentPrompt(focusAgent, focusCampaign, voiceProvider);
 
   const segmentsPayload = segments.map((s) => ({
     segId: s.id,
@@ -291,6 +319,8 @@ async function generateFlow(
 
   const enriched = JSON.parse(aiJson.choices[0].message.content) as {
     title: string;
+    suggestedAgentName?: string;
+    suggestedBeginMessage?: string;
     segments: Array<
       | { segId: string; destination: "global_prompt" }
       | {
@@ -409,6 +439,9 @@ async function generateFlow(
   return {
     title: String(enriched.title ?? "Imported Script"),
     globalPromptSuggestion,
+    suggestedAgentName: enriched.suggestedAgentName?.trim() ?? "",
+    suggestedBeginMessage: enriched.suggestedBeginMessage?.trim() ?? "",
+    voiceProvider,
     nodes: cleanNodes,
     edges,
     nodeCount: cleanNodes.length,
@@ -454,6 +487,7 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
           if (contentType.includes("application/json")) {
             const body = (await request.json()) as {
               rawText: string;
+              voiceProvider?: "RETELL" | "OPENAI_REALTIME";
               focusAgent?: {
                 name: string;
                 role: string;
@@ -479,6 +513,7 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
               cleanText(body.rawText),
               body.focusAgent,
               body.focusCampaign,
+              body.voiceProvider ?? "RETELL",
             );
             return json(result);
           }

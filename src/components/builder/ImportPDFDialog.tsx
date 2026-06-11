@@ -53,6 +53,9 @@ interface ScanResult {
 interface FlowResult {
   title: string;
   globalPromptSuggestion: string;
+  suggestedAgentName: string;
+  suggestedBeginMessage: string;
+  voiceProvider: "RETELL" | "OPENAI_REALTIME";
   nodes: FlowNode[];
   edges: Edge[];
   nodeCount: number;
@@ -88,7 +91,7 @@ export function ImportPDFDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { loadFlow, setSettings } = useBuilderStore();
+  const { loadFlow, setSettings, settings } = useBuilderStore();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [phase, setPhase]               = useState<Phase>("idle");
@@ -97,8 +100,10 @@ export function ImportPDFDialog({
   const [scanResult, setScanResult]     = useState<ScanResult | null>(null);
   const [selectedAgent, setSelectedAgent]       = useState<ScannedAgent | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<ScannedCampaign | null>(null);
-  const [flowResult, setFlowResult]     = useState<FlowResult | null>(null);
-  const [applyGlobalPrompt, setApplyGlobalPrompt] = useState(true);
+  const [flowResult, setFlowResult]         = useState<FlowResult | null>(null);
+  const [applyGlobalPrompt, setApplyGlobalPrompt]   = useState(true);
+  const [applyAgentName, setApplyAgentName]         = useState(true);
+  const [applyBeginMessage, setApplyBeginMessage]   = useState(true);
 
   const reset = () => {
     setPhase("idle");
@@ -109,6 +114,8 @@ export function ImportPDFDialog({
     setSelectedCampaign(null);
     setFlowResult(null);
     setApplyGlobalPrompt(true);
+    setApplyAgentName(true);
+    setApplyBeginMessage(true);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -170,6 +177,7 @@ export function ImportPDFDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rawText,
+          voiceProvider: settings.voiceProvider ?? "RETELL",
           ...(agent ? { focusAgent: agent } : {}),
           ...(campaign ? { focusCampaign: campaign } : {}),
         }),
@@ -197,18 +205,30 @@ export function ImportPDFDialog({
 
     loadFlow({ nodes: flowResult.nodes, edges: flowResult.edges });
 
-    if (applyGlobalPrompt && flowResult.globalPromptSuggestion) {
-      setSettings({ globalPrompt: flowResult.globalPromptSuggestion });
-    }
+    const settingsUpdate: Record<string, string> = {};
+    if (applyGlobalPrompt && flowResult.globalPromptSuggestion)
+      settingsUpdate.globalPrompt = flowResult.globalPromptSuggestion;
+    if (applyAgentName && flowResult.suggestedAgentName)
+      settingsUpdate.agentName = flowResult.suggestedAgentName;
+    if (applyBeginMessage && flowResult.suggestedBeginMessage)
+      settingsUpdate.beginMessage = flowResult.suggestedBeginMessage;
+    if (Object.keys(settingsUpdate).length > 0)
+      setSettings(settingsUpdate as Parameters<typeof setSettings>[0]);
 
     const parts: string[] = [];
     if (selectedAgent) parts.push(selectedAgent.name);
     if (selectedCampaign) parts.push(selectedCampaign.name);
     const label = parts.length > 0 ? parts.join(" · ") : flowResult.title;
 
-    toast.success(`"${label}" imported`, {
-      description: `${flowResult.nodeCount} nodes · ${flowResult.edges.length} transitions${applyGlobalPrompt && flowResult.globalPromptSuggestion ? " · global prompt applied" : ""}`,
-    });
+    const applied = [
+      `${flowResult.nodeCount} nodes`,
+      `${flowResult.edges.length} transitions`,
+      applyGlobalPrompt && flowResult.globalPromptSuggestion ? "prompt" : "",
+      applyAgentName && flowResult.suggestedAgentName ? "name" : "",
+      applyBeginMessage && flowResult.suggestedBeginMessage ? "greeting" : "",
+    ].filter(Boolean).join(" · ");
+
+    toast.success(`"${label}" imported`, { description: applied });
     handleClose(false);
   };
 
@@ -477,11 +497,19 @@ export function ImportPDFDialog({
                   {flowResult.nodeCount} nodes · {flowResult.edges.length} transitions
                   {branchCount > 0 && ` · ${branchCount} branch${branchCount > 1 ? "es" : ""}`}
                   {flowResult.globalPromptSegmentCount > 0 && (
-                    <span className="text-violet-400/80"> · {flowResult.globalPromptSegmentCount} → global prompt</span>
+                    <span className="text-violet-400/80"> · {flowResult.globalPromptSegmentCount} → prompt</span>
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                <span className={cn(
+                  "text-[9px] rounded px-1.5 py-0.5 border font-medium",
+                  flowResult.voiceProvider === "RETELL"
+                    ? "bg-orange-500/15 text-orange-300 border-orange-500/20"
+                    : "bg-cyan-500/15 text-cyan-300 border-cyan-500/20",
+                )}>
+                  {flowResult.voiceProvider === "RETELL" ? "Retell format" : "OmniVoice format"}
+                </span>
                 {selectedAgent && (
                   <span className="text-[9px] rounded px-1.5 py-0.5 bg-violet-500/15 text-violet-300 border border-violet-500/20">
                     {selectedAgent.name}
@@ -532,13 +560,63 @@ export function ImportPDFDialog({
               })}
             </div>
 
+            {/* Agent name + Begin message */}
+            {(flowResult.suggestedAgentName || flowResult.suggestedBeginMessage) && (
+              <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 space-y-2.5">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Agent Settings
+                </p>
+                {flowResult.suggestedAgentName && (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-muted-foreground/60 mb-0.5">Agent Name</p>
+                      <p className="text-xs font-medium truncate">{flowResult.suggestedAgentName}</p>
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={applyAgentName}
+                        onChange={(e) => setApplyAgentName(e.target.checked)}
+                        className="h-3 w-3 rounded accent-violet-500"
+                      />
+                      <span className="text-[10px] text-muted-foreground">Apply</span>
+                    </label>
+                  </div>
+                )}
+                {flowResult.suggestedBeginMessage && (
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-muted-foreground/60 mb-0.5">Begin Message</p>
+                      <p className="text-[11px] text-muted-foreground line-clamp-2 italic">
+                        "{flowResult.suggestedBeginMessage}"
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer shrink-0 mt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={applyBeginMessage}
+                        onChange={(e) => setApplyBeginMessage(e.target.checked)}
+                        className="h-3 w-3 rounded accent-violet-500"
+                      />
+                      <span className="text-[10px] text-muted-foreground">Apply</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Global Prompt section */}
             {flowResult.globalPromptSuggestion && (
               <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="h-3 w-3 text-violet-400" />
-                    <span className="text-[11px] font-semibold text-violet-300">Global Prompt</span>
+                    <span className="text-[11px] font-semibold text-violet-300">
+                      Global Prompt
+                      <span className="ml-1.5 font-normal text-[9px] text-violet-300/60">
+                        {flowResult.voiceProvider === "RETELL" ? "· Retell general_prompt style" : "· OmniVoice overall-instructions style"}
+                      </span>
+                    </span>
                   </div>
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
