@@ -438,16 +438,28 @@ export function RetellDeployDialog() {
       nextPlayTimeRef.current = 0;
     }
 
+    // ── Instrumentation — hoisted above all async work ─────────────────────
+    // t0 is set here, before exportDefinition(), so runtime phase timings
+    // (export, validation, model resolve) share the same clock reference as
+    // all subsequent WebSocket event logs.  This is the authoritative session
+    // clock — nothing upstream sets it.
+    const t0 = performance.now();
+    const hsLog = (
+      direction: "OUT" | "IN " | "   ",
+      event: string,
+      extra: Record<string, unknown> = {},
+    ) => {
+      const ms = (performance.now() - t0).toFixed(0).padStart(6);
+      const pairs = Object.entries(extra)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(" ");
+      console.log(`[HS ${ms}ms] ${direction} ${event}${pairs ? "  " + pairs : ""}`);
+    };
+
     // ── Phase 1: Core Runtime — load and validate the agent definition ──────
-    // All session parameters (prompt, voice, model, tools) are sourced from
-    // the validated AgentRuntimeDefinition instead of raw React state.
-    // This is the single bypass point identified in the audit: previously the
-    // test call compiled the prompt inline and never touched the runtime layer.
-    //
     // Maps Builder model IDs to OpenAI Realtime model IDs.
-    // All current Builder models map to "gpt-realtime".
-    // When new realtime models are released, add entries here — this is the
-    // only place in the codebase that needs updating for model routing.
+    // All current IDs map to "gpt-realtime".  Add entries here when new
+    // realtime models are released — this is the only update point.
     function resolvedRealtimeModel(modelId: string): string {
       const REALTIME_MODEL_MAP: Record<string, string> = {
         "gpt-realtime": "gpt-realtime",
@@ -461,15 +473,36 @@ export function RetellDeployDialog() {
     let params: OpenAIExecutionParams;
     let runtimeDef: AgentRuntimeDefinition;
     try {
+      hsLog("   ", "runtime.export.start", { rowId });
+      const exportStart = performance.now();
       // useServerFn erases the return type to unknown at the call site.
       // The server function validates through AgentRuntimeDefinitionSchema.parse()
-      // before returning, so casting here is safe — a schema violation throws
-      // on the server and the catch block below surfaces it to the user.
+      // before returning, so the cast is safe — a schema violation throws on
+      // the server and the catch block surfaces it to the user.
       runtimeDef = (await exportDefinition({ data: { id: rowId } })) as AgentRuntimeDefinition;
+      hsLog("   ", "runtime.export.complete", {
+        durationMs: (performance.now() - exportStart).toFixed(0),
+        agentId: runtimeDef.agentId,
+        provider: runtimeDef.provider,
+        nodes: runtimeDef.workflow.nodes.length,
+        tools: runtimeDef.tools.length,
+        variables: runtimeDef.variables.length,
+        runtimeVersion: runtimeDef.runtimeVersion,
+      });
+
+      const validationStart = performance.now();
       // extractOpenAIParams asserts def.provider === "OPENAI_NATIVE" and throws
       // if runtimeConfig.openai is absent — both are Builder assembly bugs.
       params = extractOpenAIParams(runtimeDef);
+      hsLog("   ", "runtime.validation.complete", {
+        durationMs: (performance.now() - validationStart).toFixed(0),
+        provider: params.provider,
+        voice: params.voice,
+        model: params.model,
+        promptChars: params.systemPrompt.length,
+      });
     } catch (err) {
+      hsLog("   ", "runtime.export.error", { error: (err as Error).message });
       toast.error("Agent definition error", {
         description: (err as Error).message,
       });
@@ -478,7 +511,13 @@ export function RetellDeployDialog() {
     }
 
     // ── Phase 2: Model selection through Core Runtime ──────────────────────
+    const modelResolveStart = performance.now();
     const realtimeModel = resolvedRealtimeModel(runtimeDef.model.id);
+    hsLog("   ", "runtime.model.resolve", {
+      durationMs: (performance.now() - modelResolveStart).toFixed(0),
+      builderId: runtimeDef.model.id,
+      realtimeModel,
+    });
 
     try {
       const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -522,25 +561,17 @@ export function RetellDeployDialog() {
 
       let sessionReady = false;
 
-      // ── Instrumentation helpers ──────────────────────────────────────────
-      // t0 is set when the call object is created; all log timestamps are
-      // relative offsets from that moment so the trace is easy to read.
-      const t0 = performance.now();
-      const hsLog = (
-        direction: "OUT" | "IN " | "   ",
-        event: string,
-        extra: Record<string, unknown> = {},
-      ) => {
-        const ms = (performance.now() - t0).toFixed(0).padStart(6);
-        const pairs = Object.entries(extra)
-          .map(([k, v]) => `${k}=${v}`)
-          .join(" ");
-        console.log(`[HS ${ms}ms] ${direction} ${event}${pairs ? "  " + pairs : ""}`);
-      };
+      // ── Duration trackers for the latency breakdown ──────────────────────
+      // All timestamps are performance.now() values relative to t0.
+      // t0 and hsLog are hoisted above this WS try block — all runtime phase
+      // logs (export, validation, model resolve) and WS event logs share the
+      // same clock reference.
+      let sessionUpdateSentAt: number | null = null;  // relay.connected → session.updated
+      let speechStartedAt:    number | null = null;   // speech_started timestamp
+      let responseCreatedAt:  number | null = null;   // response.created → response.done
+      let toolCallStartedAt:  number | null = null;   // fn_call received → output sent
 
-      // ── Phase 5: Runtime telemetry — Core Runtime metadata ───────────────
-      // Log the validated definition's identity fields once at session open.
-      // All subsequent logs are implicitly scoped to this session.
+      // Emit Core Runtime identity once at WS open.  All subsequent logs share t0.
       hsLog("   ", "core.runtime.activated", {
         agentId: runtimeDef.agentId,
         runtimeVersion: runtimeDef.runtimeVersion,
@@ -719,7 +750,12 @@ export function RetellDeployDialog() {
             // schema in the public OpenAI docs. Fields outside this shape are
             // rejected with "unknown_parameter".  Turn detection must be inside
             // audio.input, voice inside audio.output.
+            const toolBuildStart = performance.now();
             const toolDefs = buildOpenAIToolDefinitions(runtimeDef.tools);
+            hsLog("   ", "runtime.tool.build.complete", {
+              durationMs: (performance.now() - toolBuildStart).toFixed(0),
+              toolCount: toolDefs.length,
+            });
             const sessionConfig: Record<string, unknown> = {
               type: "realtime",
               output_modalities: ["audio"],
@@ -757,12 +793,26 @@ export function RetellDeployDialog() {
               tools: toolDefs.length,
             });
             ws.send(updatePayload);
+            sessionUpdateSentAt = performance.now();
+            hsLog("   ", "runtime.session.update.sent", {
+              totalFromT0_ms: (performance.now() - t0).toFixed(0),
+              payloadBytes: updatePayload.length,
+            });
             return;
           }
 
           // Session confirmed — safe to start mic streaming and trigger greeting.
           if (msg.type === "session.updated") {
-            hsLog("IN ", "session.updated", { payloadBytes: raw.length });
+            const sessionCreationMs = sessionUpdateSentAt !== null
+              ? (performance.now() - sessionUpdateSentAt).toFixed(0)
+              : "n/a";
+            // server_vad confirmation: session.updated means OpenAI accepted
+            // the turn_detection config.  If sessionCreationMs is >2000ms,
+            // the OpenAI API is under load — consider retrying.
+            hsLog("IN ", "session.updated", {
+              payloadBytes: raw.length,
+              sessionCreationMs,
+            });
             // Ask the agent to greet the caller FIRST so a re-render can't block it.
             try {
               const rcPayload = JSON.stringify({ type: "response.create" });
@@ -801,29 +851,38 @@ export function RetellDeployDialog() {
 
           // ── Speech detection events (confirms user audio is reaching OpenAI VAD)
           if (msg.type === "input_audio_buffer.speech_started") {
-            // ── Interruption support ──────────────────────────────────────
+            // ── Interruption / barge-in support ──────────────────────────
             // Reset the playback scheduler so the next response's audio is
-            // scheduled from the current moment, not relative to where the
-            // interrupted response would have finished. Without this reset,
-            // the new response plays in the future (audible silence gap) or
-            // is completely skipped if nextPlayTime is far ahead.
+            // scheduled from now, not relative to where the interrupted
+            // response would have finished.  Without this reset the new
+            // response plays in the future (audible silence gap) or is
+            // skipped entirely if nextPlayTime is far ahead.
             nextPlayTimeRef.current = 0;
+            speechStartedAt = performance.now();
+            // vadActive: true confirms server_vad is working — this event
+            // only fires when OpenAI VAD detects speech in the audio stream.
+            // If this event never appears, mic audio is not reaching OpenAI.
             hsLog("IN ", "input_audio_buffer.speech_started", {
               audio_start_ms: msg.audio_start_ms,
               item_id: msg.item_id,
               appendPacketsSoFar: appendPktCount,
               schedulerReset: true,
+              vadActive: true,
             });
             return;
           }
 
           if (msg.type === "input_audio_buffer.speech_stopped") {
-            // Record the moment speech ends — used to compute TTFA below.
+            // Record the moment speech ends — t0 reference for TTFA below.
             speechStoppedAt = performance.now();
+            const speechDurationMs = speechStartedAt !== null
+              ? (speechStoppedAt - speechStartedAt).toFixed(0)
+              : "n/a";
             hsLog("IN ", "input_audio_buffer.speech_stopped", {
               audio_end_ms: msg.audio_end_ms,
               item_id: msg.item_id,
               tOffset_ms: (speechStoppedAt - t0).toFixed(0),
+              speechDurationMs,
             });
             return;
           }
@@ -841,9 +900,17 @@ export function RetellDeployDialog() {
             const resp = msg.response as Record<string, unknown> | undefined;
             currentResponseId = (resp?.id as string) ?? "";
             deltaCountForResponse = 0;
+            responseCreatedAt = performance.now();
+            // lagFromSpeechStop: covers silence_duration_ms (200ms) + VAD
+            // commit + relay round-trip.  Typical range: 200–500ms.
+            // n/a on the greeting (no preceding speech_stopped event).
+            const lagFromSpeechStop = speechStoppedAt !== null
+              ? `${(responseCreatedAt - speechStoppedAt).toFixed(0)}ms`
+              : "n/a (greeting)";
             hsLog("IN ", "response.created", {
               response_id: currentResponseId,
               payloadBytes: raw.length,
+              lagFromSpeechStop,
             });
             return;
           }
@@ -851,12 +918,34 @@ export function RetellDeployDialog() {
           if (msg.type === "response.done") {
             const resp = msg.response as Record<string, unknown> | undefined;
             const usage = resp?.usage as Record<string, unknown> | undefined;
+            const responseDurationMs = responseCreatedAt !== null
+              ? (performance.now() - responseCreatedAt).toFixed(0)
+              : "n/a";
+            responseCreatedAt = null;
             hsLog("IN ", "response.done", {
               response_id: resp?.id,
               status: resp?.status,
               audioDeltas: deltaCountForResponse,
               inputTokens: usage?.input_tokens,
               outputTokens: usage?.output_tokens,
+              responseDurationMs,
+            });
+            return;
+          }
+
+          // ── Interruption confirmation ─────────────────────────────────────
+          // OpenAI sends response.cancelled when interrupt_response:true fires
+          // (i.e. server_vad detected speech mid-response and auto-cancelled).
+          // Seeing this event confirms barge-in is working end-to-end.
+          // If this never appears during a barge-in, interrupt_response is not
+          // being honoured by the model — check the session.update config.
+          if (msg.type === "response.cancelled") {
+            const resp = msg.response as Record<string, unknown> | undefined;
+            hsLog("IN ", "response.cancelled", {
+              response_id: resp?.id ?? msg.response_id,
+              // interruptConfirmed: barge-in worked — scheduler was reset on
+              // speech_started, response was cancelled here.
+              interruptConfirmed: true,
             });
             return;
           }
@@ -870,10 +959,15 @@ export function RetellDeployDialog() {
             const toolName = typeof msg.name === "string" ? msg.name : "";
             const callId = typeof msg.call_id === "string" ? msg.call_id : "";
             const argsStr = typeof msg.arguments === "string" ? msg.arguments : "{}";
+            toolCallStartedAt = performance.now();
+            const callReceivedAt = toolCallStartedAt;
             hsLog("IN ", "response.function_call_arguments.done", {
               tool: toolName,
               call_id: callId,
               argsBytes: argsStr.length,
+              // Tool execution is async (.then) — does NOT block the onmessage
+              // handler or response generation for other turns.
+              nonBlocking: true,
             });
             let toolArgs: unknown;
             try {
@@ -901,6 +995,7 @@ export function RetellDeployDialog() {
                   tool: toolName,
                   call_id: callId,
                   outputBytes: result.output.length,
+                  toolDurationMs: (performance.now() - callReceivedAt).toFixed(0),
                   error: result.error ?? null,
                 });
               })
