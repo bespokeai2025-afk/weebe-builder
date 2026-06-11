@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useServerFn } from "@tanstack/react-start";
 import { RetellWebClient } from "retell-client-js-sdk";
 import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap, MessageSquare, X } from "lucide-react";
@@ -1618,8 +1619,10 @@ export function RetellDeployDialog() {
       </div>
 
       {/* ── Live transcript popup ─────────────────────────────────────────── */}
-      {transcriptOpen && (
-        <div className="fixed bottom-[52px] right-4 z-50 flex w-80 flex-col rounded-xl border border-white/[0.08] bg-[#0d0d10]/95 shadow-2xl backdrop-blur-sm overflow-hidden">
+      {/* Rendered via portal so it escapes the Dialog's CSS transform context  */}
+      {/* (Radix Dialog animates with transform, which breaks fixed positioning) */}
+      {transcriptOpen && createPortal(
+        <div className="fixed bottom-16 right-4 z-[9999] flex w-80 flex-col rounded-xl border border-white/[0.08] bg-[#0d0d10]/95 shadow-2xl backdrop-blur-sm overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
             <div className="flex items-center gap-1.5">
@@ -1670,7 +1673,8 @@ export function RetellDeployDialog() {
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Enterprise Line confirmation dialog — shown for OpenAI Realtime agents */}
