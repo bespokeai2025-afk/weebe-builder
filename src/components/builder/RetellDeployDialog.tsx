@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { RetellWebClient } from "retell-client-js-sdk";
-import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap } from "lucide-react";
+import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap, MessageSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +62,11 @@ export function RetellDeployDialog() {
   // HyperStream call. null = no call active / no response.done received yet.
   const [hsExactCostUsd, setHsExactCostUsd] = useState<number | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  // Live transcript — built incrementally during a call from WS / SDK events.
+  // Each entry is either partial (streaming) or done.
+  type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
+  const [transcript, setTranscript] = useState<TxEntry[]>([]);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
   const [loadId, setLoadId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -76,6 +81,7 @@ export function RetellDeployDialog() {
   const nextPlayTimeRef = useRef(0);
   const startedAtRef = useRef<number | null>(null);
   const recordedCallRef = useRef(false);
+  const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
 
   const deploy = useServerFn(deployAgentToRetell);
   const startCall = useServerFn(createRetellWebCall);
@@ -132,6 +138,13 @@ export function RetellDeployDialog() {
       setActiveNode(null);
     };
   }, [setActiveNode]);
+
+  // Auto-scroll transcript to bottom whenever a new entry arrives.
+  useEffect(() => {
+    if (transcriptScrollRef.current) {
+      transcriptScrollRef.current.scrollTop = transcriptScrollRef.current.scrollHeight;
+    }
+  }, [transcript]);
 
   // Tick elapsed seconds while in a call.
   useEffect(() => {
@@ -355,6 +368,7 @@ export function RetellDeployDialog() {
         startedAtRef.current = Date.now();
         recordedCallRef.current = false;
         setElapsedSec(0);
+        setTranscript([]);
         setInCall(true);
         // Highlight the start node immediately.
         const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
@@ -396,6 +410,27 @@ export function RetellDeployDialog() {
           tryHighlightFromPayload,
         );
       }
+
+      // Retell update event carries a running full-transcript array each time.
+      // Shape: { transcript: Array<{ role: "agent"|"user", content: string }> }
+      // Replace the whole array on each update — Retell manages ordering.
+      (client as unknown as { on: (e: string, cb: (p: unknown) => void) => void }).on(
+        "update",
+        (payload: unknown) => {
+          if (!payload || typeof payload !== "object") return;
+          const obj = payload as Record<string, unknown>;
+          const t = obj.transcript;
+          if (!Array.isArray(t) || t.length === 0) return;
+          setTranscript(
+            (t as Array<{ role: string; content: string }>).map((entry, i) => ({
+              id: `retell-${i}`,
+              role: entry.role === "agent" ? "agent" : "user",
+              text: entry.content ?? "",
+              partial: false,
+            })),
+          );
+        },
+      );
 
       client.on("error", (err: unknown) => {
         toast.error("Call error", {
@@ -797,6 +832,10 @@ export function RetellDeployDialog() {
               type: "realtime",
               output_modalities: ["audio"],
               instructions: params.systemPrompt,
+              // Enable server-side Whisper transcription of the user's audio so
+              // conversation.item.input_audio_transcription.completed events are
+              // emitted — used to populate the live user-side transcript bubbles.
+              input_audio_transcription: { model: "whisper-1" },
               audio: {
                 input: {
                   turn_detection: {
@@ -862,6 +901,8 @@ export function RetellDeployDialog() {
             startedAtRef.current = Date.now();
             recordedCallRef.current = false;
             setElapsedSec(0);
+            setTranscript([]);
+            setHsExactCostUsd(null);
             setInCall(true);
             setCalling(false);
             const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
@@ -1120,6 +1161,55 @@ export function RetellDeployDialog() {
             return;
           }
 
+          // ── Live transcript events ────────────────────────────────────────
+          // response.output_audio_transcript.delta: OpenAI streams the agent's
+          // speech-to-text transcript in real time as audio is generated.
+          if (msg.type === "response.output_audio_transcript.delta") {
+            const respId = (msg.response_id as string) ?? currentResponseId;
+            const delta = typeof msg.delta === "string" ? msg.delta : "";
+            if (delta) {
+              setTranscript((prev) => {
+                const last = prev[prev.length - 1];
+                if (last && last.role === "agent" && last.id === respId && last.partial) {
+                  return [...prev.slice(0, -1), { ...last, text: last.text + delta }];
+                }
+                return [...prev, { id: respId, role: "agent", text: delta, partial: true }];
+              });
+            }
+            return;
+          }
+
+          // response.output_audio_transcript.done: agent turn text complete.
+          if (msg.type === "response.output_audio_transcript.done") {
+            const respId = (msg.response_id as string) ?? currentResponseId;
+            setTranscript((prev) => {
+              // Find last agent entry with this response id and mark it done.
+              let found = false;
+              return prev.map((e) => {
+                if (!found && e.role === "agent" && e.id === respId) {
+                  found = true;
+                  return { ...e, partial: false };
+                }
+                return e;
+              });
+            });
+            return;
+          }
+
+          // User speech transcription (requires input_audio_transcription enabled
+          // in session config). Fires once per user turn after speech ends.
+          if (msg.type === "conversation.item.input_audio_transcription.completed") {
+            const text = typeof msg.transcript === "string" ? msg.transcript.trim() : "";
+            const itemId = typeof msg.item_id === "string" ? msg.item_id : crypto.randomUUID();
+            if (text) {
+              setTranscript((prev) => [
+                ...prev,
+                { id: `user-${itemId}`, role: "user", text, partial: false },
+              ]);
+            }
+            return;
+          }
+
           // ── Phase 3: Tool execution through Core Runtime ──────────────────
           // OpenAI fires this event when it has finished streaming all arguments
           // for a function call.  Route through the Core Runtime tool executor,
@@ -1296,6 +1386,7 @@ export function RetellDeployDialog() {
 
   function endCall() {
     recordCurrentCallCost();
+    setTranscriptOpen(false);
     // OmniVoice (Retell) path
     clientRef.current?.stopCall();
     clientRef.current = null;
@@ -1445,6 +1536,23 @@ export function RetellDeployDialog() {
           </Button>
         )}
 
+        {/* Live transcript toggle — visible once a call is active */}
+        {inCall && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setTranscriptOpen((o) => !o)}
+            className={`!h-8 !w-8 !p-0 transition-colors ${
+              transcriptOpen
+                ? "text-violet-300 bg-violet-500/10 hover:bg-violet-500/20"
+                : "text-muted-foreground/60 hover:text-foreground"
+            }`}
+            title={transcriptOpen ? "Hide live transcript" : "Show live transcript"}
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+          </Button>
+        )}
+
         {/* Load existing agent by ID — OmniVoice only */}
         {!isOpenAI && (
           <Button
@@ -1504,6 +1612,62 @@ export function RetellDeployDialog() {
           )}
         </Button>
       </div>
+
+      {/* ── Live transcript popup ─────────────────────────────────────────── */}
+      {transcriptOpen && (
+        <div className="fixed bottom-[52px] right-4 z-50 flex w-80 flex-col rounded-xl border border-white/[0.08] bg-[#0d0d10]/95 shadow-2xl backdrop-blur-sm overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5 text-violet-400" />
+              <span className="text-[11px] font-semibold text-foreground/80">Live Transcript</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {inCall && <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />}
+              <button
+                type="button"
+                onClick={() => setTranscriptOpen(false)}
+                className="text-muted-foreground/60 hover:text-foreground transition-colors"
+                aria-label="Close transcript"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          {/* Scrollable conversation */}
+          <div
+            ref={transcriptScrollRef}
+            className="flex-1 overflow-y-auto p-3 space-y-2"
+            style={{ maxHeight: "300px", minHeight: "80px" }}
+          >
+            {transcript.length === 0 ? (
+              <p className="py-6 text-center text-[11px] text-muted-foreground">
+                {inCall ? "Waiting for conversation…" : "No transcript yet."}
+              </p>
+            ) : (
+              transcript.map((entry) => (
+                <div
+                  key={entry.id}
+                  className={`flex ${entry.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed ${
+                      entry.role === "user"
+                        ? "bg-violet-500/20 text-violet-200"
+                        : "bg-white/[0.06] text-foreground/80"
+                    }`}
+                  >
+                    {entry.text}
+                    {entry.partial && (
+                      <span className="ml-0.5 inline-block h-3 w-0.5 animate-pulse bg-current align-middle opacity-70" />
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Enterprise Line confirmation dialog — shown for OpenAI Realtime agents */}
       <Dialog open={openaiConfirmOpen} onOpenChange={setOpenaiConfirmOpen}>
