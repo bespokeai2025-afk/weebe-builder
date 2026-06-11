@@ -832,12 +832,13 @@ export function RetellDeployDialog() {
               type: "realtime",
               output_modalities: ["audio"],
               instructions: params.systemPrompt,
-              // Enable server-side Whisper transcription of the user's audio so
-              // conversation.item.input_audio_transcription.completed events are
-              // emitted — used to populate the live user-side transcript bubbles.
-              input_audio_transcription: { model: "whisper-1" },
               audio: {
                 input: {
+                  // Enable server-side Whisper transcription of user audio.
+                  // conversation.item.input_audio_transcription.completed events
+                  // fire after each user turn — used for live transcript bubbles.
+                  // NOTE: must be inside audio.input, NOT at session root.
+                  transcription: { model: "whisper-1" },
                   turn_detection: {
                     type: "server_vad",
                     threshold: 0.5,
