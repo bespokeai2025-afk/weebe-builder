@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useBuilderStore } from "@/lib/builder/store";
+import { autoLayoutNodes } from "@/lib/builder/auto-layout";
 import type { FlowNode } from "@/lib/builder/store";
 import type { Edge } from "@xyflow/react";
 import {
@@ -203,7 +204,8 @@ export function ImportPDFDialog({
   const handleImport = () => {
     if (!flowResult) return;
 
-    loadFlow({ nodes: flowResult.nodes, edges: flowResult.edges });
+    const laidOutNodes = autoLayoutNodes(flowResult.nodes, flowResult.edges);
+    loadFlow({ nodes: laidOutNodes, edges: flowResult.edges });
 
     const settingsUpdate: Record<string, string> = {};
     if (applyGlobalPrompt && flowResult.globalPromptSuggestion)

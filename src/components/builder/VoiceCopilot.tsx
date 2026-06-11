@@ -342,6 +342,12 @@ async function executeVoiceCommands(commands: VoiceCommand[]) {
     }
   }
 
+  // Auto-layout after building so nodes arrange like the Retell-style tree view
+  if (createdCount > 0) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    useBuilderStore.getState().autoLayout();
+  }
+
   return { createdCount, connectedCount, updatedCount, settingsCount, deletedCount, warnings };
 }
 
