@@ -147,7 +147,7 @@ function buildEnrichmentPrompt(
   const lines = [
     `You are a conversation flow formatter for a voice agent builder.`,
     `You receive pre-segmented text blocks extracted from a script by a state-machine parser.`,
-    `The segments already contain ALL content — your job is enrichment only, not extraction.`,
+    `Your job is to classify, enrich, and WHERE NEEDED split segments into granular flow nodes.`,
     ``,
     `TARGET VOICE ENGINE: ${isRetell ? "Retell AI" : "OpenAI Realtime (OmniVoice / HyperStream)"}`,
     isRetell
@@ -282,8 +282,33 @@ OpenAI Realtime overall-instructions style — the collected global_prompt segme
 - Target length 150–350 words — be thorough, this is the agent's primary context
 - Do NOT add turn-taking rules or conversation steps`}
 
+ONE INSTRUCTION PER NODE — MANDATORY SPLITTING RULE:
+Each "flow" node must contain exactly ONE of the following:
+  • ONE question the agent asks the caller
+  • ONE statement or piece of information the agent delivers
+  • ONE action (booking, transfer, function call)
+  • ONE closing / greeting line
+
+If a single input segment contains MULTIPLE distinct questions, statements, or steps, you MUST split it
+into multiple sequential flow nodes — one per instruction. Wire them default → default in sequence.
+
+HOW TO SPLIT A SEGMENT:
+- Replace the single segment entry with multiple entries, all with "virtual": true and "content" set to each sub-instruction's dialogue
+- Use derived segIds: "<originalSegId>-1", "<originalSegId>-2", etc.
+- Set "virtual": true on every sub-node so the system uses your "content" field directly
+- Wire them in order: [seg-1] default→ [seg-2] default→ [seg-3] …
+- Make sure no original content is lost — every instruction from the source segment appears in exactly one sub-node
+
+Example — segment seg_abc: "Ask for their name, then ask for their phone number, then confirm their email."
+Output:
+  { "segId": "seg_abc-1", "virtual": true, "content": "Could I get your first and last name?", "label": "Ask Name", "kind": "conversation", "destination": "flow", "transitions": [{"id": "t-abc-1-2", "condition": "default", "target": "seg_abc-2"}] },
+  { "segId": "seg_abc-2", "virtual": true, "content": "And what's the best phone number for you?", "label": "Ask Phone", "kind": "conversation", "destination": "flow", "transitions": [{"id": "t-abc-2-3", "condition": "default", "target": "seg_abc-3"}] },
+  { "segId": "seg_abc-3", "virtual": true, "content": "Great, can I confirm your email address?", "label": "Confirm Email", "kind": "conversation", "destination": "flow", "transitions": [...next...] }
+
+Do NOT merge multiple instructions into a single node's dialogue.
+
 CRITICAL RULES:
-- Every INPUT segment MUST appear exactly once in the output — no omissions
+- Every INPUT segment must be fully represented in the output — either as one node or expanded into multiple sequential nodes; no content may be omitted
 - Virtual nodes (virtual: true) may be added freely — they do NOT correspond to input segments
 - Non-virtual nodes: set "virtual": false and "content": ""
 - Virtual nodes: set "virtual": true and "content": "<spoken dialogue for this node>"
