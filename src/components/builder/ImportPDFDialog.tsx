@@ -119,8 +119,10 @@ export function ImportPDFDialog({
 
   // ── Phase 1: scan PDF for entities ──────────────────────────────────────
   const handleFile = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setError("Please select a PDF file.");
+    const isDocx = file.name.toLowerCase().endsWith(".docx");
+    const isPdf = file.name.toLowerCase().endsWith(".pdf");
+    if (!isDocx && !isPdf) {
+      setError("Please select a PDF or Word document (.docx).");
       return;
     }
     setFileName(file.name);
@@ -241,7 +243,7 @@ export function ImportPDFDialog({
         <input
           ref={fileRef}
           type="file"
-          accept="application/pdf,.pdf"
+          accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx"
           className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
         />
@@ -256,7 +258,7 @@ export function ImportPDFDialog({
             </p>
             {error && <ErrorBanner message={error} />}
             <Button className="w-full" onClick={() => fileRef.current?.click()}>
-              <FileUp className="mr-2 h-4 w-4" /> Choose PDF file
+              <FileUp className="mr-2 h-4 w-4" /> Choose PDF or Word file
             </Button>
           </div>
         )}

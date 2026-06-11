@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -482,25 +483,38 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
             return json(result);
           }
 
-          // ── Mode B: multipart form (direct PDF upload) ─────────────────────
+          // ── Mode B: multipart form (direct PDF or DOCX upload) ─────────────
           const formData = await request.formData();
           const file = formData.get("pdf");
           if (!file || !(file instanceof File))
-            return json({ error: "No PDF file provided" }, 400);
-          if (!file.type.includes("pdf") && !file.name.endsWith(".pdf"))
-            return json({ error: "File must be a PDF" }, 400);
+            return json({ error: "No file provided" }, 400);
+
+          const isDocxB =
+            file.name.toLowerCase().endsWith(".docx") ||
+            file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          const isPdfB = file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf");
+
+          if (!isDocxB && !isPdfB)
+            return json({ error: "File must be a PDF or Word document (.docx)" }, 400);
           if (file.size > 10 * 1024 * 1024)
-            return json({ error: "PDF must be under 10 MB" }, 400);
+            return json({ error: "File must be under 10 MB" }, 400);
 
-          const buffer = Buffer.from(await file.arrayBuffer());
-          const parser = new PDFParse({ data: buffer });
-          await parser.load();
-          const { text: rawText } = await parser.getText();
+          const bufferB = Buffer.from(await file.arrayBuffer());
+          let rawTextB: string;
+          if (isDocxB) {
+            const result = await mammoth.extractRawText({ buffer: bufferB });
+            rawTextB = result.value;
+          } else {
+            const parser = new PDFParse({ data: bufferB });
+            await parser.load();
+            const extracted = await parser.getText();
+            rawTextB = extracted.text;
+          }
 
-          if (!rawText?.trim())
-            return json({ error: "Could not extract text from PDF" }, 422);
+          if (!rawTextB?.trim())
+            return json({ error: "Could not extract text from the document" }, 422);
 
-          const result = await generateFlow(apiKey, cleanText(rawText));
+          const result = await generateFlow(apiKey, cleanText(rawTextB));
           return json(result);
         } catch (e) {
           console.error("[import-pdf]", e);

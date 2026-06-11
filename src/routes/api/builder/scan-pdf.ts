@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -84,20 +85,33 @@ export const Route = createFileRoute("/api/builder/scan-pdf")({
           const formData = await request.formData();
           const file = formData.get("pdf");
           if (!file || !(file instanceof File))
-            return json({ error: "No PDF file provided" }, 400);
-          if (!file.type.includes("pdf") && !file.name.endsWith(".pdf"))
-            return json({ error: "File must be a PDF" }, 400);
-          if (file.size > 10 * 1024 * 1024)
-            return json({ error: "PDF must be under 10 MB" }, 400);
+            return json({ error: "No file provided" }, 400);
 
           const buffer = Buffer.from(await file.arrayBuffer());
-          const parser = new PDFParse({ data: buffer });
-          await parser.load();
-          const { text: rawText } = await parser.getText();
+          const isDocx =
+            file.name.toLowerCase().endsWith(".docx") ||
+            file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+          const isPdf = file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf");
+
+          if (!isDocx && !isPdf)
+            return json({ error: "File must be a PDF or Word document (.docx)" }, 400);
+          if (file.size > 10 * 1024 * 1024)
+            return json({ error: "File must be under 10 MB" }, 400);
+
+          let rawText: string;
+          if (isDocx) {
+            const result = await mammoth.extractRawText({ buffer });
+            rawText = result.value;
+          } else {
+            const parser = new PDFParse({ data: buffer });
+            await parser.load();
+            const extracted = await parser.getText();
+            rawText = extracted.text;
+          }
 
           const cleanedText = cleanText(rawText);
           if (!cleanedText)
-            return json({ error: "Could not extract text from PDF" }, 422);
+            return json({ error: "Could not extract text from the document" }, 422);
 
           const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
