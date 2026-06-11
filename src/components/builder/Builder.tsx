@@ -76,7 +76,7 @@ import { LeadGenSection } from "./LeadGenSection";
 import { ClientQualificationSection } from "./ClientQualificationSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
-import { MODELS } from "@/lib/builder/pricing";
+import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { toast } from "sonner";
 
 const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
@@ -933,6 +933,47 @@ export function Builder({
                             <span className="flex items-center justify-between gap-3 w-full">
                               <span className="capitalize font-medium">{id.charAt(0).toUpperCase() + id.slice(1)}</span>
                               <span className="text-muted-foreground text-[10px]">{desc}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Realtime LLM Model */}
+                  <div>
+                    <Label className="text-[9px] flex items-center gap-1">
+                      LLM Model
+                      <span
+                        className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground"
+                        title="Estimated OpenAI audio token cost at typical ~800 tok/min talk ratio. Actual cost varies by call length."
+                      >
+                        est. cost
+                      </span>
+                    </Label>
+                    <Select
+                      value={settings.openaiRealtimeModel ?? "gpt-4o-realtime-preview"}
+                      onValueChange={(v) => setSettings({ openaiRealtimeModel: v })}
+                    >
+                      <SelectTrigger className="h-7 text-[10px] mt-0.5"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {HYPERSTREAM_MODELS.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span className="flex flex-col gap-0.5">
+                                <span className="flex items-center gap-1.5 font-medium text-[10px]">
+                                  {m.label}
+                                  {m.recommended && (
+                                    <span className="text-[9px] px-1 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                                      Recommended
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="text-muted-foreground text-[9px] leading-tight">{m.desc}</span>
+                              </span>
+                              <span className="text-muted-foreground text-[10px] shrink-0">
+                                ${m.costPerMin.toFixed(3)}/min
+                              </span>
                             </span>
                           </SelectItem>
                         ))}

@@ -238,10 +238,16 @@ export interface BuilderSettings {
    * Set by the Builder when the user explicitly chooses a runtime.
    */
   deploymentMode?: "RETELL" | "OPENAI_NATIVE" | "CLAUDE_NATIVE" | "GEMINI_NATIVE";
-  /** OpenAI Realtime voice profile (only used when voiceProvider === "OPENAI_REALTIME") */
+  /** OpenAI Realtime voice profile (only used when deploymentMode === "OPENAI_NATIVE") */
   openaiVoice?: "alloy" | "ash" | "ballad" | "coral" | "echo" | "shimmer" | "sage" | "verse" | "marine";
-  /** OpenAI Realtime reasoning effort level (only used when voiceProvider === "OPENAI_REALTIME") */
+  /** OpenAI Realtime reasoning effort level (only used when deploymentMode === "OPENAI_NATIVE") */
   openaiReasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
+  /**
+   * OpenAI Realtime model ID (only used when deploymentMode === "OPENAI_NATIVE").
+   * Defaults to "gpt-4o-realtime-preview" when unset.
+   * Valid values: "gpt-4o-realtime-preview" | "gpt-4o-mini-realtime-preview"
+   */
+  openaiRealtimeModel?: string;
   /**
    * Maximum number of call attempts per data record per calendar day.
    * Only enforced when the agent is live (has deployedRetellAgentId).

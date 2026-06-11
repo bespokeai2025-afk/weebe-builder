@@ -519,12 +519,17 @@ export function RetellDeployDialog() {
     }
 
     // ── Phase 2: Model selection through Core Runtime ──────────────────────
+    // Prefer settings.openaiRealtimeModel (set via the global panel LLM
+    // selector).  Falls back to resolvedRealtimeModel() for legacy agents
+    // that pre-date the per-model selector field.
     const modelResolveStart = performance.now();
-    const realtimeModel = resolvedRealtimeModel(runtimeDef.model.id);
+    const realtimeModel =
+      settings.openaiRealtimeModel ?? resolvedRealtimeModel(runtimeDef.model.id);
     hsLog("   ", "runtime.model.resolve", {
       durationMs: (performance.now() - modelResolveStart).toFixed(0),
       builderId: runtimeDef.model.id,
       realtimeModel,
+      source: settings.openaiRealtimeModel ? "panel-selector" : "legacy-mapping",
     });
 
     try {

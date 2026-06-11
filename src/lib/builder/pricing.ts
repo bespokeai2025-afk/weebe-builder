@@ -256,19 +256,50 @@ export function getTotalCostPerMinute(modelId: string | undefined | null): numbe
   return BUILDER_INFRA_PER_MIN + m.costPerMin;
 }
 
-// ── HyperStream (OpenAI Realtime) per-minute estimate ───────────────────────
-// HyperStream calls bill against OpenAI's Realtime API (gpt-realtime), NOT
-// Retell. Pricing is per audio token, not a flat per-minute LLM rate, so the
-// Retell model meter above does not apply. OpenAI gpt-realtime (GA) audio
-// rates: input $32/1M tokens, output $64/1M tokens. A typical two-way
-// conversation runs ~800 audio tokens/min each direction once you account for
-// silence, giving roughly:
-//   input  ~800 tok/min * $32/1M  ≈ $0.026/min
-//   output ~800 tok/min * $64/1M  ≈ $0.051/min
-// We round up to a conservative blended estimate so the spend cap never
-// undercounts. This is an ESTIMATE — real cost depends on talk ratio.
+// ── HyperStream (OpenAI Realtime) per-minute estimates ──────────────────────
+// HyperStream calls bill against OpenAI's Realtime API directly, NOT Retell.
+// Pricing is per audio token; the per-minute figures below are conservative
+// blended estimates at a typical ~800 audio tok/min each direction.
+//
+// gpt-4o-realtime-preview:
+//   input  ~800 tok/min * $40/1M  ≈ $0.032/min
+//   output ~800 tok/min * $80/1M  ≈ $0.064/min  → $0.09/min (rounded up)
+//
+// gpt-4o-mini-realtime-preview:
+//   input  ~800 tok/min *  $8/1M  ≈ $0.006/min
+//   output ~800 tok/min * $16/1M  ≈ $0.013/min  → $0.02/min (rounded up)
+//
+// All figures are ESTIMATES — actual cost depends on talk ratio and token usage.
+
+export type HyperStreamModelInfo = {
+  id: string;
+  label: string;
+  desc: string;
+  costPerMin: number;
+  recommended?: boolean;
+};
+
+export const HYPERSTREAM_MODELS: HyperStreamModelInfo[] = [
+  {
+    id: "gpt-4o-realtime-preview",
+    label: "GPT-4o Realtime",
+    desc: "Full capability — balanced quality & speed",
+    costPerMin: 0.09,
+    recommended: true,
+  },
+  {
+    id: "gpt-4o-mini-realtime-preview",
+    label: "GPT-4o Mini Realtime",
+    desc: "Fastest & cheapest — ideal for simple flows",
+    costPerMin: 0.02,
+  },
+];
+
+export const DEFAULT_HYPERSTREAM_MODEL = "gpt-4o-realtime-preview";
+
+/** Legacy flat-rate constant — kept for backward compat with the cost meter. */
 export const HYPERSTREAM_PER_MIN = 0.09;
 
-export function getHyperStreamCostPerMinute(): number {
-  return HYPERSTREAM_PER_MIN;
+export function getHyperStreamCostPerMinute(modelId?: string): number {
+  return HYPERSTREAM_MODELS.find((m) => m.id === modelId)?.costPerMin ?? HYPERSTREAM_PER_MIN;
 }
