@@ -962,11 +962,18 @@ export function RetellDeployDialog({
 
           // Forward OpenAI-native error events so they aren't silently swallowed.
           if (msg.type === "error") {
-            const detail = (msg.error as Record<string, unknown> | undefined)?.message
-              ?? msg.message
-              ?? "Unknown error";
-            hsLog("IN ", "error", { detail: String(detail).slice(0, 120) });
-            toast.error("HyperStream session error", { description: String(detail) });
+            const detail = String(
+              (msg.error as Record<string, unknown> | undefined)?.message
+                ?? msg.message
+                ?? "Unknown error"
+            );
+            hsLog("IN ", "error", { detail: detail.slice(0, 120) });
+            // "Cancellation failed: no active response found" is a benign race
+            // between our explicit response.cancel and OpenAI's own
+            // interrupt_response:true auto-cancel — both fire simultaneously and
+            // the server-side one wins.  Log it but never surface it as a toast.
+            if (detail.toLowerCase().includes("cancellation failed")) return;
+            toast.error("HyperStream session error", { description: detail });
             return;
           }
 
