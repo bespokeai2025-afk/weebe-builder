@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -62,9 +62,11 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
             return json({ error: "PDF must be under 10 MB" }, 400);
           }
 
-          // Extract text from PDF
+          // Extract text from PDF (pdf-parse v2 class-based API)
           const buffer = Buffer.from(await file.arrayBuffer());
-          const { text: rawText } = await pdfParse(buffer);
+          const parser = new PDFParse({ data: buffer });
+          await parser.load();
+          const { text: rawText } = await parser.getText();
 
           const scriptText = rawText
             .split("\n")
