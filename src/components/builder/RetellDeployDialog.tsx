@@ -597,6 +597,13 @@ export function RetellDeployDialog({
       );
       wsRelayRef.current = ws;
 
+      // Guard against a race where relay.connected / session.created arrive
+      // during the AudioWorklet addModule() await below (which yields the
+      // event loop).  Buffer those messages so none are silently dropped.
+      ws.binaryType = "arraybuffer";
+      const pendingMessages: MessageEvent[] = [];
+      ws.onmessage = (ev) => pendingMessages.push(ev);
+
       // 24 kHz mono — matches OpenAI Realtime PCM16 format.
       const audioCtx = new AudioContext({ sampleRate: 24000 });
       // Browsers don't always honor the requested 24 kHz. The worklet resamples
@@ -805,7 +812,6 @@ export function RetellDeployDialog({
         };
       }
 
-      ws.binaryType = "arraybuffer";
       ws.onmessage = (ev) => {
         try {
           const raw =
@@ -1389,6 +1395,9 @@ export function RetellDeployDialog({
           // ignore parse errors
         }
       };
+
+      // Drain messages that arrived during the AudioWorklet setup await
+      for (const ev of pendingMessages) ws.onmessage!(ev);
 
       ws.onclose = (ev) => {
         console.log(
