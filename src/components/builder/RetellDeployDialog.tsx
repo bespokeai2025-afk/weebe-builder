@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
 import { exportAgentJson } from "@/lib/builder/export-conversation-flow";
 import { resolveDeploymentMode } from "@/lib/runtime/adapter";
-import { exportAgentRuntimeDefinition } from "@/lib/runtime/export";
+import { buildAgentRuntimeDefinition } from "@/lib/runtime/export";
 import { extractOpenAIParams } from "@/lib/runtime/import";
 import type { OpenAIExecutionParams } from "@/lib/runtime/import";
 import { buildOpenAIToolDefinitions, executeToolCall } from "@/lib/runtime/tool-executor";
@@ -82,9 +82,8 @@ export function RetellDeployDialog() {
   const getAgentByRetellId = useServerFn(getMyAgentByRetellId);
   const fetchSpend = useServerFn(getMySpend);
   const recordCost = useServerFn(recordTestCallCost);
-  // Core Runtime — used exclusively by the OpenAI / HyperStream test-call path.
-  // Retell test calls never touch this server function.
-  const exportDefinition = useServerFn(exportAgentRuntimeDefinition);
+  // Core Runtime — buildAgentRuntimeDefinition is a pure function called
+  // directly from the builder store.  No DB round-trip needed for test calls.
   const qc = useQueryClient();
 
   const spendQ = useQuery({
@@ -473,13 +472,22 @@ export function RetellDeployDialog() {
     let params: OpenAIExecutionParams;
     let runtimeDef: AgentRuntimeDefinition;
     try {
-      hsLog("   ", "runtime.export.start", { rowId });
+      // Build directly from in-memory store — no DB round-trip, no auth
+      // dependency.  Works for unsaved agents, expired sessions, and stale
+      // currentAgentRowId values.  The user tests exactly what they have open.
+      const agentId = rowId ?? "local-test-call";
+      hsLog("   ", "runtime.export.start", { agentId, source: "builder-store" });
       const exportStart = performance.now();
-      // useServerFn erases the return type to unknown at the call site.
-      // The server function validates through AgentRuntimeDefinitionSchema.parse()
-      // before returning, so the cast is safe — a schema violation throws on
-      // the server and the catch block surfaces it to the user.
-      runtimeDef = (await exportDefinition({ data: { id: rowId } })) as AgentRuntimeDefinition;
+      runtimeDef = buildAgentRuntimeDefinition({
+        agentId,
+        retellAgentId: null,
+        agentName: (settings as unknown as Record<string, unknown>).agentName as string || "Test Agent",
+        updatedAt: new Date().toISOString(),
+        nodes,
+        edges,
+        settings,
+        variables,
+      });
       hsLog("   ", "runtime.export.complete", {
         durationMs: (performance.now() - exportStart).toFixed(0),
         agentId: runtimeDef.agentId,
