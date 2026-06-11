@@ -306,6 +306,14 @@ export const DEFAULT_HYPERSTREAM_MODEL = "gpt-4o-realtime-preview";
 /** Legacy flat-rate constant — kept for backward compat with the cost meter. */
 export const HYPERSTREAM_PER_MIN = 0.09;
 
+/**
+ * Twilio PSTN telephony charge added on top of OpenAI token cost for live
+ * HyperStream calls. Covers inbound/outbound per-minute carrier fees.
+ * Builder test calls (WebRTC) do NOT incur this charge.
+ * ~$0.013–0.017/min blended US rate; $0.015 used as the display estimate.
+ */
+export const HYPERSTREAM_TELEPHONY_PER_MIN = 0.015;
+
 export function getHyperStreamCostPerMinute(modelId?: string): number {
   return HYPERSTREAM_MODELS.find((m) => m.id === modelId)?.costPerMin ?? HYPERSTREAM_PER_MIN;
 }

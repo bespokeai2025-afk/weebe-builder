@@ -35,7 +35,7 @@ import {
 } from "@/lib/agents/agents.functions";
 import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost } from "@/lib/builder/pricing";
+import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN } from "@/lib/builder/pricing";
 
 export function RetellDeployDialog() {
   const {
@@ -1646,7 +1646,7 @@ export function RetellDeployDialog() {
       {(inCall || spendUsedCents > 0) && (
         <div
           className="flex h-8 items-center gap-1.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-2 text-[10px] font-medium text-foreground/70"
-          title={costIsExact ? "Exact OpenAI token cost (audio + text tokens from response.done)" : `Estimated test-call spend @ $${costPerMinute.toFixed(3)}/min`}
+          title={costIsExact ? `OpenAI token cost only. Live calls add ~$${HYPERSTREAM_TELEPHONY_PER_MIN.toFixed(3)}/min Twilio telephony on top (not charged for builder test calls).` : `Estimated spend @ $${costPerMinute.toFixed(3)}/min`}
         >
           {inCall && (
             <>
@@ -1668,7 +1668,9 @@ export function RetellDeployDialog() {
                 ? `· exact $${cost.toFixed(5)} `
                 : `· ~est. $${cost.toFixed(3)} `
               : ""}
-            {costIsExact ? "· token-exact" : `· ~$${costPerMinute.toFixed(3)}/min est.`}
+            {costIsExact
+              ? `· token-exact  + ~$${HYPERSTREAM_TELEPHONY_PER_MIN.toFixed(3)}/min telephony (live)`
+              : `· ~$${costPerMinute.toFixed(3)}/min est.`}
           </span>
         </div>
       )}
