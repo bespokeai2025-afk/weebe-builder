@@ -222,17 +222,31 @@ OUTPUT ONLY valid JSON — no markdown, no code fences:
   ]
 }
 
-VIRTUAL NODES — create new nodes for every transition branch:
-Every transition target MUST point to a node that exists in the output — either an input segment OR a new virtual node.
-For EVERY logic_split transition, if the target path is not already covered by an input segment, CREATE a new virtual node:
-  - Set "virtual": true
-  - Set "segId": "v-1", "v-2", etc. (unique across the whole output)
-  - Set "content": "<write the actual dialogue the agent speaks on this branch — 1-3 sentences matching the branch condition>"
-  - Set kind: "conversation" (or "ending" if this is a closing branch)
-  - Connect it onward to the next appropriate node or an ending
-Do the SAME for any other node whose transition lands on an unmarked path — every route must terminate at an "ending" node.
-Write "content" as clean spoken-voice dialogue — no step numbers, no bullets, no markdown.
-Virtual nodes for conversation branches should say the RIGHT THING for that specific condition (e.g. objection, yes path, no path, callback, etc.) using context from the surrounding script.
+VIRTUAL NODES — extend the script with nodes for unhandled responses:
+
+RULE 1 — SCRIPT PATH: When a segment's natural continuation is the NEXT segment in the uploaded script,
+point the transition "target" to that existing segment's segId. Do NOT create a virtual node if the script
+already covers what happens next. Follow the script's documented sequence wherever it exists.
+
+RULE 2 — UNHANDLED RESPONSES: Identify the realistic caller responses that the uploaded script does NOT handle:
+  • "not interested / no thanks" — objection handling
+  • "call me back later / not a good time" — callback/follow-up handling
+  • "I need to think about it" — nurture response
+  • "I have a question / tell me more" — clarification / additional info
+  • Any other common response the script glosses over or ignores
+For EACH of these unhandled responses, ADD a virtual transition + virtual node to the logic_split:
+  - Add a new transition to the logic_split: { "condition": "<response description>", "target": "v-N" }
+  - Create the virtual node with "virtual": true, "segId": "v-N", "content": "<what the agent says in that situation>"
+  - Connect the virtual node onward: either back to the script flow (if recoverable) or to an ending
+  - Write "content" as clean spoken-voice dialogue — no step numbers, no bullets, no markdown
+
+RULE 3 — NO DEAD ENDS: Every path through the graph MUST end at a node with kind "ending".
+If a virtual node's branch cannot rejoin the main script, close it gracefully with a polite closing line and terminate.
+
+UPGRADE PLAIN SEGMENTS TOO: If a plain "conversation" segment in the script realistically
+could receive a "no", "not now", or off-script caller response, UPGRADE it to a "logic_split"
+with: (a) a "default / yes" transition to the next script segment, and (b) virtual nodes for
+the common off-script responses. This ensures the flow handles real conversations, not just happy paths.
 
 SMART DETECTION — automatically use these special kinds:
 
