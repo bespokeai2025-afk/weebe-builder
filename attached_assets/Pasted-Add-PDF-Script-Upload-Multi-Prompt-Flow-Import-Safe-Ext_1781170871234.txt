@@ -1,0 +1,156 @@
+Add PDF Script Upload → Multi-Prompt Flow Import (Safe Extension)
+
+You are working inside an existing Agent Builder Dashboard application with a functioning flow builder, runtime, and established multi-prompt flow system.
+
+GOAL
+Add a new optional feature only:
+
+Allow users to upload a PDF script inside the builder dashboard, convert it into a multi-prompt conversation flow, and import it into the existing builder system.
+
+CRITICAL NON-INTERFERENCE RULES
+This feature must be fully isolated.
+
+Do not modify existing builder logic
+Do not modify runtime system
+Do not refactor flow engine
+Do not change existing APIs or schemas
+Do not alter current agent execution flow
+
+Only add new code paths
+Only extend via existing public APIs
+Must not affect any existing functionality
+
+FEATURE: PDF UPLOAD BUTTON (DASHBOARD ONLY)
+
+Add a new UI element only inside the Agent Builder Dashboard page:
+
+Button text: Upload Script (PDF)
+
+Behaviour:
+
+Opens file picker
+Accepts PDF files only
+Calls a new backend endpoint
+Must not affect any other pages or UI
+
+BACKEND: PDF PROCESSING ENDPOINT
+
+Create a new isolated endpoint:
+
+POST /api/builder/import-pdf
+
+Responsibilities:
+
+Accept PDF upload
+Extract raw text from PDF
+Clean formatting (remove headers, footers, noise)
+Preserve dialogue structure where possible
+Return cleaned script text
+
+Use existing utilities if available. Do not introduce unnecessary new dependencies.
+
+CORE FEATURE: PDF → MULTI-PROMPT FLOW CONVERSION
+
+Convert extracted script into the existing multi-prompt flow format already used in the builder system.
+
+Important:
+
+Must match existing builder schema exactly
+Must not introduce new flow types
+Must not create a new agent format
+
+Conversion logic:
+
+Step 1: Parse script
+
+Split by speaker turns (agent/user if present)
+Detect conversation boundaries
+
+Step 2: Create flow nodes
+Each segment becomes a node using existing system structure:
+
+Node types:
+
+message (agent or user text)
+decision (branching logic)
+action (tool or trigger if applicable)
+
+Step 3: Link nodes
+
+Maintain sequential flow using existing next pointers
+Add branching only if clearly detected in script
+Ensure no orphan nodes exist
+
+FLOW INJECTION (CRITICAL)
+
+Inject generated flow into builder using only:
+
+builder.loadFlow(flow)
+
+Rules:
+
+Do not reset builder state
+Do not overwrite current flow unless user explicitly chooses replace
+Default behaviour is to add as a new draft flow
+
+UI WORKFLOW
+
+User clicks Upload Script (PDF)
+File is uploaded
+Backend extracts text
+Script is converted into flow
+Show preview modal with:
+node count
+flow structure preview
+connections preview
+User chooses:
+Import into Builder
+or Cancel
+
+Only on confirm, inject flow into builder.
+
+OUTPUT FORMAT
+
+Flow must match existing builder format exactly:
+
+{
+nodes: [
+{
+id: string,
+type: message | decision | action,
+content: string,
+next: string[]
+}
+]
+}
+
+VALIDATION RULES
+
+Before injecting:
+
+Ensure all nodes are connected or terminal
+Ensure no orphan nodes exist
+Ensure script is fully converted
+Split large sections into multiple nodes if needed
+Ensure proper speaker separation
+
+ISOLATION REQUIREMENT
+
+This feature must:
+
+Live only inside builder dashboard
+Use only new endpoint and new UI component
+Use existing builder APIs only
+Not modify core system logic
+
+SUCCESS CRITERIA
+
+Feature is successful only if:
+
+PDF upload works in builder dashboard
+Script is extracted correctly
+Flow is generated using existing schema
+Flow imports via builder.loadFlow
+No existing functionality is affected
+User can preview before importing
+No regressions are introduced

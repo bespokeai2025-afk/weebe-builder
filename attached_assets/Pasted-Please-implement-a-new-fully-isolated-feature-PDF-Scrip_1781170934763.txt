@@ -1,0 +1,83 @@
+Please implement a new, fully isolated feature: "PDF Script Upload → Multi-Prompt Flow Import". 
+
+CRITICAL SAFETY RULE: Do not modify or refactor any existing flow builder logic, runtime execution systems, engine schemas, or active APIs. This must be an entirely additive feature that integrates strictly via our existing public client API: `builder.loadFlow(flow)`.
+
+Please perform the following steps carefully:
+
+### Step 1: Create the Backend Processing Route
+Create a new file `src/backend/routes/pdfImportRouter.ts` (or your project's equivalent backend routes folder). This file must handle the PDF parsing and script conversion.
+
+Use this exact logic:
+```typescript
+import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import pdfParse from 'pdf-parse'; 
+
+const router = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, 
+});
+
+router.post('/api/builder/import-pdf', upload.single('file'), async (req: Request, res: Response): Promise<any> => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded.' });
+    if (req.file.mimetype !== 'application/pdf') return res.status(400).json({ error: 'Invalid file format. Only PDFs allowed.' });
+
+    const pdfData = await pdfParse(req.file.buffer);
+    const rawText = pdfData.text;
+    if (!rawText || rawText.trim().length === 0) return res.status(422).json({ error: 'Could not extract text from the PDF.' });
+
+    // Clean text noise
+    const cleanedScript = rawText.split('\n').filter(line => {
+      const isPageNum = /^\s*Page\s+\d+\s*$/i.test(line) || /^\s*\d+\s*$/.test(line);
+      const isHeaderFooter = /^\s*(Confidential|Draft|Version|Copyright|Internal Use Only)/i.test(line);
+      return !isPageNum && !isHeaderFooter;
+    }).join('\n').replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+
+    // Convert script to target schema
+    const nodes: any[] = [];
+    const lines = cleanedScript.split('\n');
+    let currentNodeContent = '';
+    let currentNodeType: 'message' | 'decision' | 'action' = 'message';
+    const speakerRegex = /^\s*(Agent|User|Customer|Bot|System|Speaker\s*\d+)\s*[:\-]/i;
+
+    const flushNode = () => {
+      if (currentNodeContent.trim()) {
+        nodes.push({
+          id: `node_${Math.random().toString(36).substr(2, 9)}`,
+          type: currentNodeType,
+          content: currentNodeContent.trim(),
+          next: []
+        });
+        currentNodeContent = '';
+      }
+    };
+
+    for (let line of lines) {
+      const cleanLine = line.trim();
+      if (!cleanLine) continue;
+      if (speakerRegex.test(cleanLine)) {
+        flushNode();
+        if (/if\s+user\s+says|option\s+\d+|branch|choice/i.test(cleanLine)) currentNodeType = 'decision';
+        else if (/trigger|call\s+tool|execute/i.test(cleanLine)) currentNodeType = 'action';
+        else currentNodeType = 'message';
+        currentNodeContent = cleanLine;
+      } else {
+        currentNodeContent = currentNodeContent ? `${currentNodeContent}\n${cleanLine}` : cleanLine;
+      }
+    }
+    flushNode();
+
+    // Sequential linking optimization
+    for (let i = 0; i < nodes.length; i++) {
+      if (i < nodes.length - 1) nodes[i].next = [nodes[i + 1].id];
+    }
+
+    return res.status(200).json({ success: true, flow: { nodes } });
+  } catch (error: any) {
+    return res.status(500).json({ error: `Failed to process script: ${error.message}` });
+  }
+});
+
+export default router;
