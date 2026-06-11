@@ -1,0 +1,64 @@
+import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import pdfParse from 'pdf-parse'; // Assumes an existing or standard lightweight utility
+import { convertScriptToFlow } from '../utils/flowConverter';
+
+const router = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB Limit
+});
+
+router.post('/api/builder/import-pdf', upload.single('file'), async (req: Request, res: Response): Promise<any> => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No PDF file uploaded.' });
+    }
+
+    if (req.file.mimetype !== 'application/pdf') {
+      return res.status(400).json({ error: 'Invalid file format. Only PDFs are allowed.' });
+    }
+
+    // Step 1: Extract raw text from PDF buffer
+    const pdfData = await pdfParse(req.file.buffer);
+    const rawText = pdfData.text;
+
+    if (!rawText || rawText.trim().length === 0) {
+      return res.status(420).json({ error: 'Could not extract text from the PDF.' });
+    }
+
+    // Step 2: Clean formatting & remove noise (headers, footers, page numbers)
+    const cleanedScript = cleanScriptText(rawText);
+
+    // Step 3: Convert script text to target multi-prompt flow schema
+    const generatedFlow = convertScriptToFlow(cleanedScript);
+
+    // Step 4: Return JSON matching the required schema for previewing
+    return res.status(200).json({
+      success: true,
+      flow: generatedFlow,
+      rawScriptLength: cleanedScript.length
+    });
+
+  } catch (error: any) {
+    return res.status(500).json({ error: `Failed to process script: ${error.message}` });
+  }
+});
+
+function cleanScriptText(text: string): string {
+  return text
+    .split('\n')
+    // Filter out page numbers, headers, and excessive empty lines
+    .filter(line => {
+      const isPageNum = /^\s*Page\s+\d+\s*$/i.test(line) || /^\s*\d+\s*$/.test(line);
+      const isHeaderFooter = /^\s*(Confidential|Draft|Version|Copyright|Internal Use Only)/i.test(line);
+      return !isPageNum && !isHeaderFooter;
+    })
+    .join('\n')
+    // Standardize whitespace
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+export default router;

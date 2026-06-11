@@ -70,6 +70,15 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
           const { text: rawText } = await pdfParse(buffer);
 
           const scriptText = rawText
+            .split("\n")
+            .filter((line) => {
+              const isPageNum =
+                /^\s*Page\s+\d+\s*$/i.test(line) || /^\s*\d+\s*$/.test(line);
+              const isHeaderFooter =
+                /^\s*(Confidential|Draft|Version|Copyright|Internal Use Only)/i.test(line);
+              return !isPageNum && !isHeaderFooter;
+            })
+            .join("\n")
             .replace(/\r\n/g, "\n")
             .replace(/\n{3,}/g, "\n\n")
             .trim()
