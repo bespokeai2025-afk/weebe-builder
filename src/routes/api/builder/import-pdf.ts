@@ -224,7 +224,7 @@ OUTPUT ONLY valid JSON — no markdown, no code fences:
       "content": "",
       "destination": "flow",
       "label": "<3-6 word node name>",
-      "kind": "conversation | logic_split | ending | booking_sequence | function | call_transfer",
+      "kind": "conversation | ending | booking_sequence | function | call_transfer",
       "toolId": "check_availability | book_appointment",
       "transferHint": "<destination team or person name, e.g. 'sales team' or 'manager'>",
       "transitions": [
@@ -260,19 +260,18 @@ response or action — a short natural phrase that describes what the caller wou
     Delivering information → "caller acknowledges"
     Asking if interested  → "caller is interested"  /  "caller is not interested"
     Asking a yes/no question → "yes"  /  "no"
-  Write conditions as 2–5 word lowercase phrases. Never write bare "default" unless it is truly
-  a catch-all fallback on a logic_split node (to catch any response not covered by other branches).
+  Write conditions as 2–5 word lowercase phrases. Add a "default" catch-all only as the last
+  transition on a multi-branch node to catch any response not covered by the named branches.
 
-RULE 3 — LOGIC SPLITS only at explicit decision points: Only use kind "logic_split" when the
-script explicitly states a fork. Keep to 2–3 transitions. Add a "default" catch-all only if
-there are genuinely unhandled responses beyond the named branches.
+RULE 3 — ALL BRANCHING uses kind "conversation": Never use "logic_split" — always "conversation".
+A conversation node can carry multiple transitions; the voice engine picks the matching branch.
 
 RULE 4 — NO DEAD ENDS: Every path MUST end at a node with kind "ending".
 For branches that don't rejoin the main flow, add one short graceful closing virtual node then ending.
 Virtual node "content" must be clean spoken dialogue only — no labels, no metadata, no instructions.
 
-RULE 5 — VIRTUAL NODES sparingly: Only add virtual nodes when a logic_split branch has no existing
-script target. One or two sentences of spoken dialogue maximum.
+RULE 5 — VIRTUAL NODES sparingly: Only add virtual nodes when a branch has no existing script target.
+One or two sentences of spoken dialogue maximum.
 
 SMART DETECTION — automatically use these special kinds:
 
@@ -323,8 +322,7 @@ HOW TO SPLIT A SEGMENT:
 - Use derived segIds: "<originalSegId>-1", "<originalSegId>-2", etc.
 - Set "virtual": true on every sub-node so the system uses your "content" field directly
 - Wire INTERMEDIATE sub-nodes with a single "default" transition to the next sub-node
-- The LAST sub-node MUST carry ALL of the original segment's outgoing transitions — this preserves every branch (yes/no, interested/not interested, etc.) that the original segment had
-- If the original segment was a logic_split, the last sub-node inherits kind "logic_split" and all its branch transitions
+- The LAST sub-node MUST carry ALL of the original segment's outgoing transitions — multi-branch nodes stay "conversation"
 - Make sure no original content is lost — every instruction from the source segment appears in exactly one sub-node
 
 Example A — plain conversation split (seg_abc: "Ask name, then ask phone, then confirm email"):
@@ -335,10 +333,10 @@ Example A — plain conversation split (seg_abc: "Ask name, then ask phone, then
   { "segId": "seg_abc-3", "virtual": true, "content": "Great, can I confirm your email address?", "label": "Confirm Email", "kind": "conversation", "destination": "flow",
     "transitions": [<< ORIGINAL seg_abc outgoing transitions go here >>] }
 
-Example B — logic_split with an intro line (seg_xyz: "Introduce the offer. Ask if they are interested."):
+Example B — branching node (seg_xyz: "Introduce the offer. Ask if they are interested."):
   { "segId": "seg_xyz-1", "virtual": true, "content": "I'd love to tell you about our special offer.", "label": "Introduce Offer", "kind": "conversation", "destination": "flow",
-    "transitions": [{"id": "t-xyz-1-2", "condition": "default", "target": "seg_xyz-2"}] },
-  { "segId": "seg_xyz-2", "virtual": true, "content": "Does that sound like something you'd be interested in?", "label": "Gauge Interest", "kind": "logic_split", "destination": "flow",
+    "transitions": [{"id": "t-xyz-1-2", "condition": "caller acknowledges", "target": "seg_xyz-2"}] },
+  { "segId": "seg_xyz-2", "virtual": true, "content": "Does that sound like something you'd be interested in?", "label": "Gauge Interest", "kind": "conversation", "destination": "flow",
     "transitions": [
       {"id": "t-xyz-yes", "condition": "yes / interested", "target": "<next segment in script>"},
       {"id": "t-xyz-no",  "condition": "no / not interested", "target": "<objection virtual node>"}
@@ -356,10 +354,10 @@ CRITICAL RULES:
 - Transition "target" values must reference segIds of OTHER "flow" segments (real or virtual) — never "global_prompt"
 - Transition ids must be unique across the entire output
 - The final segment in the flow must be kind "ending" with "transitions": []
-- Every logic_split transition MUST have its own dedicated target node — create virtual nodes as needed
+- Every branching transition MUST have its own dedicated target node — create virtual nodes as needed
 - Every route through the graph MUST terminate at an "ending" node — no dead ends
-- kind "logic_split": 2 or more transitions each with a specific human-readable condition string
-- kind "conversation", "function", "call_transfer": single transition with "condition": "default"
+- kind "conversation": one transition for sequential nodes, or multiple predicted-condition transitions for branching nodes
+- NEVER use kind "logic_split" — always use kind "conversation" for all dialogue nodes
 - kind "booking_sequence": single transition pointing to the next node after the booking flow
 - toolId is ONLY valid when kind is "function"; omit it for all other kinds
 - transferHint is ONLY valid when kind is "call_transfer"; omit it for all other kinds
@@ -649,9 +647,11 @@ async function generateFlow(
       });
 
     } else {
-      // Standard node (conversation, logic_split, call_transfer, ending, etc.)
+      // Standard node (conversation, call_transfer, ending, etc.)
+      // logic_split is no longer used — remap to conversation if AI still emits it
       segToNodeId[seg.segId] = baseId;
-      let kind = VALID_KINDS.has(seg.kind) ? seg.kind : "conversation";
+      let kind = seg.kind === "logic_split" ? "conversation"
+        : VALID_KINDS.has(seg.kind) ? seg.kind : "conversation";
 
       const nodeData: BuiltNode["data"] = {
         kind,
