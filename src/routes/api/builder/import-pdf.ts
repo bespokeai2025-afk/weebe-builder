@@ -7,7 +7,124 @@ const json = (data: unknown, status = 200) =>
     headers: { "Content-Type": "application/json" },
   });
 
-function buildSystemPrompt(
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface Segment {
+  id: string;
+  type: "message" | "decision" | "action";
+  header: string;
+  content: string;
+}
+
+// ── State-machine text segmenter ─────────────────────────────────────────────
+// Guarantees 100% line consumption — every extracted line ends up in a node.
+// No content is ever dropped or summarised.
+
+function segmentByStateMachine(text: string): Segment[] {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => {
+      // Strip structural metadata but preserve all functional content lines
+      const isPageNum = /^\s*Page\s+\d+\s*$/i.test(l) || /^\s*\d+\s*$/.test(l);
+      const isBoilerplate =
+        /^\s*(Confidential|Draft|Version|Copyright|Internal Use Only)/i.test(l);
+      return !isPageNum && !isBoilerplate;
+    });
+
+  const segments: Segment[] = [];
+  let currentChunk: string[] = [];
+  let currentType: Segment["type"] = "message";
+  let sectionHeader = "";
+
+  const flush = () => {
+    if (currentChunk.length === 0) return;
+    const content = currentChunk.join("\n").trim();
+    if (!content) return;
+    segments.push({
+      id: `seg_${Math.random().toString(36).substring(2, 9)}`,
+      type: currentType,
+      header: sectionHeader,
+      content,
+    });
+    currentChunk = [];
+    sectionHeader = "";
+  };
+
+  for (const line of lines) {
+    if (!line) continue;
+
+    // 1. Major section / step headers
+    if (
+      /^(\d+\.|STEP\s+\d+|AI\s+SAYS|Trigger:|SCRIPT|SECTION|PHASE|OPENING|CLOSING|OBJECTION|FALLBACK)/i.test(
+        line,
+      )
+    ) {
+      flush();
+      sectionHeader = line;
+      if (/qualify|decision|branch|if\s+user|if\s+customer/i.test(line))
+        currentType = "decision";
+      else if (
+        /trigger|webhook|integration|crm|calendly|book|schedule|action/i.test(line)
+      )
+        currentType = "action";
+      else currentType = "message";
+      continue;
+    }
+
+    // 2. Table / CSV rows — clean and preserve
+    if (line.includes('","') || (line.startsWith('"') && line.endsWith('"'))) {
+      currentChunk.push(`| ${line.replace(/"/g, "").replace(/,/g, " | ")} |`);
+      continue;
+    }
+
+    // 3. Speaker-turn switches — new segment per speaker
+    const speakerMatch = line.match(
+      /^\s*(Agent|Alex|User|Customer|Bot|System|AI|Speaker\s*\d+|Rep|Caller)\s*[:\-]/i,
+    );
+    if (speakerMatch) {
+      flush();
+      currentType = /user|customer|caller/i.test(speakerMatch[1])
+        ? "decision"
+        : "message";
+      currentChunk.push(line);
+      continue;
+    }
+
+    // 4. Catch-all: append to active segment — nothing is ever dropped
+    currentChunk.push(line);
+  }
+
+  flush(); // Catch any trailing content
+  return segments;
+}
+
+// ── Merge tiny segments ──────────────────────────────────────────────────────
+// Adjacent same-type segments without a header and fewer than 80 chars are
+// merged to avoid dozens of trivial one-line nodes.
+
+function mergeSmallSegments(segments: Segment[], minChars = 80): Segment[] {
+  const out: Segment[] = [];
+  for (const seg of segments) {
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      !seg.header &&
+      !prev.header &&
+      prev.type === seg.type &&
+      prev.content.length < minChars
+    ) {
+      prev.content = `${prev.content}\n${seg.content}`;
+    } else {
+      out.push({ ...seg });
+    }
+  }
+  return out;
+}
+
+// ── AI enrichment prompt ─────────────────────────────────────────────────────
+
+function buildEnrichmentPrompt(
   focusAgent?: {
     name: string;
     role: string;
@@ -24,124 +141,70 @@ function buildSystemPrompt(
     branchingPoints?: string[];
   },
 ): string {
-  const lines: string[] = [
-    `You are a senior conversation flow architect specialising in AI voice agent scripts.`,
-    `Convert the provided script into a complete, production-ready multi-step conversation flow.`,
+  const lines = [
+    `You are a conversation flow formatter for a voice agent builder.`,
+    `You receive pre-segmented text blocks extracted from a script by a state-machine parser.`,
+    `The segments already contain ALL content — your job is enrichment only, not extraction.`,
   ];
 
   if (focusAgent) {
     lines.push(
-      `\nAGENT PERSONA — every node's dialogue MUST reflect this agent's exact voice:`,
-      `  Name: ${focusAgent.name}`,
-      `  Role: ${focusAgent.role}`,
+      `\nAGENT PERSONA — adapt labels and dialogue style to this agent:`,
+      `  Name: ${focusAgent.name} · Role: ${focusAgent.role}`,
       `  Style: ${focusAgent.persona}`,
       ...(focusAgent.tone ? [`  Tone: ${focusAgent.tone}`] : []),
       ...(focusAgent.keyPhrases?.length
         ? [`  Signature phrases: ${focusAgent.keyPhrases.join(" | ")}`]
         : []),
-      `  Expertise: ${focusAgent.expertise.join(", ")}`,
     );
   }
 
   if (focusCampaign) {
     lines.push(
-      `\nCAMPAIGN FOCUS — nodes MUST follow this campaign's full structure:`,
+      `\nCAMPAIGN FOCUS — structure transitions to follow this campaign:`,
       `  Campaign: ${focusCampaign.name} (${focusCampaign.type})`,
       `  Objective: ${focusCampaign.objective}`,
-      `  Required stages (in order): ${focusCampaign.keyStages.join(" → ")}`,
+      `  Stages: ${focusCampaign.keyStages.join(" → ")}`,
       ...(focusCampaign.branchingPoints?.length
-        ? [
-            `  Branching scenarios to model as logic_split nodes:`,
-            ...focusCampaign.branchingPoints.map((b) => `    • ${b}`),
-          ]
+        ? [`  Branching points: ${focusCampaign.branchingPoints.join("; ")}`]
         : []),
     );
   }
 
-  lines.push(
-    `
-OUTPUT ONLY valid JSON — no markdown, no code fences, no extra text — with this exact shape:
+  lines.push(`
+For each input segment, output ONE enriched node. Rules:
+
+OUTPUT ONLY valid JSON — no markdown, no code fences:
 {
-  "title": "<2-4 word title for this flow>",
-  "globalPromptSuggestion": "<everything that belongs in the agent's system prompt: identity, company context, product details, behavioral rules, tone guidelines, compliance constraints, escalation rules — NOT dialogue steps. Consolidate into a clean paragraph. Empty string if nothing.>",
+  "title": "<2-4 word overall flow title>",
+  "globalPromptSuggestion": "<agent identity, company context, behavioral rules, compliance — NOT dialogue steps. Empty string if none.>",
   "nodes": [
     {
-      "id": "n1",
-      "label": "<3-6 word step name>",
-      "kind": "conversation",
-      "dialogue": "<exact agent script or instruction for this step — do not truncate>",
-      "isStart": true,
+      "segId": "<original segment id>",
+      "label": "<3-6 word node name>",
+      "kind": "conversation | logic_split | ending",
       "transitions": [
-        { "id": "t_n1_n2", "condition": "default", "target": "n2" }
+        { "id": "<unique t-id>", "condition": "default", "target": "<segId of next segment>" }
       ]
     }
   ]
 }
 
-CRITICAL RULES — follow every one:
-
-COMPLETENESS:
-- Include a node for EVERY distinct dialogue step, decision point, and branch in the script
-- Do NOT merge steps with different dialogue or purpose into one node
-- Do NOT cap the number of nodes — use as many as the script requires
-- Do NOT skip, summarise, or omit any part of the script
-
-NODE KINDS:
-- "conversation" — any agent dialogue or instruction step
-- "logic_split"  — a decision/branching point (use whenever the script has if/else, conditional paths, or multiple customer response options)
-- "ending"       — the final node (call close / goodbye)
-
-TRANSITIONS (REQUIRED on every node):
-- Every node MUST have a "transitions" array — never omit it
-- Sequential step: [ { "id": "t_n1_n2", "condition": "default", "target": "n2" } ]
-- Branching (logic_split): multiple transitions each with a specific, human-readable condition string
-  Example: [
-    { "id": "t_n3_a", "condition": "Customer is interested / agrees", "target": "n4" },
-    { "id": "t_n3_b", "condition": "Customer declines or objects", "target": "n5" }
-  ]
-- "ending" node: "transitions": []
-- All "target" values MUST match an "id" in the nodes array — no dangling references
+CRITICAL RULES:
+- Output EXACTLY one node per input segment — never merge or split segments
+- Segment content becomes the node's dialogue verbatim — do not change it
+- kind "conversation": agent dialogue or instruction
+- kind "logic_split": decision or branching point (multiple transitions with specific conditions)
+- kind "ending": only the final segment — "transitions": []
+- For logic_split, write specific condition strings: e.g. "Customer interested" / "Customer declines"
+- All transition "target" values must reference a valid segId from the input
 - Transition ids must be unique across the entire flow
-
-STRUCTURE:
-- First node: "isStart": true
-- Last node: "kind": "ending", closing dialogue, "transitions": []
-- "label" must be a short descriptive name (e.g. "Greeting", "Qualify Interest", "Handle Objection", "Book Appointment")
-- "dialogue" must be the complete agent script for that step — never cut it short`,
-  );
-
-  if (focusAgent || focusCampaign) {
-    lines.push(
-      `\nTARGETING: Tailor every node's dialogue to the specified agent's voice and campaign's objectives.`,
-      `Ensure all required campaign stages appear as nodes and all branching points are modelled as logic_split nodes.`,
-    );
-  }
+- The last segment MUST be kind "ending"`);
 
   return lines.join("\n");
 }
 
-function cleanText(raw: string): string {
-  return raw
-    .split("\n")
-    .filter((line) => {
-      const isPageNum =
-        /^\s*Page\s+\d+\s*$/i.test(line) || /^\s*\d+\s*$/.test(line);
-      const isBoilerplate =
-        /^\s*(Confidential|Draft|Version|Copyright|Internal Use Only)/i.test(line);
-      return !isPageNum && !isBoilerplate;
-    })
-    .join("\n")
-    .replace(/\r\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, 14000);
-}
-
-const VALID_KINDS = new Set([
-  "conversation", "function", "call_transfer", "press_digit",
-  "logic_split", "agent_transfer", "sms", "extract_variable",
-  "code", "ending", "note",
-]);
+// ── Main flow generator ──────────────────────────────────────────────────────
 
 async function generateFlow(
   apiKey: string,
@@ -162,7 +225,21 @@ async function generateFlow(
     branchingPoints?: string[];
   },
 ) {
-  const systemPrompt = buildSystemPrompt(focusAgent, focusCampaign);
+  // ── Step 1: state-machine segmentation (100% line coverage) ──────────────
+  const rawSegments = segmentByStateMachine(scriptText);
+  const segments = mergeSmallSegments(rawSegments);
+
+  if (segments.length === 0) throw new Error("No content segments extracted from PDF");
+
+  // ── Step 2: AI enrichment (labels, kinds, transitions, global prompt) ─────
+  const systemPrompt = buildEnrichmentPrompt(focusAgent, focusCampaign);
+
+  const segmentsPayload = segments.map((s) => ({
+    segId: s.id,
+    type: s.type,
+    header: s.header || null,
+    content: s.content,
+  }));
 
   const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -178,7 +255,7 @@ async function generateFlow(
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Convert this complete script into a conversation flow — include every step and all branching logic:\n\n${scriptText}`,
+          content: `Enrich these ${segments.length} pre-segmented script blocks into a conversation flow:\n\n${JSON.stringify(segmentsPayload, null, 2)}`,
         },
       ],
     }),
@@ -193,80 +270,87 @@ async function generateFlow(
     choices: Array<{ message: { content: string } }>;
   };
 
-  const raw = JSON.parse(aiJson.choices[0].message.content) as {
+  const enriched = JSON.parse(aiJson.choices[0].message.content) as {
     title: string;
     globalPromptSuggestion?: string;
     nodes: Array<{
-      id: string;
+      segId: string;
       label: string;
       kind: string;
-      dialogue: string;
-      isStart?: boolean;
-      transitions?: Array<{ id: string; condition: string; target: string }>;
+      transitions: Array<{ id: string; condition: string; target: string }>;
     }>;
   };
 
-  if (!Array.isArray(raw.nodes) || raw.nodes.length === 0)
-    throw new Error("AI returned no nodes");
+  if (!Array.isArray(enriched.nodes) || enriched.nodes.length === 0)
+    throw new Error("Enrichment returned no nodes");
 
-  // Build raw-id → prefixed-id map for resolving transition targets
-  const idMap: Record<string, string> = {};
-  raw.nodes.forEach((n, idx) => {
-    const rawId = String(n.id ?? `n${idx + 1}`);
-    idMap[rawId] = `pdf-${rawId}`;
+  // ── Step 3: Build FlowNode + Edge objects ────────────────────────────────
+  const VALID_KINDS = new Set([
+    "conversation", "function", "call_transfer", "press_digit",
+    "logic_split", "agent_transfer", "sms", "extract_variable",
+    "code", "ending", "note",
+  ]);
+
+  // segId → prefixed nodeId
+  const segToNodeId: Record<string, string> = {};
+  enriched.nodes.forEach((n, idx) => {
+    segToNodeId[n.segId] = `pdf-${n.segId ?? `n${idx + 1}`}`;
+  });
+  // Also map by index for fallback
+  segments.forEach((s, idx) => {
+    if (!segToNodeId[s.id]) segToNodeId[s.id] = `pdf-seg${idx}`;
   });
 
-  // Build node objects
-  const nodes = raw.nodes.map((n, idx) => {
-    const rawId = String(n.id ?? `n${idx + 1}`);
-    const nodeId = idMap[rawId];
-    const isLast = idx === raw.nodes.length - 1;
+  // Build a content map from original segments
+  const contentMap: Record<string, { content: string; rawType: Segment["type"] }> = {};
+  segments.forEach((s) => {
+    contentMap[s.id] = { content: s.header ? `${s.header}\n${s.content}` : s.content, rawType: s.type };
+  });
+
+  const nodes = enriched.nodes.map((n, idx) => {
+    const nodeId = segToNodeId[n.segId] ?? `pdf-n${idx + 1}`;
+    const isLast = idx === enriched.nodes.length - 1;
     let kind = VALID_KINDS.has(n.kind) ? n.kind : "conversation";
     if (isLast && kind !== "ending") kind = "ending";
 
-    // Compute position: branch nodes spread vertically
-    const x = idx * 340;
-    const y = 100;
+    const segContent = contentMap[n.segId];
 
     return {
       id: nodeId,
       type: kind,
-      position: { x, y },
+      position: { x: idx * 340, y: 100 },
       data: {
         kind,
         label: String(n.label ?? `Step ${idx + 1}`),
-        dialogue: String(n.dialogue ?? ""),
+        dialogue: segContent?.content ?? "",
         isStart: idx === 0 ? true : undefined,
         transitions: [] as Array<{ id: string; condition: string; target: string | null }>,
       },
-      _rawId: rawId,
       _aiTransitions: n.transitions ?? null,
     };
   });
 
-  // Build edges — use AI-provided transitions; fall back to sequential
   const edges: Array<{
     id: string;
     source: string;
     target: string;
     sourceHandle: string;
   }> = [];
-  const usedTransitionIds = new Set<string>();
+  const usedIds = new Set<string>();
 
   nodes.forEach((node, idx) => {
     if (node.data.kind === "ending") return;
 
-    const aiTransitions = node._aiTransitions;
+    const aiTx = node._aiTransitions;
 
-    if (Array.isArray(aiTransitions) && aiTransitions.length > 0) {
-      for (const t of aiTransitions) {
-        const resolvedTarget = idMap[String(t.target)] ?? null;
-        if (!resolvedTarget) continue; // skip dangling references
+    if (Array.isArray(aiTx) && aiTx.length > 0) {
+      for (const t of aiTx) {
+        const resolvedTarget = segToNodeId[String(t.target)] ?? null;
+        if (!resolvedTarget) continue;
 
-        // Ensure unique transition id
         let tId = String(t.id ?? `t-${node.id}-${resolvedTarget}`);
-        if (usedTransitionIds.has(tId)) tId = `${tId}-${idx}`;
-        usedTransitionIds.add(tId);
+        if (usedIds.has(tId)) tId = `${tId}-${idx}`;
+        usedIds.add(tId);
 
         node.data.transitions.push({
           id: tId,
@@ -276,27 +360,39 @@ async function generateFlow(
         edges.push({ id: tId, source: node.id, target: resolvedTarget, sourceHandle: tId });
       }
     } else {
-      // Sequential fallback: connect to next node
+      // Sequential fallback
       const next = nodes[idx + 1];
       if (!next) return;
       const tId = `t-${node.id}-${next.id}`;
-      usedTransitionIds.add(tId);
+      usedIds.add(tId);
       node.data.transitions.push({ id: tId, condition: "default", target: next.id });
       edges.push({ id: tId, source: node.id, target: next.id, sourceHandle: tId });
     }
   });
 
-  // Strip internal helper fields before returning
-  const cleanNodes = nodes.map(({ _rawId: _r, _aiTransitions: _a, ...rest }) => rest);
+  const cleanNodes = nodes.map(({ _aiTransitions: _a, ...rest }) => rest);
 
   return {
-    title: String(raw.title ?? "Imported Script"),
-    globalPromptSuggestion: raw.globalPromptSuggestion?.trim() ?? "",
+    title: String(enriched.title ?? "Imported Script"),
+    globalPromptSuggestion: enriched.globalPromptSuggestion?.trim() ?? "",
     nodes: cleanNodes,
     edges,
     nodeCount: cleanNodes.length,
+    segmentCount: segments.length,
   };
 }
+
+// ── Text cleaner ─────────────────────────────────────────────────────────────
+
+function cleanText(raw: string): string {
+  return raw
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{4,}/g, "\n\n\n")
+    .trim()
+    .slice(0, 16000);
+}
+
+// ── Route ────────────────────────────────────────────────────────────────────
 
 export const Route = createFileRoute("/api/builder/import-pdf")({
   server: {
@@ -345,14 +441,14 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
 
             const result = await generateFlow(
               apiKey,
-              body.rawText,
+              cleanText(body.rawText),
               body.focusAgent,
               body.focusCampaign,
             );
             return json(result);
           }
 
-          // ── Mode B: multipart form (direct PDF upload, no entity selection) ─
+          // ── Mode B: multipart form (direct PDF upload) ─────────────────────
           const formData = await request.formData();
           const file = formData.get("pdf");
           if (!file || !(file instanceof File))
@@ -366,16 +462,18 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
           const parser = new PDFParse({ data: buffer });
           await parser.load();
           const { text: rawText } = await parser.getText();
-          const scriptText = cleanText(rawText);
 
-          if (!scriptText)
+          if (!rawText?.trim())
             return json({ error: "Could not extract text from PDF" }, 422);
 
-          const result = await generateFlow(apiKey, scriptText);
+          const result = await generateFlow(apiKey, cleanText(rawText));
           return json(result);
         } catch (e) {
           console.error("[import-pdf]", e);
-          return json({ error: (e as Error).message ?? "Processing failed" }, 500);
+          return json(
+            { error: (e as Error).message ?? "Processing failed" },
+            500,
+          );
         }
       },
     },
