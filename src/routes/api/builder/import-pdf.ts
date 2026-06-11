@@ -659,6 +659,32 @@ async function generateFlow(
     }
   });
 
+  // ── Split ending nodes that contain dialogue ──────────────────────────────
+  // An "ending" node is a standalone call-end signal — it should not carry
+  // script text. When one does, convert it to a conversation node and append
+  // a new clean "End Call" ending node after it, wired with a default transition.
+  const endingExpansions: typeof builtNodes = [];
+  for (const node of builtNodes) {
+    if (node.data.kind === "ending" && node.data.dialogue.trim()) {
+      const endId = `${node.id}-end`;
+      const tId   = `t-${node.id}-${endId}`;
+
+      node.data.kind = "conversation";
+      node.type      = "conversation";
+      node.data.transitions.push({ id: tId, condition: "default", target: endId });
+      edges.push({ id: tId, source: node.id, target: endId, sourceHandle: tId });
+
+      endingExpansions.push({
+        id: endId,
+        type: "ending",
+        position: { x: node.position.x + 440, y: node.position.y },
+        data: { kind: "ending", label: "End Call", dialogue: "", transitions: [] },
+        _aiTransitions: null,
+      });
+    }
+  }
+  builtNodes.push(...endingExpansions);
+
   const cleanNodes = builtNodes.map(({ _aiTransitions: _a, ...rest }) => rest);
 
   return {
