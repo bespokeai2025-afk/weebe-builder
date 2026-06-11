@@ -685,8 +685,44 @@ function cleanText(raw: string): string {
     .slice(0, 16000);
 }
 
-// ── Dialogue cleaner — strips step headers, emoji, decorative symbols ─────────
-// Converts raw PDF/DOCX extracted text into clean voice-prompt copy.
+// ── Variable name normaliser ──────────────────────────────────────────────────
+// Converts a human-readable label like "First Name" → "first_name"
+function toVarName(label: string): string {
+  return label.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
+
+// Known variable aliases → canonical {{name}}
+const VAR_ALIASES: Record<string, string> = {
+  "first name": "first_name",   "firstname": "first_name",
+  "last name":  "last_name",    "lastname":  "last_name",
+  "full name":  "full_name",    "fullname":  "full_name",
+  "name":       "first_name",
+  "company name": "company_name", "company": "company_name",
+  "business name": "company_name", "business": "company_name",
+  "phone number": "phone_number", "phone": "phone_number",
+  "mobile":     "phone_number",  "cell": "phone_number",
+  "email address": "email",      "email": "email",
+  "date":       "date",          "appointment date": "date",
+  "time":       "time",          "appointment time": "time",
+  "address":    "address",       "street address": "address",
+  "city":       "city",          "state": "state",
+  "zip code":   "zip_code",      "postcode": "zip_code", "zip": "zip_code",
+  "amount":     "amount",        "price": "price",
+  "product":    "product_name",  "product name": "product_name",
+  "service":    "service_name",  "service name": "service_name",
+  "ref":        "reference",     "reference": "reference", "reference number": "reference",
+  "account":    "account_number","account number": "account_number",
+  "order":      "order_number",  "order number": "order_number",
+  "rep name":   "rep_name",      "agent name": "agent_name",
+};
+
+function resolveVar(raw: string): string {
+  const key = raw.trim().toLowerCase();
+  return VAR_ALIASES[key] ?? toVarName(raw);
+}
+
+// ── Dialogue cleaner — strips step headers, emoji, decorative symbols,
+//    converts pauses and variable placeholders to standard formats ─────────────
 
 function cleanDialogue(raw: string): string {
   return raw
@@ -696,7 +732,6 @@ function cleanDialogue(raw: string): string {
     .replace(/[\u{1F900}-\u{1F9FF}]/gu, "") // supplemental symbols
     .replace(/\uFE0F/gu, "")                // variation selector-16
     // ── Step / phase / section headers at line start ──────────────────────────
-    // e.g. "Step 1:", "STEP 1 -", "Phase 2.", "Section 3 —", "1.", "1)"
     .replace(/^(step|phase|section|part|stage|module)\s*\d+\s*[:\-–—.]?\s*/gim, "")
     .replace(/^\d+[.)]\s+/gm, "")
     // ── Markdown heading markers ───────────────────────────────────────────────
@@ -704,8 +739,28 @@ function cleanDialogue(raw: string): string {
     // ── Bold / italic markdown ────────────────────────────────────────────────
     .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1")
     .replace(/_([^_\n]+)_/g, "$1")
-    // ── Decorative bullet / arrow symbols at line start (keep the text) ───────
+    // ── Decorative bullet / arrow symbols at line start ───────────────────────
     .replace(/^[•►▶→▷◆■□●○✓✗✔✘➤➜➔]+\s*/gm, "")
+    // ── Pause / stage direction markers ────────────────────────────────────────
+    // e.g. (pause), (PAUSE), (brief pause), (beat), (silence), (wait), (hesitate)
+    .replace(/\(\s*(long\s+pause|long pause)\s*\)/gi, "[pause 2 seconds]")
+    .replace(/\(\s*(brief\s+pause|short\s+pause)\s*\)/gi, "[pause briefly]")
+    .replace(/\(\s*(pause\.{0,3}|beat|silence|wait|hesitate|hesitation)\s*\)/gi, "[pause]")
+    // ── Variable placeholders → {{variable_name}} ──────────────────────────────
+    // Handle triple-brace {{{ }}} first
+    .replace(/\{\{\{([^}]+)\}\}\}/g, (_, v) => `{{${resolveVar(v)}}}`)
+    // Already-correct {{var}} — normalise the name inside
+    .replace(/\{\{([^}]+)\}\}/g, (_, v) => `{{${resolveVar(v)}}}`)
+    // Single-brace {var}
+    .replace(/\{([^{}]+)\}/g, (_, v) => `{{${resolveVar(v)}}}`)
+    // Square-bracket [var] — but NOT [pause] / [break] instructions we just wrote
+    .replace(/\[(?!pause|break|brief)([^\]]+)\]/gi, (_, v) => `{{${resolveVar(v)}}}`)
+    // ALL-CAPS standalone placeholder words (common in scripts): FIRST_NAME, COMPANY_NAME, etc.
+    .replace(/\b([A-Z][A-Z_]{2,})\b/g, (match) => {
+      const candidate = match.toLowerCase();
+      const known = VAR_ALIASES[candidate.replace(/_/g, " ")] ?? VAR_ALIASES[candidate];
+      return known ? `{{${known}}}` : `{{${candidate}}}`;
+    })
     // ── Collapse excessive blank lines ────────────────────────────────────────
     .replace(/\n{3,}/g, "\n\n")
     .trim();

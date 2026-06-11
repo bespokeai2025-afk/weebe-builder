@@ -1,10 +1,10 @@
 import type { Edge } from "@xyflow/react";
 import type { FlowNode } from "./store";
 
-const COL_GAP = 320; // horizontal distance between depth columns
-const ROW_GAP = 160; // vertical distance between rows
-const ORIGIN_X = 120;
-const ORIGIN_Y = 120;
+const COL_GAP = 440; // horizontal distance between depth columns
+const ROW_GAP = 240; // vertical distance between rows
+const ORIGIN_X = 160;
+const ORIGIN_Y = 160;
 
 /**
  * Retell-style "main spine" left-to-right layout.
