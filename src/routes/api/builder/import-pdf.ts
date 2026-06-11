@@ -207,18 +207,32 @@ OUTPUT ONLY valid JSON — no markdown, no code fences:
   "segments": [
     { "segId": "<id>", "destination": "global_prompt" },
     {
-      "segId": "<id>",
+      "segId": "<id or v-N for virtual>",
+      "virtual": false,
+      "content": "",
       "destination": "flow",
       "label": "<3-6 word node name>",
       "kind": "conversation | logic_split | ending | booking_sequence | function | call_transfer",
       "toolId": "check_availability | book_appointment",
       "transferHint": "<destination team or person name, e.g. 'sales team' or 'manager'>",
       "transitions": [
-        { "id": "<unique t-id>", "condition": "default", "target": "<segId of a FLOW segment>" }
+        { "id": "<unique t-id>", "condition": "<branch condition or 'default'>", "target": "<segId or v-N of a FLOW segment>" }
       ]
     }
   ]
 }
+
+VIRTUAL NODES — create new nodes for every transition branch:
+Every transition target MUST point to a node that exists in the output — either an input segment OR a new virtual node.
+For EVERY logic_split transition, if the target path is not already covered by an input segment, CREATE a new virtual node:
+  - Set "virtual": true
+  - Set "segId": "v-1", "v-2", etc. (unique across the whole output)
+  - Set "content": "<write the actual dialogue the agent speaks on this branch — 1-3 sentences matching the branch condition>"
+  - Set kind: "conversation" (or "ending" if this is a closing branch)
+  - Connect it onward to the next appropriate node or an ending
+Do the SAME for any other node whose transition lands on an unmarked path — every route must terminate at an "ending" node.
+Write "content" as clean spoken-voice dialogue — no step numbers, no bullets, no markdown.
+Virtual nodes for conversation branches should say the RIGHT THING for that specific condition (e.g. objection, yes path, no path, callback, etc.) using context from the surrounding script.
 
 SMART DETECTION — automatically use these special kinds:
 
@@ -255,15 +269,20 @@ OpenAI Realtime overall-instructions style — the collected global_prompt segme
 - Do NOT add turn-taking rules or conversation steps`}
 
 CRITICAL RULES:
-- Every input segment MUST appear exactly once in the output — no omissions
+- Every INPUT segment MUST appear exactly once in the output — no omissions
+- Virtual nodes (virtual: true) may be added freely — they do NOT correspond to input segments
+- Non-virtual nodes: set "virtual": false and "content": ""
+- Virtual nodes: set "virtual": true and "content": "<spoken dialogue for this node>"
 - "global_prompt" segments: only segId + destination required
 - "flow" segments: segId, destination, label, kind, transitions all required
-- Transition "target" values must ONLY reference segIds of OTHER "flow" segments — never "global_prompt"
+- Transition "target" values must reference segIds of OTHER "flow" segments (real or virtual) — never "global_prompt"
 - Transition ids must be unique across the entire output
-- The final "flow" segment must be kind "ending" with "transitions": []
-- kind "logic_split": multiple transitions each with a specific human-readable condition string
-- kind "conversation" and "function" and "call_transfer": single transition with "condition": "default"
-- kind "booking_sequence": single transition pointing to the NEXT segment after the booking flow
+- The final segment in the flow must be kind "ending" with "transitions": []
+- Every logic_split transition MUST have its own dedicated target node — create virtual nodes as needed
+- Every route through the graph MUST terminate at an "ending" node — no dead ends
+- kind "logic_split": 2 or more transitions each with a specific human-readable condition string
+- kind "conversation", "function", "call_transfer": single transition with "condition": "default"
+- kind "booking_sequence": single transition pointing to the next node after the booking flow
 - toolId is ONLY valid when kind is "function"; omit it for all other kinds
 - transferHint is ONLY valid when kind is "call_transfer"; omit it for all other kinds
 - If ALL segments are context/reference material, still produce at least one "flow" ending node`);
@@ -347,6 +366,8 @@ async function generateFlow(
       | {
           segId: string;
           destination: "flow";
+          virtual?: boolean;
+          content?: string;
           label: string;
           kind: string;
           toolId?: string;
@@ -434,7 +455,10 @@ async function generateFlow(
     const seg = flowSegments[segIdx];
     const isFirstSeg = segIdx === 0;
     const baseId = `pdf-${seg.segId}`;
-    const rawDialogue = cleanDialogue(contentMap[seg.segId] ?? "");
+    // Virtual nodes: use AI-generated "content"; real nodes: use extracted contentMap text
+    const rawDialogue = seg.virtual
+      ? cleanDialogue(seg.content ?? "")
+      : cleanDialogue(contentMap[seg.segId] ?? "");
 
     if (seg.kind === "booking_sequence") {
       // Expand to a 5-node booking micro-flow
