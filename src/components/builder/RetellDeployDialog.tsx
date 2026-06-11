@@ -85,6 +85,10 @@ export function RetellDeployDialog({
   const keepAliveRef = useRef<OscillatorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef(0);
+  // All AudioBufferSourceNodes scheduled for the current response.
+  // Cleared and stopped whenever a new response starts or the call ends,
+  // so old audio never plays over new audio (talking-over-itself / jitter fix).
+  const activeSourceNodesRef = useRef<AudioBufferSourceNode[]>([]);
   const startedAtRef = useRef<number | null>(null);
   const recordedCallRef = useRef(false);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
@@ -472,6 +476,11 @@ export function RetellDeployDialog({
     setHsExactCostUsd(null);
 
     function cleanupHyperStream() {
+      // Stop all scheduled audio immediately so nothing plays after hangup.
+      for (const node of activeSourceNodesRef.current) {
+        try { node.stop(); } catch { /* already ended — ignore */ }
+      }
+      activeSourceNodesRef.current = [];
       processorRef.current?.disconnect();
       processorRef.current = null;
       workletRef.current?.disconnect();
@@ -964,11 +973,13 @@ export function RetellDeployDialog({
           // ── Speech detection events (confirms user audio is reaching OpenAI VAD)
           if (msg.type === "input_audio_buffer.speech_started") {
             // ── Interruption / barge-in support ──────────────────────────
-            // Reset the playback scheduler so the next response's audio is
-            // scheduled from now, not relative to where the interrupted
-            // response would have finished.  Without this reset the new
-            // response plays in the future (audible silence gap) or is
-            // skipped entirely if nextPlayTime is far ahead.
+            // Stop every already-scheduled AudioBufferSourceNode NOW so the
+            // old response's audio cuts off the instant the user speaks.
+            // Without this, old and new audio play simultaneously → overlap.
+            for (const node of activeSourceNodesRef.current) {
+              try { node.stop(); } catch { /* already ended */ }
+            }
+            activeSourceNodesRef.current = [];
             nextPlayTimeRef.current = 0;
             const now = performance.now();
             speechStartedAt = now;
@@ -1058,6 +1069,17 @@ export function RetellDeployDialog({
           // ── Response lifecycle
           if (msg.type === "response.created") {
             const resp = msg.response as Record<string, unknown> | undefined;
+            // Stop any audio still playing from the PREVIOUS response.
+            // This covers two cases:
+            //   (a) User barges in while AI is mid-sentence (response.cancelled
+            //       arrives first, but audio may still be draining).
+            //   (b) Back-to-back turns where response.done fired but audio was
+            //       still scheduled into the future when the new turn starts.
+            for (const node of activeSourceNodesRef.current) {
+              try { node.stop(); } catch { /* already ended */ }
+            }
+            activeSourceNodesRef.current = [];
+            nextPlayTimeRef.current = 0;
             currentResponseId = (resp?.id as string) ?? "";
             isResponseInProgress = true;
             deltaCountForResponse = 0;
@@ -1375,6 +1397,13 @@ export function RetellDeployDialog({
             const src = ctx.createBufferSource();
             src.buffer = buf;
             src.connect(ctx.destination);
+            // Track so we can stop this node instantly on barge-in or new response.
+            activeSourceNodesRef.current.push(src);
+            src.onended = () => {
+              const arr = activeSourceNodesRef.current;
+              const idx = arr.indexOf(src);
+              if (idx !== -1) arr.splice(idx, 1);
+            };
             // Jitter buffer: start 25 ms ahead of now on the first chunk so
             // single-packet network jitter can't cause audible gaps or crackle.
             // 25 ms is sufficient for the local relay; 80 ms was over-provisioned.
