@@ -162,7 +162,12 @@ export function RetellDeployDialog({
         setElapsedSec(Math.floor((Date.now() - startedAtRef.current) / 1000));
       }
     }, 500);
-    return () => clearInterval(t);
+    return () => {
+      clearInterval(t);
+      // If the dialog unmounts or the call ends, ensure the parent panel clears.
+      onCallActive?.(false);
+      onTranscriptUpdate?.([]);
+    };
   }, [inCall]);
 
   async function handleOpenAIRealtimeDeploy() {
