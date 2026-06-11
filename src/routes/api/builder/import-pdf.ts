@@ -182,14 +182,25 @@ function buildEnrichmentPrompt(
   lines.push(`
 FIRST: classify every segment. Each segment has exactly one destination:
 
-"global_prompt" — content the agent needs to KNOW (not say):
-  • Business overview, company background, about-us text
-  • Agent name, role, persona, tone, personality settings
-  • Product / service descriptions, pricing, feature lists
-  • Behavioral rules, tone instructions, style guidelines
-  • Compliance constraints, prohibited topics, escalation rules
-  • Any reference information, FAQs, or standing instructions
-  → These segments are REMOVED from the conversation flow and collected into the global prompt.
+"global_prompt" — content the agent needs to KNOW (not say).
+Route to global_prompt when the section heading OR content matches ANY of these patterns:
+
+  BUSINESS CONTEXT — headings like: "Business Overview", "Business Description", "Company Overview",
+    "About Us", "About the Company", "Company Background", "What We Do", "Our Services",
+    "Service Description", "Product Overview", "Pricing", "Key Features", "FAQ", "Frequently Asked Questions"
+    → Any factual background about the company, its services, pricing, or products.
+
+  AGENT IDENTITY — headings like: "Agent Personality", "Agent Persona", "Agent Voice",
+    "Voice & Tone", "Tone of Voice", "Speaking Style", "Communication Style", "How to Speak",
+    "Personality", "Character", "Who You Are", "Identity", "Agent Profile", "AI Persona"
+    → Everything describing WHO the agent is, how they sound, their name, role, style, and values.
+
+  RULES & COMPLIANCE — headings like: "Behavioral Rules", "Guidelines", "Do's and Don'ts",
+    "Prohibited Topics", "Compliance", "Escalation Rules", "Key Instructions", "Important Notes"
+    → Standing instructions, constraints, and escalation paths the agent must always follow.
+
+  → All of these are REMOVED from the conversation flow nodes and injected into the global prompt.
+    They must NEVER appear as spoken dialogue in flow nodes.
 
 "flow" — content the agent actually speaks or acts on:
   • Agent dialogue / script lines
