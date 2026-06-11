@@ -199,6 +199,13 @@ Route to global_prompt when the section heading OR content matches ANY of these 
     "Prohibited Topics", "Compliance", "Escalation Rules", "Key Instructions", "Important Notes"
     → Standing instructions, constraints, and escalation paths the agent must always follow.
 
+  AI ROLE / FUNNEL POSITION — headings like: "Where AI Sits in the Funnel", "AI Role",
+    "AI in the Funnel", "Funnel Position", "AI Placement", "Call Flow Overview",
+    "How the AI Works", "System Overview", "Process Overview", "Workflow Overview",
+    "AI Responsibilities", "AI Scope", "AI vs Human", "Handoff Rules"
+    → Meta-descriptions of where/how the AI operates. Route to global_prompt so they inform
+      the agent's behaviour but NEVER appear as spoken dialogue nodes.
+
   → All of these are REMOVED from the conversation flow nodes and injected into the global prompt.
     They must NEVER appear as spoken dialogue in flow nodes.
 
@@ -777,6 +784,53 @@ function cleanText(raw: string): string {
     .slice(0, 16000);
 }
 
+// ── Pre-strip raw script text before it reaches the AI ───────────────────────
+// Removes speaker labels ("AI Says:", "Agent:") and entire meta-sections
+// ("Where AI Sits in the Funnel", "AI Role", etc.) so they never become nodes.
+
+function preStripScript(raw: string): string {
+  const lines = raw.split("\n");
+  const out: string[] = [];
+
+  // Headings that mark sections which describe AI's role/position — not dialogue.
+  // The entire section (heading + body until next heading) is dropped.
+  const META_SECTION_RE = /^#{0,6}\s*(where\s+ai\s+(sits?|fits?|stands?|is)|ai\s+(in\s+the\s+)?funnel|funnel\s+(position|placement|role|stage)|ai\s+role|ai\s+placement|call\s+flow\s+overview|how\s+(the\s+)?ai\s+(works?|operates?|is\s+used)|system\s+overview|process\s+overview|workflow\s+overview)\s*:?\s*$/i;
+
+  // Speaker-label prefixes to strip from any line — anything before the actual speech.
+  const SPEAKER_RE = /^(AI\s+Says?|Agent|Rep|Bot|System|Operator|Advisor|Assistant|Voice|Script|AI)\s*[:–—]\s*/i;
+
+  let skipping = false; // true while inside a dropped meta-section
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Detect start of a meta-section heading — enter skip mode
+    if (META_SECTION_RE.test(trimmed)) {
+      skipping = true;
+      continue;
+    }
+
+    // A new non-empty heading ends skip mode and is kept
+    if (skipping && /^#{1,6}\s+\S/.test(trimmed)) {
+      skipping = false;
+      // Fall through to keep this new heading
+    }
+
+    // Also end skip mode on any ALL-CAPS section title followed by colon
+    if (skipping && /^[A-Z][A-Z\s]{3,}:\s*$/.test(trimmed) && !META_SECTION_RE.test(trimmed)) {
+      skipping = false;
+    }
+
+    if (skipping) continue;
+
+    // Strip speaker labels from individual lines
+    const stripped = line.replace(SPEAKER_RE, "");
+    out.push(stripped);
+  }
+
+  return out.join("\n");
+}
+
 // ── Variable name normaliser ──────────────────────────────────────────────────
 // Converts a human-readable label like "First Name" → "first_name"
 function toVarName(label: string): string {
@@ -934,7 +988,7 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
 
             const result = await generateFlow(
               apiKey,
-              cleanText(body.rawText),
+              cleanText(preStripScript(body.rawText)),
               body.focusAgent,
               body.focusCampaign,
               body.voiceProvider ?? "RETELL",
@@ -973,7 +1027,7 @@ export const Route = createFileRoute("/api/builder/import-pdf")({
           if (!rawTextB?.trim())
             return json({ error: "Could not extract text from the document" }, 422);
 
-          const result = await generateFlow(apiKey, cleanText(rawTextB));
+          const result = await generateFlow(apiKey, cleanText(preStripScript(rawTextB)));
           return json(result);
         } catch (e) {
           console.error("[import-pdf]", e);
