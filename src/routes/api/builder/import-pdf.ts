@@ -234,31 +234,31 @@ OUTPUT ONLY valid JSON — no markdown, no code fences:
   ]
 }
 
-VIRTUAL NODES — extend the script with nodes for unhandled responses:
+DIALOGUE CONTENT RULES — every "content" field must be speech-only:
+- Write ONLY the exact words the agent speaks aloud — nothing else
+- NEVER include: speaker labels ("AI Says:", "Agent:", "Rep:", "AI:"), section titles
+  ("Employment Question:", "Opening Statement:"), instruction notes, step numbers, or
+  parenthetical directions like "(move to step 3)" or "(if applicable)"
+- NEVER start content with a label or heading — start with the actual spoken sentence
+- Variables in spoken lines use {{variable_name}} format only
+- One question or statement per node — split multi-part segments into sequential nodes
 
-RULE 1 — SCRIPT PATH: When a segment's natural continuation is the NEXT segment in the uploaded script,
-point the transition "target" to that existing segment's segId. Do NOT create a virtual node if the script
-already covers what happens next. Follow the script's documented sequence wherever it exists.
+TRANSITION RULES — keep it simple, use default everywhere possible:
 
-RULE 2 — UNHANDLED RESPONSES: Identify the realistic caller responses that the uploaded script does NOT handle:
-  • "not interested / no thanks" — objection handling
-  • "call me back later / not a good time" — callback/follow-up handling
-  • "I need to think about it" — nurture response
-  • "I have a question / tell me more" — clarification / additional info
-  • Any other common response the script glosses over or ignores
-For EACH of these unhandled responses, ADD a virtual transition + virtual node to the logic_split:
-  - Add a new transition to the logic_split: { "condition": "<response description>", "target": "v-N" }
-  - Create the virtual node with "virtual": true, "segId": "v-N", "content": "<what the agent says in that situation>"
-  - Connect the virtual node onward: either back to the script flow (if recoverable) or to an ending
-  - Write "content" as clean spoken-voice dialogue — no step numbers, no bullets, no markdown
+RULE 1 — DEFAULT TRANSITIONS: Use kind "conversation" with a single "default" transition for the vast
+majority of nodes. The voice engine handles what the caller says naturally based on the global prompt.
+Do NOT create logic_splits for every possible caller response — that creates bloated, broken flows.
+
+RULE 2 — LOGIC SPLITS only at EXPLICIT decision points: Only use kind "logic_split" when the script
+EXPLICITLY states a fork — e.g. "if interested go to X, if not go to Y". Keep to 2 transitions max.
+Condition phrases must be short and natural: "yes / interested"  "no / not interested"  "call me back"
 
 RULE 3 — NO DEAD ENDS: Every path through the graph MUST end at a node with kind "ending".
-If a virtual node's branch cannot rejoin the main script, close it gracefully with a polite closing line and terminate.
+For any branch that doesn't rejoin the main flow, add one short graceful closing virtual node then ending.
+Virtual node "content" must be clean spoken dialogue only — no labels, no metadata, no instructions.
 
-UPGRADE PLAIN SEGMENTS TOO: If a plain "conversation" segment in the script realistically
-could receive a "no", "not now", or off-script caller response, UPGRADE it to a "logic_split"
-with: (a) a "default / yes" transition to the next script segment, and (b) virtual nodes for
-the common off-script responses. This ensures the flow handles real conversations, not just happy paths.
+RULE 4 — VIRTUAL NODES sparingly: Only add virtual nodes when a logic_split branch has no existing
+target in the script. One or two sentences of spoken dialogue maximum.
 
 SMART DETECTION — automatically use these special kinds:
 
@@ -799,48 +799,74 @@ function resolveVar(raw: string): string {
   return VAR_ALIASES[key] ?? toVarName(raw);
 }
 
-// ── Dialogue cleaner — strips step headers, emoji, decorative symbols,
-//    converts pauses and variable placeholders to standard formats ─────────────
+// ── Dialogue cleaner — strips ALL non-speech content, converts pauses & vars ──
+// Only the words the agent actually speaks should survive.
 
 function cleanDialogue(raw: string): string {
   return raw
-    // ── Emoji (broad unicode blocks) ──────────────────────────────────────────
+    // ── Emoji ─────────────────────────────────────────────────────────────────
     .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
-    .replace(/[\u{2300}-\u{27BF}]/gu, "")   // misc technical + dingbats
-    .replace(/[\u{1F900}-\u{1F9FF}]/gu, "") // supplemental symbols
-    .replace(/\uFE0F/gu, "")                // variation selector-16
+    .replace(/[\u{2300}-\u{27BF}]/gu, "")
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, "")
+    .replace(/\uFE0F/gu, "")
+    // ── Speaker / role labels at line start ───────────────────────────────────
+    // "AI Says:", "Agent:", "Rep:", "Bot:", "Advisor:", "AI:" etc.
+    .replace(/^(AI\s+Says?|Agent|Rep|Bot|System|Operator|Advisor|Assistant|Voice|Script)\s*[:–—]\s*/gim, "")
+    // ── Script instruction / section labels at line start ─────────────────────
+    // e.g. "Employment Question:", "Opening Statement:", "Objection Handling:"
+    // Pattern: words-only Title Label followed by colon, before spoken content
+    .replace(/^[A-Z][A-Za-z ]{2,45}:\s+(?=[A-Z"'(])/gm, "")
+    // ── Standalone instruction / meta lines — entire lines that are directions ─
+    // Lines starting with Note:, Instruction:, Context:, Tip:, Reminder:, etc.
+    .replace(/^(Note|Instruction|Instructions|Context|Tip|Reminder|Important|Warning|Hint|Direction|Prompt)\s*:\s*.+$/gim, "")
+    // ── Parenthetical stage directions ───────────────────────────────────────
+    // e.g. (move to step 3), (if yes), (skip if answered), (proceed to close)
+    .replace(/\((?:move|go|skip|continue|proceed|jump|transfer|if |see |refer|follow|use |apply|per )[^)]{0,80}\)/gi, "")
+    .replace(/\(\s*step\s+\d[^)]*\)/gi, "")
+    .replace(/\(\s*go\s+to[^)]*\)/gi, "")
     // ── Step / phase / section headers at line start ──────────────────────────
     .replace(/^(step|phase|section|part|stage|module)\s*\d+\s*[:\-–—.]?\s*/gim, "")
     .replace(/^\d+[.)]\s+/gm, "")
-    // ── Markdown heading markers ───────────────────────────────────────────────
+    // ── Markdown headings and styling ────────────────────────────────────────
     .replace(/^#{1,6}\s+/gm, "")
-    // ── Bold / italic markdown ────────────────────────────────────────────────
     .replace(/\*{1,3}([^*\n]+)\*{1,3}/g, "$1")
     .replace(/_([^_\n]+)_/g, "$1")
-    // ── Decorative bullet / arrow symbols at line start ───────────────────────
+    // ── Decorative bullets / arrows ──────────────────────────────────────────
     .replace(/^[•►▶→▷◆■□●○✓✗✔✘➤➜➔]+\s*/gm, "")
-    // ── Pause / stage direction markers ────────────────────────────────────────
-    // e.g. (pause), (PAUSE), (brief pause), (beat), (silence), (wait), (hesitate)
+    // ── Pause markers → voice instructions ──────────────────────────────────
     .replace(/\(\s*(long\s+pause|long pause)\s*\)/gi, "[pause 2 seconds]")
     .replace(/\(\s*(brief\s+pause|short\s+pause)\s*\)/gi, "[pause briefly]")
     .replace(/\(\s*(pause\.{0,3}|beat|silence|wait|hesitate|hesitation)\s*\)/gi, "[pause]")
-    // ── Variable placeholders → {{variable_name}} ──────────────────────────────
-    // Handle triple-brace {{{ }}} first
+    // ── Variable placeholders → {{variable_name}} ─────────────────────────────
     .replace(/\{\{\{([^}]+)\}\}\}/g, (_, v) => `{{${resolveVar(v)}}}`)
-    // Already-correct {{var}} — normalise the name inside
     .replace(/\{\{([^}]+)\}\}/g, (_, v) => `{{${resolveVar(v)}}}`)
-    // Single-brace {var}
     .replace(/\{([^{}]+)\}/g, (_, v) => `{{${resolveVar(v)}}}`)
-    // Square-bracket [var] — but NOT [pause] / [break] instructions we just wrote
-    .replace(/\[(?!pause|break|brief)([^\]]+)\]/gi, (_, v) => `{{${resolveVar(v)}}}`)
-    // ALL-CAPS standalone placeholder words (common in scripts): FIRST_NAME, COMPANY_NAME, etc.
+    // Square brackets — but guard known instruction tokens we already wrote
+    .replace(/\[(?!pause|break|brief|pause\s)([^\]]{1,60})\]/gi, (full, v) => {
+      // Skip if it looks like an instruction rather than a variable name
+      if (/^(BOOKING|booking|note|instruction|action|if |move|step)/i.test(v.trim())) return full;
+      return `{{${resolveVar(v)}}}`;
+    })
+    // ALL-CAPS variable names — ONLY convert words that contain underscore
+    // (real variable placeholders like FIRST_NAME) or exact known aliases.
+    // Avoid converting plain words like SAYS, NOTE, STEP, EMPLOYER.
     .replace(/\b([A-Z][A-Z_]{2,})\b/g, (match) => {
+      if (!match.includes("_")) {
+        const candidate = match.toLowerCase();
+        const known = VAR_ALIASES[candidate.replace(/_/g, " ")] ?? VAR_ALIASES[candidate];
+        return known ? `{{${known}}}` : match; // leave plain ALL-CAPS words untouched
+      }
       const candidate = match.toLowerCase();
       const known = VAR_ALIASES[candidate.replace(/_/g, " ")] ?? VAR_ALIASES[candidate];
       return known ? `{{${known}}}` : `{{${candidate}}}`;
     })
-    // ── Collapse excessive blank lines ────────────────────────────────────────
+    // ── Remove leftover empty lines created by stripping ─────────────────────
     .replace(/\n{3,}/g, "\n\n")
+    // ── Drop lines that are now blank or only punctuation after stripping ─────
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 2)
+    .join("\n")
     .trim();
 }
 
