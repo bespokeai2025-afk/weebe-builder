@@ -144,11 +144,17 @@ function TemplatesPage() {
       // Explicitly restore voice provider fields so the builder sidebar
       // always shows the engine card that matches the template's engine,
       // not whatever was left over from a previous session.
+      // IMPORTANT: also derive and set deploymentMode from vp so that stale
+      // deploymentMode values persisted in localStorage cannot contaminate
+      // this template (resolveDeploymentMode checks deploymentMode first).
       const vp =
         (cleanSettings.voiceProvider as BuilderSettings["voiceProvider"] | undefined) ??
         "RETELL";
+      const derivedDeploymentMode =
+        vp === "OPENAI_REALTIME" ? "OPENAI_NATIVE" : "RETELL";
       useBuilderStore.getState().setSettings({
         voiceProvider: vp,
+        deploymentMode: derivedDeploymentMode,
         openaiVoice:
           (cleanSettings.openaiVoice as BuilderSettings["openaiVoice"] | undefined) ?? "alloy",
         openaiReasoningEffort:

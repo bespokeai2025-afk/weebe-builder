@@ -262,8 +262,9 @@ export const AgentRuntimeDefinitionSchema = z.object({
     .regex(/^\d+\.\d+\.\d+$/, "builderVersion must be semver"),
   exportedAt: z.string().datetime({ message: "exportedAt must be ISO 8601" }),
 
-  // Identity
-  agentId: z.string().uuid("agentId must be a UUID"),
+  // Identity — non-empty string; UUIDs are typical but hs_ prefixed IDs are
+  // also valid for locally-created HyperStream agents.
+  agentId: z.string().min(1, "agentId must not be empty"),
   agentName: z.string().min(1, "agentName must not be empty"),
   retellAgentId: z.string().nullable(),
 

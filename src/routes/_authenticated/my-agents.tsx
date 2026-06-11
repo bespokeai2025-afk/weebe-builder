@@ -87,13 +87,21 @@ function MyAgentsPage() {
       // Explicitly restore voice provider fields so the builder sidebar
       // always shows the engine card that was saved, not the previous
       // session's value or the localStorage default.
+      // IMPORTANT: also derive and set deploymentMode from vp so that stale
+      // deploymentMode values persisted in localStorage from a previous session
+      // cannot contaminate this agent.  resolveDeploymentMode() checks
+      // deploymentMode FIRST, so if it's wrong the engine resolves incorrectly
+      // and extractOpenAIParams throws "called on a RETELL definition".
       const rowAny = row as unknown as Record<string, unknown>;
       const vp =
         (settings.voiceProvider as BuilderSettings["voiceProvider"] | undefined) ??
         (rowAny.voice_provider as BuilderSettings["voiceProvider"] | undefined) ??
         "RETELL";
+      const derivedDeploymentMode =
+        vp === "OPENAI_REALTIME" ? "OPENAI_NATIVE" : "RETELL";
       useBuilderStore.getState().setSettings({
         voiceProvider: vp,
+        deploymentMode: derivedDeploymentMode,
         openaiVoice:
           (settings.openaiVoice as BuilderSettings["openaiVoice"] | undefined) ?? "alloy",
         openaiReasoningEffort:
