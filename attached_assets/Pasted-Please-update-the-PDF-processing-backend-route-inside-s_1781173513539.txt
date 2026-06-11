@@ -1,0 +1,101 @@
+Please update the PDF processing backend route inside `src/backend/routes/pdfImportRouter.ts` to use a fail-safe, high-fidelity state machine parser. This ensures that every single line of text extracted from the document—including business overviews, tables, script definitions, and strict rules—is captured and properly converted into nodes without dropping any context.
+
+Replace the post-route handling logic with this exact implementation:
+
+```typescript
+router.post('/api/builder/import-pdf', upload.single('file'), async (req: Request, res: Response): Promise<any> => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded.' });
+    if (req.file.mimetype !== 'application/pdf') return res.status(400).json({ error: 'Invalid file format.' });
+
+    const pdfData = await pdfParse(req.file.buffer);
+    const rawText = pdfData.text;
+    if (!rawText || rawText.trim().length === 0) return res.status(422).json({ error: 'No text extracted.' });
+
+    // Clean structural metadata but preserve all functional content lines
+    const lines = rawText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => {
+        const isPageNum = /^\s*Page\s+\d+\s*$/i.test(line) || /^\s*\d+\s*$/.test(line);
+        const isHeaderFooter = /^\s*(Confidential|Draft|Version|Copyright|Internal Use Only)/i.test(line);
+        return !isPageNum && !isHeaderFooter;
+      });
+
+    const nodes: any[] = [];
+    let currentChunk: string[] = [];
+    let currentType: 'message' | 'decision' | 'action' = 'message';
+    let sectionHeader = '';
+
+    const flushCurrentNode = () => {
+      if (currentChunk.length > 0) {
+        const contentBlock = currentChunk.join('\n').trim();
+        if (contentBlock) {
+          nodes.push({
+            id: `node_${Math.random().toString(36).substr(2, 9)}`,
+            type: currentType,
+            content: sectionHeader ? `[${sectionHeader}]\n${contentBlock}` : contentBlock,
+            next: []
+          });
+        }
+        currentChunk = [];
+      }
+    };
+
+    // Strict sequential scan machine ensuring 100% line consumption
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line) continue;
+
+      // 1. Detect New Major Context/Sections (e.g., "1. Business Overview", "STEP 1 OPENING")
+      if (/^(\d+\.|STEP\s+\d+|AI SAYS|Trigger:)/i.test(line)) {
+        flushCurrentNode();
+        sectionHeader = line;
+        
+        // Determine nodes purpose strictly by context
+        if (/qualify|decision|branch|if\s+user/i.test(line)) currentType = 'decision';
+        else if (/trigger|webhook|integration|crm|calendly/i.test(line)) currentType = 'action';
+        else currentType = 'message';
+        
+        continue;
+      }
+
+      // 2. Handle Tabular / CSV Data Rows inside the text stream safely
+      if (line.includes('","') || (line.startsWith('"') && line.endsWith('"'))) {
+        // Clean table formatting artifact data for readable canvas injection
+        const cleanRow = line.replace(/"/g, '').replace(/,/g, ' | ');
+        currentChunk.push(`| ${cleanRow} |`);
+        continue;
+      }
+
+      // 3. Dialogue Markers & Dynamic Speaker Turn Switches
+      const speakerMatch = line.match(/^\s*(Agent|Alex|User|Customer|Bot|System|Speaker\s*\d+)\s*[:\-]/i);
+      if (speakerMatch) {
+        flushCurrentNode();
+        currentType = /user|customer/i.test(speakerMatch[1]) ? 'decision' : 'message';
+        currentChunk.push(line);
+        continue;
+      }
+
+      // 4. Fail-Safe Catch-All: Append any miscellaneous instructional text directly to the active structural sequence node
+      currentChunk.push(line);
+    }
+    
+    // Catch final trailing chunk blocks
+    flushCurrentNode();
+
+    // Link every single structural node sequentially to prevent orphan fragments
+    for (let i = 0; i < nodes.length; i++) {
+      if (i < nodes.length - 1) {
+        nodes[i].next = [nodes[i + 1].id];
+      }
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      flow: { nodes } 
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: `Parsing tracking failure: ${error.message}` });
+  }
+});
