@@ -32,8 +32,19 @@ export function hyperStreamRelayPlugin(): Plugin {
 
       server.httpServer.on("upgrade", (req, socket, head) => {
         try {
-          const urlPath = req.url?.split("?")[0] ?? "";
+          // Parse URL to extract both the path and query params.
+          // The upgrade handler must remain synchronous (no await) — the
+          // Replit reverse-proxy drops the socket if handleUpgrade is deferred.
+          const parsedUrl = new URL(req.url ?? "/", "http://localhost");
+          const urlPath = parsedUrl.pathname;
           if (urlPath !== RELAY_PATH) return;
+
+          // Phase 2: model selection routed through Core Runtime.
+          // The client reads def.model.id, maps it to a realtime model name via
+          // resolvedRealtimeModel(), and passes it as ?model=<name>.
+          // The relay uses this instead of the hardcoded OPENAI_MODEL constant
+          // so model selection flows: definition → client → relay → OpenAI WS URL.
+          const modelParam = parsedUrl.searchParams.get("model") ?? OPENAI_MODEL;
 
           const apiKey = process.env.OPENAI_API_KEY;
           if (!apiKey) {
@@ -47,12 +58,12 @@ export function hyperStreamRelayPlugin(): Plugin {
             return;
           }
 
-          console.log("[hyperstream-relay] upgrading browser socket…");
+          console.log(`[hyperstream-relay] upgrading browser socket… model=${modelParam}`);
           const wss = new WebSocketServer({ noServer: true });
           wss.handleUpgrade(req, socket, head, (browserWs) => {
-            console.log("[hyperstream-relay] browser WS upgraded, connecting to OpenAI…");
+            console.log(`[hyperstream-relay] browser WS upgraded, connecting to OpenAI model=${modelParam}…`);
             const openaiWs = new WebSocket(
-              `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(OPENAI_MODEL)}`,
+              `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(modelParam)}`,
               {
                 headers: {
                   Authorization: `Bearer ${apiKey}`,

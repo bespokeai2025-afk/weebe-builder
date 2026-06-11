@@ -16,8 +16,12 @@ import {
 import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
 import { exportAgentJson } from "@/lib/builder/export-conversation-flow";
-import { compileRealtimePrompt } from "@/lib/builder/compile-realtime-prompt";
 import { resolveDeploymentMode } from "@/lib/runtime/adapter";
+import { exportAgentRuntimeDefinition } from "@/lib/runtime/export";
+import { extractOpenAIParams } from "@/lib/runtime/import";
+import type { OpenAIExecutionParams } from "@/lib/runtime/import";
+import { buildOpenAIToolDefinitions, executeToolCall } from "@/lib/runtime/tool-executor";
+import type { AgentRuntimeDefinition } from "@/lib/runtime/schema";
 import { importAgentJson } from "@/lib/builder/import-conversation-flow";
 import {
   deployAgentToRetell,
@@ -78,6 +82,9 @@ export function RetellDeployDialog() {
   const getAgentByRetellId = useServerFn(getMyAgentByRetellId);
   const fetchSpend = useServerFn(getMySpend);
   const recordCost = useServerFn(recordTestCallCost);
+  // Core Runtime — used exclusively by the OpenAI / HyperStream test-call path.
+  // Retell test calls never touch this server function.
+  const exportDefinition = useServerFn(exportAgentRuntimeDefinition);
   const qc = useQueryClient();
 
   const spendQ = useQuery({
@@ -431,10 +438,54 @@ export function RetellDeployDialog() {
       nextPlayTimeRef.current = 0;
     }
 
+    // ── Phase 1: Core Runtime — load and validate the agent definition ──────
+    // All session parameters (prompt, voice, model, tools) are sourced from
+    // the validated AgentRuntimeDefinition instead of raw React state.
+    // This is the single bypass point identified in the audit: previously the
+    // test call compiled the prompt inline and never touched the runtime layer.
+    //
+    // Maps Builder model IDs to OpenAI Realtime model IDs.
+    // All current Builder models map to "gpt-realtime".
+    // When new realtime models are released, add entries here — this is the
+    // only place in the codebase that needs updating for model routing.
+    function resolvedRealtimeModel(modelId: string): string {
+      const REALTIME_MODEL_MAP: Record<string, string> = {
+        "gpt-realtime": "gpt-realtime",
+        "gpt-4.1": "gpt-realtime",
+        "gpt-4.1-fast": "gpt-realtime",
+        "gpt-4.1-mini": "gpt-realtime",
+      };
+      return REALTIME_MODEL_MAP[modelId] ?? "gpt-realtime";
+    }
+
+    let params: OpenAIExecutionParams;
+    let runtimeDef: AgentRuntimeDefinition;
+    try {
+      // useServerFn erases the return type to unknown at the call site.
+      // The server function validates through AgentRuntimeDefinitionSchema.parse()
+      // before returning, so casting here is safe — a schema violation throws
+      // on the server and the catch block below surfaces it to the user.
+      runtimeDef = (await exportDefinition({ data: { id: rowId } })) as AgentRuntimeDefinition;
+      // extractOpenAIParams asserts def.provider === "OPENAI_NATIVE" and throws
+      // if runtimeConfig.openai is absent — both are Builder assembly bugs.
+      params = extractOpenAIParams(runtimeDef);
+    } catch (err) {
+      toast.error("Agent definition error", {
+        description: (err as Error).message,
+      });
+      setCalling(false);
+      return;
+    }
+
+    // ── Phase 2: Model selection through Core Runtime ──────────────────────
+    const realtimeModel = resolvedRealtimeModel(runtimeDef.model.id);
+
     try {
       const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(
-        `${wsProto}//${window.location.host}/api/hyperstream-relay?agentRowId=${encodeURIComponent(rowId)}`,
+        `${wsProto}//${window.location.host}/api/hyperstream-relay` +
+          `?agentRowId=${encodeURIComponent(rowId)}` +
+          `&model=${encodeURIComponent(realtimeModel)}`,
       );
       wsRelayRef.current = ws;
 
@@ -486,6 +537,20 @@ export function RetellDeployDialog() {
           .join(" ");
         console.log(`[HS ${ms}ms] ${direction} ${event}${pairs ? "  " + pairs : ""}`);
       };
+
+      // ── Phase 5: Runtime telemetry — Core Runtime metadata ───────────────
+      // Log the validated definition's identity fields once at session open.
+      // All subsequent logs are implicitly scoped to this session.
+      hsLog("   ", "core.runtime.activated", {
+        agentId: runtimeDef.agentId,
+        runtimeVersion: runtimeDef.runtimeVersion,
+        provider: runtimeDef.provider,
+        modelId: runtimeDef.model.id,
+        realtimeModel,
+        tools: runtimeDef.tools.length,
+        knowledgeBaseIds: runtimeDef.knowledgeBase.ids.length,
+        compiledPromptChars: params.systemPrompt.length,
+      });
 
       // Audio-append throttle: log a summary every 50 packets instead of
       // every single one (50ms chunks × 50 = ~2.5 s between log lines).
@@ -640,51 +705,56 @@ export function RetellDeployDialog() {
 
           if (msg.type === "relay.connected") {
             hsLog("IN ", "relay.connected");
-            // Configure the session. Wait for session.updated before
-            // streaming mic audio — avoids sending audio before OpenAI
-            // has applied the configuration.
+            // ── Phase 1: Session creation through Core Runtime ──────────────
+            // params.systemPrompt — compiled and schema-validated by
+            //   buildAgentRuntimeDefinition → AgentRuntimeDefinitionSchema.parse()
+            // params.voice — from runtimeConfig.openai.voice (typed, not raw state)
             //
-            // IMPORTANT: OpenAI Realtime session.update uses a FLAT schema —
-            // turn_detection, voice, and audio formats are all top-level fields
-            // on `session`, NOT nested under audio.input / audio.output.
-            // Using a nested schema causes OpenAI to silently ignore turn_detection,
-            // leaving the session in manual mode (no VAD → user speech never triggers
-            // a response after the greeting).
-            const compiledPrompt = compileRealtimePrompt(nodes, edges, settings, variables);
-            const updatePayload = JSON.stringify({
-                type: "session.update",
-                session: {
-                  // Schema derived from session.created response (gpt-realtime model).
-                  // This model uses nested audio.input/output — NOT the flat schema
-                  // in the public OpenAI docs. Fields outside this shape are rejected
-                  // with "unknown_parameter".
-                  type: "realtime",
-                  output_modalities: ["audio"],
-                  instructions: compiledPrompt,
-                  audio: {
-                    input: {
-                      turn_detection: {
-                        type: "server_vad",
-                        threshold: 0.5,
-                        prefix_padding_ms: 200,
-                        // 200 ms silence_duration_ms is the OpenAI minimum —
-                        // minimises dead time after the user stops speaking.
-                        silence_duration_ms: 200,
-                        create_response: true,
-                        interrupt_response: true,
-                      },
-                    },
-                    output: {
-                      voice: settings.openaiVoice ?? "alloy",
-                    },
+            // Phase 3: Tool definitions through Core Runtime
+            // buildOpenAIToolDefinitions converts def.tools (RetellTool[]) to the
+            // OpenAI Realtime function format.  Empty array when no tools defined —
+            // omitted from the payload so OpenAI doesn't reject an empty tools field.
+            //
+            // IMPORTANT: This model uses nested audio.input/output — NOT the flat
+            // schema in the public OpenAI docs. Fields outside this shape are
+            // rejected with "unknown_parameter".  Turn detection must be inside
+            // audio.input, voice inside audio.output.
+            const toolDefs = buildOpenAIToolDefinitions(runtimeDef.tools);
+            const sessionConfig: Record<string, unknown> = {
+              type: "realtime",
+              output_modalities: ["audio"],
+              instructions: params.systemPrompt,
+              audio: {
+                input: {
+                  turn_detection: {
+                    type: "server_vad",
+                    threshold: 0.5,
+                    prefix_padding_ms: 200,
+                    // 200 ms silence_duration_ms is the OpenAI minimum —
+                    // minimises dead time after the user stops speaking.
+                    silence_duration_ms: 200,
+                    create_response: true,
+                    interrupt_response: true,
                   },
                 },
-              });
+                output: {
+                  voice: params.voice,
+                },
+              },
+            };
+            if (toolDefs.length > 0) {
+              sessionConfig.tools = toolDefs;
+            }
+            const updatePayload = JSON.stringify({
+              type: "session.update",
+              session: sessionConfig,
+            });
             hsLog("OUT", "session.update", {
               payloadBytes: updatePayload.length,
-              instructionsChars: compiledPrompt.length,
-              voice: settings.openaiVoice ?? "alloy",
-              hasInstructions: compiledPrompt.length > 0,
+              instructionsChars: params.systemPrompt.length,
+              voice: params.voice,
+              hasInstructions: params.systemPrompt.length > 0,
+              tools: toolDefs.length,
             });
             ws.send(updatePayload);
             return;
@@ -788,6 +858,55 @@ export function RetellDeployDialog() {
               inputTokens: usage?.input_tokens,
               outputTokens: usage?.output_tokens,
             });
+            return;
+          }
+
+          // ── Phase 3: Tool execution through Core Runtime ──────────────────
+          // OpenAI fires this event when it has finished streaming all arguments
+          // for a function call.  Route through the Core Runtime tool executor,
+          // return the result as a function_call_output conversation item, then
+          // re-trigger response generation so the agent can continue the turn.
+          if (msg.type === "response.function_call_arguments.done") {
+            const toolName = typeof msg.name === "string" ? msg.name : "";
+            const callId = typeof msg.call_id === "string" ? msg.call_id : "";
+            const argsStr = typeof msg.arguments === "string" ? msg.arguments : "{}";
+            hsLog("IN ", "response.function_call_arguments.done", {
+              tool: toolName,
+              call_id: callId,
+              argsBytes: argsStr.length,
+            });
+            let toolArgs: unknown;
+            try {
+              toolArgs = JSON.parse(argsStr);
+            } catch {
+              toolArgs = {};
+            }
+            // executeToolCall always resolves — errors are returned as a result
+            // string so the session can continue instead of hanging.
+            executeToolCall(toolName, toolArgs, runtimeDef.tools)
+              .then((result) => {
+                if (ws.readyState !== WebSocket.OPEN) return;
+                const outputPayload = JSON.stringify({
+                  type: "conversation.item.create",
+                  item: {
+                    type: "function_call_output",
+                    call_id: callId,
+                    output: result.output,
+                  },
+                });
+                ws.send(outputPayload);
+                const resumePayload = JSON.stringify({ type: "response.create" });
+                ws.send(resumePayload);
+                hsLog("OUT", "function_call_output", {
+                  tool: toolName,
+                  call_id: callId,
+                  outputBytes: result.output.length,
+                  error: result.error ?? null,
+                });
+              })
+              .catch((err: unknown) => {
+                console.error("[hyperstream] executeToolCall failed:", err);
+              });
             return;
           }
 
