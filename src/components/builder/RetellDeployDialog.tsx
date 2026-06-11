@@ -848,12 +848,7 @@ export function RetellDeployDialog({
               instructions: params.systemPrompt,
               audio: {
                 input: {
-                  // NOTE: transcription: { model: "whisper-1" } intentionally
-                  // omitted.  Enabling Whisper forces OpenAI to wait ~700-800ms
-                  // for transcription before generating the response, adding that
-                  // latency to every user turn.  Agent transcripts are populated
-                  // for free via response.output_audio_transcript.delta, which is
-                  // generated in-line during audio synthesis with no extra delay.
+                  transcription: { model: "whisper-1" },
                   turn_detection: {
                     type: "server_vad",
                     threshold: 0.5,
@@ -1023,23 +1018,9 @@ export function RetellDeployDialog({
               speechDurationMs,
               commitSentByClient: false,
             });
-            // Update the "speaking…" bubble to show turn duration.
-            const stoppedItemId = typeof msg.item_id === "string" ? msg.item_id : "";
-            const durSec = speechStartedAt !== null
-              ? ((speechStoppedAt - speechStartedAt) / 1000).toFixed(1)
-              : null;
-            setTranscript((prev) => {
-              const targetId = `user-${stoppedItemId}`;
-              const idx = prev.findIndex((e) => e.id === targetId && e.partial);
-              if (idx === -1) return prev;
-              const updated = [...prev];
-              updated[idx] = {
-                ...updated[idx],
-                text: durSec ? `you spoke (${durSec}s)` : "you spoke",
-                partial: false,
-              };
-              return updated;
-            });
+            // Keep the "speaking…" bubble as partial — it will be replaced
+            // with the real transcript text when
+            // conversation.item.input_audio_transcription.completed fires.
             return;
           }
 
@@ -1235,16 +1216,24 @@ export function RetellDeployDialog({
             return;
           }
 
-          // User speech transcription (requires input_audio_transcription enabled
-          // in session config). Fires once per user turn after speech ends.
+          // User speech transcription — replaces the live "speaking…" bubble
+          // with the real transcribed text once Whisper finishes.
           if (msg.type === "conversation.item.input_audio_transcription.completed") {
             const text = typeof msg.transcript === "string" ? msg.transcript.trim() : "";
             const itemId = typeof msg.item_id === "string" ? msg.item_id : crypto.randomUUID();
             if (text) {
-              setTranscript((prev) => [
-                ...prev,
-                { id: `user-${itemId}`, role: "user", text, partial: false },
-              ]);
+              setTranscript((prev) => {
+                const targetId = `user-${itemId}`;
+                const idx = prev.findIndex((e) => e.id === targetId);
+                if (idx !== -1) {
+                  // Replace the placeholder bubble with the real transcript
+                  const updated = [...prev];
+                  updated[idx] = { id: targetId, role: "user", text, partial: false };
+                  return updated;
+                }
+                // Bubble not found (race) — append it
+                return [...prev, { id: targetId, role: "user", text, partial: false }];
+              });
             }
             return;
           }

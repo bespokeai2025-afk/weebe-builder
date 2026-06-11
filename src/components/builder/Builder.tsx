@@ -330,9 +330,13 @@ export function Builder({
   const [liveTranscript, setLiveTranscript] = useState<TxEntry[]>([]);
   const transcriptPanelRef = useRef<HTMLDivElement | null>(null);
 
-  // Force the right panel open and auto-scroll when a call is active.
+  // Force the right panel open when a call starts; auto-clear transcript when it ends.
   useEffect(() => {
-    if (callActive) setRightOpen(true);
+    if (callActive) {
+      setRightOpen(true);
+    } else {
+      setLiveTranscript([]);
+    }
   }, [callActive]);
 
   useEffect(() => {
