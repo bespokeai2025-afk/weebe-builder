@@ -199,15 +199,21 @@ Route to global_prompt when the section heading OR content matches ANY of these 
     "Prohibited Topics", "Compliance", "Escalation Rules", "Key Instructions", "Important Notes"
     → Standing instructions, constraints, and escalation paths the agent must always follow.
 
+  → All of these are REMOVED from the conversation flow nodes and injected into the global prompt.
+    They must NEVER appear as spoken dialogue in flow nodes.
+
+"discard" — content that must be COMPLETELY IGNORED and not sent to the agent at all.
+Route to discard when the section heading OR content describes meta-information about
+the AI's role, placement, or position in a sales funnel or business process:
+
   AI ROLE / FUNNEL POSITION — headings like: "Where AI Sits in the Funnel", "AI Role",
     "AI in the Funnel", "Funnel Position", "AI Placement", "Call Flow Overview",
     "How the AI Works", "System Overview", "Process Overview", "Workflow Overview",
-    "AI Responsibilities", "AI Scope", "AI vs Human", "Handoff Rules"
-    → Meta-descriptions of where/how the AI operates. Route to global_prompt so they inform
-      the agent's behaviour but NEVER appear as spoken dialogue nodes.
-
-  → All of these are REMOVED from the conversation flow nodes and injected into the global prompt.
-    They must NEVER appear as spoken dialogue in flow nodes.
+    "AI Responsibilities", "AI Scope", "AI vs Human", "Handoff Rules",
+    "Lead Stage", "Pipeline Stage", "Sales Stage", "Funnel Stage"
+    → These describe WHERE the AI sits in a human sales process — they are NOT instructions
+      for the agent and must NOT appear in the global prompt or any flow node.
+      DISCARD them entirely.
 
 "flow" — content the agent actually speaks or acts on:
   • Agent dialogue / script lines
@@ -225,6 +231,7 @@ OUTPUT ONLY valid JSON — no markdown, no code fences:
   "suggestedBeginMessage": "<the exact opening line the agent says at the start of a call, ready to be spoken aloud — empty string if not determinable>",
   "segments": [
     { "segId": "<id>", "destination": "global_prompt" },
+    { "segId": "<id>", "destination": "discard" },
     {
       "segId": "<id or v-N for virtual>",
       "virtual": false,
@@ -478,8 +485,10 @@ async function generateFlow(
   });
 
   // Collect global-prompt content — business overviews, agent settings, rules, context
+  // Segments with destination "discard" are silently dropped — they never reach the agent.
   const globalPromptParts: string[] = [];
   for (const s of enriched.segments) {
+    if (s.destination === "discard") continue; // fully discard — not even global_prompt
     if (s.destination === "global_prompt") {
       const text = contentMap[s.segId];
       if (text?.trim()) globalPromptParts.push(cleanDialogue(text.trim()));
