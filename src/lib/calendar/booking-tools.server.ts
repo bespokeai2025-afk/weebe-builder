@@ -82,7 +82,9 @@ export function buildBookingTools() {
           email: { type: "string", description: "Attendee email address" },
           phone: {
             type: "string",
-            description: "Attendee phone number in E.164 format e.g. +447700900000. Optional.",
+            description:
+              "Attendee phone number in E.164 format e.g. +447700900000. " +
+              "REQUIRED — you must collect this from the caller before calling this function.",
           },
           notes: {
             type: "string",
@@ -93,7 +95,7 @@ export function buildBookingTools() {
             description: "Caller's IANA timezone e.g. Europe/London. Optional but recommended.",
           },
         },
-        required: ["start", "name", "email"],
+        required: ["start", "name", "email", "phone"],
       },
     },
     {

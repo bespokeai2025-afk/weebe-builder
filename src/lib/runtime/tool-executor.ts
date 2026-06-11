@@ -123,9 +123,13 @@ export async function executeToolCall(
   }
 
   // ── Custom / webhook tools ──────────────────────────────────────────────────
-  // For tools backed by a webhook URL, the Retell tool shape includes a
-  // `speak_during_execution` and `api_url` field.  Invoke if present.
-  const apiUrl = typeof tool.api_url === "string" ? tool.api_url.trim() : "";
+  // Retell builder tools use `url` (booking-tools.server.ts / custom type).
+  // Some tool definitions use `api_url` (older format).  Check both so
+  // HyperStream can invoke the same Cal.com booking endpoints as Retell.
+  const apiUrl = (
+    typeof tool.url === "string" ? tool.url :
+    typeof tool.api_url === "string" ? tool.api_url : ""
+  ).trim();
   if (apiUrl) {
     try {
       const resp = await fetch(apiUrl, {

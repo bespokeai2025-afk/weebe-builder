@@ -17,7 +17,7 @@ const Body = z.object({
   start: z.string().min(1),
   name: z.string().min(1).max(200),
   email: z.string().email().max(255),
-  phone: z.string().max(40).optional(),
+  phone: z.string().min(1).max(40),
   notes: z.string().max(1000).optional(),
   timezone: z.string().min(1).max(64).optional(),
   retell_call_id: z.string().max(128).optional(),
