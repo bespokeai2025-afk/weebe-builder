@@ -172,34 +172,52 @@ function buildEnrichmentPrompt(
   }
 
   lines.push(`
-For each input segment, output ONE enriched node. Rules:
+FIRST: classify every segment. Each segment has exactly one destination:
+
+"global_prompt" — content the agent needs to KNOW (not say):
+  • Business overview, company background, about-us text
+  • Agent name, role, persona, tone, personality settings
+  • Product / service descriptions, pricing, feature lists
+  • Behavioral rules, tone instructions, style guidelines
+  • Compliance constraints, prohibited topics, escalation rules
+  • Any reference information, FAQs, or standing instructions
+  → These segments are REMOVED from the conversation flow and collected into the global prompt.
+
+"flow" — content the agent actually speaks or acts on:
+  • Agent dialogue / script lines
+  • Questions to ask the customer
+  • Objection handling responses
+  • Booking, scheduling, or action steps
+  • Call opening, qualification, and closing dialogue
+  → These segments become conversation nodes.
 
 OUTPUT ONLY valid JSON — no markdown, no code fences:
 {
   "title": "<2-4 word overall flow title>",
-  "globalPromptSuggestion": "<agent identity, company context, behavioral rules, compliance — NOT dialogue steps. Empty string if none.>",
-  "nodes": [
+  "segments": [
+    { "segId": "<id>", "destination": "global_prompt" },
     {
-      "segId": "<original segment id>",
+      "segId": "<id>",
+      "destination": "flow",
       "label": "<3-6 word node name>",
       "kind": "conversation | logic_split | ending",
       "transitions": [
-        { "id": "<unique t-id>", "condition": "default", "target": "<segId of next segment>" }
+        { "id": "<unique t-id>", "condition": "default", "target": "<segId of a FLOW segment>" }
       ]
     }
   ]
 }
 
 CRITICAL RULES:
-- Output EXACTLY one node per input segment — never merge or split segments
-- Segment content becomes the node's dialogue verbatim — do not change it
-- kind "conversation": agent dialogue or instruction
-- kind "logic_split": decision or branching point (multiple transitions with specific conditions)
-- kind "ending": only the final segment — "transitions": []
-- For logic_split, write specific condition strings: e.g. "Customer interested" / "Customer declines"
-- All transition "target" values must reference a valid segId from the input
-- Transition ids must be unique across the entire flow
-- The last segment MUST be kind "ending"`);
+- Every input segment MUST appear exactly once in the output — no omissions
+- "global_prompt" segments: only segId + destination required
+- "flow" segments: segId, destination, label, kind, transitions all required
+- Transition "target" values must ONLY reference segIds of OTHER "flow" segments — never "global_prompt"
+- Transition ids must be unique across the entire output
+- The final "flow" segment must be kind "ending" with "transitions": []
+- kind "logic_split": multiple transitions each with a specific human-readable condition string
+- kind "conversation": single transition with "condition": "default"
+- If ALL segments are context/reference material, still produce at least one "flow" ending node`);
 
   return lines.join("\n");
 }
@@ -272,48 +290,63 @@ async function generateFlow(
 
   const enriched = JSON.parse(aiJson.choices[0].message.content) as {
     title: string;
-    globalPromptSuggestion?: string;
-    nodes: Array<{
-      segId: string;
-      label: string;
-      kind: string;
-      transitions: Array<{ id: string; condition: string; target: string }>;
-    }>;
+    segments: Array<
+      | { segId: string; destination: "global_prompt" }
+      | {
+          segId: string;
+          destination: "flow";
+          label: string;
+          kind: string;
+          transitions: Array<{ id: string; condition: string; target: string }>;
+        }
+    >;
   };
 
-  if (!Array.isArray(enriched.nodes) || enriched.nodes.length === 0)
-    throw new Error("Enrichment returned no nodes");
+  if (!Array.isArray(enriched.segments) || enriched.segments.length === 0)
+    throw new Error("Enrichment returned no segments");
 
-  // ── Step 3: Build FlowNode + Edge objects ────────────────────────────────
+  // ── Step 3: Split into global-prompt content vs flow nodes ───────────────
   const VALID_KINDS = new Set([
     "conversation", "function", "call_transfer", "press_digit",
     "logic_split", "agent_transfer", "sms", "extract_variable",
     "code", "ending", "note",
   ]);
 
-  // segId → prefixed nodeId
-  const segToNodeId: Record<string, string> = {};
-  enriched.nodes.forEach((n, idx) => {
-    segToNodeId[n.segId] = `pdf-${n.segId ?? `n${idx + 1}`}`;
-  });
-  // Also map by index for fallback
-  segments.forEach((s, idx) => {
-    if (!segToNodeId[s.id]) segToNodeId[s.id] = `pdf-seg${idx}`;
-  });
-
-  // Build a content map from original segments
-  const contentMap: Record<string, { content: string; rawType: Segment["type"] }> = {};
+  // Build a content map from the original state-machine segments
+  const contentMap: Record<string, string> = {};
   segments.forEach((s) => {
-    contentMap[s.id] = { content: s.header ? `${s.header}\n${s.content}` : s.content, rawType: s.type };
+    contentMap[s.id] = s.header ? `${s.header}\n${s.content}` : s.content;
   });
 
-  const nodes = enriched.nodes.map((n, idx) => {
+  // Collect global-prompt content — business overviews, agent settings, rules, context
+  const globalPromptParts: string[] = [];
+  for (const s of enriched.segments) {
+    if (s.destination === "global_prompt") {
+      const text = contentMap[s.segId];
+      if (text?.trim()) globalPromptParts.push(text.trim());
+    }
+  }
+  const globalPromptSuggestion = globalPromptParts.join("\n\n");
+
+  // Keep only flow segments for node building
+  const flowSegments = enriched.segments.filter(
+    (s): s is Extract<typeof s, { destination: "flow" }> => s.destination === "flow",
+  );
+
+  if (flowSegments.length === 0)
+    throw new Error("No conversation flow segments found — all content was classified as context/settings");
+
+  // segId → prefixed nodeId (flow segments only)
+  const segToNodeId: Record<string, string> = {};
+  flowSegments.forEach((s, idx) => {
+    segToNodeId[s.segId] = `pdf-${s.segId ?? `n${idx + 1}`}`;
+  });
+
+  const nodes = flowSegments.map((n, idx) => {
     const nodeId = segToNodeId[n.segId] ?? `pdf-n${idx + 1}`;
-    const isLast = idx === enriched.nodes.length - 1;
+    const isLast = idx === flowSegments.length - 1;
     let kind = VALID_KINDS.has(n.kind) ? n.kind : "conversation";
     if (isLast && kind !== "ending") kind = "ending";
-
-    const segContent = contentMap[n.segId];
 
     return {
       id: nodeId,
@@ -322,7 +355,7 @@ async function generateFlow(
       data: {
         kind,
         label: String(n.label ?? `Step ${idx + 1}`),
-        dialogue: segContent?.content ?? "",
+        dialogue: contentMap[n.segId] ?? "",
         isStart: idx === 0 ? true : undefined,
         transitions: [] as Array<{ id: string; condition: string; target: string | null }>,
       },
@@ -374,11 +407,12 @@ async function generateFlow(
 
   return {
     title: String(enriched.title ?? "Imported Script"),
-    globalPromptSuggestion: enriched.globalPromptSuggestion?.trim() ?? "",
+    globalPromptSuggestion,
     nodes: cleanNodes,
     edges,
     nodeCount: cleanNodes.length,
     segmentCount: segments.length,
+    globalPromptSegmentCount: globalPromptParts.length,
   };
 }
 

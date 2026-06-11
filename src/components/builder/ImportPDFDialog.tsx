@@ -56,6 +56,8 @@ interface FlowResult {
   nodes: FlowNode[];
   edges: Edge[];
   nodeCount: number;
+  segmentCount: number;
+  globalPromptSegmentCount: number;
 }
 
 type Phase = "idle" | "scanning" | "select" | "generating" | "preview";
@@ -472,6 +474,9 @@ export function ImportPDFDialog({
                 <p className="text-[11px] text-muted-foreground">
                   {flowResult.nodeCount} nodes · {flowResult.edges.length} transitions
                   {branchCount > 0 && ` · ${branchCount} branch${branchCount > 1 ? "es" : ""}`}
+                  {flowResult.globalPromptSegmentCount > 0 && (
+                    <span className="text-violet-400/80"> · {flowResult.globalPromptSegmentCount} → global prompt</span>
+                  )}
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
