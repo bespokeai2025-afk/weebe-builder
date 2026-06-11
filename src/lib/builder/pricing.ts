@@ -288,6 +288,12 @@ export const HYPERSTREAM_MODELS: HyperStreamModelInfo[] = [
     recommended: true,
   },
   {
+    id: "gpt-4.1",
+    label: "GPT-4.1 Realtime",
+    desc: "Latest GPT-4.1 via the realtime engine",
+    costPerMin: 0.07,
+  },
+  {
     id: "gpt-4o-mini-realtime-preview",
     label: "GPT-4o Mini Realtime",
     desc: "Fastest & cheapest — ideal for simple flows",

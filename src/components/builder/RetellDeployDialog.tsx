@@ -456,15 +456,20 @@ export function RetellDeployDialog() {
     };
 
     // ── Phase 1: Core Runtime — load and validate the agent definition ──────
-    // Maps Builder model IDs to OpenAI Realtime model IDs.
-    // All current IDs map to "gpt-realtime".  Add entries here when new
-    // realtime models are released — this is the only update point.
+    // Maps Builder/panel model IDs → OpenAI Realtime API model IDs.
+    // Native realtime IDs pass through unchanged.
+    // Non-realtime IDs (gpt-4.1, etc.) map to their realtime equivalent.
+    // Always route through this function — never pass a raw panel ID to OpenAI.
     function resolvedRealtimeModel(modelId: string): string {
       const REALTIME_MODEL_MAP: Record<string, string> = {
-        "gpt-realtime": "gpt-realtime",
-        "gpt-4.1": "gpt-realtime",
-        "gpt-4.1-fast": "gpt-realtime",
-        "gpt-4.1-mini": "gpt-realtime",
+        // Native realtime IDs — pass through as-is
+        "gpt-4o-realtime-preview":      "gpt-4o-realtime-preview",
+        "gpt-4o-mini-realtime-preview": "gpt-4o-mini-realtime-preview",
+        // Builder / panel IDs that map to a realtime equivalent
+        "gpt-realtime":  "gpt-realtime",
+        "gpt-4.1":       "gpt-realtime",
+        "gpt-4.1-fast":  "gpt-realtime",
+        "gpt-4.1-mini":  "gpt-realtime",
       };
       return REALTIME_MODEL_MAP[modelId] ?? "gpt-realtime";
     }
@@ -519,17 +524,17 @@ export function RetellDeployDialog() {
     }
 
     // ── Phase 2: Model selection through Core Runtime ──────────────────────
-    // Prefer settings.openaiRealtimeModel (set via the global panel LLM
-    // selector).  Falls back to resolvedRealtimeModel() for legacy agents
-    // that pre-date the per-model selector field.
+    // Always run through resolvedRealtimeModel so non-native IDs like "gpt-4.1"
+    // are correctly mapped to their OpenAI Realtime API equivalent ("gpt-realtime").
+    // Panel selector value takes priority over the builder's base model ID.
     const modelResolveStart = performance.now();
-    const realtimeModel =
-      settings.openaiRealtimeModel ?? resolvedRealtimeModel(runtimeDef.model.id);
+    const panelModelId = settings.openaiRealtimeModel;
+    const realtimeModel = resolvedRealtimeModel(panelModelId ?? runtimeDef.model.id);
     hsLog("   ", "runtime.model.resolve", {
       durationMs: (performance.now() - modelResolveStart).toFixed(0),
       builderId: runtimeDef.model.id,
+      panelModelId: panelModelId ?? "(none — legacy fallback)",
       realtimeModel,
-      source: settings.openaiRealtimeModel ? "panel-selector" : "legacy-mapping",
     });
 
     try {
