@@ -578,6 +578,9 @@ export function RetellDeployDialog() {
       let speechStartedAt:    number | null = null;   // speech_started (TTFA ref, cleared after use)
       let responseCreatedAt:  number | null = null;   // response.created → response.done
       let toolCallStartedAt:  number | null = null;   // fn_call received → output sent
+      // True only between response.created and response.done / response.cancelled.
+      // Guards response.cancel so we never send it when no response is in flight.
+      let isResponseInProgress = false;
       // Turn timeline refs — persist from speech_started → response.done so the
       // timeline report at response.done has all its anchor points available.
       let turnSpeechStartAt: number | null = null;   // kept until response.done
@@ -891,7 +894,10 @@ export function RetellDeployDialog() {
             // NOTE: input_audio_buffer.commit is NOT sent here or anywhere.
             //   In server_vad mode OpenAI auto-commits the buffer when VAD
             //   detects end-of-speech — the client never sends commit.
-            if (currentResponseId && ws.readyState === WebSocket.OPEN) {
+            // Guard: only cancel if a response is actively in-flight.
+            // currentResponseId persists after response.done, so checking it
+            // alone caused "Cancellation failed: no active response found".
+            if (isResponseInProgress && currentResponseId && ws.readyState === WebSocket.OPEN) {
               const cancelPayload = JSON.stringify({ type: "response.cancel" });
               ws.send(cancelPayload);
               hsLog("OUT", "response.cancel", {
@@ -951,6 +957,7 @@ export function RetellDeployDialog() {
           if (msg.type === "response.created") {
             const resp = msg.response as Record<string, unknown> | undefined;
             currentResponseId = (resp?.id as string) ?? "";
+            isResponseInProgress = true;
             deltaCountForResponse = 0;
             responseCreatedAt = performance.now();
             // Reset audio delta accumulators for this response.
@@ -993,6 +1000,7 @@ export function RetellDeployDialog() {
               ? (tDone - capturedResponseCreatedAt).toFixed(0)
               : "n/a";
             responseCreatedAt = null;
+            isResponseInProgress = false;
             hsLog("IN ", "response.done", {
               response_id: resp?.id,
               status: resp?.status,
@@ -1064,10 +1072,9 @@ export function RetellDeployDialog() {
           // being honoured by the model — check the session.update config.
           if (msg.type === "response.cancelled") {
             const resp = msg.response as Record<string, unknown> | undefined;
+            isResponseInProgress = false;
             hsLog("IN ", "response.cancelled", {
               response_id: resp?.id ?? msg.response_id,
-              // interruptConfirmed: barge-in worked — scheduler was reset on
-              // speech_started, response was cancelled here.
               interruptConfirmed: true,
             });
             return;
