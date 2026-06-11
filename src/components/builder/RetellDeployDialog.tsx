@@ -369,6 +369,7 @@ export function RetellDeployDialog() {
         recordedCallRef.current = false;
         setElapsedSec(0);
         setTranscript([]);
+        setTranscriptOpen(true);
         setInCall(true);
         // Highlight the start node immediately.
         const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
@@ -834,11 +835,12 @@ export function RetellDeployDialog() {
               instructions: params.systemPrompt,
               audio: {
                 input: {
-                  // Enable server-side Whisper transcription of user audio.
-                  // conversation.item.input_audio_transcription.completed events
-                  // fire after each user turn — used for live transcript bubbles.
-                  // NOTE: must be inside audio.input, NOT at session root.
-                  transcription: { model: "whisper-1" },
+                  // NOTE: transcription: { model: "whisper-1" } intentionally
+                  // omitted.  Enabling Whisper forces OpenAI to wait ~700-800ms
+                  // for transcription before generating the response, adding that
+                  // latency to every user turn.  Agent transcripts are populated
+                  // for free via response.output_audio_transcript.delta, which is
+                  // generated in-line during audio synthesis with no extra delay.
                   turn_detection: {
                     type: "server_vad",
                     threshold: 0.5,
@@ -904,6 +906,7 @@ export function RetellDeployDialog() {
             setElapsedSec(0);
             setTranscript([]);
             setHsExactCostUsd(null);
+            setTranscriptOpen(true);
             setInCall(true);
             setCalling(false);
             const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
