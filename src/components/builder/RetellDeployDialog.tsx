@@ -1411,10 +1411,18 @@ export function RetellDeployDialog({
               const idx = arr.indexOf(src);
               if (idx !== -1) arr.splice(idx, 1);
             };
-            // Jitter buffer: start 25 ms ahead of now on the first chunk so
-            // single-packet network jitter can't cause audible gaps or crackle.
-            // 25 ms is sufficient for the local relay; 80 ms was over-provisioned.
-            const JITTER = 0.025;
+            // Two-tier jitter buffer:
+            // • First chunk (deltaCountForResponse === 1): 80 ms startup delay.
+            //   Barely perceptible but ensures the first few burst-delivered deltas
+            //   are already queued before playback starts, preventing an immediate
+            //   underrun when OpenAI delivers chunks slower than real-time.
+            // • Underrun recovery (scheduler fell behind ctx.currentTime): 250 ms.
+            //   When generation rate < real-time playback rate, the scheduler will
+            //   occasionally catch up to ctx.currentTime. A 250 ms recovery window
+            //   gives the model enough lead time so subsequent chunks arrive before
+            //   the buffer empties again — turning two audible ~120 ms cuts into a
+            //   single inaudible re-sync.
+            const JITTER = deltaCountForResponse === 1 ? 0.080 : 0.250;
             const startAt =
               nextPlayTimeRef.current > ctx.currentTime
                 ? nextPlayTimeRef.current
