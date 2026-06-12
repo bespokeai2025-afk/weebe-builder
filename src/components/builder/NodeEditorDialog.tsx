@@ -44,7 +44,7 @@ const BOOKING_PRESETS: {
     label: "Book on the Calendar (Cal.com)",
     defaultName: "book_appointment_cal",
     defaultDescription:
-      "Create a confirmed booking on the calendar. Only call this AFTER you have collected and verbally confirmed every required field. Required arguments: `name` (caller's full name, first + last), `email` (a valid email — spell it back letter-by-letter to confirm before calling; never guess), `start` (ISO 8601 start time taken from check_availability), `timezone` (IANA, e.g. America/New_York). Optional: `phone` (E.164 format if collected), `notes` (short summary). The API will REJECT the booking with a 400 if email is missing/invalid AND no phone is supplied — always have at least one valid contact method.",
+      "Create a confirmed booking on the calendar. Only call this AFTER you have collected and verbally confirmed EVERY required field. Required arguments: `name` (caller's full name, first + last), `email` (a valid email — spell it back letter-by-letter to confirm; never guess), `phone` (E.164 format — always collect, even if the caller is calling from a known number), `start` (ISO 8601 start time taken from check_availability), `timezone` (IANA, e.g. America/New_York — infer from the caller's area code if possible, then confirm verbally; ask if uncertain). Optional: `notes` (short summary). Always pass both email AND phone — the API rejects bookings missing both contact methods.",
   },
   {
     id: "reschedule_appointment",
@@ -70,7 +70,10 @@ const DEFAULT_PROMPT_TEMPLATE = (stepLabel: string) =>
     "1. Greet the caller briefly (only on the first turn).",
     "2. Ask the questions you need, one at a time — never stack multiple questions in one turn.",
     '3. For every piece of data you must capture (name, email, phone, address, dates, etc.) repeat it back to confirm before moving on. For emails, spell letter-by-letter (e.g. "j-o-h-n at gmail dot com").',
-    "4. If the caller mentions booking, scheduling, rescheduling, or cancelling, collect: full name, a valid email (spelled back), preferred day/time, and timezone — then call the appropriate booking tool with ALL required fields. Never call book_appointment without a confirmed email or phone.",
+    "4. If the caller mentions booking, scheduling, rescheduling, or cancelling:",
+    "   a. Collect full name, a valid email (spelled back letter-by-letter), and phone number (even if they are already calling from a known number — ask to confirm).",
+    "   b. Determine timezone: infer it from the caller's area code (e.g. 212 → America/New_York, 310 → America/Los_Angeles, 44 prefix → Europe/London) and say it aloud to confirm (e.g. 'I'll book that in Eastern Time — is that right?'). Ask if you cannot determine it.",
+    "   c. Then call the appropriate booking tool with ALL required fields. Never call book_appointment without both a confirmed email AND phone.",
     "5. Keep replies short (1–2 sentences). Sound human; avoid reading raw JSON, IDs, or URLs.",
     "",
     "## Rules",

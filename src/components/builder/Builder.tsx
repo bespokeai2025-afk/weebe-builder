@@ -29,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem } from "lucide-react";
+import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Volume2, Play } from "lucide-react";
 import { KnowledgeBaseSection } from "@/components/builder/KnowledgeBaseSection";
 import { SpeechSettingsSection } from "@/components/builder/SpeechSettingsSection";
 import { HyperStreamSettingsSection } from "@/components/builder/HyperStreamSettingsSection";
@@ -339,6 +339,8 @@ export function Builder({
   const [elVoiceQuery, setElVoiceQuery] = useState("");
   const [elVoiceResults, setElVoiceResults] = useState<Array<{ voice_id: string; name: string; description: string | null; labels: Record<string, string>; preview_url: string | null; public_owner_id?: string | null }>>([]);
   const [elVoiceSearching, setElVoiceSearching] = useState(false);
+  const [elPlayingId, setElPlayingId] = useState<string | null>(null);
+  const elAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (isElevenLabs && elVoiceResults.length === 0 && !elVoiceSearching) {
@@ -1231,26 +1233,57 @@ export function Builder({
                     {elVoiceResults.length > 0 && (
                       <div className="max-h-36 overflow-y-auto rounded border border-white/[0.06] divide-y divide-white/[0.04]">
                         {elVoiceResults.map((v) => (
-                          <button
+                          <div
                             key={v.voice_id}
-                            className="flex w-full items-start gap-2 px-2 py-1.5 text-left hover:bg-white/[0.04] transition-colors"
-                            onClick={() => {
-                              setSettings({ elevenLabsVoiceId: v.voice_id });
-                              setElVoiceResults([]);
-                              setElVoiceQuery("");
-                            }}
+                            className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-white/[0.04] transition-colors"
                           >
-                            <Check className={cn("h-2.5 w-2.5 mt-0.5 shrink-0", settings.elevenLabsVoiceId === v.voice_id ? "text-primary" : "text-transparent")} />
-                            <div className="min-w-0">
-                              <p className="text-[9px] font-medium leading-tight truncate">{v.name}</p>
-                              {v.description && <p className="text-[8px] text-muted-foreground leading-tight line-clamp-1">{v.description}</p>}
-                              {Object.keys(v.labels ?? {}).length > 0 && (
-                                <p className="text-[8px] text-muted-foreground/60 leading-tight">
-                                  {Object.values(v.labels).slice(0, 3).join(" · ")}
-                                </p>
-                              )}
-                            </div>
-                          </button>
+                            <button
+                              className="flex flex-1 items-start gap-1.5 text-left min-w-0"
+                              onClick={() => {
+                                setSettings({ elevenLabsVoiceId: v.voice_id });
+                                setElVoiceResults([]);
+                                setElVoiceQuery("");
+                                if (elAudioRef.current) { elAudioRef.current.pause(); elAudioRef.current = null; }
+                                setElPlayingId(null);
+                              }}
+                            >
+                              <Check className={cn("h-2.5 w-2.5 mt-0.5 shrink-0", settings.elevenLabsVoiceId === v.voice_id ? "text-primary" : "text-transparent")} />
+                              <div className="min-w-0">
+                                <p className="text-[9px] font-medium leading-tight truncate">{v.name}</p>
+                                {v.description && <p className="text-[8px] text-muted-foreground leading-tight line-clamp-1">{v.description}</p>}
+                                {Object.keys(v.labels ?? {}).length > 0 && (
+                                  <p className="text-[8px] text-muted-foreground/60 leading-tight">
+                                    {Object.values(v.labels).slice(0, 3).join(" · ")}
+                                  </p>
+                                )}
+                              </div>
+                            </button>
+                            {v.preview_url && (
+                              <button
+                                className="shrink-0 mt-0.5 text-muted-foreground hover:text-primary transition-colors"
+                                title={elPlayingId === v.voice_id ? "Stop preview" : "Play preview"}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (elPlayingId === v.voice_id) {
+                                    elAudioRef.current?.pause();
+                                    elAudioRef.current = null;
+                                    setElPlayingId(null);
+                                  } else {
+                                    if (elAudioRef.current) { elAudioRef.current.pause(); elAudioRef.current = null; }
+                                    const audio = new Audio(v.preview_url!);
+                                    elAudioRef.current = audio;
+                                    setElPlayingId(v.voice_id);
+                                    audio.play().catch(() => {});
+                                    audio.onended = () => { elAudioRef.current = null; setElPlayingId(null); };
+                                  }
+                                }}
+                              >
+                                {elPlayingId === v.voice_id
+                                  ? <Square className="h-2.5 w-2.5 fill-current" />
+                                  : <Play className="h-2.5 w-2.5" />}
+                              </button>
+                            )}
+                          </div>
                         ))}
                       </div>
                     )}
