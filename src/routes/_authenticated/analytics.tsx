@@ -21,6 +21,7 @@ import {
 import {
   BarChart3,
   PhoneCall,
+  Phone,
   Clock,
   Activity,
   XCircle,
@@ -331,6 +332,19 @@ function AnalyticsPage() {
               </button>
             </div>
           )}
+
+          {/* Live Calls — coming soon */}
+          <div className="px-6 pt-5">
+            <div className="flex items-center gap-2.5 mb-3">
+              <Phone className="h-4 w-4 text-emerald-400" />
+              <h2 className="text-sm font-semibold text-foreground">Live Calls</h2>
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">Coming Soon</span>
+            </div>
+            <div className="rounded-xl border border-white/[0.06] bg-card/30 px-5 py-6 flex items-center gap-3 text-sm text-muted-foreground">
+              <Phone className="h-4 w-4 shrink-0 text-emerald-400/50" />
+              <span>Live call monitoring with real-time transcripts is coming soon.</span>
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-3 px-6 pt-5 md:grid-cols-4">
             <StatCard label="Total calls" tone="primary" value={analytics.total} />
