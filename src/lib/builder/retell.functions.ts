@@ -1422,8 +1422,19 @@ export const assignNumberToAgent = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const body: Record<string, unknown> = {};
-    if (data.inboundAgentId !== undefined) body.inbound_agent_id = data.inboundAgentId;
-    if (data.outboundAgentId !== undefined) body.outbound_agent_id = data.outboundAgentId;
+    // Apply the same workspace-key guard as buy/import: only include agent IDs
+    // that actually exist in the workspace that owns the API key.
+    const agentIdSafe = await resolveAgentIdForWorkspace(
+      data.inboundAgentId ?? data.outboundAgentId,
+      data.agentRowId,
+      context.workspaceId,
+    );
+    if (data.inboundAgentId !== undefined) {
+      body.inbound_agent_id = agentIdSafe ? data.inboundAgentId : null;
+    }
+    if (data.outboundAgentId !== undefined) {
+      body.outbound_agent_id = agentIdSafe ? data.outboundAgentId : null;
+    }
     const resp = await retellFetchForAgent(
       `/update-phone-number/${encodeURIComponent(data.phoneNumber)}`,
       body,
@@ -1488,23 +1499,39 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
     }
     const prodKey = resolveProductionApiKey(explicitKey);
 
-    // The builder may have created the source agent in the workspace's own
-    // Retell account (using the workspace key). Use that same key when reading
-    // so Go Live can find the agent even when it's not in the platform workspace.
+    // The source agent may have been created in either the platform workspace
+    // (if no workspace key was configured at build time) or in the client's own
+    // Retell workspace (if the workspace key was set before the first builder
+    // deploy). Try the workspace key first; fall back to the platform key on 404
+    // so agents created before the workspace key was provisioned can still clone.
     const srcReadKey = explicitKey || undefined;
 
-    const agent = (await retellFetch(`/get-agent/${src}`, undefined, "GET", srcReadKey)) as Record<
-      string,
-      unknown
-    >;
+    // Fetch the source agent, tracking which key actually worked so the CF
+    // fetch can use the same one without an extra round-trip.
+    let actualSrcKey: string | undefined = srcReadKey;
+    let agent: Record<string, unknown>;
+    try {
+      agent = (await retellFetch(`/get-agent/${src}`, undefined, "GET", srcReadKey)) as Record<string, unknown>;
+    } catch (e) {
+      if (srcReadKey && e instanceof RetellApiError && e.status === 404) {
+        // Agent was created before workspace key was provisioned — fall back to platform key.
+        console.warn("[go-live] Agent not found with workspace key, retrying with platform key");
+        agent = (await retellFetch(`/get-agent/${src}`, undefined, "GET", undefined)) as Record<string, unknown>;
+        actualSrcKey = undefined;
+      } else {
+        throw e;
+      }
+    }
+
     const engine = (agent.response_engine ?? {}) as Record<string, unknown>;
     const srcCfId = String(engine.conversation_flow_id ?? "");
     if (!srcCfId) throw new Error("Source agent has no conversation flow");
+
     const cf = (await retellFetch(
       `/get-conversation-flow/${srcCfId}`,
       undefined,
       "GET",
-      srcReadKey,
+      actualSrcKey,
     )) as Record<string, unknown>;
 
     const cfBody = stripKeys(cf, READONLY_KEYS);
