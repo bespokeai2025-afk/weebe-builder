@@ -1062,15 +1062,60 @@ export const cloneCustomVoice = createServerFn({ method: "POST" })
       mimeType?: string;
     }) => input,
   )
-  .handler(async ({ data }) => {
-    const apiKey = process.env.RETELL_API_KEY;
-    if (!apiKey) throw new Error("RETELL_API_KEY is not configured");
+  .handler(async ({ data, context }) => {
     const name = data.voiceName.trim();
     if (!name) throw new Error("Voice name is required");
     if (!data.fileBase64) throw new Error("Audio file is required");
 
+    const workspaceId = (context as any).workspaceId ?? null;
     const bytes = Buffer.from(data.fileBase64, "base64");
     const blob = new Blob([bytes], { type: data.mimeType || "audio/mpeg" });
+
+    // Prefer cloning directly via ElevenLabs using the workspace key — result lives
+    // in their ElevenLabs account and is returned as 11labs-{id}.
+    let elKey: string | null = process.env.ELEVENLABS_API_KEY ?? null;
+    if (workspaceId) {
+      try {
+        const { data: ws } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("elevenlabs_api_key" as never)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        const wsKey = (ws as any)?.elevenlabs_api_key ?? null;
+        if (wsKey) elKey = wsKey;
+      } catch { /* column may not exist yet */ }
+    }
+
+    if (elKey) {
+      // Clone directly via ElevenLabs API
+      const elForm = new FormData();
+      elForm.append("name", name);
+      elForm.append("files", blob, data.fileName || "sample.mp3");
+
+      const elRes = await fetch("https://api.elevenlabs.io/v1/voices/add", {
+        method: "POST",
+        headers: { "xi-api-key": elKey },
+        body: elForm,
+      });
+      const elText = await elRes.text();
+      let elParsed: Record<string, unknown> = {};
+      try { elParsed = elText ? JSON.parse(elText) : {}; } catch { /* raw */ }
+      if (!elRes.ok) {
+        const msg = (elParsed.detail as string | undefined) || elText || elRes.statusText;
+        throw new Error(`ElevenLabs clone failed (${elRes.status}): ${msg}`);
+      }
+      const elVoiceId = String(elParsed.voice_id ?? "");
+      if (!elVoiceId) throw new Error("ElevenLabs did not return a voice ID");
+      return {
+        voiceId: `11labs-${elVoiceId}`,
+        voiceName: name,
+        previewAudioUrl: null,
+      };
+    }
+
+    // Fallback: clone via Retell's /clone-voice endpoint (uses platform ElevenLabs account)
+    const retellKey = process.env.RETELL_API_KEY;
+    if (!retellKey) throw new Error("No ElevenLabs key configured — add one in Settings → Integrations, or contact your admin");
 
     const form = new FormData();
     form.append("voice_name", name);
@@ -1079,16 +1124,12 @@ export const cloneCustomVoice = createServerFn({ method: "POST" })
 
     const res = await fetch(`${RETELL_BASE}/clone-voice`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: { Authorization: `Bearer ${retellKey}` },
       body: form,
     });
     const text = await res.text();
     let parsed: Record<string, unknown> = {};
-    try {
-      parsed = text ? JSON.parse(text) : {};
-    } catch {
-      /* keep raw */
-    }
+    try { parsed = text ? JSON.parse(text) : {}; } catch { /* raw */ }
     if (!res.ok) {
       const message = (parsed.message as string | undefined) || text || res.statusText;
       throw new Error(`Voice clone failed (${res.status}): ${message}`);
