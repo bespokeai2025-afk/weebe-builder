@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Phone, PhoneIncoming, PhoneOutgoing, Globe, Mic, MicOff, Power } from "lucide-react";
+import { Phone, PhoneIncoming, PhoneOutgoing, Globe, Mic, MicOff, Power, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { LiveCall } from "@/lib/dashboard/analytics.functions";
 
@@ -15,6 +15,7 @@ function elapsed(startMs: number | null): string {
 function CallCard({ call }: { call: LiveCall }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const [duration, setDuration] = useState("0s");
+  const isCompleted = call.status === "completed";
 
   useEffect(() => {
     setDuration(elapsed(call.start_timestamp));
@@ -36,16 +37,22 @@ function CallCard({ call }: { call: LiveCall }) {
       : (call.to_number ?? "Unknown");
 
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-card/60 overflow-hidden">
+    <div className={`rounded-xl border overflow-hidden ${
+      isCompleted
+        ? "border-white/[0.06] bg-card/40"
+        : "border-white/[0.08] bg-card/60"
+    }`}>
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15">
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+            isCompleted ? "bg-slate-500/15" : "bg-emerald-500/15"
+          }`}>
             {isWebCall ? (
-              <Globe className="h-3.5 w-3.5 text-emerald-400" />
+              <Globe className={`h-3.5 w-3.5 ${isCompleted ? "text-slate-400" : "text-emerald-400"}`} />
             ) : isInbound ? (
-              <PhoneIncoming className="h-3.5 w-3.5 text-emerald-400" />
+              <PhoneIncoming className={`h-3.5 w-3.5 ${isCompleted ? "text-slate-400" : "text-emerald-400"}`} />
             ) : (
-              <PhoneOutgoing className="h-3.5 w-3.5 text-emerald-400" />
+              <PhoneOutgoing className={`h-3.5 w-3.5 ${isCompleted ? "text-slate-400" : "text-emerald-400"}`} />
             )}
           </span>
           <div className="min-w-0">
@@ -55,10 +62,17 @@ function CallCard({ call }: { call: LiveCall }) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[10px] tabular-nums text-muted-foreground">{duration}</span>
-          <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            LIVE
-          </span>
+          {isCompleted ? (
+            <span className="flex items-center gap-1 rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+              <CheckCircle className="h-2.5 w-2.5" />
+              ENDED
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              LIVE
+            </span>
+          )}
         </div>
       </div>
 
@@ -68,10 +82,21 @@ function CallCard({ call }: { call: LiveCall }) {
         style={{ maxHeight: 220 }}
       >
         {call.transcript.length === 0 ? (
-          <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
-            <Mic className="h-3.5 w-3.5 animate-pulse" />
-            Waiting for first utterance…
-          </div>
+          isCompleted ? (
+            <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground/60">
+              <Mic className="h-3.5 w-3.5" />
+              No transcript recorded
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
+              <span className="flex gap-0.5">
+                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0s_infinite]" />
+                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
+                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
+              </span>
+              <span>Recording in progress — transcript appears when the call ends</span>
+            </div>
+          )
         ) : (
           call.transcript.map((line, i) => (
             <div
@@ -93,8 +118,6 @@ function CallCard({ call }: { call: LiveCall }) {
 }
 
 export function LiveCallsPanel() {
-  // Always starts enabled when the analytics page mounts — the SSE closes
-  // automatically when the page is left (component unmounts).
   const [enabled, setEnabled] = useState<boolean>(true);
   const [calls, setCalls] = useState<LiveCall[]>([]);
   const [status, setStatus] = useState<"connecting" | "live" | "off" | "error">("off");
@@ -150,7 +173,6 @@ export function LiveCallsPanel() {
         esRef.current = null;
         if (!active) return;
         setStatus("error");
-        // auto-reconnect after 3s
         setTimeout(() => { if (active) connect(); }, 3000);
       };
     }
@@ -166,7 +188,9 @@ export function LiveCallsPanel() {
     };
   }, [enabled]);
 
-  const count = calls.length;
+  const liveCalls = calls.filter((c) => c.status === "live");
+  const completedCalls = calls.filter((c) => c.status === "completed");
+  const liveCount = liveCalls.length;
 
   return (
     <div className="px-6 pt-5">
@@ -174,10 +198,10 @@ export function LiveCallsPanel() {
         <Phone className="h-4 w-4 text-emerald-400" />
         <h2 className="text-sm font-semibold text-foreground">Live Calls</h2>
 
-        {enabled && count > 0 && (
+        {enabled && liveCount > 0 && (
           <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {count} active
+            {liveCount} active
           </span>
         )}
 
@@ -185,7 +209,7 @@ export function LiveCallsPanel() {
           <span className="text-[10px] text-muted-foreground/60">connecting…</span>
         )}
 
-        {enabled && status === "live" && count === 0 && (
+        {enabled && status === "live" && liveCount === 0 && completedCalls.length === 0 && (
           <span className="text-[10px] text-muted-foreground/60">● streaming</span>
         )}
 
@@ -212,16 +236,32 @@ export function LiveCallsPanel() {
           <MicOff className="h-4 w-4 shrink-0" />
           <span>Live call monitoring is off. Press <strong>On</strong> to start streaming transcripts.</span>
         </div>
-      ) : count === 0 ? (
+      ) : calls.length === 0 ? (
         <div className="rounded-xl border border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
           <MicOff className="h-4 w-4 shrink-0" />
           <span>No active calls right now. Transcripts appear here the moment a call starts.</span>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {calls.map((call) => (
-            <CallCard key={call.call_id} call={call} />
-          ))}
+        <div className="space-y-4">
+          {liveCalls.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {liveCalls.map((call) => (
+                <CallCard key={call.call_id} call={call} />
+              ))}
+            </div>
+          )}
+          {completedCalls.length > 0 && (
+            <div>
+              <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider mb-2 px-0.5">
+                Recent calls — last 20 min
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {completedCalls.map((call) => (
+                  <CallCard key={call.call_id} call={call} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -304,6 +304,7 @@ export const getLiveCalls = createServerFn({ method: "GET" })
         to_number: c.to_number ?? null,
         start_timestamp: c.start_timestamp ?? null,
         transcript: structured,
+        status: "live" as const,
       };
     });
 
@@ -320,4 +321,6 @@ export interface LiveCall {
   to_number: string | null;
   start_timestamp: number | null;
   transcript: { role: "agent" | "user"; content: string }[];
+  /** "live" = still ringing/in-progress on Retell; "completed" = ended, transcript from DB */
+  status: "live" | "completed";
 }
