@@ -147,3 +147,77 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
 
     return { configured: true, agentIds, calls, agentNames, error };
   });
+
+/**
+ * Fetch all currently-ongoing calls across the workspace's deployed agents.
+ * Polls Retell /v2/list-calls filtered to call_status=ongoing.
+ * Returns lightweight call objects with live transcript lines.
+ */
+export const getLiveCalls = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) return { calls: [] as LiveCall[] };
+
+    const sb = supabase as any;
+    const { data: wsSettings } = await sb
+      .from("workspace_settings")
+      .select("retell_workspace_id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    const apiKey =
+      (wsSettings?.retell_workspace_id as string | undefined)?.trim() ||
+      process.env.RETELL_API_KEY;
+    if (!apiKey) return { calls: [] as LiveCall[] };
+
+    // Resolve agent names
+    const agentNames: Record<string, string> = {};
+    try {
+      const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey);
+      for (const a of agentList ?? []) {
+        if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
+      }
+    } catch { /* ignore */ }
+
+    // Fetch ongoing calls
+    let raw: any[] = [];
+    try {
+      const res = await retellFetch<any>(
+        "/v2/list-calls",
+        { filter_criteria: { call_status: ["ongoing"] }, limit: 20, sort_order: "descending" },
+        "POST",
+        apiKey,
+      );
+      raw = Array.isArray(res) ? res : (res?.calls ?? []);
+    } catch { /* ignore — returns empty */ }
+
+    const calls: LiveCall[] = raw.map((c: any) => ({
+      call_id: c.call_id ?? "",
+      agent_id: c.agent_id ?? "",
+      agent_name: agentNames[c.agent_id] ?? "Unknown agent",
+      direction: c.direction ?? c.call_direction ?? "inbound",
+      call_type: c.call_type ?? "phone_call",
+      from_number: c.from_number ?? c.caller_id ?? null,
+      to_number: c.to_number ?? null,
+      start_timestamp: c.start_timestamp ?? null,
+      transcript: (c.transcript_object ?? []).map((t: any) => ({
+        role: t.role as "agent" | "user",
+        content: t.content ?? "",
+      })),
+    }));
+
+    return { calls };
+  });
+
+export interface LiveCall {
+  call_id: string;
+  agent_id: string;
+  agent_name: string;
+  direction: string;
+  call_type: string;
+  from_number: string | null;
+  to_number: string | null;
+  start_timestamp: number | null;
+  transcript: { role: "agent" | "user"; content: string }[];
+}

@@ -38,6 +38,7 @@ import {
 } from "@/components/dashboard/PageShell";
 import { Button } from "@/components/ui/button";
 import { getRetellAnalytics } from "@/lib/dashboard/analytics.functions";
+import { LiveCallsPanel } from "@/components/dashboard/LiveCallsPanel";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
   head: () => ({ meta: [{ title: "Analytics" }] }),
@@ -330,6 +331,8 @@ function AnalyticsPage() {
               </button>
             </div>
           )}
+
+          <LiveCallsPanel />
 
           <div className="grid grid-cols-2 gap-3 px-6 pt-5 md:grid-cols-4">
             <StatCard label="Total calls" tone="primary" value={analytics.total} />
