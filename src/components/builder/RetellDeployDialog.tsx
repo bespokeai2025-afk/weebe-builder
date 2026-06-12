@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { RetellWebClient } from "retell-client-js-sdk";
-import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap } from "lucide-react";
+import { Phone, PhoneOff, Loader2, RefreshCw, DollarSign, Plus, Download, Zap, ShieldCheck, ShieldAlert, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,8 @@ import {
 import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN, ELEVENLABS_PER_MIN } from "@/lib/builder/pricing";
+import { validateFlow } from "@/lib/builder/validate";
+import { cn } from "@/lib/utils";
 
 export type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
 
@@ -64,6 +66,7 @@ export function RetellDeployDialog({
   const bumpSaveVersion = useBuilderStore((s) => s.bumpSaveVersion);
 
   const [deploying, setDeploying] = useState<"create" | "update" | null>(null);
+  const [checkOpen, setCheckOpen] = useState(false);
   const [openaiConfirmOpen, setOpenaiConfirmOpen] = useState(false);
   const [openaiDeploying, setOpenaiDeploying] = useState(false);
   const [calling, setCalling] = useState(false);
@@ -147,6 +150,13 @@ export function RetellDeployDialog({
     ? Boolean(settings.deployedElevenLabsAgentId)
     : Boolean(settings.agentId);
 
+  const flowIssues = useMemo(
+    () => validateFlow(nodes, edges, variables),
+    [nodes, edges, variables],
+  );
+  const flowErrors = flowIssues.filter((i) => i.level === "error");
+  const flowWarnings = flowIssues.filter((i) => i.level === "warn");
+
   useEffect(() => {
     return () => {
       clientRef.current?.stopCall();
@@ -229,6 +239,17 @@ export function RetellDeployDialog({
   }
 
   async function handleDeploy(kind: "create" | "update") {
+    // Block deploy if flow has validation errors.
+    const { nodes: n, edges: e, variables: v } = useBuilderStore.getState();
+    const errs = validateFlow(n, e, v).filter((i) => i.level === "error");
+    if (errs.length > 0) {
+      setCheckOpen(true);
+      toast.error(`Fix ${errs.length} error${errs.length !== 1 ? "s" : ""} before deploying`, {
+        description: errs[0].message,
+      });
+      return;
+    }
+
     // OpenAI Realtime agents skip Retell provisioning entirely — show the
     // Enterprise Line confirmation dialog and save schema locally only.
     if (settings.voiceProvider === "OPENAI_REALTIME") {
@@ -1942,8 +1963,100 @@ export function RetellDeployDialog({
 
   return (
     <>
+      {/* Pre-flight checks Dialog */}
+      <Dialog open={checkOpen} onOpenChange={setCheckOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm">
+              Pre-flight checks
+              {flowErrors.length > 0 ? (
+                <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold text-destructive">
+                  {flowErrors.length} error{flowErrors.length !== 1 ? "s" : ""}
+                </span>
+              ) : flowWarnings.length > 0 ? (
+                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                  {flowWarnings.length} warning{flowWarnings.length !== 1 ? "s" : ""}
+                </span>
+              ) : (
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                  All clear
+                </span>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Errors block deployment. Warnings are advisory.
+            </DialogDescription>
+          </DialogHeader>
+          {flowIssues.length === 0 ? (
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 px-3 py-3 text-sm text-emerald-400">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              Agent is ready to deploy — no issues found.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {flowIssues.map((issue, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "flex items-start gap-2 rounded-lg px-3 py-2 text-xs",
+                    issue.level === "error"
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-amber-500/10 text-amber-400",
+                  )}
+                >
+                  {issue.level === "error" ? (
+                    <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  )}
+                  {issue.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Deploy / utility cluster */}
       <div className="flex items-center gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-1 py-0.5">
+        {/* Pre-flight shield */}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setCheckOpen(true)}
+          className={cn(
+            "relative !h-8 !w-8 !p-0",
+            flowErrors.length > 0
+              ? "text-destructive hover:bg-destructive/10 hover:text-destructive"
+              : flowWarnings.length > 0
+                ? "text-amber-400 hover:bg-amber-500/10 hover:text-amber-400"
+                : "text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-400",
+          )}
+          title={
+            flowErrors.length > 0
+              ? `${flowErrors.length} error${flowErrors.length !== 1 ? "s" : ""} — fix before deploying`
+              : flowWarnings.length > 0
+                ? `${flowWarnings.length} warning${flowWarnings.length !== 1 ? "s" : ""}`
+                : "All checks pass"
+          }
+        >
+          {flowErrors.length > 0 ? (
+            <ShieldAlert className="h-3.5 w-3.5" />
+          ) : (
+            <ShieldCheck className="h-3.5 w-3.5" />
+          )}
+          {flowIssues.length > 0 && (
+            <span
+              className={cn(
+                "absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[7px] font-bold leading-none text-white",
+                flowErrors.length > 0 ? "bg-destructive" : "bg-amber-500",
+              )}
+            >
+              {flowIssues.length}
+            </span>
+          )}
+        </Button>
+        <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
         {/* Test / Run agent */}
         {inCall || calling ? (
           <Button

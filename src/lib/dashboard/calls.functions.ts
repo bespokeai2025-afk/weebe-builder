@@ -33,6 +33,40 @@ export const listCalls = createServerFn({ method: "POST" })
     return rows ?? [];
   });
 
+export const listTestCalls = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({ limit: z.number().int().min(1).max(500).default(100) })
+      .parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    const { data: rows, error } = await sb
+      .from("calls")
+      .select("id, agent_id, agent_name, call_status, duration_seconds, started_at, ended_at, recording_url, transcript, call_summary, retell_call_id")
+      .eq("workspace_id", workspaceId)
+      .eq("to_number", "unknown")
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .limit(data.limit);
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as Array<{
+      id: string;
+      agent_id: string | null;
+      agent_name: string | null;
+      call_status: string | null;
+      duration_seconds: number | null;
+      started_at: string | null;
+      ended_at: string | null;
+      recording_url: string | null;
+      transcript: string | null;
+      call_summary: string | null;
+      retell_call_id: string | null;
+    }>;
+  });
+
 export const listCalledQualifiedRecords = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

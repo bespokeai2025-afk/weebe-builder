@@ -3,7 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
+  ChevronDown,
+  ChevronRight,
   Download,
+  FlaskConical,
   Phone,
   PhoneIncoming,
   PhoneOutgoing,
@@ -15,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
-import { listCalls } from "@/lib/dashboard/calls.functions";
+import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
@@ -99,16 +102,95 @@ type PanelTarget = {
   leadId?: string | null;
 };
 
+function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promise<infer T> ? T extends Array<infer U> ? U : never : never }) {
+  const [expanded, setExpanded] = useState(false);
+  const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
+  const label = c.agent_name ?? c.agent_id ?? "Builder test";
+  const when = c.started_at ? new Date(c.started_at).toLocaleString() : "—";
+
+  return (
+    <>
+      {recordingPlayer && (
+        <RecordingDialog
+          url={recordingPlayer.url}
+          contact={recordingPlayer.contact}
+          onClose={() => setRecordingPlayer(null)}
+        />
+      )}
+      <tr
+        className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer"
+        onClick={() => c.transcript && setExpanded((p) => !p)}
+      >
+        <td className="px-3 py-1.5">
+          {c.transcript ? (
+            expanded ? (
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            )
+          ) : (
+            <span className="h-3 w-3 inline-block" />
+          )}
+        </td>
+        <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{label}</td>
+        <td className="px-3 py-1.5">
+          <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
+            {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
+          </span>
+        </td>
+        <td className="px-3 py-1.5 text-muted-foreground tabular-nums text-[11px] whitespace-nowrap">
+          {fmtDuration(c.duration_seconds)}
+        </td>
+        <td className="max-w-[260px] px-3 py-1.5 text-xs text-muted-foreground">
+          <SummaryTooltip text={c.call_summary} lines={2} />
+        </td>
+        <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+          {c.recording_url ? (
+            <button
+              onClick={() => setRecordingPlayer({ url: c.recording_url!, contact: label })}
+              className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+            >
+              <PlayCircle className="h-3 w-3" /> Play
+            </button>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">—</span>
+          )}
+        </td>
+        <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{when}</td>
+      </tr>
+      {expanded && c.transcript && (
+        <tr className="border-b border-white/[0.04]">
+          <td colSpan={7} className="px-4 pb-3 pt-1">
+            <div className="rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap max-h-64 overflow-y-auto">
+              {c.transcript}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
 function CallsPage() {
+  const [tab, setTab] = useState<"live" | "test">("live");
+
   const fn = useServerFn(listCalls);
   const q = useQuery({
     queryKey: ["calls"],
     queryFn: () => fn({ data: {} }),
   });
   const rows = (q.data ?? []) as any[];
+
+  const testFn = useServerFn(listTestCalls);
+  const testQ = useQuery({
+    queryKey: ["test-calls"],
+    queryFn: () => testFn({ data: {} }),
+  });
+  const testRows = testQ.data ?? [];
+
   const completed = rows.filter((r) => r.call_status === "completed").length;
   const failed = rows.filter((r) => ["failed", "no_answer", "busy"].includes(r.call_status)).length;
-  const totalSec = rows.reduce((a, r) => a + (r.duration_seconds ?? 0), 0);
+  const totalSec = rows.reduce((a: number, r: any) => a + (r.duration_seconds ?? 0), 0);
 
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
@@ -128,6 +210,8 @@ function CallsPage() {
     });
   }
 
+  const isRefetching = tab === "live" ? q.isRefetching : testQ.isRefetching;
+
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
       {recordingPlayer && (
@@ -144,128 +228,232 @@ function CallsPage() {
           <h1 className="text-base font-semibold tracking-tight">Calls</h1>
           <p className="mt-0.5 text-[11px] text-muted-foreground">Call activity, transcripts and outcomes</p>
         </div>
-        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => q.refetch()} disabled={q.isRefetching}>
-          <RefreshCw className={cn("h-3.5 w-3.5", q.isRefetching && "animate-spin")} />
-          Refresh
-        </Button>
-      </div>
-
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-5">
-        <KpiCard label="Total Calls" value={rows.length} icon={Phone} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-        <KpiCard label="Completed" value={completed} icon={Phone} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
-        <KpiCard label="Failed" value={failed} icon={Phone} iconBg="bg-red-500/15" iconColor="text-red-400" />
-        <KpiCard label="Total Talk" value={fmtDuration(totalSec)} icon={Phone} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
-      </div>
-
-      {/* Calls table */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-        {rows.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16">
-            <Phone className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">No calls yet</p>
-            <p className="text-xs text-muted-foreground">Outbound and inbound calls will be logged here.</p>
+        <div className="flex items-center gap-2">
+          {/* Tab switcher */}
+          <div className="flex items-center rounded-lg border border-white/[0.06] bg-card/40 p-0.5">
+            <button
+              onClick={() => setTab("live")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                tab === "live"
+                  ? "bg-primary/15 text-primary"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Phone className="h-3 w-3" />
+              Live Calls
+            </button>
+            <button
+              onClick={() => setTab("test")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                tab === "test"
+                  ? "bg-violet-500/15 text-violet-300"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <FlaskConical className="h-3 w-3" />
+              Test Calls
+              {testRows.length > 0 && (
+                <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                  {testRows.length}
+                </span>
+              )}
+            </button>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-white/[0.06] bg-card/30">
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
-                  <th className="sticky right-0 bg-card/80 px-3 py-2 w-20 backdrop-blur-sm"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((c: any) => {
-                  const inbound = c.call_type === "inbound";
-                  const rawContact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
-                  const contact = typeof rawContact === "string" && rawContact.startsWith("web:") ? "Web session" : rawContact;
-                  return (
-                    <tr key={c.id} onClick={() => openPanel(c)} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer">
-                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{contact}</td>
-                      <td className="px-3 py-1.5">
-                        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                          {inbound ? (
-                            <PhoneIncoming className="h-3 w-3 text-primary" />
-                          ) : (
-                            <PhoneOutgoing className="h-3 w-3" />
-                          )}
-                          {inbound ? "Inbound" : "Outbound"}
-                        </span>
-                        {(c.provider as string | null) === "ELEVENLABS" && (
-                          <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">
-                            VoxStream
-                          </span>
-                        )}
-                        {(c.to_number as string | null)?.startsWith("web:") && (
-                          <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">
-                            Web
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
-                      <td className="px-3 py-1.5">
-                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
-                          {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {c.sentiment ? (
-                          <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>
-                            {c.sentiment}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="max-w-[300px] px-3 py-1.5 text-xs text-muted-foreground align-middle">
-                        <SummaryTooltip text={c.call_summary} lines={2} />
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
-                      <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                        {c.recording_url ? (
-                          <button
-                            onClick={() => setRecordingPlayer({ url: c.recording_url, contact })}
-                            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-                          >
-                            <PlayCircle className="h-3 w-3" /> Play
-                          </button>
-                        ) : (
-                          <span className="text-[11px] text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
-                        {c.started_at ? new Date(c.started_at).toLocaleString() : "—"}
-                      </td>
-                      <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                        <div className="relative group/notes flex justify-center">
-                          <button
-                            onClick={() => openPanel(c)}
-                            className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
-                          >
-                            <StickyNote className="h-3.5 w-3.5" />
-                          </button>
-                          <span className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[10px] text-foreground shadow opacity-0 group-hover/notes:opacity-100 transition-opacity z-50">
-                            Notes
-                          </span>
-                        </div>
-                      </td>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => (tab === "live" ? q.refetch() : testQ.refetch())}
+            disabled={isRefetching}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isRefetching && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {tab === "live" ? (
+        <>
+          {/* KPI strip */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-5">
+            <KpiCard label="Total Calls" value={rows.length} icon={Phone} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+            <KpiCard label="Completed" value={completed} icon={Phone} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
+            <KpiCard label="Failed" value={failed} icon={Phone} iconBg="bg-red-500/15" iconColor="text-red-400" />
+            <KpiCard label="Total Talk" value={fmtDuration(totalSec)} icon={Phone} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+          </div>
+
+          {/* Calls table */}
+          <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+            {rows.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-16">
+                <Phone className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">No calls yet</p>
+                <p className="text-xs text-muted-foreground">Outbound and inbound calls will be logged here.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] bg-card/30">
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
+                      <th className="sticky right-0 bg-card/80 px-3 py-2 w-20 backdrop-blur-sm"></th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {rows.map((c: any) => {
+                      const inbound = c.call_type === "inbound";
+                      const rawContact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
+                      const contact = typeof rawContact === "string" && rawContact.startsWith("web:") ? "Web session" : rawContact;
+                      return (
+                        <tr key={c.id} onClick={() => openPanel(c)} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer">
+                          <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{contact}</td>
+                          <td className="px-3 py-1.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                              {inbound ? (
+                                <PhoneIncoming className="h-3 w-3 text-primary" />
+                              ) : (
+                                <PhoneOutgoing className="h-3 w-3" />
+                              )}
+                              {inbound ? "Inbound" : "Outbound"}
+                            </span>
+                            {(c.provider as string | null) === "ELEVENLABS" && (
+                              <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">
+                                VoxStream
+                              </span>
+                            )}
+                            {(c.to_number as string | null)?.startsWith("web:") && (
+                              <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">
+                                Web
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
+                          <td className="px-3 py-1.5">
+                            <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
+                              {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {c.sentiment ? (
+                              <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>
+                                {c.sentiment}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="max-w-[300px] px-3 py-1.5 text-xs text-muted-foreground align-middle">
+                            <SummaryTooltip text={c.call_summary} lines={2} />
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
+                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            {c.recording_url ? (
+                              <button
+                                onClick={() => setRecordingPlayer({ url: c.recording_url, contact })}
+                                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                              >
+                                <PlayCircle className="h-3 w-3" /> Play
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
+                            {c.started_at ? new Date(c.started_at).toLocaleString() : "—"}
+                          </td>
+                          <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            <div className="relative group/notes flex justify-center">
+                              <button
+                                onClick={() => openPanel(c)}
+                                className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                              >
+                                <StickyNote className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[10px] text-foreground shadow opacity-0 group-hover/notes:opacity-100 transition-opacity z-50">
+                                Notes
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <>
+          {/* Test calls KPI strip */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 mb-5">
+            <KpiCard
+              label="Test Calls"
+              value={testRows.length}
+              icon={FlaskConical}
+              iconBg="bg-violet-500/15"
+              iconColor="text-violet-400"
+            />
+            <KpiCard
+              label="With Recording"
+              value={testRows.filter((r) => r.recording_url).length}
+              icon={PlayCircle}
+              iconBg="bg-sky-500/15"
+              iconColor="text-sky-400"
+            />
+            <KpiCard
+              label="Total Talk"
+              value={fmtDuration(testRows.reduce((a, r) => a + (r.duration_seconds ?? 0), 0))}
+              icon={Phone}
+              iconBg="bg-emerald-500/15"
+              iconColor="text-emerald-400"
+            />
+          </div>
+
+          {/* Test calls table */}
+          <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+            {testRows.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-16">
+                <FlaskConical className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium">No test calls yet</p>
+                <p className="text-xs text-muted-foreground">Calls made from the builder will appear here.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] bg-card/30">
+                      <th className="w-6 px-3 py-2" />
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {testRows.map((c) => (
+                      <TestCallRow key={c.id} c={c} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Notes & Booking sheet */}
       {panel && (
