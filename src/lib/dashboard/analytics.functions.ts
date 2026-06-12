@@ -198,8 +198,8 @@ export const getLiveCalls = createServerFn({ method: "GET" })
       }
     } catch { /* ignore */ }
 
-    // Fetch ongoing calls
-    let raw: any[] = [];
+    // Step 1: list ongoing call IDs
+    let stubs: any[] = [];
     try {
       const res = await retellFetch<any>(
         "/v2/list-calls",
@@ -207,11 +207,28 @@ export const getLiveCalls = createServerFn({ method: "GET" })
         "POST",
         apiKey,
       );
-      raw = Array.isArray(res) ? res : (res?.calls ?? []);
+      stubs = Array.isArray(res) ? res : (res?.calls ?? []);
     } catch { /* ignore — returns empty */ }
 
-    const calls: LiveCall[] = raw.map((c: any) => {
-      // Prefer structured transcript_object when populated
+    // Step 2: fetch full call detail for each (transcript only lives on get-call)
+    const detailed = await Promise.all(
+      stubs.map(async (stub: any) => {
+        try {
+          const detail = await retellFetch<any>(
+            `/v2/get-call/${stub.call_id}`,
+            undefined,
+            "GET",
+            apiKey,
+          );
+          return { ...stub, ...detail };
+        } catch {
+          return stub; // fall back to stub if individual fetch fails
+        }
+      }),
+    );
+
+    const calls: LiveCall[] = detailed.map((c: any) => {
+      // Prefer structured transcript_object; fall back to parsing the text string
       const structured: { role: "agent" | "user"; content: string }[] =
         Array.isArray(c.transcript_object) && c.transcript_object.length > 0
           ? c.transcript_object.map((t: any) => ({
