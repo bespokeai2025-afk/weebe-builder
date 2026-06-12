@@ -97,7 +97,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("agents")
-      .select("id, name, settings, updated_at")
+      .select("id, name, settings, updated_at, inbound_phone_number")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as Array<{
@@ -105,6 +105,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
       name: string;
       settings: Json;
       updated_at: string;
+      inbound_phone_number: string | null;
     }>;
     return rows
       .filter((r) => {
@@ -113,11 +114,16 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
       })
       .map((r) => {
         const s = (r.settings ?? {}) as Record<string, unknown>;
+        // Prefer settings.phoneNumber (set by saveAgentPhoneNumber); fall back
+        // to the inbound_phone_number DB column which some code paths write to.
+        const phoneNumber =
+          (s.phoneNumber as string | undefined) ??
+          (r.inbound_phone_number ?? null);
         return {
           id: r.id,
           name: r.name,
           agentType: (s.dashboardAgentType as string | undefined) ?? "receptionist",
-          phoneNumber: (s.phoneNumber as string | undefined) ?? null,
+          phoneNumber,
           liveAt: (s.liveAt as string | undefined) ?? null,
           deployedRetellAgentId: (s.deployedRetellAgentId as string | undefined) ?? null,
         };

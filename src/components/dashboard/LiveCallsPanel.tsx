@@ -3,21 +3,6 @@ import { Phone, PhoneIncoming, PhoneOutgoing, Globe, Mic, MicOff, Power } from "
 import { supabase } from "@/integrations/supabase/client";
 import type { LiveCall } from "@/lib/dashboard/analytics.functions";
 
-const STORAGE_KEY = "live_calls_panel_on";
-
-function readEnabled(): boolean {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return v === null ? true : v === "true";
-  } catch {
-    return true;
-  }
-}
-
-function writeEnabled(v: boolean) {
-  try { localStorage.setItem(STORAGE_KEY, String(v)); } catch { /* ignore */ }
-}
-
 function elapsed(startMs: number | null): string {
   if (!startMs) return "0s";
   const s = Math.floor((Date.now() - startMs) / 1000);
@@ -108,22 +93,16 @@ function CallCard({ call }: { call: LiveCall }) {
 }
 
 export function LiveCallsPanel() {
-  // Initialise to true; sync from localStorage after hydration
+  // Always starts enabled when the analytics page mounts — the SSE closes
+  // automatically when the page is left (component unmounts).
   const [enabled, setEnabled] = useState<boolean>(true);
   const [calls, setCalls] = useState<LiveCall[]>([]);
   const [status, setStatus] = useState<"connecting" | "live" | "off" | "error">("off");
 
-  useEffect(() => {
-    setEnabled(readEnabled());
-  }, []);
   const esRef = useRef<EventSource | null>(null);
 
   const toggle = useCallback(() => {
-    setEnabled((prev) => {
-      const next = !prev;
-      writeEnabled(next);
-      return next;
-    });
+    setEnabled((prev) => !prev);
   }, []);
 
   useEffect(() => {
