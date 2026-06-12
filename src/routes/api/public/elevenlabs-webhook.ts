@@ -42,12 +42,12 @@ type AgentRow = {
 };
 
 async function resolveAgentByElId(elAgentId: string): Promise<AgentRow | null> {
-  // Use a JSONB containment query for a deterministic, indexed lookup
-  // instead of scanning all agent rows.
+  // Use the proven PostgREST JSON extraction filter pattern used elsewhere in the repo
+  // (e.g. retell-key-lookup.ts, book.ts): settings->>field.eq.{value}
   const { data: matched, error } = await supabaseAdmin
     .from("agents")
     .select("id, workspace_id, name, agent_type, settings")
-    .filter("settings->>'deployedElevenLabsAgentId'" as never, "eq", elAgentId)
+    .or(`settings->>deployedElevenLabsAgentId.eq.${elAgentId}` as never)
     .maybeSingle();
   if (error || !matched) return null;
   return {
