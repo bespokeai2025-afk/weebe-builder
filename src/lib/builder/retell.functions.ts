@@ -1279,18 +1279,20 @@ export const previewRetellVoice = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const workspaceId = (context as any).workspaceId ?? null;
 
-    // Prefer the workspace's own Retell key; fall back to the platform key.
+    // Prefer the workspace's own Retell key (workspace_settings.retell_workspace_id);
+    // fall back to the platform RETELL_API_KEY env var — same resolution order used
+    // by the deploy function.
     let retellKey: string | null = process.env.RETELL_API_KEY ?? null;
     if (workspaceId) {
       try {
         const { data: ws } = await supabaseAdmin
-          .from("agent_retell_secrets")
-          .select("retell_api_key")
+          .from("workspace_settings")
+          .select("retell_workspace_id")
           .eq("workspace_id", workspaceId)
           .maybeSingle();
-        const wsKey = (ws as any)?.retell_api_key?.trim() ?? null;
+        const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim() ?? null;
         if (wsKey) retellKey = wsKey;
-      } catch { /* table may not be accessible — fall through */ }
+      } catch { /* column may not exist yet — fall through to env key */ }
     }
 
     if (!retellKey) return { audio: null, missingKey: true };
