@@ -22,6 +22,7 @@ import {
   importSipPhoneNumber,
   listRetellPhoneNumbers,
   assignNumberToAgent,
+  deleteRetellPhoneNumber,
   cloneRetellAgentForDeploy,
 } from "@/lib/builder/retell.functions";
 import {
@@ -107,6 +108,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
   const savePhoneFn = useServerFn(saveAgentPhoneNumber);
   const cloneFn = useServerFn(cloneRetellAgentForDeploy);
   const saveDeployedFn = useServerFn(saveAgentDeployedRetellId);
+  const deleteFn = useServerFn(deleteRetellPhoneNumber);
   const getWsReqFn = useServerFn(getMyWorkspaceRequest);
   const requestWsFn = useServerFn(requestWorkspace);
   const getDeployConfigFn = useServerFn(getDeployConfig);
@@ -183,6 +185,8 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
   // Detach phone state
   const [detachingPhone, setDetachingPhone] = useState(false);
+  // Remove (release) phone state — tracks which number is being deleted
+  const [removingPhone, setRemovingPhone] = useState<string | null>(null);
 
   // Production-workspace clone state
   const [cloning, setCloning] = useState(false);
@@ -262,6 +266,27 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
       toast.error("Detach failed", { description: (e as Error).message });
     } finally {
       setDetachingPhone(false);
+    }
+  }
+
+  async function handleRemovePhone(phoneNumber: string) {
+    if (!agent) return;
+    if (!window.confirm(`Release ${phoneNumber}? This permanently removes it from your account and stops billing. This cannot be undone.`)) return;
+    setRemovingPhone(phoneNumber);
+    try {
+      await deleteFn({ data: { phoneNumber, agentRowId: agent.id } });
+      // If this was the agent's saved number, clear it too
+      const savedPhone = (settings.phoneNumber as string | undefined) ?? null;
+      if (savedPhone === phoneNumber) {
+        await savePhoneFn({ data: { id: agent.id, phoneNumber: null } });
+        qc.invalidateQueries({ queryKey: ["my-agents"] });
+      }
+      qc.invalidateQueries({ queryKey: ["retell-numbers"] });
+      toast.success("Number released", { description: phoneNumber });
+    } catch (e) {
+      toast.error("Could not release number", { description: (e as Error).message });
+    } finally {
+      setRemovingPhone(null);
     }
   }
 
@@ -678,37 +703,6 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
               </div>
             )}
 
-            {/* Call direction */}
-            {!needsDeploy && (
-              <div className="rounded-md border p-3 space-y-2">
-                <Label className="text-xs font-medium">Call direction for attached number</Label>
-                <RadioGroup
-                  value={direction}
-                  onValueChange={(v) => setDirection(v as CallDirection)}
-                  className="flex flex-wrap gap-4"
-                >
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="inbound" id="dir-in" />
-                    <Label htmlFor="dir-in" className="cursor-pointer text-sm">
-                      Inbound only
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="outbound" id="dir-out" />
-                    <Label htmlFor="dir-out" className="cursor-pointer text-sm">
-                      Outbound only
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <RadioGroupItem value="both" id="dir-both" />
-                    <Label htmlFor="dir-both" className="cursor-pointer text-sm">
-                      Inbound + Outbound
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-            )}
-
             <Tabs defaultValue="buy" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger data-tour="deploy-dialog-phone-tab" value="buy">
@@ -847,6 +841,30 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                     </div>
                   </div>
 
+                  {!isOpenAiRealtime && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Call direction</Label>
+                      <RadioGroup
+                        value={direction}
+                        onValueChange={(v) => setDirection(v as CallDirection)}
+                        className="flex flex-wrap gap-4"
+                      >
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value="inbound" id="dir-in-buy" />
+                          <Label htmlFor="dir-in-buy" className="cursor-pointer text-sm">Inbound only</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value="outbound" id="dir-out-buy" />
+                          <Label htmlFor="dir-out-buy" className="cursor-pointer text-sm">Outbound only</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value="both" id="dir-both-buy" />
+                          <Label htmlFor="dir-both-buy" className="cursor-pointer text-sm">Inbound + Outbound</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+
                   {!isOpenAiRealtime && !deployedId && (
                     <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
                       <strong>Agent not yet deployed to your workspace.</strong> The number will be purchased, but it won&apos;t be automatically assigned to this agent. Use <em>Deploy to company workspace</em> above first, then purchase — the agent will be assigned in one step.
@@ -885,7 +903,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                                 key={n.phoneNumber}
                                 className="flex items-center justify-between px-3 py-2 text-sm"
                               >
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                   <div className="font-mono">{n.phoneNumber}</div>
                                   {n.nickname && (
                                     <div className="text-xs text-muted-foreground truncate">
@@ -893,45 +911,61 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                                     </div>
                                   )}
                                 </div>
-                                {attached && isOpenAiRealtime ? (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    disabled={detachingPhone}
-                                    onClick={handleDetachPhone}
-                                  >
-                                    {detachingPhone ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <><X className="h-3 w-3 mr-1" />Detach</>
-                                    )}
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant={attached ? "ghost" : "outline"}
-                                    disabled={attached || needsDeploy || !hasProductionKeyForOps}
-                                    onClick={async () => {
-                                      try {
-                                        await attachAndSave(n.phoneNumber);
-                                        toast.success("Number attached");
-                                      } catch (e) {
-                                        toast.error("Attach failed", {
-                                          description: (e as Error).message,
-                                        });
-                                      }
-                                    }}
-                                  >
-                                    {attached ? (
-                                      <>
-                                        <Check className="h-3 w-3 mr-1" /> Attached
-                                      </>
-                                    ) : (
-                                      "Attach"
-                                    )}
-                                  </Button>
-                                )}
+                                <div className="flex items-center gap-1 shrink-0 ml-2">
+                                  {attached && isOpenAiRealtime ? (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                      disabled={detachingPhone}
+                                      onClick={handleDetachPhone}
+                                    >
+                                      {detachingPhone ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <><X className="h-3 w-3 mr-1" />Detach</>
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant={attached ? "ghost" : "outline"}
+                                      disabled={attached || needsDeploy || !hasProductionKeyForOps}
+                                      onClick={async () => {
+                                        try {
+                                          await attachAndSave(n.phoneNumber);
+                                          toast.success("Number attached");
+                                        } catch (e) {
+                                          toast.error("Attach failed", {
+                                            description: (e as Error).message,
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      {attached ? (
+                                        <><Check className="h-3 w-3 mr-1" /> Attached</>
+                                      ) : (
+                                        "Attach"
+                                      )}
+                                    </Button>
+                                  )}
+                                  {!isOpenAiRealtime && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                                      disabled={removingPhone === n.phoneNumber}
+                                      onClick={() => handleRemovePhone(n.phoneNumber)}
+                                      title="Release number (permanent)"
+                                    >
+                                      {removingPhone === n.phoneNumber ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <X className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}

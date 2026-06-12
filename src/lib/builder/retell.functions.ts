@@ -1382,6 +1382,32 @@ export const listRetellPhoneNumbers = createServerFn({ method: "POST" })
     });
   });
 
+/**
+ * Permanently release / delete a phone number from Retell.
+ * This cancels the number and stops billing — it cannot be undone.
+ */
+export const deleteRetellPhoneNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    (input: {
+      phoneNumber: string;
+      productionApiKey?: string;
+      agentRowId?: string;
+    }) => input,
+  )
+  .handler(async ({ data, context }) => {
+    await retellFetchForAgent(
+      `/delete-phone-number/${encodeURIComponent(data.phoneNumber)}`,
+      null,
+      "DELETE",
+      context.userId,
+      data.agentRowId,
+      data.productionApiKey,
+      context.workspaceId,
+    );
+    return { ok: true };
+  });
+
 /** Attach an already-owned number to a specific agent (for inbound). */
 export const assignNumberToAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
