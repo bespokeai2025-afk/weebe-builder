@@ -847,6 +847,12 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                     </div>
                   </div>
 
+                  {!isOpenAiRealtime && !deployedId && (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400">
+                      <strong>Agent not yet deployed to your workspace.</strong> The number will be purchased, but it won&apos;t be automatically assigned to this agent. Use <em>Deploy to company workspace</em> above first, then purchase — the agent will be assigned in one step.
+                    </div>
+                  )}
+
                   <Button
                     onClick={handleBuy}
                     disabled={buying || needsDeploy || !hasProductionKeyForOps}

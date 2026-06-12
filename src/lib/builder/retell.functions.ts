@@ -1190,6 +1190,49 @@ export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
   });
 
 /**
+ * Guard for attaching agent IDs to phone number operations.
+ *
+ * When a workspace has its own Retell API key, only agents that were cloned
+ * into that workspace (stored as `deployedRetellAgentId` on the agent row) are
+ * valid there. Passing a platform-workspace agent ID with a client API key
+ * causes Retell to return 400 "Invalid inbound agent".
+ *
+ * Returns `true` when it is safe to include the agent ID in the Retell call:
+ *  - No workspace key exists (platform key used for all calls) → always safe.
+ *  - Workspace key exists AND the passed ID matches the agent's deployedRetellAgentId → safe.
+ *  - Workspace key exists but ID is the platform-workspace agent → NOT safe (returns false).
+ */
+async function resolveAgentIdForWorkspace(
+  agentId: string | undefined,
+  agentRowId: string | undefined,
+  workspaceId: string | undefined,
+): Promise<boolean> {
+  if (!agentId) return false;
+
+  // No workspace override key → platform key handles everything; any agent ID is fine.
+  if (!workspaceId) return true;
+  const { data: ws } = await supabaseAdmin
+    .from("workspace_settings")
+    .select("retell_workspace_id")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+  const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
+  if (!wsKey || !wsKey.startsWith("key_")) return true; // no workspace key → safe
+
+  // Workspace has its own key — only the cloned production agent ID is valid.
+  if (!agentRowId) return false;
+  const { data: agentRow } = await supabaseAdmin
+    .from("agents")
+    .select("settings")
+    .eq("id", agentRowId)
+    .maybeSingle();
+  const deployedId = (
+    agentRow?.settings as Record<string, unknown> | null
+  )?.deployedRetellAgentId as string | undefined;
+  return deployedId === agentId;
+}
+
+/**
  * Buy a new phone number from Retell (Twilio-backed by default).
  * Markup is purely display-side; Retell bills its own rate.
  */
@@ -1212,8 +1255,20 @@ export const buyRetellPhoneNumber = createServerFn({ method: "POST" })
     };
     if (data.areaCode) body.area_code = data.areaCode;
     if (data.nickname) body.nickname = data.nickname;
-    if (data.inboundAgentId) body.inbound_agent_id = data.inboundAgentId;
-    if (data.outboundAgentId) body.outbound_agent_id = data.outboundAgentId;
+
+    // Only attach agent IDs if they belong to the workspace that owns the API key.
+    // When a workspace has its own Retell key, platform-workspace agent IDs are
+    // invalid there → Retell returns 400 "Invalid inbound agent".
+    // We verify by checking whether the passed ID matches the agent's stored
+    // deployedRetellAgentId (set during "Deploy to company workspace" clone step).
+    const agentIdSafe = await resolveAgentIdForWorkspace(
+      data.inboundAgentId ?? data.outboundAgentId,
+      data.agentRowId,
+      context.workspaceId,
+    );
+    if (data.inboundAgentId && agentIdSafe) body.inbound_agent_id = data.inboundAgentId;
+    if (data.outboundAgentId && agentIdSafe) body.outbound_agent_id = data.outboundAgentId;
+
     const resp = await retellFetchForAgent(
       `/create-phone-number`,
       body,
@@ -1262,8 +1317,13 @@ export const importSipPhoneNumber = createServerFn({ method: "POST" })
     if (data.sipUsername) body.sip_trunk_auth_username = data.sipUsername;
     if (data.sipPassword) body.sip_trunk_auth_password = data.sipPassword;
     if (data.nickname) body.nickname = data.nickname;
-    if (data.inboundAgentId) body.inbound_agent_id = data.inboundAgentId;
-    if (data.outboundAgentId) body.outbound_agent_id = data.outboundAgentId;
+    const agentIdSafe = await resolveAgentIdForWorkspace(
+      data.inboundAgentId ?? data.outboundAgentId,
+      data.agentRowId,
+      context.workspaceId,
+    );
+    if (data.inboundAgentId && agentIdSafe) body.inbound_agent_id = data.inboundAgentId;
+    if (data.outboundAgentId && agentIdSafe) body.outbound_agent_id = data.outboundAgentId;
     const resp = await retellFetchForAgent(
       `/import-phone-number`,
       body,
