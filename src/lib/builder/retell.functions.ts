@@ -827,10 +827,10 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
       const suffix = failedVoiceId.startsWith("11labs-") ? failedVoiceId.slice(7) : null;
       if (!suffix || suffix.length < 12) return null; // short names = built-in voices, can't re-register
       try {
-        const regRes = await fetch(`${RETELL_BASE}/create-voice`, {
+        const regRes = await fetch(`${RETELL_BASE}/add-community-voice`, {
           method: "POST",
           headers: { Authorization: `Bearer ${builderKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ voice_name: suffix, voice_provider: "elevenlabs", elevenlabs_voice_id: suffix }),
+          body: JSON.stringify({ voice_name: suffix, voice_provider: "elevenlabs", provider_voice_id: suffix }),
         });
         if (!regRes.ok) return null;
         const regJson = (await regRes.json()) as Record<string, unknown>;
@@ -1179,7 +1179,7 @@ export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
     if (!apiKey) throw new Error("RETELL_API_KEY is not configured");
     if (!data.elevenLabsVoiceId.trim()) throw new Error("ElevenLabs voice ID required");
 
-    const res = await fetch(`${RETELL_BASE}/create-voice`, {
+    const res = await fetch(`${RETELL_BASE}/add-community-voice`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -1188,7 +1188,7 @@ export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
       body: JSON.stringify({
         voice_name: data.voiceName.trim() || data.elevenLabsVoiceId,
         voice_provider: "elevenlabs",
-        elevenlabs_voice_id: data.elevenLabsVoiceId.trim(),
+        provider_voice_id: data.elevenLabsVoiceId.trim(),
       }),
     });
     const text = await res.text();
@@ -1196,7 +1196,7 @@ export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
     try { parsed = text ? JSON.parse(text) : {}; } catch { /* raw */ }
     if (!res.ok) {
       const message = (parsed.message as string | undefined) || text || res.statusText;
-      throw new Error(`Retell /create-voice ${res.status}: ${message}`);
+      throw new Error(`Retell /add-community-voice ${res.status}: ${message}`);
     }
     return {
       voiceId: String(parsed.voice_id ?? ""),
@@ -1655,10 +1655,10 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
         if (suffix && suffix.length >= 12) {
           // Long suffix = a real ElevenLabs voice ID — register it in the production workspace.
           try {
-            const regRes = await fetch(`${RETELL_BASE}/create-voice`, {
+            const regRes = await fetch(`${RETELL_BASE}/add-community-voice`, {
               method: "POST",
               headers: { Authorization: `Bearer ${prodKey}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ voice_name: suffix, voice_provider: "elevenlabs", elevenlabs_voice_id: suffix }),
+              body: JSON.stringify({ voice_name: suffix, voice_provider: "elevenlabs", provider_voice_id: suffix }),
             });
             if (regRes.ok) {
               const regJson = (await regRes.json()) as Record<string, unknown>;
