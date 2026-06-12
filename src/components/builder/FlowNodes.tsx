@@ -321,6 +321,7 @@ function SimpleNode({ id, data }: NodeProps<FlowNode>) {
 /** Dedicated node for Extract Variable — shows Variables section + Transitions. */
 function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
   const selectNode = useBuilderStore((s) => s.selectNode);
+  const selectNodeAddVar = useBuilderStore((s) => s.selectNodeAddVar);
   const deleteNode = useBuilderStore((s) => s.deleteNode);
   const updateNode = useBuilderStore((s) => s.updateNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
@@ -402,7 +403,7 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
               Variables
             </span>
             <button
-              onClick={() => selectNode(id)}
+              onClick={() => selectNodeAddVar(id)}
               className="rounded p-0.5 hover:bg-background"
               aria-label="Add variable"
             >

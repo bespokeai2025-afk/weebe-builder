@@ -80,7 +80,7 @@ const DEFAULT_PROMPT_TEMPLATE = (stepLabel: string) =>
   ].join("\n");
 
 export function NodeEditorDialog() {
-  const { selectedNodeId, selectNode, nodes, updateNode, setStartNode } = useBuilderStore();
+  const { selectedNodeId, selectNode, nodes, updateNode, setStartNode, pendingAddVariable } = useBuilderStore();
   const node = nodes.find((n) => n.id === selectedNodeId);
 
   const fetchCal = useServerFn(getWorkspaceCalendarSettings);
@@ -120,8 +120,14 @@ export function NodeEditorDialog() {
   const [editingVarIsNew, setEditingVarIsNew] = useState(false);
 
   useEffect(() => {
-    setEditingVar(null);
-    setEditingVarIsNew(false);
+    if (pendingAddVariable && node?.data.kind === "extract_variable") {
+      setEditingVar({ id: crypto.randomUUID(), name: "", description: "", type: "string" });
+      setEditingVarIsNew(true);
+      useBuilderStore.setState({ pendingAddVariable: false });
+    } else {
+      setEditingVar(null);
+      setEditingVarIsNew(false);
+    }
   }, [selectedNodeId]);
 
   if (!node) return null;

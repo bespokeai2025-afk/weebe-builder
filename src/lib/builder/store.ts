@@ -15,6 +15,8 @@ interface State {
   testCallTotalSec: number;
   selectedNodeId: string | null;
   activeNodeId: string | null;
+  /** When true, NodeEditorDialog auto-opens the Add Variable form on mount. */
+  pendingAddVariable: boolean;
   /** Row id of the currently-loaded saved agent (null = unsaved new flow). */
   currentAgentRowId: string | null;
   /** Bumped whenever the whole graph is replaced (import/clear) so the canvas can re-fit. */
@@ -28,6 +30,7 @@ interface State {
   deleteNode: (id: string) => void;
   deleteEdge: (id: string) => void;
   selectNode: (id: string | null) => void;
+  selectNodeAddVar: (id: string) => void;
   setActiveNode: (id: string | null) => void;
   setStartNode: (id: string) => void;
   clearAll: () => void;
@@ -170,6 +173,7 @@ export const useBuilderStore = create<State>()(
       testCallTotalSec: 0,
       selectedNodeId: null,
       activeNodeId: null,
+      pendingAddVariable: false,
       currentAgentRowId: null,
       flowVersion: 0,
       saveVersion: 0,
@@ -267,7 +271,8 @@ export const useBuilderStore = create<State>()(
           selectedNodeId: get().selectedNodeId === id ? null : get().selectedNodeId,
         }),
       deleteEdge: (id) => set({ edges: get().edges.filter((e) => e.id !== id) }),
-      selectNode: (id) => set({ selectedNodeId: id }),
+      selectNode: (id) => set({ selectedNodeId: id, pendingAddVariable: false }),
+      selectNodeAddVar: (id) => set({ selectedNodeId: id, pendingAddVariable: true }),
       setActiveNode: (id) => set({ activeNodeId: id }),
       setStartNode: (id) =>
         set({
