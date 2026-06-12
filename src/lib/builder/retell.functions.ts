@@ -1107,8 +1107,23 @@ export const cloneCustomVoice = createServerFn({ method: "POST" })
 export const searchElevenLabsVoices = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { query: string }) => input)
-  .handler(async ({ data }) => {
-    const elKey = process.env.ELEVENLABS_API_KEY;
+  .handler(async ({ data, context }) => {
+    const workspaceId = (context as any).workspaceId ?? null;
+
+    // Prefer the workspace-level ElevenLabs key, fall back to platform key.
+    let elKey: string | null = process.env.ELEVENLABS_API_KEY ?? null;
+    if (workspaceId) {
+      try {
+        const { data: ws } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("elevenlabs_api_key" as never)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        const wsKey = (ws as any)?.elevenlabs_api_key ?? null;
+        if (wsKey) elKey = wsKey;
+      } catch { /* column may not exist yet — ignore */ }
+    }
+
     if (!elKey) {
       return {
         voices: [] as Array<{

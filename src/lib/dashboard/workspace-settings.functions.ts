@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const getWorkspaceSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -187,4 +188,58 @@ export const syncFromBuilder = createServerFn({ method: "POST" })
     }
 
     return { ok: true, filled, syncedAt };
+  });
+
+export const getElevenLabsKey = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) return { connected: false, columnMissing: false, masked: null };
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("workspace_settings")
+        .select("elevenlabs_api_key" as never)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      const msg = (error as any)?.message ?? "";
+      if (msg.includes("column") || msg.includes("does not exist")) {
+        return { connected: false, columnMissing: true, masked: null };
+      }
+      const key = (data as any)?.elevenlabs_api_key ?? null;
+      return {
+        connected: !!key,
+        columnMissing: false,
+        masked: key ? `sk_...${String(key).slice(-4)}` : null,
+      };
+    } catch {
+      return { connected: false, columnMissing: true, masked: null };
+    }
+  });
+
+export const saveElevenLabsApiKey = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { key: string }) => input)
+  .handler(async ({ context, data }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+    try {
+      const { error } = await supabaseAdmin
+        .from("workspace_settings")
+        .upsert(
+          { workspace_id: workspaceId, elevenlabs_api_key: data.key || null } as never,
+          { onConflict: "workspace_id" },
+        );
+      const msg = (error as any)?.message ?? "";
+      if (msg.includes("column") || msg.includes("does not exist")) {
+        return { ok: false, columnMissing: true };
+      }
+      if (error) throw new Error(msg);
+      return { ok: true, columnMissing: false };
+    } catch (e: any) {
+      const msg = e?.message ?? "";
+      if (msg.includes("column") || msg.includes("does not exist")) {
+        return { ok: false, columnMissing: true };
+      }
+      throw e;
+    }
   });

@@ -16,6 +16,7 @@
  */
 import { useRef, useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { Link } from "@tanstack/react-router";
 import {
   Loader2,
   Upload,
@@ -25,6 +26,7 @@ import {
   Play,
   Check,
   ExternalLink,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -288,25 +290,17 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
                   />
                 </div>
                 {missingKey && (
-                  <p className="text-[11px] text-amber-500">
-                    ELEVENLABS_API_KEY not configured — community voice search is unavailable.{" "}
-                    <a
-                      href="https://elevenlabs.io/app/voice-library"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline"
-                    >
-                      Browse voices
-                    </a>{" "}
-                    and use the{" "}
-                    <button
-                      className="underline"
-                      onClick={() => setTab("professional")}
-                    >
-                      Import Professional Voices
-                    </button>{" "}
-                    tab instead.
-                  </p>
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                      ElevenLabs not connected — connect your account to search voices.
+                    </p>
+                    <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs shrink-0">
+                      <Link to="/settings/integrations">
+                        <Settings className="h-3 w-3" />
+                        Set up
+                      </Link>
+                    </Button>
+                  </div>
                 )}
                 {!missingKey && (
                   <p className="text-[11px] text-muted-foreground">
