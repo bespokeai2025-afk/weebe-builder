@@ -572,7 +572,7 @@ async function generateFlow(
           data: {
             kind: "conversation",
             label: "Collect Booking Details",
-            dialogue: rawDialogue || "Ask the caller for their preferred date and time, full name, and best contact number for the appointment.",
+            dialogue: rawDialogue || "Collect the caller's full name, email address (spell it back letter-by-letter to confirm), and phone number. Then determine their timezone from their area code (e.g. 212/917 → America/New_York, 310 → America/Los_Angeles, 312 → America/Chicago, 44 prefix → Europe/London) — say it aloud to confirm, or ask if uncertain. Finally ask for their preferred date and time.",
             isStart: isFirstSeg ? true : undefined,
             transitions: [],
           },
@@ -618,7 +618,7 @@ async function generateFlow(
             transitions: [],
             toolId: "book_appointment",
             toolName: "Book Appointment",
-            toolDescription: "Creates a confirmed appointment booking via Cal.com",
+            toolDescription: "Creates a confirmed appointment booking via Cal.com. Only call AFTER collecting name, a confirmed email (spelled back), phone number, and timezone. Pass all four — the API rejects bookings missing both email and phone.",
             speakDuringExecution: false,
             waitForResult: true,
           },
