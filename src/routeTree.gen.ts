@@ -37,6 +37,7 @@ import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webh
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
+import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
 import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/builder/script-template'
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
@@ -207,6 +208,12 @@ const ApiPublicApproveUserRoute = ApiPublicApproveUserRouteImport.update({
   path: '/api/public/approve-user',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDashboardLiveCallsSseRoute =
+  ApiDashboardLiveCallsSseRouteImport.update({
+    id: '/api/dashboard/live-calls-sse',
+    path: '/api/dashboard/live-calls-sse',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiBuilderScriptTemplateRoute =
   ApiBuilderScriptTemplateRouteImport.update({
     id: '/api/builder/script-template',
@@ -403,6 +410,7 @@ export interface FileRoutesByFullPath {
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
+  '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -460,6 +468,7 @@ export interface FileRoutesByTo {
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
+  '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -520,6 +529,7 @@ export interface FileRoutesById {
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
+  '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -580,6 +590,7 @@ export interface FileRouteTypes {
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
+    | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -637,6 +648,7 @@ export interface FileRouteTypes {
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
+    | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -696,6 +708,7 @@ export interface FileRouteTypes {
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
+    | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -736,6 +749,7 @@ export interface RootRouteChildren {
   ApiBuilderImportPdfRoute: typeof ApiBuilderImportPdfRoute
   ApiBuilderScanPdfRoute: typeof ApiBuilderScanPdfRoute
   ApiBuilderScriptTemplateRoute: typeof ApiBuilderScriptTemplateRoute
+  ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -954,6 +968,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/approve-user'
       fullPath: '/api/public/approve-user'
       preLoaderRoute: typeof ApiPublicApproveUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dashboard/live-calls-sse': {
+      id: '/api/dashboard/live-calls-sse'
+      path: '/api/dashboard/live-calls-sse'
+      fullPath: '/api/dashboard/live-calls-sse'
+      preLoaderRoute: typeof ApiDashboardLiveCallsSseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/builder/script-template': {
@@ -1277,6 +1298,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBuilderImportPdfRoute: ApiBuilderImportPdfRoute,
   ApiBuilderScanPdfRoute: ApiBuilderScanPdfRoute,
   ApiBuilderScriptTemplateRoute: ApiBuilderScriptTemplateRoute,
+  ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
