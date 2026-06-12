@@ -89,9 +89,24 @@ export function exportAgentJson(
         is_transfer_cf: false,
       };
 
+  // Merge builder-managed KB IDs with any that came from the raw imported flow.
+  const rawKbIds = Array.isArray(rawCf.knowledge_base_ids) ? rawCf.knowledge_base_ids as string[] : [];
+  const builderKbIds = settings.knowledgeBaseIds ?? [];
+  const mergedKbIds = Array.from(new Set([...rawKbIds, ...builderKbIds]));
+
+  // KB config — prefer builder settings, fall back to raw.
+  const rawKbConfig = (rawCf.kb_config as { top_k?: number; filter_score?: number } | undefined) ?? {};
+  const mergedKbConfig = {
+    top_k: settings.kbConfig?.topK ?? rawKbConfig.top_k ?? 3,
+    filter_score: settings.kbConfig?.filterScore ?? rawKbConfig.filter_score ?? 0.6,
+  };
+
   const conversationFlow: Record<string, unknown> = {
     ...cfDefaults,
     ...rawCf,
+    // Override KB fields with merged builder-managed values when present.
+    ...(mergedKbIds.length > 0 ? { knowledge_base_ids: mergedKbIds } : {}),
+    ...(mergedKbIds.length > 0 ? { kb_config: mergedKbConfig } : {}),
     conversation_flow_id: cfId,
     version: (rawCf.version as number) ?? 0,
     global_prompt: settings.globalPrompt,

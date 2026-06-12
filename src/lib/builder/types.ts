@@ -263,6 +263,30 @@ export interface BuilderSettings {
    * Only enforced when the agent is live (has deployedRetellAgentId).
    */
   maxDailyAttempts?: number;
+  /** Retell Knowledge Base IDs attached to this agent (injected into conversation_flow on deploy). */
+  knowledgeBaseIds?: string[];
+  /** KB retrieval tuning — only used for Retell mode. */
+  kbConfig?: {
+    topK?: number;
+    filterScore?: number;
+    instruction?: string;
+  };
+  /**
+   * Local KB document list — displayed in the UI for both modes.
+   * For Retell: mirrors what's in the Retell KB (retellKbId + retellSourceId track the API objects).
+   * For HyperStream: content is injected verbatim into the system prompt.
+   */
+  kbDocuments?: Array<{
+    id: string;
+    name: string;
+    type: "text" | "url" | "file";
+    content?: string;
+    url?: string;
+    fileName?: string;
+    retellKbId?: string;
+    retellSourceId?: string;
+    addedAt?: string;
+  }>;
   /**
    * Lead Generation module config. Only used when agentType === "lead_generation".
    * Variable mappings, campaign name, and intelligence toggles live here.

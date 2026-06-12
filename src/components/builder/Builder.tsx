@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem } from "lucide-react";
+import { KnowledgeBaseSection } from "@/components/builder/KnowledgeBaseSection";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
@@ -1161,6 +1162,8 @@ export function Builder({
                 <Textarea rows={4} value={settings.globalPrompt} onChange={(e) => setSettings({ globalPrompt: e.target.value })} placeholder="Enter your global prompt here" className="text-[10px] leading-relaxed" />
               </CollapsibleContent>
             </Collapsible>
+
+            <KnowledgeBaseSection isRetell={isRetell} isHyperStream={isOpenAI} />
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
