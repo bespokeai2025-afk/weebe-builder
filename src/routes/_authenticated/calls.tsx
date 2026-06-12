@@ -115,8 +115,10 @@ function CallsPage() {
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
-    const contact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Call";
-    const phone = inbound ? c.from_number : c.to_number;
+    const rawContact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Call";
+    const contact = typeof rawContact === "string" && rawContact.startsWith("web:") ? "Web session" : rawContact;
+    const rawPhone = inbound ? c.from_number : c.to_number;
+    const phone = typeof rawPhone === "string" && rawPhone.startsWith("web:") ? undefined : rawPhone;
     setPanel({
       entityType: "call",
       entityId: c.id,
@@ -184,7 +186,8 @@ function CallsPage() {
               <tbody>
                 {rows.map((c: any) => {
                   const inbound = c.call_type === "inbound";
-                  const contact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
+                  const rawContact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
+                  const contact = typeof rawContact === "string" && rawContact.startsWith("web:") ? "Web session" : rawContact;
                   return (
                     <tr key={c.id} onClick={() => openPanel(c)} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer">
                       <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{contact}</td>
@@ -197,6 +200,16 @@ function CallsPage() {
                           )}
                           {inbound ? "Inbound" : "Outbound"}
                         </span>
+                        {(c.provider as string | null) === "ELEVENLABS" && (
+                          <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">
+                            VoxStream
+                          </span>
+                        )}
+                        {(c.to_number as string | null)?.startsWith("web:") && (
+                          <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">
+                            Web
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
                       <td className="px-3 py-1.5">

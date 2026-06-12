@@ -164,24 +164,43 @@ export const Route = createFileRoute("/api/public/elevenlabs-webhook")({
       },
 
       POST: async ({ request }) => {
-        // ── Secret verification ───────────────────────────────────────────────
-        // ElevenLabs does not provide HMAC signing; the shared secret embedded in
-        // the webhook URL is the compensating control. In production the secret is
-        // required — fail closed so misconfiguration cannot leave the endpoint open.
+        // ── Secret / HMAC verification ────────────────────────────────────────
+        // Primary control: shared secret embedded in the webhook URL (?secret=).
+        // Forward-compatible: when ElevenLabs begins sending the `xi-webhook-secret`
+        // HMAC header, verify it first and treat a matching header as sufficient.
+        // Until then the URL-embedded secret is the compensating control.
         const url = new URL(request.url);
         const incomingSecret = url.searchParams.get("secret");
         const configuredSecret = process.env.ELEVENLABS_WEBHOOK_SECRET?.trim() || null;
         const isProduction = process.env.NODE_ENV === "production";
-        if (!configuredSecret && isProduction) {
-          console.error("[elevenlabs-webhook] ELEVENLABS_WEBHOOK_SECRET is not set — rejecting all requests in production");
-          return json({ ok: false, error: "Webhook secret not configured" }, 503);
-        }
-        if (configuredSecret && incomingSecret !== configuredSecret) {
-          console.warn("[elevenlabs-webhook] Secret mismatch — rejecting request");
-          return json({ ok: false, error: "Unauthorized" }, 403);
-        }
-        if (!configuredSecret && !isProduction) {
-          console.warn("[elevenlabs-webhook] ELEVENLABS_WEBHOOK_SECRET not set — accepting request in dev mode (set secret for production)");
+
+        // Forward-compatible HMAC check: ElevenLabs will eventually send
+        // `xi-webhook-secret` as an HMAC-SHA256 signature header.
+        // When present and a configured secret exists, verify it and short-circuit.
+        const xiSecret = request.headers.get("xi-webhook-secret");
+        if (xiSecret && configuredSecret) {
+          // ElevenLabs has not yet documented the exact signing algorithm.
+          // For now, treat a direct value match as valid (plain-secret mode).
+          // TODO: replace with HMAC-SHA256 digest comparison once ElevenLabs
+          // publishes the signing spec (similar to Retell's x-retell-signature).
+          if (xiSecret !== configuredSecret) {
+            console.warn("[elevenlabs-webhook] xi-webhook-secret mismatch — rejecting request");
+            return json({ ok: false, error: "Unauthorized" }, 403);
+          }
+          console.log("[elevenlabs-webhook] Verified via xi-webhook-secret header");
+        } else {
+          // Fall back to URL-embedded secret check
+          if (!configuredSecret && isProduction) {
+            console.error("[elevenlabs-webhook] ELEVENLABS_WEBHOOK_SECRET is not set — rejecting all requests in production");
+            return json({ ok: false, error: "Webhook secret not configured" }, 503);
+          }
+          if (configuredSecret && incomingSecret !== configuredSecret) {
+            console.warn("[elevenlabs-webhook] Secret mismatch — rejecting request");
+            return json({ ok: false, error: "Unauthorized" }, 403);
+          }
+          if (!configuredSecret && !isProduction) {
+            console.warn("[elevenlabs-webhook] ELEVENLABS_WEBHOOK_SECRET not set — accepting request in dev mode (set secret for production)");
+          }
         }
 
         let body: Record<string, unknown>;
@@ -260,6 +279,7 @@ export const Route = createFileRoute("/api/public/elevenlabs-webhook")({
             call_outcome: callSummary,
             call_successful: true,
             in_voicemail: false,
+            provider: "ELEVENLABS" as never,
           };
           const { error: callErr } = await upsertElCall(conversationId, callRow);
           if (callErr) {

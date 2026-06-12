@@ -75,6 +75,15 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
+    const sinceMs = Date.now() - data.days * 24 * 60 * 60 * 1000;
+    const sinceIso = new Date(sinceMs).toISOString();
+
+    let calls: any[] = [];
+    let error: string | null = null;
+    let agentNames: Record<string, string> = {};
+    let agentIds: string[] = [];
+
+    // ── Retell calls (from Retell API) ───────────────────────────────────────
     // Prefer the workspace's own Retell API key (Go Live agents live there).
     // Fall back to the platform key for builder/test agents.
     const { data: wsSettings } = await sb
@@ -83,69 +92,117 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     const workspaceRetellKey = (wsSettings?.retell_workspace_id as string | undefined)?.trim() || undefined;
-
     const apiKey = workspaceRetellKey || process.env.RETELL_API_KEY;
-    if (!apiKey) {
-      return {
-        configured: false,
-        agentIds: [] as string[],
-        calls: [] as any[],
-        agentNames: {} as Record<string, string>,
-        error: "No Retell API key configured",
-      };
-    }
 
-    const sinceMs = Date.now() - data.days * 24 * 60 * 60 * 1000;
-    let calls: any[] = [];
-    let error: string | null = null;
-    let agentNames: Record<string, string> = {};
-    let agentIds: string[] = [];
+    if (apiKey) {
+      // Fetch agent list using the workspace key so we get all their agents
+      try {
+        const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey);
+        for (const a of agentList ?? []) {
+          if (a.agent_id) {
+            agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
+            agentIds.push(a.agent_id);
+          }
+        }
+      } catch (e: any) {
+        console.error("Retell list-agents failed:", e);
+      }
 
-    // Fetch agent list using the workspace key so we get all their agents
-    try {
-      const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey);
-      for (const a of agentList ?? []) {
-        if (a.agent_id) {
-          agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
-          agentIds.push(a.agent_id);
+      if (agentIds.length > 0) {
+        // Fetch calls for all workspace agents
+        try {
+          const res = await retellFetch<any>(
+            "/v2/list-calls",
+            {
+              filter_criteria: {
+                agent_id: agentIds,
+                start_timestamp: { lower_threshold: sinceMs },
+              },
+              limit: data.limit,
+              sort_order: "descending",
+            },
+            "POST",
+            apiKey,
+          );
+          calls = Array.isArray(res) ? res : (res?.calls ?? []);
+        } catch (e: any) {
+          error = e?.message || "Failed to load Retell analytics";
+          console.error("Retell list-calls failed:", e);
         }
       }
-    } catch (e: any) {
-      console.error("Retell list-agents failed:", e);
     }
 
-    if (agentIds.length === 0) {
+    // ── VoxStream / ElevenLabs calls (from local DB) ─────────────────────────
+    // ElevenLabs post-call webhooks store rows with provider = "ELEVENLABS".
+    // Normalize them to match the Retell call shape so computeAnalytics can
+    // process both sources identically.
+    let elCalls: any[] = [];
+    try {
+      const { data: elRows } = await sb
+        .from("calls")
+        .select(
+          "retell_call_id, agent_id, agent_name, call_type, call_status, from_number, to_number, started_at, ended_at, duration_seconds, sentiment, call_summary, call_successful, in_voicemail",
+        )
+        .eq("workspace_id", workspaceId)
+        .eq("provider" as never, "ELEVENLABS" as never)
+        .gte("started_at", sinceIso)
+        .order("started_at", { ascending: false })
+        .limit(data.limit);
+
+      elCalls = (elRows ?? []).map((c: any) => {
+        // Populate agentNames / agentIds from DB rows so the per-agent
+        // breakdown on the analytics page resolves names correctly.
+        if (c.agent_id && !agentNames[c.agent_id]) {
+          agentNames[c.agent_id] = c.agent_name ?? c.agent_id;
+        }
+        if (c.agent_id && !agentIds.includes(c.agent_id)) {
+          agentIds.push(c.agent_id);
+        }
+
+        // Normalize to the Retell call shape used by computeAnalytics
+        return {
+          call_id: c.retell_call_id,
+          agent_id: c.agent_id,
+          call_status: c.call_status,
+          // Web/browser sessions are stored with a "web:" prefix sentinel
+          call_type: (c.to_number as string | null)?.startsWith("web:") ? "web_call" : "phone_call",
+          direction: c.call_type === "inbound" ? "inbound" : "outbound",
+          from_number: c.from_number,
+          to_number: c.to_number,
+          start_timestamp: c.started_at ? new Date(c.started_at).getTime() : null,
+          end_timestamp: c.ended_at ? new Date(c.ended_at).getTime() : null,
+          duration_ms: c.duration_seconds != null ? (c.duration_seconds as number) * 1000 : null,
+          call_analysis: {
+            // Retell uses Title Case sentiments; normalise from lowercase DB values
+            user_sentiment: c.sentiment
+              ? (c.sentiment as string).charAt(0).toUpperCase() + (c.sentiment as string).slice(1)
+              : null,
+            call_successful: c.call_successful ?? null,
+            in_voicemail: c.in_voicemail ?? false,
+            call_summary: c.call_summary ?? null,
+          },
+          _provider: "ELEVENLABS",
+        };
+      });
+    } catch (e: any) {
+      console.warn("[analytics] ElevenLabs DB call fetch failed:", e?.message);
+    }
+
+    const allCalls = [...calls, ...elCalls];
+    // configured = true when either Retell agents exist OR VoxStream calls exist
+    const configured = agentIds.length > 0 || elCalls.length > 0;
+
+    if (!configured) {
       return {
         configured: false,
         agentIds,
-        calls,
+        calls: allCalls,
         agentNames,
-        error: error ?? "No deployed agents found in this workspace",
+        error: error ?? (!apiKey ? "No Retell API key configured" : "No deployed agents found in this workspace"),
       };
     }
 
-    // Fetch calls for all workspace agents
-    try {
-      const res = await retellFetch<any>(
-        "/v2/list-calls",
-        {
-          filter_criteria: {
-            agent_id: agentIds,
-            start_timestamp: { lower_threshold: sinceMs },
-          },
-          limit: data.limit,
-          sort_order: "descending",
-        },
-        "POST",
-        apiKey,
-      );
-      calls = Array.isArray(res) ? res : (res?.calls ?? []);
-    } catch (e: any) {
-      error = e?.message || "Failed to load Retell analytics";
-      console.error("Retell list-calls failed:", e);
-    }
-
-    return { configured: true, agentIds, calls, agentNames, error };
+    return { configured: true, agentIds, calls: allCalls, agentNames, error };
   });
 
 /**
