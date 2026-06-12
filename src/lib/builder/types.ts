@@ -270,6 +270,11 @@ export interface BuilderSettings {
    */
   elevenLabsVoiceId?: string;
   /**
+   * Human-readable display name for the selected ElevenLabs voice (e.g. "Rachel").
+   * Stored alongside elevenLabsVoiceId when the user picks a voice from search.
+   */
+  elevenLabsVoiceName?: string;
+  /**
    * ElevenLabs Conversational AI agent ID created via the API on deploy.
    * Stored so subsequent saves update the same agent instead of creating a new one.
    */

@@ -1195,8 +1195,20 @@ export function Builder({
                     {settings.elevenLabsVoiceId && (
                       <div className="flex items-center gap-1.5 rounded border border-primary/20 bg-primary/[0.04] px-2 py-1">
                         <Mic className="h-2.5 w-2.5 text-primary shrink-0" />
-                        <span className="text-[9px] font-mono text-primary truncate flex-1">{settings.elevenLabsVoiceId}</span>
-                        <button className="text-[9px] text-muted-foreground hover:text-destructive" onClick={() => setSettings({ elevenLabsVoiceId: "" })}>×</button>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          {settings.elevenLabsVoiceName ? (
+                            <>
+                              <span className="text-[9px] font-medium text-primary truncate leading-tight">{settings.elevenLabsVoiceName}</span>
+                              <span className="text-[8px] font-mono text-muted-foreground truncate leading-tight">{settings.elevenLabsVoiceId}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-[9px] font-mono text-primary truncate leading-tight">{settings.elevenLabsVoiceId}</span>
+                              <span className="text-[8px] text-muted-foreground leading-tight">Re-search to load name</span>
+                            </>
+                          )}
+                        </div>
+                        <button className="text-[9px] text-muted-foreground hover:text-destructive shrink-0" onClick={() => setSettings({ elevenLabsVoiceId: "", elevenLabsVoiceName: "" })}>×</button>
                       </div>
                     )}
                     <div className="flex gap-1">
@@ -1252,7 +1264,7 @@ export function Builder({
                               <button
                                 className="flex flex-1 items-start gap-1.5 text-left min-w-0"
                                 onClick={() => {
-                                  setSettings({ elevenLabsVoiceId: v.voice_id });
+                                  setSettings({ elevenLabsVoiceId: v.voice_id, elevenLabsVoiceName: v.name });
                                   setElVoiceResults([]);
                                   setElVoiceQuery("");
                                   if (elAudioRef.current) { elAudioRef.current.pause(); elAudioRef.current = null; }
