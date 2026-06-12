@@ -316,6 +316,7 @@ export function RetellDeployDialog({
             voiceId: (s.elevenLabsVoiceId as string | undefined) || "",
             language: ((s.language as string | undefined) || "en-US").slice(0, 2),
             webhookUrl: `${webhookBase}/api/public/elevenlabs-webhook`,
+            tools: runtimeDef.tools,
           },
         });
         const updatedSettings = {

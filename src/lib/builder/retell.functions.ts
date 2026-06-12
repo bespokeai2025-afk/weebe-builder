@@ -1790,9 +1790,38 @@ async function resolveElevenLabsApiKey(workspaceId: string | null): Promise<stri
 }
 
 /**
- * Create or update an ElevenLabs Conversational AI agent.
- * Returns the ElevenLabs agent ID.
+ * Translate Retell-format tool definitions to ElevenLabs ConvAI tool schema.
+ * Retell tools with a `url` field become ElevenLabs "webhook" server tools;
+ * all others become "client" tools handled by the calling interface.
  */
+function translateToElevenLabsTools(retellTools: unknown[]): unknown[] {
+  const results: unknown[] = [];
+  for (const t of retellTools) {
+    const tool = t as Record<string, unknown>;
+    const rawName = (tool.name as string | undefined) ?? "";
+    const name = rawName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64);
+    if (!name) continue;
+    const description = (tool.description as string | undefined) ?? "";
+    const parameters = (tool.parameters as Record<string, unknown> | undefined) ?? {
+      type: "object",
+      properties: {},
+      required: [],
+    };
+    const url = tool.url as string | undefined;
+    if (url) {
+      results.push({
+        type: "webhook",
+        name,
+        description,
+        api_schema: { url, method: "POST", request_body_schema: parameters },
+      });
+    } else {
+      results.push({ type: "client", name, description, parameters });
+    }
+  }
+  return results;
+}
+
 export const deployElevenLabsAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
@@ -1804,11 +1833,29 @@ export const deployElevenLabsAgent = createServerFn({ method: "POST" })
       voiceId: string;
       language: string;
       webhookUrl?: string;
+      tools?: unknown[];
     }) => input,
   )
   .handler(async ({ context, data }) => {
     const workspaceId = (context as Record<string, unknown>).workspaceId as string | null ?? null;
     const elKey = await resolveElevenLabsApiKey(workspaceId);
+
+    // Read workspace-level OpenAI API key (for ElevenLabs' OpenAI integration
+    // and post-call pipeline analysis). Falls back to platform OPENAI_API_KEY.
+    let workspaceOpenAiKey: string | null = null;
+    if (workspaceId) {
+      try {
+        const { data: ws } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("openai_api_key" as never)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        workspaceOpenAiKey = ((ws as Record<string, unknown> | null)?.openai_api_key as string | undefined)?.trim() ?? null;
+      } catch { /* column may not exist */ }
+    }
+    const effectiveOpenAiKey = workspaceOpenAiKey ?? process.env.OPENAI_API_KEY ?? null;
+
+    const elTools = translateToElevenLabsTools(data.tools ?? []);
 
     const body = {
       name: data.agentName,
@@ -1817,6 +1864,8 @@ export const deployElevenLabsAgent = createServerFn({ method: "POST" })
           prompt: {
             prompt: data.systemPrompt,
             llm: "gpt-4o",
+            ...(effectiveOpenAiKey ? { llm_extra_body: { api_key: effectiveOpenAiKey } } : {}),
+            ...(elTools.length > 0 ? { tools: elTools } : {}),
           },
           first_message: data.firstMessage || "",
           language: (data.language || "en").slice(0, 2),

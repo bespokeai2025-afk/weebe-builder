@@ -337,8 +337,18 @@ export function Builder({
   const [liveTranscript, setLiveTranscript] = useState<TxEntry[]>([]);
   const transcriptPanelRef = useRef<HTMLDivElement | null>(null);
   const [elVoiceQuery, setElVoiceQuery] = useState("");
-  const [elVoiceResults, setElVoiceResults] = useState<Array<{ voice_id: string; name: string; description: string | null; labels: Record<string, string>; preview_url: string | null }>>([]);
+  const [elVoiceResults, setElVoiceResults] = useState<Array<{ voice_id: string; name: string; description: string | null; labels: Record<string, string>; preview_url: string | null; public_owner_id?: string | null }>>([]);
   const [elVoiceSearching, setElVoiceSearching] = useState(false);
+
+  useEffect(() => {
+    if (isElevenLabs && elVoiceResults.length === 0 && !elVoiceSearching) {
+      setElVoiceSearching(true);
+      searchElevenLabsVoices({ data: { query: "" } })
+        .then((r) => setElVoiceResults(r.voices))
+        .catch(() => {})
+        .finally(() => setElVoiceSearching(false));
+    }
+  }, [isElevenLabs]);
 
   // Force the right panel open when a call starts; auto-clear transcript when it ends.
   useEffect(() => {
