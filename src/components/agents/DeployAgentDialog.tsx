@@ -580,24 +580,24 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
               <>
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
-                  <span className="text-sm font-medium">Workspace creation awaiting approval</span>
+                  <span className="text-sm font-medium">Deploy approval pending</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  We've sent your request for <strong>{wsReq?.workspace_name}</strong> to the
-                  Webespoke team. You'll be able to deploy as soon as it's approved — typically
-                  within a business day.
+                  Your request for <strong>{wsReq?.workspace_name}</strong> is with the Webespoke
+                  team. Once approved, your production phone line and Retell workspace will be
+                  provisioned and you can go live — typically within a business day.
                 </p>
               </>
             ) : wsStatus === "denied" ? (
               <>
                 <p className="text-sm text-destructive font-medium">
-                  Your previous workspace request was denied.
+                  Your deploy request was not approved.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  You can submit a new request below or contact support.
+                  You can submit a new request below or contact support to discuss next steps.
                 </p>
                 <div className="space-y-2">
-                  <Label className="text-xs">Workspace name</Label>
+                  <Label className="text-xs">Company / workspace name</Label>
                   <Input
                     placeholder="e.g. Acme Co."
                     value={wsName}
@@ -617,11 +617,12 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
             ) : (
               <>
                 <p className="text-sm">
-                  Before deploying your first agent, we need to set up a workspace for you. Give it
-                  a name below and our team will approve it shortly.
+                  You can build and test your agent freely. To go live with a real phone number,
+                  submit a deploy request below — our team will set up your production Retell
+                  workspace and approve it shortly.
                 </p>
                 <div className="space-y-2">
-                  <Label className="text-xs">Workspace name</Label>
+                  <Label className="text-xs">Company / workspace name</Label>
                   <Input
                     placeholder="e.g. Acme Co."
                     value={wsName}
@@ -634,7 +635,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                     disabled={submittingWs || wsName.trim().length < 2}
                   >
                     {submittingWs && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                    Request workspace
+                    Request deploy access
                   </Button>
                 </div>
               </>

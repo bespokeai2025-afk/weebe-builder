@@ -1,9 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getDeployMode, getRetailWorkspaceId } from "@/lib/deploy/config.server";
 
 /**
  * Resolve workspace id for an authenticated user.
  * In retail mode, always uses RETAIL_WORKSPACE_ID (shared platform workspace).
+ *
+ * In approval mode: looks up the user's workspace membership.  If none exists
+ * (user signed up before the auto-provision trigger), a personal workspace is
+ * created on the fly so the builder is always fully accessible.
  */
 export async function resolveWorkspaceIdForUser(
   supabase: SupabaseClient,
@@ -67,5 +72,55 @@ export async function resolveWorkspaceIdForUser(
     return memberships[0].workspace_id;
   }
 
-  return undefined;
+  // No workspace found — user signed up before the auto-provision trigger.
+  // Create a personal workspace now so the builder is immediately usable.
+  return autoProvisionWorkspace(userId);
+}
+
+async function autoProvisionWorkspace(userId: string): Promise<string | undefined> {
+  try {
+    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const email = authUser?.user?.email ?? "";
+    const displayName =
+      (authUser?.user?.user_metadata?.full_name as string | undefined) ??
+      email.split("@")[0] ??
+      "user";
+
+    const baseSlug = displayName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const safeBase = baseSlug.length >= 3 ? baseSlug.substring(0, 55) : `user-${userId.substring(0, 8)}`;
+    const slug = `${safeBase}-${userId.substring(0, 6)}`;
+
+    const { data: ws, error: wsErr } = await supabaseAdmin
+      .from("workspaces")
+      .insert({ name: `${displayName}'s Workspace`, slug, owner_id: userId })
+      .select("id")
+      .single();
+
+    if (wsErr || !ws) {
+      console.error("[resolve-workspace] auto-provision workspace insert failed:", wsErr?.message);
+      return undefined;
+    }
+
+    await supabaseAdmin
+      .from("workspace_members")
+      .insert({ workspace_id: ws.id, user_id: userId, role: "owner" });
+
+    await supabaseAdmin
+      .from("workspace_settings")
+      .insert({ workspace_id: ws.id, business_name: displayName });
+
+    await supabaseAdmin
+      .from("profiles")
+      .update({ default_workspace_id: ws.id })
+      .eq("user_id", userId);
+
+    console.info(`[resolve-workspace] auto-provisioned workspace ${ws.id} for user ${userId}`);
+    return ws.id;
+  } catch (err) {
+    console.error("[resolve-workspace] auto-provision failed:", err);
+    return undefined;
+  }
 }
