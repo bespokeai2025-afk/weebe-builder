@@ -886,7 +886,7 @@ export function RetellDeployDialog({
                   };
 
             const inputConfig: Record<string, unknown> = {
-              transcription: { model: "whisper-1" },
+              transcription: { model: hsSettings.hyperstreamTranscriptionModel ?? "whisper-1" },
               turn_detection: turnDetectionConfig,
             };
             if (

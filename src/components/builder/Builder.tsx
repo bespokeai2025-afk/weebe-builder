@@ -33,6 +33,7 @@ import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, A
 import { KnowledgeBaseSection } from "@/components/builder/KnowledgeBaseSection";
 import { SpeechSettingsSection } from "@/components/builder/SpeechSettingsSection";
 import { HyperStreamSettingsSection } from "@/components/builder/HyperStreamSettingsSection";
+import { TranscriptionSettingsSection } from "@/components/builder/TranscriptionSettingsSection";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
@@ -1261,6 +1262,7 @@ export function Builder({
             </Collapsible>
 
             <SpeechSettingsSection isRetell={isRetell} />
+            <TranscriptionSettingsSection isRetell={isRetell} isHyperStream={isOpenAI} />
             {isOpenAI && <HyperStreamSettingsSection />}
             </>
             )}

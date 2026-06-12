@@ -216,40 +216,6 @@ export function HyperStreamSettingsSection() {
           </FieldRow>
         )}
 
-        {/* Noise Reduction */}
-        <FieldRow label="Input Noise Reduction">
-          <Select
-            value={settings.hyperstreamNoiseReduction ?? "none"}
-            onValueChange={(v) =>
-              set({ hyperstreamNoiseReduction: v as BuilderSettings["hyperstreamNoiseReduction"] })
-            }
-          >
-            <SelectTrigger className="h-8 text-[11px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">
-                <div className="flex flex-col">
-                  <span>None</span>
-                  <span className="text-[10px] text-muted-foreground">No noise processing</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="near_field">
-                <div className="flex flex-col">
-                  <span>Near Field</span>
-                  <span className="text-[10px] text-muted-foreground">Phone / close mic</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="far_field">
-                <div className="flex flex-col">
-                  <span>Far Field</span>
-                  <span className="text-[10px] text-muted-foreground">Room / speakerphone</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </FieldRow>
-
         {/* Max Response Tokens */}
         <div className="space-y-1.5">
           <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">

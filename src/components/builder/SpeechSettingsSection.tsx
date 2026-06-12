@@ -502,58 +502,6 @@ export function SpeechSettingsSection({ isRetell }: { isRetell: boolean }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-[9px]">STT mode</Label>
-                  <Select
-                    value={settings.sttMode ?? "fast"}
-                    onValueChange={(v) => set({ sttMode: v as BuilderSettings["sttMode"] })}
-                  >
-                    <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="fast">Fast</SelectItem>
-                      <SelectItem value="accurate">Accurate</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-[9px]">Vocabulary</Label>
-                  <Select
-                    value={settings.vocabSpecialization ?? "general"}
-                    onValueChange={(v) => set({ vocabSpecialization: v as BuilderSettings["vocabSpecialization"] })}
-                  >
-                    <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="general">General</SelectItem>
-                      <SelectItem value="medical">Medical</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-[9px]">Denoising</Label>
-                  <Select
-                    value={settings.denoisingMode ?? "noise-and-background-speech-cancellation"}
-                    onValueChange={(v) => set({ denoisingMode: v as BuilderSettings["denoisingMode"] })}
-                  >
-                    <SelectTrigger className="h-6 text-[10px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="no-denoise">Off</SelectItem>
-                      <SelectItem value="noise-cancellation">Noise</SelectItem>
-                      <SelectItem value="noise-and-background-speech-cancellation">Noise + speech</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Boosted keywords */}
-              <div>
-                <Label className="text-[9px]">Boosted keywords</Label>
-                <Input
-                  value={(settings.boostedKeywords ?? []).join(", ")}
-                  onChange={(e) => csv("boostedKeywords", e.target.value)}
-                  placeholder="names, brands, specialist words"
-                  className="h-6 text-[10px]"
-                />
               </div>
 
               {/* Call timings grid */}

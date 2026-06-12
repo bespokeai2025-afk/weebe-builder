@@ -211,6 +211,8 @@ export interface BuilderSettings {
   hyperstreamNoiseReduction?: "none" | "near_field" | "far_field";
   /** Max response output tokens for HyperStream (undefined = unlimited) */
   hyperstreamMaxTokens?: number;
+  /** Transcription model for HyperStream input (default: "whisper-1") */
+  hyperstreamTranscriptionModel?: "whisper-1" | "gpt-4o-transcribe" | "gpt-4o-mini-transcribe";
   /**
    * Per-agent booking / calendar override. When `enabled` is false, booking
    * tools are NOT auto-attached on deploy even if Cal.com is connected at the
