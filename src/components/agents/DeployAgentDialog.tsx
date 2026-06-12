@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { getMyWorkspaceRequest, requestWorkspace } from "@/lib/agents/workspace.functions";
 import { getDeployConfig } from "@/lib/deploy/deploy.functions";
+import { getWorkspaceCalendarSettings } from "@/lib/calendar/calendar.functions";
 
 interface Props {
   open: boolean;
@@ -201,6 +202,16 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
   // Production-workspace clone state
   const [cloning, setCloning] = useState(false);
+
+  // Workspace-level Cal.com connection (set via Account → Integrations, not agent-specific)
+  const getWsCalFn = useServerFn(getWorkspaceCalendarSettings);
+  const wsCalQ = useQuery({
+    queryKey: ["workspace-calendar-settings"],
+    queryFn: () => getWsCalFn(),
+    enabled: open,
+    staleTime: 30_000,
+  });
+  const wsCalConnected = Boolean(wsCalQ.data?.calcom_api_key);
 
   // Controlled tab state so the Cal.com advisory can jump to that tab
   const [activeTab, setActiveTab] = useState("buy");
@@ -554,7 +565,8 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                   </p>
                 </div>
                 {agentType === "receptionist" &&
-                  !((settings.calcom as { apiKey?: string } | null)?.apiKey ?? calJustSaved?.apiKey) && (
+                  !((settings.calcom as { apiKey?: string } | null)?.apiKey ?? calJustSaved?.apiKey) &&
+                  !wsCalConnected && (
                     <div className="flex items-start gap-2 rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                       <CalendarClock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                       <span>
