@@ -332,8 +332,6 @@ function AnalyticsPage() {
             </div>
           )}
 
-          <LiveCallsPanel />
-
           <div className="grid grid-cols-2 gap-3 px-6 pt-5 md:grid-cols-4">
             <StatCard label="Total calls" tone="primary" value={analytics.total} />
             <StatCard label="Minutes used" tone="info" value={`${analytics.totalMinutes}m`} />
