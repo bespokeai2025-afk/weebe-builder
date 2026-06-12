@@ -571,6 +571,37 @@ export async function processRetellWebhook(
     leadId = (leadMatch?.id as string | undefined) ?? null;
   }
 
+  // Auto-create a contact record for unknown inbound callers so every
+  // inbound call immediately appears in the Contacts section.
+  if (
+    callType === "inbound" &&
+    contactPhone &&
+    ["call_started", "call_ended", "call_analyzed"].includes(event)
+  ) {
+    const { data: existingContact } = await supabaseAdmin
+      .from("data_records")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("mobile_number", contactPhone)
+      .eq("is_deleted", false)
+      .maybeSingle();
+
+    if (!existingContact) {
+      const { error: contactErr } = await supabaseAdmin.from("data_records").insert({
+        workspace_id: workspaceId,
+        mobile_number: contactPhone,
+        name: contactPhone,
+        is_active: true,
+        is_deleted: false,
+      } as never);
+      if (contactErr) {
+        console.warn("[RETELL WEBHOOK] Could not auto-create contact", contactErr.message, { contactPhone, workspaceId });
+      } else {
+        console.log("[RETELL WEBHOOK] Auto-created contact for unknown inbound caller", { contactPhone, workspaceId });
+      }
+    }
+  }
+
   const row = {
     workspace_id: workspaceId,
     lead_id: leadId,
@@ -810,6 +841,25 @@ export async function processRetellWebhook(
         },
         { onConflict: "call_id" },
       );
+    }
+
+    // If the call analysis extracted the caller's name, update the auto-created
+    // contact record (but only if the name is still the placeholder phone number,
+    // meaning the user hasn't manually edited it).
+    const callerName = (custom.customer_name as string | undefined)?.trim() ?? null;
+    if (callerName && contactPhone && callType === "inbound") {
+      const nameParts = callerName.split(/\s+/);
+      await supabaseAdmin
+        .from("data_records")
+        .update({
+          name: callerName,
+          first_name: nameParts[0] ?? null,
+          last_name: nameParts.slice(1).join(" ") || null,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq("workspace_id", workspaceId)
+        .eq("mobile_number", contactPhone)
+        .eq("name", contactPhone);
     }
   }
 
