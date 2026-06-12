@@ -988,6 +988,9 @@ export function Builder({
                   {/* Native Voice Profile */}
                   <div>
                     <Label className="text-[9px]">Native Voice Profile</Label>
+                    <p className="text-[9px] text-muted-foreground mb-1">
+                      HyperStream uses OpenAI's built-in voices only. ElevenLabs &amp; Deepgram voices require OmniVoice (Retell).
+                    </p>
                     <Select
                       value={settings.openaiVoice ?? "alloy"}
                       onValueChange={(v) => setSettings({ openaiVoice: v as BuilderSettings["openaiVoice"] })}

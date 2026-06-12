@@ -1623,7 +1623,50 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
       agentBody.webhook_url = `${cloneWebhookBase}/api/public/voice-webhook`;
     }
 
-    const agentResp = await retellFetch(`/create-agent`, agentBody, "POST", prodKey);
+    // Create the cloned agent in the production workspace.
+    // ElevenLabs voices must be registered per-workspace — the voice ID that
+    // worked in the platform workspace won't exist in the client's workspace.
+    // Attempt auto-registration with prodKey before falling back to the default.
+    let agentResp: Record<string, unknown>;
+    try {
+      agentResp = await retellFetch(`/create-agent`, agentBody, "POST", prodKey);
+    } catch (e) {
+      if (/voice.*not found|not found.*voice/i.test((e as Error).message)) {
+        const failedVoiceId = agentBody.voice_id as string | undefined;
+        const suffix = typeof failedVoiceId === "string" && failedVoiceId.startsWith("11labs-")
+          ? failedVoiceId.slice(7)
+          : null;
+        let registered = false;
+        if (suffix && suffix.length >= 12) {
+          // Long suffix = a real ElevenLabs voice ID — register it in the production workspace.
+          try {
+            const regRes = await fetch(`${RETELL_BASE}/create-voice`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${prodKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ voice_name: suffix, voice_provider: "elevenlabs", elevenlabs_voice_id: suffix }),
+            });
+            if (regRes.ok) {
+              const regJson = (await regRes.json()) as Record<string, unknown>;
+              const newVoiceId = String(regJson.voice_id ?? "");
+              if (newVoiceId) {
+                agentBody.voice_id = newVoiceId;
+                console.log("[go-live] Auto-registered ElevenLabs voice in production workspace", failedVoiceId, "→", newVoiceId);
+                registered = true;
+              }
+            }
+          } catch { /* fall through to default */ }
+        }
+        if (!registered) {
+          // Built-in ElevenLabs short name (e.g. 11labs-Adrian) that's already in
+          // the production workspace — just use it directly as the fallback.
+          agentBody.voice_id = "11labs-Adrian";
+          console.warn("[go-live] Voice not found in production workspace, falling back to 11labs-Adrian", failedVoiceId);
+        }
+        agentResp = await retellFetch(`/create-agent`, agentBody, "POST", prodKey);
+      } else {
+        throw e;
+      }
+    }
     const newAgentId = String(agentResp.agent_id ?? "");
     if (!newAgentId) throw new Error("Production workspace did not return an agent_id");
     await rememberProductionRetellApiKey(data.agentRowId, context.userId, prodKey);
