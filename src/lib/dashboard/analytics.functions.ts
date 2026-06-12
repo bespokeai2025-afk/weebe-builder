@@ -149,6 +149,24 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
   });
 
 /**
+ * Parse Retell's plain-text transcript string into role/content pairs.
+ * Format: "Agent: hello\nUser: hi there\nAgent: ...\n"
+ */
+function parseTranscriptString(text: string): { role: "agent" | "user"; content: string }[] {
+  if (!text.trim()) return [];
+  return text
+    .split("\n")
+    .map((line) => {
+      const agentMatch = line.match(/^Agent:\s*(.*)/);
+      if (agentMatch) return { role: "agent" as const, content: agentMatch[1].trim() };
+      const userMatch = line.match(/^User:\s*(.*)/);
+      if (userMatch) return { role: "user" as const, content: userMatch[1].trim() };
+      return null;
+    })
+    .filter((x): x is { role: "agent" | "user"; content: string } => x !== null && x.content.length > 0);
+}
+
+/**
  * Fetch all currently-ongoing calls across the workspace's deployed agents.
  * Polls Retell /v2/list-calls filtered to call_status=ongoing.
  * Returns lightweight call objects with live transcript lines.
@@ -192,20 +210,28 @@ export const getLiveCalls = createServerFn({ method: "GET" })
       raw = Array.isArray(res) ? res : (res?.calls ?? []);
     } catch { /* ignore — returns empty */ }
 
-    const calls: LiveCall[] = raw.map((c: any) => ({
-      call_id: c.call_id ?? "",
-      agent_id: c.agent_id ?? "",
-      agent_name: agentNames[c.agent_id] ?? "Unknown agent",
-      direction: c.direction ?? c.call_direction ?? "inbound",
-      call_type: c.call_type ?? "phone_call",
-      from_number: c.from_number ?? c.caller_id ?? null,
-      to_number: c.to_number ?? null,
-      start_timestamp: c.start_timestamp ?? null,
-      transcript: (c.transcript_object ?? []).map((t: any) => ({
-        role: t.role as "agent" | "user",
-        content: t.content ?? "",
-      })),
-    }));
+    const calls: LiveCall[] = raw.map((c: any) => {
+      // Prefer structured transcript_object when populated
+      const structured: { role: "agent" | "user"; content: string }[] =
+        Array.isArray(c.transcript_object) && c.transcript_object.length > 0
+          ? c.transcript_object.map((t: any) => ({
+              role: (t.role ?? "agent") as "agent" | "user",
+              content: t.content ?? "",
+            }))
+          : parseTranscriptString(c.transcript ?? "");
+
+      return {
+        call_id: c.call_id ?? "",
+        agent_id: c.agent_id ?? "",
+        agent_name: agentNames[c.agent_id] ?? "Unknown agent",
+        direction: c.direction ?? c.call_direction ?? "inbound",
+        call_type: c.call_type ?? "phone_call",
+        from_number: c.from_number ?? c.caller_id ?? null,
+        to_number: c.to_number ?? null,
+        start_timestamp: c.start_timestamp ?? null,
+        transcript: structured,
+      };
+    });
 
     return { calls };
   });
