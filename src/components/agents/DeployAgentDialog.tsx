@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, Link } from "@tanstack/react-router";
-import { Loader2, Phone, PhoneCall, Calendar, ExternalLink, Check, Rocket, AlertTriangle, X } from "lucide-react";
+import { Loader2, Phone, PhoneCall, Calendar, CalendarClock, ExternalLink, Check, Rocket, AlertTriangle, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -190,6 +190,9 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
 
   // Production-workspace clone state
   const [cloning, setCloning] = useState(false);
+
+  // Controlled tab state so the Cal.com advisory can jump to that tab
+  const [activeTab, setActiveTab] = useState("buy");
 
   const settings = (agent?.settings ?? {}) as Record<string, unknown>;
   const deployedId = (settings.deployedRetellAgentId as string | undefined) ?? null;
@@ -539,6 +542,23 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                       : "Attach a phone number to the agent first."}
                   </p>
                 </div>
+                {agentType === "receptionist" &&
+                  !((settings.calcom as { apiKey?: string } | null)?.apiKey ?? calJustSaved?.apiKey) && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                      <CalendarClock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                      <span>
+                        Receptionist flow uses calendar booking — connect Cal.com first so the
+                        agent can check availability and schedule appointments.{" "}
+                        <button
+                          type="button"
+                          className="underline font-medium hover:no-underline"
+                          onClick={() => setActiveTab("calcom")}
+                        >
+                          Set up Cal.com →
+                        </button>
+                      </span>
+                    </div>
+                  )}
                 {isOpenAiRealtime && savedPhone && (
                   <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -703,7 +723,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
               </div>
             )}
 
-            <Tabs defaultValue="buy" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger data-tour="deploy-dialog-phone-tab" value="buy">
                   <Phone className="h-4 w-4 mr-1" /> Buy number
