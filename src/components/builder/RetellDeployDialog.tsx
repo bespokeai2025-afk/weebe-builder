@@ -37,7 +37,7 @@ import {
 } from "@/lib/agents/agents.functions";
 import { getMySpend, recordTestCallCost } from "@/lib/auth/auth.functions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN } from "@/lib/builder/pricing";
+import { getTotalCostPerMinute, getHyperStreamCostPerMinute, calcHyperStreamTurnCost, HYPERSTREAM_TELEPHONY_PER_MIN, ELEVENLABS_PER_MIN } from "@/lib/builder/pricing";
 
 export type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
 
@@ -1811,6 +1811,8 @@ export function RetellDeployDialog({
 
   const costPerMinute = isOpenAI
     ? getHyperStreamCostPerMinute(settings.openaiRealtimeModel)
+    : isElevenLabs
+    ? ELEVENLABS_PER_MIN
     : getTotalCostPerMinute(settings.model);
   const minutes = elapsedSec / 60;
   // HyperStream: use exact token cost once available; fall back to time estimate
@@ -1918,7 +1920,7 @@ export function RetellDeployDialog({
             size="sm"
             variant="ghost"
             onClick={isOpenAI ? handleHyperStreamTestCall : isElevenLabs ? handleVoxStreamTestCall : handleTestCall}
-            disabled={!hasAgent || (!isOpenAI && !isElevenLabs && overLimit)}
+            disabled={!hasAgent || (!isOpenAI && overLimit)}
             className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
             title={
               !hasAgent
@@ -2140,7 +2142,13 @@ export function RetellDeployDialog({
       {(inCall || spendUsedCents > 0) && (
         <div
           className="flex h-8 items-center gap-1.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-2 text-[10px] font-medium text-foreground/70"
-          title={costIsExact ? `OpenAI token cost only. Live calls add ~$${HYPERSTREAM_TELEPHONY_PER_MIN.toFixed(3)}/min Twilio telephony on top (not charged for builder test calls).` : `Estimated spend @ $${costPerMinute.toFixed(3)}/min`}
+          title={
+            costIsExact
+              ? `OpenAI token cost only. Live calls add ~$${HYPERSTREAM_TELEPHONY_PER_MIN.toFixed(3)}/min Twilio telephony on top (not charged for builder test calls).`
+              : isElevenLabs
+              ? `VoxStream est. ~$${ELEVENLABS_PER_MIN.toFixed(3)}/min (ElevenLabs ConvAI — GPT-4o + Turbo v2.5 voice, blended)`
+              : `Estimated spend @ $${costPerMinute.toFixed(3)}/min`
+          }
         >
           {inCall && (
             <>

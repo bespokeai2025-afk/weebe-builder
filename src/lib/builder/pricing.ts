@@ -318,6 +318,15 @@ export function getHyperStreamCostPerMinute(modelId?: string): number {
   return HYPERSTREAM_MODELS.find((m) => m.id === modelId)?.costPerMin ?? HYPERSTREAM_PER_MIN;
 }
 
+// ── VoxStream (ElevenLabs Conversational AI) per-minute estimate ─────────────
+// ElevenLabs ConvAI pricing: GPT-4o backbone at standard token rates plus
+// ElevenLabs Turbo v2.5 voice. Blended estimate at typical talk ratios:
+//   GPT-4o input  ~300 tok/min * $2.50/1M  ≈ $0.0008/min
+//   GPT-4o output ~150 tok/min * $10.0/1M  ≈ $0.0015/min
+//   EL Turbo v2.5 ~3,000 chars/min * $0.015/1k chars ≈ $0.045/min
+//   → ~$0.05/min blended. Builder test calls are WebRTC (no telephony charge).
+export const ELEVENLABS_PER_MIN = 0.05;
+
 // ── Exact per-token billing rates for HyperStream ──────────────────────────
 // Source: https://openai.com/api/pricing/
 // OpenAI Realtime API bills audio and text tokens at different rates.
