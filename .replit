@@ -86,6 +86,9 @@ externalPort = 8081
 [userenv.shared]
 RETELL_SIGNATURE_VERIFICATION_ENABLED = "true"
 
+[userenv.production]
+PUBLIC_BASE_URL = "https://webeebuilder.com"
+
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 60000
