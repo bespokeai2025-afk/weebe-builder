@@ -1816,7 +1816,7 @@ export const deployElevenLabsAgent = createServerFn({ method: "POST" })
         agent: {
           prompt: {
             prompt: data.systemPrompt,
-            llm: "gemini-2.0-flash",
+            llm: "gpt-4o",
           },
           first_message: data.firstMessage || "",
           language: (data.language || "en").slice(0, 2),
@@ -1831,7 +1831,15 @@ export const deployElevenLabsAgent = createServerFn({ method: "POST" })
         },
       },
       ...(data.webhookUrl
-        ? { platform_settings: { webhook: { url: data.webhookUrl } } }
+        ? {
+            platform_settings: {
+              webhook: {
+                url: process.env.ELEVENLABS_WEBHOOK_SECRET
+                  ? `${data.webhookUrl}?secret=${process.env.ELEVENLABS_WEBHOOK_SECRET}`
+                  : data.webhookUrl,
+              },
+            },
+          }
         : {}),
     };
 

@@ -82,6 +82,7 @@ import { ClientQualificationSection } from "./ClientQualificationSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
+import { searchElevenLabsVoices } from "@/lib/builder/retell.functions";
 import { toast } from "sonner";
 
 const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
@@ -335,6 +336,9 @@ export function Builder({
   const [callActive, setCallActive] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<TxEntry[]>([]);
   const transcriptPanelRef = useRef<HTMLDivElement | null>(null);
+  const [elVoiceQuery, setElVoiceQuery] = useState("");
+  const [elVoiceResults, setElVoiceResults] = useState<Array<{ voice_id: string; name: string; description: string | null; labels: Record<string, string>; preview_url: string | null }>>([]);
+  const [elVoiceSearching, setElVoiceSearching] = useState(false);
 
   // Force the right panel open when a call starts; auto-clear transcript when it ends.
   useEffect(() => {
@@ -1172,17 +1176,77 @@ export function Builder({
                   <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-2.5 px-2.5 pb-2.5">
-                  <div>
-                    <Label className="text-[9px]">ElevenLabs Voice ID</Label>
-                    <p className="text-[9px] text-muted-foreground mb-1">
-                      Paste a raw ElevenLabs voice UUID. Find voices at elevenlabs.io/voice-library or use the voice search below.
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px]">Voice</Label>
+                    {settings.elevenLabsVoiceId && (
+                      <div className="flex items-center gap-1.5 rounded border border-primary/20 bg-primary/[0.04] px-2 py-1">
+                        <Mic className="h-2.5 w-2.5 text-primary shrink-0" />
+                        <span className="text-[9px] font-mono text-primary truncate flex-1">{settings.elevenLabsVoiceId}</span>
+                        <button className="text-[9px] text-muted-foreground hover:text-destructive" onClick={() => setSettings({ elevenLabsVoiceId: "" })}>×</button>
+                      </div>
+                    )}
+                    <div className="flex gap-1">
+                      <Input
+                        value={elVoiceQuery}
+                        onChange={(e) => setElVoiceQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setElVoiceSearching(true);
+                            searchElevenLabsVoices({ data: { query: elVoiceQuery } })
+                              .then((r) => setElVoiceResults(r.voices))
+                              .catch(() => toast.error("Voice search failed"))
+                              .finally(() => setElVoiceSearching(false));
+                          }
+                        }}
+                        placeholder="Search voices…"
+                        className="h-7 text-[10px] flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[9px] shrink-0"
+                        disabled={elVoiceSearching}
+                        onClick={() => {
+                          setElVoiceSearching(true);
+                          searchElevenLabsVoices({ data: { query: elVoiceQuery } })
+                            .then((r) => setElVoiceResults(r.voices))
+                            .catch(() => toast.error("Voice search failed"))
+                            .finally(() => setElVoiceSearching(false));
+                        }}
+                      >
+                        <Search className="h-2.5 w-2.5 mr-1" />
+                        {elVoiceSearching ? "…" : "Search"}
+                      </Button>
+                    </div>
+                    {elVoiceResults.length > 0 && (
+                      <div className="max-h-36 overflow-y-auto rounded border border-white/[0.06] divide-y divide-white/[0.04]">
+                        {elVoiceResults.map((v) => (
+                          <button
+                            key={v.voice_id}
+                            className="flex w-full items-start gap-2 px-2 py-1.5 text-left hover:bg-white/[0.04] transition-colors"
+                            onClick={() => {
+                              setSettings({ elevenLabsVoiceId: v.voice_id });
+                              setElVoiceResults([]);
+                              setElVoiceQuery("");
+                            }}
+                          >
+                            <Check className={cn("h-2.5 w-2.5 mt-0.5 shrink-0", settings.elevenLabsVoiceId === v.voice_id ? "text-primary" : "text-transparent")} />
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-medium leading-tight truncate">{v.name}</p>
+                              {v.description && <p className="text-[8px] text-muted-foreground leading-tight line-clamp-1">{v.description}</p>}
+                              {Object.keys(v.labels ?? {}).length > 0 && (
+                                <p className="text-[8px] text-muted-foreground/60 leading-tight">
+                                  {Object.values(v.labels).slice(0, 3).join(" · ")}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-[8px] text-muted-foreground">
+                      Search ElevenLabs shared voices or paste a voice ID directly above.
                     </p>
-                    <Input
-                      value={settings.elevenLabsVoiceId ?? ""}
-                      onChange={(e) => setSettings({ elevenLabsVoiceId: e.target.value })}
-                      placeholder="e.g. EXAVITQu4vr4xnSDxMaL"
-                      className="h-7 text-[10px]"
-                    />
                   </div>
                   <SliderField label="Temperature" value={settings.temperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => setSettings({ temperature: v })} />
                   <Textarea rows={4} value={settings.globalPrompt} onChange={(e) => setSettings({ globalPrompt: e.target.value })} placeholder="Enter your global prompt here" className="text-[10px] leading-relaxed" />
