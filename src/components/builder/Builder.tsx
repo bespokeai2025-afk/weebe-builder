@@ -915,7 +915,7 @@ export function Builder({
               )}
             </div>
 
-            <Collapsible data-tour="voice-section" className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+            <Collapsible data-tour="voice-section" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Mic className="h-3 w-3" />Voice & Language</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -979,7 +979,7 @@ export function Builder({
             </Collapsible>
 
             {isOpenAI && (
-              <Collapsible className="rounded-lg border border-primary/20 bg-primary/[0.03]" defaultOpen>
+              <Collapsible className="rounded-lg border border-primary/20 bg-primary/[0.03]">
                 <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                   <span className="flex items-center gap-1.5"><Zap className="h-3 w-3 text-primary" />OpenAI Engine</span>
                   <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -1097,7 +1097,7 @@ export function Builder({
               </Collapsible>
             )}
 
-            <Collapsible data-tour="global-prompt" className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+            <Collapsible data-tour="global-prompt" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><MsgSq className="h-3 w-3" />Global Prompt</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -1202,7 +1202,7 @@ export function Builder({
             <BookingConfigSection />
 
             {/* Agent type selector — controls which sections appear below */}
-            <Collapsible data-tour="agent-type-select" className="rounded-lg border border-white/[0.06] bg-white/[0.01]" defaultOpen>
+            <Collapsible data-tour="agent-type-select" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Globe className="h-3 w-3" />Agent Type</span>
                 <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
