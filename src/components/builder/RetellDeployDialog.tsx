@@ -94,6 +94,20 @@ export function RetellDeployDialog({
   const startedAtRef = useRef<number | null>(null);
   const recordedCallRef = useRef(false);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
+  // Always-current ref so WS message handlers can call onTranscriptUpdate
+  // without capturing a stale closure (avoids render → useEffect round-trip).
+  const onTranscriptUpdateRef = useRef(onTranscriptUpdate);
+  onTranscriptUpdateRef.current = onTranscriptUpdate;
+
+  /** Drop-in replacement for setTranscript that also propagates to parent instantly. */
+  function pushTranscript(updater: TxEntry[] | ((prev: TxEntry[]) => TxEntry[])) {
+    setTranscript((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      // Propagate to Builder immediately without waiting for useEffect.
+      onTranscriptUpdateRef.current?.(next);
+      return next;
+    });
+  }
 
   const deploy = useServerFn(deployAgentToRetell);
   const startCall = useServerFn(createRetellWebCall);
@@ -156,11 +170,12 @@ export function RetellDeployDialog({
   }, [setActiveNode]);
 
   // Auto-scroll transcript to bottom whenever a new entry arrives.
+  // onTranscriptUpdate is now called directly inside pushTranscript, so we
+  // only need the scroll side-effect here.
   useEffect(() => {
     if (transcriptScrollRef.current) {
       transcriptScrollRef.current.scrollTop = transcriptScrollRef.current.scrollHeight;
     }
-    onTranscriptUpdate?.(transcript);
   }, [transcript]);
 
   // Tick elapsed seconds while in a call; notify parent of call state.
@@ -174,9 +189,11 @@ export function RetellDeployDialog({
     }, 500);
     return () => {
       clearInterval(t);
-      // If the dialog unmounts or the call ends, ensure the parent panel clears.
+      // Only tell the parent the call ended — do NOT wipe the transcript here.
+      // Clearing it prevented users from reading the post-call transcript and
+      // caused the "transcript only shows at end" bug (final Retell `update`
+      // event arrives after call_ended and re-populated it too late).
       onCallActive?.(false);
-      onTranscriptUpdate?.([]);
     };
   }, [inCall]);
 
@@ -462,7 +479,7 @@ export function RetellDeployDialog({
         startedAtRef.current = Date.now();
         recordedCallRef.current = false;
         setElapsedSec(0);
-        setTranscript([]);
+        pushTranscript([]);
         setInCall(true);
         // Highlight the start node immediately.
         const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
@@ -515,7 +532,7 @@ export function RetellDeployDialog({
           const obj = payload as Record<string, unknown>;
           const t = obj.transcript;
           if (!Array.isArray(t) || t.length === 0) return;
-          setTranscript(
+          pushTranscript(
             (t as Array<{ role: string; content: string }>).map((entry, i) => ({
               id: `retell-${i}`,
               role: entry.role === "agent" ? "agent" : "user",
@@ -525,6 +542,24 @@ export function RetellDeployDialog({
           );
         },
       );
+
+      // Live speaking indicators — show a partial bubble while the agent is
+      // talking so the transcript feels live even before the `update` event
+      // fires with the completed turn text.
+      const retellClient = client as unknown as { on: (e: string, cb: () => void) => void };
+      retellClient.on("agent_start_talking", () => {
+        pushTranscript((prev) => {
+          // Avoid duplicate partial bubbles if one already exists.
+          const last = prev[prev.length - 1];
+          if (last?.role === "agent" && last.partial) return prev;
+          return [...prev, { id: "retell-agent-partial", role: "agent" as const, text: "…", partial: true }];
+        });
+      });
+      retellClient.on("agent_stop_talking", () => {
+        // Remove the placeholder — the imminent `update` event will push the
+        // real completed text and replace the whole transcript array.
+        pushTranscript((prev) => prev.filter((e) => e.id !== "retell-agent-partial"));
+      });
 
       client.on("error", (err: unknown) => {
         toast.error("Call error", {
@@ -1042,7 +1077,7 @@ export function RetellDeployDialog({
             startedAtRef.current = Date.now();
             recordedCallRef.current = false;
             setElapsedSec(0);
-            setTranscript([]);
+            pushTranscript([]);
             setHsExactCostUsd(null);
             setInCall(true);
             setCalling(false);
@@ -1129,7 +1164,7 @@ export function RetellDeployDialog({
             });
             // Show a live "speaking…" bubble in the transcript panel.
             const speakItemId = typeof msg.item_id === "string" ? msg.item_id : crypto.randomUUID();
-            setTranscript((prev) => [
+            pushTranscript((prev) => [
               ...prev,
               { id: `user-${speakItemId}`, role: "user", text: "speaking…", partial: true },
             ]);
@@ -1338,7 +1373,7 @@ export function RetellDeployDialog({
             const respId = (msg.response_id as string) ?? currentResponseId;
             const delta = typeof msg.delta === "string" ? msg.delta : "";
             if (delta) {
-              setTranscript((prev) => {
+              pushTranscript((prev) => {
                 const last = prev[prev.length - 1];
                 if (last && last.role === "agent" && last.id === respId && last.partial) {
                   return [...prev.slice(0, -1), { ...last, text: last.text + delta }];
@@ -1352,7 +1387,7 @@ export function RetellDeployDialog({
           // response.output_audio_transcript.done: agent turn text complete.
           if (msg.type === "response.output_audio_transcript.done") {
             const respId = (msg.response_id as string) ?? currentResponseId;
-            setTranscript((prev) => {
+            pushTranscript((prev) => {
               // Find last agent entry with this response id and mark it done.
               let found = false;
               return prev.map((e) => {
@@ -1372,7 +1407,7 @@ export function RetellDeployDialog({
             const text = typeof msg.transcript === "string" ? msg.transcript.trim() : "";
             const itemId = typeof msg.item_id === "string" ? msg.item_id : crypto.randomUUID();
             if (text) {
-              setTranscript((prev) => {
+              pushTranscript((prev) => {
                 const targetId = `user-${itemId}`;
                 const idx = prev.findIndex((e) => e.id === targetId);
                 if (idx !== -1) {
@@ -1717,7 +1752,7 @@ export function RetellDeployDialog({
         startedAtRef.current = Date.now();
         recordedCallRef.current = false;
         setElapsedSec(0);
-        setTranscript([]);
+        pushTranscript([]);
         setInCall(true);
         const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
         if (startNode) setActiveNode(startNode.id);
@@ -1736,7 +1771,7 @@ export function RetellDeployDialog({
         } else if (t === "agent_response") {
           const text = (msg.agent_response_event as Record<string, unknown> | undefined)?.agent_response;
           if (typeof text === "string" && text) {
-            setTranscript((prev) => {
+            pushTranscript((prev) => {
               const last = prev[prev.length - 1];
               if (last?.role === "agent" && last.partial)
                 return [...prev.slice(0, -1), { ...last, text, partial: false }];
@@ -1746,7 +1781,7 @@ export function RetellDeployDialog({
         } else if (t === "user_transcript") {
           const text = (msg.user_transcription_event as Record<string, unknown> | undefined)?.user_transcript;
           if (typeof text === "string" && text) {
-            setTranscript((prev) => {
+            pushTranscript((prev) => {
               const last = prev[prev.length - 1];
               if (last?.role === "user" && last.partial)
                 return [...prev.slice(0, -1), { ...last, text, partial: false }];
