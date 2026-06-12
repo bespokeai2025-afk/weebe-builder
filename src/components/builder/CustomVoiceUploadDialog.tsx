@@ -83,7 +83,6 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
   /* ── professional import ── */
   const [proId, setProId] = useState("");
   const [proName, setProName] = useState("");
-  const [proImporting, setProImporting] = useState(false);
 
   const searchFn = useServerFn(searchElevenLabsVoices);
   const addFn = useServerFn(addElevenLabsCommunityVoice);
@@ -199,22 +198,15 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
   async function handleProImport() {
     const raw = proId.trim();
     if (!raw) return toast.error("Voice ID required");
+    // Strip the 11labs- prefix if the user pasted the full Retell ID
     const elVoiceId = raw.startsWith("11labs-") ? raw.slice(7) : raw;
-    setProImporting(true);
-    try {
-      const res = await addFn({
-        data: { elevenLabsVoiceId: elVoiceId, voiceName: proName.trim() || elVoiceId },
-      });
-      if (!res.voiceId) throw new Error("No voice ID returned");
-      onUploaded(res.voiceId, res.voiceName);
-      toast.success("Voice added", { description: res.voiceName });
-      setOpen(false);
-      reset();
-    } catch (e) {
-      toast.error("Failed to add voice", { description: (e as Error).message });
-    } finally {
-      setProImporting(false);
-    }
+    const voiceId = `11labs-${elVoiceId}`;
+    const displayName = proName.trim() || elVoiceId;
+    // No Retell API call needed — Retell natively routes 11labs-{id} through ElevenLabs
+    onUploaded(voiceId, displayName);
+    toast.success("Voice added", { description: displayName });
+    setOpen(false);
+    reset();
   }
 
   const TABS: { id: Tab; label: string }[] = [
@@ -512,15 +504,11 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
 
               <Button
                 onClick={handleProImport}
-                disabled={!proId.trim() || proImporting}
+                disabled={!proId.trim()}
                 className="self-start"
               >
-                {proImporting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4 mr-2" />
-                )}
-                {proImporting ? "Importing…" : "Use this voice"}
+                <Check className="h-4 w-4 mr-2" />
+                Use this voice
               </Button>
             </div>
           )}

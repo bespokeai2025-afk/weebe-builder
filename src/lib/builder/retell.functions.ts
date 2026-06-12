@@ -1056,7 +1056,7 @@ export const cloneCustomVoice = createServerFn({ method: "POST" })
   .inputValidator(
     (input: {
       voiceName: string;
-      voiceProvider?: "elevenlabs" | "playht";
+      voiceProvider?: "elevenlabs" | "cartesia" | "minimax" | "fish_audio" | "platform";
       fileBase64: string;
       fileName: string;
       mimeType?: string;
