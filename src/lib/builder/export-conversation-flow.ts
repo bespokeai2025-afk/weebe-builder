@@ -881,20 +881,29 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
       const rawVars = raw.variables as
         | Array<{ name?: string; description?: string; type?: string }>
         | undefined;
+      const extractVars = d.extractVariables as
+        | Array<{ id?: string; name: string; description: string; type: string }>
+        | undefined;
       const variables =
-        rawVars && rawVars.length
-          ? rawVars.map((v) => ({
-              name: v.name ?? "var",
+        extractVars && extractVars.length
+          ? extractVars.map((v) => ({
+              name: v.name || "var",
               description: v.description ?? "",
               type: v.type ?? "string",
             }))
-          : [
-              {
-                name: d.variableName ?? rawVar?.name ?? "var",
-                description: d.variableDescription ?? rawVar?.description ?? d.dialogue ?? "",
-                type: rawVar?.type ?? "string",
-              },
-            ];
+          : rawVars && rawVars.length
+            ? rawVars.map((v) => ({
+                name: v.name ?? "var",
+                description: v.description ?? "",
+                type: v.type ?? "string",
+              }))
+            : [
+                {
+                  name: d.variableName ?? rawVar?.name ?? "var",
+                  description: d.variableDescription ?? rawVar?.description ?? d.dialogue ?? "",
+                  type: rawVar?.type ?? "string",
+                },
+              ];
       return orderNode({
         ...base,
         type: "extract_dynamic_variables",

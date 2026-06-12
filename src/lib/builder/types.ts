@@ -1,3 +1,10 @@
+export interface ExtractVariableItem {
+  id: string;
+  name: string;
+  description: string;
+  type: "string" | "number" | "boolean" | "date" | "enum";
+}
+
 export type NodeKind =
   | "conversation"
   | "function"
@@ -93,9 +100,11 @@ export interface FlowNodeData {
   /** For logic_split — array of branches lives in transitions */
   /** For sms */
   smsMessage?: string;
-  /** For extract_variable */
+  /** For extract_variable — legacy single-variable fields (kept for round-trip compat) */
   variableName?: string;
   variableDescription?: string;
+  /** For extract_variable — multi-variable list (Retell-compatible) */
+  extractVariables?: ExtractVariableItem[];
   /** For code */
   codeSource?: string;
   /** For ending */

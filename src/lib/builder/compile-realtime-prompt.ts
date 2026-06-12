@@ -124,8 +124,22 @@ export function compileRealtimePrompt(
         return `${headerPrefix} ${d.label || "Transfer"}\nTransfer the call when appropriate.${transitionText}`;
       case "sms":
         return `${headerPrefix} ${d.label || "Send SMS"}\nSend an SMS${d.smsMessage ? `: "${d.smsMessage}"` : ""}.${transitionText}`;
-      case "extract_variable":
-        return `${headerPrefix} ${d.label || "Collect info"}\nCollect "${d.variableName || "information"}"${d.variableDescription ? ` — ${d.variableDescription}` : ""} from the caller.${transitionText}`;
+      case "extract_variable": {
+        type RawVar = { name?: string; description?: string };
+        const evItems = (d.extractVariables as RawVar[] | undefined);
+        const varLines =
+          evItems && evItems.length > 0
+            ? evItems
+                .map((v) =>
+                  v.name
+                    ? `- "${v.name}"${v.description ? ` — ${v.description}` : ""}`
+                    : null,
+                )
+                .filter(Boolean)
+                .join("\n")
+            : `- "${d.variableName || "information"}"${d.variableDescription ? ` — ${d.variableDescription}` : ""}`;
+        return `${headerPrefix} ${d.label || "Collect info"}\nCollect the following from the caller:\n${varLines}${transitionText}`;
+      }
       case "logic_split":
         return `${headerPrefix} ${d.label || "Decision"}\nDecide which branch to follow based on the conversation so far.${transitionText || "\n  - (no branches defined)"}`;
       case "press_digit":

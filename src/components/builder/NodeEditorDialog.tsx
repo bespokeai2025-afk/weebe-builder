@@ -18,9 +18,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Flag } from "lucide-react";
-import type { Transition } from "@/lib/builder/types";
-import { useEffect } from "react";
+import { Plus, Trash2, Flag, Pencil } from "lucide-react";
+import type { Transition, ExtractVariableItem } from "@/lib/builder/types";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getWorkspaceCalendarSettings } from "@/lib/calendar/calendar.functions";
@@ -115,6 +115,14 @@ export function NodeEditorDialog() {
     calSettings?.default_event_type_id,
     calSettings?.timezone,
   ]);
+
+  const [editingVar, setEditingVar] = useState<ExtractVariableItem | null>(null);
+  const [editingVarIsNew, setEditingVarIsNew] = useState(false);
+
+  useEffect(() => {
+    setEditingVar(null);
+    setEditingVarIsNew(false);
+  }, [selectedNodeId]);
 
   if (!node) return null;
 
@@ -475,23 +483,139 @@ export function NodeEditorDialog() {
           )}
 
           {d.kind === "extract_variable" && (
-            <>
-              <div>
-                <Label>Variable name</Label>
-                <Input
-                  value={d.variableName ?? ""}
-                  onChange={(e) => updateNode(node.id, { variableName: e.target.value })}
-                />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Variables</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingVar({ id: crypto.randomUUID(), name: "", description: "", type: "string" });
+                    setEditingVarIsNew(true);
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Add Variable
+                </Button>
               </div>
-              <div>
-                <Label>Description</Label>
-                <Textarea
-                  rows={3}
-                  value={d.variableDescription ?? ""}
-                  onChange={(e) => updateNode(node.id, { variableDescription: e.target.value })}
-                />
+
+              {(d.extractVariables ?? []).length === 0 && !editingVar && (
+                <p className="text-sm text-muted-foreground italic py-1">
+                  No variables yet — click Add Variable to begin.
+                </p>
+              )}
+
+              <div className="space-y-1">
+                {((d.extractVariables ?? []) as ExtractVariableItem[]).map((v) => (
+                  <div
+                    key={v.id}
+                    className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2"
+                  >
+                    <span className="font-mono text-xs font-bold text-indigo-500 shrink-0">{"{}"}</span>
+                    <span className="flex-1 text-sm truncate">{v.name || "(unnamed)"}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide shrink-0">
+                      {v.type === "string" ? "Text" : v.type === "number" ? "Num" : v.type === "boolean" ? "Bool" : v.type === "date" ? "Date" : "Enum"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingVar(v); setEditingVarIsNew(false); }}
+                      className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label="Edit variable"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateNode(node.id, {
+                          extractVariables: ((d.extractVariables ?? []) as ExtractVariableItem[]).filter((x) => x.id !== v.id),
+                        })
+                      }
+                      className="rounded p-0.5 text-rose-500 hover:text-rose-700 transition-colors"
+                      aria-label="Delete variable"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            </>
+
+              {editingVar && (
+                <div className="rounded-lg border bg-background p-3 space-y-3 shadow-sm">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    {editingVarIsNew ? "New Variable" : "Edit Variable"}
+                  </p>
+                  <div>
+                    <Label>Variable Name</Label>
+                    <Input
+                      value={editingVar.name}
+                      onChange={(e) => setEditingVar((prev) => prev ? { ...prev, name: e.target.value } : null)}
+                      placeholder="e.g. customer_name"
+                    />
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Textarea
+                      rows={3}
+                      value={editingVar.description}
+                      onChange={(e) => setEditingVar((prev) => prev ? { ...prev, description: e.target.value } : null)}
+                      placeholder="Describe what to collect from the caller…"
+                    />
+                  </div>
+                  <div>
+                    <Label>
+                      Variable Type{" "}
+                      <span className="text-muted-foreground font-normal">(Optional)</span>
+                    </Label>
+                    <Select
+                      value={editingVar.type}
+                      onValueChange={(v) =>
+                        setEditingVar((prev) =>
+                          prev ? { ...prev, type: v as ExtractVariableItem["type"] } : null,
+                        )
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="string">Text</SelectItem>
+                        <SelectItem value="number">Number</SelectItem>
+                        <SelectItem value="boolean">Boolean</SelectItem>
+                        <SelectItem value="date">Date / Time</SelectItem>
+                        <SelectItem value="enum">Enum</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setEditingVar(null); setEditingVarIsNew(false); }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        if (!editingVar) return;
+                        const current = (d.extractVariables ?? []) as ExtractVariableItem[];
+                        const updated = editingVarIsNew
+                          ? [...current, editingVar]
+                          : current.map((x) => (x.id === editingVar.id ? editingVar : x));
+                        updateNode(node.id, { extractVariables: updated });
+                        setEditingVar(null);
+                        setEditingVarIsNew(false);
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {d.kind === "code" && (
