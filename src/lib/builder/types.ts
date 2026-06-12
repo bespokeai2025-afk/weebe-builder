@@ -197,6 +197,20 @@ export interface BuilderSettings {
   enableDynamicVoiceSpeed?: boolean;
   enableDynamicResponsiveness?: boolean;
   normalizeForSpeech?: boolean;
+  /** HyperStream (OpenAI Realtime) turn-detection mode */
+  hyperstreamTurnDetection?: "server_vad" | "semantic_vad";
+  /** Server VAD: voice-activity threshold 0–1 (default 0.5) */
+  hyperstreamVadThreshold?: number;
+  /** Server VAD: silence duration ms before end-of-speech (default 200) */
+  hyperstreamSilenceDurationMs?: number;
+  /** Server VAD: audio prefix padding ms (default 200) */
+  hyperstreamPrefixPaddingMs?: number;
+  /** Semantic VAD: how eagerly the model responds (default "auto") */
+  hyperstreamEagerness?: "auto" | "low" | "medium" | "high";
+  /** Input noise reduction mode for HyperStream */
+  hyperstreamNoiseReduction?: "none" | "near_field" | "far_field";
+  /** Max response output tokens for HyperStream (undefined = unlimited) */
+  hyperstreamMaxTokens?: number;
   /**
    * Per-agent booking / calendar override. When `enabled` is false, booking
    * tools are NOT auto-attached on deploy even if Cal.com is connected at the

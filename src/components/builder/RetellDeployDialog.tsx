@@ -866,29 +866,50 @@ export function RetellDeployDialog({
               durationMs: (performance.now() - toolBuildStart).toFixed(0),
               toolCount: toolDefs.length,
             });
+            const hsSettings = useBuilderStore.getState().settings;
+            const tdMode = hsSettings.hyperstreamTurnDetection ?? "server_vad";
+            const turnDetectionConfig =
+              tdMode === "semantic_vad"
+                ? {
+                    type: "semantic_vad" as const,
+                    eagerness: hsSettings.hyperstreamEagerness ?? "auto",
+                    create_response: true,
+                    interrupt_response: true,
+                  }
+                : {
+                    type: "server_vad" as const,
+                    threshold: hsSettings.hyperstreamVadThreshold ?? 0.5,
+                    prefix_padding_ms: hsSettings.hyperstreamPrefixPaddingMs ?? 200,
+                    silence_duration_ms: hsSettings.hyperstreamSilenceDurationMs ?? 200,
+                    create_response: true,
+                    interrupt_response: true,
+                  };
+
+            const inputConfig: Record<string, unknown> = {
+              transcription: { model: "whisper-1" },
+              turn_detection: turnDetectionConfig,
+            };
+            if (
+              hsSettings.hyperstreamNoiseReduction &&
+              hsSettings.hyperstreamNoiseReduction !== "none"
+            ) {
+              inputConfig.noise_reduction = { type: hsSettings.hyperstreamNoiseReduction };
+            }
+
             const sessionConfig: Record<string, unknown> = {
               type: "realtime",
               output_modalities: ["audio"],
               instructions: params.systemPrompt,
               audio: {
-                input: {
-                  transcription: { model: "whisper-1" },
-                  turn_detection: {
-                    type: "server_vad",
-                    threshold: 0.5,
-                    prefix_padding_ms: 200,
-                    // 200 ms silence_duration_ms is the OpenAI minimum —
-                    // minimises dead time after the user stops speaking.
-                    silence_duration_ms: 200,
-                    create_response: true,
-                    interrupt_response: true,
-                  },
-                },
+                input: inputConfig,
                 output: {
                   voice: params.voice,
                 },
               },
             };
+            if (hsSettings.hyperstreamMaxTokens) {
+              sessionConfig.max_response_output_tokens = hsSettings.hyperstreamMaxTokens;
+            }
             if (toolDefs.length > 0) {
               sessionConfig.tools = toolDefs;
             }
