@@ -112,7 +112,7 @@ export function ClientQualificationSection() {
   return (
     <div className="space-y-1.5">
       {/* Lead Source */}
-      <Collapsible defaultOpen className="rounded-lg border border-blue-500/20 bg-blue-500/5">
+      <Collapsible className="rounded-lg border border-blue-500/20 bg-blue-500/5">
         <CollapsibleTrigger className={TRIGGER}>
           <span className="flex items-center gap-1.5">
             <GitBranch className="h-3 w-3" />
