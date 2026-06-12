@@ -515,10 +515,10 @@ export const goLiveAgent = createServerFn({ method: "POST" })
       })
       .eq("id", data.id);
 
-    // For lead generation agents: automatically patch the Retell agent's
-    // webhook URL so every post-call event is delivered to this server and
-    // lead intelligence / call records are populated without manual setup.
-    if (data.agentType === "lead_generation") {
+    // Always patch the webhook URL on Go Live — all flow types (receptionist,
+    // lead_generation, client_qualification) need post-call events delivered
+    // so the dashboard receives transcripts, call records, and analytics.
+    {
       const webhookBase =
         process.env.PUBLIC_BASE_URL ||
         (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
@@ -557,10 +557,10 @@ export const goLiveAgent = createServerFn({ method: "POST" })
             "PATCH",
             retellKey,
           );
-          console.log("[go-live] Lead gen webhook URL configured on Retell agent", activeRetellId, webhookBase);
+          console.log("[go-live] Webhook URL configured on Retell agent", activeRetellId, data.agentType, webhookBase);
         } catch (whErr) {
           // Best-effort — don't block Go Live if the patch fails
-          console.warn("[go-live] Failed to configure lead gen webhook URL", whErr);
+          console.warn("[go-live] Failed to configure webhook URL", whErr);
         }
       }
     }
