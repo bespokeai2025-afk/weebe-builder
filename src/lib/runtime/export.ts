@@ -147,6 +147,14 @@ export function buildAgentRuntimeDefinition(params: {
     };
   }
 
+  if (provider === "ELEVENLABS_NATIVE") {
+    runtimeConfig.elevenlabs = {
+      voiceId: settings.elevenLabsVoiceId ?? "",
+      agentId: settings.deployedElevenLabsAgentId ?? null,
+      systemPrompt: compiledPrompt,
+    };
+  }
+
   // Future providers: attach Retell JSON as a migration starting point.
   if (provider === "CLAUDE_NATIVE" || provider === "GEMINI_NATIVE") {
     runtimeConfig.retell = {

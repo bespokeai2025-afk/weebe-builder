@@ -263,7 +263,17 @@ export interface BuilderSettings {
    * if the field is absent (adapter fallback logic handles this).
    * Set by the Builder when the user explicitly chooses a runtime.
    */
-  deploymentMode?: "RETELL" | "OPENAI_NATIVE" | "CLAUDE_NATIVE" | "GEMINI_NATIVE";
+  deploymentMode?: "RETELL" | "OPENAI_NATIVE" | "ELEVENLABS_NATIVE" | "CLAUDE_NATIVE" | "GEMINI_NATIVE";
+  /**
+   * VoxStream (ElevenLabs) raw voice ID (only used when deploymentMode === "ELEVENLABS_NATIVE").
+   * This is the raw ElevenLabs UUID, NOT the Retell "11labs-" prefixed format.
+   */
+  elevenLabsVoiceId?: string;
+  /**
+   * ElevenLabs Conversational AI agent ID created via the API on deploy.
+   * Stored so subsequent saves update the same agent instead of creating a new one.
+   */
+  deployedElevenLabsAgentId?: string;
   /** OpenAI Realtime voice profile (only used when deploymentMode === "OPENAI_NATIVE") */
   openaiVoice?: "alloy" | "ash" | "ballad" | "coral" | "echo" | "shimmer" | "sage" | "verse" | "marine";
   /** OpenAI Realtime reasoning effort level (only used when deploymentMode === "OPENAI_NATIVE") */

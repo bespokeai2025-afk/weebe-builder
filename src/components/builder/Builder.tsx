@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { toPng } from "html-to-image";
 import { useBuilderStore } from "@/lib/builder/store";
-import { resolveDeploymentMode, isRetellMode, isOpenAINativeMode } from "@/lib/runtime/adapter";
+import { resolveDeploymentMode, isRetellMode, isOpenAINativeMode, isElevenLabsNativeMode } from "@/lib/runtime/adapter";
 import type { DeploymentMode } from "@/lib/runtime/types";
 import { CustomVoiceUploadDialog } from "@/components/builder/CustomVoiceUploadDialog";
 import { Button } from "@/components/ui/button";
@@ -325,6 +325,7 @@ export function Builder({
   const activeMode = resolveDeploymentMode(settings);
   const isRetell = isRetellMode(activeMode);
   const isOpenAI = isOpenAINativeMode(activeMode);
+  const isElevenLabs = isElevenLabsNativeMode(activeMode);
   const preAutoLayoutPositions = useBuilderStore((s) => s.preAutoLayoutPositions);
   const [rf, setRf] = useState<ReturnType<typeof useReactFlow> | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -866,10 +867,11 @@ export function Builder({
               <div className="grid grid-cols-2 gap-1.5">
                 {(
                   [
-                    { mode: "RETELL"        as DeploymentMode, label: "OmniVoice",   sub: "Premium Catalog",  icon: Radio,    available: true  },
-                    { mode: "OPENAI_NATIVE" as DeploymentMode, label: "HyperStream", sub: "Instant Response", icon: Zap,      available: true  },
-                    { mode: "CLAUDE_NATIVE" as DeploymentMode, label: "Claude",      sub: "Coming Soon",      icon: Sparkles, available: false },
-                    { mode: "GEMINI_NATIVE" as DeploymentMode, label: "Gemini",      sub: "Coming Soon",      icon: Gem,      available: false },
+                    { mode: "RETELL"            as DeploymentMode, label: "OmniVoice",   sub: "Premium Catalog",  icon: Radio,    available: true  },
+                    { mode: "OPENAI_NATIVE"     as DeploymentMode, label: "HyperStream", sub: "Instant Response", icon: Zap,      available: true  },
+                    { mode: "ELEVENLABS_NATIVE" as DeploymentMode, label: "VoxStream",   sub: "ElevenLabs AI",    icon: Mic,      available: true  },
+                    { mode: "CLAUDE_NATIVE"     as DeploymentMode, label: "Claude",      sub: "Coming Soon",      icon: Sparkles, available: false },
+                    { mode: "GEMINI_NATIVE"     as DeploymentMode, label: "Gemini",      sub: "Coming Soon",      icon: Gem,      available: false },
                   ]
                 ).map(({ mode, label, sub, icon: Icon, available }) => {
                   const active = activeMode === mode;
@@ -911,6 +913,12 @@ export function Builder({
                 <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
                   <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
                   <span className="text-[9px] text-muted-foreground">Routed via Master Admin Enterprise Line</span>
+                </div>
+              )}
+              {isElevenLabs && (
+                <div className="flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 w-fit">
+                  <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                  <span className="text-[9px] text-muted-foreground">Routed via ElevenLabs Conversational AI</span>
                 </div>
               )}
             </div>
@@ -1157,7 +1165,32 @@ export function Builder({
               </CollapsibleContent>
             </Collapsible>
 
-            <KnowledgeBaseSection isRetell={isRetell} isHyperStream={isOpenAI} />
+            {isElevenLabs && (
+              <Collapsible className="rounded-lg border border-primary/20 bg-primary/[0.03]">
+                <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+                  <span className="flex items-center gap-1.5"><Mic className="h-3 w-3 text-primary" />VoxStream Engine</span>
+                  <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2.5 px-2.5 pb-2.5">
+                  <div>
+                    <Label className="text-[9px]">ElevenLabs Voice ID</Label>
+                    <p className="text-[9px] text-muted-foreground mb-1">
+                      Paste a raw ElevenLabs voice UUID. Find voices at elevenlabs.io/voice-library or use the voice search below.
+                    </p>
+                    <Input
+                      value={settings.elevenLabsVoiceId ?? ""}
+                      onChange={(e) => setSettings({ elevenLabsVoiceId: e.target.value })}
+                      placeholder="e.g. EXAVITQu4vr4xnSDxMaL"
+                      className="h-7 text-[10px]"
+                    />
+                  </div>
+                  <SliderField label="Temperature" value={settings.temperature ?? 1} min={0} max={2} step={0.1} onChange={(v) => setSettings({ temperature: v })} />
+                  <Textarea rows={4} value={settings.globalPrompt} onChange={(e) => setSettings({ globalPrompt: e.target.value })} placeholder="Enter your global prompt here" className="text-[10px] leading-relaxed" />
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            <KnowledgeBaseSection isRetell={isRetell} isHyperStream={isOpenAI || isElevenLabs} />
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">

@@ -244,9 +244,21 @@ export const OpenAIRuntimeConfigSchema = z.object({
 });
 export type OpenAIRuntimeConfig = z.infer<typeof OpenAIRuntimeConfigSchema>;
 
+/**
+ * ElevenLabs Conversational AI execution config.
+ * systemPrompt is the compiled flat prompt for the agent.
+ */
+export const ElevenLabsRuntimeConfigSchema = z.object({
+  voiceId: z.string(),
+  agentId: z.string().nullable(),
+  systemPrompt: z.string(),
+});
+export type ElevenLabsRuntimeConfig = z.infer<typeof ElevenLabsRuntimeConfigSchema>;
+
 export const RuntimeProviderConfigSchema = z.object({
   retell: RetellRuntimeConfigSchema.optional(),
   openai: OpenAIRuntimeConfigSchema.optional(),
+  elevenlabs: ElevenLabsRuntimeConfigSchema.optional(),
 });
 export type RuntimeProviderConfig = z.infer<typeof RuntimeProviderConfigSchema>;
 

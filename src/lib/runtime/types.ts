@@ -1,14 +1,16 @@
 /**
  * Deployment modes for the voice runtime infrastructure.
  *
- * RETELL        — OmniVoice engine via Retell AI (default, all existing agents)
- * OPENAI_NATIVE — HyperStream engine via OpenAI Realtime API
- * CLAUDE_NATIVE — Native Anthropic Claude voice runtime (future)
- * GEMINI_NATIVE — Native Google Gemini voice runtime (future)
+ * RETELL           — OmniVoice engine via Retell AI (default, all existing agents)
+ * OPENAI_NATIVE    — HyperStream engine via OpenAI Realtime API
+ * ELEVENLABS_NATIVE— VoxStream engine via ElevenLabs Conversational AI
+ * CLAUDE_NATIVE    — Native Anthropic Claude voice runtime (future)
+ * GEMINI_NATIVE    — Native Google Gemini voice runtime (future)
  */
 export type DeploymentMode =
   | "RETELL"
   | "OPENAI_NATIVE"
+  | "ELEVENLABS_NATIVE"
   | "CLAUDE_NATIVE"
   | "GEMINI_NATIVE";
 
@@ -20,7 +22,7 @@ export interface RuntimeDescriptor {
   /** True when the runtime is production-ready; false = coming soon. */
   available: boolean;
   /** Icon name (maps to a Lucide icon in the consumer component). */
-  icon: "radio" | "zap" | "sparkles" | "gem";
+  icon: "radio" | "zap" | "mic" | "sparkles" | "gem";
 }
 
 /** Resolved runtime context passed to execution handlers. */
@@ -46,6 +48,13 @@ export const ALL_DEPLOYMENT_MODES: RuntimeDescriptor[] = [
     sublabel: "Instant Response",
     available: true,
     icon: "zap",
+  },
+  {
+    mode: "ELEVENLABS_NATIVE",
+    label: "VoxStream Engine",
+    sublabel: "ElevenLabs AI",
+    available: true,
+    icon: "mic",
   },
   {
     mode: "CLAUDE_NATIVE",

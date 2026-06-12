@@ -492,12 +492,17 @@ export const goLiveAgent = createServerFn({ method: "POST" })
     const phoneNumber = (settings.phoneNumber as string | undefined) ?? null;
     const voiceProvider = (settings.voiceProvider as string | undefined) ?? null;
     const isOpenAiRealtime = voiceProvider === "OPENAI_REALTIME";
-    // Allow Go Live when the agent has been deployed to Retell in any form
-    // (dedicated production clone OR the builder agent itself).
-    // OpenAI Realtime agents have no Retell ID — skip the guard for them.
+    const deploymentMode = (settings.deploymentMode as string | undefined) ?? null;
+    const isElevenLabsNative = deploymentMode === "ELEVENLABS_NATIVE";
+    const deployedElAgentId = (settings.deployedElevenLabsAgentId as string | undefined) ?? null;
+    // Allow Go Live when the agent has been deployed in any form.
+    // OpenAI Realtime and ElevenLabs agents have no Retell ID — skip the Retell guard.
     const activeRetellId = deployedRetellId ?? row.retell_agent_id;
-    if (!activeRetellId && !isOpenAiRealtime) {
+    if (!activeRetellId && !isOpenAiRealtime && !isElevenLabsNative) {
       throw new Error("Deploy this agent from the builder first.");
+    }
+    if (isElevenLabsNative && !deployedElAgentId) {
+      throw new Error("Deploy this agent from the builder first (VoxStream agent not yet created).");
     }
     if (!phoneNumber) {
       throw new Error("Attach a phone number to the agent first.");
@@ -561,6 +566,43 @@ export const goLiveAgent = createServerFn({ method: "POST" })
         } catch (whErr) {
           // Best-effort — don't block Go Live if the patch fails
           console.warn("[go-live] Failed to configure webhook URL", whErr);
+        }
+      }
+
+      // Patch ElevenLabs Conversational AI webhook URL on go-live.
+      if (isElevenLabsNative && deployedElAgentId) {
+        try {
+          let elKey: string | null = process.env.ELEVENLABS_API_KEY?.trim() ?? null;
+          if (context.workspaceId) {
+            const { data: ws } = await supabaseAdmin
+              .from("workspace_settings")
+              .select("elevenlabs_api_key" as never)
+              .eq("workspace_id", context.workspaceId)
+              .maybeSingle();
+            const wsKey = ((ws as Record<string, unknown> | null)?.elevenlabs_api_key as string | undefined)?.trim();
+            if (wsKey) elKey = wsKey;
+          }
+          if (elKey && webhookBase) {
+            const elRes = await fetch(
+              `https://api.elevenlabs.io/v1/convai/agents/${deployedElAgentId}`,
+              {
+                method: "PATCH",
+                headers: { "xi-api-key": elKey, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  platform_settings: {
+                    webhook: { url: `${webhookBase}/api/public/elevenlabs-webhook` },
+                  },
+                }),
+              },
+            );
+            if (!elRes.ok) {
+              console.warn("[go-live] ElevenLabs webhook patch failed:", elRes.status);
+            } else {
+              console.log("[go-live] ElevenLabs webhook configured on agent", deployedElAgentId, webhookBase);
+            }
+          }
+        } catch (elErr) {
+          console.warn("[go-live] Failed to configure ElevenLabs webhook", elErr);
         }
       }
     }

@@ -36,6 +36,7 @@ export function resolveDeploymentMode(
   if (
     explicit === "RETELL" ||
     explicit === "OPENAI_NATIVE" ||
+    explicit === "ELEVENLABS_NATIVE" ||
     explicit === "CLAUDE_NATIVE" ||
     explicit === "GEMINI_NATIVE"
   ) {
@@ -70,6 +71,7 @@ export function resolveRuntimeConfig(
 /** Convenience predicates — avoids string comparisons at call sites. */
 export const isRetellMode = (mode: DeploymentMode) => mode === "RETELL";
 export const isOpenAINativeMode = (mode: DeploymentMode) => mode === "OPENAI_NATIVE";
+export const isElevenLabsNativeMode = (mode: DeploymentMode) => mode === "ELEVENLABS_NATIVE";
 export const isClaudeNativeMode = (mode: DeploymentMode) => mode === "CLAUDE_NATIVE";
 export const isGeminiNativeMode = (mode: DeploymentMode) => mode === "GEMINI_NATIVE";
 export const isNativeMode = (mode: DeploymentMode) => mode !== "RETELL";

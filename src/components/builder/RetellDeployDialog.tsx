@@ -27,6 +27,8 @@ import {
   deployAgentToRetell,
   createRetellWebCall,
   fetchRetellAgent,
+  deployElevenLabsAgent,
+  getElevenLabsSignedUrl,
 } from "@/lib/builder/retell.functions";
 import {
   listMyAgents,
@@ -96,6 +98,8 @@ export function RetellDeployDialog({
   const deploy = useServerFn(deployAgentToRetell);
   const startCall = useServerFn(createRetellWebCall);
   const fetchAgent = useServerFn(fetchRetellAgent);
+  const deployElevenLabs = useServerFn(deployElevenLabsAgent);
+  const getElSignedUrl = useServerFn(getElevenLabsSignedUrl);
   const listAgents = useServerFn(listMyAgents);
   const upsertAgent = useServerFn(upsertMyAgent);
   const getAgentByRetellId = useServerFn(getMyAgentByRetellId);
@@ -121,11 +125,13 @@ export function RetellDeployDialog({
     refetchOnWindowFocus: false,
   });
 
-  const hasAgent = Boolean(settings.agentId);
-  // Use the adapter so the mode resolves correctly for both legacy agents
-  // (voiceProvider="OPENAI_REALTIME") and new agents (deploymentMode="OPENAI_NATIVE").
   const deploymentMode = resolveDeploymentMode(settings);
   const isOpenAI = deploymentMode === "OPENAI_NATIVE";
+  const isElevenLabs = deploymentMode === "ELEVENLABS_NATIVE";
+  // For VoxStream agents, agentId is set to the EL agent ID on deploy (no Retell ID).
+  const hasAgent = isElevenLabs
+    ? Boolean(settings.deployedElevenLabsAgentId)
+    : Boolean(settings.agentId);
 
   useEffect(() => {
     return () => {
@@ -277,7 +283,77 @@ export function RetellDeployDialog({
       }
       return;
     }
-    // ── End HyperStream guard — OmniVoice (Retell) path below is unchanged ──
+    // ── End HyperStream guard ───────────────────────────────────────────────
+
+    // ── VoxStream Engine guard ───────────────────────────────────────────────
+    // ElevenLabs Conversational AI agents deploy directly to EL — no Retell.
+    if (isElevenLabs) {
+      try {
+        const { nodes: n, edges: e, settings: s, variables: v } =
+          useBuilderStore.getState();
+        const existingElAgentId =
+          effectiveKind === "update"
+            ? ((s.deployedElevenLabsAgentId as string | undefined) ?? null)
+            : null;
+        const runtimeDef = buildAgentRuntimeDefinition({
+          agentId: useBuilderStore.getState().currentAgentRowId ?? "local-vox",
+          retellAgentId: null,
+          agentName: s.agentName || "Untitled agent",
+          updatedAt: new Date().toISOString(),
+          nodes: n,
+          edges: e,
+          settings: s,
+          variables: v,
+        });
+        const webhookBase =
+          typeof window !== "undefined" ? window.location.origin : "";
+        const result = await deployElevenLabs({
+          data: {
+            agentId: existingElAgentId,
+            agentName: s.agentName || "Untitled agent",
+            systemPrompt: runtimeDef.compiledPrompt,
+            firstMessage: (s.beginMessage as string | undefined) || "",
+            voiceId: (s.elevenLabsVoiceId as string | undefined) || "",
+            language: ((s.language as string | undefined) || "en-US").slice(0, 2),
+            webhookUrl: `${webhookBase}/api/public/elevenlabs-webhook`,
+          },
+        });
+        const updatedSettings = {
+          ...s,
+          deployedElevenLabsAgentId: result.agentId,
+          deployedAgentName: s.agentName,
+        };
+        setSettings({
+          deployedElevenLabsAgentId: result.agentId as never,
+          deployedAgentName: s.agentName,
+        });
+        const { id: rowId } = await upsertAgent({
+          data: {
+            id: useBuilderStore.getState().currentAgentRowId ?? undefined,
+            retellAgentId: null,
+            name: s.agentName || "Untitled agent",
+            flowData: { nodes: n, edges: e } as never,
+            settings: updatedSettings as never,
+            variables: v as never,
+          },
+        });
+        useBuilderStore.getState().setCurrentAgentRowId(rowId);
+        bumpSaveVersion();
+        qc.invalidateQueries({ queryKey: ["my-agents"] });
+        toast.success(
+          effectiveKind === "update"
+            ? "VoxStream agent updated"
+            : "VoxStream agent created",
+          { description: `ElevenLabs agent: ${result.agentId}` },
+        );
+      } catch (e) {
+        toast.error("VoxStream deploy failed", { description: (e as Error).message });
+      } finally {
+        setDeploying(null);
+      }
+      return;
+    }
+    // ── End VoxStream guard — OmniVoice (Retell) path below is unchanged ────
 
     try {
       const agent = exportAgentJson(nodes, edges, settings, variables);
@@ -1503,6 +1579,209 @@ export function RetellDeployDialog({
     }
   }
 
+  /**
+   * VoxStream (ElevenLabs Conversational AI) in-browser test call.
+   * Uses a signed URL fetched server-side so the API key is never exposed.
+   * Audio: 16 kHz PCM16 mono (ElevenLabs native rate).
+   */
+  async function handleVoxStreamTestCall() {
+    const elAgentId = (settings.deployedElevenLabsAgentId as string | undefined)?.trim();
+    if (!elAgentId) {
+      toast.error("Deploy the VoxStream agent first", {
+        description: "Click + to create the agent before testing.",
+      });
+      return;
+    }
+    setCalling(true);
+    try {
+      const { signedUrl } = await getElSignedUrl({ data: { agentId: elAgentId } });
+
+      // 16 kHz AudioContext — matches ElevenLabs native rate (no resampling needed).
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      audioCtxRef.current = audioCtx;
+      nextPlayTimeRef.current = 0;
+
+      // Keep AudioContext alive (Chrome suspends idle contexts).
+      const keepOsc = audioCtx.createOscillator();
+      const keepGain = audioCtx.createGain();
+      keepGain.gain.value = 0;
+      keepOsc.connect(keepGain);
+      keepGain.connect(audioCtx.destination);
+      keepOsc.start();
+      keepAliveRef.current = keepOsc;
+
+      // Microphone with echo cancellation.
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = micStream;
+      const micSrc = audioCtx.createMediaStreamSource(micStream);
+
+      // Connect to ElevenLabs WebSocket directly with the signed URL.
+      const ws = new WebSocket(signedUrl);
+      wsRelayRef.current = ws;
+
+      function pcm16ToBase64(int16: Int16Array): string {
+        const u8 = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
+        let bin = "";
+        for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+        return btoa(bin);
+      }
+      function sendChunk(int16: Int16Array) {
+        if (ws.readyState === WebSocket.OPEN)
+          ws.send(JSON.stringify({ user_audio_chunk: pcm16ToBase64(int16) }));
+      }
+
+      // AudioWorklet capture (AudioContext is already 16 kHz — no resampling).
+      let usingWorklet = false;
+      if (audioCtx.audioWorklet) {
+        try {
+          const src = `
+            class VoxCap extends AudioWorkletProcessor {
+              constructor() { super(); this._b = []; this._F = 800; }
+              process(inputs) {
+                const ch = inputs[0]?.[0];
+                if (!ch) return true;
+                for (let i = 0; i < ch.length; i++) {
+                  const s = ch[i];
+                  this._b.push(s < -1 ? -32768 : s > 1 ? 32767 : Math.round(s * 32767));
+                  if (this._b.length >= this._F) {
+                    const out = new Int16Array(this._b.splice(0, this._F));
+                    this.port.postMessage(out.buffer, [out.buffer]);
+                  }
+                }
+                return true;
+              }
+            }
+            registerProcessor('vox-cap', VoxCap);
+          `;
+          const blobUrl = URL.createObjectURL(new Blob([src], { type: "application/javascript" }));
+          try { await audioCtx.audioWorklet.addModule(blobUrl); } finally { URL.revokeObjectURL(blobUrl); }
+          const wn = new AudioWorkletNode(audioCtx, "vox-cap");
+          workletRef.current = wn;
+          wn.port.onmessage = (ev) => sendChunk(new Int16Array(ev.data as ArrayBuffer));
+          micSrc.connect(wn);
+          const sink = audioCtx.createGain();
+          sink.gain.value = 0;
+          captureSinkRef.current = sink;
+          wn.connect(sink);
+          sink.connect(audioCtx.destination);
+          usingWorklet = true;
+        } catch (err) {
+          console.warn("[voxstream] AudioWorklet unavailable:", err);
+        }
+      }
+      if (!usingWorklet) {
+        const proc = audioCtx.createScriptProcessor(2048, 1, 1);
+        processorRef.current = proc;
+        proc.onaudioprocess = (ev) => {
+          const ch = ev.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(ch.length);
+          for (let i = 0; i < ch.length; i++) {
+            const s = ch[i];
+            pcm[i] = s < -1 ? -32768 : s > 1 ? 32767 : Math.round(s * 32767);
+          }
+          sendChunk(pcm);
+        };
+        micSrc.connect(proc);
+        proc.connect(audioCtx.destination);
+      }
+
+      // Schedule incoming PCM16 from ElevenLabs for playback.
+      function scheduleElAudio(b64: string) {
+        try {
+          const bin = atob(b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const i16 = new Int16Array(bytes.buffer);
+          const f32 = new Float32Array(i16.length);
+          for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
+          const audioBuf = audioCtx.createBuffer(1, f32.length, 16000);
+          audioBuf.copyToChannel(f32, 0);
+          const node = audioCtx.createBufferSource();
+          node.buffer = audioBuf;
+          node.connect(audioCtx.destination);
+          const t = Math.max(audioCtx.currentTime, nextPlayTimeRef.current);
+          node.start(t);
+          nextPlayTimeRef.current = t + audioBuf.duration;
+          activeSourceNodesRef.current.push(node);
+          node.onended = () => {
+            activeSourceNodesRef.current = activeSourceNodesRef.current.filter((n) => n !== node);
+          };
+        } catch { /* decode failed — skip */ }
+      }
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "conversation_initiation_client_data" }));
+        startedAtRef.current = Date.now();
+        recordedCallRef.current = false;
+        setElapsedSec(0);
+        setTranscript([]);
+        setInCall(true);
+        const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
+        if (startNode) setActiveNode(startNode.id);
+        setCalling(false);
+      };
+
+      ws.onmessage = (ev) => {
+        if (typeof ev.data !== "string") return;
+        let msg: Record<string, unknown>;
+        try { msg = JSON.parse(ev.data as string); } catch { return; }
+        const t = msg.type as string | undefined;
+
+        if (t === "audio") {
+          const ab = (msg.audio_event as Record<string, unknown> | undefined)?.audio_base64;
+          if (typeof ab === "string") scheduleElAudio(ab);
+        } else if (t === "agent_response") {
+          const text = (msg.agent_response_event as Record<string, unknown> | undefined)?.agent_response;
+          if (typeof text === "string" && text) {
+            setTranscript((prev) => {
+              const last = prev[prev.length - 1];
+              if (last?.role === "agent" && last.partial)
+                return [...prev.slice(0, -1), { ...last, text, partial: false }];
+              return [...prev, { id: `el-a-${Date.now()}`, role: "agent" as const, text, partial: false }];
+            });
+          }
+        } else if (t === "user_transcript") {
+          const text = (msg.user_transcription_event as Record<string, unknown> | undefined)?.user_transcript;
+          if (typeof text === "string" && text) {
+            setTranscript((prev) => {
+              const last = prev[prev.length - 1];
+              if (last?.role === "user" && last.partial)
+                return [...prev.slice(0, -1), { ...last, text, partial: false }];
+              return [...prev, { id: `el-u-${Date.now()}`, role: "user" as const, text, partial: false }];
+            });
+          }
+        } else if (t === "interruption") {
+          for (const node of activeSourceNodesRef.current) {
+            try { node.stop(); } catch { /* already ended */ }
+          }
+          activeSourceNodesRef.current = [];
+          nextPlayTimeRef.current = audioCtx.currentTime;
+        } else if (t === "ping") {
+          const eventId = (msg.ping_event as Record<string, unknown> | undefined)?.event_id;
+          ws.send(JSON.stringify({ type: "pong", event_id: eventId }));
+        } else if (t === "conversation_end") {
+          recordCurrentCallCost();
+          endCall();
+        }
+      };
+
+      ws.onerror = () => { toast.error("VoxStream connection error"); };
+      ws.onclose = () => {
+        if (startedAtRef.current) {
+          recordCurrentCallCost();
+          startedAtRef.current = null;
+        }
+        setInCall(false);
+        setActiveNode(null);
+      };
+    } catch (e) {
+      toast.error("VoxStream test call failed", { description: (e as Error).message });
+      setCalling(false);
+    }
+  }
+
   function endCall() {
     recordCurrentCallCost();
     // OmniVoice (Retell) path
@@ -1637,17 +1916,19 @@ export function RetellDeployDialog({
           <Button
             size="sm"
             variant="ghost"
-            onClick={isOpenAI ? handleHyperStreamTestCall : handleTestCall}
-            disabled={!hasAgent || (!isOpenAI && overLimit)}
+            onClick={isOpenAI ? handleHyperStreamTestCall : isElevenLabs ? handleVoxStreamTestCall : handleTestCall}
+            disabled={!hasAgent || (!isOpenAI && !isElevenLabs && overLimit)}
             className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
             title={
               !hasAgent
                 ? "Save the agent first"
-                : !isOpenAI && overLimit
+                : !isOpenAI && !isElevenLabs && overLimit
                   ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
                   : isOpenAI
                     ? "Test HyperStream agent (browser WebRTC)"
-                    : "Test agent (browser call)"
+                    : isElevenLabs
+                      ? "Test VoxStream agent (ElevenLabs)"
+                      : "Test agent (browser call)"
             }
           >
             <Phone className="h-3.5 w-3.5" />

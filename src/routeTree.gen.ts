@@ -36,6 +36,7 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
+import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
 import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/builder/script-template'
@@ -203,6 +204,12 @@ const ApiPublicRetellWebhookRoute = ApiPublicRetellWebhookRouteImport.update({
   path: '/api/public/retell-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicElevenlabsWebhookRoute =
+  ApiPublicElevenlabsWebhookRouteImport.update({
+    id: '/api/public/elevenlabs-webhook',
+    path: '/api/public/elevenlabs-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicApproveUserRoute = ApiPublicApproveUserRouteImport.update({
   id: '/api/public/approve-user',
   path: '/api/public/approve-user',
@@ -412,6 +419,7 @@ export interface FileRoutesByFullPath {
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
@@ -470,6 +478,7 @@ export interface FileRoutesByTo {
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
@@ -531,6 +540,7 @@ export interface FileRoutesById {
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
@@ -592,6 +602,7 @@ export interface FileRouteTypes {
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
+    | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
@@ -650,6 +661,7 @@ export interface FileRouteTypes {
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
+    | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
@@ -710,6 +722,7 @@ export interface FileRouteTypes {
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
+    | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
@@ -751,6 +764,7 @@ export interface RootRouteChildren {
   ApiBuilderScriptTemplateRoute: typeof ApiBuilderScriptTemplateRoute
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
+  ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
@@ -961,6 +975,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/retell-webhook'
       fullPath: '/api/public/retell-webhook'
       preLoaderRoute: typeof ApiPublicRetellWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/elevenlabs-webhook': {
+      id: '/api/public/elevenlabs-webhook'
+      path: '/api/public/elevenlabs-webhook'
+      fullPath: '/api/public/elevenlabs-webhook'
+      preLoaderRoute: typeof ApiPublicElevenlabsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/approve-user': {
@@ -1300,6 +1321,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBuilderScriptTemplateRoute: ApiBuilderScriptTemplateRoute,
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
+  ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
