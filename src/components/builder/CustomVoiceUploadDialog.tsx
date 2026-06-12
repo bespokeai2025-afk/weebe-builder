@@ -66,6 +66,7 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
       description: string | null;
       labels: Record<string, string>;
       preview_url: string | null;
+      public_owner_id: string | null;
     }>
   >([]);
   const [missingKey, setMissingKey] = useState(false);
@@ -128,7 +129,7 @@ export function CustomVoiceUploadDialog({ onUploaded }: Props) {
     setAddingId(v.voice_id);
     try {
       const res = await addFn({
-        data: { elevenLabsVoiceId: v.voice_id, voiceName: v.name },
+        data: { elevenLabsVoiceId: v.voice_id, voiceName: v.name, publicOwnerId: v.public_owner_id },
       });
       if (!res.voiceId) throw new Error("No voice ID returned");
       onUploaded(res.voiceId, res.voiceName);

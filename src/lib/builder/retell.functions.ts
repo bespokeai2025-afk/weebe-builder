@@ -1153,6 +1153,7 @@ export const searchElevenLabsVoices = createServerFn({ method: "POST" })
         description?: string;
         labels?: Record<string, string>;
         preview_url?: string;
+        public_owner_id?: string;
       }>;
     };
     return {
@@ -1162,6 +1163,7 @@ export const searchElevenLabsVoices = createServerFn({ method: "POST" })
         description: v.description ?? null,
         labels: v.labels ?? {},
         preview_url: v.preview_url ?? null,
+        public_owner_id: v.public_owner_id ?? null,
       })),
       missingKey: false,
     };
@@ -1173,11 +1175,18 @@ export const searchElevenLabsVoices = createServerFn({ method: "POST" })
  */
 export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { elevenLabsVoiceId: string; voiceName: string }) => input)
+  .inputValidator((input: { elevenLabsVoiceId: string; voiceName: string; publicOwnerId?: string | null }) => input)
   .handler(async ({ data }) => {
     const apiKey = process.env.RETELL_API_KEY;
     if (!apiKey) throw new Error("RETELL_API_KEY is not configured");
     if (!data.elevenLabsVoiceId.trim()) throw new Error("ElevenLabs voice ID required");
+
+    const body: Record<string, string> = {
+      voice_name: data.voiceName.trim() || data.elevenLabsVoiceId,
+      voice_provider: "elevenlabs",
+      provider_voice_id: data.elevenLabsVoiceId.trim(),
+    };
+    if (data.publicOwnerId) body.public_user_id = data.publicOwnerId;
 
     const res = await fetch(`${RETELL_BASE}/add-community-voice`, {
       method: "POST",
@@ -1185,11 +1194,7 @@ export const addElevenLabsCommunityVoice = createServerFn({ method: "POST" })
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        voice_name: data.voiceName.trim() || data.elevenLabsVoiceId,
-        voice_provider: "elevenlabs",
-        provider_voice_id: data.elevenLabsVoiceId.trim(),
-      }),
+      body: JSON.stringify(body),
     });
     const text = await res.text();
     let parsed: Record<string, unknown> = {};
