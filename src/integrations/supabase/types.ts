@@ -1434,6 +1434,9 @@ export type Database = {
           call_schedule: Json;
           created_at: string;
           default_event_type_id: number | null;
+          ghl_api_key: string | null;
+          ghl_location_id: string | null;
+          hubspot_api_key: string | null;
           last_synced_at: string | null;
           min_notice_hours: number;
           notification_email: string | null;
@@ -1460,6 +1463,9 @@ export type Database = {
           call_schedule?: Json;
           created_at?: string;
           default_event_type_id?: number | null;
+          ghl_api_key?: string | null;
+          ghl_location_id?: string | null;
+          hubspot_api_key?: string | null;
           last_synced_at?: string | null;
           min_notice_hours?: number;
           notification_email?: string | null;
@@ -1486,6 +1492,9 @@ export type Database = {
           call_schedule?: Json;
           created_at?: string;
           default_event_type_id?: number | null;
+          ghl_api_key?: string | null;
+          ghl_location_id?: string | null;
+          hubspot_api_key?: string | null;
           last_synced_at?: string | null;
           min_notice_hours?: number;
           notification_email?: string | null;

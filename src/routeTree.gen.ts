@@ -42,6 +42,7 @@ import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
 import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admin/test-retell-webhook'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
+import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
@@ -234,6 +235,12 @@ const AuthenticatedSettingsIntegrationsRoute =
     path: '/settings/integrations',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsCrmRoute =
+  AuthenticatedSettingsCrmRouteImport.update({
+    id: '/settings/crm',
+    path: '/settings/crm',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsCalendarRoute =
   AuthenticatedSettingsCalendarRouteImport.update({
     id: '/settings/calendar',
@@ -390,6 +397,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
+  '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -446,6 +454,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
+  '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -505,6 +514,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
+  '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -564,6 +574,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/agents/new'
     | '/settings/calendar'
+    | '/settings/crm'
     | '/settings/integrations'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -620,6 +631,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/agents/new'
     | '/settings/calendar'
+    | '/settings/crm'
     | '/settings/integrations'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -678,6 +690,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
     | '/_authenticated/settings/calendar'
+    | '/_authenticated/settings/crm'
     | '/_authenticated/settings/integrations'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -978,6 +991,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsIntegrationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/crm': {
+      id: '/_authenticated/settings/crm'
+      path: '/settings/crm'
+      fullPath: '/settings/crm'
+      preLoaderRoute: typeof AuthenticatedSettingsCrmRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings/calendar': {
       id: '/_authenticated/settings/calendar'
       path: '/settings/calendar'
@@ -1174,6 +1194,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedAgentsNewRoute: typeof AuthenticatedAgentsNewRoute
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
+  AuthenticatedSettingsCrmRoute: typeof AuthenticatedSettingsCrmRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
 }
 
@@ -1194,6 +1215,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedAgentsNewRoute: AuthenticatedAgentsNewRoute,
   AuthenticatedSettingsCalendarRoute: AuthenticatedSettingsCalendarRoute,
+  AuthenticatedSettingsCrmRoute: AuthenticatedSettingsCrmRoute,
   AuthenticatedSettingsIntegrationsRoute:
     AuthenticatedSettingsIntegrationsRoute,
 }

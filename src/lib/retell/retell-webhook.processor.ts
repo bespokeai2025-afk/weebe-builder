@@ -8,6 +8,7 @@ import {
   analyzeQualification,
   applyQualificationToLead,
 } from "@/lib/qualification/qualification-engine.server";
+import { dispatchCrmPostCall } from "@/lib/crm/crm-dispatch.server";
 
 const SUPPORTED_RETELL_EVENTS = new Set([
   "call_started",
@@ -962,6 +963,47 @@ export async function processRetellWebhook(
       }
     } catch (qErr) {
       console.error("[QUALIFY] Post-call processing error", qErr);
+    }
+  }
+
+  // ── CRM post-call dispatch ────────────────────────────────────────────────
+  if (event === "call_analyzed" && contactPhone) {
+    try {
+      const custom = call.call_analysis?.custom_analysis_data ?? {};
+      const dynVars = (payload as any)?.call?.retell_llm_dynamic_variables ?? {};
+      const contactName: string | null =
+        (custom as Record<string, unknown>).customer_name as string | null ||
+        dynVars.full_name?.trim() ||
+        [dynVars.First_name ?? dynVars.first_name, dynVars.Last_name ?? dynVars.last_name]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        null;
+      const summaryText =
+        ((custom as Record<string, unknown>).booking_summary as string | undefined) ??
+        call.call_analysis?.call_summary ??
+        null;
+      await dispatchCrmPostCall(
+        workspaceId,
+        { phone: contactPhone, name: contactName },
+        {
+          phone: contactPhone,
+          contactName,
+          agentName: agentRow.name ?? null,
+          summary: summaryText,
+          durationSeconds:
+            typeof call.end_timestamp === "number" && typeof call.start_timestamp === "number"
+              ? Math.round((call.end_timestamp - call.start_timestamp) / 1000)
+              : null,
+          sentiment: call.call_analysis?.user_sentiment ?? null,
+          callId,
+          calledAt: call.start_timestamp
+            ? new Date(call.start_timestamp).toISOString()
+            : new Date().toISOString(),
+        },
+      );
+    } catch (crmErr) {
+      console.error("[CRM] Post-call dispatch error", crmErr);
     }
   }
 
