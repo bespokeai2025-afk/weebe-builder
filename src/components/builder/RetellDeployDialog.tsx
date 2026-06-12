@@ -567,7 +567,11 @@ export function RetellDeployDialog({
         });
         client.stopCall();
       });
-      await client.startCall({ accessToken });
+      // enableUpdate: true tells Retell's SDK to include the full running
+      // transcript array in every `update` event. Without this flag the
+      // `update` events fire for node-transition metadata but carry no
+      // transcript, so the live transcript panel stays empty throughout the call.
+      await client.startCall({ accessToken, enableUpdate: true });
     } catch (e) {
       toast.error("Test call failed", { description: (e as Error).message });
     } finally {
