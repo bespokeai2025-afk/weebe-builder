@@ -82,7 +82,7 @@ import { ClientQualificationSection } from "./ClientQualificationSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
-import { searchElevenLabsVoices, previewElevenLabsVoice } from "@/lib/builder/retell.functions";
+import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
 import { toast } from "sonner";
 
 const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
@@ -343,6 +343,11 @@ export function Builder({
   const [elTtsLoadingId, setElTtsLoadingId] = useState<string | null>(null);
   const [elPreviewText, setElPreviewText] = useState("Hi there! How can I help you today?");
   const elAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [retPreviewText, setRetPreviewText] = useState("Hi there! How can I help you today?");
+  const [retPlaying, setRetPlaying] = useState(false);
+  const [retTtsLoading, setRetTtsLoading] = useState(false);
+  const retAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (isElevenLabs && elVoiceResults.length === 0 && !elVoiceSearching) {
@@ -998,6 +1003,61 @@ export function Builder({
                         </SelectContent>
                       </Select>
                     </div>
+                    {settings.voiceId && (
+                      <div className="space-y-1">
+                        <Label className="text-[9px] text-muted-foreground">Preview text</Label>
+                        <div className="flex gap-1">
+                          <Input
+                            value={retPreviewText}
+                            onChange={(e) => setRetPreviewText(e.target.value)}
+                            placeholder="Hi there! How can I help you today?"
+                            className="h-6 text-[9px] flex-1"
+                          />
+                          <button
+                            className="shrink-0 flex items-center justify-center h-6 w-6 rounded border border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors disabled:opacity-40"
+                            title={retPlaying ? "Stop preview" : "Play preview"}
+                            disabled={retTtsLoading}
+                            onClick={async () => {
+                              if (retPlaying) {
+                                retAudioRef.current?.pause();
+                                retAudioRef.current = null;
+                                setRetPlaying(false);
+                                return;
+                              }
+                              if (retAudioRef.current) { retAudioRef.current.pause(); retAudioRef.current = null; }
+                              setRetTtsLoading(true);
+                              try {
+                                const result = await previewRetellVoice({
+                                  data: { voiceId: settings.voiceId!, text: retPreviewText.trim() || "Hi there! How can I help you today?" },
+                                });
+                                if (result.audio) {
+                                  const bytes = Uint8Array.from(atob(result.audio), (c) => c.charCodeAt(0));
+                                  const blob = new Blob([bytes], { type: "audio/mpeg" });
+                                  const url = URL.createObjectURL(blob);
+                                  const audio = new Audio(url);
+                                  retAudioRef.current = audio;
+                                  setRetPlaying(true);
+                                  audio.play().catch(() => {});
+                                  audio.onended = () => { URL.revokeObjectURL(url); retAudioRef.current = null; setRetPlaying(false); };
+                                } else {
+                                  toast.error("Preview unavailable", { description: result.missingKey ? "No Retell API key configured." : "TTS returned no audio." });
+                                }
+                              } catch {
+                                toast.error("Preview failed");
+                              } finally {
+                                setRetTtsLoading(false);
+                              }
+                            }}
+                          >
+                            {retTtsLoading
+                              ? <span className="h-2.5 w-2.5 block rounded-full border border-current border-t-transparent animate-spin" />
+                              : retPlaying
+                                ? <Square className="h-2.5 w-2.5 fill-current" />
+                                : <Play className="h-2.5 w-2.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <CustomVoiceUploadDialog onUploaded={(voiceId) => setSettings({ voiceId })} />
                   </>
                 )}

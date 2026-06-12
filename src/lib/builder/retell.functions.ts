@@ -1269,6 +1269,56 @@ export const previewElevenLabsVoice = createServerFn({ method: "POST" })
   });
 
 /**
+ * Generate a short TTS preview for a Retell voice using the user's text.
+ * Returns the audio as a base64-encoded MP3 string so the client can play it
+ * without exposing the API key.  Falls back gracefully when TTS is unavailable.
+ */
+export const previewRetellVoice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { voiceId: string; text: string }) => input)
+  .handler(async ({ data, context }) => {
+    const workspaceId = (context as any).workspaceId ?? null;
+
+    // Prefer the workspace's own Retell key; fall back to the platform key.
+    let retellKey: string | null = process.env.RETELL_API_KEY ?? null;
+    if (workspaceId) {
+      try {
+        const { data: ws } = await supabaseAdmin
+          .from("agent_retell_secrets")
+          .select("retell_api_key")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        const wsKey = (ws as any)?.retell_api_key?.trim() ?? null;
+        if (wsKey) retellKey = wsKey;
+      } catch { /* table may not be accessible — fall through */ }
+    }
+
+    if (!retellKey) return { audio: null, missingKey: true };
+
+    const voiceId = data.voiceId.trim();
+    const text = (data.text ?? "").trim().slice(0, 500) || "Hello! How can I assist you today?";
+
+    const res = await fetch(`${RETELL_BASE}/create-tts-audio`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${retellKey}`,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({ voice_id: voiceId, text }),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`Retell TTS ${res.status}: ${txt}`);
+    }
+
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    return { audio: base64, missingKey: false };
+  });
+
+/**
  * Register an ElevenLabs community voice with Retell, creating a
  * custom_voice_xxx entry that can be used in an agent.
  */
