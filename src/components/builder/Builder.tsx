@@ -343,6 +343,15 @@ export function Builder({
   const [elTtsLoadingId, setElTtsLoadingId] = useState<string | null>(null);
   const [elPreviewText, setElPreviewText] = useState("Hi there! How can I help you today?");
   const elAudioRef = useRef<HTMLAudioElement | null>(null);
+  const elTtsCacheRef = useRef<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const cache = elTtsCacheRef.current;
+    return () => {
+      cache.forEach((url) => URL.revokeObjectURL(url));
+      cache.clear();
+    };
+  }, []);
 
   const [retPreviewText, setRetPreviewText] = useState("Hi there! How can I help you today?");
   const [retPlaying, setRetPlaying] = useState(false);
@@ -1357,20 +1366,31 @@ export function Builder({
                                   }
                                   if (elAudioRef.current) { elAudioRef.current.pause(); elAudioRef.current = null; }
                                   setElPlayingId(null);
+                                  const ttsText = elPreviewText.trim() || "Hi there! How can I help you today?";
+                                  const cacheKey = `${v.voice_id}|${ttsText}`;
+                                  const cachedUrl = elTtsCacheRef.current.get(cacheKey);
+                                  if (cachedUrl) {
+                                    const audio = new Audio(cachedUrl);
+                                    elAudioRef.current = audio;
+                                    setElPlayingId(v.voice_id);
+                                    audio.play().catch(() => {});
+                                    audio.onended = () => { elAudioRef.current = null; setElPlayingId(null); };
+                                  } else {
                                   setElTtsLoadingId(v.voice_id);
                                   try {
                                     const result = await previewElevenLabsVoice({
-                                      data: { voiceId: v.voice_id, text: elPreviewText.trim() || "Hi there! How can I help you today?" },
+                                      data: { voiceId: v.voice_id, text: ttsText },
                                     });
                                     if (result.audio) {
                                       const bytes = Uint8Array.from(atob(result.audio), (c) => c.charCodeAt(0));
                                       const blob = new Blob([bytes], { type: "audio/mpeg" });
                                       const url = URL.createObjectURL(blob);
+                                      elTtsCacheRef.current.set(cacheKey, url);
                                       const audio = new Audio(url);
                                       elAudioRef.current = audio;
                                       setElPlayingId(v.voice_id);
                                       audio.play().catch(() => {});
-                                      audio.onended = () => { URL.revokeObjectURL(url); elAudioRef.current = null; setElPlayingId(null); };
+                                      audio.onended = () => { elAudioRef.current = null; setElPlayingId(null); };
                                     } else if (v.preview_url) {
                                       const audio = new Audio(v.preview_url);
                                       elAudioRef.current = audio;
@@ -1390,6 +1410,7 @@ export function Builder({
                                     }
                                   } finally {
                                     setElTtsLoadingId(null);
+                                  }
                                   }
                                 }}
                               >
