@@ -1173,6 +1173,7 @@ export const searchElevenLabsVoices = createServerFn({ method: "POST" })
           description: string | null;
           labels: Record<string, string>;
           preview_url: string | null;
+          public_owner_id: string | null;
         }>,
         missingKey: true,
       };

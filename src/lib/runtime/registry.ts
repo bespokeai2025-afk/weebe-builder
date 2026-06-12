@@ -57,10 +57,19 @@ const geminiNativeHandler: NativeRuntimeHandler = {
   },
 };
 
+const elevenLabsNativeHandler: NativeRuntimeHandler = {
+  mode: "ELEVENLABS_NATIVE",
+  status: "coming_soon",
+  createSession: async () => {
+    throw new Error("ElevenLabs Native runtime sessions are managed via the ConvAI SDK — use the VoxStream test call path.");
+  },
+};
+
 export const RUNTIME_REGISTRY: Record<Exclude<DeploymentMode, "RETELL">, NativeRuntimeHandler> = {
   OPENAI_NATIVE: openAINativeHandler,
   CLAUDE_NATIVE: claudeNativeHandler,
   GEMINI_NATIVE: geminiNativeHandler,
+  ELEVENLABS_NATIVE: elevenLabsNativeHandler,
 };
 
 export function getHandler(mode: DeploymentMode): NativeRuntimeHandler | null {

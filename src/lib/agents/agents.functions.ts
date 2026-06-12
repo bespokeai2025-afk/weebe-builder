@@ -522,6 +522,10 @@ export const goLiveAgent = createServerFn({ method: "POST" })
       })
       .eq("id", data.id);
 
+    // ElevenLabs phone binding result — hoisted here so it is in scope at the return.
+    let elPhoneAssigned: string | null = null;
+    let elPhoneWebOnly = false;
+
     // Always patch the webhook URL on Go Live — all flow types (receptionist,
     // lead_generation, client_qualification) need post-call events delivered
     // so the dashboard receives transcripts, call records, and analytics.
@@ -570,10 +574,6 @@ export const goLiveAgent = createServerFn({ method: "POST" })
           console.warn("[go-live] Failed to configure webhook URL", whErr);
         }
       }
-
-      // ElevenLabs phone binding result — populated below, returned to caller.
-      let elPhoneAssigned: string | null = null;
-      let elPhoneWebOnly = false;
 
       // Patch ElevenLabs Conversational AI webhook URL on go-live and attempt phone binding.
       if (isElevenLabsNative && deployedElAgentId) {
