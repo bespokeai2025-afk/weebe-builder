@@ -1,8 +1,20 @@
-import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Pencil, Trash2, Flag, Plus, Hash, Globe } from "lucide-react";
+import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
+import { Pencil, Trash2, Flag, Plus, Hash, Globe, X } from "lucide-react";
+import { useState } from "react";
 import { useBuilderStore, type FlowNode } from "@/lib/builder/store";
 import { cn } from "@/lib/utils";
 import type { NodeKind, ExtractVariableItem } from "@/lib/builder/types";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 /** Render text with {{variable}} tokens highlighted. */
 function HighlightedPrompt({ text, className }: { text: string; className?: string }) {
@@ -318,14 +330,110 @@ function SimpleNode({ id, data }: NodeProps<FlowNode>) {
   );
 }
 
+/** Floating variable edit panel — rendered as a NodeToolbar to the right of the node. */
+function VarPanel({
+  item,
+  isNew,
+  onSave,
+  onClose,
+}: {
+  item: ExtractVariableItem;
+  isNew: boolean;
+  onSave: (v: ExtractVariableItem) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState<ExtractVariableItem>(item);
+
+  const TYPE_LABELS: Record<string, string> = {
+    string: "Text",
+    number: "Number",
+    boolean: "Boolean",
+    date: "Date",
+    enum: "Enum",
+  };
+
+  return (
+    <div
+      className="nodrag nopan w-80 rounded-xl border border-border bg-white dark:bg-gray-900 shadow-xl p-4 space-y-3"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-semibold text-sm">Variables</span>
+        <button
+          onClick={onClose}
+          className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">Variable Name</Label>
+        <Input
+          value={draft.name}
+          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+          placeholder="e.g. callback_type"
+          className="h-8 text-sm"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">Description</Label>
+        <Textarea
+          value={draft.description}
+          onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+          placeholder="What should the agent extract?"
+          rows={3}
+          className="text-sm resize-none"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label className="text-xs">
+          Variable Type{" "}
+          <span className="text-muted-foreground font-normal">(Optional)</span>
+        </Label>
+        <Select
+          value={draft.type}
+          onValueChange={(v) =>
+            setDraft((d) => ({ ...d, type: v as ExtractVariableItem["type"] }))
+          }
+        >
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(TYPE_LABELS).map(([val, label]) => (
+              <SelectItem key={val} value={val} className="text-sm">
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex gap-2 justify-end pt-1">
+        <Button variant="outline" size="sm" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={() => onSave(draft)}>
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Dedicated node for Extract Variable — shows Variables section + Transitions. */
 function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
   const selectNode = useBuilderStore((s) => s.selectNode);
-  const selectNodeAddVar = useBuilderStore((s) => s.selectNodeAddVar);
   const deleteNode = useBuilderStore((s) => s.deleteNode);
   const updateNode = useBuilderStore((s) => s.updateNode);
   const isActive = useBuilderStore((s) => s.activeNodeId === id);
   const style = STYLES.extract_variable;
+
+  const [panelVar, setPanelVar] = useState<ExtractVariableItem | null>(null);
+  const [panelIsNew, setPanelIsNew] = useState(false);
 
   const vars: ExtractVariableItem[] =
     data.extractVariables && data.extractVariables.length > 0
@@ -333,6 +441,36 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
       : data.variableName
         ? [{ id: "legacy", name: data.variableName as string, description: (data.variableDescription as string) ?? "", type: "string" as const }]
         : [];
+
+  const openNew = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPanelVar({ id: crypto.randomUUID(), name: "", description: "", type: "string" });
+    setPanelIsNew(true);
+  };
+
+  const openEdit = (v: ExtractVariableItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPanelVar({ ...v });
+    setPanelIsNew(false);
+  };
+
+  const closePanel = () => {
+    setPanelVar(null);
+    setPanelIsNew(false);
+  };
+
+  const saveVar = (saved: ExtractVariableItem) => {
+    const existing = (data.extractVariables ?? []) as ExtractVariableItem[];
+    const updated = panelIsNew
+      ? [...existing, saved]
+      : existing.map((v) => (v.id === saved.id ? saved : v));
+    updateNode(id, {
+      extractVariables: updated,
+      variableName: undefined,
+      variableDescription: undefined,
+    });
+    closePanel();
+  };
 
   const addTransition = () =>
     updateNode(id, {
@@ -344,6 +482,18 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
 
   return (
     <div className="relative group">
+      {/* Floating variable panel anchored to the right of this node */}
+      <NodeToolbar isVisible={!!panelVar} position={Position.Right} offset={12}>
+        {panelVar && (
+          <VarPanel
+            item={panelVar}
+            isNew={panelIsNew}
+            onSave={saveVar}
+            onClose={closePanel}
+          />
+        )}
+      </NodeToolbar>
+
       {data.isStart && (
         <div className="absolute -top-7 -left-2 z-10 flex items-center gap-1 rounded-md bg-violet-500 px-2 py-0.5 text-[10px] font-medium text-white shadow">
           <Flag className="h-3 w-3" /> Begin
@@ -380,7 +530,7 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
               <button
                 onClick={() => selectNode(id)}
                 className="rounded p-1 text-[#1d4ed8] hover:bg-white hover:text-[#1e3a8a]"
-                aria-label="Edit"
+                aria-label="Edit node"
               >
                 <Pencil className="h-3.5 w-3.5" />
               </button>
@@ -403,7 +553,7 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
               Variables
             </span>
             <button
-              onClick={() => selectNodeAddVar(id)}
+              onClick={openNew}
               className="rounded p-0.5 hover:bg-background"
               aria-label="Add variable"
             >
@@ -415,7 +565,7 @@ function ExtractVariableNode({ id, data }: NodeProps<FlowNode>) {
               {vars.map((v) => (
                 <div
                   key={v.id}
-                  onClick={() => selectNode(id)}
+                  onClick={(e) => openEdit(v, e)}
                   className="flex items-center gap-1.5 rounded-md bg-background border px-2 py-1.5 text-xs cursor-pointer hover:border-indigo-300 transition-colors"
                 >
                   <span className="font-mono font-bold text-indigo-500 shrink-0">{"{}"}</span>
