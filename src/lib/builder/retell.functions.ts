@@ -1212,6 +1212,63 @@ export const searchElevenLabsVoices = createServerFn({ method: "POST" })
   });
 
 /**
+ * Generate a short TTS preview for an ElevenLabs voice using the user's text.
+ * Returns the audio as a base64-encoded MP3 string so the client can play it
+ * without exposing the API key.  Falls back gracefully when no key is present.
+ */
+export const previewElevenLabsVoice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { voiceId: string; text: string }) => input)
+  .handler(async ({ data, context }) => {
+    const workspaceId = (context as any).workspaceId ?? null;
+
+    // Resolve key — same logic as searchElevenLabsVoices.
+    let elKey: string | null = process.env.ELEVENLABS_API_KEY ?? null;
+    if (workspaceId) {
+      try {
+        const { data: ws } = await supabaseAdmin
+          .from("workspace_settings")
+          .select("elevenlabs_api_key" as never)
+          .eq("workspace_id", workspaceId)
+          .maybeSingle();
+        const wsKey = (ws as any)?.elevenlabs_api_key ?? null;
+        if (wsKey) elKey = wsKey;
+      } catch { /* column may not exist yet — ignore */ }
+    }
+
+    if (!elKey) return { audio: null, missingKey: true };
+
+    const voiceId = data.voiceId.trim();
+    const text = (data.text ?? "").trim().slice(0, 500) || "Hello! How can I assist you today?";
+
+    const res = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": elKey,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+        },
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_turbo_v2",
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`ElevenLabs TTS ${res.status}: ${txt}`);
+    }
+
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    return { audio: base64, missingKey: false };
+  });
+
+/**
  * Register an ElevenLabs community voice with Retell, creating a
  * custom_voice_xxx entry that can be used in an agent.
  */

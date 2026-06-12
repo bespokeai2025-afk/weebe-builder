@@ -82,7 +82,7 @@ import { ClientQualificationSection } from "./ClientQualificationSection";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
-import { searchElevenLabsVoices } from "@/lib/builder/retell.functions";
+import { searchElevenLabsVoices, previewElevenLabsVoice } from "@/lib/builder/retell.functions";
 import { toast } from "sonner";
 
 const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
@@ -340,6 +340,8 @@ export function Builder({
   const [elVoiceResults, setElVoiceResults] = useState<Array<{ voice_id: string; name: string; description: string | null; labels: Record<string, string>; preview_url: string | null; public_owner_id?: string | null }>>([]);
   const [elVoiceSearching, setElVoiceSearching] = useState(false);
   const [elPlayingId, setElPlayingId] = useState<string | null>(null);
+  const [elTtsLoadingId, setElTtsLoadingId] = useState<string | null>(null);
+  const [elPreviewText, setElPreviewText] = useState("Hi there! How can I help you today?");
   const elAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -1231,61 +1233,104 @@ export function Builder({
                       </Button>
                     </div>
                     {elVoiceResults.length > 0 && (
-                      <div className="max-h-36 overflow-y-auto rounded border border-white/[0.06] divide-y divide-white/[0.04]">
-                        {elVoiceResults.map((v) => (
-                          <div
-                            key={v.voice_id}
-                            className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-white/[0.04] transition-colors"
-                          >
-                            <button
-                              className="flex flex-1 items-start gap-1.5 text-left min-w-0"
-                              onClick={() => {
-                                setSettings({ elevenLabsVoiceId: v.voice_id });
-                                setElVoiceResults([]);
-                                setElVoiceQuery("");
-                                if (elAudioRef.current) { elAudioRef.current.pause(); elAudioRef.current = null; }
-                                setElPlayingId(null);
-                              }}
+                      <>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] text-muted-foreground">Preview text</Label>
+                          <Input
+                            value={elPreviewText}
+                            onChange={(e) => setElPreviewText(e.target.value)}
+                            placeholder="Hi there! How can I help you today?"
+                            className="h-6 text-[9px]"
+                          />
+                        </div>
+                        <div className="max-h-36 overflow-y-auto rounded border border-white/[0.06] divide-y divide-white/[0.04]">
+                          {elVoiceResults.map((v) => (
+                            <div
+                              key={v.voice_id}
+                              className="flex w-full items-start gap-1.5 px-2 py-1.5 hover:bg-white/[0.04] transition-colors"
                             >
-                              <Check className={cn("h-2.5 w-2.5 mt-0.5 shrink-0", settings.elevenLabsVoiceId === v.voice_id ? "text-primary" : "text-transparent")} />
-                              <div className="min-w-0">
-                                <p className="text-[9px] font-medium leading-tight truncate">{v.name}</p>
-                                {v.description && <p className="text-[8px] text-muted-foreground leading-tight line-clamp-1">{v.description}</p>}
-                                {Object.keys(v.labels ?? {}).length > 0 && (
-                                  <p className="text-[8px] text-muted-foreground/60 leading-tight">
-                                    {Object.values(v.labels).slice(0, 3).join(" · ")}
-                                  </p>
-                                )}
-                              </div>
-                            </button>
-                            {v.preview_url && (
                               <button
-                                className="shrink-0 mt-0.5 text-muted-foreground hover:text-primary transition-colors"
+                                className="flex flex-1 items-start gap-1.5 text-left min-w-0"
+                                onClick={() => {
+                                  setSettings({ elevenLabsVoiceId: v.voice_id });
+                                  setElVoiceResults([]);
+                                  setElVoiceQuery("");
+                                  if (elAudioRef.current) { elAudioRef.current.pause(); elAudioRef.current = null; }
+                                  setElPlayingId(null);
+                                  setElTtsLoadingId(null);
+                                }}
+                              >
+                                <Check className={cn("h-2.5 w-2.5 mt-0.5 shrink-0", settings.elevenLabsVoiceId === v.voice_id ? "text-primary" : "text-transparent")} />
+                                <div className="min-w-0">
+                                  <p className="text-[9px] font-medium leading-tight truncate">{v.name}</p>
+                                  {v.description && <p className="text-[8px] text-muted-foreground leading-tight line-clamp-1">{v.description}</p>}
+                                  {Object.keys(v.labels ?? {}).length > 0 && (
+                                    <p className="text-[8px] text-muted-foreground/60 leading-tight">
+                                      {Object.values(v.labels).slice(0, 3).join(" · ")}
+                                    </p>
+                                  )}
+                                </div>
+                              </button>
+                              <button
+                                className="shrink-0 mt-0.5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-40"
                                 title={elPlayingId === v.voice_id ? "Stop preview" : "Play preview"}
-                                onClick={(e) => {
+                                disabled={elTtsLoadingId === v.voice_id}
+                                onClick={async (e) => {
                                   e.stopPropagation();
                                   if (elPlayingId === v.voice_id) {
                                     elAudioRef.current?.pause();
                                     elAudioRef.current = null;
                                     setElPlayingId(null);
-                                  } else {
-                                    if (elAudioRef.current) { elAudioRef.current.pause(); elAudioRef.current = null; }
-                                    const audio = new Audio(v.preview_url!);
-                                    elAudioRef.current = audio;
-                                    setElPlayingId(v.voice_id);
-                                    audio.play().catch(() => {});
-                                    audio.onended = () => { elAudioRef.current = null; setElPlayingId(null); };
+                                    return;
+                                  }
+                                  if (elAudioRef.current) { elAudioRef.current.pause(); elAudioRef.current = null; }
+                                  setElPlayingId(null);
+                                  setElTtsLoadingId(v.voice_id);
+                                  try {
+                                    const result = await previewElevenLabsVoice({
+                                      data: { voiceId: v.voice_id, text: elPreviewText.trim() || "Hi there! How can I help you today?" },
+                                    });
+                                    if (result.audio) {
+                                      const bytes = Uint8Array.from(atob(result.audio), (c) => c.charCodeAt(0));
+                                      const blob = new Blob([bytes], { type: "audio/mpeg" });
+                                      const url = URL.createObjectURL(blob);
+                                      const audio = new Audio(url);
+                                      elAudioRef.current = audio;
+                                      setElPlayingId(v.voice_id);
+                                      audio.play().catch(() => {});
+                                      audio.onended = () => { URL.revokeObjectURL(url); elAudioRef.current = null; setElPlayingId(null); };
+                                    } else if (v.preview_url) {
+                                      const audio = new Audio(v.preview_url);
+                                      elAudioRef.current = audio;
+                                      setElPlayingId(v.voice_id);
+                                      audio.play().catch(() => {});
+                                      audio.onended = () => { elAudioRef.current = null; setElPlayingId(null); };
+                                    }
+                                  } catch {
+                                    if (v.preview_url) {
+                                      const audio = new Audio(v.preview_url);
+                                      elAudioRef.current = audio;
+                                      setElPlayingId(v.voice_id);
+                                      audio.play().catch(() => {});
+                                      audio.onended = () => { elAudioRef.current = null; setElPlayingId(null); };
+                                    } else {
+                                      toast.error("Preview unavailable");
+                                    }
+                                  } finally {
+                                    setElTtsLoadingId(null);
                                   }
                                 }}
                               >
-                                {elPlayingId === v.voice_id
-                                  ? <Square className="h-2.5 w-2.5 fill-current" />
-                                  : <Play className="h-2.5 w-2.5" />}
+                                {elTtsLoadingId === v.voice_id
+                                  ? <span className="h-2.5 w-2.5 block rounded-full border border-current border-t-transparent animate-spin" />
+                                  : elPlayingId === v.voice_id
+                                    ? <Square className="h-2.5 w-2.5 fill-current" />
+                                    : <Play className="h-2.5 w-2.5" />}
                               </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     )}
                     <p className="text-[8px] text-muted-foreground">
                       Search ElevenLabs shared voices or paste a voice ID directly above.
