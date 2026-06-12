@@ -229,7 +229,19 @@ export const Route = createFileRoute("/api/public/elevenlabs-webhook")({
             .map((t) => `${t.role === "agent" ? "Assistant" : "User"}: ${t.message}`)
             .join("\n");
           const callSummary = (analysis.transcript_summary as string | undefined) ?? null;
+          // caller_id = inbound caller's number; agent_phone_number / phone_number =
+          // the number the caller dialed (the agent's assigned phone line).
           const contactPhone = (data.caller_id as string | undefined) ?? null;
+          const agentPhone =
+            (data.agent_phone_number as string | undefined) ??
+            (data.phone_number as string | undefined) ??
+            (agent.settings.elevenLabsPhoneNumber as string | undefined) ??
+            null;
+          // For web/browser sessions there is no real phone number.
+          // Use a "web:<conversationId>" sentinel so the row passes the
+          // dashboard filter (.neq("to_number","unknown")) and is still
+          // distinguishable from phone calls.
+          const toNumber = agentPhone ?? `web:${conversationId}`;
 
           // ── Upsert call record ──────────────────────────────────────────────
           const callRow: Record<string, unknown> = {
@@ -238,7 +250,7 @@ export const Route = createFileRoute("/api/public/elevenlabs-webhook")({
             agent_name: agent.name,
             call_type: "inbound",
             call_status: "completed",
-            to_number: "unknown",
+            to_number: toNumber,
             from_number: contactPhone ?? null,
             started_at: new Date(Date.now() - durationSeconds * 1000).toISOString(),
             ended_at: new Date().toISOString(),
@@ -254,17 +266,21 @@ export const Route = createFileRoute("/api/public/elevenlabs-webhook")({
             console.error("[elevenlabs-webhook] Call upsert failed:", callErr.message);
             return json({ ok: false, error: "db error" }, 500);
           }
-          console.log("[elevenlabs-webhook] Call stored", { agentId: agent.id, conversationId, durationSeconds });
+          console.log("[elevenlabs-webhook] Call stored", { agentId: agent.id, conversationId, durationSeconds, toNumber });
 
-          // ── Post-call pipeline (best-effort, async) ─────────────────────────
-          void runPostCallPipeline(
-            agent,
-            conversationId,
-            fullTranscript,
-            callSummary,
-            durationSeconds,
-            contactPhone,
-          );
+          // ── Post-call pipeline (awaited to prevent dropped work in serverless) ──
+          try {
+            await runPostCallPipeline(
+              agent,
+              conversationId,
+              fullTranscript,
+              callSummary,
+              durationSeconds,
+              contactPhone,
+            );
+          } catch (pipelineErr) {
+            console.error("[elevenlabs-webhook] Post-call pipeline error:", pipelineErr);
+          }
         } catch (err) {
           console.error("[elevenlabs-webhook] Processing error:", err);
         }
