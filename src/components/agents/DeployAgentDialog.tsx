@@ -82,9 +82,20 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
         toast.error("Go Live failed");
         return;
       }
-      toast.success("Agent is live", {
-        description: `${agent.name} is now live as ${agentType.replace("_", " ")}.`,
-      });
+      if (res.elevenLabsPhoneNumber) {
+        toast.success("Agent is live", {
+          description: `${agent.name} is live · phone ${res.elevenLabsPhoneNumber}`,
+        });
+      } else if (res.webOnly) {
+        toast.success("Agent is live (web only)", {
+          description:
+            "No ElevenLabs phone number is available in this workspace. Add one in your ElevenLabs dashboard to enable inbound calls.",
+        });
+      } else {
+        toast.success("Agent is live", {
+          description: `${agent.name} is now live as ${agentType.replace("_", " ")}.`,
+        });
+      }
       onOpenChange(false);
       navigate({ to: "/dashboard" });
     } catch (e) {

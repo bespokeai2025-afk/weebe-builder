@@ -130,17 +130,31 @@ export const getMySpend = createServerFn({ method: "GET" })
     };
   });
 
+// Per-second cost rates in cents, keyed by deployment mode.
+// OmniVoice default: $0.36/min = 0.6 ¢/s
+// VoxStream (ElevenLabs): $0.05/min ≈ 0.0833 ¢/s
+// HyperStream (OpenAI Realtime): $0.09/min = 0.15 ¢/s (token-exact path preferred)
+const CENTS_PER_SECOND: Record<string, number> = {
+  ELEVENLABS_NATIVE: 0.05 / 60 * 100,   // ≈ 0.0833 ¢/s
+  OPENAI_REALTIME:   0.09 / 60 * 100,   // ≈ 0.15 ¢/s
+};
+const DEFAULT_CENTS_PER_SECOND = 0.36 / 60 * 100; // ≈ 0.6 ¢/s (OmniVoice)
+
 /**
  * Current user: record seconds of test-call cost into spend_used_cents.
- * Cost basis: $0.36/min = 0.6 cents/sec.
+ * Pass deploymentMode to apply the correct per-provider rate:
+ *   - "ELEVENLABS_NATIVE" → $0.05/min (VoxStream)
+ *   - "OPENAI_REALTIME"   → $0.09/min (HyperStream, fallback only)
+ *   - omitted / other    → $0.36/min (OmniVoice default)
  */
 export const recordTestCallCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { seconds: number }) => input)
+  .inputValidator((input: { seconds: number; deploymentMode?: string | null }) => input)
   .handler(async ({ context, data }) => {
     const { userId } = context;
     const seconds = Math.max(0, Math.floor(data.seconds));
-    const addedCents = Math.ceil(seconds * 0.6);
+    const ratePerSec = CENTS_PER_SECOND[data.deploymentMode ?? ""] ?? DEFAULT_CENTS_PER_SECOND;
+    const addedCents = Math.ceil(seconds * ratePerSec);
     const { data: cur, error: readErr } = await supabaseAdmin
       .from("profiles")
       .select("spend_limit_cents, spend_used_cents")

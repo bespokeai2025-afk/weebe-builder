@@ -1828,8 +1828,13 @@ export function RetellDeployDialog({
     recordedCallRef.current = true;
     if (seconds <= 0) return;
     addTestCallSeconds(seconds);
-    // Persist to server-side spend cap and refresh meter.
-    recordCost({ data: { seconds } })
+    // Persist to server-side spend cap using the correct per-provider rate.
+    const deploymentMode = isElevenLabs
+      ? "ELEVENLABS_NATIVE"
+      : isOpenAI
+      ? "OPENAI_REALTIME"
+      : undefined;
+    recordCost({ data: { seconds, deploymentMode } })
       .then((res) => {
         qc.setQueryData(["my-spend"], {
           spendLimitCents: res.spendLimitCents,

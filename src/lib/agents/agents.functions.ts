@@ -571,6 +571,10 @@ export const goLiveAgent = createServerFn({ method: "POST" })
         }
       }
 
+      // ElevenLabs phone binding result — populated below, returned to caller.
+      let elPhoneAssigned: string | null = null;
+      let elPhoneWebOnly = false;
+
       // Patch ElevenLabs Conversational AI webhook URL on go-live and attempt phone binding.
       if (isElevenLabsNative && deployedElAgentId) {
         try {
@@ -632,6 +636,7 @@ export const goLiveAgent = createServerFn({ method: "POST" })
                   );
                   if (assignRes.ok) {
                     console.log("[go-live] ElevenLabs phone number assigned", available.phone_number, deployedElAgentId);
+                    elPhoneAssigned = available.phone_number;
                     await supabase
                       .from("agents")
                       .update({
@@ -646,13 +651,16 @@ export const goLiveAgent = createServerFn({ method: "POST" })
                       .eq("id", data.id);
                   } else {
                     console.warn("[go-live] ElevenLabs phone assignment failed:", assignRes.status);
+                    elPhoneWebOnly = true;
                   }
                 } else {
                   console.log("[go-live] No unassigned ElevenLabs phone numbers — agent operates in web-only mode");
+                  elPhoneWebOnly = true;
                 }
               }
             } catch (phoneErr) {
               console.warn("[go-live] ElevenLabs phone binding skipped:", (phoneErr as Error).message);
+              elPhoneWebOnly = true;
             }
           }
         } catch (elErr) {
@@ -661,7 +669,7 @@ export const goLiveAgent = createServerFn({ method: "POST" })
       }
     }
 
-    return { ok: true, live: true };
+    return { ok: true, live: true, elevenLabsPhoneNumber: elPhoneAssigned, webOnly: elPhoneWebOnly };
   });
 
 /**
