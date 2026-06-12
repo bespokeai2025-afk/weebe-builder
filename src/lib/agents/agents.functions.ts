@@ -504,7 +504,9 @@ export const goLiveAgent = createServerFn({ method: "POST" })
     if (isElevenLabsNative && !deployedElAgentId) {
       throw new Error("Deploy this agent from the builder first (VoxStream agent not yet created).");
     }
-    if (!phoneNumber) {
+    // ElevenLabs web agents operate without a phone number (web-based by default).
+    // Phone binding is attempted best-effort later in the ElevenLabs go-live block.
+    if (!phoneNumber && !isElevenLabsNative) {
       throw new Error("Attach a phone number to the agent first.");
     }
     // Agent is live in the unified app — mark it so locally.
@@ -569,7 +571,7 @@ export const goLiveAgent = createServerFn({ method: "POST" })
         }
       }
 
-      // Patch ElevenLabs Conversational AI webhook URL on go-live.
+      // Patch ElevenLabs Conversational AI webhook URL on go-live and attempt phone binding.
       if (isElevenLabsNative && deployedElAgentId) {
         try {
           let elKey: string | null = process.env.ELEVENLABS_API_KEY?.trim() ?? null;
@@ -583,6 +585,11 @@ export const goLiveAgent = createServerFn({ method: "POST" })
             if (wsKey) elKey = wsKey;
           }
           if (elKey && webhookBase) {
+            // Always include the webhook secret in the URL if configured — must match deployElevenLabsAgent.
+            const elWebhookUrl = process.env.ELEVENLABS_WEBHOOK_SECRET
+              ? `${webhookBase}/api/public/elevenlabs-webhook?secret=${process.env.ELEVENLABS_WEBHOOK_SECRET}`
+              : `${webhookBase}/api/public/elevenlabs-webhook`;
+
             const elRes = await fetch(
               `https://api.elevenlabs.io/v1/convai/agents/${deployedElAgentId}`,
               {
@@ -590,7 +597,7 @@ export const goLiveAgent = createServerFn({ method: "POST" })
                 headers: { "xi-api-key": elKey, "Content-Type": "application/json" },
                 body: JSON.stringify({
                   platform_settings: {
-                    webhook: { url: `${webhookBase}/api/public/elevenlabs-webhook` },
+                    webhook: { url: elWebhookUrl },
                   },
                 }),
               },
@@ -599,6 +606,53 @@ export const goLiveAgent = createServerFn({ method: "POST" })
               console.warn("[go-live] ElevenLabs webhook patch failed:", elRes.status);
             } else {
               console.log("[go-live] ElevenLabs webhook configured on agent", deployedElAgentId, webhookBase);
+            }
+
+            // Best-effort phone number binding: list workspace ElevenLabs phone numbers
+            // and assign the first available one to this agent.
+            try {
+              const phoneRes = await fetch("https://api.elevenlabs.io/v1/convai/phone-numbers", {
+                headers: { "xi-api-key": elKey },
+              });
+              if (phoneRes.ok) {
+                const phoneJson = (await phoneRes.json()) as {
+                  phone_numbers?: Array<{ phone_number_id: string; phone_number: string; assigned_agent?: { agent_id: string } | null }>;
+                };
+                const available = (phoneJson.phone_numbers ?? []).find(
+                  (p) => !p.assigned_agent || p.assigned_agent.agent_id === deployedElAgentId,
+                );
+                if (available) {
+                  const assignRes = await fetch(
+                    `https://api.elevenlabs.io/v1/convai/phone-numbers/${available.phone_number_id}`,
+                    {
+                      method: "PATCH",
+                      headers: { "xi-api-key": elKey, "Content-Type": "application/json" },
+                      body: JSON.stringify({ agent_id: deployedElAgentId }),
+                    },
+                  );
+                  if (assignRes.ok) {
+                    console.log("[go-live] ElevenLabs phone number assigned", available.phone_number, deployedElAgentId);
+                    await supabase
+                      .from("agents")
+                      .update({
+                        settings: {
+                          ...settings,
+                          dashboardAgentType: data.agentType,
+                          isLive: true,
+                          liveAt: new Date().toISOString(),
+                          elevenLabsPhoneNumber: available.phone_number,
+                        },
+                      } as never)
+                      .eq("id", data.id);
+                  } else {
+                    console.warn("[go-live] ElevenLabs phone assignment failed:", assignRes.status);
+                  }
+                } else {
+                  console.log("[go-live] No unassigned ElevenLabs phone numbers — agent operates in web-only mode");
+                }
+              }
+            } catch (phoneErr) {
+              console.warn("[go-live] ElevenLabs phone binding skipped:", (phoneErr as Error).message);
             }
           }
         } catch (elErr) {

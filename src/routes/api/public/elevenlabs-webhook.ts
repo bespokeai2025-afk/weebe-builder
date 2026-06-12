@@ -42,16 +42,14 @@ type AgentRow = {
 };
 
 async function resolveAgentByElId(elAgentId: string): Promise<AgentRow | null> {
-  const { data: agents, error } = await supabaseAdmin
+  // Use a JSONB containment query for a deterministic, indexed lookup
+  // instead of scanning all agent rows.
+  const { data: matched, error } = await supabaseAdmin
     .from("agents")
     .select("id, workspace_id, name, agent_type, settings")
-    .limit(500);
-  if (error || !agents) return null;
-  const matched = agents.find((a) => {
-    const s = ((a.settings ?? {}) as Record<string, unknown>);
-    return (s.deployedElevenLabsAgentId as string | undefined) === elAgentId;
-  });
-  if (!matched) return null;
+    .filter("settings->>'deployedElevenLabsAgentId'" as never, "eq", elAgentId)
+    .maybeSingle();
+  if (error || !matched) return null;
   return {
     id: matched.id as string,
     workspace_id: matched.workspace_id as string,
@@ -167,12 +165,23 @@ export const Route = createFileRoute("/api/public/elevenlabs-webhook")({
 
       POST: async ({ request }) => {
         // ── Secret verification ───────────────────────────────────────────────
+        // ElevenLabs does not provide HMAC signing; the shared secret embedded in
+        // the webhook URL is the compensating control. In production the secret is
+        // required — fail closed so misconfiguration cannot leave the endpoint open.
         const url = new URL(request.url);
         const incomingSecret = url.searchParams.get("secret");
         const configuredSecret = process.env.ELEVENLABS_WEBHOOK_SECRET?.trim() || null;
+        const isProduction = process.env.NODE_ENV === "production";
+        if (!configuredSecret && isProduction) {
+          console.error("[elevenlabs-webhook] ELEVENLABS_WEBHOOK_SECRET is not set — rejecting all requests in production");
+          return json({ ok: false, error: "Webhook secret not configured" }, 503);
+        }
         if (configuredSecret && incomingSecret !== configuredSecret) {
           console.warn("[elevenlabs-webhook] Secret mismatch — rejecting request");
           return json({ ok: false, error: "Unauthorized" }, 403);
+        }
+        if (!configuredSecret && !isProduction) {
+          console.warn("[elevenlabs-webhook] ELEVENLABS_WEBHOOK_SECRET not set — accepting request in dev mode (set secret for production)");
         }
 
         let body: Record<string, unknown>;
