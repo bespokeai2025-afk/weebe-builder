@@ -118,8 +118,11 @@ function LeadCard({
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: lead.id, data: { lead } });
 
-  // Distinguish a tap from a drag: track pointer movement
+  // Distinguish a tap from a drag without overriding dnd-kit's listeners
   const hasMoved = useRef(false);
+  const dndDown  = (listeners as any)?.onPointerDown as ((e: React.PointerEvent) => void) | undefined;
+  const dndMove  = (listeners as any)?.onPointerMove as ((e: React.PointerEvent) => void) | undefined;
+  const { onPointerDown: _d, onPointerMove: _m, ...restListeners } = (listeners ?? {}) as any;
 
   const style = overlay
     ? undefined
@@ -137,9 +140,9 @@ function LeadCard({
       ref={overlay ? undefined : setNodeRef}
       style={style}
       {...(overlay ? {} : attributes)}
-      {...(overlay ? {} : listeners)}
-      onPointerDown={() => { hasMoved.current = false; }}
-      onPointerMove={() => { hasMoved.current = true; }}
+      {...(overlay ? {} : restListeners)}
+      onPointerDown={(e) => { hasMoved.current = false; if (!overlay) dndDown?.(e); }}
+      onPointerMove={(e) => { hasMoved.current = true;  if (!overlay) dndMove?.(e); }}
       onClick={() => {
         if (!hasMoved.current && !overlay && onSelect) onSelect(lead);
       }}
@@ -221,10 +224,10 @@ function LeadCard({
             <span className="text-[9px] text-muted-foreground">{lastContact}</span>
           )}
           {lead.hasNotes && (
-            <StickyNote className="h-2.5 w-2.5 text-amber-500" title="Has notes" />
+            <StickyNote className="h-3.5 w-3.5 text-amber-500" title="Has notes" />
           )}
           {lead.hasBooking && (
-            <CalendarCheck className="h-2.5 w-2.5 text-green-500" title="Appointment booked" />
+            <CalendarCheck className="h-3.5 w-3.5 text-green-500" title="Appointment booked" />
           )}
           {onMove && !overlay && (() => {
             const idx = PIPELINE_STAGES.findIndex((s) => s.id === lead.effective_stage);
