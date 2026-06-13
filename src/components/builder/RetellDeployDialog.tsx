@@ -98,6 +98,7 @@ export function RetellDeployDialog({
   const workletRef = useRef<AudioWorkletNode | null>(null);
   const captureSinkRef = useRef<GainNode | null>(null);
   const keepAliveRef = useRef<OscillatorNode | null>(null);
+  const wsPingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const nextPlayTimeRef = useRef(0);
   // All AudioBufferSourceNodes scheduled for the current response.
@@ -132,13 +133,14 @@ export function RetellDeployDialog({
 
   /** Drop-in replacement for setTranscript that also propagates to parent instantly. */
   function pushTranscript(updater: TxEntry[] | ((prev: TxEntry[]) => TxEntry[])) {
-    setTranscript((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      transcriptRef.current = next;
-      // Propagate to Builder immediately without waiting for useEffect.
-      onTranscriptUpdateRef.current?.(next);
-      return next;
-    });
+    // Compute the next value using the always-current transcriptRef so we can
+    // call onTranscriptUpdateRef OUTSIDE the state updater — calling another
+    // component's setState from inside a state updater triggers React's
+    // "Cannot update a component while rendering" warning.
+    const next = typeof updater === "function" ? updater(transcriptRef.current) : updater;
+    transcriptRef.current = next;
+    setTranscript(next);
+    onTranscriptUpdateRef.current?.(next);
   }
 
   /**
@@ -233,6 +235,7 @@ export function RetellDeployDialog({
       captureSinkRef.current = null;
       keepAliveRef.current?.stop();
       keepAliveRef.current = null;
+      if (wsPingRef.current !== null) { clearInterval(wsPingRef.current); wsPingRef.current = null; }
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       audioCtxRef.current?.close().catch(() => {});
@@ -1901,6 +1904,7 @@ export function RetellDeployDialog({
     setCalling(true);
 
     function cleanupElVoice() {
+      if (wsPingRef.current !== null) { clearInterval(wsPingRef.current); wsPingRef.current = null; }
       finalizeRecording();
       for (const node of activeSourceNodesRef.current) {
         try { node.stop(); } catch { /* already ended */ }
@@ -2026,6 +2030,14 @@ export function RetellDeployDialog({
           beginMessage,
           model: textModel,
         }));
+        // Keep-alive: send a ping every 5 s so the reverse-proxy never sees an
+        // idle connection and closes it (happens when EL streams audio quickly,
+        // leaving a ~15 s gap where neither side sends anything).
+        wsPingRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 5000);
       };
 
       ws.onmessage = (ev) => {
@@ -2213,7 +2225,8 @@ export function RetellDeployDialog({
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        console.log(`[elv-relay] ws.onclose code=${ev.code} wasClean=${ev.wasClean}`);
         recordCurrentCallCost();
         setInCall(false);
         setActiveNode(null);

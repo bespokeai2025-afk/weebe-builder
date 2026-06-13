@@ -296,6 +296,15 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
       return;
     }
 
+    // ── ping (keepalive) ──────────────────────────────────────────────────────
+    // Browser sends a ping every 5 s to prevent the reverse-proxy from closing
+    // the connection during long AI audio playback (when neither side sends
+    // messages for up to ~15 s while pre-buffered audio drains in the browser).
+    if (msg.type === "ping") {
+      safeSend(ws, { type: "pong" });
+      return;
+    }
+
     // ── session.init ─────────────────────────────────────────────────────────
     if (msg.type === "session.init") {
       voiceId      = String(msg.voiceId      ?? "");
@@ -319,7 +328,10 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
 
     // ── audio.chunk ───────────────────────────────────────────────────────────
     if (msg.type === "audio.chunk") {
-      if (busy) return; // discard mic input while agent is processing/speaking
+      if (busy) {
+        console.log("[el-voice-relay] audio.chunk blocked (busy=true)");
+        return; // discard mic input while agent is processing/speaking
+      }
       const chunk = Buffer.from(String(msg.data ?? ""), "base64");
       if (chunk.byteLength < 2) return;
       const rms = computeRms(chunk);
@@ -330,6 +342,7 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
           spchFrames = 1;
           silFrames = 0;
           speechBufs.push(chunk);
+          console.log(`[el-voice-relay] VAD speech start (rms=${rms.toFixed(0)})`);
         }
       } else {
         // vadState === "speaking"
@@ -345,11 +358,14 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
             vadState = "idle";
             spchFrames = 0;
             silFrames = 0;
+            console.log(`[el-voice-relay] VAD utterance end (frames=${capturedBufs.length})`);
             if (capturedBufs.length >= MIN_SPEECH_FRAMES) {
               processTurn(capturedBufs).catch((e: Error) => {
                 console.error("[el-voice-relay] processTurn unhandled:", e.message);
                 busy = false;
               });
+            } else {
+              console.log(`[el-voice-relay] utterance too short (<${MIN_SPEECH_FRAMES} frames), discarded`);
             }
           }
         }
