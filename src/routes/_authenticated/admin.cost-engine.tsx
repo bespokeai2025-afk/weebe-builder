@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import {
   Pencil, Trash2, Plus, RefreshCw, TrendingUp, DollarSign,
   Cpu, Mic, Phone, Database, Wrench, Server, BarChart3, Zap,
+  Users, Briefcase, X, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -18,10 +19,13 @@ import {
   saveTelephonyCost, deleteTelephonyCost,
   saveKnowledgeCost, saveToolsCost, saveInfrastructureCost,
   saveRetellCost, saveMarkup, savePlan, deletePlan,
+  saveDevRole, deleteDevRole,
+  getClientEstimates, saveClientEstimate, deleteClientEstimate,
   calcHyperstreamCostPerMin, calcRetellCostPerMin, applyMarkup, calcInfraCostPerMin,
 } from "@/lib/cost-engine/cost-engine.functions";
 import type {
   CostEngineData, CostAnalytics, LlmCost, VoiceCost, TelephonyCost,
+  DevRole, ClientEstimate, TeamMember, AddonCharge,
 } from "@/lib/cost-engine/cost-engine.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/cost-engine")({
@@ -79,15 +83,21 @@ function NumInput({ label, value, onChange, step = "0.000001" }: { label: string
 function CostEnginePage() {
   const [data, setData] = useState<(CostEngineData & { tablesReady: boolean }) | null>(null);
   const [analytics, setAnalytics] = useState<CostAnalytics | null>(null);
+  const [estimates, setEstimates] = useState<ClientEstimate[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [d, a] = await Promise.all([getCostEngine(), getCostAnalytics().catch(() => null)]);
+      const [d, a, e] = await Promise.all([
+        getCostEngine(),
+        getCostAnalytics().catch(() => null),
+        getClientEstimates().catch(() => []),
+      ]);
       setData(d as any);
       setAnalytics(a);
+      setEstimates(e);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load cost engine");
     } finally {
@@ -139,6 +149,8 @@ function CostEnginePage() {
           <TabsTrigger value="fixed">Fixed Costs</TabsTrigger>
           <TabsTrigger value="hyperstream">HyperStream</TabsTrigger>
           <TabsTrigger value="profit">Profit & Plans</TabsTrigger>
+          <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
+          <TabsTrigger value="clients">Client Estimates</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -175,6 +187,16 @@ function CostEnginePage() {
         {/* ── Profit & Plans ───────────────────────────────────────────────── */}
         <TabsContent value="profit" className="mt-4 space-y-6">
           {data && <ProfitTab data={data} onSaved={loadAll} />}
+        </TabsContent>
+
+        {/* ── Onboarding ───────────────────────────────────────────────────── */}
+        <TabsContent value="onboarding" className="mt-4">
+          {data && <OnboardingTab rows={data.dev_roles} onSaved={loadAll} />}
+        </TabsContent>
+
+        {/* ── Client Estimates ─────────────────────────────────────────────── */}
+        <TabsContent value="clients" className="mt-4">
+          {data && <ClientEstimatesTab data={data} estimates={estimates} onSaved={loadAll} />}
         </TabsContent>
 
         {/* ── Analytics ────────────────────────────────────────────────────── */}
@@ -863,6 +885,366 @@ function AnalyticsTab({ analytics }: { analytics: CostAnalytics }) {
           <p className="text-xs mt-1">Data will appear here once calls are tracked via the cost engine</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Onboarding Tab ────────────────────────────────────────────────────────────
+
+const ROLE_BLANK = { role_name: "", rate_per_hour: 0, hours_per_week: 40, notes: "", sort_order: 0 };
+
+function OnboardingTab({ rows, onSaved }: { rows: DevRole[]; onSaved: () => void }) {
+  const [editId, setEditId] = useState<string | "new" | null>(null);
+  const [form, setForm] = useState<typeof ROLE_BLANK>({ ...ROLE_BLANK });
+  const [busy, setBusy] = useState(false);
+
+  const startEdit = (row: DevRole) => {
+    setEditId(row.id);
+    setForm({ role_name: row.role_name, rate_per_hour: n(row.rate_per_hour), hours_per_week: n(row.hours_per_week), notes: row.notes ?? "", sort_order: n(row.sort_order) });
+  };
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await saveDevRole({ ...(editId !== "new" ? { id: editId! } : {}), ...form, notes: form.notes || undefined });
+      toast.success("Saved"); setEditId(null); onSaved();
+    } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm("Delete this role?")) return;
+    setBusy(true);
+    try { await deleteDevRole({ id }); toast.success("Deleted"); onSaved(); }
+    catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
+  };
+
+  const EditForm = () => (
+    <tr className="bg-muted/30"><td colSpan={6} className="px-3 py-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+        <div className="md:col-span-2"><Label className="text-xs">Role Name</Label><Input className="h-7 text-xs" value={form.role_name} onChange={e => setForm(f => ({ ...f, role_name: e.target.value }))} /></div>
+        <NumInput label="Rate / hour ($)" value={form.rate_per_hour} onChange={v => setForm(f => ({ ...f, rate_per_hour: v }))} step="0.50" />
+        <NumInput label="Hours / week" value={form.hours_per_week} onChange={v => setForm(f => ({ ...f, hours_per_week: Math.round(v) }))} step="1" />
+        <div><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+        <NumInput label="Sort Order" value={form.sort_order} onChange={v => setForm(f => ({ ...f, sort_order: Math.round(v) }))} step="1" />
+      </div>
+      <div className="flex gap-2"><Button size="sm" onClick={save} disabled={busy} className="h-7 text-xs">Save</Button><Button size="sm" variant="outline" onClick={() => setEditId(null)} className="h-7 text-xs">Cancel</Button></div>
+    </td></tr>
+  );
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader icon={Users} title="Development Team Rates" subtitle="Default hourly rates used when building client project estimates" />
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/50"><tr>{["Role", "Rate / hr", "Hrs / week", "Day Rate", "Notes", ""].map(h => <th key={h} className="text-left px-3 py-2 font-medium text-muted-foreground">{h}</th>)}</tr></thead>
+          <tbody className="divide-y">
+            {rows.map(row => (
+              <React.Fragment key={row.id}>
+                <tr className="hover:bg-muted/20">
+                  <td className="px-3 py-2 font-medium">{row.role_name}</td>
+                  <td className="px-3 py-2">${n(row.rate_per_hour).toFixed(2)}</td>
+                  <td className="px-3 py-2">{row.hours_per_week}h</td>
+                  <td className="px-3 py-2 text-muted-foreground">${(n(row.rate_per_hour) * n(row.hours_per_week) / 5).toFixed(2)}</td>
+                  <td className="px-3 py-2 text-muted-foreground max-w-[200px] truncate">{row.notes}</td>
+                  <td className="px-3 py-2"><div className="flex gap-1">
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEdit(row)}><Pencil className="w-3 h-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => remove(row.id)}><Trash2 className="w-3 h-3" /></Button>
+                  </div></td>
+                </tr>
+                {editId === row.id && <EditForm key={`edit-${row.id}`} />}
+              </React.Fragment>
+            ))}
+            {editId === "new" && <EditForm key="new" />}
+          </tbody>
+        </table>
+      </div>
+      {rows.length === 0 && editId === null && (
+        <p className="text-xs text-muted-foreground text-center py-6">No roles yet — apply the migration then refresh, or add one manually.</p>
+      )}
+      {editId === null && (
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setEditId("new"); setForm({ ...ROLE_BLANK }); }}>
+          <Plus className="w-3 h-3 mr-1" />Add Role
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ── Client Estimates Tab ──────────────────────────────────────────────────────
+
+type TeamRow = { role_id: string; role_name: string; rate_per_hour: number; hours_per_week: number; count: number; weeks: number };
+
+function initTeamRows(devRoles: DevRole[], existingTeam: TeamMember[], defaultWeeks: number): TeamRow[] {
+  return devRoles.map(role => {
+    const existing = existingTeam.find(m => m.role_id === role.id);
+    return {
+      role_id: role.id,
+      role_name: role.role_name,
+      rate_per_hour: n(role.rate_per_hour),
+      hours_per_week: n(role.hours_per_week),
+      count: existing?.count ?? 0,
+      weeks: existing?.weeks ?? defaultWeeks,
+    };
+  });
+}
+
+const EST_BLANK = { client_name: "", client_email: "", plan_id: "", project_weeks: 4, notes: "" };
+
+function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData; estimates: ClientEstimate[]; onSaved: () => void }) {
+  const [editId, setEditId] = useState<string | "new" | null>(null);
+  const [form, setForm] = useState({ ...EST_BLANK });
+  const [teamRows, setTeamRows] = useState<TeamRow[]>([]);
+  const [addons, setAddons] = useState<AddonCharge[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const platformCostPerMin = calcHyperstreamCostPerMin({
+    llm: data.llm.find(l => n(l.audio_input_cost) > 0) ?? data.llm[0] ?? null,
+    voice: data.voice[0] ?? null,
+    telephony: data.telephony[0] ?? null,
+    knowledge: data.knowledge,
+    tools: data.tools,
+    infrastructure: data.infrastructure,
+  }).total;
+
+  const openNew = () => {
+    setForm({ ...EST_BLANK, project_weeks: 4 });
+    setTeamRows(initTeamRows(data.dev_roles, [], 4));
+    setAddons([]);
+    setEditId("new");
+  };
+
+  const openEdit = (est: ClientEstimate) => {
+    setForm({ client_name: est.client_name, client_email: est.client_email ?? "", plan_id: est.plan_id ?? "", project_weeks: est.project_weeks, notes: est.notes ?? "" });
+    setTeamRows(initTeamRows(data.dev_roles, est.team_config, est.project_weeks));
+    setAddons(est.monthly_addon_charges);
+    setEditId(est.id);
+  };
+
+  const saveEst = async () => {
+    setBusy(true);
+    try {
+      await saveClientEstimate({
+        ...(editId !== "new" ? { id: editId! } : {}),
+        client_name: form.client_name,
+        client_email: form.client_email || undefined,
+        plan_id: form.plan_id || undefined,
+        project_weeks: form.project_weeks,
+        team_config: teamRows.filter(r => r.count > 0),
+        monthly_addon_charges: addons.filter(a => a.label),
+        notes: form.notes || undefined,
+      });
+      toast.success("Estimate saved"); setEditId(null); onSaved();
+    } catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
+  };
+
+  const removeEst = async (id: string) => {
+    if (!confirm("Delete this estimate?")) return;
+    setBusy(true);
+    try { await deleteClientEstimate({ id }); toast.success("Deleted"); onSaved(); }
+    catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
+  };
+
+  const selectedPlan = data.plans.find(p => p.id === form.plan_id);
+  const setupCost = teamRows.reduce((s, r) => r.count > 0 ? s + r.rate_per_hour * r.hours_per_week * r.weeks * r.count : s, 0);
+  const monthlyRevenue = n(selectedPlan?.price_per_month) + addons.reduce((s, a) => s + n(a.amount), 0);
+  const monthlyPlatformCost = n(selectedPlan?.included_minutes) * platformCostPerMin;
+  const monthlyProfit = monthlyRevenue - monthlyPlatformCost;
+  const marginPct = monthlyRevenue > 0 ? (monthlyProfit / monthlyRevenue) * 100 : 0;
+  const breakEvenMonths = monthlyProfit > 0 ? setupCost / monthlyProfit : null;
+
+  if (editId !== null) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SectionHeader icon={Briefcase} title={editId === "new" ? "New Client Estimate" : "Edit Estimate"} subtitle="Define team, timeline, and assigned pricing plan" />
+          <Button variant="ghost" size="sm" onClick={() => setEditId(null)}><X className="w-4 h-4 mr-1" />Cancel</Button>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-2">
+          <div><Label className="text-xs">Client Name *</Label><Input className="h-7 text-xs mt-0.5" value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} placeholder="Acme Corp" /></div>
+          <div><Label className="text-xs">Client Email</Label><Input className="h-7 text-xs mt-0.5" type="email" value={form.client_email} onChange={e => setForm(f => ({ ...f, client_email: e.target.value }))} placeholder="client@example.com" /></div>
+          <div>
+            <Label className="text-xs">Assigned Plan</Label>
+            <select className="w-full h-7 text-xs rounded border bg-background px-2 mt-0.5" value={form.plan_id} onChange={e => setForm(f => ({ ...f, plan_id: e.target.value }))}>
+              <option value="">— No plan —</option>
+              {data.plans.map(p => <option key={p.id} value={p.id}>{p.plan_name} — ${n(p.price_per_month).toFixed(0)}/mo ({n(p.included_minutes)} min)</option>)}
+            </select>
+          </div>
+          <div>
+            <Label className="text-xs">Project Weeks</Label>
+            <Input type="number" min={1} step={1} className="h-7 text-xs mt-0.5" value={form.project_weeks}
+              onChange={e => {
+                const w = Math.max(1, parseInt(e.target.value) || 1);
+                setForm(f => ({ ...f, project_weeks: w }));
+                setTeamRows(rows => rows.map(r => ({ ...r, weeks: w })));
+              }} />
+          </div>
+          <div className="md:col-span-2"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs mt-0.5" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any additional context" /></div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <p className="text-sm font-semibold">Development Team</p>
+            {data.dev_roles.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No roles configured — add roles in the Onboarding tab first.</p>
+            ) : (
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50"><tr>{["Role", "Rate/hr", "Count", "Weeks", "Total"].map(h => <th key={h} className="text-left px-3 py-1.5 font-medium text-muted-foreground">{h}</th>)}</tr></thead>
+                  <tbody className="divide-y">
+                    {teamRows.map((row, i) => {
+                      const cost = row.count > 0 ? row.rate_per_hour * row.hours_per_week * row.weeks * row.count : 0;
+                      return (
+                        <tr key={row.role_id} className={row.count > 0 ? "bg-primary/5" : ""}>
+                          <td className="px-3 py-1.5 font-medium">{row.role_name}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">${row.rate_per_hour}/hr</td>
+                          <td className="px-3 py-1.5">
+                            <Input type="number" min={0} step={1} className="h-6 w-14 text-xs p-1"
+                              value={row.count}
+                              onChange={e => setTeamRows(rows => rows.map((r, j) => j === i ? { ...r, count: Math.max(0, parseInt(e.target.value) || 0) } : r))} />
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <Input type="number" min={1} step={1} className="h-6 w-14 text-xs p-1"
+                              value={row.weeks}
+                              onChange={e => setTeamRows(rows => rows.map((r, j) => j === i ? { ...r, weeks: Math.max(1, parseInt(e.target.value) || 1) } : r))} />
+                          </td>
+                          <td className="px-3 py-1.5 font-medium">{cost > 0 ? `$${cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <p className="text-sm font-semibold">Monthly Add-ons</p>
+            <div className="space-y-1.5">
+              {addons.map((a, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <Input className="h-7 text-xs flex-1" placeholder="Label (e.g. SMS credits)" value={a.label}
+                    onChange={e => setAddons(arr => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+                  <Input type="number" step="0.01" min="0" className="h-7 text-xs w-24" placeholder="$ amount"
+                    value={a.amount}
+                    onChange={e => setAddons(arr => arr.map((x, j) => j === i ? { ...x, amount: parseFloat(e.target.value) || 0 } : x))} />
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive flex-shrink-0"
+                    onClick={() => setAddons(arr => arr.filter((_, j) => j !== i))}><X className="w-3 h-3" /></Button>
+                </div>
+              ))}
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAddons(a => [...a, { label: "", amount: 0 }])}>
+                <Plus className="w-3 h-3 mr-1" />Add monthly charge
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold">Live P&L Preview</p>
+            <div className="rounded-lg border p-4">
+              {([
+                { label: "Project setup cost (one-time)", value: `$${setupCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, bold: true },
+                { sep: true },
+                { label: "Plan revenue / month", value: selectedPlan ? `$${n(selectedPlan.price_per_month).toFixed(2)}` : "—" },
+                ...addons.filter(a => a.label && a.amount > 0).map(a => ({ label: `+ ${a.label}`, value: `$${n(a.amount).toFixed(2)}` })),
+                { label: "Total monthly revenue", value: `$${monthlyRevenue.toFixed(2)}`, accent: "text-blue-600" },
+                { label: "Monthly platform cost", value: `−$${monthlyPlatformCost.toFixed(4)}`, accent: "text-red-500" },
+                { sep: true },
+                { label: "Monthly gross profit", value: `$${monthlyProfit.toFixed(2)}`, accent: monthlyProfit >= 0 ? "text-emerald-600" : "text-red-500", bold: true },
+                { label: "Gross margin", value: `${marginPct.toFixed(1)}%`, accent: marginPct > 30 ? "text-emerald-600" : marginPct > 10 ? "text-amber-600" : "text-red-500" },
+                { sep: true },
+                { label: "Break-even point", value: breakEvenMonths !== null ? `${breakEvenMonths.toFixed(1)} months` : "—", accent: breakEvenMonths !== null && breakEvenMonths < 6 ? "text-emerald-600" : "text-amber-600" },
+              ] as Array<{ sep?: boolean; label?: string; value?: string; bold?: boolean; accent?: string }>).map((row, i) =>
+                row.sep
+                  ? <div key={i} className="border-t my-2" />
+                  : <div key={i} className="flex justify-between py-1 text-xs">
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className={`font-medium ${row.accent ?? ""} ${row.bold ? "text-sm" : ""}`}>{row.value}</span>
+                    </div>
+              )}
+            </div>
+            {!selectedPlan && (
+              <p className="text-xs text-amber-600">Assign a plan above to see monthly revenue and platform cost calculations.</p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t">
+          <Button onClick={saveEst} disabled={busy || !form.client_name.trim()} className="h-8 text-sm">Save Estimate</Button>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => setEditId(null)}>Cancel</Button>
+          {editId !== "new" && (
+            <Button variant="ghost" size="sm" className="h-8 text-destructive ml-auto" onClick={() => removeEst(editId!)} disabled={busy}>Delete</Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <SectionHeader icon={Briefcase} title="Client Estimates" subtitle="Per-client project cost and recurring profit margin reports" />
+        <Button size="sm" onClick={openNew} className="h-8 text-xs"><Plus className="w-3 h-3 mr-1.5" />New Estimate</Button>
+      </div>
+
+      {estimates.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <Briefcase className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">No client estimates yet</p>
+          <p className="text-xs mt-1">Create one to model per-client project costs and monthly profit margins</p>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {estimates.map(est => {
+          const plan = data.plans.find(p => p.id === est.plan_id);
+          const estSetup = est.team_config.reduce((s, m) => s + n(m.rate_per_hour) * n(m.hours_per_week) * n(m.weeks) * n(m.count), 0);
+          const estRevenue = n(plan?.price_per_month) + est.monthly_addon_charges.reduce((s, a) => s + n(a.amount), 0);
+          const estPlatform = n(plan?.included_minutes) * platformCostPerMin;
+          const estProfit = estRevenue - estPlatform;
+          const estMargin = estRevenue > 0 ? (estProfit / estRevenue) * 100 : 0;
+          const estBE = estProfit > 0 ? estSetup / estProfit : null;
+
+          return (
+            <div key={est.id} className="rounded-lg border p-4 space-y-3 hover:shadow-sm transition-shadow">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-sm">{est.client_name}</p>
+                  {est.client_email && <p className="text-xs text-muted-foreground">{est.client_email}</p>}
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(est)}><Pencil className="w-3 h-3" /></Button>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeEst(est.id)}><Trash2 className="w-3 h-3" /></Button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {plan && <Badge variant="secondary" className="text-xs">{plan.plan_name} — ${n(plan.price_per_month).toFixed(0)}/mo</Badge>}
+                <Badge variant="outline" className="text-xs">{est.project_weeks}w project</Badge>
+                {est.team_config.map(m => (
+                  <Badge key={m.role_id} variant="outline" className="text-xs">{m.count}× {m.role_name}</Badge>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {([
+                  { label: "Setup Cost", value: `$${estSetup.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+                  { label: "Monthly Rev", value: `$${estRevenue.toFixed(0)}`, accent: "text-blue-600" },
+                  { label: "Monthly Profit", value: `$${estProfit.toFixed(0)}`, accent: estProfit >= 0 ? "text-emerald-600" : "text-red-500" },
+                  { label: "Margin", value: `${estMargin.toFixed(1)}%`, accent: estMargin > 30 ? "text-emerald-600" : "text-amber-600" },
+                  { label: "Break-even", value: estBE !== null ? `${estBE.toFixed(1)} mo` : "—", accent: estBE !== null && estBE < 6 ? "text-emerald-600" : "" },
+                  { label: "Platform Cost", value: `$${estPlatform.toFixed(2)}/mo`, accent: "text-muted-foreground" },
+                ] as Array<{ label: string; value: string; accent?: string }>).map(c => (
+                  <div key={c.label} className="rounded-md bg-muted/40 p-2">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{c.label}</p>
+                    <p className={`text-xs font-semibold ${c.accent ?? ""}`}>{c.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {est.notes && <p className="text-xs text-muted-foreground italic truncate">{est.notes}</p>}
+              <p className="text-[10px] text-muted-foreground">Created {new Date(est.created_at).toLocaleDateString()}</p>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

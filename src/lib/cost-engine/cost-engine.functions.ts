@@ -109,6 +109,43 @@ export interface CustomerPlan {
   sort_order: number;
 }
 
+export interface DevRole {
+  id: string;
+  role_name: string;
+  rate_per_hour: number;
+  hours_per_week: number;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface TeamMember {
+  role_id: string;
+  role_name: string;
+  rate_per_hour: number;
+  hours_per_week: number;
+  count: number;
+  weeks: number;
+}
+
+export interface AddonCharge {
+  label: string;
+  amount: number;
+}
+
+export interface ClientEstimate {
+  id: string;
+  client_name: string;
+  client_email: string | null;
+  plan_id: string | null;
+  project_weeks: number;
+  team_config: TeamMember[];
+  monthly_addon_charges: AddonCharge[];
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CostEngineData {
   llm: LlmCost[];
   voice: VoiceCost[];
@@ -119,6 +156,7 @@ export interface CostEngineData {
   retell: RetellCost | null;
   markup: Markup | null;
   plans: CustomerPlan[];
+  dev_roles: DevRole[];
 }
 
 export interface CostAnalytics {
@@ -151,11 +189,11 @@ export const getCostEngine = createServerFn({ method: "GET" })
         tablesReady: false,
         llm: [], voice: [], telephony: [],
         knowledge: null, tools: null, infrastructure: null,
-        retell: null, markup: null, plans: [],
+        retell: null, markup: null, plans: [], dev_roles: [],
       };
     }
 
-    const [llmR, voiceR, telR, knR, toolR, infraR, retR, mkR, planR] =
+    const [llmR, voiceR, telR, knR, toolR, infraR, retR, mkR, planR, roleR] =
       await Promise.all([
         supabaseAdmin.from("cost_engine_llm" as any).select("*").eq("is_current", true).order("provider").order("model"),
         supabaseAdmin.from("cost_engine_voice" as any).select("*").eq("is_current", true).order("provider").order("voice_name"),
@@ -166,6 +204,7 @@ export const getCostEngine = createServerFn({ method: "GET" })
         supabaseAdmin.from("cost_engine_retell" as any).select("*").eq("is_current", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabaseAdmin.from("cost_engine_markup" as any).select("*").eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle(),
         supabaseAdmin.from("cost_engine_customer_plans" as any).select("*").eq("is_active", true).order("sort_order"),
+        supabaseAdmin.from("cost_engine_dev_roles" as any).select("*").order("sort_order"),
       ]);
 
     return {
@@ -179,6 +218,7 @@ export const getCostEngine = createServerFn({ method: "GET" })
       retell: retR.data as RetellCost | null,
       markup: mkR.data as Markup | null,
       plans: (planR.data ?? []) as CustomerPlan[],
+      dev_roles: (roleR.data ?? []) as DevRole[],
     };
   });
 
@@ -520,6 +560,119 @@ export const deletePlan = createServerFn({ method: "POST" })
   .inputValidator((i: z.infer<typeof DeleteInput>) => DeleteInput.parse(i))
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.from("cost_engine_customer_plans" as any).update({ is_active: false }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ── Dev Roles ────────────────────────────────────────────────────────────────
+
+const DevRoleInput = z.object({
+  id: z.string().optional(),
+  role_name: z.string().min(1),
+  rate_per_hour: z.number().min(0),
+  hours_per_week: z.number().int().min(1).max(168),
+  notes: z.string().optional(),
+  sort_order: z.number().optional(),
+});
+
+export const saveDevRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .inputValidator((i: z.infer<typeof DevRoleInput>) => DevRoleInput.parse(i))
+  .handler(async ({ data }) => {
+    if (data.id) {
+      const { error } = await supabaseAdmin.from("cost_engine_dev_roles" as any).update({
+        role_name: data.role_name, rate_per_hour: data.rate_per_hour,
+        hours_per_week: data.hours_per_week, notes: data.notes ?? null,
+        sort_order: data.sort_order ?? 0,
+      }).eq("id", data.id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabaseAdmin.from("cost_engine_dev_roles" as any).insert({
+        role_name: data.role_name, rate_per_hour: data.rate_per_hour,
+        hours_per_week: data.hours_per_week, notes: data.notes ?? null,
+        sort_order: data.sort_order ?? 0,
+      });
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
+const DeleteRoleInput = z.object({ id: z.string().uuid() });
+
+export const deleteDevRole = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .inputValidator((i: z.infer<typeof DeleteRoleInput>) => DeleteRoleInput.parse(i))
+  .handler(async ({ data }) => {
+    const { error } = await supabaseAdmin.from("cost_engine_dev_roles" as any).delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ── Client Estimates ─────────────────────────────────────────────────────────
+
+export const getClientEstimates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .handler(async (): Promise<ClientEstimate[]> => {
+    const { data, error } = await supabaseAdmin
+      .from("cost_engine_client_estimates" as any)
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as ClientEstimate[];
+  });
+
+const EstimateInput = z.object({
+  id: z.string().optional(),
+  client_name: z.string().min(1),
+  client_email: z.string().optional(),
+  plan_id: z.string().optional(),
+  project_weeks: z.number().int().min(1),
+  team_config: z.array(z.object({
+    role_id: z.string(),
+    role_name: z.string(),
+    rate_per_hour: z.number(),
+    hours_per_week: z.number(),
+    count: z.number().int().min(1),
+    weeks: z.number().int().min(1),
+  })),
+  monthly_addon_charges: z.array(z.object({
+    label: z.string(),
+    amount: z.number().min(0),
+  })),
+  notes: z.string().optional(),
+});
+
+export const saveClientEstimate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .inputValidator((i: z.infer<typeof EstimateInput>) => EstimateInput.parse(i))
+  .handler(async ({ data }) => {
+    const payload = {
+      client_name: data.client_name,
+      client_email: data.client_email ?? null,
+      plan_id: data.plan_id || null,
+      project_weeks: data.project_weeks,
+      team_config: data.team_config,
+      monthly_addon_charges: data.monthly_addon_charges,
+      notes: data.notes ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.id) {
+      const { error } = await supabaseAdmin.from("cost_engine_client_estimates" as any).update(payload).eq("id", data.id);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await supabaseAdmin.from("cost_engine_client_estimates" as any).insert(payload);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
+  });
+
+const DeleteEstimateInput = z.object({ id: z.string().uuid() });
+
+export const deleteClientEstimate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .inputValidator((i: z.infer<typeof DeleteEstimateInput>) => DeleteEstimateInput.parse(i))
+  .handler(async ({ data }) => {
+    const { error } = await supabaseAdmin.from("cost_engine_client_estimates" as any).delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
