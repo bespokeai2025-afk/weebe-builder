@@ -924,9 +924,29 @@ export function RetellDeployDialog({
       //              LLM first token + relay return hop.
       let speechStoppedAt: number | null = null;
 
+      // ── Mic gate: mute while AI is speaking ──────────────────────────────
+      // Browser echo cancellation (echoCancellation: true on getUserMedia)
+      // cancels room echo using the OS audio reference, but it cannot always
+      // cancel Web Audio API output with the variable jitter delay we apply
+      // (80–250 ms).  The reliable fix: don't send mic audio to OpenAI while
+      // the AI is playing back, then clear the buffer before unblocking.
+      // This makes the call half-duplex (no barge-in) but eliminates the
+      // false-speech transcriptions caused by the AI hearing its own voice.
+      let isAISpeaking = false;
+      let aiSpeakingDrainTimer: ReturnType<typeof setTimeout> | null = null;
+      const unmuteMic = () => {
+        isAISpeaking = false;
+        // Discard any echo that seeped into the buffer while AI was speaking.
+        if (ws.readyState === WebSocket.OPEN) {
+          try { ws.send(JSON.stringify({ type: "input_audio_buffer.clear" })); } catch { /* non-fatal */ }
+        }
+        hsLog("   ", "mic.unmuted", {});
+      };
+
       // Convert an Int16 PCM buffer → base64 and stream to OpenAI.
       const sendPcm = (int16: Int16Array) => {
         if (!sessionReady || ws.readyState !== WebSocket.OPEN) return;
+        if (isAISpeaking) return; // mic gate — discard echo while AI plays back
         const uint8 = new Uint8Array(int16.buffer, int16.byteOffset, int16.byteLength);
         let binary = "";
         for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
@@ -1321,6 +1341,13 @@ export function RetellDeployDialog({
             firstAudioDeltaAt = null;
             audioDeltaCount = 0;
             audioDeltaByteTotal = 0;
+            // If the mic gate is somehow still active (e.g. drain timer hasn't
+            // fired yet), open it immediately — the VAD already heard speech.
+            if (isAISpeaking) {
+              if (aiSpeakingDrainTimer !== null) { clearTimeout(aiSpeakingDrainTimer); aiSpeakingDrainTimer = null; }
+              isAISpeaking = false;
+              hsLog("   ", "mic.unmuted", { reason: "speech_started barge-in" });
+            }
             // ── response.cancel outbound ──────────────────────────────────
             // Send response.cancel explicitly when the user starts speaking
             // mid-response.  Belt-and-suspenders with interrupt_response:true
@@ -1458,6 +1485,22 @@ export function RetellDeployDialog({
               : "n/a";
             responseCreatedAt = null;
             isResponseInProgress = false;
+            // ── Unmute mic once queued audio finishes playing ─────────────
+            // Wait for the scheduled audio buffer to drain + 300 ms echo-tail
+            // before re-opening the mic gate so the AI's last word doesn't
+            // get picked up by the mic as "user speech".
+            {
+              const ctx = audioCtxRef.current;
+              const remainingMs = ctx && nextPlayTimeRef.current > ctx.currentTime
+                ? (nextPlayTimeRef.current - ctx.currentTime) * 1000
+                : 0;
+              const ECHO_TAIL_MS = 300;
+              if (aiSpeakingDrainTimer !== null) clearTimeout(aiSpeakingDrainTimer);
+              aiSpeakingDrainTimer = setTimeout(() => {
+                aiSpeakingDrainTimer = null;
+                unmuteMic();
+              }, remainingMs + ECHO_TAIL_MS);
+            }
             // ── Exact token cost for this turn ────────────────────────────
             const inputDetails  = usage?.input_token_details  as { text_tokens?: number; audio_tokens?: number } | undefined;
             const outputDetails = usage?.output_token_details as { text_tokens?: number; audio_tokens?: number } | undefined;
@@ -1552,6 +1595,10 @@ export function RetellDeployDialog({
           if (msg.type === "response.cancelled") {
             const resp = msg.response as Record<string, unknown> | undefined;
             isResponseInProgress = false;
+            // AI response cancelled (barge-in) — unmute mic immediately so the
+            // user's ongoing speech flows through without delay.
+            if (aiSpeakingDrainTimer !== null) { clearTimeout(aiSpeakingDrainTimer); aiSpeakingDrainTimer = null; }
+            unmuteMic();
             hsLog("IN ", "response.cancelled", {
               response_id: resp?.id ?? msg.response_id,
               interruptConfirmed: true,
@@ -1685,12 +1732,17 @@ export function RetellDeployDialog({
             const now = performance.now();
 
             if (deltaCountForResponse === 1) {
-              // ── First delta: clear uncommitted mic buffer ────────────────
-              // Any mic audio captured while the LLM was "thinking" (between
-              // the user's last word and now) may contain AI echo from the
-              // previous turn — discard it before OpenAI's VAD can commit it.
-              // Safe to call even if the buffer is empty; semantic_vad won't
-              // have committed real speech yet (that commits when VAD fires).
+              // ── First delta: mute mic + clear uncommitted buffer ─────────
+              // Cancel any in-flight drain timer so we don't unmute early.
+              if (aiSpeakingDrainTimer !== null) {
+                clearTimeout(aiSpeakingDrainTimer);
+                aiSpeakingDrainTimer = null;
+              }
+              isAISpeaking = true;
+              hsLog("   ", "mic.muted", { reason: "AI audio started" });
+              // Also clear anything in the uncommitted buffer that accumulated
+              // while the LLM was "thinking" — it may contain echo from the
+              // previous turn.
               try { ws.send(JSON.stringify({ type: "input_audio_buffer.clear" })); } catch { /* non-fatal */ }
 
               // ── Compute TTFA and record timeline anchor ─────────────────
@@ -1917,6 +1969,17 @@ export function RetellDeployDialog({
 
       let elDeltaCount = 0; // per-response audio delta counter (for jitter buffer)
 
+      // ── Mic gate for EL Voice (same pattern as HyperStream) ──────────────
+      // Mute mic while AI audio is playing to prevent the speaker output from
+      // echoing back through the mic as "user speech" (the cause of false
+      // transcript entries the user never said).
+      let isElAISpeaking = false;
+      let elDrainTimer: ReturnType<typeof setTimeout> | null = null;
+      const unmuteElMic = () => {
+        isElAISpeaking = false;
+        console.log("[elv-relay] mic unmuted");
+      };
+
       // ── Schedule incoming PCM16 audio chunk for playback ──────────────────
       function scheduleAudioChunk(b64: string) {
         const ctx = audioCtxRef.current;
@@ -1977,7 +2040,13 @@ export function RetellDeployDialog({
           (async () => {
             // Acquire mic here — after onopen is already set and session.init sent
             const micStream = await navigator.mediaDevices.getUserMedia({
-              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: false,
+                channelCount: 1,
+                sampleRate: 24000,
+              },
             });
             streamRef.current = micStream;
             const micSrc = audioCtx.createMediaStreamSource(micStream);
@@ -2026,18 +2095,19 @@ export function RetellDeployDialog({
                 workletRef.current = wn;
                 wn.port.onmessage = (e) => {
                   if (ws.readyState !== WebSocket.OPEN) return;
+                  if (isElAISpeaking) return; // mic gate — suppress echo while AI plays
                   const int16 = new Int16Array(e.data as ArrayBuffer);
                   const u8 = new Uint8Array(int16.buffer);
                   let bin = "";
                   for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
                   ws.send(JSON.stringify({ type: "audio.chunk", data: btoa(bin) }));
                 };
-                const sink = audioCtx.createGain();
-                sink.gain.value = 0;
-                captureSinkRef.current = sink;
+                // Do NOT connect worklet output to audioCtx.destination.
+                // Same AEC self-cancellation risk as HyperStream: routing mic audio
+                // into the output graph causes the browser to cancel the user's
+                // own voice. The worklet stays active via active inputs + process()
+                // returning true, and the keep-alive oscillator keeps the context running.
                 micSrc.connect(wn);
-                wn.connect(sink);
-                sink.connect(audioCtx.destination);
                 usingWorklet = true;
               } catch (err) {
                 console.warn("[elv-relay] AudioWorklet unavailable, using ScriptProcessor:", err);
@@ -2048,6 +2118,7 @@ export function RetellDeployDialog({
               processorRef.current = sp;
               sp.onaudioprocess = (e) => {
                 if (ws.readyState !== WebSocket.OPEN) return;
+                if (isElAISpeaking) return; // mic gate
                 const f32 = e.inputBuffer.getChannelData(0);
                 const int16 = new Int16Array(f32.length);
                 for (let i = 0; i < f32.length; i++) {
@@ -2064,7 +2135,8 @@ export function RetellDeployDialog({
               captureSinkRef.current = sink;
               micSrc.connect(sp);
               sp.connect(sink);
-              sink.connect(audioCtx.destination);
+              // Do NOT connect sink to audioCtx.destination — same AEC issue.
+              // ScriptProcessorNode (deprecated fallback) is pulled by micSrc.
             }
             // ── Recording setup (EL Voice) ──────────────────────────────────
             try {
@@ -2098,7 +2170,21 @@ export function RetellDeployDialog({
           const role = msg.role as "user" | "agent";
           const text = String(msg.text ?? "");
           if (!text) return;
-          if (role === "agent") elDeltaCount = 0;
+          if (role === "agent") {
+            elDeltaCount = 0;
+            // Agent transcript received = all audio.delta chunks for this turn
+            // have been sent. Schedule mic unmute after the queued audio drains
+            // + 300 ms echo tail so the last word doesn't loop back.
+            const ctx = audioCtxRef.current;
+            const remainingMs = ctx && nextPlayTimeRef.current > ctx.currentTime
+              ? (nextPlayTimeRef.current - ctx.currentTime) * 1000
+              : 0;
+            if (elDrainTimer !== null) clearTimeout(elDrainTimer);
+            elDrainTimer = setTimeout(() => {
+              elDrainTimer = null;
+              unmuteElMic();
+            }, remainingMs + 300);
+          }
           pushTranscript((prev) => [
             ...prev,
             { id: crypto.randomUUID(), role, text, partial: false },
@@ -2107,6 +2193,12 @@ export function RetellDeployDialog({
         }
 
         if (msg.type === "audio.delta") {
+          // First chunk of AI audio → mute mic immediately.
+          if (!isElAISpeaking) {
+            if (elDrainTimer !== null) { clearTimeout(elDrainTimer); elDrainTimer = null; }
+            isElAISpeaking = true;
+            console.log("[elv-relay] mic muted — AI audio started");
+          }
           scheduleAudioChunk(String(msg.data ?? ""));
           return;
         }
