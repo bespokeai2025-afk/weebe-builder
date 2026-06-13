@@ -453,7 +453,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
             <Textarea
               placeholder={
                 isDocType
-                  ? "e.g. "Write a professional NDA for a software consultancy" or "Make it more formal and add a confidentiality clause""
+                  ? `e.g. "Write a professional NDA for a software consultancy" or "Make it more formal and add a confidentiality clause"`
                   : `e.g. "Make it shorter and more friendly" or "Add urgency and a clear call to action"`
               }
               value={aiInstruction}
