@@ -512,10 +512,12 @@ function DataPage() {
       const agentName = csvImportAgentId
         ? agents.find((a) => a.id === csvImportAgentId)?.name
         : null;
+      const skipped = (result as any).skipped ?? 0;
+      const skipNote = skipped > 0 ? ` (${skipped} duplicate${skipped !== 1 ? "s" : ""} skipped)` : "";
       toast.success(
         agentName
-          ? `Imported ${result.inserted} records and assigned to ${agentName}`
-          : `Imported ${result.inserted} records`,
+          ? `Imported ${result.inserted} records and assigned to ${agentName}${skipNote}`
+          : `Imported ${result.inserted} records${skipNote}`,
       );
       qc.invalidateQueries({ queryKey: ["data-records"] });
       qc.invalidateQueries({ queryKey: ["data-record-schema"] });

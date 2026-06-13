@@ -67,7 +67,18 @@ export const listDataRecords = createServerFn({ method: "POST" })
       );
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
-    return rows ?? [];
+
+    // Deduplicate by mobile_number — keep the most recently updated record per number
+    const seen = new Set<string>();
+    const deduped: typeof rows = [];
+    for (const row of rows ?? []) {
+      const key = (row.mobile_number ?? "").trim();
+      if (!key || !seen.has(key)) {
+        deduped.push(row);
+        if (key) seen.add(key);
+      }
+    }
+    return deduped;
   });
 
 export const assignAgentToRecords = createServerFn({ method: "POST" })
@@ -475,7 +486,30 @@ export const importDataRecords = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    const payload = data.rows.map((r) => ({
+    // Deduplicate within the incoming batch itself first (same number repeated in CSV)
+    const batchSeen = new Set<string>();
+    const uniqueRows = data.rows.filter((r) => {
+      const key = r.mobile_number.trim();
+      if (batchSeen.has(key)) return false;
+      batchSeen.add(key);
+      return true;
+    });
+
+    // Fetch all existing mobile numbers for this workspace so we can skip them
+    const { data: existingRows, error: existErr } = await sb
+      .from("data_records")
+      .select("mobile_number")
+      .eq("workspace_id", workspaceId)
+      .eq("is_deleted", false);
+    if (existErr) throw new Error(existErr.message);
+    const existingNumbers = new Set<string>(
+      (existingRows ?? []).map((r: any) => (r.mobile_number ?? "").trim()),
+    );
+
+    const newRows = uniqueRows.filter((r) => !existingNumbers.has(r.mobile_number.trim()));
+    if (newRows.length === 0) return { inserted: 0, skipped: uniqueRows.length };
+
+    const payload = newRows.map((r) => ({
       workspace_id: workspaceId,
       name: r.name,
       mobile_number: r.mobile_number,
@@ -504,5 +538,5 @@ export const importDataRecords = createServerFn({ method: "POST" })
       if (error) throw new Error(`Chunk ${i / CHUNK + 1}: ${error.message}`);
       inserted += count ?? slice.length;
     }
-    return { inserted };
+    return { inserted, skipped: uniqueRows.length - newRows.length };
   });
