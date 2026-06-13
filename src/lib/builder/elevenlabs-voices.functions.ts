@@ -32,9 +32,8 @@ export interface CloneVoiceResult {
  */
 export const cloneElevenLabsVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(
-    (data: unknown) =>
-      data as { name: string; fileName: string; mimeType: string; base64: string },
+  .inputValidator(
+    (data: { name: string; fileName: string; mimeType: string; base64: string }) => data,
   )
   .handler(async ({ data }): Promise<CloneVoiceResult> => {
     const apiKey = process.env.ELEVENLABS_API_KEY;

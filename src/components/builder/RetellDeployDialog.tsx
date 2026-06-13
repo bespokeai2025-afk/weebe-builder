@@ -46,9 +46,11 @@ export type TxEntry = { id: string; role: "user" | "agent"; text: string; partia
 export function RetellDeployDialog({
   onCallActive,
   onTranscriptUpdate,
+  onCallEnd,
 }: {
   onCallActive?: (active: boolean) => void;
   onTranscriptUpdate?: (entries: TxEntry[]) => void;
+  onCallEnd?: (transcript: TxEntry[], recordingBlob: Blob | null) => void;
 } = {}) {
   const {
     nodes,
@@ -97,19 +99,60 @@ export function RetellDeployDialog({
   const startedAtRef = useRef<number | null>(null);
   const recordedCallRef = useRef(false);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
-  // Always-current ref so WS message handlers can call onTranscriptUpdate
+
+  // ── Recording refs ────────────────────────────────────────────────────────
+  // masterGainRef: shared GainNode that routes AI audio to both speakers + recorder
+  const masterGainRef = useRef<GainNode | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recChunksRef = useRef<Blob[]>([]);
+  // transcriptRef: always-current transcript so onCallEnd closures read the latest
+  const transcriptRef = useRef<TxEntry[]>([]);
+  // Guard: prevents onCallEnd from firing twice (endCall + ws.onclose both trigger cleanup)
+  const callEndFiredRef = useRef(false);
+
+  // Always-current ref so WS message handlers can call onTranscriptUpdate / onCallEnd
   // without capturing a stale closure (avoids render → useEffect round-trip).
   const onTranscriptUpdateRef = useRef(onTranscriptUpdate);
   onTranscriptUpdateRef.current = onTranscriptUpdate;
+  const onCallEndRef = useRef(onCallEnd);
+  onCallEndRef.current = onCallEnd;
 
   /** Drop-in replacement for setTranscript that also propagates to parent instantly. */
   function pushTranscript(updater: TxEntry[] | ((prev: TxEntry[]) => TxEntry[])) {
     setTranscript((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
+      transcriptRef.current = next;
       // Propagate to Builder immediately without waiting for useEffect.
       onTranscriptUpdateRef.current?.(next);
       return next;
     });
+  }
+
+  /**
+   * Stop the MediaRecorder (if running), collect the chunks into a Blob, and
+   * fire onCallEnd exactly once per call.  Safe to call from multiple cleanup
+   * paths (ws.onclose AND endCall) — the callEndFiredRef guard prevents double-fire.
+   */
+  function finalizeRecording() {
+    if (callEndFiredRef.current) return;
+    callEndFiredRef.current = true;
+    const recorder = recorderRef.current;
+    recorderRef.current = null;
+    masterGainRef.current?.disconnect();
+    masterGainRef.current = null;
+    if (!recorder || recorder.state === "inactive") {
+      onCallEndRef.current?.(transcriptRef.current, null);
+      return;
+    }
+    recorder.onstop = () => {
+      const blob =
+        recChunksRef.current.length > 0
+          ? new Blob(recChunksRef.current, { type: recorder.mimeType || "audio/webm" })
+          : null;
+      recChunksRef.current = [];
+      onCallEndRef.current?.(transcriptRef.current, blob);
+    };
+    try { recorder.stop(); } catch { /* already inactive */ }
   }
 
   const deploy = useServerFn(deployAgentToRetell);
@@ -609,6 +652,7 @@ export function RetellDeployDialog({
       });
       return;
     }
+    callEndFiredRef.current = false;
     setCalling(true);
     setHsExactCostUsd(null);
 
@@ -972,6 +1016,26 @@ export function RetellDeployDialog({
           sendPcm(int16);
         };
       }
+
+      // ── Recording setup ───────────────────────────────────────────────────
+      // masterGain routes all AI audio to both speakers (ctx.destination) and
+      // the MediaRecorder.  Mic audio goes to the recorder only (not to
+      // playback — would cause echo even with echoCancellation enabled).
+      try {
+        const recDest = audioCtx.createMediaStreamDestination();
+        const masterGain = audioCtx.createGain();
+        masterGain.connect(audioCtx.destination);
+        masterGain.connect(recDest);
+        masterGainRef.current = masterGain;
+        source.connect(recDest); // mic → record only
+        const recorder = new MediaRecorder(recDest.stream);
+        recChunksRef.current = [];
+        recorder.ondataavailable = (e: BlobEvent) => {
+          if (e.data.size > 0) recChunksRef.current.push(e.data);
+        };
+        recorder.start(1000);
+        recorderRef.current = recorder;
+      } catch { /* recording not supported in this browser — continue */ }
 
       ws.onmessage = (ev) => {
         try {
@@ -1561,7 +1625,7 @@ export function RetellDeployDialog({
             buf.copyToChannel(float32, 0);
             const src = ctx.createBufferSource();
             src.buffer = buf;
-            src.connect(ctx.destination);
+            src.connect(masterGainRef.current ?? ctx.destination);
             // Track so we can stop this node instantly on barge-in or new response.
             activeSourceNodesRef.current.push(src);
             src.onended = () => {
@@ -1614,6 +1678,7 @@ export function RetellDeployDialog({
       for (const ev of pendingMessages) ws.onmessage!(ev);
 
       ws.onclose = (ev) => {
+        finalizeRecording();
         console.log(
           `[hyperstream] browser ws.onclose code=${ev.code} reason="${ev.reason}" wasClean=${ev.wasClean}`,
         );
@@ -1663,9 +1728,11 @@ export function RetellDeployDialog({
       return;
     }
 
+    callEndFiredRef.current = false;
     setCalling(true);
 
     function cleanupElVoice() {
+      finalizeRecording();
       for (const node of activeSourceNodesRef.current) {
         try { node.stop(); } catch { /* already ended */ }
       }
@@ -1749,7 +1816,7 @@ export function RetellDeployDialog({
         buf.copyToChannel(float32, 0);
         const src = ctx.createBufferSource();
         src.buffer = buf;
-        src.connect(ctx.destination);
+        src.connect(masterGainRef.current ?? ctx.destination);
         activeSourceNodesRef.current.push(src);
         src.onended = () => {
           const arr = activeSourceNodesRef.current;
@@ -1882,6 +1949,22 @@ export function RetellDeployDialog({
               sp.connect(sink);
               sink.connect(audioCtx.destination);
             }
+            // ── Recording setup (EL Voice) ──────────────────────────────────
+            try {
+              const recDest = audioCtx.createMediaStreamDestination();
+              const masterGain = audioCtx.createGain();
+              masterGain.connect(audioCtx.destination);
+              masterGain.connect(recDest);
+              masterGainRef.current = masterGain;
+              micSrc.connect(recDest); // mic → record only (not to speakers)
+              const recorder = new MediaRecorder(recDest.stream);
+              recChunksRef.current = [];
+              recorder.ondataavailable = (e: BlobEvent) => {
+                if (e.data.size > 0) recChunksRef.current.push(e.data);
+              };
+              recorder.start(1000);
+              recorderRef.current = recorder;
+            } catch { /* recording not supported in this browser */ }
             setInCall(true);
             setCalling(false);
             startedAtRef.current = Date.now();
@@ -2141,6 +2224,7 @@ export function RetellDeployDialog({
   }
 
   function endCall() {
+    finalizeRecording();
     recordCurrentCallCost();
     // OmniVoice (Retell) path
     clientRef.current?.stopCall();

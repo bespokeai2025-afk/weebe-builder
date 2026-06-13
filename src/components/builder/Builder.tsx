@@ -29,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Volume2, Play, Loader2 } from "lucide-react";
+import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Volume2, Play, Loader2, Download } from "lucide-react";
 import { KnowledgeBaseSection } from "@/components/builder/KnowledgeBaseSection";
 import { SpeechSettingsSection } from "@/components/builder/SpeechSettingsSection";
 import { HyperStreamSettingsSection } from "@/components/builder/HyperStreamSettingsSection";
@@ -76,6 +76,7 @@ import { RetellDeployDialog, type TxEntry } from "./RetellDeployDialog";
 import { VoiceCopilotButton } from "./VoiceCopilot";
 import { PlatformGuideDrawer } from "./PlatformGuideDrawer";
 import { PostCallDataSection } from "./PostCallDataSection";
+import { PostCallAnalysis } from "./PostCallAnalysis";
 import { BookingConfigSection } from "./BookingConfigSection";
 import { LeadGenSection } from "./LeadGenSection";
 import { ClientQualificationSection } from "./ClientQualificationSection";
@@ -84,6 +85,7 @@ import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
+import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
 import { toast } from "sonner";
 
 const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
@@ -336,6 +338,10 @@ export function Builder({
   const [rightOpen, setRightOpen] = useState(true);
   const [callActive, setCallActive] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState<TxEntry[]>([]);
+  const [postCallData, setPostCallData] = useState<PostCallExtracted | null>(null);
+  const [postCallLoading, setPostCallLoading] = useState(false);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const recordingUrlRef = useRef<string | null>(null);
   const transcriptPanelRef = useRef<HTMLDivElement | null>(null);
   const [elVoiceQuery, setElVoiceQuery] = useState("");
   const [elVoiceResults, setElVoiceResults] = useState<Array<{ voice_id: string; name: string; description: string | null; labels: Record<string, string>; preview_url: string | null; public_owner_id?: string | null }>>([]);
@@ -418,14 +424,53 @@ export function Builder({
     }
   }, [isElevenLabs]);
 
-  // Force the right panel open when a call starts; auto-clear transcript when it ends.
+  // Revoke the recording blob URL when it changes or on unmount.
+  useEffect(() => {
+    return () => {
+      if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+    };
+  }, []);
+
+  // Force the right panel open when a call starts; clear stale post-call data when a new call begins.
   useEffect(() => {
     if (callActive) {
       setRightOpen(true);
-    } else {
-      setLiveTranscript([]);
+      setPostCallData(null);
+      setPostCallLoading(false);
+      if (recordingUrlRef.current) {
+        URL.revokeObjectURL(recordingUrlRef.current);
+        recordingUrlRef.current = null;
+        setRecordingUrl(null);
+      }
     }
   }, [callActive]);
+
+  async function handleCallEnd(transcript: TxEntry[], blob: Blob | null) {
+    // Store recording blob URL.
+    if (blob) {
+      if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+      const url = URL.createObjectURL(blob);
+      recordingUrlRef.current = url;
+      setRecordingUrl(url);
+    }
+    // Run post-call extraction if there's anything to analyse.
+    if (transcript.length === 0) return;
+    setPostCallLoading(true);
+    try {
+      const result = await extractPostCallVariables({
+        data: {
+          transcript: transcript.map((t) => ({ role: t.role, text: t.text })),
+          variables: settings.variables ?? [],
+          agentName: settings.agentName ?? "Agent",
+        },
+      });
+      setPostCallData(result);
+    } catch (err) {
+      toast.error("Post-call analysis failed", { description: (err as Error).message });
+    } finally {
+      setPostCallLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (transcriptPanelRef.current) {
@@ -698,6 +743,7 @@ export function Builder({
             <RetellDeployDialog
               onCallActive={setCallActive}
               onTranscriptUpdate={setLiveTranscript}
+              onCallEnd={handleCallEnd}
             />
           </div>
           {toolbarTrailing}
@@ -865,11 +911,11 @@ export function Builder({
         </div>
 
         {/* Right global settings / live transcript */}
-        {(rightOpen || callActive || liveTranscript.length > 0) && (
+        {(rightOpen || callActive || liveTranscript.length > 0 || postCallData || postCallLoading) && (
           <aside data-tour="right-panel" className="w-[320px] min-w-[300px] max-w-[360px] shrink-0 border-l border-white/[0.04] bg-background/40 overflow-y-auto px-2.5 py-2 space-y-1.5 hidden md:block text-[11px] [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-muted-foreground [&_textarea]:text-[11px] [&_button[role=combobox]]:h-7 [&_button[role=combobox]]:text-[11px] [&_input]:text-[11px] [&_select]:text-[11px]">
 
             {/* ── Live transcript view (replaces settings during/after a call) ── */}
-            {(callActive || liveTranscript.length > 0) ? (
+            {(callActive || liveTranscript.length > 0 || postCallData || postCallLoading) ? (
               <div className="flex flex-col h-full">
                 {/* Header */}
                 <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] mb-2">
@@ -895,7 +941,7 @@ export function Builder({
                   className="flex-1 overflow-y-auto space-y-2 pr-0.5"
                   style={{ maxHeight: "calc(100% - 32px)" }}
                 >
-                  {liveTranscript.length === 0 ? (
+                  {liveTranscript.length === 0 && !postCallData && !postCallLoading ? (
                     <p className="py-8 text-center text-[11px] text-muted-foreground">
                       Waiting for conversation…
                     </p>
@@ -923,6 +969,33 @@ export function Builder({
                     ))
                   )}
                 </div>
+
+                {/* ── Post-call analysis section ── */}
+                {!callActive && (postCallData || postCallLoading || recordingUrl) && (
+                  <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2.5 shrink-0">
+                    {/* Recording download */}
+                    {recordingUrl && (
+                      <a
+                        href={recordingUrl}
+                        download="call-recording.webm"
+                        className="flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+                      >
+                        <Download className="h-3 w-3 shrink-0" />
+                        Download recording
+                      </a>
+                    )}
+                    {/* Extraction loading */}
+                    {postCallLoading && (
+                      <p className="text-[11px] text-muted-foreground animate-pulse">
+                        Analysing call…
+                      </p>
+                    )}
+                    {/* Extraction results */}
+                    {postCallData && (
+                      <PostCallAnalysis data={postCallData} />
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
             <>
