@@ -1140,18 +1140,31 @@ function OnboardingTab({ rows, onSaved }: { rows: DevRole[]; onSaved: () => void
     catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
 
-  const EditForm = () => (
-    <tr className="bg-muted/30"><td colSpan={6} className="px-3 py-3">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
-        <div className="md:col-span-2"><Label className="text-xs">Role Name</Label><Input className="h-7 text-xs" value={form.role_name} onChange={e => setForm(f => ({ ...f, role_name: e.target.value }))} /></div>
-        <NumInput label="Rate / hour ($)" value={form.rate_per_hour} onChange={v => setForm(f => ({ ...f, rate_per_hour: v }))} step="0.50" />
-        <NumInput label="Hours / week" value={form.hours_per_week} onChange={v => setForm(f => ({ ...f, hours_per_week: Math.round(v) }))} step="1" />
-        <div><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
-        <NumInput label="Sort Order" value={form.sort_order} onChange={v => setForm(f => ({ ...f, sort_order: Math.round(v) }))} step="1" />
-      </div>
-      <div className="flex gap-2"><Button size="sm" onClick={save} disabled={busy} className="h-7 text-xs">Save</Button><Button size="sm" variant="outline" onClick={() => setEditId(null)} className="h-7 text-xs">Cancel</Button></div>
-    </td></tr>
-  );
+  const EditForm = () => {
+    const costPerMonth = form.rate_per_hour * form.hours_per_week * 4.33;
+    return (
+      <tr className="bg-muted/30"><td colSpan={7} className="px-3 py-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+          <div className="md:col-span-2"><Label className="text-xs">Role Name</Label><Input className="h-7 text-xs" value={form.role_name} onChange={e => setForm(f => ({ ...f, role_name: e.target.value }))} /></div>
+          <div>
+            <Label className="text-xs">Cost / month ($)</Label>
+            <Input type="number" step="50" min="0" className="h-7 text-xs mt-0.5"
+              value={Math.round(costPerMonth * 100) / 100}
+              onChange={e => {
+                const monthly = Number(e.target.value);
+                const hrs = form.hours_per_week || 1;
+                setForm(f => ({ ...f, rate_per_hour: monthly / (hrs * 4.33) }));
+              }} />
+            <p className="text-[10px] text-muted-foreground mt-0.5">= ${form.rate_per_hour.toFixed(2)}/hr</p>
+          </div>
+          <NumInput label="Hours / week" value={form.hours_per_week} onChange={v => setForm(f => ({ ...f, hours_per_week: Math.round(v) }))} step="1" />
+          <div><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
+          <NumInput label="Sort Order" value={form.sort_order} onChange={v => setForm(f => ({ ...f, sort_order: Math.round(v) }))} step="1" />
+        </div>
+        <div className="flex gap-2"><Button size="sm" onClick={save} disabled={busy} className="h-7 text-xs">Save</Button><Button size="sm" variant="outline" onClick={() => setEditId(null)} className="h-7 text-xs">Cancel</Button></div>
+      </td></tr>
+    );
+  };
 
   return (
     <div className="space-y-4">
