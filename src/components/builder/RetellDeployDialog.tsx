@@ -21,6 +21,7 @@ import { buildAgentRuntimeDefinition } from "@/lib/runtime/export";
 import { extractOpenAIParams } from "@/lib/runtime/import";
 import type { OpenAIExecutionParams } from "@/lib/runtime/import";
 import { buildOpenAIToolDefinitions, executeToolCall } from "@/lib/runtime/tool-executor";
+import { buildHyperStreamBookingTools } from "@/lib/calendar/hyperstream-booking-tools";
 import type { AgentRuntimeDefinition } from "@/lib/runtime/schema";
 import { importAgentJson } from "@/lib/builder/import-conversation-flow";
 import {
@@ -1055,6 +1056,12 @@ export function RetellDeployDialog({
         recorderRef.current = recorder;
       } catch { /* recording not supported in this browser — continue */ }
 
+      // Holds the full tool list (runtime tools + booking tools) once the
+      // relay.connected session is set up. Used by executeToolCall so it can
+      // find the `url` field on booking tools even though those arrive after
+      // the session.update and are not in the original runtimeDef.tools.
+      let activeTools: typeof runtimeDef.tools = runtimeDef.tools;
+
       ws.onmessage = (ev) => {
         try {
           const raw =
@@ -1080,10 +1087,21 @@ export function RetellDeployDialog({
             // rejected with "unknown_parameter".  Turn detection must be inside
             // audio.input, voice inside audio.output.
             const toolBuildStart = performance.now();
-            const toolDefs = buildOpenAIToolDefinitions(runtimeDef.tools);
+            // Merge Cal.com booking tools into the session tools when booking is
+            // enabled. We append them here (after runtime export) so we don't
+            // interfere with the Core Runtime schema and Retell flows.
+            const hsBookingSettings = (useBuilderStore.getState().settings as unknown as Record<string, unknown>);
+            const bookingEnabled = (hsBookingSettings.booking as Record<string, unknown> | undefined)?.enabled === true;
+            const hsAgentId = useBuilderStore.getState().currentAgentRowId;
+            const allTools = bookingEnabled && hsAgentId
+              ? [...runtimeDef.tools, ...buildHyperStreamBookingTools(hsAgentId)]
+              : runtimeDef.tools;
+            activeTools = allTools as typeof runtimeDef.tools;
+            const toolDefs = buildOpenAIToolDefinitions(allTools as typeof runtimeDef.tools);
             hsLog("   ", "runtime.tool.build.complete", {
               durationMs: (performance.now() - toolBuildStart).toFixed(0),
               toolCount: toolDefs.length,
+              bookingTools: bookingEnabled ? 5 : 0,
             });
             const hsSettings = useBuilderStore.getState().settings;
             // Default to semantic_vad — it understands natural conversation boundaries
@@ -1119,10 +1137,21 @@ export function RetellDeployDialog({
               inputConfig.noise_reduction = { type: hsSettings.hyperstreamNoiseReduction };
             }
 
+            // When booking is enabled, append the agent_id hint so the model
+            // knows which value to pass in every booking tool call.
+            let instructions = params.systemPrompt;
+            if (bookingEnabled && hsAgentId) {
+              instructions +=
+                `\n\n# Calendar booking tools\nYour agent_id is "${hsAgentId}". ` +
+                `Include this exact value as the "agent_id" argument in every booking ` +
+                `tool call (get_event_types, check_availability, book_appointment, ` +
+                `cancel_appointment, reschedule_appointment). Never omit it.`;
+            }
+
             const sessionConfig: Record<string, unknown> = {
               type: "realtime",
               output_modalities: ["audio"],
-              instructions: params.systemPrompt,
+              instructions,
               audio: {
                 input: inputConfig,
                 output: {
@@ -1569,7 +1598,7 @@ export function RetellDeployDialog({
             }
             // executeToolCall always resolves — errors are returned as a result
             // string so the session can continue instead of hanging.
-            executeToolCall(toolName, toolArgs, runtimeDef.tools)
+            executeToolCall(toolName, toolArgs, activeTools)
               .then((result) => {
                 if (ws.readyState !== WebSocket.OPEN) return;
                 const outputPayload = JSON.stringify({

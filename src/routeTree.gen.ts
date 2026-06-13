@@ -65,6 +65,11 @@ import { Route as ApiPublicRetellAvailabilityRouteImport } from './routes/api/pu
 import { Route as ApiPublicRetellWebhookHealthRouteImport } from './routes/api/public/retell-webhook.health'
 import { Route as ApiPublicRetellWebhookDebugRouteImport } from './routes/api/public/retell-webhook.debug'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicHyperstreamRescheduleRouteImport } from './routes/api/public/hyperstream/reschedule'
+import { Route as ApiPublicHyperstreamEventTypesRouteImport } from './routes/api/public/hyperstream/event-types'
+import { Route as ApiPublicHyperstreamCancelRouteImport } from './routes/api/public/hyperstream/cancel'
+import { Route as ApiPublicHyperstreamBookRouteImport } from './routes/api/public/hyperstream/book'
+import { Route as ApiPublicHyperstreamAvailabilityRouteImport } from './routes/api/public/hyperstream/availability'
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
@@ -368,6 +373,36 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHyperstreamRescheduleRoute =
+  ApiPublicHyperstreamRescheduleRouteImport.update({
+    id: '/api/public/hyperstream/reschedule',
+    path: '/api/public/hyperstream/reschedule',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHyperstreamEventTypesRoute =
+  ApiPublicHyperstreamEventTypesRouteImport.update({
+    id: '/api/public/hyperstream/event-types',
+    path: '/api/public/hyperstream/event-types',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHyperstreamCancelRoute =
+  ApiPublicHyperstreamCancelRouteImport.update({
+    id: '/api/public/hyperstream/cancel',
+    path: '/api/public/hyperstream/cancel',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHyperstreamBookRoute =
+  ApiPublicHyperstreamBookRouteImport.update({
+    id: '/api/public/hyperstream/book',
+    path: '/api/public/hyperstream/book',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHyperstreamAvailabilityRoute =
+  ApiPublicHyperstreamAvailabilityRouteImport.update({
+    id: '/api/public/hyperstream/availability',
+    path: '/api/public/hyperstream/availability',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCalcomWebhookWorkspaceIdRoute =
   ApiPublicCalcomWebhookWorkspaceIdRouteImport.update({
     id: '/api/public/calcom-webhook/$workspaceId',
@@ -427,6 +462,11 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
+  '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
+  '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
+  '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
+  '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
@@ -486,6 +526,11 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
+  '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
+  '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
+  '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
+  '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
@@ -548,6 +593,11 @@ export interface FileRoutesById {
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
+  '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
+  '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
+  '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
+  '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
@@ -610,6 +660,11 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/hyperstream/availability'
+    | '/api/public/hyperstream/book'
+    | '/api/public/hyperstream/cancel'
+    | '/api/public/hyperstream/event-types'
+    | '/api/public/hyperstream/reschedule'
     | '/api/public/payments/webhook'
     | '/api/public/retell-webhook/debug'
     | '/api/public/retell-webhook/health'
@@ -669,6 +724,11 @@ export interface FileRouteTypes {
     | '/admin'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/hyperstream/availability'
+    | '/api/public/hyperstream/book'
+    | '/api/public/hyperstream/cancel'
+    | '/api/public/hyperstream/event-types'
+    | '/api/public/hyperstream/reschedule'
     | '/api/public/payments/webhook'
     | '/api/public/retell-webhook/debug'
     | '/api/public/retell-webhook/health'
@@ -730,6 +790,11 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/hyperstream/availability'
+    | '/api/public/hyperstream/book'
+    | '/api/public/hyperstream/cancel'
+    | '/api/public/hyperstream/event-types'
+    | '/api/public/hyperstream/reschedule'
     | '/api/public/payments/webhook'
     | '/api/public/retell-webhook/debug'
     | '/api/public/retell-webhook/health'
@@ -771,6 +836,11 @@ export interface RootRouteChildren {
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
   ApiPublicCalcomWebhookWorkspaceIdRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  ApiPublicHyperstreamAvailabilityRoute: typeof ApiPublicHyperstreamAvailabilityRoute
+  ApiPublicHyperstreamBookRoute: typeof ApiPublicHyperstreamBookRoute
+  ApiPublicHyperstreamCancelRoute: typeof ApiPublicHyperstreamCancelRoute
+  ApiPublicHyperstreamEventTypesRoute: typeof ApiPublicHyperstreamEventTypesRoute
+  ApiPublicHyperstreamRescheduleRoute: typeof ApiPublicHyperstreamRescheduleRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicRetellAvailabilityRoute: typeof ApiPublicRetellAvailabilityRoute
   ApiPublicRetellBookRoute: typeof ApiPublicRetellBookRoute
@@ -1180,6 +1250,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hyperstream/reschedule': {
+      id: '/api/public/hyperstream/reschedule'
+      path: '/api/public/hyperstream/reschedule'
+      fullPath: '/api/public/hyperstream/reschedule'
+      preLoaderRoute: typeof ApiPublicHyperstreamRescheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hyperstream/event-types': {
+      id: '/api/public/hyperstream/event-types'
+      path: '/api/public/hyperstream/event-types'
+      fullPath: '/api/public/hyperstream/event-types'
+      preLoaderRoute: typeof ApiPublicHyperstreamEventTypesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hyperstream/cancel': {
+      id: '/api/public/hyperstream/cancel'
+      path: '/api/public/hyperstream/cancel'
+      fullPath: '/api/public/hyperstream/cancel'
+      preLoaderRoute: typeof ApiPublicHyperstreamCancelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hyperstream/book': {
+      id: '/api/public/hyperstream/book'
+      path: '/api/public/hyperstream/book'
+      fullPath: '/api/public/hyperstream/book'
+      preLoaderRoute: typeof ApiPublicHyperstreamBookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hyperstream/availability': {
+      id: '/api/public/hyperstream/availability'
+      path: '/api/public/hyperstream/availability'
+      fullPath: '/api/public/hyperstream/availability'
+      preLoaderRoute: typeof ApiPublicHyperstreamAvailabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/calcom-webhook/$workspaceId': {
       id: '/api/public/calcom-webhook/$workspaceId'
       path: '/api/public/calcom-webhook/$workspaceId'
@@ -1329,6 +1434,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
   ApiPublicCalcomWebhookWorkspaceIdRoute:
     ApiPublicCalcomWebhookWorkspaceIdRoute,
+  ApiPublicHyperstreamAvailabilityRoute: ApiPublicHyperstreamAvailabilityRoute,
+  ApiPublicHyperstreamBookRoute: ApiPublicHyperstreamBookRoute,
+  ApiPublicHyperstreamCancelRoute: ApiPublicHyperstreamCancelRoute,
+  ApiPublicHyperstreamEventTypesRoute: ApiPublicHyperstreamEventTypesRoute,
+  ApiPublicHyperstreamRescheduleRoute: ApiPublicHyperstreamRescheduleRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicRetellAvailabilityRoute: ApiPublicRetellAvailabilityRoute,
   ApiPublicRetellBookRoute: ApiPublicRetellBookRoute,
