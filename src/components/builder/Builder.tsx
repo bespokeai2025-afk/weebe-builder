@@ -402,6 +402,11 @@ export function Builder({
   const [postCallData, setPostCallData] = useState<PostCallExtracted | null>(null);
   const [postCallLoading, setPostCallLoading] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [lastCallMeta, setLastCallMeta] = useState<{
+    duration: number;
+    costUsd: number | null;
+    sessionId: string | null;
+  } | null>(null);
   const recordingUrlRef = useRef<string | null>(null);
   const callStartedAtRef = useRef<number | null>(null);
   const saveHyperStreamTestCallFn = useServerFn(saveHyperStreamTestCall);
@@ -501,6 +506,7 @@ export function Builder({
       setRightOpen(true);
       setPostCallData(null);
       setPostCallLoading(false);
+      setLastCallMeta(null);
       if (recordingUrlRef.current) {
         URL.revokeObjectURL(recordingUrlRef.current);
         recordingUrlRef.current = null;
@@ -517,6 +523,13 @@ export function Builder({
       ? Math.max(0, Math.round((Date.now() - callStartedAtRef.current) / 1000))
       : 0;
     callStartedAtRef.current = null;
+
+    // Store call metadata for display in the recording panel.
+    setLastCallMeta({
+      duration: callDuration,
+      costUsd: meta?.costUsd ?? null,
+      sessionId: meta?.sessionId ?? null,
+    });
 
     // Store recording blob URL immediately for local playback.
     let localBlobUrl: string | null = null;
@@ -1091,15 +1104,55 @@ export function Builder({
                 </div>
 
                 {/* ── Post-call analysis section ── */}
-                {!callActive && (postCallData || postCallLoading || recordingUrl) && (
-                  <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2.5 shrink-0">
-                    {/* Recording player */}
-                    {recordingUrl && (
-                      <MiniAudioPlayer url={recordingUrl} />
+                {!callActive && (postCallData || postCallLoading || recordingUrl || lastCallMeta) && (
+                  <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2 shrink-0">
+                    {/* Recording player + call metadata */}
+                    {(recordingUrl || lastCallMeta) && (
+                      <div className="space-y-1.5">
+                        {recordingUrl && <MiniAudioPlayer url={recordingUrl} />}
+                        {/* Compact call stats row */}
+                        {lastCallMeta && (
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                            {lastCallMeta.duration > 0 && (
+                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground/70">
+                                <span className="uppercase tracking-wider font-semibold">Duration</span>
+                                <span className="tabular-nums text-foreground/60">
+                                  {Math.floor(lastCallMeta.duration / 60)}:{String(lastCallMeta.duration % 60).padStart(2, "0")}
+                                </span>
+                              </span>
+                            )}
+                            {lastCallMeta.costUsd != null && (
+                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground/70">
+                                <span className="uppercase tracking-wider font-semibold">Cost</span>
+                                <span className="tabular-nums text-foreground/60">${lastCallMeta.costUsd.toFixed(4)}</span>
+                              </span>
+                            )}
+                            {lastCallMeta.sessionId && (
+                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground/70">
+                                <span className="uppercase tracking-wider font-semibold">Session</span>
+                                <span className="font-mono text-foreground/60 truncate max-w-[90px]" title={lastCallMeta.sessionId}>
+                                  {lastCallMeta.sessionId.slice(0, 8)}…
+                                </span>
+                              </span>
+                            )}
+                            {/* Sentiment — shows once postCallData is ready */}
+                            {postCallData?.sentiment && (
+                              <span className={`flex items-center gap-1 text-[9px] font-semibold capitalize ${
+                                postCallData.sentiment === "positive" ? "text-emerald-400" :
+                                postCallData.sentiment === "negative" ? "text-rose-400" :
+                                "text-yellow-400"
+                              }`}>
+                                <span className="uppercase tracking-wider text-muted-foreground/70 font-semibold">Sentiment</span>
+                                {postCallData.sentiment}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
                     {/* Extraction loading */}
                     {postCallLoading && (
-                      <p className="text-[11px] text-muted-foreground animate-pulse">
+                      <p className="text-[10px] text-muted-foreground animate-pulse">
                         Analysing call…
                       </p>
                     )}
