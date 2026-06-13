@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff, Save } from "lucide-react";
+import { toast } from "sonner";
 import { upsertHexmailTemplate, type HexmailTemplate, type TemplateType } from "@/lib/hexmail/templates.functions";
 
 const TEMPLATE_TYPES: { value: TemplateType; label: string }[] = [
@@ -98,6 +99,10 @@ export function TemplateBuilder({ open, template, onClose, onSaved }: Props) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hexmail-templates"] });
       onSaved();
+    },
+    onError: (e: any) => {
+      const msg = e?.message ?? "Failed to save template";
+      toast.error(msg);
     },
   });
 
