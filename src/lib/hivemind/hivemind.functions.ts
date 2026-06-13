@@ -272,6 +272,128 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
     };
   });
 
+// ── Briefing data ──────────────────────────────────────────────────────────────
+export const getHiveMindBriefing = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { since?: string; staleDays?: number }) => input)
+  .handler(async ({ context, data }) => {
+    const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const sinceStr = data.since ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const staleDays = data.staleDays ?? 7;
+    const staleDate = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString();
+
+    const ACTIVE_STATUSES = ["need_to_call", "contacted", "in_progress", "follow_up", "new", "qualified", "interested"];
+
+    const [newLeadsRes, newBookingsRes, staleRes, pipelineChangesRes, waRes, agentsRes] = await Promise.all([
+      sb.from("leads")
+        .select("id, full_name, name, status, pipeline_stage, phone, email, created_at")
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", sinceStr)
+        .order("created_at", { ascending: false })
+        .limit(50),
+
+      sb.from("calendar_bookings")
+        .select("id, title, attendee_name, attendee_email, start_at, end_at, agent_id, status, created_at, notes")
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", sinceStr)
+        .order("start_at", { ascending: true })
+        .limit(20),
+
+      sb.from("leads")
+        .select("id, full_name, name, status, pipeline_stage, updated_at, phone, email")
+        .eq("workspace_id", workspaceId)
+        .in("status", ACTIVE_STATUSES)
+        .lt("updated_at", staleDate)
+        .order("updated_at", { ascending: true })
+        .limit(30),
+
+      sb.from("leads")
+        .select("id, full_name, name, status, pipeline_stage, updated_at, phone, email")
+        .eq("workspace_id", workspaceId)
+        .gte("updated_at", sinceStr)
+        .not("status", "in", `("sale_done","do_not_call","not_interested")`)
+        .order("updated_at", { ascending: false })
+        .limit(20),
+
+      sb.from("whatsapp_messages")
+        .select("id, direction, created_at, status")
+        .eq("workspace_id", workspaceId)
+        .eq("direction", "inbound")
+        .gte("created_at", sinceStr)
+        .limit(100),
+
+      sb.from("agents")
+        .select("id, name")
+        .eq("workspace_id", workspaceId),
+    ]);
+
+    const agentMap = new Map<string, string>(
+      (agentsRes.data ?? []).map((a: any) => [a.id, a.name])
+    );
+
+    const newLeads = (newLeadsRes.data ?? []).map((l: any) => ({
+      id: l.id,
+      name: l.full_name ?? l.name ?? "Unknown",
+      status: l.status,
+      pipeline_stage: l.pipeline_stage,
+      phone: l.phone,
+      email: l.email,
+      created_at: l.created_at,
+      minsAgo: Math.round((Date.now() - new Date(l.created_at).getTime()) / 60000),
+    }));
+
+    const newBookings = (newBookingsRes.data ?? []).map((b: any) => ({
+      id: b.id,
+      title: b.title ?? "Appointment",
+      attendee_name: b.attendee_name,
+      attendee_email: b.attendee_email,
+      start_at: b.start_at,
+      end_at: b.end_at,
+      status: b.status,
+      notes: b.notes,
+      agent_name: b.agent_id ? (agentMap.get(b.agent_id) ?? null) : null,
+      created_at: b.created_at,
+    }));
+
+    const staleClients = (staleRes.data ?? []).map((l: any) => {
+      const days = Math.floor((Date.now() - new Date(l.updated_at).getTime()) / 86400000);
+      return {
+        id: l.id,
+        name: l.full_name ?? l.name ?? "Unknown",
+        status: l.status,
+        pipeline_stage: l.pipeline_stage,
+        days,
+        updated_at: l.updated_at,
+        phone: l.phone,
+        email: l.email,
+      };
+    });
+
+    const recentPipelineChanges = (pipelineChangesRes.data ?? []).map((l: any) => ({
+      id: l.id,
+      name: l.full_name ?? l.name ?? "Unknown",
+      status: l.status,
+      pipeline_stage: l.pipeline_stage,
+      updated_at: l.updated_at,
+      hoursAgo: Math.round((Date.now() - new Date(l.updated_at).getTime()) / 3600000),
+    }));
+
+    const newInboundWA = (waRes.data ?? []).length;
+
+    return {
+      newLeads,
+      newBookings,
+      staleClients,
+      recentPipelineChanges,
+      newInboundWA,
+      sinceStr,
+      staleDays,
+    };
+  });
+
 // ── Save tasks ─────────────────────────────────────────────────────────────────
 export const saveHiveMindTasks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
