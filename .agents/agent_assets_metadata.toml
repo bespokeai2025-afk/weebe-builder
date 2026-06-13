@@ -6,3 +6,9 @@ id = "33I_XTlfQH0pKNMqsLRqk"
 uri = "file://frejun-integration-questions.md"
 type = "text"
 title = "FreJun API — Questions for Automated Setup"
+
+[[outputs]]
+id = "tNWfZpHKR15qUINSdvrk6"
+uri = "file://.local/webee-full-system-audit.md"
+type = "text"
+title = "Webee — Full System Audit"
