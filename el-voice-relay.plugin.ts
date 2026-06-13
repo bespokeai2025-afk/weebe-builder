@@ -206,7 +206,13 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
   const speechBufs: Buffer[] = [];
   let silFrames = 0;
   let spchFrames = 0;
-  let busy = false; // true while STT→LLM→TTS is in flight
+  let busy = false; // true while STT→LLM→TTS is in flight OR while browser is still playing audio
+  let playbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function releaseBusy() {
+    if (playbackTimer) { clearTimeout(playbackTimer); playbackTimer = null; }
+    busy = false;
+  }
 
   // ── TTS: stream agent audio to browser ─────────────────────────────────────
   async function streamTts(text: string): Promise<void> {
@@ -250,9 +256,10 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
       } catch (err) {
         console.error("[el-voice-relay] Whisper error:", (err as Error).message);
         safeSend(ws, { type: "relay.error", message: `STT error: ${(err as Error).message}` });
+        releaseBusy();
         return;
       }
-      if (!userText) return;
+      if (!userText) { releaseBusy(); return; }
       safeSend(ws, { type: "transcript", role: "user", text: userText });
       console.log(`[el-voice-relay] user: ${userText}`);
 
@@ -266,24 +273,30 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
         console.error("[el-voice-relay] GPT error:", (err as Error).message);
         safeSend(ws, { type: "relay.error", message: `LLM error: ${(err as Error).message}` });
         history.pop();
+        releaseBusy();
         return;
       }
-      if (!agentText) { history.pop(); return; }
+      if (!agentText) { history.pop(); releaseBusy(); return; }
       history.push({ role: "assistant", content: agentText });
       safeSend(ws, { type: "transcript", role: "agent", text: agentText });
       console.log(`[el-voice-relay] agent: ${agentText.slice(0, 120)}${agentText.length > 120 ? "…" : ""}`);
 
-      // TTS
+      // TTS — stream audio to browser then wait for playback.done
       try {
         await streamTts(agentText);
       } catch (err) {
         console.error("[el-voice-relay] TTS error:", (err as Error).message);
         safeSend(ws, { type: "relay.error", message: `TTS error: ${(err as Error).message}` });
+        releaseBusy();
         return;
       }
       safeSend(ws, { type: "response.done" });
-    } finally {
-      busy = false;
+      // Keep busy=true until browser confirms audio finished playing.
+      // Safety fallback: release after 30 s in case playback.done is never sent.
+      playbackTimer = setTimeout(() => releaseBusy(), 30_000);
+    } catch (err) {
+      releaseBusy();
+      throw err;
     }
   }
 
@@ -305,6 +318,14 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
       return;
     }
 
+    // ── playback.done ────────────────────────────────────────────────────────
+    // Browser confirms it has finished playing all scheduled audio.
+    // Only now do we release busy so the VAD starts accepting mic input again.
+    if (msg.type === "playback.done") {
+      releaseBusy();
+      return;
+    }
+
     // ── session.init ─────────────────────────────────────────────────────────
     if (msg.type === "session.init") {
       voiceId      = String(msg.voiceId      ?? "");
@@ -319,9 +340,15 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
         history.push({ role: "assistant", content: beginMessage });
         safeSend(ws, { type: "transcript", role: "agent", text: beginMessage });
         streamTts(beginMessage)
-          .then(() => { safeSend(ws, { type: "response.done" }); })
-          .catch((e: Error) => safeSend(ws, { type: "relay.error", message: e.message }))
-          .finally(() => { busy = false; });
+          .then(() => {
+            safeSend(ws, { type: "response.done" });
+            // Keep busy=true until browser confirms playback finished.
+            playbackTimer = setTimeout(() => releaseBusy(), 30_000);
+          })
+          .catch((e: Error) => {
+            safeSend(ws, { type: "relay.error", message: e.message });
+            releaseBusy();
+          });
       }
       return;
     }

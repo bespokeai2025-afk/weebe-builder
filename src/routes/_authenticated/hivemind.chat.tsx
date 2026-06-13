@@ -200,6 +200,21 @@ function useElRelay(
       if (msg.type === "audio.delta" && typeof msg.data === "string") scheduleChunk(msg.data);
       if (msg.type === "transcript" && msg.role === "user"  && msg.text) onTranscript("user",     String(msg.text));
       if (msg.type === "transcript" && msg.role === "agent" && msg.text) onTranscript("hivemind", String(msg.text));
+      if (msg.type === "response.done") {
+        // Tell the server when the browser has actually finished playing all
+        // queued audio (not just when the last chunk arrived over the network).
+        const ctx = audioCtxRef.current;
+        if (ctx) {
+          const remainingMs = Math.max(0, (nextPlayRef.current - ctx.currentTime) * 1000) + 300;
+          setTimeout(() => {
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({ type: "playback.done" }));
+            }
+          }, remainingMs);
+        } else {
+          ws.send(JSON.stringify({ type: "playback.done" }));
+        }
+      }
       if (msg.type === "relay.error" && msg.message) {
         const errMsg = String(msg.message);
         const friendly = errMsg.includes("paid_plan_required") || errMsg.includes("payment_required")
