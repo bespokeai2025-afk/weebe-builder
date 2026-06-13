@@ -32,12 +32,25 @@ import {
   ChevronLeft,
   ChevronRight,
   GripVertical,
+  DollarSign,
+  Trophy,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
   getPipelineLeads,
   setLeadPipelineStage,
+  setSaleDoneAmount,
   PIPELINE_STAGES,
   type PipelineLead,
   type PipelineStage,
@@ -57,6 +70,14 @@ function fmt$(n: number | null | undefined) {
     currency: "USD",
     notation: "compact",
     maximumFractionDigits: 1,
+  }).format(n);
+}
+
+function fmt$Full(n: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
   }).format(n);
 }
 
@@ -121,7 +142,6 @@ function LeadCard({
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: lead.id, data: { lead } });
 
-  // Distinguish a tap from a drag without overriding dnd-kit's listeners
   const hasMoved = useRef(false);
   const dndDown  = (listeners as any)?.onPointerDown as ((e: React.PointerEvent) => void) | undefined;
   const dndMove  = (listeners as any)?.onPointerMove as ((e: React.PointerEvent) => void) | undefined;
@@ -132,11 +152,12 @@ function LeadCard({
     : { transform: CSS.Translate.toString(transform) };
 
   const funding     = fmt$(lead.funding_amount);
-  const revenue     = fmt$(lead.monthly_revenue);
+  const saleAmt     = lead.sale_amount != null ? fmt$Full(lead.sale_amount) : null;
   const lastContact = fmtDate(lead.last_contacted_at);
   const statusLabel = STATUS_LABEL[lead.status ?? ""] ?? lead.status ?? "";
   const statusCls   = STATUS_COLOR[lead.status ?? ""] ?? "";
   const score       = lead.interest_level ? INTEREST_SCORE[lead.interest_level] ?? null : null;
+  const isSaleDone  = lead.effective_stage === "sale_done";
 
   return (
     <div
@@ -152,6 +173,7 @@ function LeadCard({
       className={cn(
         "group relative rounded-md border bg-card px-2 py-2 shadow-sm cursor-pointer select-none",
         "transition-shadow hover:shadow-md hover:border-primary/30",
+        isSaleDone && "border-green-500/30 bg-green-500/5",
         isDragging && "opacity-40 shadow-none",
         overlay && "shadow-xl ring-2 ring-primary/30 rotate-1 cursor-grabbing",
       )}
@@ -179,8 +201,16 @@ function LeadCard({
         )}
       </div>
 
-      {/* Funding */}
-      {funding && (
+      {/* Sale amount badge for sale_done leads */}
+      {isSaleDone && saleAmt && (
+        <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-green-600 dark:text-green-400">
+          <DollarSign className="h-2.5 w-2.5 shrink-0" />
+          {saleAmt}
+        </div>
+      )}
+
+      {/* Funding (only when not showing sale amount) */}
+      {!isSaleDone && funding && (
         <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-foreground">
           <TrendingUp className="h-2.5 w-2.5 text-green-500 shrink-0" />
           {funding}
@@ -279,10 +309,8 @@ function PipelineColumn({
   onMoveLead: (lead: PipelineLead, stage: PipelineStage) => void;
   isDraggingColumn: boolean;
 }) {
-  // Droppable: receives cards
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage.id });
 
-  // Draggable: column header grip for reordering
   const {
     attributes,
     listeners,
@@ -295,7 +323,10 @@ function PipelineColumn({
     ? { transform: CSS.Transform.toString(transform), opacity: 0.4 }
     : undefined;
 
-  const totalFunding = leads.reduce((sum, l) => sum + (l.funding_amount ?? 0), 0);
+  const isSaleDone = stage.id === "sale_done";
+  const totalValue = isSaleDone
+    ? leads.reduce((s, l) => s + (l.sale_amount ?? 0), 0)
+    : leads.reduce((sum, l) => sum + (l.funding_amount ?? 0), 0);
 
   return (
     <div
@@ -303,7 +334,7 @@ function PipelineColumn({
       style={style}
       className="flex flex-col w-44 shrink-0"
     >
-      {/* Column header with drag handle */}
+      {/* Column header */}
       <div className="mb-2 group/col">
         <div className="flex items-center gap-1 mb-1.5">
           <div className={cn("h-0.5 flex-1 rounded-full", stage.color)} />
@@ -318,7 +349,7 @@ function PipelineColumn({
         </div>
         <h3 className="font-semibold text-xs text-foreground">{stage.label}</h3>
         <p className="text-[10px] text-muted-foreground mt-0.5">
-          {totalFunding > 0 ? `${fmt$(totalFunding)} · ` : ""}
+          {totalValue > 0 ? `${fmt$(totalValue)} · ` : ""}
           {leads.length} lead{leads.length !== 1 ? "s" : ""}
         </p>
       </div>
@@ -330,6 +361,8 @@ function PipelineColumn({
           "flex flex-col gap-1.5 min-h-20 rounded-md p-1.5 transition-colors",
           "bg-muted/40 border border-dashed border-transparent",
           isOver && !isDraggingColumn && "border-primary/40 bg-primary/5",
+          isSaleDone && "bg-green-500/5 border-green-500/20",
+          isSaleDone && isOver && !isDraggingColumn && "border-green-500/50 bg-green-500/10",
         )}
       >
         {leads.map((lead) => (
@@ -351,18 +384,165 @@ function PipelineColumn({
   );
 }
 
+// ── Sale Amount Dialog ─────────────────────────────────────────────────────────
+function SaleAmountDialog({
+  lead,
+  open,
+  onOpenChange,
+  onSave,
+  saving,
+}: {
+  lead: PipelineLead | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSave: (amount: number) => void;
+  saving: boolean;
+}) {
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    if (open) setValue(lead?.sale_amount != null ? String(lead.sale_amount) : "");
+  }, [open, lead?.id]);
+
+  const parsed = parseFloat(value.replace(/[^0-9.]/g, ""));
+  const valid  = !isNaN(parsed) && parsed >= 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-green-500/15 flex items-center justify-center">
+              <DollarSign className="h-4 w-4 text-green-500" />
+            </div>
+            Record Sale Amount
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="py-2 space-y-3">
+          {lead && (
+            <p className="text-sm text-muted-foreground">
+              How much was the total sale for{" "}
+              <span className="font-semibold text-foreground">
+                {lead.full_name ?? "this lead"}
+              </span>
+              {lead.company_name ? ` (${lead.company_name})` : ""}?
+            </p>
+          )}
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+            <Input
+              className="pl-7"
+              placeholder="0"
+              type="number"
+              min={0}
+              step={1}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && valid && !saving) onSave(parsed);
+              }}
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Skip for now
+          </Button>
+          <Button
+            size="sm"
+            className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
+            onClick={() => { if (valid) onSave(parsed); }}
+            disabled={!valid || saving}
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DollarSign className="h-3.5 w-3.5" />}
+            Save Amount
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── KPI Strip ─────────────────────────────────────────────────────────────────
+function KpiStrip({ leads }: { leads: PipelineLead[] }) {
+  const saleDoneLeads = leads.filter((l) => l.effective_stage === "sale_done");
+  const withAmount    = saleDoneLeads.filter((l) => l.sale_amount != null && l.sale_amount > 0);
+  const totalRevenue  = withAmount.reduce((s, l) => s + (l.sale_amount ?? 0), 0);
+  const avgDeal       = withAmount.length ? totalRevenue / withAmount.length : 0;
+  const totalLeads    = leads.length;
+  const convRate      = totalLeads > 0 ? Math.round((saleDoneLeads.length / totalLeads) * 100) : 0;
+
+  const kpis = [
+    {
+      label: "Total Revenue",
+      value: totalRevenue > 0 ? fmt$Full(totalRevenue) : "—",
+      sub:   withAmount.length > 0 ? `${withAmount.length} deal${withAmount.length !== 1 ? "s" : ""} recorded` : "No amounts recorded yet",
+      icon:  <DollarSign className="h-4 w-4" />,
+      cls:   "text-green-500",
+      bg:    "bg-green-500/10 border-green-500/20",
+    },
+    {
+      label: "Deals Closed",
+      value: saleDoneLeads.length,
+      sub:   `${convRate}% conversion rate`,
+      icon:  <Trophy className="h-4 w-4" />,
+      cls:   "text-amber-500",
+      bg:    "bg-amber-500/10 border-amber-500/20",
+    },
+    {
+      label: "Avg Deal Size",
+      value: avgDeal > 0 ? fmt$Full(avgDeal) : "—",
+      sub:   avgDeal > 0 ? "per closed deal" : "Enter amounts to track",
+      icon:  <BarChart3 className="h-4 w-4" />,
+      cls:   "text-blue-500",
+      bg:    "bg-blue-500/10 border-blue-500/20",
+    },
+  ];
+
+  return (
+    <div className="px-6 py-3 border-b flex items-center gap-4 bg-muted/20 flex-wrap">
+      {kpis.map((kpi) => (
+        <div
+          key={kpi.label}
+          className={cn(
+            "flex items-center gap-3 rounded-lg border px-4 py-2.5 min-w-[180px]",
+            kpi.bg,
+          )}
+        >
+          <div className={cn("shrink-0", kpi.cls)}>{kpi.icon}</div>
+          <div>
+            <p className="text-xs text-muted-foreground font-medium">{kpi.label}</p>
+            <p className="text-lg font-bold text-foreground leading-tight">{kpi.value}</p>
+            <p className="text-[10px] text-muted-foreground">{kpi.sub}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 function PipelinePage() {
   const qc = useQueryClient();
-  const fetchLeads  = useServerFn(getPipelineLeads);
-  const updateStage = useServerFn(setLeadPipelineStage);
+  const fetchLeads    = useServerFn(getPipelineLeads);
+  const updateStage   = useServerFn(setLeadPipelineStage);
+  const saveSaleAmt   = useServerFn(setSaleDoneAmount);
 
-  const [activeId,      setActiveId]      = useState<string | null>(null);
-  const [selectedLead,  setSelectedLead]  = useState<PipelineLead | null>(null);
-  const [drawerOpen,    setDrawerOpen]    = useState(false);
+  const [activeId,       setActiveId]       = useState<string | null>(null);
+  const [selectedLead,   setSelectedLead]   = useState<PipelineLead | null>(null);
+  const [drawerOpen,     setDrawerOpen]     = useState(false);
+  const [saleDialogLead, setSaleDialogLead] = useState<PipelineLead | null>(null);
+  const [saleDialogOpen, setSaleDialogOpen] = useState(false);
+  const [savingAmount,   setSavingAmount]   = useState(false);
 
-  // Column order — always starts with default to avoid SSR hydration mismatch,
-  // then loads the saved order from localStorage after mount.
   const [columnOrder, setColumnOrder] = useState<PipelineStage[]>(
     () => PIPELINE_STAGES.map((s) => s.id),
   );
@@ -432,6 +612,42 @@ function PipelinePage() {
     },
   });
 
+  // Move a card and, if it's going to sale_done, open the sale amount dialog
+  const moveCardAndPrompt = useCallback(
+    (lead: PipelineLead, stage: PipelineStage) => {
+      moveCard({ leadId: lead.id, stage });
+      if (stage === "sale_done") {
+        setSaleDialogLead({ ...lead, effective_stage: "sale_done" });
+        setSaleDialogOpen(true);
+      }
+    },
+    [moveCard],
+  );
+
+  async function handleSaveAmount(amount: number) {
+    if (!saleDialogLead) return;
+    setSavingAmount(true);
+    try {
+      await saveSaleAmt({ data: { leadId: saleDialogLead.id, amount } });
+      qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+      toast.success(`Sale amount saved — ${fmt$Full(amount)}`);
+      setSaleDialogOpen(false);
+    } catch (e) {
+      const msg = (e as Error)?.message ?? "";
+      if (msg.includes("MIGRATION_NEEDED")) {
+        toast.warning("Apply the sale_amount migration to save amounts.", {
+          description: "supabase/migrations/20260613180000_sale_amount.sql",
+          duration: 8000,
+        });
+        setSaleDialogOpen(false);
+      } else {
+        toast.error("Failed to save amount", { description: msg });
+      }
+    } finally {
+      setSavingAmount(false);
+    }
+  }
+
   const orderedStages = columnOrder
     .map((id) => PIPELINE_STAGES.find((s) => s.id === id))
     .filter(Boolean) as (typeof PIPELINE_STAGES)[number][];
@@ -454,17 +670,13 @@ function PipelinePage() {
     setActiveId(String(e.active.id));
   }, []);
 
-  // Live swap columns as you drag past them.
-  // over.id is always the card-droppable stage ID (e.g. "lead"), not "col::lead",
-  // because the column body's useDroppable wins collision detection.
   const handleDragOver = useCallback((e: DragOverEvent) => {
     const { active, over } = e;
     if (!over) return;
     const activeStr = String(active.id);
-    if (!activeStr.startsWith("col::")) return; // card drag — ignore here
+    if (!activeStr.startsWith("col::")) return;
 
     const fromId = activeStr.replace("col::", "") as PipelineStage;
-    // over.id is the card droppable of the target column (its plain stage id)
     const overStr = String(over.id);
     const toId = (overStr.startsWith("col::") ? overStr.replace("col::", "") : overStr) as PipelineStage;
 
@@ -486,7 +698,6 @@ function PipelinePage() {
       const { active, over } = e;
       const activeStr = String(active.id);
 
-      // ── Column reorder: persist final order to localStorage ─────────────────
       if (activeStr.startsWith("col::")) {
         setColumnOrder((prev) => {
           try { localStorage.setItem("pipeline-column-order", JSON.stringify(prev)); } catch {}
@@ -495,14 +706,13 @@ function PipelinePage() {
         return;
       }
 
-      // ── Card move ───────────────────────────────────────────────────────────
       if (!over) return;
       const targetStage = String(over.id) as PipelineStage;
       const lead = leads.find((l) => l.id === activeStr);
       if (!lead || lead.effective_stage === targetStage) return;
-      moveCard({ leadId: lead.id, stage: targetStage });
+      moveCardAndPrompt(lead, targetStage);
     },
-    [leads, moveCard],
+    [leads, moveCardAndPrompt],
   );
 
   const handleSelectLead = useCallback((lead: PipelineLead) => {
@@ -538,6 +748,9 @@ function PipelinePage() {
         </div>
       </div>
 
+      {/* KPI strip — always visible, even while loading */}
+      {!isLoading && !isError && <KpiStrip leads={leads} />}
+
       {/* Board */}
       <div className="flex-1 overflow-auto">
         {isLoading ? (
@@ -558,18 +771,18 @@ function PipelinePage() {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-              <div className="flex gap-3 p-4 h-full">
-                {orderedStages.map((stage) => (
-                  <PipelineColumn
-                    key={stage.id}
-                    stage={stage}
-                    leads={grouped[stage.id] ?? []}
-                    onSelectLead={handleSelectLead}
-                    onMoveLead={(lead, s) => moveCard({ leadId: lead.id, stage: s })}
-                    isDraggingColumn={isColDrag}
-                  />
-                ))}
-              </div>
+            <div className="flex gap-3 p-4 h-full">
+              {orderedStages.map((stage) => (
+                <PipelineColumn
+                  key={stage.id}
+                  stage={stage}
+                  leads={grouped[stage.id] ?? []}
+                  onSelectLead={handleSelectLead}
+                  onMoveLead={(lead, s) => moveCardAndPrompt(lead, s)}
+                  isDraggingColumn={isColDrag}
+                />
+              ))}
+            </div>
 
             <DragOverlay dropAnimation={null}>
               {activeLead ? (
@@ -596,6 +809,16 @@ function PipelinePage() {
         lead={selectedLead}
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
+        onSaleAmountSaved={() => qc.invalidateQueries({ queryKey: ["pipeline-leads"] })}
+      />
+
+      {/* Sale amount dialog */}
+      <SaleAmountDialog
+        lead={saleDialogLead}
+        open={saleDialogOpen}
+        onOpenChange={setSaleDialogOpen}
+        onSave={handleSaveAmount}
+        saving={savingAmount}
       />
     </div>
   );

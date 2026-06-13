@@ -28,6 +28,7 @@ import {
 import {
   getLeadDetail,
   setLeadPipelineStage,
+  setSaleDoneAmount,
   PIPELINE_STAGES,
   type PipelineLead,
   type PipelineStage,
@@ -46,6 +47,9 @@ import {
   CalendarCheck,
   ExternalLink,
   MapPin,
+  DollarSign,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -127,16 +131,18 @@ interface Props {
   lead: PipelineLead | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onSaleAmountSaved?: () => void;
 }
 
-export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
+export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved }: Props) {
   const qc = useQueryClient();
-  const detailFn  = useServerFn(getLeadDetail);
-  const addFn     = useServerFn(addEntityNote);
-  const deleteFn  = useServerFn(deleteEntityNote);
-  const listFn    = useServerFn(listEntityNotes);
-  const bookFn    = useServerFn(createManualBooking);
-  const moveFn    = useServerFn(setLeadPipelineStage);
+  const detailFn    = useServerFn(getLeadDetail);
+  const addFn       = useServerFn(addEntityNote);
+  const deleteFn    = useServerFn(deleteEntityNote);
+  const listFn      = useServerFn(listEntityNotes);
+  const bookFn      = useServerFn(createManualBooking);
+  const moveFn      = useServerFn(setLeadPipelineStage);
+  const saleAmtFn   = useServerFn(setSaleDoneAmount);
 
   // ── notes state ────────────────────────────────────────────────────────────
   const [noteText,   setNoteText]   = useState("");
@@ -145,6 +151,11 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
 
   // ── stage state ────────────────────────────────────────────────────────────
   const [movingStage, setMovingStage] = useState(false);
+
+  // ── sale amount state ───────────────────────────────────────────────────────
+  const [saleAmtEditing, setSaleAmtEditing] = useState(false);
+  const [saleAmtInput,   setSaleAmtInput]   = useState("");
+  const [savingSaleAmt,  setSavingSaleAmt]  = useState(false);
 
   // ── booking form state ─────────────────────────────────────────────────────
   const [bookOpen,   setBookOpen]   = useState(false);
@@ -232,10 +243,41 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
       await moveFn({ data: { leadId: lead.id, stage } });
       toast.success(`Moved to ${PIPELINE_STAGES.find((s) => s.id === stage)?.label ?? stage}`);
       qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+      if (stage === "sale_done") {
+        setSaleAmtEditing(true);
+        setSaleAmtInput(lead.sale_amount != null ? String(lead.sale_amount) : "");
+      }
     } catch (e) {
       toast.error("Failed to move lead", { description: (e as Error).message });
     } finally {
       setMovingStage(false);
+    }
+  }
+
+  async function handleSaveSaleAmount() {
+    if (!lead) return;
+    const amount = parseFloat(saleAmtInput.replace(/[^0-9.]/g, ""));
+    if (isNaN(amount) || amount < 0) return;
+    setSavingSaleAmt(true);
+    try {
+      await saleAmtFn({ data: { leadId: lead.id, amount } });
+      qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+      onSaleAmountSaved?.();
+      toast.success(`Sale amount saved — $${amount.toLocaleString()}`);
+      setSaleAmtEditing(false);
+    } catch (e) {
+      const msg = (e as Error)?.message ?? "";
+      if (msg.includes("MIGRATION_NEEDED")) {
+        toast.warning("Apply the sale_amount migration to save amounts.", {
+          description: "supabase/migrations/20260613180000_sale_amount.sql",
+          duration: 8000,
+        });
+        setSaleAmtEditing(false);
+      } else {
+        toast.error("Failed to save amount", { description: msg });
+      }
+    } finally {
+      setSavingSaleAmt(false);
     }
   }
 
@@ -390,6 +432,94 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
 
         {/* ── Scrollable body ─────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+
+          {/* ── Sale Amount (Sale Done leads only) ────────────────────────── */}
+          {lead.effective_stage === "sale_done" && (
+            <>
+              <section className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <SectionLabel>Sale Amount</SectionLabel>
+                  {!saleAmtEditing && (
+                    <button
+                      onClick={() => {
+                        setSaleAmtEditing(true);
+                        setSaleAmtInput(lead.sale_amount != null ? String(lead.sale_amount) : "");
+                      }}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      {lead.sale_amount != null ? "Edit" : "Add amount"}
+                    </button>
+                  )}
+                </div>
+
+                {!saleAmtEditing ? (
+                  lead.sale_amount != null ? (
+                    <div className="rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-3 flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-green-500/15 flex items-center justify-center shrink-0">
+                        <DollarSign className="h-4 w-4 text-green-500" />
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                          {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(lead.sale_amount)}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">Total sale value</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setSaleAmtEditing(true); setSaleAmtInput(""); }}
+                      className="w-full rounded-lg border border-dashed border-green-500/30 bg-green-500/5 px-4 py-3 flex items-center justify-center gap-2 text-sm text-green-600 dark:text-green-400 hover:border-green-500/60 transition-colors"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      Add sale amount
+                    </button>
+                  )
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                      <Input
+                        className="pl-7 h-9"
+                        placeholder="0"
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={saleAmtInput}
+                        onChange={(e) => setSaleAmtInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveSaleAmount();
+                          if (e.key === "Escape") setSaleAmtEditing(false);
+                        }}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1 gap-1.5 bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+                        onClick={handleSaveSaleAmount}
+                        disabled={savingSaleAmt || !saleAmtInput}
+                      >
+                        {savingSaleAmt ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 text-xs"
+                        onClick={() => setSaleAmtEditing(false)}
+                        disabled={savingSaleAmt}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </section>
+              <Separator className="bg-white/[0.06]" />
+            </>
+          )}
 
           {/* ── Call Summary ───────────────────────────────────────────────── */}
           <section className="space-y-2">

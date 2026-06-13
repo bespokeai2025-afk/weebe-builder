@@ -67,6 +67,7 @@ export type PipelineLead = {
   // real lead fields
   funding_amount: number | null;
   monthly_revenue: number | null;
+  sale_amount: number | null;
   sentiment: "positive" | "neutral" | "negative" | null;
   call_outcome: string | null;
   attempt_count: number | null;
@@ -89,6 +90,7 @@ const BASE_SELECT = [
   "status",
   "funding_amount",
   "monthly_revenue",
+  "sale_amount",
   "sentiment",
   "call_outcome",
   "attempt_count",
@@ -123,6 +125,7 @@ function mapLead(
     effective_stage: effective,
     funding_amount: (lead.funding_amount as number | null) ?? null,
     monthly_revenue: (lead.monthly_revenue as number | null) ?? null,
+    sale_amount: (lead.sale_amount as number | null) ?? null,
     sentiment: (lead.sentiment as "positive" | "neutral" | "negative" | null) ?? null,
     call_outcome: (lead.call_outcome as string | null) ?? null,
     attempt_count: (lead.attempt_count as number | null) ?? null,
@@ -290,6 +293,34 @@ export const getLeadDetail = createServerFn({ method: "GET" })
       appointmentReason,
       booking: (bd as LeadBooking | null) ?? null,
     };
+  });
+
+export const setSaleDoneAmount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ leadId: z.string(), amount: z.number().nonnegative() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const sb = supabase as any;
+    const { error } = await sb
+      .from("leads")
+      .update({ sale_amount: data.amount, updated_at: new Date().toISOString() })
+      .eq("id", data.leadId)
+      .eq("workspace_id", workspaceId);
+    if (error) {
+      if (
+        String(error.message).toLowerCase().includes("sale_amount") ||
+        String(error.code) === "42703"
+      ) {
+        throw new Error(
+          "MIGRATION_NEEDED: Apply supabase/migrations/20260613180000_sale_amount.sql in your Supabase Dashboard.",
+        );
+      }
+      throw new Error(error.message);
+    }
+    return { ok: true };
   });
 
 export const setLeadPipelineStage = createServerFn({ method: "POST" })
