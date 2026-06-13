@@ -236,49 +236,49 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* ── Telephony ──────────────────────────────────────── */}
-        <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
-        <SidebarGroup>
-          {!collapsed && (
-            <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
-              Telephony
-            </SidebarGroupLabel>
-          )}
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1 group-data-[collapsible=icon]:items-center">
-              {[
-                { title: "Phone Numbers",    url: "/phone-numbers",      icon: Phone },
-                { title: "Telephony Calls",  url: "/telephony-calls",    icon: PhoneIncoming },
-                { title: "Campaigns",        url: "/campaigns",          icon: Megaphone },
-                { title: "Telephony Config", url: "/telephony-settings", icon: Settings2 },
-              ].map((item) => {
-                const active = isActive(item.url);
-                return (
-                  <SidebarMenuItem key={item.url} className="group-data-[collapsible=icon]:w-auto">
-                    <SidebarMenuButton asChild tooltip={item.title} className={navButtonClasses(active)}>
-                      <Link to={item.url} className="flex items-center gap-3">
-                        <item.icon
-                          className={cn(
-                            "h-[18px] w-[18px] shrink-0 transition-colors",
-                            active
-                              ? "text-primary"
-                              : "text-muted-foreground group-hover/nav:text-foreground",
-                          )}
-                        />
-                        <span className="truncate group-data-[collapsible=icon]:hidden">
-                          {item.title}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
         {isAdmin && (
           <>
+            {/* ── Telephony (admin only) ─────────────────────────── */}
+            <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
+            <SidebarGroup>
+              {!collapsed && (
+                <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
+                  Telephony
+                </SidebarGroupLabel>
+              )}
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-1 group-data-[collapsible=icon]:items-center">
+                  {[
+                    { title: "Phone Numbers",    url: "/phone-numbers",      icon: Phone },
+                    { title: "Telephony Calls",  url: "/telephony-calls",    icon: PhoneIncoming },
+                    { title: "Campaigns",        url: "/campaigns",          icon: Megaphone },
+                    { title: "Telephony Config", url: "/telephony-settings", icon: Settings2 },
+                  ].map((item) => {
+                    const active = isActive(item.url);
+                    return (
+                      <SidebarMenuItem key={item.url} className="group-data-[collapsible=icon]:w-auto">
+                        <SidebarMenuButton asChild tooltip={item.title} className={navButtonClasses(active)}>
+                          <Link to={item.url} className="flex items-center gap-3">
+                            <item.icon
+                              className={cn(
+                                "h-[18px] w-[18px] shrink-0 transition-colors",
+                                active
+                                  ? "text-primary"
+                                  : "text-muted-foreground group-hover/nav:text-foreground",
+                              )}
+                            />
+                            <span className="truncate group-data-[collapsible=icon]:hidden">
+                              {item.title}
+                            </span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
             <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
             <SidebarGroup>
               {!collapsed && (
