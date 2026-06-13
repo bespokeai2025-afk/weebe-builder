@@ -23,8 +23,8 @@ type FollowUpView = "cards" | "timeline" | "visual";
 
 const VIEW_TOGGLE: { value: FollowUpView; icon: typeof LayoutGrid; label: string }[] = [
   { value: "cards",    icon: LayoutGrid,   label: "Campaigns" },
-  { value: "timeline", icon: CalendarDays, label: "Calendar"  },
   { value: "visual",   icon: Sparkles,     label: "Visual"    },
+  { value: "timeline", icon: CalendarDays, label: "Calendar"  },
 ];
 
 function HexmailPage() {
@@ -33,7 +33,7 @@ function HexmailPage() {
 
   const handleOpenBuilder = (campaignId?: string) => {
     setActiveCampaignId(campaignId);
-    setFollowUpView("timeline");
+    setFollowUpView("visual");
   };
 
   const handleOpenVisual = (campaignId?: string) => {
