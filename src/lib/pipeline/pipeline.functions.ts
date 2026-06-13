@@ -392,15 +392,18 @@ export const setLeadPipelineStage = createServerFn({ method: "POST" })
       .eq("id", data.leadId)
       .eq("workspace_id", workspaceId);
     if (error) {
-      if (
+      const isMissingCol =
         String(error.message).toLowerCase().includes("pipeline_stage") ||
-        String(error.code) === "42703"
-      ) {
-        throw new Error(
-          "MIGRATION_NEEDED: Apply supabase/migrations/20260613160000_pipeline_stage.sql in your Supabase Dashboard to persist stage changes.",
-        );
-      }
-      throw new Error(error.message);
+        String(error.code) === "42703";
+      if (!isMissingCol) throw new Error(error.message);
+      // pipeline_stage column not yet migrated — still update status so the
+      // leads section reflects the move (e.g. "Don't Call" → do_not_call)
+      const { error: statusErr } = await sb
+        .from("leads")
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq("id", data.leadId)
+        .eq("workspace_id", workspaceId);
+      if (statusErr) throw new Error(statusErr.message);
     }
     return { ok: true };
   });

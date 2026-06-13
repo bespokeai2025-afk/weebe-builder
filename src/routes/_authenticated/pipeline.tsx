@@ -614,15 +614,7 @@ function PipelinePage() {
     },
     onError: (err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["pipeline-leads"], ctx.prev);
-      const msg = (err as Error)?.message ?? "";
-      if (msg.includes("MIGRATION_NEEDED")) {
-        toast.warning("Apply the pipeline migration to persist stage changes.", {
-          description: "supabase/migrations/20260613160000_pipeline_stage.sql",
-          duration: 8000,
-        });
-      } else {
-        toast.error("Failed to move lead");
-      }
+      toast.error("Failed to move lead", { description: (err as Error)?.message });
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
