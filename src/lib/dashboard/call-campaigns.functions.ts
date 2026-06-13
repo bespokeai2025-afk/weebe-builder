@@ -12,6 +12,7 @@ type ScheduleConfig = {
   callFrequency: "daily" | "custom";
   intervalDays: number;
   voicemailEnabled: boolean;
+  lastRunDate?: string;
 };
 
 function parseDesc(description: string | null): ScheduleConfig | null {

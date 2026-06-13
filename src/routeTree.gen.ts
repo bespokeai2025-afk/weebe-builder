@@ -44,6 +44,7 @@ import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webh
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
 import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
+import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
 import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/builder/script-template'
@@ -269,6 +270,12 @@ const ApiPublicElevenlabsWebhookRoute =
   ApiPublicElevenlabsWebhookRouteImport.update({
     id: '/api/public/elevenlabs-webhook',
     path: '/api/public/elevenlabs-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicCampaignExecutorRoute =
+  ApiPublicCampaignExecutorRouteImport.update({
+    id: '/api/public/campaign-executor',
+    path: '/api/public/campaign-executor',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicApproveUserRoute = ApiPublicApproveUserRouteImport.update({
@@ -580,6 +587,7 @@ export interface FileRoutesByFullPath {
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -662,6 +670,7 @@ export interface FileRoutesByTo {
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -747,6 +756,7 @@ export interface FileRoutesById {
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
+  '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -832,6 +842,7 @@ export interface FileRouteTypes {
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
+    | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -914,6 +925,7 @@ export interface FileRouteTypes {
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
+    | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -998,6 +1010,7 @@ export interface FileRouteTypes {
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
     | '/api/public/approve-user'
+    | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
@@ -1057,6 +1070,7 @@ export interface RootRouteChildren {
   ApiBuilderScriptTemplateRoute: typeof ApiBuilderScriptTemplateRoute
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
+  ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
   ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -1340,6 +1354,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/elevenlabs-webhook'
       fullPath: '/api/public/elevenlabs-webhook'
       preLoaderRoute: typeof ApiPublicElevenlabsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/campaign-executor': {
+      id: '/api/public/campaign-executor'
+      path: '/api/public/campaign-executor'
+      fullPath: '/api/public/campaign-executor'
+      preLoaderRoute: typeof ApiPublicCampaignExecutorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/approve-user': {
@@ -1804,6 +1825,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBuilderScriptTemplateRoute: ApiBuilderScriptTemplateRoute,
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
+  ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
   ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
