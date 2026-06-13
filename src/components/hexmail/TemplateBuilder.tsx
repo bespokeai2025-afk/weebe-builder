@@ -62,15 +62,16 @@ function applyPreview(text: string): string {
 interface Props {
   open: boolean;
   template?: HexmailTemplate;
+  defaultType?: TemplateType;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function TemplateBuilder({ open, template, onClose, onSaved }: Props) {
+export function TemplateBuilder({ open, template, defaultType, onClose, onSaved }: Props) {
   const qc = useQueryClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [name, setName] = useState("");
-  const [type, setType] = useState<TemplateType>("email");
+  const [type, setType] = useState<TemplateType>(defaultType ?? "email");
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
   const [preview, setPreview] = useState(false);
@@ -78,12 +79,12 @@ export function TemplateBuilder({ open, template, onClose, onSaved }: Props) {
   useEffect(() => {
     if (open) {
       setName(template?.name ?? "");
-      setType(template?.type ?? "email");
+      setType(template?.type ?? defaultType ?? "email");
       setSubject(template?.subject ?? "");
       setContent(template?.content ?? "");
       setPreview(false);
     }
-  }, [open, template]);
+  }, [open, template, defaultType]);
 
   const save = useMutation({
     mutationFn: () =>
