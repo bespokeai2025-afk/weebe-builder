@@ -924,11 +924,19 @@ export function Builder({
 
           {/* Deploy / utility cluster + trailing save actions */}
           <div data-tour="deploy-btn" className="inline-flex items-center">
-            <RetellDeployDialog
-              onCallActive={setCallActive}
-              onTranscriptUpdate={setLiveTranscript}
-              onCallEnd={handleCallEnd}
-            />
+            {settings.channelType !== "whatsapp" && (
+              <RetellDeployDialog
+                onCallActive={setCallActive}
+                onTranscriptUpdate={setLiveTranscript}
+                onCallEnd={handleCallEnd}
+              />
+            )}
+            {settings.channelType === "whatsapp" && (
+              <div className="flex items-center gap-1.5 rounded-md border border-green-500/20 bg-green-500/10 px-2.5 py-1">
+                <MsgSq className="h-3 w-3 text-green-500" />
+                <span className="text-[11px] font-medium text-green-400">WhatsApp Mode</span>
+              </div>
+            )}
           </div>
           {toolbarTrailing}
 

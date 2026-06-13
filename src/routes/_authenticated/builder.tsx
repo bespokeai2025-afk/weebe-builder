@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Builder } from "@/components/builder/Builder";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { BookmarkPlus, Check, CircleDot, Loader2, MapPin, Save } from "lucide-react";
+import { BookmarkPlus, Check, CircleDot, Loader2, MapPin, Save, MessageSquare, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useBuilderStore } from "@/lib/builder/store";
 import { SaveAsTemplateDialog } from "@/components/builder/SaveAsTemplateDialog";
@@ -61,6 +61,7 @@ function BuilderPage() {
   const [, force] = useState(0);
   const saveAgent = useServerFn(upsertMyAgent);
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
+  const channelType = useBuilderStore((s) => s.settings.channelType);
 
   async function handleSave() {
     const s = useBuilderStore.getState();
@@ -157,21 +158,38 @@ function BuilderPage() {
       </Button>
       <div className="h-3.5 w-px bg-white/[0.07] mx-0.5" />
       <div data-tour="save-btn" style={{ display: "inline-flex" }}>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleSave}
-          disabled={saving}
-          title="Save agent (⌘S)"
-          className="!h-8 gap-1 px-2.5 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.06]"
-        >
-          {saving ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Save className="h-3 w-3" />
-          )}
-          Save
-        </Button>
+        {channelType === "whatsapp" ? (
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+            title="Save & activate on WhatsApp (⌘S)"
+            className="!h-8 gap-1.5 px-3 text-[11px] font-semibold bg-green-600 hover:bg-green-500 text-white border-0"
+          >
+            {saving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <MessageSquare className="h-3 w-3" />
+            )}
+            {saving ? "Saving…" : "Save & Activate"}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleSave}
+            disabled={saving}
+            title="Save agent (⌘S)"
+            className="!h-8 gap-1 px-2.5 text-[11px] font-medium text-muted-foreground/70 hover:text-foreground hover:bg-white/[0.06]"
+          >
+            {saving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Save className="h-3 w-3" />
+            )}
+            Save
+          </Button>
+        )}
       </div>
     </div>
   );

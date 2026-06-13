@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Bot, Pencil, MessageSquare, GitBranch, Clock, Plus, Loader2 } from "lucide-react";
+import { Bot, Pencil, MessageSquare, GitBranch, Clock, Plus, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listWAAgents } from "@/lib/dashboard/whatsapp.functions";
@@ -117,18 +117,18 @@ export function WhatsAppAgents() {
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {(agents as any[]).map((agent: any) => {
+          {(agents as any[]).map((agent: any, idx: number) => {
             const settings = typeof agent.settings === "string"
               ? JSON.parse(agent.settings)
               : (agent.settings ?? {});
             const nodes = nodeCount(agent);
-            const isLive = !!agent.retell_agent_id;
+            const isActive = idx === 0; // most recently updated = active (runtime picks this one)
             const isLoading = loadingId === agent.id;
 
             return (
               <div
                 key={agent.id}
-                className="group relative rounded-xl border border-border bg-card p-4 flex flex-col gap-3 hover:border-green-500/40 hover:bg-green-500/5 transition-colors"
+                className={`group relative rounded-xl border bg-card p-4 flex flex-col gap-3 transition-colors hover:bg-green-500/5 ${isActive ? "border-green-500/40 ring-1 ring-green-500/20" : "border-border hover:border-green-500/30"}`}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between gap-2">
@@ -141,12 +141,15 @@ export function WhatsAppAgents() {
                       <p className="text-[10px] text-muted-foreground">WhatsApp agent</p>
                     </div>
                   </div>
-                  <Badge
-                    variant={isLive ? "default" : "secondary"}
-                    className="text-[10px] shrink-0"
-                  >
-                    {isLive ? "Live" : "Draft"}
-                  </Badge>
+                  {isActive ? (
+                    <Badge className="text-[10px] shrink-0 gap-1 bg-green-600 hover:bg-green-600 text-white">
+                      <Zap className="h-2.5 w-2.5" /> Active
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                      Inactive
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Stats row */}
