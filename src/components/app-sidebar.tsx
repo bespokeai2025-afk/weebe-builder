@@ -155,9 +155,30 @@ function SortableNavItem({
       className="group/item group-data-[collapsible=icon]:w-auto"
       data-tour={item.tourId}
     >
-      <div className="relative flex items-center">
-        {/* Drag handle — hidden until hover, hidden when collapsed */}
-        {!collapsed && (
+      {collapsed ? (
+        /* Collapsed: icon is the drag handle — hold & drag it */
+        <SidebarMenuButton
+          asChild
+          tooltip={item.title}
+          className={cn(buttonClass, "cursor-grab active:cursor-grabbing")}
+        >
+          <Link
+            to={item.url}
+            className="flex items-center gap-3"
+            {...attributes}
+            {...listeners}
+          >
+            <item.icon
+              className={cn(
+                "h-[18px] w-[18px] shrink-0 transition-colors",
+                active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
+              )}
+            />
+          </Link>
+        </SidebarMenuButton>
+      ) : (
+        /* Expanded: small grip handle appears on hover to the left */
+        <div className="relative flex items-center">
           <button
             {...attributes}
             {...listeners}
@@ -167,28 +188,22 @@ function SortableNavItem({
           >
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
-        )}
 
-        <SidebarMenuButton
-          asChild
-          tooltip={item.title}
-          className={buttonClass}
-        >
-          <Link to={item.url} className="flex items-center gap-3">
-            <item.icon
-              className={cn(
-                "h-[18px] w-[18px] shrink-0 transition-colors",
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground group-hover/nav:text-foreground",
-              )}
-            />
-            <span className="truncate group-data-[collapsible=icon]:hidden">
-              {item.title}
-            </span>
-          </Link>
-        </SidebarMenuButton>
-      </div>
+          <SidebarMenuButton asChild tooltip={item.title} className={buttonClass}>
+            <Link to={item.url} className="flex items-center gap-3">
+              <item.icon
+                className={cn(
+                  "h-[18px] w-[18px] shrink-0 transition-colors",
+                  active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
+                )}
+              />
+              <span className="truncate group-data-[collapsible=icon]:hidden">
+                {item.title}
+              </span>
+            </Link>
+          </SidebarMenuButton>
+        </div>
+      )}
     </SidebarMenuItem>
   );
 }
