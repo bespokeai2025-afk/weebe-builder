@@ -36,7 +36,6 @@ import {
   deleteHexmailCampaign,
   type HexmailCampaign,
 } from "@/lib/hexmail/campaigns.functions";
-import { CampaignBuilder } from "./CampaignBuilder";
 
 const STATUS_STYLES: Record<string, string> = {
   draft:   "bg-slate-500/10 text-slate-500 border-slate-500/20",
@@ -58,10 +57,12 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function FollowUpCentre() {
+interface FollowUpCentreProps {
+  onOpenBuilder: (campaignId?: string) => void;
+}
+
+export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
   const qc = useQueryClient();
-  const [builderOpen, setBuilderOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<HexmailCampaign | null>(null);
 
   const { data: campaigns = [], isLoading } = useQuery<HexmailCampaign[]>({
@@ -88,16 +89,6 @@ export function FollowUpCentre() {
     },
   });
 
-  const openNew = () => {
-    setEditingId(undefined);
-    setBuilderOpen(true);
-  };
-
-  const openEdit = (id: string) => {
-    setEditingId(id);
-    setBuilderOpen(true);
-  };
-
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -107,7 +98,7 @@ export function FollowUpCentre() {
             Build multi-channel follow-up sequences with day-by-day action timelines.
           </p>
         </div>
-        <Button onClick={openNew} className="gap-1.5">
+        <Button onClick={() => onOpenBuilder()} className="gap-1.5">
           <Plus className="h-4 w-4" />
           New Campaign
         </Button>
@@ -129,7 +120,7 @@ export function FollowUpCentre() {
               Create your first multi-channel follow-up campaign.
             </p>
           </div>
-          <Button onClick={openNew} className="gap-1.5">
+          <Button onClick={() => onOpenBuilder()} className="gap-1.5">
             <Plus className="h-4 w-4" /> New Campaign
           </Button>
         </div>
@@ -139,7 +130,7 @@ export function FollowUpCentre() {
             <CampaignCard
               key={c.id}
               campaign={c}
-              onEdit={() => openEdit(c.id)}
+              onEdit={() => onOpenBuilder(c.id)}
               onStatusChange={(status) => updateStatus.mutate({ id: c.id, status })}
               onDelete={() => setDeleteTarget(c)}
               isUpdating={updateStatus.isPending}
@@ -147,16 +138,6 @@ export function FollowUpCentre() {
           ))}
         </div>
       )}
-
-      <CampaignBuilder
-        open={builderOpen}
-        campaignId={editingId}
-        onClose={() => setBuilderOpen(false)}
-        onSaved={() => {
-          setBuilderOpen(false);
-          qc.invalidateQueries({ queryKey: ["hexmail-campaigns"] });
-        }}
-      />
 
       <AlertDialog
         open={!!deleteTarget}

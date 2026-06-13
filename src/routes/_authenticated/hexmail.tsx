@@ -1,16 +1,47 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mail, FileText } from "lucide-react";
 import { FollowUpCentre } from "@/components/hexmail/FollowUpCentre";
 import { TemplateStudio } from "@/components/hexmail/TemplateStudio";
+import { CampaignBuilderPage } from "@/components/hexmail/CampaignBuilderPage";
 
 export const Route = createFileRoute("/_authenticated/hexmail")({
   component: HexmailPage,
 });
 
+interface FullPageState {
+  open: boolean;
+  campaignId?: string;
+}
+
 function HexmailPage() {
+  const [fullPage, setFullPage] = useState<FullPageState>({ open: false });
+
+  const handleOpenBuilder = (campaignId?: string) => {
+    setFullPage({ open: true, campaignId });
+  };
+
+  const handleBack = () => {
+    setFullPage({ open: false });
+  };
+
+  const handleSaved = (_id: string) => {
+    setFullPage({ open: false });
+  };
+
+  if (fullPage.open) {
+    return (
+      <CampaignBuilderPage
+        campaignId={fullPage.campaignId}
+        onBack={handleBack}
+        onSaved={handleSaved}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full p-6 gap-6">
+    <div className="flex flex-col h-full p-6 gap-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">HexMail</h1>
         <p className="text-muted-foreground text-sm mt-1">
@@ -18,24 +49,24 @@ function HexmailPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="followup" className="flex-1 flex flex-col min-h-0">
+      <Tabs defaultValue="templates" className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-fit">
-          <TabsTrigger value="followup" className="gap-2">
-            <Mail className="h-4 w-4" />
-            Follow-Up Centre
-          </TabsTrigger>
           <TabsTrigger value="templates" className="gap-2">
             <FileText className="h-4 w-4" />
             Template Studio
           </TabsTrigger>
+          <TabsTrigger value="followup" className="gap-2">
+            <Mail className="h-4 w-4" />
+            Follow-Up Centre
+          </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="followup" className="flex-1 min-h-0 mt-4">
-          <FollowUpCentre />
-        </TabsContent>
 
         <TabsContent value="templates" className="flex-1 flex flex-col min-h-0 mt-4">
           <TemplateStudio />
+        </TabsContent>
+
+        <TabsContent value="followup" className="flex-1 min-h-0 mt-4">
+          <FollowUpCentre onOpenBuilder={handleOpenBuilder} />
         </TabsContent>
       </Tabs>
     </div>
