@@ -283,6 +283,12 @@ export const AgentRuntimeDefinitionSchema = z.object({
   // Runtime selector — consumers branch on this field only
   provider: DeploymentModeSchema,
 
+  // Voice output layer — independent of LLM provider
+  // "openai"      → OpenAI Realtime built-in voice (default; no behaviour change)
+  // "elevenlabs"  → Whisper STT → GPT text LLM → ElevenLabs TTS pipeline
+  voiceOutputProvider: z.enum(["openai", "elevenlabs"]).default("openai"),
+  voiceOutputId: z.string().optional(),
+
   // Model
   model: RuntimeModelConfigSchema,
 

@@ -1,0 +1,112 @@
+Implement a provider-agnostic Voice Layer for WeeBee.
+
+IMPORTANT:
+
+- Do not modify Retell functionality.
+- Do not modify existing Retell deployment paths.
+- Do not break existing OpenAI Realtime test calls.
+- Preserve all current HyperStream functionality.
+
+OBJECTIVE:
+
+Separate the LLM provider from the Voice provider.
+
+Architecture must become:
+
+Builder
+→ Runtime Definition
+→ LLM Provider
+→ Voice Provider
+→ Channel
+
+instead of:
+
+Builder
+→ OpenAI Realtime
+→ OpenAI Voice
+
+Create support for independent voice providers.
+
+Add runtime fields:
+
+voice_provider
+voice_id
+
+Supported voice providers:
+
+1. OpenAI
+2. ElevenLabs
+
+Store configuration like:
+
+{
+  "provider": "openai",
+  "model": "gpt-4.1",
+  "voice_provider": "elevenlabs",
+  "voice_id": "Rachel"
+}
+
+Builder Requirements:
+
+- Add Voice Provider selector.
+- Add Voice selector dropdown.
+- Load available voices dynamically.
+- Save selection with agent definition.
+- Do not affect existing agent builder functionality.
+
+Runtime Requirements:
+
+If voice_provider = "openai":
+
+Use existing OpenAI Realtime audio output path.
+
+If voice_provider = "elevenlabs":
+
+Use:
+Speech Input
+→ LLM Response Text
+→ ElevenLabs Text-To-Speech
+→ Audio Stream Output
+
+Create a Voice Provider abstraction layer:
+
+VoiceProvider
+OpenAIVoiceProvider
+ElevenLabsVoiceProvider
+
+Add environment variable support:
+
+ELEVENLABS_API_KEY
+
+Create a voice catalog service that:
+
+- Fetches ElevenLabs voices
+- Caches voice list
+- Exposes voice names and IDs to Builder UI
+
+Create a runtime router:
+
+if voice_provider === "openai"
+  use OpenAI voice output
+
+if voice_provider === "elevenlabs"
+  use ElevenLabs output
+
+Add telemetry:
+
+- voice provider
+- voice id
+- synthesis latency
+- audio generation errors
+
+Maintain backwards compatibility:
+
+Existing agents without voice_provider should automatically default to:
+
+voice_provider = "openai"
+
+Generate implementation plan first.
+
+After approval, implement in small safe phases.
+
+Retell functionality must remain completely untouched.

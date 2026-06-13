@@ -1641,6 +1641,296 @@ export function RetellDeployDialog({
   }
 
   /**
+   * ElevenLabs Voice mode in-browser test call.
+   * Pipeline: browser mic → OpenAI Whisper STT → GPT-4.1 text → ElevenLabs TTS → browser audio.
+   * Uses the /api/el-voice-relay Vite plugin — audio never leaves the dev server unencrypted.
+   * Audio: 24 kHz PCM16 mono (matches OpenAI/ElevenLabs pcm_24000 format).
+   */
+  async function handleElVoiceTestCall() {
+    const voiceId = (settings.voiceOutputId as string | undefined)?.trim();
+    if (!voiceId) {
+      toast.error("Select an ElevenLabs voice first", {
+        description: "Open the OpenAI Engine panel and choose a voice under Voice Output → ElevenLabs.",
+      });
+      return;
+    }
+
+    const rowId = currentAgentRowId ?? (settings.agentId as string | null);
+    if (!rowId) {
+      toast.error("Save the agent first", {
+        description: "Click the + button to save before testing",
+      });
+      return;
+    }
+
+    setCalling(true);
+
+    function cleanupElVoice() {
+      for (const node of activeSourceNodesRef.current) {
+        try { node.stop(); } catch { /* already ended */ }
+      }
+      activeSourceNodesRef.current = [];
+      processorRef.current?.disconnect();
+      processorRef.current = null;
+      workletRef.current?.disconnect();
+      workletRef.current = null;
+      captureSinkRef.current?.disconnect();
+      captureSinkRef.current = null;
+      keepAliveRef.current?.stop();
+      keepAliveRef.current = null;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+      wsRelayRef.current?.close();
+      wsRelayRef.current = null;
+      nextPlayTimeRef.current = 0;
+    }
+
+    // ── Build runtime definition from in-memory builder state ──────────────
+    let systemPrompt: string;
+    let beginMessage: string;
+    try {
+      const def = buildAgentRuntimeDefinition({
+        agentId: rowId ?? "local-elv-test",
+        retellAgentId: null,
+        agentName: (settings as unknown as Record<string, unknown>).agentName as string || "Test Agent",
+        updatedAt: new Date().toISOString(),
+        nodes,
+        edges,
+        settings,
+        variables,
+      });
+      systemPrompt = def.runtimeConfig.openai?.systemPrompt ?? def.compiledPrompt;
+      beginMessage = def.voiceConfig.beginMessage ?? "";
+    } catch (err) {
+      toast.error("Agent definition error", { description: (err as Error).message });
+      setCalling(false);
+      return;
+    }
+
+    const textModel = settings.openaiRealtimeModel ?? settings.model ?? "gpt-4.1";
+
+    try {
+      const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${wsProto}//${window.location.host}/api/el-voice-relay`);
+      wsRelayRef.current = ws;
+      ws.binaryType = "arraybuffer";
+
+      // 24 kHz AudioContext — matches PCM16 pipeline rate
+      const audioCtx = new AudioContext({ sampleRate: 24000 });
+      audioCtxRef.current = audioCtx;
+      nextPlayTimeRef.current = 0;
+
+      // Silent keep-alive oscillator (prevents browser AudioContext auto-suspend)
+      const keepAliveOsc = audioCtx.createOscillator();
+      const keepAliveGain = audioCtx.createGain();
+      keepAliveGain.gain.value = 0;
+      keepAliveOsc.connect(keepAliveGain);
+      keepAliveGain.connect(audioCtx.destination);
+      keepAliveOsc.start();
+      keepAliveRef.current = keepAliveOsc;
+
+      // Mic with echo cancellation (critical: prevents AI audio looping back into VAD)
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = micStream;
+      const micSrc = audioCtx.createMediaStreamSource(micStream);
+
+      let elDeltaCount = 0; // per-response audio delta counter (for jitter buffer)
+
+      // ── Schedule incoming PCM16 audio chunk for playback ──────────────────
+      function scheduleAudioChunk(b64: string) {
+        const ctx = audioCtxRef.current;
+        if (!ctx || !b64) return;
+        if (ctx.state === "suspended") void ctx.resume();
+        const binaryStr = atob(b64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+        const int16 = new Int16Array(bytes.buffer);
+        if (int16.length === 0) return;
+        const float32 = new Float32Array(int16.length);
+        for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+        const buf = ctx.createBuffer(1, float32.length, 24000);
+        buf.copyToChannel(float32, 0);
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        activeSourceNodesRef.current.push(src);
+        src.onended = () => {
+          const arr = activeSourceNodesRef.current;
+          const idx = arr.indexOf(src);
+          if (idx !== -1) arr.splice(idx, 1);
+        };
+        elDeltaCount += 1;
+        const JITTER = elDeltaCount === 1 ? 0.080 : 0.250;
+        const startAt =
+          nextPlayTimeRef.current > ctx.currentTime
+            ? nextPlayTimeRef.current
+            : ctx.currentTime + JITTER;
+        src.start(startAt);
+        nextPlayTimeRef.current = startAt + buf.duration;
+      }
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          type: "session.init",
+          voiceId,
+          systemPrompt,
+          beginMessage,
+          model: textModel,
+        }));
+      };
+
+      ws.onmessage = (ev) => {
+        let msg: Record<string, unknown>;
+        try { msg = JSON.parse(ev.data as string) as Record<string, unknown>; }
+        catch { return; }
+
+        // relay.connected → set up AudioWorklet mic capture
+        if (msg.type === "relay.connected") {
+          (async () => {
+            let usingWorklet = false;
+            if (audioCtx.audioWorklet) {
+              try {
+                const workletSrc = `
+                  class ElvCaptureProcessor extends AudioWorkletProcessor {
+                    constructor() {
+                      super();
+                      this._ratio = sampleRate / 24000;
+                      this._pos = 0; this._prev = 0;
+                      this._buf = new Int16Array(1200); this._n = 0;
+                    }
+                    process(inputs) {
+                      const ch = inputs[0] && inputs[0][0];
+                      if (ch && ch.length) {
+                        const len = ch.length;
+                        while (this._pos < len) {
+                          const i = Math.floor(this._pos);
+                          const frac = this._pos - i;
+                          const s0 = i === 0 ? this._prev : ch[i - 1];
+                          const s1 = ch[i];
+                          let s = s0 + (s1 - s0) * frac;
+                          s = s < -1 ? -1 : s > 1 ? 1 : s;
+                          this._buf[this._n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+                          if (this._n === this._buf.length) {
+                            const out = this._buf.slice(0, this._n);
+                            this.port.postMessage(out.buffer, [out.buffer]);
+                            this._n = 0;
+                          }
+                          this._pos += this._ratio;
+                        }
+                        this._prev = ch[len - 1];
+                        this._pos -= len;
+                      }
+                      return true;
+                    }
+                  }
+                  registerProcessor('elv-capture', ElvCaptureProcessor);
+                `;
+                const blobUrl = URL.createObjectURL(new Blob([workletSrc], { type: "application/javascript" }));
+                try { await audioCtx.audioWorklet.addModule(blobUrl); } finally { URL.revokeObjectURL(blobUrl); }
+                const wn = new AudioWorkletNode(audioCtx, "elv-capture");
+                workletRef.current = wn;
+                wn.port.onmessage = (e) => {
+                  if (ws.readyState !== WebSocket.OPEN) return;
+                  const int16 = new Int16Array(e.data as ArrayBuffer);
+                  const u8 = new Uint8Array(int16.buffer);
+                  let bin = "";
+                  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+                  ws.send(JSON.stringify({ type: "audio.chunk", data: btoa(bin) }));
+                };
+                const sink = audioCtx.createGain();
+                sink.gain.value = 0;
+                captureSinkRef.current = sink;
+                micSrc.connect(wn);
+                wn.connect(sink);
+                sink.connect(audioCtx.destination);
+                usingWorklet = true;
+              } catch (err) {
+                console.warn("[elv-relay] AudioWorklet unavailable, using ScriptProcessor:", err);
+              }
+            }
+            if (!usingWorklet) {
+              const sp = audioCtx.createScriptProcessor(4096, 1, 1);
+              processorRef.current = sp;
+              sp.onaudioprocess = (e) => {
+                if (ws.readyState !== WebSocket.OPEN) return;
+                const f32 = e.inputBuffer.getChannelData(0);
+                const int16 = new Int16Array(f32.length);
+                for (let i = 0; i < f32.length; i++) {
+                  const s = f32[i];
+                  int16[i] = s < -1 ? -32768 : s > 1 ? 32767 : Math.round(s * 32767);
+                }
+                const u8 = new Uint8Array(int16.buffer);
+                let bin = "";
+                for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+                ws.send(JSON.stringify({ type: "audio.chunk", data: btoa(bin) }));
+              };
+              const sink = audioCtx.createGain();
+              sink.gain.value = 0;
+              captureSinkRef.current = sink;
+              micSrc.connect(sp);
+              sp.connect(sink);
+              sink.connect(audioCtx.destination);
+            }
+            setInCall(true);
+            setCalling(false);
+            startedAtRef.current = Date.now();
+            pushTranscript([]);
+          })().catch((err: Error) => {
+            toast.error("Mic setup failed", { description: err.message });
+            setCalling(false);
+            cleanupElVoice();
+          });
+          return;
+        }
+
+        if (msg.type === "transcript") {
+          const role = msg.role as "user" | "agent";
+          const text = String(msg.text ?? "");
+          if (!text) return;
+          if (role === "agent") elDeltaCount = 0;
+          pushTranscript((prev) => [
+            ...prev,
+            { id: crypto.randomUUID(), role, text, partial: false },
+          ]);
+          return;
+        }
+
+        if (msg.type === "audio.delta") {
+          scheduleAudioChunk(String(msg.data ?? ""));
+          return;
+        }
+
+        if (msg.type === "relay.error") {
+          toast.error("EL Voice error", { description: String(msg.message ?? "") });
+          return;
+        }
+      };
+
+      ws.onclose = () => {
+        recordCurrentCallCost();
+        setInCall(false);
+        setActiveNode(null);
+        startedAtRef.current = null;
+        setCalling(false);
+        cleanupElVoice();
+      };
+
+      ws.onerror = () => {
+        toast.error("EL Voice connection failed");
+        setCalling(false);
+        cleanupElVoice();
+      };
+    } catch (e) {
+      toast.error("EL Voice test call failed", { description: (e as Error).message });
+      setCalling(false);
+    }
+  }
+
+  /**
    * VoxStream (ElevenLabs Conversational AI) in-browser test call.
    * Uses a signed URL fetched server-side so the API key is never exposed.
    * Audio: 16 kHz PCM16 mono (ElevenLabs native rate).
@@ -2076,7 +2366,15 @@ export function RetellDeployDialog({
           <Button
             size="sm"
             variant="ghost"
-            onClick={isOpenAI ? handleHyperStreamTestCall : isElevenLabs ? handleVoxStreamTestCall : handleTestCall}
+            onClick={
+              isOpenAI && settings.voiceOutputProvider === "elevenlabs"
+                ? handleElVoiceTestCall
+                : isOpenAI
+                  ? handleHyperStreamTestCall
+                  : isElevenLabs
+                    ? handleVoxStreamTestCall
+                    : handleTestCall
+            }
             disabled={!hasAgent || (!isOpenAI && overLimit)}
             className="!h-8 !w-8 !p-0 text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-40"
             title={
@@ -2084,11 +2382,13 @@ export function RetellDeployDialog({
                 ? "Save the agent first"
                 : !isOpenAI && !isElevenLabs && overLimit
                   ? `Spend cap reached ($${(spendUsedCents / 100).toFixed(2)} / $${(spendLimitCents / 100).toFixed(2)}).`
-                  : isOpenAI
-                    ? "Test HyperStream agent (browser WebRTC)"
-                    : isElevenLabs
-                      ? "Test VoxStream agent (ElevenLabs)"
-                      : "Test agent (browser call)"
+                  : isOpenAI && settings.voiceOutputProvider === "elevenlabs"
+                    ? "Test EL Voice agent (Whisper → GPT-4.1 → ElevenLabs TTS)"
+                    : isOpenAI
+                      ? "Test HyperStream agent (browser WebRTC)"
+                      : isElevenLabs
+                        ? "Test VoxStream agent (ElevenLabs)"
+                        : "Test agent (browser call)"
             }
           >
             <Phone className="h-3.5 w-3.5" />

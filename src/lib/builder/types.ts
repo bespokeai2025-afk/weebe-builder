@@ -279,10 +279,23 @@ export interface BuilderSettings {
    * Stored so subsequent saves update the same agent instead of creating a new one.
    */
   deployedElevenLabsAgentId?: string;
-  /** OpenAI Realtime voice profile (only used when deploymentMode === "OPENAI_NATIVE") */
+  /** OpenAI Realtime voice profile (only used when deploymentMode === "OPENAI_NATIVE" and voiceOutputProvider === "openai") */
   openaiVoice?: "alloy" | "ash" | "ballad" | "coral" | "echo" | "shimmer" | "sage" | "verse" | "marine";
   /** OpenAI Realtime reasoning effort level (only used when deploymentMode === "OPENAI_NATIVE") */
   openaiReasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
+  /**
+   * Voice output provider for OPENAI_NATIVE mode.
+   * "openai"      → use OpenAI Realtime built-in voice (default; existing behaviour untouched)
+   * "elevenlabs"  → Whisper STT → GPT text LLM → ElevenLabs TTS pipeline
+   */
+  voiceOutputProvider?: "openai" | "elevenlabs";
+  /**
+   * ElevenLabs voice ID when voiceOutputProvider === "elevenlabs".
+   * This is the raw ElevenLabs UUID, e.g. "21m00Tcm4TlvDq8ikWAM".
+   */
+  voiceOutputId?: string;
+  /** Human-readable display name for the selected EL voice (e.g. "Rachel"). */
+  voiceOutputName?: string;
   /**
    * OpenAI Realtime model ID (only used when deploymentMode === "OPENAI_NATIVE").
    * Defaults to "gpt-4o-realtime-preview" when unset.

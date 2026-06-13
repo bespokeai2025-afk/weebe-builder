@@ -172,6 +172,8 @@ export function buildAgentRuntimeDefinition(params: {
     agentName,
     retellAgentId,
     provider,
+    voiceOutputProvider: (settings.voiceOutputProvider ?? "openai") as "openai" | "elevenlabs",
+    voiceOutputId: settings.voiceOutputId,
     model: {
       id: settings.model ?? "gpt-4.1",
       temperature: settings.temperature ?? 0.3,
