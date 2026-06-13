@@ -403,12 +403,14 @@ function SaleAmountDialog({
   open,
   onOpenChange,
   onSave,
+  onDismiss,
   saving,
 }: {
   lead: PipelineLead | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSave: (amount: number) => void;
+  onDismiss?: () => void;
   saving: boolean;
 }) {
   const [value, setValue] = useState("");
@@ -464,7 +466,7 @@ function SaleAmountDialog({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onOpenChange(false)}
+            onClick={() => { onOpenChange(false); onDismiss?.(); }}
             disabled={saving}
           >
             Skip for now
@@ -634,6 +636,7 @@ function PipelinePage() {
       if (stage === "sale_done") {
         setSaleDialogLead({ ...lead, effective_stage: "sale_done" });
         setSaleDialogOpen(true);
+        setCampaignPickerLead(lead);
       }
       if (stage === "follow_up") {
         setCampaignPickerLead(lead);
@@ -651,6 +654,7 @@ function PipelinePage() {
       qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
       toast.success(`Sale amount saved — ${fmt$Full(amount)}`);
       setSaleDialogOpen(false);
+      setCampaignPickerOpen(true);
     } catch (e) {
       const msg = (e as Error)?.message ?? "";
       if (msg.includes("MIGRATION_NEEDED")) {
@@ -659,6 +663,7 @@ function PipelinePage() {
           duration: 8000,
         });
         setSaleDialogOpen(false);
+        setCampaignPickerOpen(true);
       } else {
         toast.error("Failed to save amount", { description: msg });
       }
@@ -836,17 +841,22 @@ function PipelinePage() {
       <SaleAmountDialog
         lead={saleDialogLead}
         open={saleDialogOpen}
-        onOpenChange={setSaleDialogOpen}
+        onOpenChange={(v) => {
+          setSaleDialogOpen(v);
+          if (!v && !campaignPickerOpen) setSaleDialogLead(null);
+        }}
         onSave={handleSaveAmount}
+        onDismiss={() => setCampaignPickerOpen(true)}
         saving={savingAmount}
       />
 
-      {/* Campaign picker — shown when a lead is dragged / moved to Follow-Up */}
+      {/* Campaign picker — shown after follow_up move, or after sale amount dialog */}
       <CampaignPickerDialog
         open={campaignPickerOpen}
         leadId={campaignPickerLead?.id ?? null}
         leadName={campaignPickerLead?.full_name}
-        onClose={() => { setCampaignPickerOpen(false); setCampaignPickerLead(null); }}
+        title={saleDialogLead ? "Start Campaign" : "Start Follow-Up Campaign"}
+        onClose={() => { setCampaignPickerOpen(false); setCampaignPickerLead(null); setSaleDialogLead(null); }}
       />
     </div>
   );

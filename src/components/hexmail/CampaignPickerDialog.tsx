@@ -120,11 +120,12 @@ interface Props {
   open: boolean;
   leadId: string | null;
   leadName?: string | null;
+  title?: string;
   onClose: () => void;
   onEnrolled?: (campaignId: string) => void;
 }
 
-export function CampaignPickerDialog({ open, leadId, leadName, onClose, onEnrolled }: Props) {
+export function CampaignPickerDialog({ open, leadId, leadName, title = "Start Follow-Up Campaign", onClose, onEnrolled }: Props) {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
   // Reset selection when dialog opens
@@ -169,7 +170,7 @@ export function CampaignPickerDialog({ open, leadId, leadName, onClose, onEnroll
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-primary" />
-            Start Follow-Up Campaign
+            {title}
           </DialogTitle>
           <DialogDescription>
             {leadName

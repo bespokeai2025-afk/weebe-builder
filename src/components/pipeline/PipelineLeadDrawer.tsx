@@ -263,6 +263,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
       if (stage === "sale_done") {
         setSaleAmtEditing(true);
         setSaleAmtInput(lead.sale_amount != null ? String(lead.sale_amount) : "");
+        setCampaignPickerOpen(true);
       }
       if (stage === "follow_up") {
         setCampaignPickerOpen(true);
