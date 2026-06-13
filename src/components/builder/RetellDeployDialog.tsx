@@ -2170,21 +2170,7 @@ export function RetellDeployDialog({
           const role = msg.role as "user" | "agent";
           const text = String(msg.text ?? "");
           if (!text) return;
-          if (role === "agent") {
-            elDeltaCount = 0;
-            // Agent transcript received = all audio.delta chunks for this turn
-            // have been sent. Schedule mic unmute after the queued audio drains
-            // + 300 ms echo tail so the last word doesn't loop back.
-            const ctx = audioCtxRef.current;
-            const remainingMs = ctx && nextPlayTimeRef.current > ctx.currentTime
-              ? (nextPlayTimeRef.current - ctx.currentTime) * 1000
-              : 0;
-            if (elDrainTimer !== null) clearTimeout(elDrainTimer);
-            elDrainTimer = setTimeout(() => {
-              elDrainTimer = null;
-              unmuteElMic();
-            }, remainingMs + 300);
-          }
+          if (role === "agent") elDeltaCount = 0;
           pushTranscript((prev) => [
             ...prev,
             { id: crypto.randomUUID(), role, text, partial: false },
@@ -2194,12 +2180,30 @@ export function RetellDeployDialog({
 
         if (msg.type === "audio.delta") {
           // First chunk of AI audio → mute mic immediately.
+          // NOTE: the relay sends the agent transcript BEFORE TTS audio starts,
+          // so we cannot use the transcript event to know when TTS is done.
+          // We rely on response.done (sent after all TTS chunks) instead.
           if (!isElAISpeaking) {
             if (elDrainTimer !== null) { clearTimeout(elDrainTimer); elDrainTimer = null; }
             isElAISpeaking = true;
             console.log("[elv-relay] mic muted — AI audio started");
           }
           scheduleAudioChunk(String(msg.data ?? ""));
+          return;
+        }
+
+        // response.done fires after ALL TTS audio chunks have been sent.
+        // Schedule unmute after the queued audio drains + 300 ms echo tail.
+        if (msg.type === "response.done") {
+          const ctx = audioCtxRef.current;
+          const remainingMs = ctx && nextPlayTimeRef.current > ctx.currentTime
+            ? (nextPlayTimeRef.current - ctx.currentTime) * 1000
+            : 0;
+          if (elDrainTimer !== null) clearTimeout(elDrainTimer);
+          elDrainTimer = setTimeout(() => {
+            elDrainTimer = null;
+            unmuteElMic();
+          }, remainingMs + 300);
           return;
         }
 
