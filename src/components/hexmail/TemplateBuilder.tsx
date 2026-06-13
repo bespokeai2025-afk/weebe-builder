@@ -412,13 +412,15 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
     setIsExtracting(true);
     try {
       if (isDocxFile) {
+        // Set bodyFormat to "docx" so the viewer renders directly from the file
+        setDocHeader((h) => ({ ...h, bodyFormat: "docx" }));
+        // Also extract via mammoth as a text fallback for the AI editor
         const res = await fetch(fileUrl);
         if (!res.ok) throw new Error(`Failed to fetch document (${res.status})`);
         const arrayBuffer = await res.arrayBuffer();
         const mammoth = (await import("mammoth")).default;
         const result = await mammoth.convertToHtml({ arrayBuffer });
         setBody(result.value);
-        setDocHeader((h) => ({ ...h, bodyFormat: "html" }));
         const detected = detectVars(result.value);
         setVars((prev) => mergeDetected(prev, detected));
         toast.success("Document loaded — {{variables}} are highlighted");
@@ -792,7 +794,23 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
                 </div>
               )}
 
-              {preview ? (
+              {isDocType && docHeader.bodyFormat === "docx" ? (
+                /* ── Docx mode: full-width exact render from file ── */
+                <DocumentPreview
+                  body={body}
+                  header={docHeader}
+                  vars={vars}
+                  fills={previewFills}
+                  templateType={type}
+                  templateName={name}
+                  mode={preview ? "preview" : "edit"}
+                  fileUrl={fileUrl ?? undefined}
+                  onVarsDetected={(detected) =>
+                    setVars((prev) => mergeDetected(prev, detected))
+                  }
+                  className="min-h-[500px]"
+                />
+              ) : preview ? (
                 isDocType ? (
                   <DocumentPreview
                     body={body}
@@ -802,6 +820,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
                     templateType={type}
                     templateName={name}
                     mode="preview"
+                    fileUrl={fileUrl ?? undefined}
                     className="min-h-[300px]"
                   />
                 ) : (
@@ -812,15 +831,13 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
               ) : (
                 isDocType ? (
                   <div className="grid grid-cols-2 gap-3">
-                    {/* Editor — left side */}
                     <Textarea
                       ref={textareaRef}
-                      placeholder={`Write or paste your document body here.\n\nUse {{variable_name}} anywhere you want a fill-in field — e.g.\n  Invoice #: {{invoice_number}}\n  Billing Address: {{billing_address}}\n  Total: {{total_amount}}\n\nOr upload a file above and click 'Extract Text'.`}
+                      placeholder={`Write or paste your document body here.\n\nUse {{variable_name}} anywhere you want a fill-in field — e.g.\n  Invoice #: {{invoice_number}}\n  Billing Address: {{billing_address}}\n  Total: {{total_amount}}\n\nOr upload a file above and click 'Load Document'.`}
                       value={body}
                       onChange={(e) => setBody(e.target.value)}
                       className="min-h-[420px] font-mono text-sm resize-none"
                     />
-                    {/* Live document preview — right side */}
                     <DocumentPreview
                       body={body}
                       header={docHeader}
@@ -829,6 +846,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
                       templateType={type}
                       templateName={name}
                       mode="edit"
+                      fileUrl={fileUrl ?? undefined}
                       className="min-h-[420px] overflow-auto"
                     />
                   </div>

@@ -1,18 +1,21 @@
 import { type DocHeader, type VarMap } from "@/lib/hexmail/vars-helpers";
 import { type TemplateType } from "@/lib/hexmail/templates.functions";
 import { cn } from "@/lib/utils";
+import { DocxViewer } from "@/components/hexmail/DocxViewer";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Props {
-  body:         string;
-  header:       DocHeader;
-  vars:         VarMap;
-  fills:        Record<string, string>;
-  templateType: TemplateType;
-  templateName: string;
-  mode:         "edit" | "preview";
-  className?:   string;
+  body:            string;
+  header:          DocHeader;
+  vars:            VarMap;
+  fills:           Record<string, string>;
+  templateType:    TemplateType;
+  templateName:    string;
+  mode:            "edit" | "preview";
+  fileUrl?:        string;
+  onVarsDetected?: (vars: string[]) => void;
+  className?:      string;
 }
 
 // ── Document-type labels ──────────────────────────────────────────────────────
@@ -375,9 +378,24 @@ export function DocumentPreview({
   templateType,
   templateName,
   mode,
+  fileUrl,
+  onVarsDetected,
   className,
 }: Props) {
   const isHtml = header.bodyFormat === "html";
+  const isDocx = header.bodyFormat === "docx" && !!fileUrl;
+
+  if (isDocx) {
+    return (
+      <DocxViewer
+        fileUrl={fileUrl!}
+        fills={fills}
+        mode={mode}
+        className={className}
+        onVarsDetected={onVarsDetected}
+      />
+    );
+  }
 
   if (isHtml) {
     const processed = injectVarHighlights(body, fills, mode);
