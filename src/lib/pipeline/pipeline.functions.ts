@@ -81,7 +81,8 @@ export type PipelineLead = {
   hasNotes: boolean;
 };
 
-const BASE_SELECT = [
+// Core columns that are always present
+const CORE_SELECT = [
   "id",
   "full_name",
   "phone",
@@ -90,7 +91,6 @@ const BASE_SELECT = [
   "status",
   "funding_amount",
   "monthly_revenue",
-  "sale_amount",
   "sentiment",
   "call_outcome",
   "attempt_count",
@@ -100,6 +100,9 @@ const BASE_SELECT = [
   "source",
   "state_name",
 ].join(", ");
+
+// Optional columns added once migrations are applied
+const BASE_SELECT = `${CORE_SELECT}, sale_amount`;
 
 function mapLead(
   lead: Record<string, unknown>,
@@ -164,6 +167,10 @@ async function fetchIndicators(
   return { bookedIds, notedIds };
 }
 
+const isColMissing = (err: any) =>
+  String(err?.code) === "42703" ||
+  /column .* does not exist/i.test(String(err?.message));
+
 export const getPipelineLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<PipelineLead[]> => {
@@ -171,39 +178,41 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     if (!workspaceId) return [];
     const sb = supabase as any;
 
-    // Fetch leads + indicators in parallel
-    const [leadsResult, indicators] = await Promise.all([
+    const query = (cols: string) =>
       sb
         .from("leads")
-        .select(`${BASE_SELECT}, pipeline_stage`)
+        .select(cols)
         .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false });
+
+    // Fetch indicators in parallel with the first attempt
+    const [r1, indicators] = await Promise.all([
+      query(`${BASE_SELECT}, pipeline_stage`),   // full: sale_amount + pipeline_stage
       fetchIndicators(sb, workspaceId),
     ]);
-
     const { bookedIds, notedIds } = indicators;
 
-    if (!leadsResult.error) {
-      return ((leadsResult.data ?? []) as Array<Record<string, unknown>>).map(
+    if (!r1.error) {
+      return ((r1.data ?? []) as Array<Record<string, unknown>>).map(
         (l) => mapLead(l, true, bookedIds, notedIds),
       );
     }
+    if (!isColMissing(r1.error)) throw new Error(r1.error.message);
 
-    const isColumnError =
-      String(leadsResult.error.message).toLowerCase().includes("pipeline_stage") ||
-      String(leadsResult.error.code) === "42703";
+    // sale_amount column missing — try without it but keep pipeline_stage
+    const r2 = await query(`${CORE_SELECT}, pipeline_stage`);
+    if (!r2.error) {
+      return ((r2.data ?? []) as Array<Record<string, unknown>>).map(
+        (l) => mapLead(l, true, bookedIds, notedIds),
+      );
+    }
+    if (!isColMissing(r2.error)) throw new Error(r2.error.message);
 
-    if (!isColumnError) throw new Error(leadsResult.error.message);
-
-    const { data: d2, error: e2 } = await sb
-      .from("leads")
-      .select(BASE_SELECT)
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false });
-
-    if (e2) throw new Error(e2.message);
-    return ((d2 ?? []) as Array<Record<string, unknown>>).map((l) =>
-      mapLead(l, false, bookedIds, notedIds),
+    // pipeline_stage column also missing — use core only
+    const r3 = await query(CORE_SELECT);
+    if (r3.error) throw new Error(r3.error.message);
+    return ((r3.data ?? []) as Array<Record<string, unknown>>).map(
+      (l) => mapLead(l, false, bookedIds, notedIds),
     );
   });
 
