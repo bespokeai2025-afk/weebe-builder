@@ -1,0 +1,189 @@
+HEXMAIL FOLLOW-UP CENTRE + TEMPLATE STUDIO
+
+IMPORTANT
+
+* Do not modify existing Builder functionality.
+* Do not modify Retell functionality.
+* Do not modify HyperStream functionality.
+* Extend existing campaign functionality only.
+* Generate implementation plan before coding.
+
+OBJECTIVE
+
+Rename the existing Email Campaign section to:
+
+HEXMAIL FOLLOW-UP CENTRE
+
+and create a separate:
+
+HEXMAIL TEMPLATE STUDIO
+
+for managing reusable content assets.
+
+====================================================
+
+HEXMAIL FOLLOW-UP CENTRE
+
+Purpose:
+
+Build and manage multi-channel follow-up campaigns.
+
+Support:
+
+* Email
+* WhatsApp
+* SMS
+* AI Calls
+* Tasks
+* Notifications
+* Pipeline Updates
+* Tag Assignments
+
+Maintain the existing timeline layout.
+
+Example:
+
+Day 1
+Day 2
+Day 3
+...
+Day 90
+
+Each day must support multiple actions.
+
+Each action must use templates from Template Studio.
+
+====================================================
+
+HEXMAIL TEMPLATE STUDIO
+
+Create a dedicated page.
+
+Purpose:
+
+Manage reusable content.
+
+Categories:
+
+Email Templates
+Document Templates
+Proposal Templates
+Quote Templates
+Invoice Templates
+Contract Templates
+SMS Templates
+WhatsApp Templates
+
+====================================================
+
+TEMPLATE BUILDER
+
+Support:
+
+Rich Text Editor
+
+Variables:
+
+{{contact_name}}
+{{company_name}}
+{{agent_name}}
+{{appointment_date}}
+{{pipeline_stage}}
+{{custom_fields}}
+
+Preview Mode
+
+Save
+Clone
+Archive
+
+====================================================
+
+DOCUMENT TEMPLATES
+
+Support:
+
+Proposal
+Quote
+Contract
+Invoice
+Agreement
+PDF Document
+
+Allow automatic generation using CRM data.
+
+====================================================
+
+TEMPLATE LIBRARY
+
+Display:
+
+Name
+Type
+Last Updated
+Usage Count
+Status
+
+Allow:
+
+Search
+Filter
+Duplicate
+Archive
+
+====================================================
+
+FOLLOW-UP CAMPAIGN INTEGRATION
+
+Campaign Actions must reference templates.
+
+Example:
+
+Day 7
+
+Email
+→ Select Template
+
+[Proposal Follow-Up]
+
+WhatsApp
+→ Select Template
+
+[Appointment Reminder]
+
+====================================================
+
+AI DOCUMENT GENERATION
+
+Allow future support for:
+
+Generate Proposal
+Generate Quote
+Generate Contract
+
+from CRM records automatically.
+
+====================================================
+
+SUCCESS CRITERIA
+
+The platform contains:
+
+1. HexMail Follow-Up Centre
+
+   * Campaign Builder
+   * Campaign Scheduler
+   * Campaign Library
+
+2. HexMail Template Studio
+
+   * Email Templates
+   * Document Templates
+   * Proposal Templates
+   * Contract Templates
+   * SMS Templates
+   * WhatsApp Templates
+
+3. Shared Template Library
+
+All campaigns must use reusable templates rather than embedding content directly inside campaign schedules.
