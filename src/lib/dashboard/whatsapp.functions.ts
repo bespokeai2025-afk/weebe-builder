@@ -356,6 +356,40 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
 
 // ── WhatsApp Agents ───────────────────────────────────────────────────────────
 
+export const getWAProviderStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) return { provider: null, twilioConfigured: false, watiConnected: false, isConfigured: false };
+    const sb = supabase as any;
+
+    const { data: ws } = await sb
+      .from("workspace_settings")
+      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    const twilioConfigured = !!(ws?.twilio_account_sid?.trim() && ws?.twilio_auth_token?.trim() && ws?.whatsapp_phone_id?.trim());
+
+    const { data: watiRow } = await sb
+      .from("wati_connections")
+      .select("status")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    const watiConnected = watiRow?.status === "connected";
+
+    const storedProvider = ws?.whatsapp_provider as string | undefined;
+    const provider = storedProvider && storedProvider !== "" ? storedProvider : null;
+
+    return {
+      provider,
+      twilioConfigured,
+      watiConnected,
+      isConfigured: twilioConfigured || watiConnected,
+    };
+  });
+
 export const listWAAgents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
