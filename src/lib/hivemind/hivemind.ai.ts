@@ -25,10 +25,10 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
     sb.from("usage_events").select("minutes,cost_cents,occurred_at").eq("workspace_id", workspaceId).gte("occurred_at", s30.toISOString()).limit(2000),
     sb.from("hexmail_campaigns").select("id,name,status,created_at").eq("workspace_id", workspaceId).limit(30),
     sb.from("hexmail_campaign_enrollments").select("campaign_id,status").eq("workspace_id", workspaceId).limit(5000),
-    sb.from("documents").select("id,name,created_at").eq("workspace_id", workspaceId).limit(100).catch(() => ({ data: [] })),
-    sb.from("hivemind_tasks").select("status,title,priority").eq("workspace_id", workspaceId).neq("status","completed").limit(50).catch(() => ({ data: [] })),
-    sb.from("hivemind_actions").select("status,title,action_type,created_at").eq("workspace_id", workspaceId).eq("status","pending").limit(20).catch(() => ({ data: [] })),
-    sb.from("knowledge_bases").select("id,name").eq("workspace_id", workspaceId).limit(20).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("documents").select("id,name,created_at").eq("workspace_id", workspaceId).limit(100)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("hivemind_tasks").select("status,title,priority").eq("workspace_id", workspaceId).neq("status","completed").limit(50)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("hivemind_actions").select("status,title,action_type,created_at").eq("workspace_id", workspaceId).eq("status","pending").limit(20)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("knowledge_bases").select("id,name").eq("workspace_id", workspaceId).limit(20)).catch(() => ({ data: [] })),
   ]);
 
   const agents   = ag.data    ?? [];
