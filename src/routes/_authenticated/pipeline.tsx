@@ -27,6 +27,8 @@ import {
   PhoneCall,
   CalendarCheck,
   StickyNote,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -106,10 +108,12 @@ function LeadCard({
   lead,
   overlay = false,
   onSelect,
+  onMove,
 }: {
   lead: PipelineLead;
   overlay?: boolean;
   onSelect?: (lead: PipelineLead) => void;
+  onMove?: (lead: PipelineLead, stage: PipelineStage) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: lead.id, data: { lead } });
@@ -178,7 +182,7 @@ function LeadCard({
         </div>
       )}
 
-      {/* Footer: status + meta icons */}
+      {/* Footer: status + meta icons + stage arrows */}
       <div className="mt-1.5 flex items-center justify-between gap-1 flex-wrap">
         <span className={cn("inline-flex items-center text-[9px] font-medium px-1 py-0.5 rounded-full", statusCls)}>
           {statusLabel}
@@ -200,6 +204,31 @@ function LeadCard({
           {lead.hasBooking && (
             <CalendarCheck className="h-2.5 w-2.5 text-green-500" title="Appointment booked" />
           )}
+          {onMove && !overlay && (() => {
+            const idx = PIPELINE_STAGES.findIndex((s) => s.id === lead.effective_stage);
+            const prev = PIPELINE_STAGES[idx - 1];
+            const next = PIPELINE_STAGES[idx + 1];
+            return (
+              <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  title={prev ? `Move to ${prev.label}` : undefined}
+                  disabled={!prev}
+                  onClick={(e) => { e.stopPropagation(); if (prev) onMove(lead, prev.id); }}
+                  className="h-3.5 w-3.5 flex items-center justify-center rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-2.5 w-2.5" />
+                </button>
+                <button
+                  title={next ? `Move to ${next.label}` : undefined}
+                  disabled={!next}
+                  onClick={(e) => { e.stopPropagation(); if (next) onMove(lead, next.id); }}
+                  className="h-3.5 w-3.5 flex items-center justify-center rounded hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="h-2.5 w-2.5" />
+                </button>
+              </span>
+            );
+          })()}
         </div>
       </div>
 
@@ -214,11 +243,13 @@ function PipelineColumn({
   leads,
   activeId,
   onSelectLead,
+  onMoveLead,
 }: {
   stage: (typeof PIPELINE_STAGES)[number];
   leads: PipelineLead[];
   activeId: string | null;
   onSelectLead: (lead: PipelineLead) => void;
+  onMoveLead: (lead: PipelineLead, stage: PipelineStage) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -250,6 +281,7 @@ function PipelineColumn({
             key={lead.id}
             lead={lead}
             onSelect={onSelectLead}
+            onMove={onMoveLead}
           />
         ))}
 
@@ -412,6 +444,7 @@ function PipelinePage() {
                   leads={grouped[stage.id] ?? []}
                   activeId={activeId}
                   onSelectLead={handleSelectLead}
+                  onMoveLead={(lead, s) => moveCard({ leadId: lead.id, stage: s })}
                 />
               ))}
             </div>

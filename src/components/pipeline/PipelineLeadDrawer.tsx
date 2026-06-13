@@ -27,7 +27,10 @@ import {
 } from "@/lib/dashboard/notes.functions";
 import {
   getLeadDetail,
+  setLeadPipelineStage,
+  PIPELINE_STAGES,
   type PipelineLead,
+  type PipelineStage,
 } from "@/lib/pipeline/pipeline.functions";
 import {
   Phone,
@@ -133,11 +136,15 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
   const deleteFn  = useServerFn(deleteEntityNote);
   const listFn    = useServerFn(listEntityNotes);
   const bookFn    = useServerFn(createManualBooking);
+  const moveFn    = useServerFn(setLeadPipelineStage);
 
   // ── notes state ────────────────────────────────────────────────────────────
   const [noteText,   setNoteText]   = useState("");
   const [addingNote, setAddingNote] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // ── stage state ────────────────────────────────────────────────────────────
+  const [movingStage, setMovingStage] = useState(false);
 
   // ── booking form state ─────────────────────────────────────────────────────
   const [bookOpen,   setBookOpen]   = useState(false);
@@ -213,6 +220,20 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
       toast.error("Failed to delete note", { description: (e as Error).message });
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleMoveStage(stage: PipelineStage) {
+    if (!lead || movingStage) return;
+    setMovingStage(true);
+    try {
+      await moveFn({ data: { leadId: lead.id, stage } });
+      toast.success(`Moved to ${PIPELINE_STAGES.find((s) => s.id === stage)?.label ?? stage}`);
+      qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
+    } catch (e) {
+      toast.error("Failed to move lead", { description: (e as Error).message });
+    } finally {
+      setMovingStage(false);
     }
   }
 
@@ -341,14 +362,28 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
             </div>
           </div>
 
-          {/* Status pill */}
-          {lead.status && (
-            <div className="mt-2">
-              <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                {STATUS_LABEL[lead.status] ?? lead.status}
-              </span>
-            </div>
-          )}
+          {/* Stage selector */}
+          <div className="mt-3">
+            <Select
+              value={lead.effective_stage}
+              onValueChange={(v) => handleMoveStage(v as PipelineStage)}
+              disabled={movingStage}
+            >
+              <SelectTrigger className="h-7 text-xs w-full">
+                <SelectValue placeholder="Move to stage…" />
+              </SelectTrigger>
+              <SelectContent>
+                {PIPELINE_STAGES.map((s) => (
+                  <SelectItem key={s.id} value={s.id} className="text-xs">
+                    <span className="flex items-center gap-2">
+                      <span className={cn("h-2 w-2 rounded-full shrink-0", s.color)} />
+                      {s.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </SheetHeader>
 
         {/* ── Scrollable body ─────────────────────────────────────────────── */}

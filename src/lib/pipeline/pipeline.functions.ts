@@ -7,6 +7,7 @@ export type PipelineStage =
   | "qualified"
   | "contact_made"
   | "second_call"
+  | "bookings"
   | "sale_done"
   | "documentation"
   | "follow_up"
@@ -21,8 +22,9 @@ export const PIPELINE_STAGES: {
   { id: "qualified",     label: "Qualified",     color: "bg-violet-500" },
   { id: "contact_made",  label: "Contact Made",  color: "bg-orange-500" },
   { id: "second_call",   label: "Second Call",   color: "bg-yellow-500" },
+  { id: "bookings",      label: "Bookings",      color: "bg-sky-500" },
   { id: "sale_done",     label: "Sale Done",     color: "bg-green-500" },
-  { id: "documentation", label: "Documentation", color: "bg-teal-500" },
+  { id: "documentation", label: "Documents",     color: "bg-teal-500" },
   { id: "follow_up",     label: "Follow Up",     color: "bg-indigo-500" },
   { id: "dont_call",     label: "Don't Call",    color: "bg-red-500" },
 ];
@@ -37,6 +39,19 @@ export const STATUS_TO_STAGE: Record<string, PipelineStage> = {
   completed:     "sale_done",
   not_interested:"dont_call",
   do_not_call:   "dont_call",
+};
+
+// Pipeline stage → lead status written back to DB
+export const STAGE_TO_STATUS: Record<PipelineStage, string> = {
+  lead:          "need_to_call",
+  qualified:     "qualified",
+  contact_made:  "calling",
+  second_call:   "interested",
+  bookings:      "interested",
+  sale_done:     "completed",
+  documentation: "qualified",
+  follow_up:     "interested",
+  dont_call:     "do_not_call",
 };
 
 export type PipelineLead = {
@@ -285,10 +300,13 @@ export const setLeadPipelineStage = createServerFn({ method: "POST" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabase as any;
+    const stage = data.stage as PipelineStage;
+    const newStatus = STAGE_TO_STATUS[stage] ?? "need_to_call";
     const { error } = await sb
       .from("leads")
       .update({
-        pipeline_stage: data.stage,
+        pipeline_stage: stage,
+        status: newStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", data.leadId)
