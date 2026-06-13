@@ -59,6 +59,9 @@ export type PipelineLead = {
   created_at: string | null;
   source: string | null;
   state_name: string | null;
+  // indicator flags
+  hasBooking: boolean;
+  hasNotes: boolean;
 };
 
 const BASE_SELECT = [
@@ -83,7 +86,10 @@ const BASE_SELECT = [
 function mapLead(
   lead: Record<string, unknown>,
   hasPipelineStage: boolean,
+  bookedIds: Set<string>,
+  notedIds: Set<string>,
 ): PipelineLead {
+  const id = lead.id as string;
   const ps = hasPipelineStage
     ? (lead.pipeline_stage as PipelineStage | null)
     : null;
@@ -91,7 +97,7 @@ function mapLead(
     ps ?? STATUS_TO_STAGE[lead.status as string] ?? "lead"
   ) as PipelineStage;
   return {
-    id: lead.id as string,
+    id,
     full_name: (lead.full_name as string | null) ?? null,
     phone: (lead.phone as string | null) ?? null,
     email: (lead.email as string | null) ?? null,
@@ -109,7 +115,34 @@ function mapLead(
     created_at: (lead.created_at as string | null) ?? null,
     source: (lead.source as string | null) ?? null,
     state_name: (lead.state_name as string | null) ?? null,
+    hasBooking: bookedIds.has(id),
+    hasNotes: notedIds.has(id),
   };
+}
+
+async function fetchIndicators(
+  sb: any,
+  workspaceId: string,
+): Promise<{ bookedIds: Set<string>; notedIds: Set<string> }> {
+  const [bookingsRes, notesRes] = await Promise.all([
+    sb
+      .from("calendar_bookings")
+      .select("lead_id")
+      .eq("workspace_id", workspaceId)
+      .not("lead_id", "is", null),
+    sb
+      .from("entity_notes")
+      .select("entity_id")
+      .eq("workspace_id", workspaceId)
+      .eq("entity_type", "lead"),
+  ]);
+  const bookedIds = new Set<string>(
+    ((bookingsRes.data ?? []) as { lead_id: string }[]).map((r) => r.lead_id),
+  );
+  const notedIds = new Set<string>(
+    ((notesRes.data ?? []) as { entity_id: string }[]).map((r) => r.entity_id),
+  );
+  return { bookedIds, notedIds };
 }
 
 export const getPipelineLeads = createServerFn({ method: "GET" })
@@ -119,25 +152,29 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     if (!workspaceId) return [];
     const sb = supabase as any;
 
-    // Try with pipeline_stage first; fall back without it if the migration
-    // hasn't been applied yet.
-    const { data: d1, error: e1 } = await sb
-      .from("leads")
-      .select(`${BASE_SELECT}, pipeline_stage`)
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false });
+    // Fetch leads + indicators in parallel
+    const [leadsResult, indicators] = await Promise.all([
+      sb
+        .from("leads")
+        .select(`${BASE_SELECT}, pipeline_stage`)
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false }),
+      fetchIndicators(sb, workspaceId),
+    ]);
 
-    if (!e1) {
-      return ((d1 ?? []) as Array<Record<string, unknown>>).map((l) =>
-        mapLead(l, true),
+    const { bookedIds, notedIds } = indicators;
+
+    if (!leadsResult.error) {
+      return ((leadsResult.data ?? []) as Array<Record<string, unknown>>).map(
+        (l) => mapLead(l, true, bookedIds, notedIds),
       );
     }
 
     const isColumnError =
-      String(e1.message).toLowerCase().includes("pipeline_stage") ||
-      String(e1.code) === "42703";
+      String(leadsResult.error.message).toLowerCase().includes("pipeline_stage") ||
+      String(leadsResult.error.code) === "42703";
 
-    if (!isColumnError) throw new Error(e1.message);
+    if (!isColumnError) throw new Error(leadsResult.error.message);
 
     const { data: d2, error: e2 } = await sb
       .from("leads")
@@ -147,7 +184,7 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
 
     if (e2) throw new Error(e2.message);
     return ((d2 ?? []) as Array<Record<string, unknown>>).map((l) =>
-      mapLead(l, false),
+      mapLead(l, false, bookedIds, notedIds),
     );
   });
 

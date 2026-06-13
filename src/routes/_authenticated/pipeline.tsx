@@ -25,6 +25,8 @@ import {
   TrendingUp,
   MapPin,
   PhoneCall,
+  CalendarCheck,
+  StickyNote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -209,7 +211,7 @@ function LeadCard({
         )}
       </div>
 
-      {/* Footer: status + attempts + last contact */}
+      {/* Footer: status + attempts + last contact + indicators */}
       <div className="mt-2.5 flex items-center justify-between gap-1.5 flex-wrap">
         <span
           className={cn(
@@ -229,6 +231,12 @@ function LeadCard({
           )}
           {lastContact && (
             <span className="text-[10px] text-muted-foreground">{lastContact}</span>
+          )}
+          {lead.hasNotes && (
+            <StickyNote className="h-3 w-3 text-amber-500" title="Has notes" />
+          )}
+          {lead.hasBooking && (
+            <CalendarCheck className="h-3 w-3 text-green-500" title="Appointment booked" />
           )}
         </div>
       </div>
