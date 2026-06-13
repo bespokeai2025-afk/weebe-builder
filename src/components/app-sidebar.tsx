@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   LayoutGrid,
@@ -25,7 +25,26 @@ import {
   Settings2,
   PhoneIncoming,
   Kanban,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  type DragStartEvent,
+  type DragOverEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { restartTour } from "@/components/onboarding/useOnboarding";
 import {
   Sidebar,
@@ -38,7 +57,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -46,7 +65,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +74,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { getMyAdminStatus, getMyProfile } from "@/lib/auth/auth.functions";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-const navItems = [
+type NavItem = {
+  title: string;
+  url: string;
+  icon: React.ElementType;
+  tourId?: string;
+};
+
+const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Agents",    url: "/my-agents", icon: LayoutGrid,    tourId: "nav-agents" },
@@ -72,6 +98,112 @@ const navItems = [
   { title: "Billing",   url: "/billing",   icon: CreditCard },
 ];
 
+const STORAGE_KEY = "sidebar-nav-order";
+
+function loadOrder(): NavItem[] {
+  if (typeof window === "undefined") return DEFAULT_NAV_ITEMS;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return DEFAULT_NAV_ITEMS;
+    const urls: string[] = JSON.parse(saved);
+    const map = new Map(DEFAULT_NAV_ITEMS.map((i) => [i.url, i]));
+    const ordered = urls.map((u) => map.get(u)).filter(Boolean) as NavItem[];
+    const missing = DEFAULT_NAV_ITEMS.filter((i) => !urls.includes(i.url));
+    return [...ordered, ...missing];
+  } catch {
+    return DEFAULT_NAV_ITEMS;
+  }
+}
+
+function saveOrder(items: NavItem[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items.map((i) => i.url)));
+  } catch {}
+}
+
+// ── Sortable nav item ──────────────────────────────────────────────────────────
+function SortableNavItem({
+  item,
+  collapsed,
+  active,
+  buttonClass,
+}: {
+  item: NavItem;
+  collapsed: boolean;
+  active: boolean;
+  buttonClass: string;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.url });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
+
+  return (
+    <SidebarMenuItem
+      ref={setNodeRef}
+      style={style}
+      className="group/item group-data-[collapsible=icon]:w-auto"
+      data-tour={item.tourId}
+    >
+      <div className="relative flex items-center">
+        {/* Drag handle — hidden until hover, hidden when collapsed */}
+        {!collapsed && (
+          <button
+            {...attributes}
+            {...listeners}
+            tabIndex={-1}
+            className="absolute -left-4 flex items-center justify-center opacity-0 group-hover/item:opacity-40 hover:!opacity-80 transition-opacity cursor-grab active:cursor-grabbing"
+            aria-label="Drag to reorder"
+          >
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        )}
+
+        <SidebarMenuButton
+          asChild
+          tooltip={item.title}
+          className={buttonClass}
+        >
+          <Link to={item.url} className="flex items-center gap-3">
+            <item.icon
+              className={cn(
+                "h-[18px] w-[18px] shrink-0 transition-colors",
+                active
+                  ? "text-primary"
+                  : "text-muted-foreground group-hover/nav:text-foreground",
+              )}
+            />
+            <span className="truncate group-data-[collapsible=icon]:hidden">
+              {item.title}
+            </span>
+          </Link>
+        </SidebarMenuButton>
+      </div>
+    </SidebarMenuItem>
+  );
+}
+
+// Ghost shown in DragOverlay while dragging
+function NavItemGhost({ item, buttonClass }: { item: NavItem; buttonClass: string }) {
+  return (
+    <div className={cn(buttonClass, "flex items-center gap-3 px-2.5 rounded-lg shadow-lg rotate-1 cursor-grabbing")}>
+      <item.icon className="h-[18px] w-[18px] shrink-0 text-primary" />
+      <span className="truncate text-sm font-medium text-foreground">{item.title}</span>
+    </div>
+  );
+}
+
+// ── Main sidebar ───────────────────────────────────────────────────────────────
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
@@ -81,6 +213,8 @@ export function AppSidebar() {
   });
   const [email, setEmail] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [navItems, setNavItems] = useState<NavItem[]>(loadOrder);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -91,16 +225,11 @@ export function AppSidebar() {
           getMyAdminStatus().catch(() => ({ isAdmin: false })),
         ]);
         if (!active) return;
-        const e = profile?.email ?? "";
-        setEmail(e);
+        setEmail(profile?.email ?? "");
         setIsAdmin(adminStatus.isAdmin);
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     })();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   const isActive = (path: string) =>
@@ -121,19 +250,45 @@ export function AppSidebar() {
       "group/nav relative h-9 rounded-lg px-2.5 text-sm transition-all duration-200",
       "text-muted-foreground hover:text-foreground hover:bg-primary/[0.06]",
       "hover:shadow-[0_0_0_1px_rgba(79,140,255,0.08),0_0_18px_-6px_rgba(79,140,255,0.35)]",
-      // collapsed: center the icon in a compact square
       "group-data-[collapsible=icon]:!h-9 group-data-[collapsible=icon]:!w-9",
       "group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:justify-center",
       "group-data-[collapsible=icon]:mx-auto",
       active && [
         "text-foreground font-medium bg-primary/[0.08]",
         "shadow-[inset_0_0_0_1px_rgba(79,140,255,0.14),0_0_22px_-8px_rgba(79,140,255,0.35)]",
-        // slim left accent line
         "before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
         "before:h-5 before:w-[2px] before:rounded-r-full before:bg-primary",
         "group-data-[collapsible=icon]:before:left-[-3px]",
       ],
     );
+
+  // ── dnd-kit sensors ────────────────────────────────────────────────────────
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
+
+  const handleDragStart = useCallback((e: DragStartEvent) => {
+    setActiveId(String(e.active.id));
+  }, []);
+
+  const handleDragOver = useCallback((e: DragOverEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setNavItems((prev) => {
+      const fi = prev.findIndex((i) => i.url === active.id);
+      const ti = prev.findIndex((i) => i.url === over.id);
+      if (fi === -1 || ti === -1) return prev;
+      return arrayMove(prev, fi, ti);
+    });
+  }, []);
+
+  const handleDragEnd = useCallback((_e: DragEndEvent) => {
+    setActiveId(null);
+    setNavItems((prev) => { saveOrder(prev); return prev; });
+  }, []);
+
+  const activeItem = activeId ? navItems.find((i) => i.url === activeId) ?? null : null;
 
   return (
     <Sidebar
@@ -196,7 +351,6 @@ export function AppSidebar() {
         </DropdownMenu>
       </SidebarHeader>
 
-      {/* divider under header */}
       <div className="mx-2 my-1 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
 
       <SidebarContent className="px-1.5 pt-2 group-data-[collapsible=icon]:px-1.5">
@@ -207,40 +361,43 @@ export function AppSidebar() {
             </SidebarGroupLabel>
           )}
           <SidebarGroupContent>
-            <SidebarMenu className="gap-1 group-data-[collapsible=icon]:items-center">
-              {navItems.map((item) => {
-                const active = isActive(item.url);
-                return (
-                  <SidebarMenuItem key={item.url} className="group-data-[collapsible=icon]:w-auto" data-tour={(item as { tourId?: string }).tourId}>
-                    <SidebarMenuButton
-                      asChild
-                      tooltip={item.title}
-                      className={navButtonClasses(active)}
-                    >
-                      <Link to={item.url} className="flex items-center gap-3">
-                        <item.icon
-                          className={cn(
-                            "h-[18px] w-[18px] shrink-0 transition-colors",
-                            active
-                              ? "text-primary"
-                              : "text-muted-foreground group-hover/nav:text-foreground",
-                          )}
-                        />
-                        <span className="truncate group-data-[collapsible=icon]:hidden">
-                          {item.title}
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={navItems.map((i) => i.url)}
+                strategy={verticalListSortingStrategy}
+              >
+                <SidebarMenu className="gap-1 pl-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pl-0">
+                  {navItems.map((item) => (
+                    <SortableNavItem
+                      key={item.url}
+                      item={item}
+                      collapsed={collapsed}
+                      active={isActive(item.url)}
+                      buttonClass={navButtonClasses(isActive(item.url))}
+                    />
+                  ))}
+                </SidebarMenu>
+              </SortableContext>
+
+              <DragOverlay dropAnimation={null}>
+                {activeItem ? (
+                  <NavItemGhost
+                    item={activeItem}
+                    buttonClass={navButtonClasses(isActive(activeItem.url))}
+                  />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           </SidebarGroupContent>
         </SidebarGroup>
 
         {isAdmin && (
           <>
-            {/* ── Telephony (admin only) ─────────────────────────── */}
             <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
             <SidebarGroup>
               {!collapsed && (
