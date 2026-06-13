@@ -101,7 +101,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Billing",   url: "/billing",   icon: CreditCard },
 ];
 
-const STORAGE_KEY = "sidebar-nav-order";
+const STORAGE_KEY = "sidebar-nav-order-v2";
 
 function loadOrder(): NavItem[] {
   if (typeof window === "undefined") return DEFAULT_NAV_ITEMS;
