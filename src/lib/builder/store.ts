@@ -223,6 +223,7 @@ export const useBuilderStore = create<State>()(
           ...(kind === "function" ? { speakDuringExecution: false, waitForResult: true } : {}),
           ...(kind === "ending" ? { endingPrompt: "Politely end the call" } : {}),
           ...(kind === "conversation" ? { instructionType: "prompt" } : {}),
+          ...(kind === "start" ? { isStart: true, startSpeaker: "agent" as const, instructionType: "prompt" as const } : {}),
           ...(kind === "wa_wait_reply" ? { dialogue: "" } : {}),
           ...(kind === "wa_extract_var" ? { extractVarName: "", extractVarPrompt: "" } : {}),
           ...(kind === "wa_tag" ? { tagName: "" } : {}),

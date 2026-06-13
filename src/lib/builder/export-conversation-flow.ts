@@ -965,6 +965,19 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         code: d.codeSource ?? (raw.code as string) ?? "",
         edges,
       });
+    case "start": {
+      const instruction = {
+        type: d.instructionType ?? "prompt",
+        text: d.dialogue ?? "",
+      };
+      return orderNode({
+        ...base,
+        type: "conversation",
+        ...(d.startSpeaker ? { start_speaker: d.startSpeaker } : { start_speaker: "agent" }),
+        instruction,
+        edges,
+      });
+    }
     case "ending":
       return orderNode({
         ...base,

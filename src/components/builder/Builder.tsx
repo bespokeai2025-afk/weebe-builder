@@ -97,6 +97,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
+  { kind: "start", label: "Start", icon: Play, color: "text-emerald-600" },
+  { kind: "ending", label: "End Call", icon: Square, color: "text-rose-600" },
   { kind: "conversation", label: "Conversation", icon: MessageCircle, color: "text-sky-600" },
   { kind: "function", label: "Function", icon: Cpu, color: "text-violet-600" },
   { kind: "call_transfer", label: "Call Transfer", icon: PhoneForwarded, color: "text-emerald-600" },
@@ -106,7 +108,6 @@ const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; c
   { kind: "sms", label: "In-Call SMS", icon: MessageSquare, color: "text-amber-600" },
   { kind: "extract_variable", label: "Extract Variable", icon: Braces, color: "text-indigo-600" },
   { kind: "code", label: "Code", icon: CodeIcon, color: "text-slate-700" },
-  { kind: "ending", label: "Ending", icon: Square, color: "text-rose-600" },
   { kind: "note", label: "Note", icon: StickyNote, color: "text-yellow-700" },
   { kind: "check_documents", label: "Check Documents", icon: FolderOpen, color: "text-teal-600" },
   { kind: "send_upload_link", label: "Send Upload Link", icon: Link, color: "text-sky-600" },
