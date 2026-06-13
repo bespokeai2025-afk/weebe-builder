@@ -52,12 +52,10 @@ import {
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import {
-  listCampaigns,
-  createCampaign,
-  deleteCampaign,
   getCampaignStats,
 } from "@/lib/dashboard/campaigns.functions";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
+import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 
 export const Route = createFileRoute("/_authenticated/leads")({
   head: () => ({ meta: [{ title: "Leads — Webee" }] }),
@@ -133,9 +131,6 @@ function LeadsPage() {
   const qc = useQueryClient();
   const listLeadsFn = useServerFn(listLeads);
   const setStatusFn = useServerFn(setLeadStatus);
-  const listCampaignsFn = useServerFn(listCampaigns);
-  const createCampaignFn = useServerFn(createCampaign);
-  const deleteCampaignFn = useServerFn(deleteCampaign);
   const getCampaignStatsFn = useServerFn(getCampaignStats);
   const getAgentsFn = useServerFn(getDashboardLiveAgents);
   const startQualFn = useServerFn(startQualificationCallsForLeads);
@@ -143,8 +138,6 @@ function LeadsPage() {
   const fireScheduledFn = useServerFn(fireScheduledCalls);
 
   const [tab, setTab] = useState<"leads" | "campaigns">("leads");
-  const [newCampaignOpen, setNewCampaignOpen] = useState(false);
-  const [campaignName, setCampaignName] = useState("");
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
@@ -181,11 +174,6 @@ function LeadsPage() {
     queryFn: () => listLeadsFn({ data: { limit: 200 } }),
   });
 
-  const campaignsQ = useQuery({
-    queryKey: ["campaigns"],
-    queryFn: () => listCampaignsFn(),
-  });
-
   const statsQ = useQuery({
     queryKey: ["campaign-stats"],
     queryFn: () => getCampaignStatsFn({ data: {} }),
@@ -198,7 +186,6 @@ function LeadsPage() {
   });
 
   const leads = (leadsQ.data ?? []) as any[];
-  const campaigns = campaignsQ.data ?? [];
   const stats = statsQ.data;
   const allAgents = (agentsQ.data ?? []) as any[];
   const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
@@ -246,29 +233,6 @@ function LeadsPage() {
       qc.invalidateQueries({ queryKey: ["leads-all"] });
     } catch (e) {
       toast.error("Failed to update status", { description: (e as Error).message });
-    }
-  }
-
-  async function handleCreateCampaign() {
-    if (!campaignName.trim()) return;
-    try {
-      await createCampaignFn({ data: { name: campaignName.trim() } });
-      toast.success("Campaign created");
-      setCampaignName("");
-      setNewCampaignOpen(false);
-      qc.invalidateQueries({ queryKey: ["campaigns"] });
-    } catch (e) {
-      toast.error("Failed to create campaign", { description: (e as Error).message });
-    }
-  }
-
-  async function handleDeleteCampaign(id: string) {
-    try {
-      await deleteCampaignFn({ data: { id } });
-      toast.success("Campaign deleted");
-      qc.invalidateQueries({ queryKey: ["campaigns"] });
-    } catch (e) {
-      toast.error("Failed to delete campaign", { description: (e as Error).message });
     }
   }
 
@@ -385,7 +349,6 @@ function LeadsPage() {
           )}
           <Button variant="outline" size="sm" onClick={() => {
             leadsQ.refetch();
-            campaignsQ.refetch();
             statsQ.refetch();
           }}>
             <RefreshCw className="mr-1 h-4 w-4" />
@@ -589,57 +552,20 @@ function LeadsPage() {
 
       {/* Campaigns Tab */}
       {tab === "campaigns" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button size="sm" onClick={() => setNewCampaignOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              New Campaign
-            </Button>
-          </div>
-
-          {campaignsQ.isLoading ? (
-            <p className="text-center text-sm text-muted-foreground py-8">Loading…</p>
-          ) : campaigns.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <BarChart3 className="h-8 w-8 text-muted-foreground" />
-              <p className="text-sm font-medium">No campaigns yet</p>
-              <p className="text-sm text-muted-foreground">
-                Create a campaign in the builder (Agent Type → Lead Generation → Campaign Settings) or here.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {campaigns.map((c: any) => (
-                <Card key={c.id}>
-                  <CardContent className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="font-medium text-sm">{c.name}</p>
-                      {c.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{c.description}</p>
-                      )}
-                      <p className="text-[11px] text-muted-foreground mt-1">
-                        Created {fmtDate(c.created_at)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="capitalize text-[11px]">
-                        {c.status}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => handleDeleteCampaign(c.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
+        <CallSchedulingSection
+          pageType="leads"
+          statusOptions={[
+            { value: "interested", label: "Open" },
+            { value: "qualified", label: "Qualified" },
+            { value: "callback_requested", label: "Callback Requested" },
+            { value: "need_to_call", label: "Needs to Call" },
+            { value: "not_interested", label: "Closed" },
+            { value: "completed", label: "Completed" },
+            { value: "no_answer", label: "No Answer" },
+            { value: "scheduled", label: "Scheduled" },
+          ]}
+          agents={allAgents}
+        />
       )}
 
       {/* Assign Qualification Agent Dialog */}
@@ -775,34 +701,6 @@ function LeadsPage() {
         />
       )}
 
-      {/* New Campaign Dialog */}
-      <Dialog open={newCampaignOpen} onOpenChange={setNewCampaignOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New Campaign</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Campaign Name</Label>
-              <Input
-                value={campaignName}
-                onChange={(e) => setCampaignName(e.target.value)}
-                placeholder="e.g. Q3 Outbound — SMB"
-                className="mt-1"
-                onKeyDown={(e) => e.key === "Enter" && handleCreateCampaign()}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setNewCampaignOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateCampaign} disabled={!campaignName.trim()}>
-              Create Campaign
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
