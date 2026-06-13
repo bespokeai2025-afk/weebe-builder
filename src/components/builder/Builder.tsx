@@ -1110,40 +1110,29 @@ export function Builder({
                     {(recordingUrl || lastCallMeta) && (
                       <div className="space-y-1.5">
                         {recordingUrl && <MiniAudioPlayer url={recordingUrl} />}
-                        {/* Compact call stats row */}
+                        {/* Compact call stats */}
                         {lastCallMeta && (
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
                             {lastCallMeta.duration > 0 && (
-                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground/70">
-                                <span className="uppercase tracking-wider font-semibold">Duration</span>
-                                <span className="tabular-nums text-foreground/60">
+                              <span className="text-muted-foreground">
+                                Duration{" "}
+                                <span className="text-foreground/80 tabular-nums">
                                   {Math.floor(lastCallMeta.duration / 60)}:{String(lastCallMeta.duration % 60).padStart(2, "0")}
                                 </span>
                               </span>
                             )}
                             {lastCallMeta.costUsd != null && (
-                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground/70">
-                                <span className="uppercase tracking-wider font-semibold">Cost</span>
-                                <span className="tabular-nums text-foreground/60">${lastCallMeta.costUsd.toFixed(4)}</span>
+                              <span className="text-muted-foreground">
+                                Cost{" "}
+                                <span className="text-foreground/80 tabular-nums">${lastCallMeta.costUsd.toFixed(4)}</span>
                               </span>
                             )}
                             {lastCallMeta.sessionId && (
-                              <span className="flex items-center gap-1 text-[9px] text-muted-foreground/70">
-                                <span className="uppercase tracking-wider font-semibold">Session</span>
-                                <span className="font-mono text-foreground/60 truncate max-w-[90px]" title={lastCallMeta.sessionId}>
+                              <span className="text-muted-foreground">
+                                Session{" "}
+                                <span className="font-mono text-foreground/80" title={lastCallMeta.sessionId}>
                                   {lastCallMeta.sessionId.slice(0, 8)}…
                                 </span>
-                              </span>
-                            )}
-                            {/* Sentiment — shows once postCallData is ready */}
-                            {postCallData?.sentiment && (
-                              <span className={`flex items-center gap-1 text-[9px] font-semibold capitalize ${
-                                postCallData.sentiment === "positive" ? "text-emerald-400" :
-                                postCallData.sentiment === "negative" ? "text-rose-400" :
-                                "text-yellow-400"
-                              }`}>
-                                <span className="uppercase tracking-wider text-muted-foreground/70 font-semibold">Sentiment</span>
-                                {postCallData.sentiment}
                               </span>
                             )}
                           </div>
