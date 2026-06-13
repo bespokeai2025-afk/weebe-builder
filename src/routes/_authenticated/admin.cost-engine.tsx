@@ -1158,7 +1158,7 @@ function OnboardingTab({ rows, onSaved }: { rows: DevRole[]; onSaved: () => void
       <SectionHeader icon={Users} title="Development Team Rates" subtitle="Default hourly rates used when building client project estimates" />
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-xs">
-          <thead className="bg-muted/50"><tr>{["Role", "Rate / hr", "Hrs / week", "Day Rate", "Notes", ""].map(h => <th key={h} className="text-left px-3 py-2 font-medium text-muted-foreground">{h}</th>)}</tr></thead>
+          <thead className="bg-muted/50"><tr>{["Role", "Rate / hr", "Hrs / week", "Day Rate", "Cost / month", "Notes", ""].map(h => <th key={h} className="text-left px-3 py-2 font-medium text-muted-foreground">{h}</th>)}</tr></thead>
           <tbody className="divide-y">
             {rows.map(row => (
               <React.Fragment key={row.id}>
@@ -1167,6 +1167,7 @@ function OnboardingTab({ rows, onSaved }: { rows: DevRole[]; onSaved: () => void
                   <td className="px-3 py-2">${n(row.rate_per_hour).toFixed(2)}</td>
                   <td className="px-3 py-2">{row.hours_per_week}h</td>
                   <td className="px-3 py-2 text-muted-foreground">${(n(row.rate_per_hour) * n(row.hours_per_week) / 5).toFixed(2)}</td>
+                  <td className="px-3 py-2 font-medium">${(n(row.rate_per_hour) * n(row.hours_per_week) * 4.33).toFixed(2)}</td>
                   <td className="px-3 py-2 text-muted-foreground max-w-[200px] truncate">{row.notes}</td>
                   <td className="px-3 py-2"><div className="flex gap-1">
                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEdit(row)}><Pencil className="w-3 h-3" /></Button>
