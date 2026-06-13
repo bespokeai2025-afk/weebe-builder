@@ -117,13 +117,34 @@ function useElRelay(
   onTranscript: (role: Role, text: string) => void,
   voiceSettings: VoiceSettings,
 ) {
-  const wsRef       = useRef<WebSocket | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const nextPlayRef = useRef(0);
-  const wsPingRef   = useRef<ReturnType<typeof setInterval>>();
-  const streamRef   = useRef<MediaStream | null>(null);
+  const wsRef           = useRef<WebSocket | null>(null);
+  const audioCtxRef     = useRef<AudioContext | null>(null);
+  const nextPlayRef     = useRef(0);
+  const wsPingRef       = useRef<ReturnType<typeof setInterval>>();
+  const streamRef       = useRef<MediaStream | null>(null);
+  const lastAgentText   = useRef<string>("");
+  const quotaFallback   = useRef(false);
   const [state, setState]  = useState<"idle"|"connecting"|"live"|"error">("idle");
   const [error, setError]  = useState<string | null>(null);
+
+  const speakViaBrowser = useCallback((text: string, ws: WebSocket) => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    synth.cancel();
+    const utt = new SpeechSynthesisUtterance(text.slice(0, 500));
+    utt.rate = 1.05;
+    utt.onend = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "playback.done" }));
+      }
+    };
+    utt.onerror = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "playback.done" }));
+      }
+    };
+    synth.speak(utt);
+  }, []);
 
   const scheduleChunk = useCallback(async (b64: string) => {
     const ctx = audioCtxRef.current;
@@ -197,39 +218,59 @@ function useElRelay(
           micSrc.connect(worklet);
         } catch { setError("Microphone access denied"); setState("error"); }
       }
-      if (msg.type === "audio.delta" && typeof msg.data === "string") scheduleChunk(msg.data);
+      if (msg.type === "audio.delta" && typeof msg.data === "string") {
+        if (!quotaFallback.current) scheduleChunk(msg.data);
+      }
       if (msg.type === "transcript" && msg.role === "user"  && msg.text) onTranscript("user",     String(msg.text));
-      if (msg.type === "transcript" && msg.role === "agent" && msg.text) onTranscript("hivemind", String(msg.text));
+      if (msg.type === "transcript" && msg.role === "agent" && msg.text) {
+        lastAgentText.current = String(msg.text);
+        onTranscript("hivemind", String(msg.text));
+      }
       if (msg.type === "response.done") {
-        // Tell the server when the browser has actually finished playing all
-        // queued audio (not just when the last chunk arrived over the network).
-        const ctx = audioCtxRef.current;
-        if (ctx) {
-          const remainingMs = Math.max(0, (nextPlayRef.current - ctx.currentTime) * 1000) + 300;
-          setTimeout(() => {
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({ type: "playback.done" }));
-            }
-          }, remainingMs);
+        if (quotaFallback.current) {
+          // Browser SpeechSynthesis handles playback — already sends playback.done on end.
+          // If there's no pending speech (e.g. begin message was silent), release immediately.
+          if (!window.speechSynthesis?.speaking) {
+            ws.send(JSON.stringify({ type: "playback.done" }));
+          }
         } else {
-          ws.send(JSON.stringify({ type: "playback.done" }));
+          // Tell the server when the browser has actually finished playing all
+          // queued audio (not just when the last chunk arrived over the network).
+          const ctx = audioCtxRef.current;
+          if (ctx) {
+            const remainingMs = Math.max(0, (nextPlayRef.current - ctx.currentTime) * 1000) + 300;
+            setTimeout(() => {
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: "playback.done" }));
+              }
+            }, remainingMs);
+          } else {
+            ws.send(JSON.stringify({ type: "playback.done" }));
+          }
         }
       }
       if (msg.type === "relay.error" && msg.message) {
         const errMsg = String(msg.message);
+        if (errMsg.includes("quota_exceeded") || errMsg.includes("quota of")) {
+          // Switch permanently to browser TTS for this session and speak the last response.
+          if (!quotaFallback.current) {
+            quotaFallback.current = true;
+            setError("ElevenLabs quota reached — switched to browser voice automatically.");
+          }
+          if (lastAgentText.current) speakViaBrowser(lastAgentText.current, ws);
+          return;
+        }
         const friendly = errMsg.includes("paid_plan_required") || errMsg.includes("payment_required")
           ? "Voice playback requires an ElevenLabs paid plan for this voice. Open Voice Settings and select a voice from your own ElevenLabs library."
-          : errMsg.includes("quota_exceeded") || errMsg.includes("quota of")
-            ? "ElevenLabs character quota reached — audio playback is paused. You can still speak and read responses as text. Top up your ElevenLabs credits to restore audio."
-            : errMsg.trimStart().startsWith("<") || errMsg.length > 300
-              ? "Voice error — please refresh the page and try again."
-              : `Voice error: ${errMsg.slice(0, 150)}`;
+          : errMsg.trimStart().startsWith("<") || errMsg.length > 300
+            ? "Voice error — please refresh the page and try again."
+            : `Voice error: ${errMsg.slice(0, 150)}`;
         setError(friendly);
       }
     };
     ws.onerror = () => { setError("Connection failed"); setState("error"); };
     ws.onclose = () => { setState("idle"); };
-  }, [voiceSettings.voiceId, scheduleChunk, onTranscript]);
+  }, [voiceSettings.voiceId, scheduleChunk, onTranscript, speakViaBrowser]);
 
   const stop = useCallback(() => {
     clearInterval(wsPingRef.current);
