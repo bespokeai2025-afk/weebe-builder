@@ -53,6 +53,7 @@ import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_aut
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
+import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -315,6 +316,12 @@ const AuthenticatedAdminUserActivityRoute =
     path: '/user-activity',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminCostEngineRoute =
+  AuthenticatedAdminCostEngineRouteImport.update({
+    id: '/cost-engine',
+    path: '/cost-engine',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const LovableEmailTransactionalSendRoute =
   LovableEmailTransactionalSendRouteImport.update({
     id: '/lovable/email/transactional/send',
@@ -512,6 +519,7 @@ export interface FileRoutesByFullPath {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
@@ -586,6 +594,7 @@ export interface FileRoutesByTo {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
@@ -663,6 +672,7 @@ export interface FileRoutesById {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
@@ -740,6 +750,7 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/admin/cost-engine'
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
@@ -814,6 +825,7 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/admin/cost-engine'
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
@@ -890,6 +902,7 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/_authenticated/admin/cost-engine'
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
@@ -1298,6 +1311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUserActivityRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/cost-engine': {
+      id: '/_authenticated/admin/cost-engine'
+      path: '/cost-engine'
+      fullPath: '/admin/cost-engine'
+      preLoaderRoute: typeof AuthenticatedAdminCostEngineRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/lovable/email/transactional/send': {
       id: '/lovable/email/transactional/send'
       path: '/lovable/email/transactional/send'
@@ -1512,12 +1532,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminCostEngineRoute: typeof AuthenticatedAdminCostEngineRoute
   AuthenticatedAdminUserActivityRoute: typeof AuthenticatedAdminUserActivityRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminCostEngineRoute: AuthenticatedAdminCostEngineRoute,
   AuthenticatedAdminUserActivityRoute: AuthenticatedAdminUserActivityRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,

@@ -202,6 +202,8 @@ function AdminUsersPage() {
         <div className="mx-auto max-w-5xl px-4 py-3 flex items-center justify-between">
           <h1 className="text-sm font-medium">User Management</h1>
           <div className="flex items-center gap-2">
+            <a href="/admin/cost-engine" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">Cost Engine</a>
+            <a href="/admin/user-activity" className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors">Activity</a>
             <Button
               size="sm"
               variant="outline"

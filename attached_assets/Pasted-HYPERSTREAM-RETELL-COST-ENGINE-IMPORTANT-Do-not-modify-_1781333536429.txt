@@ -1,0 +1,374 @@
+HYPERSTREAM & RETELL COST ENGINE
+
+IMPORTANT
+
+* Do not modify existing Retell functionality.
+* Do not modify existing HyperStream functionality.
+* This is an administrative feature only.
+* Existing billing and usage tracking must remain unchanged.
+* Generate implementation plan before coding.
+
+OBJECTIVE
+
+Create a platform-wide Cost Engine that calculates exact provider costs, exact cost per minute, exact profit per minute, and exact customer pricing.
+
+The Cost Engine must support:
+
+1. HyperStream
+2. Retell
+3. Future providers
+
+The system must become the single source of truth for all pricing calculations.
+
+---
+
+ADMIN PAGE
+
+Create:
+
+Admin
+→ Cost Engine
+
+Visible only to platform administrators.
+
+---
+
+SECTION 1
+
+LLM / MODEL COSTING
+
+Create a provider catalog.
+
+Supported providers:
+
+OpenAI
+Claude
+Gemini
+Retell
+
+Store:
+
+provider
+model
+input token cost
+output token cost
+audio input cost
+audio output cost
+cached token cost
+
+Examples:
+
+GPT-Realtime
+GPT-4.1
+GPT-4.1 Mini
+Claude Sonnet
+Claude Opus
+Gemini Pro
+Retell Models
+
+Admin must be able to edit values.
+
+Store historical versions.
+
+---
+
+SECTION 2
+
+VOICE COSTING
+
+Support:
+
+OpenAI Voice
+ElevenLabs
+Cartesia
+Deepgram
+Retell Voice
+
+Store:
+
+voice provider
+voice id
+cost per character
+cost per minute
+cost per request
+
+Admin editable.
+
+---
+
+SECTION 3
+
+TELEPHONY COSTING
+
+Support:
+
+Twilio
+FreJun
+Future Providers
+
+Store:
+
+provider
+country
+inbound cost per minute
+outbound cost per minute
+recording cost
+number rental cost
+
+Examples:
+
+UAE
+UK
+USA
+Canada
+Australia
+
+Admin editable.
+
+---
+
+SECTION 4
+
+KNOWLEDGE BASE COSTING
+
+Store:
+
+embedding cost
+vector storage cost
+retrieval cost
+storage cost
+
+Admin editable.
+
+---
+
+SECTION 5
+
+TOOL COSTING
+
+Store:
+
+webhook cost
+API execution cost
+CRM cost
+calendar cost
+
+Admin editable.
+
+---
+
+SECTION 6
+
+INFRASTRUCTURE COSTING
+
+Store:
+
+server cost
+database cost
+storage cost
+bandwidth cost
+
+Admin editable.
+
+Allow either:
+
+Monthly allocation
+or
+Cost per minute allocation
+
+---
+
+SECTION 7
+
+RETELL COSTING
+
+Store:
+
+Retell subscription cost
+Retell minute cost
+Retell number cost
+Retell voice cost
+Retell transfer cost
+
+Admin editable.
+
+---
+
+SECTION 8
+
+HYPERSTREAM COSTING
+
+Calculate automatically:
+
+LLM Cost
++
+Voice Cost
++
+Telephony Cost
++
+Knowledge Cost
++
+Infrastructure Cost
++
+Tool Cost
+
+=
+
+Actual HyperStream Cost Per Minute
+
+---
+
+SECTION 9
+
+PROFIT ENGINE
+
+Admin sets:
+
+Markup Type:
+
+Fixed Amount
+Percentage
+
+Examples:
+
+* £0.05 per minute
+
+or
+
++ 40%
+
+System calculates:
+
+Actual Cost
+Selling Price
+Profit
+Margin %
+
+---
+
+SECTION 10
+
+CUSTOMER PLAN BUILDER
+
+Create:
+
+Starter
+Professional
+Business
+Enterprise
+
+For each plan display:
+
+Actual Cost
+Selling Price
+Expected Margin
+
+---
+
+SECTION 11
+
+REAL-TIME COST ANALYTICS
+
+Per Agent
+
+Display:
+
+Minutes Used
+Actual Cost
+Revenue
+Profit
+Margin
+
+Per Customer
+
+Display:
+
+Minutes Used
+Actual Cost
+Revenue
+Profit
+Margin
+
+---
+
+SECTION 12
+
+CALL LEVEL PROFITABILITY
+
+For every call store:
+
+Provider
+Model
+Voice
+Duration
+
+Calculate:
+
+True Cost
+Selling Price
+Profit
+
+Display inside call history.
+
+---
+
+SECTION 13
+
+ADMIN DASHBOARD WIDGETS
+
+Total Revenue
+
+Total Cost
+
+Total Profit
+
+Average Margin
+
+HyperStream Margin
+
+Retell Margin
+
+Most Profitable Customer
+
+Least Profitable Customer
+
+---
+
+DATABASE
+
+Create tables:
+
+provider_costs
+voice_costs
+telephony_costs
+knowledge_costs
+tool_costs
+infrastructure_costs
+customer_pricing
+call_profitability
+
+All values versioned and auditable.
+
+---
+
+SUCCESS CRITERIA
+
+As platform owner I can:
+
+See exact cost per minute
+
+See exact profit per minute
+
+Set custom markup
+
+Set custom customer pricing
+
+Compare HyperStream profitability
+
+Compare Retell profitability
+
+Know actual profit on every call
+
+Know actual profit on every customer
+
+without manually calculating anything.
