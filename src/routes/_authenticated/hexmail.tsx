@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, Settings, Inbox, BarChart2 } from "lucide-react";
-import { TemplateStudio } from "@/components/hexmail/TemplateStudio";
+import { Settings, Inbox, BarChart2, Mail } from "lucide-react";
 import { HexMailSettings } from "@/components/hexmail/HexMailSettings";
 import { EmailViewer } from "@/components/hexmail/EmailViewer";
 import { EmailAnalytics } from "@/components/hexmail/EmailAnalytics";
+import { EmailTemplatesPanel } from "@/components/hexmail/EmailTemplatesPanel";
 
 export const Route = createFileRoute("/_authenticated/hexmail")({
   head: () => ({
@@ -29,8 +29,8 @@ function HexmailPage() {
       <Tabs defaultValue="templates" className="flex-1 flex flex-col min-h-0">
         <TabsList className="w-fit">
           <TabsTrigger value="templates" className="gap-2">
-            <FileText className="h-4 w-4" />
-            Template Studio
+            <Mail className="h-4 w-4" />
+            Email Templates
           </TabsTrigger>
           <TabsTrigger value="viewer" className="gap-2">
             <Inbox className="h-4 w-4" />
@@ -47,7 +47,7 @@ function HexmailPage() {
         </TabsList>
 
         <TabsContent value="templates" className="flex-1 flex flex-col min-h-0 mt-4">
-          <TemplateStudio />
+          <EmailTemplatesPanel />
         </TabsContent>
 
         <TabsContent value="viewer" className="flex-1 overflow-y-auto mt-4">
