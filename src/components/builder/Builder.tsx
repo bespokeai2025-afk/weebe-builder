@@ -86,7 +86,7 @@ import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
-import { saveHyperStreamTestCall } from "@/lib/builder/save-hyperstream-call.functions";
+import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save-hyperstream-call.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
@@ -409,7 +409,9 @@ export function Builder({
   } | null>(null);
   const recordingUrlRef = useRef<string | null>(null);
   const callStartedAtRef = useRef<number | null>(null);
+  const savedCallIdRef = useRef<string | null>(null);
   const saveHyperStreamTestCallFn = useServerFn(saveHyperStreamTestCall);
+  const updateCallSentimentFn = useServerFn(updateCallSentiment);
   const transcriptPanelRef = useRef<HTMLDivElement | null>(null);
   const [elVoiceQuery, setElVoiceQuery] = useState("");
   const [elVoiceResults, setElVoiceResults] = useState<Array<{ voice_id: string; name: string; description: string | null; labels: Record<string, string>; preview_url: string | null; public_owner_id?: string | null }>>([]);
@@ -503,6 +505,7 @@ export function Builder({
   useEffect(() => {
     if (callActive) {
       callStartedAtRef.current = Date.now();
+      savedCallIdRef.current = null;
       setRightOpen(true);
       setPostCallData(null);
       setPostCallLoading(false);
@@ -574,6 +577,8 @@ export function Builder({
               sentiment: null,
             },
           });
+          // Store the DB id so we can patch it with sentiment once analysis runs.
+          if (saved.id) savedCallIdRef.current = saved.id;
           // Replace blob URL with durable server URL if upload succeeded.
           if (saved.recordingUrl) {
             recordingUrlRef.current = saved.recordingUrl;
@@ -598,6 +603,18 @@ export function Builder({
         },
       });
       setPostCallData(result);
+      // Patch the saved call record with sentiment + summary now that we have them.
+      if (savedCallIdRef.current && result) {
+        updateCallSentimentFn({
+          data: {
+            callId: savedCallIdRef.current,
+            sentiment: result.sentiment ?? null,
+            callSummary: result.summary ?? null,
+          },
+        }).catch((e: unknown) =>
+          console.warn("[builder] updateCallSentiment failed:", e),
+        );
+      }
     } catch (err) {
       toast.error("Post-call analysis failed", { description: (err as Error).message });
     } finally {

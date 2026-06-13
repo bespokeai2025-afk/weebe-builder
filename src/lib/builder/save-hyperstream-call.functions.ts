@@ -97,3 +97,29 @@ export const saveHyperStreamTestCall = createServerFn({ method: "POST" })
 
     return { id: inserted?.id ?? null, recordingUrl };
   });
+
+export const updateCallSentiment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        callId: z.string(),
+        sentiment: z.enum(["positive", "neutral", "negative"]).nullable(),
+        callSummary: z.string().nullable().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    const update: Record<string, unknown> = { sentiment: data.sentiment };
+    if (data.callSummary !== undefined) update.call_summary = data.callSummary;
+    const { error } = await sb
+      .from("calls")
+      .update(update)
+      .eq("id", data.callId)
+      .eq("workspace_id", workspaceId);
+    if (error) console.warn("[updateCallSentiment] error:", error.message);
+    return { ok: !error };
+  });
