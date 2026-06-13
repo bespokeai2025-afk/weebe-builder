@@ -72,6 +72,7 @@ import { Route as ApiPublicHyperstreamBookRouteImport } from './routes/api/publi
 import { Route as ApiPublicHyperstreamAvailabilityRouteImport } from './routes/api/public/hyperstream/availability'
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
+import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
@@ -414,6 +415,11 @@ const ApiPublicAgentsRegisterRoute = ApiPublicAgentsRegisterRouteImport.update({
   path: '/api/public/agents/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiInternalAgentToolsIdRoute = ApiInternalAgentToolsIdRouteImport.update({
+  id: '/api/internal/agent-tools/$id',
+  path: '/api/internal/agent-tools/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRuntimeAgentIdExportRoute = ApiRuntimeAgentIdExportRouteImport.update({
   id: '/export',
   path: '/export',
@@ -460,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
@@ -524,6 +531,7 @@ export interface FileRoutesByTo {
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
@@ -591,6 +599,7 @@ export interface FileRoutesById {
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
@@ -658,6 +667,7 @@ export interface FileRouteTypes {
     | '/api/webhook/custom-telemetry'
     | '/lovable/email/suppression'
     | '/admin/'
+    | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/hyperstream/availability'
@@ -722,6 +732,7 @@ export interface FileRouteTypes {
     | '/api/webhook/custom-telemetry'
     | '/lovable/email/suppression'
     | '/admin'
+    | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/hyperstream/availability'
@@ -788,6 +799,7 @@ export interface FileRouteTypes {
     | '/api/webhook/custom-telemetry'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
+    | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
     | '/api/public/hyperstream/availability'
@@ -834,6 +846,7 @@ export interface RootRouteChildren {
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  ApiInternalAgentToolsIdRoute: typeof ApiInternalAgentToolsIdRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
   ApiPublicCalcomWebhookWorkspaceIdRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRoute
   ApiPublicHyperstreamAvailabilityRoute: typeof ApiPublicHyperstreamAvailabilityRoute
@@ -1299,6 +1312,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgentsRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/internal/agent-tools/$id': {
+      id: '/api/internal/agent-tools/$id'
+      path: '/api/internal/agent-tools/$id'
+      fullPath: '/api/internal/agent-tools/$id'
+      preLoaderRoute: typeof ApiInternalAgentToolsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/runtime/agent/$id/export': {
       id: '/api/runtime/agent/$id/export'
       path: '/export'
@@ -1431,6 +1451,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  ApiInternalAgentToolsIdRoute: ApiInternalAgentToolsIdRoute,
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
   ApiPublicCalcomWebhookWorkspaceIdRoute:
     ApiPublicCalcomWebhookWorkspaceIdRoute,

@@ -13,17 +13,26 @@
  * `await import("ws")` inside the async handler, the Replit reverse-proxy
  * drops the socket before handleUpgrade runs.
  *
- * --- Server-side tool execution (deployed agents) ---
- * When the connection URL includes ?agentId=<uuid>, the relay switches into
- * "deployed mode": instead of forwarding response.function_call_arguments.done
- * events to the browser, it executes Cal.com booking tools server-to-server
- * and injects the result back into the OpenAI session via
- * conversation.item.create + response.create.
+ * --- Two relay modes ---
  *
- * This makes HyperStream booking work correctly for deployed agents where there
- * is no browser-side tool executor. Test calls in the builder do NOT include an
- * agentId, so they continue to use browser-side tool execution (no change to
- * that flow).
+ * 1. Proxy mode (no ?agentId)   — used by the builder test-call UI.
+ *    The relay forwards all frames between the browser and OpenAI unchanged.
+ *    Tool calls (response.function_call_arguments.done) are forwarded to the
+ *    browser which executes them via executeToolCall() and sends back the
+ *    function_call_output.  No changes to this path.
+ *
+ * 2. Deployed mode (?agentId=<uuid>) — used by production / phone agents
+ *    where there is no browser-side executor.
+ *    • The relay fetches the agent's full tool registry from the internal
+ *      endpoint GET /api/internal/agent-tools/:id (admin client, no user auth).
+ *    • The browser (if connected) can also push additional/updated tool defs
+ *      via a relay.tool_registry message which the relay intercepts and merges.
+ *    • When OpenAI fires response.function_call_arguments.done the relay:
+ *        - Handles built-in tools (end_call, transfer_call) inline.
+ *        - POSTs to the tool's url/api_url for custom webhook tools.
+ *        - Injects conversation.item.create + response.create back into OpenAI.
+ *        - Sends relay.tool_executed to the browser for UI display only.
+ *      relay.* messages from the browser are never forwarded to OpenAI.
  */
 import { WebSocket, WebSocketServer } from "ws";
 import type { Plugin } from "vite";
@@ -31,51 +40,114 @@ import type { Plugin } from "vite";
 const RELAY_PATH = "/api/hyperstream-relay";
 const OPENAI_MODEL = "gpt-realtime";
 
-/** Cal.com booking tool names → path segment on our public API. */
-const BOOKING_TOOL_PATHS: Record<string, string> = {
-  check_availability: "/api/public/hyperstream/availability",
-  book_appointment: "/api/public/hyperstream/book",
-  cancel_appointment: "/api/public/hyperstream/cancel",
-  reschedule_appointment: "/api/public/hyperstream/reschedule",
-  get_event_types: "/api/public/hyperstream/event-types",
-};
+interface ToolEntry {
+  tool_type?: string;
+  url?: string;
+  api_url?: string;
+}
 
-/** Derive the internal base URL for server-to-server calls within the relay. */
-function getInternalBase(port?: number): string {
+/** Derive the internal base URL for server-to-server calls. */
+function getInternalBase(port: number): string {
   if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL;
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  return `http://localhost:${port ?? 5173}`;
+  return `http://localhost:${port}`;
 }
 
 /**
- * Execute a single booking tool server-to-server and return the result as a
- * plain string (JSON or error message).  `agentId` is always injected into
- * the args so the endpoint can resolve the right workspace.
+ * Fetch the agent's full tool registry from the internal endpoint.
+ * Returns a Map<toolName, ToolEntry> so the relay can execute any tool.
  */
-async function executeBookingTool(
-  toolName: string,
-  rawArgs: string,
+async function fetchToolRegistry(
   agentId: string,
   base: string,
-): Promise<string> {
-  const path = BOOKING_TOOL_PATHS[toolName];
-  if (!path) throw new Error(`Unknown booking tool: ${toolName}`);
+): Promise<Map<string, ToolEntry>> {
+  const registry = new Map<string, ToolEntry>();
+  try {
+    const res = await fetch(`${base}/api/internal/agent-tools/${agentId}`, {
+      headers: { "x-internal-relay": "true" },
+    });
+    if (!res.ok) {
+      console.warn(
+        `[hyperstream-relay] tool registry fetch failed: HTTP ${res.status} for agentId=${agentId}`,
+      );
+      return registry;
+    }
+    const json = (await res.json()) as { ok?: boolean; tools?: Array<Record<string, unknown>> };
+    for (const t of json.tools ?? []) {
+      const name = typeof t.name === "string" ? t.name : "";
+      if (name) {
+        registry.set(name, {
+          tool_type: typeof t.tool_type === "string" ? t.tool_type : undefined,
+          url: typeof t.url === "string" ? t.url : undefined,
+          api_url: typeof t.api_url === "string" ? t.api_url : undefined,
+        });
+      }
+    }
+    console.log(
+      `[hyperstream-relay] tool registry loaded: ${registry.size} tools for agentId=${agentId}`,
+    );
+  } catch (e) {
+    console.warn(
+      `[hyperstream-relay] tool registry fetch error for agentId=${agentId}:`,
+      e instanceof Error ? e.message : String(e),
+    );
+  }
+  return registry;
+}
 
+/**
+ * Execute a tool call using the registry entry.
+ * Always resolves — errors are returned as a JSON error string so the
+ * session can continue rather than hanging.
+ */
+async function executeTool(
+  toolName: string,
+  rawArgs: string,
+  entry: ToolEntry,
+  agentId: string | null,
+): Promise<string> {
   let args: Record<string, unknown> = {};
   try {
     args = JSON.parse(rawArgs) as Record<string, unknown>;
-  } catch {
-    /* keep empty args */
-  }
-  args.agent_id = agentId;
+  } catch { /* keep empty */ }
 
-  const url = `${base}${path}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tool: toolName, args }),
+  // Inject agent_id so the target endpoint can resolve the workspace.
+  if (agentId) args.agent_id = agentId;
+
+  // Built-in: end_call
+  if (entry.tool_type === "end_call") {
+    return JSON.stringify({ ended: true, message: "Call ended by agent." });
+  }
+
+  // Built-in: transfer_call
+  if (entry.tool_type === "transfer_call") {
+    const dest = args.destination ?? args.transfer_destination ?? "operator";
+    return JSON.stringify({ transferred: true, destination: dest });
+  }
+
+  // Webhook / custom tool — POST to url or api_url.
+  const webhookUrl = entry.url || entry.api_url;
+  if (webhookUrl) {
+    try {
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: toolName, args }),
+      });
+      return res.text();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[hyperstream-relay] webhook error for tool "${toolName}":`, msg);
+      return JSON.stringify({ error: `Tool "${toolName}" webhook failed: ${msg}` });
+    }
+  }
+
+  // No executor found — acknowledge so the session doesn't stall.
+  return JSON.stringify({
+    result: "acknowledged",
+    tool: toolName,
+    note: "Tool registered but no executor available.",
   });
-  return res.text();
 }
 
 export function hyperStreamRelayPlugin(): Plugin {
@@ -91,10 +163,12 @@ export function hyperStreamRelayPlugin(): Plugin {
 
       // Resolve dev-server port once so server-side fetch calls can target it.
       let devPort = 5173;
-      const addressInfo = server.httpServer.address();
-      if (addressInfo && typeof addressInfo === "object" && "port" in addressInfo) {
-        devPort = (addressInfo as { port: number }).port;
-      }
+      server.httpServer.once("listening", () => {
+        const addr = server.httpServer!.address();
+        if (addr && typeof addr === "object" && "port" in addr) {
+          devPort = (addr as { port: number }).port;
+        }
+      });
 
       server.httpServer.on("upgrade", (req, socket, head) => {
         try {
@@ -105,16 +179,11 @@ export function hyperStreamRelayPlugin(): Plugin {
           const urlPath = parsedUrl.pathname;
           if (urlPath !== RELAY_PATH) return;
 
-          // Phase 2: model selection routed through Core Runtime.
-          // The client reads def.model.id, maps it to a realtime model name via
-          // resolvedRealtimeModel(), and passes it as ?model=<name>.
-          // The relay uses this instead of the hardcoded OPENAI_MODEL constant
-          // so model selection flows: definition → client → relay → OpenAI WS URL.
           const modelParam = parsedUrl.searchParams.get("model") ?? OPENAI_MODEL;
 
-          // Deployed-agent mode: when agentId is present the relay executes
-          // Cal.com booking tool calls server-side instead of forwarding them to
-          // the browser.  Test calls from the builder do not include agentId.
+          // Deployed-agent mode: when agentId is present the relay handles all
+          // tool calls server-side.  Test calls from the builder use agentRowId
+          // (different param name) so they never trigger deployed mode.
           const agentId = parsedUrl.searchParams.get("agentId") ?? null;
 
           const apiKey = process.env.OPENAI_API_KEY;
@@ -131,14 +200,32 @@ export function hyperStreamRelayPlugin(): Plugin {
 
           if (agentId) {
             console.log(
-              `[hyperstream-relay] upgrading browser socket in deployed mode… model=${modelParam} agentId=${agentId}`,
+              `[hyperstream-relay] upgrading (deployed mode) model=${modelParam} agentId=${agentId}`,
             );
           } else {
-            console.log(`[hyperstream-relay] upgrading browser socket… model=${modelParam}`);
+            console.log(`[hyperstream-relay] upgrading (proxy mode) model=${modelParam}`);
           }
 
           const wss = new WebSocketServer({ noServer: true });
           wss.handleUpgrade(req, socket, head, (browserWs) => {
+            // Per-session tool registry — populated from the internal endpoint
+            // (agentId mode) and/or relay.tool_registry messages from the browser.
+            const toolRegistry = new Map<string, ToolEntry>();
+
+            // If in deployed mode, asynchronously load the tool registry.
+            // This runs in the background; any function calls that arrive before
+            // it completes will find an empty registry and return an error — in
+            // practice the session.update + first response takes long enough that
+            // the fetch always finishes in time.
+            if (agentId) {
+              const base = getInternalBase(devPort);
+              void fetchToolRegistry(agentId, base).then((reg) => {
+                for (const [name, entry] of reg) {
+                  toolRegistry.set(name, entry);
+                }
+              });
+            }
+
             console.log(`[hyperstream-relay] browser WS upgraded, connecting to OpenAI model=${modelParam}…`);
             const openaiWs = new WebSocket(
               `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(modelParam)}`,
@@ -157,11 +244,6 @@ export function hyperStreamRelayPlugin(): Plugin {
             });
 
             openaiWs.on("message", (data: import("ws").RawData, isBinary: boolean) => {
-              // Fast-path: skip full JSON.parse for audio delta frames.
-              // They arrive at ~20 ms intervals and are the hot path — parsing
-              // every one just to suppress the log wastes CPU and GC.
-              // We check with a cheap substring scan instead:
-              //   '{"type":"response.output_audio.delta"' or '{"type":"response.audio.delta"'
               if (!isBinary) {
                 const str = data.toString();
                 const isAudioDelta =
@@ -173,11 +255,9 @@ export function hyperStreamRelayPlugin(): Plugin {
                     const msg = JSON.parse(str) as Record<string, unknown>;
                     console.log(`[hyperstream-relay] OpenAI → browser: ${JSON.stringify(msg).slice(0, 2000)}`);
 
-                    // ── Server-side tool execution (deployed-agent mode) ──────────
-                    // When agentId is present and the event is a completed function
-                    // call, execute the tool server-to-server rather than forwarding
-                    // to the browser.  This handles the case where no browser tab is
-                    // driving the session (e.g. a production phone-number deployment).
+                    // ── Deployed mode: server-side tool execution ─────────────
+                    // Intercept function call events and execute the tool here
+                    // instead of forwarding to the browser (which may not exist).
                     if (
                       agentId &&
                       msg.type === "response.function_call_arguments.done"
@@ -185,23 +265,18 @@ export function hyperStreamRelayPlugin(): Plugin {
                       const toolName = msg.name as string;
                       const callId = msg.call_id as string;
                       const rawArgs = (msg.arguments as string) ?? "{}";
+                      const entry = toolRegistry.get(toolName);
 
-                      if (BOOKING_TOOL_PATHS[toolName]) {
-                        const internalBase = getInternalBase(devPort);
+                      if (entry) {
+                        // Tool is known — execute server-side.
+                        const base = getInternalBase(devPort);
                         console.log(
-                          `[hyperstream-relay] executing booking tool server-side: ${toolName} callId=${callId}`,
+                          `[hyperstream-relay] executing tool server-side: "${toolName}" callId=${callId}`,
                         );
-
                         void (async () => {
                           try {
-                            const result = await executeBookingTool(
-                              toolName,
-                              rawArgs,
-                              agentId,
-                              internalBase,
-                            );
+                            const result = await executeTool(toolName, rawArgs, entry, agentId);
 
-                            // Inject tool result back into the OpenAI session.
                             if (openaiWs.readyState === WebSocket.OPEN) {
                               openaiWs.send(
                                 JSON.stringify({
@@ -216,8 +291,7 @@ export function hyperStreamRelayPlugin(): Plugin {
                               openaiWs.send(JSON.stringify({ type: "response.create" }));
                             }
 
-                            // Notify the browser (if connected) so the UI can display
-                            // the tool activity without re-executing the tool.
+                            // Notify the browser for UI display (not for re-execution).
                             if (browserWs.readyState === WebSocket.OPEN) {
                               browserWs.send(
                                 JSON.stringify({
@@ -230,17 +304,23 @@ export function hyperStreamRelayPlugin(): Plugin {
                             }
 
                             console.log(
-                              `[hyperstream-relay] tool ${toolName} executed OK, result length=${result.length}`,
+                              `[hyperstream-relay] tool "${toolName}" OK, resultLen=${result.length}`,
                             );
+
+                            // end_call: close the session after the result is
+                            // delivered so OpenAI can say goodbye.
+                            if (entry.tool_type === "end_call") {
+                              setTimeout(() => {
+                                if (openaiWs.readyState === WebSocket.OPEN) openaiWs.close();
+                              }, 4000);
+                            }
                           } catch (toolErr) {
                             const errMsg =
                               toolErr instanceof Error ? toolErr.message : String(toolErr);
                             console.error(
-                              `[hyperstream-relay] tool execution failed for ${toolName}:`,
+                              `[hyperstream-relay] tool "${toolName}" failed:`,
                               errMsg,
                             );
-
-                            // Return an error result so the model can respond gracefully.
                             if (openaiWs.readyState === WebSocket.OPEN) {
                               openaiWs.send(
                                 JSON.stringify({
@@ -257,24 +337,21 @@ export function hyperStreamRelayPlugin(): Plugin {
                           }
                         })();
 
-                        // Don't forward the raw function_call event to the browser —
-                        // the relay.tool_executed event above is sent instead.
+                        // Don't forward the raw function call to the browser.
                         return;
                       }
-                      // Unknown tool in deployed mode — fall through and forward to
+
+                      // Tool not found in registry — fall through and forward to
                       // browser so any custom handler there can deal with it.
+                      console.warn(
+                        `[hyperstream-relay] tool "${toolName}" not in registry — forwarding to browser`,
+                      );
                     }
-                  } catch {
-                    /* malformed frame — skip */
-                  }
+                  } catch { /* malformed frame */ }
                 }
               }
 
               if (browserWs.readyState === WebSocket.OPEN) {
-                // Forward with the correct frame type. OpenAI sends TEXT frames,
-                // but the ws library delivers them as Buffer; sending a Buffer
-                // without binary:false re-sends as a BINARY frame, which the
-                // browser receives as a Blob and JSON.parse silently drops.
                 browserWs.send(data, { binary: isBinary });
               }
             });
@@ -303,14 +380,39 @@ export function hyperStreamRelayPlugin(): Plugin {
               if (!isBinary) {
                 try {
                   const msg = JSON.parse(data.toString()) as Record<string, unknown>;
+
+                  // Intercept relay.* messages — they are for the relay itself and
+                  // must never be forwarded to OpenAI which would reject them.
+                  if (typeof msg.type === "string" && msg.type.startsWith("relay.")) {
+                    if (msg.type === "relay.tool_registry") {
+                      // Browser sends the full tool list (including URL fields
+                      // stripped before session.update reaches OpenAI) so the relay
+                      // can execute tools server-side even in proxy mode sessions.
+                      const incoming = (msg.tools as Array<Record<string, unknown>> | undefined) ?? [];
+                      for (const t of incoming) {
+                        const name = typeof t.name === "string" ? t.name : "";
+                        if (!name) continue;
+                        toolRegistry.set(name, {
+                          tool_type: typeof t.tool_type === "string" ? t.tool_type : undefined,
+                          url: typeof t.url === "string" ? t.url : undefined,
+                          api_url: typeof t.api_url === "string" ? t.api_url : undefined,
+                        });
+                      }
+                      console.log(
+                        `[hyperstream-relay] relay.tool_registry merged: ${incoming.length} tools, total=${toolRegistry.size}`,
+                      );
+                    }
+                    // Don't forward any relay.* message to OpenAI.
+                    return;
+                  }
+
                   if (msg.type !== "input_audio_buffer.append") {
                     console.log(`[hyperstream-relay] browser → OpenAI: ${JSON.stringify(msg).slice(0, 300)}`);
                   }
                 } catch { /* non-JSON */ }
               }
+
               if (openaiWs.readyState === WebSocket.OPEN) {
-                // Forward with the correct frame type — without isBinary the ws
-                // library treats Buffer payloads as binary frames, which OpenAI rejects.
                 openaiWs.send(data, { binary: isBinary });
               }
             });

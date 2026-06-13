@@ -1097,6 +1097,23 @@ export function RetellDeployDialog({
               ? [...runtimeDef.tools, ...buildHyperStreamBookingTools(hsAgentId)]
               : runtimeDef.tools;
             activeTools = allTools as typeof runtimeDef.tools;
+
+            // Push the full tool registry (including URL fields that are stripped
+            // before session.update reaches OpenAI) to the relay so it can execute
+            // tools server-side in deployed-agent mode.  The relay intercepts this
+            // message and never forwards it to OpenAI.
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: "relay.tool_registry",
+                tools: (allTools as Array<Record<string, unknown>>).map((t) => ({
+                  name: t.name ?? "",
+                  tool_type: t.tool_type ?? null,
+                  url: t.url ?? null,
+                  api_url: t.api_url ?? null,
+                })),
+              }));
+            }
+
             const toolDefs = buildOpenAIToolDefinitions(allTools as typeof runtimeDef.tools);
             hsLog("   ", "runtime.tool.build.complete", {
               durationMs: (performance.now() - toolBuildStart).toFixed(0),
