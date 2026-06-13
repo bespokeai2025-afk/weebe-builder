@@ -385,33 +385,68 @@ async function upsertSingleton(table: string, fields: Record<string, unknown>) {
   if (error) throw new Error(error.message);
 }
 
+const KnowledgeInput = z.object({
+  embedding_cost_per_1k: z.number(),
+  vector_storage_per_gb_month: z.number(),
+  retrieval_cost_per_query: z.number(),
+  storage_per_gb_month: z.number(),
+  notes: z.string().optional(),
+});
+
 export const saveKnowledgeCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { embedding_cost_per_1k: number; vector_storage_per_gb_month: number; retrieval_cost_per_query: number; storage_per_gb_month: number; notes?: string }) => i)
+  .inputValidator((i: z.infer<typeof KnowledgeInput>) => KnowledgeInput.parse(i))
   .handler(async ({ data }) => {
     await upsertSingleton("cost_engine_knowledge", data);
     return { ok: true };
   });
 
+const ToolsInput = z.object({
+  webhook_cost_per_call: z.number(),
+  api_cost_per_call: z.number(),
+  crm_cost_per_month: z.number(),
+  calendar_cost_per_month: z.number(),
+  notes: z.string().optional(),
+});
+
 export const saveToolsCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { webhook_cost_per_call: number; api_cost_per_call: number; crm_cost_per_month: number; calendar_cost_per_month: number; notes?: string }) => i)
+  .inputValidator((i: z.infer<typeof ToolsInput>) => ToolsInput.parse(i))
   .handler(async ({ data }) => {
     await upsertSingleton("cost_engine_tools", data);
     return { ok: true };
   });
 
+const InfraInput = z.object({
+  server_cost: z.number(),
+  database_cost: z.number(),
+  storage_cost: z.number(),
+  bandwidth_cost: z.number(),
+  allocation_type: z.string(),
+  estimated_monthly_minutes: z.number(),
+  notes: z.string().optional(),
+});
+
 export const saveInfrastructureCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { server_cost: number; database_cost: number; storage_cost: number; bandwidth_cost: number; allocation_type: string; estimated_monthly_minutes: number; notes?: string }) => i)
+  .inputValidator((i: z.infer<typeof InfraInput>) => InfraInput.parse(i))
   .handler(async ({ data }) => {
     await upsertSingleton("cost_engine_infrastructure", data);
     return { ok: true };
   });
 
+const RetellInput = z.object({
+  subscription_cost_monthly: z.number(),
+  minute_cost: z.number(),
+  number_cost_monthly: z.number(),
+  voice_cost_per_min: z.number(),
+  transfer_cost_per_min: z.number(),
+  notes: z.string().optional(),
+});
+
 export const saveRetellCost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { subscription_cost_monthly: number; minute_cost: number; number_cost_monthly: number; voice_cost_per_min: number; transfer_cost_per_min: number; notes?: string }) => i)
+  .inputValidator((i: z.infer<typeof RetellInput>) => RetellInput.parse(i))
   .handler(async ({ data }) => {
     await upsertSingleton("cost_engine_retell", data);
     return { ok: true };
@@ -419,9 +454,16 @@ export const saveRetellCost = createServerFn({ method: "POST" })
 
 // ── Markup ────────────────────────────────────────────────────────────────────
 
+const MarkupInput = z.object({
+  markup_type: z.enum(["fixed", "percentage"]),
+  markup_value: z.number(),
+  label: z.string().optional(),
+  notes: z.string().optional(),
+});
+
 export const saveMarkup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { markup_type: "fixed" | "percentage"; markup_value: number; label?: string; notes?: string }) => i)
+  .inputValidator((i: z.infer<typeof MarkupInput>) => MarkupInput.parse(i))
   .handler(async ({ data }) => {
     await supabaseAdmin.from("cost_engine_markup" as any).update({ is_active: false }).eq("is_active", true);
     const { error } = await supabaseAdmin.from("cost_engine_markup" as any).insert({
@@ -437,9 +479,19 @@ export const saveMarkup = createServerFn({ method: "POST" })
 
 // ── Customer plans ─────────────────────────────────────────────────────────────
 
+const PlanInput = z.object({
+  id: z.string().optional(),
+  plan_name: z.string().min(1),
+  description: z.string().optional(),
+  included_minutes: z.number().min(0),
+  price_per_month: z.number().min(0),
+  price_per_minute: z.number().min(0),
+  sort_order: z.number().optional(),
+});
+
 export const savePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id?: string; plan_name: string; description?: string; included_minutes: number; price_per_month: number; price_per_minute: number; sort_order?: number }) => i)
+  .inputValidator((i: z.infer<typeof PlanInput>) => PlanInput.parse(i))
   .handler(async ({ data }) => {
     if (data.id) {
       const { error } = await supabaseAdmin.from("cost_engine_customer_plans" as any).update({
@@ -461,9 +513,11 @@ export const savePlan = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+const DeleteInput = z.object({ id: z.string().uuid() });
+
 export const deletePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
-  .inputValidator((i: { id: string }) => i)
+  .inputValidator((i: z.infer<typeof DeleteInput>) => DeleteInput.parse(i))
   .handler(async ({ data }) => {
     const { error } = await supabaseAdmin.from("cost_engine_customer_plans" as any).update({ is_active: false }).eq("id", data.id);
     if (error) throw new Error(error.message);
