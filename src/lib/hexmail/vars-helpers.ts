@@ -21,6 +21,7 @@ export interface DocHeader {
   logoUrl?:     string;
   companyName?: string;
   tagline?:     string;
+  bodyFormat?:  "html" | "markdown";
 }
 
 // ── Encode / decode ──────────────────────────────────────────────────────────

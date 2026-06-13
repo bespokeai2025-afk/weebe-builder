@@ -228,6 +228,144 @@ function renderLines(
   return elements;
 }
 
+// ── HTML body helpers (mammoth output) ───────────────────────────────────────
+
+const HTML_VAR_STYLES = `
+  .doc-var-token {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.82em;
+    border: 1px solid rgba(217,119,6,0.35);
+    font-weight: 500;
+  }
+  .doc-var-filled {
+    font-weight: 600;
+    color: #111827;
+  }
+  .doc-var-empty {
+    color: #9ca3af;
+    font-style: italic;
+  }
+  /* Mammoth table styles */
+  table { width: 100%; border-collapse: collapse; margin: 0.75em 0; font-size: 0.875em; }
+  th, td { border: 1px solid #d1d5db; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; font-weight: 600; }
+  img { max-width: 100%; height: auto; }
+  p { margin: 0.4em 0; line-height: 1.6; }
+  h1 { font-size: 1.5em; font-weight: 700; margin: 0.8em 0 0.3em; }
+  h2 { font-size: 1.25em; font-weight: 700; margin: 0.7em 0 0.25em; }
+  h3 { font-size: 1.1em; font-weight: 600; margin: 0.6em 0 0.2em; }
+  ul { list-style: disc; padding-left: 1.5em; margin: 0.4em 0; }
+  ol { list-style: decimal; padding-left: 1.5em; margin: 0.4em 0; }
+  li { margin: 0.2em 0; line-height: 1.5; }
+  strong, b { font-weight: 700; }
+  em, i { font-style: italic; }
+`;
+
+function escHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function injectVarHighlights(html: string, fills: Record<string, string>, mode: "edit" | "preview"): string {
+  return html.replace(/\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}/g, (_, key: string) => {
+    if (mode === "preview") {
+      const val = fills[key];
+      return val
+        ? `<span class="doc-var-filled">${escHtml(val)}</span>`
+        : `<span class="doc-var-empty">[${escHtml(key)}]</span>`;
+    }
+    return `<mark class="doc-var-token">{{${escHtml(key)}}}</mark>`;
+  });
+}
+
+// ── Shared paper shell ────────────────────────────────────────────────────────
+
+function PaperShell({
+  header,
+  templateType,
+  templateName,
+  children,
+}: {
+  header: DocHeader;
+  templateType: TemplateType;
+  templateName: string;
+  children: React.ReactNode;
+}) {
+  const typeLabel = DOC_TYPE_LABELS[templateType] ?? "Document";
+  const hasHeader = header.logoUrl || header.companyName;
+
+  return (
+    <div
+      className="bg-white mx-auto my-6 shadow-[0_4px_24px_rgba(0,0,0,0.12)] text-[#1a1a1a]"
+      style={{
+        maxWidth: 680,
+        minHeight: 900,
+        padding: "56px 64px 64px",
+        fontFamily: '"Georgia", "Times New Roman", serif',
+      }}
+    >
+      {/* ── Document header ─────────────────────────────────────────── */}
+      {hasHeader && (
+        <div className="flex items-start justify-between mb-8 pb-6 border-b border-gray-200">
+          <div className="flex items-center gap-4">
+            {header.logoUrl && (
+              <img
+                src={header.logoUrl}
+                alt={header.companyName ?? "Logo"}
+                className="object-contain"
+                style={{ maxHeight: 52, maxWidth: 160 }}
+              />
+            )}
+            {header.companyName && (
+              <div>
+                <p className="font-bold text-base leading-tight" style={{ fontFamily: "system-ui, sans-serif" }}>
+                  {header.companyName}
+                </p>
+                {header.tagline && (
+                  <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
+                    {header.tagline}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <span
+            className="text-[10px] uppercase tracking-widest text-gray-500 border border-gray-300 rounded px-2 py-0.5 mt-1"
+            style={{ fontFamily: "system-ui, sans-serif" }}
+          >
+            {typeLabel}
+          </span>
+        </div>
+      )}
+
+      {!hasHeader && (
+        <div className="flex items-center justify-between mb-6">
+          <span
+            className="text-[10px] uppercase tracking-widest text-gray-500 border border-gray-300 rounded px-2 py-0.5"
+            style={{ fontFamily: "system-ui, sans-serif" }}
+          >
+            {typeLabel}
+          </span>
+        </div>
+      )}
+
+      {templateName && (
+        <h1
+          className="text-2xl font-bold mb-6 text-gray-900 leading-snug"
+          style={{ fontFamily: "system-ui, sans-serif" }}
+        >
+          {templateName}
+        </h1>
+      )}
+
+      {children}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function DocumentPreview({
@@ -239,78 +377,34 @@ export function DocumentPreview({
   mode,
   className,
 }: Props) {
-  const typeLabel = DOC_TYPE_LABELS[templateType] ?? "Document";
-  const hasHeader = header.logoUrl || header.companyName;
-  const lines = renderLines(body, fills, mode);
+  const isHtml = header.bodyFormat === "html";
 
+  if (isHtml) {
+    const processed = injectVarHighlights(body, fills, mode);
+    return (
+      <div className={cn("bg-[#f0f0f0] rounded-lg overflow-auto", className)}>
+        <style>{HTML_VAR_STYLES}</style>
+        <PaperShell header={header} templateType={templateType} templateName={templateName}>
+          {body.trim() ? (
+            <div
+              className="doc-html-body"
+              style={{ fontFamily: '"Georgia", "Times New Roman", serif', fontSize: "0.875rem", color: "#1a1a1a" }}
+              dangerouslySetInnerHTML={{ __html: processed }}
+            />
+          ) : (
+            <p className="text-sm text-gray-400 italic" style={{ fontFamily: "system-ui, sans-serif" }}>
+              Nothing to preview yet — click "Load Document" to import your file.
+            </p>
+          )}
+        </PaperShell>
+      </div>
+    );
+  }
+
+  const lines = renderLines(body, fills, mode);
   return (
     <div className={cn("bg-[#f0f0f0] rounded-lg overflow-auto", className)}>
-      {/* A4-style paper */}
-      <div
-        className="bg-white mx-auto my-6 shadow-[0_4px_24px_rgba(0,0,0,0.12)] text-[#1a1a1a]"
-        style={{
-          maxWidth: 680,
-          minHeight: 900,
-          padding: "56px 64px 64px",
-          fontFamily: '"Georgia", "Times New Roman", serif',
-        }}
-      >
-        {/* ── Document header ─────────────────────────────────────────── */}
-        {hasHeader && (
-          <div className="flex items-start justify-between mb-8 pb-6 border-b border-gray-200">
-            <div className="flex items-center gap-4">
-              {header.logoUrl && (
-                <img
-                  src={header.logoUrl}
-                  alt={header.companyName ?? "Logo"}
-                  className="object-contain"
-                  style={{ maxHeight: 52, maxWidth: 160 }}
-                />
-              )}
-              {header.companyName && (
-                <div>
-                  <p className="font-bold text-base leading-tight" style={{ fontFamily: "system-ui, sans-serif" }}>
-                    {header.companyName}
-                  </p>
-                  {header.tagline && (
-                    <p className="text-xs text-gray-500 mt-0.5" style={{ fontFamily: "system-ui, sans-serif" }}>
-                      {header.tagline}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            <span
-              className="text-[10px] uppercase tracking-widest text-gray-500 border border-gray-300 rounded px-2 py-0.5 mt-1"
-              style={{ fontFamily: "system-ui, sans-serif" }}
-            >
-              {typeLabel}
-            </span>
-          </div>
-        )}
-
-        {/* ── Document title ───────────────────────────────────────────── */}
-        {!hasHeader && (
-          <div className="flex items-center justify-between mb-6">
-            <span
-              className="text-[10px] uppercase tracking-widest text-gray-500 border border-gray-300 rounded px-2 py-0.5"
-              style={{ fontFamily: "system-ui, sans-serif" }}
-            >
-              {typeLabel}
-            </span>
-          </div>
-        )}
-
-        {templateName && (
-          <h1
-            className="text-2xl font-bold mb-6 text-gray-900 leading-snug"
-            style={{ fontFamily: "system-ui, sans-serif" }}
-          >
-            {templateName}
-          </h1>
-        )}
-
-        {/* ── Body ─────────────────────────────────────────────────────── */}
+      <PaperShell header={header} templateType={templateType} templateName={templateName}>
         {lines.length > 0 ? (
           <div className="space-y-0">{lines}</div>
         ) : (
@@ -318,7 +412,7 @@ export function DocumentPreview({
             Nothing to preview yet.
           </p>
         )}
-      </div>
+      </PaperShell>
     </div>
   );
 }

@@ -402,17 +402,34 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
     }
   }, []);
 
-  // ── Text extraction ──────────────────────────────────────────────────────────
+  // ── Document loading (mammoth for DOCX, server extraction for others) ────────
+
+  const isDocxFile = fileMime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    || (fileMime === "" && (fileName?.toLowerCase().endsWith(".docx") ?? false));
 
   const extractText = async () => {
     if (!fileUrl) return;
     setIsExtracting(true);
     try {
-      const result = await extractTemplateDocumentText({
-        data: { publicUrl: fileUrl, mimeType: fileMime, fileName: fileName ?? undefined },
-      });
-      setBody(result.text);
-      toast.success("Text extracted — review and add {{variables}} where needed");
+      if (isDocxFile) {
+        const res = await fetch(fileUrl);
+        if (!res.ok) throw new Error(`Failed to fetch document (${res.status})`);
+        const arrayBuffer = await res.arrayBuffer();
+        const mammoth = (await import("mammoth")).default;
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        setBody(result.value);
+        setDocHeader((h) => ({ ...h, bodyFormat: "html" }));
+        const detected = detectVars(result.value);
+        setVars((prev) => mergeDetected(prev, detected));
+        toast.success("Document loaded — {{variables}} are highlighted");
+      } else {
+        const result = await extractTemplateDocumentText({
+          data: { publicUrl: fileUrl, mimeType: fileMime, fileName: fileName ?? undefined },
+        });
+        setBody(result.text);
+        setDocHeader((h) => ({ ...h, bodyFormat: "markdown" }));
+        toast.success("Text extracted — review and add {{variables}} where needed");
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Extraction failed");
     } finally {
@@ -626,8 +643,8 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
                       disabled={isExtracting}
                     >
                       {isExtracting
-                        ? <><Loader2 className="h-3 w-3 animate-spin" /> Extracting…</>
-                        : <><ScanText className="h-3 w-3" /> Extract Text</>}
+                        ? <><Loader2 className="h-3 w-3 animate-spin" /> {isDocxFile ? "Loading…" : "Extracting…"}</>
+                        : <><ScanText className="h-3 w-3" /> {isDocxFile ? "Load Document" : "Extract Text"}</>}
                     </Button>
                     <a href={fileUrl} target="_blank" rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0">
