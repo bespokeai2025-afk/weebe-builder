@@ -20,6 +20,54 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 let _cache: ElVoice[] | null = null;
 let _cacheAt = 0;
 
+export interface CloneVoiceResult {
+  voice_id: string;
+  name: string;
+}
+
+/**
+ * Upload audio sample(s) to ElevenLabs Instant Voice Cloning.
+ * Accepts a single file as base64 + metadata, returns the new voice_id.
+ * Invalidates the listElevenLabsVoices cache so it appears immediately.
+ */
+export const cloneElevenLabsVoice = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator(
+    (data: unknown) =>
+      data as { name: string; fileName: string; mimeType: string; base64: string },
+  )
+  .handler(async ({ data }): Promise<CloneVoiceResult> => {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) throw new Error("ELEVENLABS_API_KEY is not configured on this server.");
+
+    const { name, fileName, mimeType, base64 } = data;
+    const buffer = Buffer.from(base64, "base64");
+    const blob = new Blob([buffer], { type: mimeType || "audio/mpeg" });
+
+    const form = new FormData();
+    form.append("name", name?.trim() || "Uploaded Voice");
+    form.append("files", blob, fileName || "sample.mp3");
+
+    const res = await fetch("https://api.elevenlabs.io/v1/voices/add", {
+      method: "POST",
+      headers: { "xi-api-key": apiKey },
+      body: form as unknown as BodyInit,
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => String(res.status));
+      throw new Error(`ElevenLabs voice clone failed (${res.status}): ${body}`);
+    }
+
+    const result = (await res.json()) as { voice_id: string };
+
+    // Bust the voices cache so the cloned voice appears in the next list call.
+    _cache = null;
+    _cacheAt = 0;
+
+    return { voice_id: result.voice_id, name: name?.trim() || "Uploaded Voice" };
+  });
+
 export const listElevenLabsVoices = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async (): Promise<ElVoice[]> => {

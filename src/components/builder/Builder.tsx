@@ -83,7 +83,7 @@ import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
-import { listElevenLabsVoices } from "@/lib/builder/elevenlabs-voices.functions";
+import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
 import { toast } from "sonner";
 
 const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
@@ -360,7 +360,44 @@ export function Builder({
   const [elHsVoicesList, setElHsVoicesList] = useState<{ voice_id: string; name: string; category: string }[]>([]);
   const [elHsVoicesLoading, setElHsVoicesLoading] = useState(false);
   const [elHsVoicesError, setElHsVoicesError] = useState<string | null>(null);
+  const [elHsUploading, setElHsUploading] = useState(false);
+  const elHsFileInputRef = useRef<HTMLInputElement | null>(null);
   const hsVoiceProvider = settings.voiceOutputProvider ?? "openai";
+
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleElHsVoiceUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setElHsUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const name = file.name.replace(/\.[^.]+$/, "");
+      const result = await cloneElevenLabsVoice({
+        data: { name, fileName: file.name, mimeType: file.type || "audio/mpeg", base64 },
+      });
+      setElHsVoicesList((prev) => [
+        ...prev,
+        { voice_id: result.voice_id, name: result.name, category: "cloned" },
+      ]);
+      setSettings({ voiceOutputId: result.voice_id, voiceOutputName: result.name });
+      toast.success(`Voice "${result.name}" cloned`, {
+        description: "Voice ready — selected automatically.",
+      });
+    } catch (err) {
+      toast.error("Voice upload failed", { description: (err as Error).message });
+    } finally {
+      setElHsUploading(false);
+    }
+  }
   useEffect(() => {
     if (hsVoiceProvider !== "elevenlabs" || elHsVoicesList.length > 0) return;
     setElHsVoicesLoading(true);
@@ -1021,35 +1058,66 @@ export function Builder({
                   )}
 
                   {hsVoiceProvider === "elevenlabs" && (
-                    elHsVoicesLoading ? (
-                      <div className="flex items-center gap-1.5 py-1.5 text-[9px] text-muted-foreground">
-                        <Loader2 className="h-3 w-3 animate-spin" />Loading ElevenLabs voices…
+                    <div className="space-y-1.5">
+                      {elHsVoicesLoading ? (
+                        <div className="flex items-center gap-1.5 py-1.5 text-[9px] text-muted-foreground">
+                          <Loader2 className="h-3 w-3 animate-spin" />Loading ElevenLabs voices…
+                        </div>
+                      ) : elHsVoicesError ? (
+                        <p className="text-[9px] text-destructive/80 leading-snug bg-destructive/5 border border-destructive/20 rounded px-2 py-1.5">{elHsVoicesError}</p>
+                      ) : elHsVoicesList.length > 0 ? (
+                        <Select
+                          value={settings.voiceOutputId ?? ""}
+                          onValueChange={(v) => {
+                            const voice = elHsVoicesList.find((x) => x.voice_id === v);
+                            setSettings({ voiceOutputId: v, voiceOutputName: voice?.name });
+                          }}
+                        >
+                          <SelectTrigger className="h-7 text-[10px]">
+                            <SelectValue placeholder="Select ElevenLabs voice…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {elHsVoicesList.map((v) => (
+                              <SelectItem key={v.voice_id} value={v.voice_id}>
+                                <span className="flex items-center justify-between gap-3 w-full">
+                                  <span className="font-medium">{v.name}</span>
+                                  <span className="text-muted-foreground text-[10px] capitalize">{v.category}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+
+                      {/* Upload voice sample — available even when list API is restricted */}
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex-1 h-px bg-white/[0.06]" />
+                        <span className="text-[9px] text-muted-foreground/60 shrink-0">or upload</span>
+                        <div className="flex-1 h-px bg-white/[0.06]" />
                       </div>
-                    ) : elHsVoicesError ? (
-                      <p className="text-[9px] text-destructive leading-snug">{elHsVoicesError}</p>
-                    ) : (
-                      <Select
-                        value={settings.voiceOutputId ?? ""}
-                        onValueChange={(v) => {
-                          const voice = elHsVoicesList.find((x) => x.voice_id === v);
-                          setSettings({ voiceOutputId: v, voiceOutputName: voice?.name });
-                        }}
+                      <button
+                        type="button"
+                        disabled={elHsUploading}
+                        onClick={() => elHsFileInputRef.current?.click()}
+                        className="w-full h-7 flex items-center justify-center gap-1.5 rounded-md border border-dashed border-white/[0.12] bg-white/[0.01] text-[10px] text-muted-foreground hover:border-white/[0.22] hover:bg-white/[0.03] hover:text-foreground transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none"
                       >
-                        <SelectTrigger className="h-7 text-[10px]">
-                          <SelectValue placeholder="Select ElevenLabs voice…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {elHsVoicesList.map((v) => (
-                            <SelectItem key={v.voice_id} value={v.voice_id}>
-                              <span className="flex items-center justify-between gap-3 w-full">
-                                <span className="font-medium">{v.name}</span>
-                                <span className="text-muted-foreground text-[10px] capitalize">{v.category}</span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )
+                        {elHsUploading ? (
+                          <><Loader2 className="h-3 w-3 animate-spin" />Cloning voice…</>
+                        ) : (
+                          <><Upload className="h-3 w-3" />Upload voice sample</>
+                        )}
+                      </button>
+                      <input
+                        ref={elHsFileInputRef}
+                        type="file"
+                        accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac,.webm"
+                        className="hidden"
+                        onChange={handleElHsVoiceUpload}
+                      />
+                      <p className="text-[8.5px] text-muted-foreground/50 leading-snug">
+                        MP3, WAV, M4A, OGG — min 1 min of clear speech recommended
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
