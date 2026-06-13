@@ -740,16 +740,16 @@ export const searchTwilioNumbers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z.object({
-      data: z.object({
-        accountSid:  z.string().min(1),
-        authToken:   z.string().min(1),
-        countryCode: z.string().default("US"),
-        areaCode:    z.string().optional(),
-      }),
+      accountSid:  z.string().min(1),
+      authToken:   z.string().min(1),
+      countryCode: z.string().default("US"),
+      areaCode:    z.string().optional(),
     }).parse(input),
   )
   .handler(async ({ data }) => {
-    const { accountSid, authToken, countryCode, areaCode } = data.data;
+    const { accountSid, authToken, countryCode, areaCode } = data as {
+      accountSid: string; authToken: string; countryCode: string; areaCode?: string;
+    };
     const client = twilio(accountSid, authToken);
 
     const list = await client
@@ -779,16 +779,16 @@ export const purchaseTwilioNumber = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z.object({
-      data: z.object({
-        accountSid:  z.string().min(1),
-        authToken:   z.string().min(1),
-        phoneNumber: z.string().min(1),
-      }),
+      accountSid:  z.string().min(1),
+      authToken:   z.string().min(1),
+      phoneNumber: z.string().min(1),
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
-    const { accountSid, authToken, phoneNumber } = data.data;
+    const { accountSid, authToken, phoneNumber } = data as {
+      accountSid: string; authToken: string; phoneNumber: string;
+    };
 
     if (!workspaceId) throw new Error("No workspace");
 
