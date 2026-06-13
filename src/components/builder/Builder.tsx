@@ -1234,7 +1234,19 @@ export function Builder({
               </DropdownMenu>
             </div>
 
-            {/* Voice Infrastructure Routing */}
+            {settings.channelType === "whatsapp" ? (
+              <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-2.5 space-y-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-green-500/60 font-medium">WhatsApp Channel</p>
+                <div className="flex items-center gap-2">
+                  <MsgSq className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-medium text-foreground">WhatsApp via Twilio</div>
+                    <div className="text-[9px] text-muted-foreground">Inbound message routing active</div>
+                  </div>
+                  <span className="ml-auto h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
+                </div>
+              </div>
+            ) : (
             <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-2.5 space-y-1.5">
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Voice Infrastructure</p>
               <div className="grid grid-cols-2 gap-1.5">
@@ -1413,7 +1425,9 @@ export function Builder({
                 </div>
               )}
             </div>
+            )}
 
+            {settings.channelType !== "whatsapp" && (<>
             <Collapsible data-tour="voice-section" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span className="flex items-center gap-1.5"><Mic className="h-3 w-3" />Voice & Language</span>
@@ -1617,6 +1631,7 @@ export function Builder({
                 </CollapsibleContent>
               </Collapsible>
             )}
+            </>)}
 
             <Collapsible data-tour="global-prompt" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
@@ -1675,7 +1690,7 @@ export function Builder({
               </CollapsibleContent>
             </Collapsible>
 
-            {isElevenLabs && (
+            {isElevenLabs && settings.channelType !== "whatsapp" && (
               <Collapsible className="rounded-lg border border-primary/20 bg-primary/[0.03]">
                 <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
                   <span className="flex items-center gap-1.5"><Mic className="h-3 w-3 text-primary" />VoxStream Engine</span>
@@ -1888,6 +1903,7 @@ export function Builder({
                     <Input value={settings.webhookUrl ?? ""} onChange={(e) => setSettings({ webhookUrl: e.target.value })} className="h-6 text-[10px]" placeholder="https://…" />
                   </div>
                 )}
+                {settings.channelType !== "whatsapp" && (
                 <div>
                   <Label className="text-[9px]">Start speaker</Label>
                   <Select value={settings.startSpeaker ?? "agent"} onValueChange={(v) => setSettings({ startSpeaker: v as "agent" | "user" })}>
@@ -1898,10 +1914,11 @@ export function Builder({
                     </SelectContent>
                   </Select>
                 </div>
+                )}
               </CollapsibleContent>
             </Collapsible>
 
-            <PostCallDataSection />
+            {settings.channelType !== "whatsapp" && <PostCallDataSection />}
 
             <BookingConfigSection />
 

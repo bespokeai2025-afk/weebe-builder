@@ -1,0 +1,383 @@
+WATI OPTIONAL CONNECTOR ARCHITECTURE
+
+IMPORTANT
+
+- Do not modify existing Builder functionality.
+- Do not modify existing WhatsApp workflow functionality.
+- Do not modify Retell functionality.
+- Do not modify HyperStream functionality.
+- Do not modify existing Meta Cloud API functionality.
+- Do not modify existing Twilio WhatsApp functionality.
+- Preserve all existing WhatsApp Manager features.
+- Extend the platform only.
+- Generate implementation plan before coding.
+
+OBJECTIVE
+
+Implement WATI as an OPTIONAL integration layer.
+
+WATI must NEVER be required for WhatsApp functionality.
+
+The platform must operate fully without WATI.
+
+Customers should be able to:
+
+1. Use Meta Cloud API only
+2. Use Twilio WhatsApp only
+3. Connect WATI and enable WATI-specific features
+4. Disconnect WATI without breaking anything
+
+====================================================
+
+TARGET ARCHITECTURE
+
+WhatsApp Management Centre
+│
+├── Meta Cloud API
+├── Twilio WhatsApp
+├── Native WeeBee Broadcast Engine
+│
+└── Optional Integrations
+      └── WATI Connector
+
+The AI Runtime must NEVER depend on WATI.
+
+====================================================
+
+CORE PRINCIPLE
+
+Builder
+↓
+Workflow
+↓
+Runtime
+↓
+WhatsApp Provider
+↓
+User
+
+The Builder must not know whether:
+
+- Meta
+- Twilio
+- WATI
+
+is being used.
+
+All workflows must continue working identically.
+
+====================================================
+
+WATI CONNECTION PAGE
+
+Create:
+
+Settings
+→ Integrations
+→ WATI
+
+Fields:
+
+API Key
+Tenant ID
+Webhook Secret
+
+Functions:
+
+Connect
+Disconnect
+Test Connection
+Sync Templates
+Sync Campaigns
+Sync Contacts
+
+Display:
+
+Connection Status
+Last Sync
+Provider Health
+
+====================================================
+
+DEFAULT OPERATION
+
+When no WATI account exists:
+
+System uses:
+
+Meta Cloud API
+or
+Twilio WhatsApp
+
+for:
+
+- Inbound messages
+- Outbound messages
+- Workflows
+- AI agents
+- Contacts
+- Templates
+- Analytics
+
+No WATI dependency.
+
+====================================================
+
+WATI ENHANCEMENT MODE
+
+When WATI is connected:
+
+Enable:
+
+- WATI Broadcasts
+- WATI Template Sync
+- WATI Campaign Sync
+- WATI Contact Sync
+- WATI Analytics
+
+without modifying:
+
+- AI Runtime
+- Workflow Builder
+- Knowledge Base
+- Variables
+- Automations
+
+====================================================
+
+BROADCAST ENGINE
+
+Create:
+
+Broadcast Provider Selector
+
+Options:
+
+Native WeeBee Broadcasts
+WATI Broadcasts
+
+Rules:
+
+If WATI is disconnected:
+
+Only show:
+
+Native WeeBee Broadcasts
+
+If WATI is connected:
+
+Show:
+
+Native WeeBee Broadcasts
+WATI Broadcasts
+
+====================================================
+
+TEMPLATE MANAGEMENT
+
+Native Templates
+
++
+
+Optional WATI Templates
+
+Display source:
+
+Meta
+Twilio
+WATI
+
+Support:
+
+Sync
+Refresh
+Import
+
+====================================================
+
+CONTACT MANAGEMENT
+
+If WATI connected:
+
+Allow:
+
+Import WATI Contacts
+Sync WATI Contacts
+
+Store source field:
+
+meta
+twilio
+wati
+
+====================================================
+
+CAMPAIGN MANAGEMENT
+
+If WATI connected:
+
+Allow:
+
+Import Existing Campaigns
+View Campaign Statistics
+Clone Campaigns
+
+Store source field:
+
+native
+wati
+
+====================================================
+
+INBOUND MESSAGE FLOW
+
+Meta Message
+↓
+Runtime
+↓
+Workflow
+↓
+Response
+
+Twilio Message
+↓
+Runtime
+↓
+Workflow
+↓
+Response
+
+WATI Message
+↓
+Runtime
+↓
+Workflow
+↓
+Response
+
+Normalize all incoming events.
+
+The runtime must receive identical message objects.
+
+====================================================
+
+ANALYTICS
+
+Display provider breakdown:
+
+Meta
+Twilio
+WATI
+
+Display:
+
+Messages
+Replies
+Reads
+Conversions
+Appointments
+Lead Generation
+
+====================================================
+
+COST ENGINE INTEGRATION
+
+Add:
+
+WATI Monthly Cost
+WATI Broadcast Cost
+WATI Conversation Cost
+
+Include in profitability calculations.
+
+Display:
+
+Native Broadcast Cost
+WATI Broadcast Cost
+
+====================================================
+
+FAILOVER BEHAVIOUR
+
+If WATI becomes disconnected:
+
+- Disable WATI Broadcasts
+- Disable WATI Sync Functions
+
+DO NOT:
+
+- Disable AI agents
+- Disable workflows
+- Disable inbox
+- Disable Meta
+- Disable Twilio
+
+Platform must continue operating normally.
+
+====================================================
+
+DATABASE CHANGES
+
+Create:
+
+wati_connections
+wati_templates
+wati_campaigns
+wati_contacts
+wati_sync_logs
+
+Link to existing WhatsApp tables.
+
+Do not duplicate contacts.
+
+====================================================
+
+SECURITY
+
+Encrypt:
+
+API Keys
+Secrets
+Tokens
+
+Store server-side only.
+
+Never expose credentials to frontend.
+
+====================================================
+
+SUCCESS CRITERIA
+
+A customer can:
+
+Connect Meta Cloud API
+Build WhatsApp Agents
+Run Workflows
+Use Inbox
+Use Broadcasts
+
+without WATI.
+
+If they connect WATI:
+
+Additional capabilities appear:
+
+- WATI Broadcasts
+- WATI Templates
+- WATI Campaign Sync
+- WATI Contact Sync
+
+without changing any existing workflow or agent configuration.
+
+Generate implementation plan first.
+
+Identify:
+
+- Files requiring modification
+- New services
+- Database changes
+- UI changes
+- Webhook endpoints
+- Security requirements
+
+Then implement in safe phases.
