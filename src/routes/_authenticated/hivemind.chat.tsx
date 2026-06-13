@@ -204,7 +204,9 @@ function useElRelay(
         const errMsg = String(msg.message);
         const friendly = errMsg.includes("paid_plan_required") || errMsg.includes("payment_required")
           ? "Voice playback requires an ElevenLabs paid plan for this voice. Open Voice Settings and select a voice from your own ElevenLabs library."
-          : `Voice error: ${errMsg.slice(0, 120)}`;
+          : errMsg.trimStart().startsWith("<") || errMsg.length > 300
+            ? "Voice error — please refresh the page and try again."
+            : `Voice error: ${errMsg.slice(0, 150)}`;
         setError(friendly);
       }
     };
@@ -510,7 +512,11 @@ function HiveMindChat() {
       }
       await relay.start(ctx.systemPrompt, ctx.beginMessage);
     } catch (e: any) {
-      setLiveError(String(e.message ?? "Could not start live session"));
+      const raw = String(e.message ?? "");
+      const friendly = raw.trimStart().startsWith("<") || raw.length > 300
+        ? "Connection error — please refresh the page and try again."
+        : raw || "Could not start live session";
+      setLiveError(friendly);
       setMode("chat");
     }
   }
