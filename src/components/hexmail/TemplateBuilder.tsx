@@ -60,15 +60,23 @@ import {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const TEMPLATE_TYPES: { value: TemplateType; label: string }[] = [
+// Top-level category choices shown in the primary selector
+const PRIMARY_CATEGORIES = [
   { value: "email",    label: "Email" },
   { value: "sms",      label: "SMS" },
   { value: "whatsapp", label: "WhatsApp" },
-  { value: "document", label: "Document" },
-  { value: "proposal", label: "Proposal" },
-  { value: "quote",    label: "Quote" },
-  { value: "invoice",  label: "Invoice" },
-  { value: "contract", label: "Contract" },
+  { value: "document", label: "Document" },  // triggers sub-type row
+] as const;
+
+type PrimaryCategory = (typeof PRIMARY_CATEGORIES)[number]["value"];
+
+// Document sub-types
+const DOC_SUB_TYPES: { value: TemplateType; label: string; description: string }[] = [
+  { value: "document", label: "General",  description: "Generic business doc" },
+  { value: "proposal", label: "Proposal", description: "Project / service proposal" },
+  { value: "quote",    label: "Quote",    description: "Price quotation" },
+  { value: "invoice",  label: "Invoice",  description: "Payment invoice" },
+  { value: "contract", label: "Contract", description: "Legal agreement" },
 ];
 
 const DOC_TYPES = new Set<TemplateType>(["document", "proposal", "quote", "invoice", "contract"]);
@@ -131,6 +139,9 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
 
   const [name,    setName]    = useState("");
   const [type,    setType]    = useState<TemplateType>(defaultType ?? "email");
+  const [primaryCat, setPrimaryCat] = useState<PrimaryCategory>(
+    defaultType && DOC_TYPES.has(defaultType) ? "document" : (defaultType ?? "email") as PrimaryCategory,
+  );
   const [subject, setSubject] = useState("");
   const [body,    setBody]    = useState("");   // raw body without VARS sentinel
   const [vars,    setVars]    = useState<VarMap>({});
@@ -170,7 +181,9 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
     const { body: parsedBody, vars: parsedVars } = splitContent(rawContent);
 
     setName(template?.name ?? "");
-    setType(template?.type ?? defaultType ?? "email");
+    const resolvedType = template?.type ?? defaultType ?? "email";
+    setType(resolvedType);
+    setPrimaryCat(DOC_TYPES.has(resolvedType) ? "document" : resolvedType as PrimaryCategory);
     setBody(parsedBody);
 
     // Sync vars: merge stored defs with anything detected in the body
@@ -354,23 +367,58 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
             isDocType ? "flex-1 min-w-0 overflow-y-auto pr-1" : "flex-1",
           )}>
 
-            {/* Name + Type */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>Template Name</Label>
-                <Input placeholder="e.g. Invoice Template" value={name} onChange={(e) => setName(e.target.value)} />
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label>Template Name</Label>
+              <Input placeholder="e.g. Invoice Template" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+
+            {/* Type — primary category */}
+            <div className="space-y-1.5">
+              <Label>Type</Label>
+              <div className="flex gap-1.5">
+                {PRIMARY_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => {
+                      setPrimaryCat(cat.value);
+                      if (cat.value !== "document") setType(cat.value as TemplateType);
+                      else setType("document");
+                    }}
+                    className={cn(
+                      "flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+                      primaryCat === cat.value
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground",
+                    )}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
               </div>
-              <div className="space-y-1.5">
-                <Label>Type</Label>
-                <Select value={type} onValueChange={(v) => setType(v as TemplateType)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {TEMPLATE_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
+              {/* Document sub-type selector */}
+              {primaryCat === "document" && (
+                <div className="flex gap-1.5 pt-1">
+                  {DOC_SUB_TYPES.map((sub) => (
+                    <button
+                      key={sub.value}
+                      type="button"
+                      onClick={() => setType(sub.value)}
+                      title={sub.description}
+                      className={cn(
+                        "flex-1 rounded border px-2 py-1 text-xs font-medium transition-colors",
+                        type === sub.value
+                          ? "bg-primary/15 text-primary border-primary/40"
+                          : "bg-muted/30 text-muted-foreground border-border hover:border-primary/30 hover:text-foreground",
+                      )}
+                    >
+                      {sub.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Email subject */}
