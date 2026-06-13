@@ -100,3 +100,30 @@ export const VAR_TYPE_LABELS: Record<VarType, string> = {
   email:    "Email",
   phone:    "Phone",
 };
+
+// ── Email attachment stored inline at the end of email template content ───────
+// Format:  <body text>\n\n---EMAIL_ATTACH---\n<json>
+
+const EMAIL_ATTACH_SENTINEL = "\n\n---EMAIL_ATTACH---\n";
+
+export interface EmailAttach {
+  url:  string;
+  name: string;
+  mime: string;
+}
+
+/** Split email template content into { body, attach } */
+export function splitEmailContent(raw: string): { body: string; attach: EmailAttach | null } {
+  const idx = raw.indexOf(EMAIL_ATTACH_SENTINEL);
+  if (idx === -1) return { body: raw, attach: null };
+  const body    = raw.slice(0, idx);
+  const jsonStr = raw.slice(idx + EMAIL_ATTACH_SENTINEL.length);
+  try { return { body, attach: JSON.parse(jsonStr) as EmailAttach }; }
+  catch { return { body, attach: null }; }
+}
+
+/** Combine email body + optional attachment into the value stored in the DB */
+export function joinEmailContent(body: string, attach: EmailAttach | null): string {
+  if (!attach?.url) return body;
+  return body + EMAIL_ATTACH_SENTINEL + JSON.stringify(attach);
+}

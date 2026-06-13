@@ -52,10 +52,13 @@ import {
   detectVars,
   mergeDetected,
   applyVars,
+  splitEmailContent,
+  joinEmailContent,
   VAR_TYPE_LABELS,
   type VarMap,
   type VarDef,
   type VarType,
+  type EmailAttach,
 } from "@/lib/hexmail/vars-helpers";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -134,8 +137,9 @@ interface Props {
 
 export function TemplateBuilder({ open, template, defaultType, onClose, onSaved }: Props) {
   const qc = useQueryClient();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef      = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef     = useRef<HTMLInputElement>(null);
+  const emailFileInputRef = useRef<HTMLInputElement>(null);
 
   const [name,    setName]    = useState("");
   const [type,    setType]    = useState<TemplateType>(defaultType ?? "email");
@@ -143,18 +147,24 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
     defaultType && DOC_TYPES.has(defaultType) ? "document" : (defaultType ?? "email") as PrimaryCategory,
   );
   const [subject, setSubject] = useState("");
-  const [body,    setBody]    = useState("");   // raw body without VARS sentinel
+  const [body,    setBody]    = useState("");   // raw body without sentinels
   const [vars,    setVars]    = useState<VarMap>({});
   const [preview, setPreview] = useState(false);
   const [previewFills, setPreviewFills] = useState<Record<string, string>>({});
 
-  // Document upload
+  // Document (doc-type) upload
   const [fileUrl,     setFileUrl]     = useState<string | null>(null);
   const [fileMime,    setFileMime]    = useState<string>("");
   const [fileName,    setFileName]    = useState<string | null>(null);
   const [isDragging,  setIsDragging]  = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+
+  // Email attachment
+  const [emailAttachUrl,      setEmailAttachUrl]      = useState<string | null>(null);
+  const [emailAttachName,     setEmailAttachName]     = useState<string | null>(null);
+  const [emailAttachMime,     setEmailAttachMime]     = useState<string>("");
+  const [isEmailAttachUpload, setIsEmailAttachUpload] = useState(false);
 
   // AI
   const [aiInstruction,   setAiInstruction]   = useState("");
@@ -177,38 +187,66 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
     setPreview(false);
     setNewVarKey("");
 
-    const rawContent = template?.content ?? "";
-    const { body: parsedBody, vars: parsedVars } = splitContent(rawContent);
+    const rawContent  = template?.content ?? "";
+    const resolvedType = template?.type ?? defaultType ?? "email";
 
     setName(template?.name ?? "");
-    const resolvedType = template?.type ?? defaultType ?? "email";
     setType(resolvedType);
     setPrimaryCat(DOC_TYPES.has(resolvedType) ? "document" : resolvedType as PrimaryCategory);
-    setBody(parsedBody);
 
-    // Sync vars: merge stored defs with anything detected in the body
-    const detected = detectVars(parsedBody);
-    setVars(mergeDetected(parsedVars, detected));
-
-    // Preview fills: initialise with stored defaults
-    const fills: Record<string, string> = {};
-    for (const [k, def] of Object.entries(parsedVars)) fills[k] = def.default;
-    setPreviewFills(fills);
-
-    if (template?.type && DOC_TYPES.has(template.type) && template.subject?.startsWith("http")) {
-      setSubject("");
-      setFileUrl(template.subject);
-      try {
-        const parts = new URL(template.subject).pathname.split("/");
-        const raw = parts[parts.length - 1] ?? "";
-        setFileName(raw.replace(/^\d+_/, ""));
+    if (DOC_TYPES.has(resolvedType)) {
+      // Doc types: parse vars from content sentinel
+      const { body: parsedBody, vars: parsedVars } = splitContent(rawContent);
+      setBody(parsedBody);
+      const detected = detectVars(parsedBody);
+      setVars(mergeDetected(parsedVars, detected));
+      const fills: Record<string, string> = {};
+      for (const [k, def] of Object.entries(parsedVars)) fills[k] = def.default;
+      setPreviewFills(fills);
+      // Doc file URL stored in subject field
+      if (template?.subject?.startsWith("http")) {
+        setSubject("");
+        setFileUrl(template.subject);
+        try {
+          const parts = new URL(template.subject).pathname.split("/");
+          const raw = parts[parts.length - 1] ?? "";
+          setFileName(raw.replace(/^\d+_/, ""));
+          setFileMime("");
+        } catch { setFileName("attachment"); setFileMime(""); }
+      } else {
+        setSubject("");
+        setFileUrl(null);
+        setFileName(null);
         setFileMime("");
-      } catch { setFileName("attachment"); setFileMime(""); }
-    } else {
+      }
+      setEmailAttachUrl(null);
+      setEmailAttachName(null);
+      setEmailAttachMime("");
+    } else if (resolvedType === "email") {
+      // Email: parse attachment from content sentinel
+      const { body: emailBody, attach } = splitEmailContent(rawContent);
+      setBody(emailBody);
+      setVars({});
+      setPreviewFills({});
       setSubject(template?.subject ?? "");
       setFileUrl(null);
       setFileName(null);
       setFileMime("");
+      setEmailAttachUrl(attach?.url ?? null);
+      setEmailAttachName(attach?.name ?? null);
+      setEmailAttachMime(attach?.mime ?? "");
+    } else {
+      // SMS / WhatsApp
+      setBody(rawContent);
+      setVars({});
+      setPreviewFills({});
+      setSubject(template?.subject ?? "");
+      setFileUrl(null);
+      setFileName(null);
+      setFileMime("");
+      setEmailAttachUrl(null);
+      setEmailAttachName(null);
+      setEmailAttachMime("");
     }
   }, [open, template, defaultType]);
 
@@ -220,9 +258,17 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
 
   // ── Save ─────────────────────────────────────────────────────────────────────
 
+  const emailAttach: EmailAttach | null = emailAttachUrl
+    ? { url: emailAttachUrl, name: emailAttachName ?? "", mime: emailAttachMime }
+    : null;
+
   const save = useMutation({
     mutationFn: () => {
-      const content = isDocType ? joinContent(body, vars) : body;
+      const content = isDocType
+        ? joinContent(body, vars)
+        : isEmail
+          ? joinEmailContent(body, emailAttach)
+          : body;
       return upsertHexmailTemplate({
         data: {
           id:      template?.id,
@@ -296,6 +342,31 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
     const file = e.dataTransfer.files?.[0];
     if (file) uploadFile(file);
   };
+
+  // ── Email attachment upload ───────────────────────────────────────────────────
+
+  const uploadEmailAttach = useCallback(async (file: File) => {
+    setIsEmailAttachUpload(true);
+    try {
+      const { signedUrl, publicUrl } = await createTemplateDocumentUploadUrl({
+        data: { fileName: file.name, mimeType: file.type },
+      });
+      const res = await fetch(signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+      setEmailAttachUrl(publicUrl);
+      setEmailAttachName(file.name);
+      setEmailAttachMime(file.type);
+      toast.success("Document attached");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Upload failed");
+    } finally {
+      setIsEmailAttachUpload(false);
+    }
+  }, []);
 
   // ── Text extraction ──────────────────────────────────────────────────────────
 
@@ -373,34 +444,38 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
               <Input placeholder="e.g. Invoice Template" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
 
-            {/* Type — primary category */}
+            {/* Type */}
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <div className="flex gap-1.5">
-                {PRIMARY_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.value}
-                    type="button"
-                    onClick={() => {
-                      setPrimaryCat(cat.value);
-                      if (cat.value !== "document") setType(cat.value as TemplateType);
-                      else setType("document");
-                    }}
-                    className={cn(
-                      "flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
-                      primaryCat === cat.value
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground",
-                    )}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
 
-              {/* Document sub-type selector */}
-              {primaryCat === "document" && (
-                <div className="flex gap-1.5 pt-1">
+              {/* Primary category tabs — hidden when editing a document template */}
+              {!isDocType && (
+                <div className="flex gap-1.5">
+                  {PRIMARY_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => {
+                        setPrimaryCat(cat.value);
+                        if (cat.value !== "document") setType(cat.value as TemplateType);
+                        else setType("document");
+                      }}
+                      className={cn(
+                        "flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+                        primaryCat === cat.value
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground",
+                      )}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Document sub-type selector — shown for all doc types */}
+              {isDocType && (
+                <div className="flex gap-1.5">
                   {DOC_SUB_TYPES.map((sub) => (
                     <button
                       key={sub.value}
@@ -429,6 +504,70 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
                   placeholder="e.g. Your invoice #{{invoice_number}} is ready"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
+                />
+              </div>
+            )}
+
+            {/* Email — optional document attachment */}
+            {isEmail && (
+              <div className="space-y-2">
+                <Label>
+                  Attach Document{" "}
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </Label>
+
+                {emailAttachUrl ? (
+                  <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+                    <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                    <span className="flex-1 text-sm truncate font-medium">{emailAttachName}</span>
+                    <a
+                      href={emailAttachUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Open
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => { setEmailAttachUrl(null); setEmailAttachName(null); setEmailAttachMime(""); }}
+                      className="text-muted-foreground hover:text-destructive shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) uploadEmailAttach(file);
+                    }}
+                    onClick={() => emailFileInputRef.current?.click()}
+                    className="flex items-center gap-3 rounded-lg border-2 border-dashed px-4 py-3 cursor-pointer transition-colors border-border hover:border-primary/40 hover:bg-muted/30"
+                  >
+                    {isEmailAttachUpload
+                      ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground shrink-0" />
+                      : <Upload className="h-5 w-5 text-muted-foreground shrink-0" />}
+                    <div>
+                      <p className="text-sm font-medium">
+                        {isEmailAttachUpload ? "Uploading…" : "Drop or click to attach"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">PDF, Word, Excel, TXT — up to 50 MB</p>
+                    </div>
+                  </div>
+                )}
+                <input
+                  ref={emailFileInputRef}
+                  type="file"
+                  accept={ACCEPTED_DOC_MIME}
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) uploadEmailAttach(file);
+                    e.target.value = "";
+                  }}
                 />
               </div>
             )}
