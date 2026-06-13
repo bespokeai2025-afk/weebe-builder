@@ -913,7 +913,7 @@ export function Builder({
                 {(
                   [
                     { mode: "RETELL"            as DeploymentMode, label: "OmniVoice",   sub: "Premium Catalog",  icon: Radio,    available: true  },
-                    { mode: "OPENAI_NATIVE"     as DeploymentMode, label: "HyperStream", sub: "Coming Soon",      icon: Zap,      available: false },
+                    { mode: "OPENAI_NATIVE"     as DeploymentMode, label: "HyperStream", sub: "OpenAI Realtime",  icon: Zap,      available: true  },
                     { mode: "ELEVENLABS_NATIVE" as DeploymentMode, label: "VoxStream",   sub: "Coming Soon",      icon: Mic,      available: false },
                     { mode: "CLAUDE_NATIVE"     as DeploymentMode, label: "Claude",      sub: "Coming Soon",      icon: Sparkles, available: false },
                     { mode: "GEMINI_NATIVE"     as DeploymentMode, label: "Gemini",      sub: "Coming Soon",      icon: Gem,      available: false },
