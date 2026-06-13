@@ -54,6 +54,44 @@ export const listCallCampaigns = createServerFn({ method: "POST" })
       .filter((r: any) => r.config?.pageType === data.pageType) as CallCampaign[];
   });
 
+export type CallCampaignWithAgent = CallCampaign & {
+  agentName: string | null;
+};
+
+export const listAllCallCampaigns = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    const { data: rows, error } = await sb
+      .from("campaigns")
+      .select("id, name, description, status, agent_id, created_at")
+      .eq("workspace_id", workspaceId)
+      .like("description", `${MARKER}%`)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+
+    const campaigns = ((rows ?? []) as any[])
+      .map((r) => ({ ...r, config: parseDesc(r.description) }))
+      .filter((r) => r.config !== null) as CallCampaign[];
+
+    const agentIds = [...new Set(campaigns.map((c) => c.agent_id).filter(Boolean))] as string[];
+    let agentNames: Record<string, string> = {};
+    if (agentIds.length) {
+      const { data: agents } = await sb
+        .from("agents")
+        .select("id, name")
+        .in("id", agentIds);
+      agentNames = Object.fromEntries((agents ?? []).map((a: any) => [a.id, a.name]));
+    }
+
+    return campaigns.map((c) => ({
+      ...c,
+      agentName: c.agent_id ? (agentNames[c.agent_id] ?? null) : null,
+    })) as CallCampaignWithAgent[];
+  });
+
 const campaignInput = z.object({
   name: z.string().min(1).max(120),
   agentId: z.string().nullable().optional(),
