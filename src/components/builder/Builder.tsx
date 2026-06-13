@@ -295,6 +295,65 @@ const DEFAULT_VOICES: { id: string; label: string; group: VoiceGroup }[] = [
 
 const VOICE_GROUPS: VoiceGroup[] = ["ElevenLabs", "OpenAI", "Deepgram"];
 
+function MiniAudioPlayer({ url }: { url: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  function fmt(s: number) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  }
+
+  function toggle() {
+    const a = audioRef.current;
+    if (!a) return;
+    if (playing) { a.pause(); } else { a.play(); }
+  }
+
+  return (
+    <div className="space-y-0.5">
+      <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/60">Recording</p>
+      <audio
+        ref={audioRef}
+        src={url}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onTimeUpdate={() => setCurrent(audioRef.current?.currentTime ?? 0)}
+        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+      />
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={toggle}
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-white/[0.06] hover:bg-white/[0.1] text-foreground transition-colors"
+        >
+          {playing
+            ? <span className="flex gap-px"><span className="w-[2px] h-2.5 bg-current rounded-sm" /><span className="w-[2px] h-2.5 bg-current rounded-sm" /></span>
+            : <Play className="h-2.5 w-2.5 ml-px" />}
+        </button>
+        <div
+          className="flex-1 h-0.5 rounded-full bg-white/[0.1] cursor-pointer"
+          onClick={(e) => {
+            if (!audioRef.current || !duration) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            audioRef.current.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
+          }}
+        >
+          <div
+            className="h-full rounded-full bg-violet-400"
+            style={{ width: duration ? `${(current / duration) * 100}%` : "0%" }}
+          />
+        </div>
+        <span className="text-[9px] tabular-nums text-muted-foreground/70 shrink-0">
+          {fmt(current)}{duration ? ` / ${fmt(duration)}` : ""}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function Builder({
   heightClass = "h-[78vh]",
@@ -1036,15 +1095,7 @@ export function Builder({
                   <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2.5 shrink-0">
                     {/* Recording player */}
                     {recordingUrl && (
-                      <div className="space-y-1">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/70">Recording</p>
-                        <audio
-                          controls
-                          src={recordingUrl}
-                          className="w-full"
-                          style={{ colorScheme: "dark", height: "28px" }}
-                        />
-                      </div>
+                      <MiniAudioPlayer url={recordingUrl} />
                     )}
                     {/* Extraction loading */}
                     {postCallLoading && (
