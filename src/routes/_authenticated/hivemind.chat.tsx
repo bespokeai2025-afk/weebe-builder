@@ -125,10 +125,12 @@ function useElRelay(
   const [state, setState]  = useState<"idle"|"connecting"|"live"|"error">("idle");
   const [error, setError]  = useState<string | null>(null);
 
-  const scheduleChunk = useCallback((b64: string) => {
+  const scheduleChunk = useCallback(async (b64: string) => {
     const ctx = audioCtxRef.current;
     if (!ctx || !b64) return;
-    if (ctx.state === "suspended") void ctx.resume();
+    if (ctx.state !== "running") {
+      try { await ctx.resume(); } catch { return; }
+    }
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const i16 = new Int16Array(bytes.buffer);
     if (!i16.length) return;
@@ -139,8 +141,8 @@ function useElRelay(
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
-    const startAt = nextPlayRef.current > ctx.currentTime
-      ? nextPlayRef.current : ctx.currentTime + 0.08;
+    const now = ctx.currentTime;
+    const startAt = nextPlayRef.current > now ? nextPlayRef.current : now + 0.05;
     src.start(startAt);
     nextPlayRef.current = startAt + buf.duration;
   }, []);
@@ -193,12 +195,18 @@ function useElRelay(
             }
           };
           micSrc.connect(worklet);
-          worklet.connect(audioCtx.destination);
         } catch { setError("Microphone access denied"); setState("error"); }
       }
       if (msg.type === "audio.delta" && typeof msg.data === "string") scheduleChunk(msg.data);
       if (msg.type === "transcript" && msg.role === "user"  && msg.text) onTranscript("user",     String(msg.text));
       if (msg.type === "transcript" && msg.role === "agent" && msg.text) onTranscript("hivemind", String(msg.text));
+      if (msg.type === "relay.error" && msg.message) {
+        const errMsg = String(msg.message);
+        const friendly = errMsg.includes("paid_plan_required") || errMsg.includes("payment_required")
+          ? "Voice playback requires an ElevenLabs paid plan for this voice. Open Voice Settings and select a voice from your own ElevenLabs library."
+          : `Voice error: ${errMsg.slice(0, 120)}`;
+        setError(friendly);
+      }
     };
     ws.onerror = () => { setError("Connection failed"); setState("error"); };
     ws.onclose = () => { setState("idle"); };
@@ -400,7 +408,21 @@ function HiveMindChat() {
   // Load prefs + voices on mount
   useEffect(() => {
     setVoiceSettings(loadVoiceSettings());
-    voicesFn().then(r => { if (r.voices?.length) setVoices(r.voices); }).catch(() => {});
+    voicesFn().then(r => {
+      if (r.voices?.length) {
+        setVoices(r.voices);
+        // Auto-select first library voice if still on the default (Rachel requires paid plan)
+        setVoiceSettings(prev => {
+          if (prev.voiceId === DEFAULT_VOICE.voiceId) {
+            const first = r.voices[0];
+            const updated = { ...prev, voiceId: first.id, voiceName: first.name };
+            saveVoiceSettings(updated);
+            return updated;
+          }
+          return prev;
+        });
+      }
+    }).catch(() => {});
   }, []);
 
   // Morning briefing
