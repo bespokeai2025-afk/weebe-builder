@@ -848,11 +848,23 @@ export function RetellDeployDialog({
       // speaker output, VAD fires on the AI's own voice, and the model
       // "responds" to itself — causing repetition, false input detection,
       // and the apparent 37-second silence gap on the first turn.
+      //
+      // autoGainControl is intentionally OFF: AGC normalises the mic level
+      // toward a target loudness, which means it boosts background noise
+      // between turns to speech levels — making OpenAI's VAD unable to
+      // distinguish noise from speech. Without AGC the mic level is stable
+      // and consistent; semantic_vad can reliably detect actual speech.
+      //
+      // channelCount:1 forces mono capture so the worklet never receives
+      // an empty first channel (some browsers give the non-primary channel
+      // in index 0 for stereo mic configurations).
       const micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true,
+          autoGainControl: false,
+          channelCount: 1,
+          sampleRate: 24000,
         },
       });
       streamRef.current = micStream;
@@ -996,12 +1008,16 @@ export function RetellDeployDialog({
           workletRef.current = node;
           node.port.onmessage = (ev) => sendPcm(new Int16Array(ev.data as ArrayBuffer));
           source.connect(node);
-          // Keep the node pulled by the graph without emitting audible output.
-          const sink = audioCtx.createGain();
-          sink.gain.value = 0;
-          captureSinkRef.current = sink;
-          node.connect(sink);
-          sink.connect(audioCtx.destination);
+          // Do NOT connect the worklet output to audioCtx.destination.
+          // Routing mic audio into the AudioContext output graph causes the
+          // browser's AEC to see the user's own voice in the speaker output
+          // and cancel it — suppressing the user's speech while AI echo
+          // passes through unchanged.
+          //
+          // AudioWorklet nodes with process() returning true are kept alive
+          // by the spec even without output connections, as long as they have
+          // active inputs (our MediaStreamSource provides audio continuously).
+          // The keep-alive oscillator keeps the rendering thread running.
           usingWorklet = true;
         } catch (err) {
           console.warn("[hyperstream] AudioWorklet unavailable, falling back:", err);
@@ -1669,7 +1685,15 @@ export function RetellDeployDialog({
             const now = performance.now();
 
             if (deltaCountForResponse === 1) {
-              // ── First delta: compute TTFA and record timeline anchor ────
+              // ── First delta: clear uncommitted mic buffer ────────────────
+              // Any mic audio captured while the LLM was "thinking" (between
+              // the user's last word and now) may contain AI echo from the
+              // previous turn — discard it before OpenAI's VAD can commit it.
+              // Safe to call even if the buffer is empty; semantic_vad won't
+              // have committed real speech yet (that commits when VAD fires).
+              try { ws.send(JSON.stringify({ type: "input_audio_buffer.clear" })); } catch { /* non-fatal */ }
+
+              // ── Compute TTFA and record timeline anchor ─────────────────
               firstAudioDeltaAt = now;
               const ttfa = speechStoppedAt !== null
                 ? `${(now - speechStoppedAt).toFixed(0)}ms`
