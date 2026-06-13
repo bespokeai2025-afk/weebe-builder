@@ -14,6 +14,12 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   Phone,
@@ -29,6 +35,7 @@ import {
   StickyNote,
   ChevronLeft,
   ChevronRight,
+  GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -262,29 +269,62 @@ function LeadCard({
   );
 }
 
-// ── Droppable column ──────────────────────────────────────────────────────────
+// ── Droppable + sortable column ───────────────────────────────────────────────
 function PipelineColumn({
   stage,
   leads,
-  activeId,
   onSelectLead,
   onMoveLead,
+  isDraggingColumn,
 }: {
   stage: (typeof PIPELINE_STAGES)[number];
   leads: PipelineLead[];
-  activeId: string | null;
   onSelectLead: (lead: PipelineLead) => void;
   onMoveLead: (lead: PipelineLead, stage: PipelineStage) => void;
+  isDraggingColumn: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  // Droppable: receives cards
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage.id });
+
+  // Sortable: allows this column to be reordered
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `col::${stage.id}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   const totalFunding = leads.reduce((sum, l) => sum + (l.funding_amount ?? 0), 0);
 
   return (
-    <div className="flex flex-col w-44 shrink-0">
-      {/* Column header */}
-      <div className="mb-2">
-        <div className={cn("h-0.5 w-8 rounded-full mb-1.5", stage.color)} />
+    <div
+      ref={setSortRef}
+      style={style}
+      className={cn(
+        "flex flex-col w-44 shrink-0",
+        isDragging && "opacity-40",
+      )}
+    >
+      {/* Column header with drag handle */}
+      <div className="mb-2 group/col">
+        <div className="flex items-center gap-1 mb-1.5">
+          <div className={cn("h-0.5 flex-1 rounded-full", stage.color)} />
+          <button
+            {...attributes}
+            {...listeners}
+            className="opacity-0 group-hover/col:opacity-60 hover:!opacity-100 transition-opacity cursor-grab active:cursor-grabbing p-0.5 rounded"
+            title="Drag to reorder column"
+          >
+            <GripVertical className="h-3 w-3 text-muted-foreground" />
+          </button>
+        </div>
         <h3 className="font-semibold text-xs text-foreground">{stage.label}</h3>
         <p className="text-[10px] text-muted-foreground mt-0.5">
           {totalFunding > 0 ? `${fmt$(totalFunding)} · ` : ""}
@@ -294,11 +334,11 @@ function PipelineColumn({
 
       {/* Cards area */}
       <div
-        ref={setNodeRef}
+        ref={setDropRef}
         className={cn(
           "flex flex-col gap-1.5 min-h-20 rounded-md p-1.5 transition-colors",
           "bg-muted/40 border border-dashed border-transparent",
-          isOver && "border-primary/40 bg-primary/5",
+          isOver && !isDraggingColumn && "border-primary/40 bg-primary/5",
         )}
       >
         {leads.map((lead) => (
@@ -329,6 +369,23 @@ function PipelinePage() {
   const [activeId,      setActiveId]      = useState<string | null>(null);
   const [selectedLead,  setSelectedLead]  = useState<PipelineLead | null>(null);
   const [drawerOpen,    setDrawerOpen]    = useState(false);
+
+  // Column order — persisted to localStorage so rearrangements survive refresh
+  const [columnOrder, setColumnOrder] = useState<PipelineStage[]>(() => {
+    if (typeof window === "undefined") return PIPELINE_STAGES.map((s) => s.id);
+    try {
+      const saved = localStorage.getItem("pipeline-column-order");
+      if (saved) {
+        const parsed: PipelineStage[] = JSON.parse(saved);
+        const validIds = new Set(PIPELINE_STAGES.map((s) => s.id));
+        const filtered = parsed.filter((id) => validIds.has(id));
+        // Add any new stages not yet in saved order
+        const missing = PIPELINE_STAGES.map((s) => s.id).filter((id) => !filtered.includes(id));
+        return [...filtered, ...missing];
+      }
+    } catch {}
+    return PIPELINE_STAGES.map((s) => s.id);
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -382,7 +439,11 @@ function PipelinePage() {
     },
   });
 
-  const grouped = PIPELINE_STAGES.reduce<Record<string, PipelineLead[]>>(
+  const orderedStages = columnOrder
+    .map((id) => PIPELINE_STAGES.find((s) => s.id === id))
+    .filter(Boolean) as (typeof PIPELINE_STAGES)[number][];
+
+  const grouped = orderedStages.reduce<Record<string, PipelineLead[]>>(
     (acc, s) => {
       acc[s.id] = leads.filter((l) => l.effective_stage === s.id);
       return acc;
@@ -390,7 +451,11 @@ function PipelinePage() {
     {},
   );
 
-  const activeLead = activeId ? leads.find((l) => l.id === activeId) : null;
+  const isColDrag  = activeId?.startsWith("col::") ?? false;
+  const activeLead = !isColDrag && activeId ? leads.find((l) => l.id === activeId) : null;
+  const activeColStage = isColDrag
+    ? PIPELINE_STAGES.find((s) => `col::${s.id}` === activeId) ?? null
+    : null;
 
   const handleDragStart = useCallback((e: DragStartEvent) => {
     setActiveId(String(e.active.id));
@@ -401,10 +466,30 @@ function PipelinePage() {
       setActiveId(null);
       const { active, over } = e;
       if (!over) return;
-      const targetStage = String(over.id) as PipelineStage;
-      const lead = leads.find((l) => l.id === String(active.id));
-      if (!lead || lead.effective_stage === targetStage) return;
-      moveCard({ leadId: lead.id, stage: targetStage });
+
+      const activeStr = String(active.id);
+      const overStr   = String(over.id);
+
+      // ── Column reorder ──────────────────────────────────────────────────────
+      if (activeStr.startsWith("col::") && overStr.startsWith("col::")) {
+        const fromId = activeStr.replace("col::", "") as PipelineStage;
+        const toId   = overStr.replace("col::", "")   as PipelineStage;
+        if (fromId === toId) return;
+        setColumnOrder((prev) => {
+          const next = arrayMove(prev, prev.indexOf(fromId), prev.indexOf(toId));
+          try { localStorage.setItem("pipeline-column-order", JSON.stringify(next)); } catch {}
+          return next;
+        });
+        return;
+      }
+
+      // ── Card move ───────────────────────────────────────────────────────────
+      if (!activeStr.startsWith("col::")) {
+        const targetStage = overStr as PipelineStage;
+        const lead = leads.find((l) => l.id === activeStr);
+        if (!lead || lead.effective_stage === targetStage) return;
+        moveCard({ leadId: lead.id, stage: targetStage });
+      }
     },
     [leads, moveCard],
   );
@@ -461,21 +546,39 @@ function PipelinePage() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-3 p-4 h-full">
-              {PIPELINE_STAGES.map((stage) => (
-                <PipelineColumn
-                  key={stage.id}
-                  stage={stage}
-                  leads={grouped[stage.id] ?? []}
-                  activeId={activeId}
-                  onSelectLead={handleSelectLead}
-                  onMoveLead={(lead, s) => moveCard({ leadId: lead.id, stage: s })}
-                />
-              ))}
-            </div>
+            <SortableContext
+              items={columnOrder.map((id) => `col::${id}`)}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex gap-3 p-4 h-full">
+                {orderedStages.map((stage) => (
+                  <PipelineColumn
+                    key={stage.id}
+                    stage={stage}
+                    leads={grouped[stage.id] ?? []}
+                    onSelectLead={handleSelectLead}
+                    onMoveLead={(lead, s) => moveCard({ leadId: lead.id, stage: s })}
+                    isDraggingColumn={isColDrag}
+                  />
+                ))}
+              </div>
+            </SortableContext>
 
             <DragOverlay dropAnimation={null}>
-              {activeLead ? <LeadCard lead={activeLead} overlay /> : null}
+              {activeLead ? (
+                <LeadCard lead={activeLead} overlay />
+              ) : activeColStage ? (
+                <div className="flex flex-col w-44 shrink-0 opacity-90 rotate-1">
+                  <div className="mb-2">
+                    <div className={cn("h-0.5 w-8 rounded-full mb-1.5", activeColStage.color)} />
+                    <h3 className="font-semibold text-xs text-foreground">{activeColStage.label}</h3>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {(grouped[activeColStage.id] ?? []).length} lead{(grouped[activeColStage.id] ?? []).length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 min-h-20 rounded-md p-1.5 bg-muted/60 border border-dashed border-primary/30 shadow-xl" />
+                </div>
+              ) : null}
             </DragOverlay>
           </DndContext>
         )}
