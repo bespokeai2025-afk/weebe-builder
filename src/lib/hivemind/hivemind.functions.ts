@@ -52,8 +52,9 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .limit(5000),
 
+      // Fix #2: column is `title`, not `event_name`
       sb.from("calendar_bookings")
-        .select("id, agent_id, status, created_at, event_name")
+        .select("id, agent_id, status, created_at, title")
         .eq("workspace_id", workspaceId)
         .limit(500),
 
@@ -275,19 +276,25 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
 // ── Briefing data ──────────────────────────────────────────────────────────────
 export const getHiveMindBriefing = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { since?: string; staleDays?: number }) => input)
+  .inputValidator((input: unknown) =>
+    z.object({
+      since:     z.string().optional(),
+      staleDays: z.coerce.number().optional(),
+    }).parse(input)
+  )
   .handler(async ({ context, data }) => {
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    const sinceStr = data.since ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const sinceStr  = data.since ?? new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const staleDays = data.staleDays ?? 7;
     const staleDate = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString();
 
     const ACTIVE_STATUSES = ["need_to_call", "contacted", "in_progress", "follow_up", "new", "qualified", "interested"];
+    const TERMINAL_STATUSES = "sale_done,do_not_call,not_interested"; // no quotes — PostgREST text format
 
-    const [newLeadsRes, newBookingsRes, staleRes, pipelineChangesRes, waRes, agentsRes] = await Promise.all([
+    const [newLeadsRes, newBookingsRes, staleRes, pipelineChangesRes, waRes, agentsRes, emailRes] = await Promise.all([
       sb.from("leads")
         .select("id, full_name, name, status, pipeline_stage, phone, email, created_at")
         .eq("workspace_id", workspaceId)
@@ -310,30 +317,42 @@ export const getHiveMindBriefing = createServerFn({ method: "GET" })
         .order("updated_at", { ascending: true })
         .limit(30),
 
+      // Fix #1: PostgREST .not().in() — no quotes around text values
       sb.from("leads")
         .select("id, full_name, name, status, pipeline_stage, updated_at, phone, email")
         .eq("workspace_id", workspaceId)
         .gte("updated_at", sinceStr)
-        .not("status", "in", `("sale_done","do_not_call","not_interested")`)
+        .not("status", "in", `(${TERMINAL_STATUSES})`)
         .order("updated_at", { ascending: false })
         .limit(20),
 
+      // Fix #12: fetch actual message bodies for previews
       sb.from("whatsapp_messages")
-        .select("id, direction, created_at, status")
+        .select("id, body, contact_name, contact_phone, direction, sent_at, created_at")
         .eq("workspace_id", workspaceId)
         .eq("direction", "inbound")
         .gte("created_at", sinceStr)
-        .limit(100),
+        .order("created_at", { ascending: false })
+        .limit(10),
 
       sb.from("agents")
         .select("id, name")
         .eq("workspace_id", workspaceId),
+
+      // Fix #11: email campaign activity
+      sb.from("hexmail_campaigns")
+        .select("id, name, status, created_at, updated_at")
+        .eq("workspace_id", workspaceId)
+        .gte("updated_at", sinceStr)
+        .order("updated_at", { ascending: false })
+        .limit(10),
     ]);
 
     const agentMap = new Map<string, string>(
       (agentsRes.data ?? []).map((a: any) => [a.id, a.name])
     );
 
+    // Fix #8: removed minsAgo — unused dead code, client uses fmtRelative(created_at)
     const newLeads = (newLeadsRes.data ?? []).map((l: any) => ({
       id: l.id,
       name: l.full_name ?? l.name ?? "Unknown",
@@ -342,7 +361,6 @@ export const getHiveMindBriefing = createServerFn({ method: "GET" })
       phone: l.phone,
       email: l.email,
       created_at: l.created_at,
-      minsAgo: Math.round((Date.now() - new Date(l.created_at).getTime()) / 60000),
     }));
 
     const newBookings = (newBookingsRes.data ?? []).map((b: any) => ({
@@ -372,25 +390,48 @@ export const getHiveMindBriefing = createServerFn({ method: "GET" })
       };
     });
 
-    const recentPipelineChanges = (pipelineChangesRes.data ?? []).map((l: any) => ({
-      id: l.id,
-      name: l.full_name ?? l.name ?? "Unknown",
-      status: l.status,
-      pipeline_stage: l.pipeline_stage,
-      updated_at: l.updated_at,
-      hoursAgo: Math.round((Date.now() - new Date(l.updated_at).getTime()) / 3600000),
+    // Fix #7: exclude leads that already appear in newLeads (no duplicates)
+    const newLeadIdSet = new Set(newLeads.map((l: any) => l.id));
+    const recentPipelineChanges = (pipelineChangesRes.data ?? [])
+      .filter((l: any) => !newLeadIdSet.has(l.id))
+      .map((l: any) => ({
+        id: l.id,
+        name: l.full_name ?? l.name ?? "Unknown",
+        status: l.status,
+        pipeline_stage: l.pipeline_stage,
+        updated_at: l.updated_at,
+      }));
+
+    // Fix #12: WhatsApp with real message previews
+    const inboundWA = (waRes.data ?? []).map((m: any) => ({
+      id: m.id,
+      body: (m.body ?? "").slice(0, 120),
+      contact_name: m.contact_name,
+      contact_phone: m.contact_phone,
+      sent_at: m.sent_at ?? m.created_at,
     }));
 
-    const newInboundWA = (waRes.data ?? []).length;
+    // Fix #11: email campaign activity
+    const recentEmailCampaigns = (emailRes.data ?? []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      updated_at: c.updated_at,
+      created_at: c.created_at,
+      isNew: c.created_at >= sinceStr,
+    }));
 
     return {
       newLeads,
       newBookings,
       staleClients,
       recentPipelineChanges,
-      newInboundWA,
+      inboundWA,
+      recentEmailCampaigns,
       sinceStr,
       staleDays,
+      // For backwards compat used in businessCount calc
+      newInboundWA: inboundWA.length,
     };
   });
 

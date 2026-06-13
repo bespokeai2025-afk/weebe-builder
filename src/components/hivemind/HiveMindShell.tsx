@@ -61,8 +61,8 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Mobile top nav */}
-      <div className="flex md:hidden border-b border-white/[0.06] px-4 overflow-x-auto shrink-0 absolute top-0 left-0 right-0 bg-background z-10">
+      {/* Fix #4: mobile nav is relative (not absolute) so content isn't hidden under it */}
+      <div className="flex md:hidden border-b border-white/[0.06] px-4 overflow-x-auto shrink-0">
         {NAV.map(({ label, href, icon: Icon }) => {
           const active = href === "/hivemind" ? path === "/hivemind" : path.startsWith(href);
           return (

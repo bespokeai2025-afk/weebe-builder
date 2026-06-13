@@ -51,7 +51,11 @@ export function generateRecommendations(data: any): Recommendation[] {
     });
   }
 
-  if (!systemHealth.elevenlabs && !systemHealth.openai && agents.length > 0) {
+  // Fix #10: only flag missing AI key if an agent is NOT on Retell mode
+  const nonRetellAgents = (agentScores ?? []).filter(
+    (a: any) => a.deploymentMode && a.deploymentMode !== "retell"
+  );
+  if (!systemHealth.elevenlabs && !systemHealth.openai && nonRetellAgents.length > 0) {
     recs.push({
       id: "no-ai-provider", category: "Setup", priority: "medium",
       problem: "No AI voice provider key configured (ElevenLabs or OpenAI)",
@@ -135,10 +139,11 @@ export function generateRecommendations(data: any): Recommendation[] {
     });
   }
 
+  // Fix #9: note the threshold in text — keeps it accurate vs Briefing's configurable threshold
   if (leads.stale > 10) {
     recs.push({
       id: "stale-leads", category: "Pipeline", priority: "medium",
-      problem: `${leads.stale} leads have not been updated in 14+ days`,
+      problem: `${leads.stale} active leads have had no activity for 14+ days`,
       impact: "Stale leads signal pipeline blockage and lost revenue. Cold leads convert at a fraction of warm leads.",
       fix: "Review stale leads in the Pipeline view. Move, call, or disqualify them.",
       action: { label: "View Pipeline", href: "/pipeline" },
