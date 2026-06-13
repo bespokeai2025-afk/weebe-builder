@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, FileText } from "lucide-react";
+import { Mail, FileText, Settings } from "lucide-react";
 import { FollowUpCentre } from "@/components/hexmail/FollowUpCentre";
 import { TemplateStudio } from "@/components/hexmail/TemplateStudio";
 import { CampaignBuilderPage } from "@/components/hexmail/CampaignBuilderPage";
+import { HexMailSettings } from "@/components/hexmail/HexMailSettings";
 
 export const Route = createFileRoute("/_authenticated/hexmail")({
   component: HexmailPage,
@@ -59,6 +60,10 @@ function HexmailPage() {
             <Mail className="h-4 w-4" />
             Follow-Up Centre
           </TabsTrigger>
+          <TabsTrigger value="settings" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="templates" className="flex-1 flex flex-col min-h-0 mt-4">
@@ -67,6 +72,10 @@ function HexmailPage() {
 
         <TabsContent value="followup" className="flex-1 min-h-0 mt-4">
           <FollowUpCentre onOpenBuilder={handleOpenBuilder} />
+        </TabsContent>
+
+        <TabsContent value="settings" className="flex-1 overflow-y-auto mt-4">
+          <HexMailSettings />
         </TabsContent>
       </Tabs>
     </div>
