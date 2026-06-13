@@ -181,7 +181,7 @@ function useElRelay(
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, channelCount: 1, sampleRate: 24000 },
           });
           streamRef.current = stream;
-          const WORKLET = `class P extends AudioWorkletProcessor{process(i){const c=i[0]?.[0];if(!c)return true;const p=new Int16Array(c.length);for(let i=0;i<c.length;i++)p[i]=Math.max(-32768,Math.min(32767,Math.round(c[i]*32767)));this.port.postMessage(p.buffer,[p.buffer]);return true;}}registerProcessor('pcm16-cap',P);`;
+          const WORKLET = `class P extends AudioWorkletProcessor{constructor(){super();this._b=[];this._n=0;}process(i){const c=i[0]?.[0];if(!c)return true;for(let i=0;i<c.length;i++)this._b.push(c[i]);this._n+=c.length;if(this._n>=1200){const o=new Int16Array(this._n);for(let i=0;i<this._n;i++)o[i]=Math.max(-32768,Math.min(32767,Math.round(this._b[i]*32767)));this.port.postMessage(o.buffer,[o.buffer]);this._b=[];this._n=0;}return true;}}registerProcessor('pcm16-cap',P);`;
           const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
           await audioCtx.audioWorklet.addModule(url);
           const micSrc = audioCtx.createMediaStreamSource(stream);

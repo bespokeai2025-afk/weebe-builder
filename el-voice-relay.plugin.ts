@@ -34,11 +34,11 @@ const SAMPLE_RATE = 24_000;
 // ── VAD parameters ────────────────────────────────────────────────────────────
 // Energy threshold in raw Int16 units (0–32 768).
 // Typical speech: 1 000–6 000.  Background noise / silence: < 300.
-const RMS_THRESHOLD = 450;
+const RMS_THRESHOLD = 400;
 // Consecutive frames of silence that trigger STT (1 frame ≈ 50 ms).
-const SILENCE_FRAMES_TRIGGER = 14; // ≈ 700 ms silence → end of utterance
+const SILENCE_FRAMES_TRIGGER = 22; // ≈ 1.1 s silence → end of utterance
 // Minimum speech frames before we bother sending to Whisper.
-const MIN_SPEECH_FRAMES = 4; // ≈ 200 ms minimum utterance
+const MIN_SPEECH_FRAMES = 8; // ≈ 400 ms minimum utterance
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
