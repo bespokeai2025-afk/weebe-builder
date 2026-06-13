@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, Users, Calendar, TrendingUp, ArrowUpRight, Radio, PhoneCall } from "lucide-react";
+import { Phone, Users, Calendar, TrendingUp, ArrowUpRight, Radio, PhoneCall, PhoneMissed } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,10 @@ function DashboardPage() {
 
   const liveAgents = liveAgentsQ.data ?? [];
 
+  const closedReached  = data?.totals.closedLeadsReached ?? 0;
+  const closedTotal    = data?.totals.closedLeads ?? 0;
+  const closedPct      = closedTotal > 0 ? Math.round((closedReached / closedTotal) * 100) : 0;
+
   const kpis = [
     {
       title: "Total Leads",
@@ -65,6 +69,14 @@ function DashboardPage() {
       icon: Calendar,
       iconBg: "bg-amber-500/15",
       iconColor: "text-amber-400",
+    },
+    {
+      title: "Closed Leads Reached",
+      value: isLoading ? "—" : `${closedReached} / ${closedTotal}`,
+      hint: isLoading ? undefined : `${closedPct}% contacted`,
+      icon: PhoneMissed,
+      iconBg: "bg-rose-500/15",
+      iconColor: "text-rose-400",
     },
   ];
 
@@ -118,7 +130,7 @@ function DashboardPage() {
       )}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-5">
         {kpis.map((kpi) => (
           <KpiCard
             key={kpi.title}
@@ -127,6 +139,7 @@ function DashboardPage() {
             icon={kpi.icon}
             iconBg={kpi.iconBg}
             iconColor={kpi.iconColor}
+            hint={(kpi as any).hint}
           />
         ))}
       </div>

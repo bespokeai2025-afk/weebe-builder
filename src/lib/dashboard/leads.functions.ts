@@ -82,7 +82,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
-    const [leadsRes, callsRes, bookingsRes, qualifiedRes] = await Promise.all([
+    const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes] = await Promise.all([
       (supabase as any)
         .from("leads" as never)
         .select("id, status, created_at", { count: "exact", head: false })
@@ -100,6 +100,18 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .select("id")
         .eq("workspace_id", workspaceId)
         .in("status", ["interested", "qualified"]),
+      // Closed leads = status "not_interested" (displayed as "Closed" in the UI)
+      (supabase as any)
+        .from("leads" as never)
+        .select("id, phone")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "not_interested"),
+      // Completed outbound calls — used to measure which closed leads were actually reached
+      (supabase as any)
+        .from("calls" as never)
+        .select("to_number")
+        .eq("workspace_id", workspaceId)
+        .eq("call_status", "completed"),
     ]);
 
     if (leadsRes.error) throw new Error(leadsRes.error.message);
@@ -110,6 +122,17 @@ export const getOverviewStats = createServerFn({ method: "GET" })
     const calls = callsRes.data ?? [];
     const bookings = bookingsRes.data ?? [];
     const now = Date.now();
+
+    // Closed leads reached = closed leads whose phone appears in at least one completed call
+    const closedLeads: { id: string; phone: string | null }[] = closedLeadsRes.data ?? [];
+    const completedCallNumbers = new Set<string>(
+      (completedCallsRes.data ?? [])
+        .map((c: any) => (c.to_number as string | null)?.replace(/\D/g, "") ?? "")
+        .filter(Boolean),
+    );
+    const closedLeadsReached = closedLeads.filter(
+      (l) => l.phone && completedCallNumbers.has(l.phone.replace(/\D/g, "")),
+    ).length;
 
     return {
       workspaceId,
@@ -128,6 +151,8 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         ).length,
         pendingBookings: bookings.filter((b: any) => b.status === "pending").length,
         cancelledBookings: bookings.filter((b: any) => b.status === "cancelled").length,
+        closedLeads: closedLeads.length,
+        closedLeadsReached,
       },
       recentLeads: leads.slice(-5).reverse(),
     };
