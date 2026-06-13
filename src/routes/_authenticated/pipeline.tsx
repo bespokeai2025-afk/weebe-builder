@@ -93,10 +93,10 @@ const STATUS_COLOR: Record<string, string> = {
   do_not_call:   "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
 };
 
-const SENTIMENT_ICON: Record<string, string> = {
-  positive: "😊",
-  neutral:  "😐",
-  negative: "😟",
+const INTEREST_SCORE: Record<string, { label: string; cls: string; bar: string; pct: number }> = {
+  high:   { label: "High",   cls: "text-green-700 dark:text-green-400",  bar: "bg-green-500",  pct: 90 },
+  medium: { label: "Medium", cls: "text-amber-700 dark:text-amber-400",  bar: "bg-amber-500",  pct: 55 },
+  low:    { label: "Low",    cls: "text-red-700 dark:text-red-400",      bar: "bg-red-500",    pct: 20 },
 };
 
 // ── Draggable card ────────────────────────────────────────────────────────────
@@ -119,11 +119,12 @@ function LeadCard({
     ? undefined
     : { transform: CSS.Translate.toString(transform) };
 
-  const funding   = fmt$(lead.funding_amount);
-  const revenue   = fmt$(lead.monthly_revenue);
+  const funding     = fmt$(lead.funding_amount);
+  const revenue     = fmt$(lead.monthly_revenue);
   const lastContact = fmtDate(lead.last_contacted_at);
   const statusLabel = STATUS_LABEL[lead.status ?? ""] ?? lead.status ?? "";
   const statusCls   = STATUS_COLOR[lead.status ?? ""] ?? "";
+  const score       = lead.interest_level ? INTEREST_SCORE[lead.interest_level] ?? null : null;
 
   return (
     <div
@@ -159,10 +160,14 @@ function LeadCard({
             </p>
           )}
         </div>
-        {lead.sentiment && (
-          <span className="text-sm shrink-0" title={lead.sentiment}>
-            {SENTIMENT_ICON[lead.sentiment]}
-          </span>
+        {/* Interest level score badge */}
+        {score && (
+          <div className="shrink-0 flex flex-col items-end gap-0.5">
+            <span className={cn("text-[10px] font-semibold", score.cls)}>{score.label}</span>
+            <div className="w-10 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className={cn("h-full rounded-full", score.bar)} style={{ width: `${score.pct}%` }} />
+            </div>
+          </div>
         )}
       </div>
 

@@ -54,6 +54,7 @@ export type PipelineLead = {
   sentiment: "positive" | "neutral" | "negative" | null;
   call_outcome: string | null;
   attempt_count: number | null;
+  interest_level: "high" | "medium" | "low" | null;
   last_contacted_at: string | null;
   created_at: string | null;
   source: string | null;
@@ -72,6 +73,7 @@ const BASE_SELECT = [
   "sentiment",
   "call_outcome",
   "attempt_count",
+  "interest_level",
   "last_contacted_at",
   "created_at",
   "source",
@@ -102,6 +104,7 @@ function mapLead(
     sentiment: (lead.sentiment as "positive" | "neutral" | "negative" | null) ?? null,
     call_outcome: (lead.call_outcome as string | null) ?? null,
     attempt_count: (lead.attempt_count as number | null) ?? null,
+    interest_level: (lead.interest_level as "high" | "medium" | "low" | null) ?? null,
     last_contacted_at: (lead.last_contacted_at as string | null) ?? null,
     created_at: (lead.created_at as string | null) ?? null,
     source: (lead.source as string | null) ?? null,

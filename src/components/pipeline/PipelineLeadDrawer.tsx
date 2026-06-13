@@ -79,10 +79,16 @@ function fmtDuration(start: string, end: string) {
 }
 
 const SENTIMENT_MAP = {
-  positive: { label: "Positive", emoji: "😊", cls: "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30" },
-  neutral:  { label: "Neutral",  emoji: "😐", cls: "text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30" },
-  negative: { label: "Negative", emoji: "😟", cls: "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30" },
+  positive: { label: "Positive", cls: "text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30" },
+  neutral:  { label: "Neutral",  cls: "text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30" },
+  negative: { label: "Negative", cls: "text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30" },
 } as const;
+
+const INTEREST_SCORE: Record<string, { label: string; bar: string; pct: number; cls: string }> = {
+  high:   { label: "High",   bar: "bg-green-500", pct: 90, cls: "text-green-700 dark:text-green-400" },
+  medium: { label: "Medium", bar: "bg-amber-500",  pct: 55, cls: "text-amber-700 dark:text-amber-400" },
+  low:    { label: "Low",    bar: "bg-red-500",    pct: 20, cls: "text-red-700 dark:text-red-400" },
+};
 
 const STATUS_LABEL: Record<string, string> = {
   need_to_call:  "New",
@@ -307,17 +313,32 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
               </div>
             </div>
 
-            {/* Sentiment badge */}
-            {sentiment && (
-              <span
-                className={cn(
-                  "shrink-0 inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full",
-                  sentiment.cls,
-                )}
-              >
-                {sentiment.emoji} {sentiment.label}
-              </span>
-            )}
+            {/* Sentiment + interest level */}
+            <div className="shrink-0 flex flex-col items-end gap-1.5">
+              {sentiment && (
+                <span
+                  className={cn(
+                    "inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full",
+                    sentiment.cls,
+                  )}
+                >
+                  {sentiment.label}
+                </span>
+              )}
+              {lead.interest_level && INTEREST_SCORE[lead.interest_level] && (
+                <div className="flex items-center gap-1.5">
+                  <span className={cn("text-[11px] font-semibold", INTEREST_SCORE[lead.interest_level].cls)}>
+                    {INTEREST_SCORE[lead.interest_level].label} interest
+                  </span>
+                  <div className="w-12 h-1.5 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full", INTEREST_SCORE[lead.interest_level].bar)}
+                      style={{ width: `${INTEREST_SCORE[lead.interest_level].pct}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Status pill */}
