@@ -5,6 +5,17 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createTelephonyProvider } from "./provider-factory";
 import type { TelephonyConfig } from "./types";
 
+// ── Master Twilio credentials (platform-level, same pattern as RETELL_API_KEY) ─
+// Credentials live in env vars: TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN.
+// The DB row only stores provider + is_active metadata — never secrets.
+
+function getMasterTwilioClient() {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!sid || !token) throw new Error("Master Twilio credentials not configured. Add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN to Replit Secrets.");
+  return { sid, token };
+}
+
 // ── Telephony Config ───────────────────────────────────────────────────────────
 
 export const getTelephonyConfig = createServerFn({ method: "POST" })
@@ -12,17 +23,23 @@ export const getTelephonyConfig = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const { data, error } = await supabaseAdmin
+
+    // Return env var status + DB metadata (no credentials from DB)
+    const sidConfigured  = !!process.env.TWILIO_ACCOUNT_SID;
+    const tokenConfigured = !!process.env.TWILIO_AUTH_TOKEN;
+
+    const { data } = await supabaseAdmin
       .from("telephony_configs")
-      .select("*")
+      .select("id, provider, is_active, created_at, updated_at")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) return null;
+
     return {
-      ...data,
-      auth_token: data.auth_token ? "••••••••" : null,
-      api_secret: data.api_secret ? "••••••••" : null,
+      provider: data?.provider ?? "twilio",
+      is_active: data?.is_active ?? false,
+      sid_configured: sidConfigured,
+      token_configured: tokenConfigured,
+      credentials_ready: sidConfigured && tokenConfigured,
     };
   });
 
@@ -32,10 +49,6 @@ export const saveTelephonyConfig = createServerFn({ method: "POST" })
     z
       .object({
         provider: z.enum(["twilio", "telnyx", "plivo", "vonage"]).default("twilio"),
-        account_sid: z.string().min(1),
-        auth_token: z.string().optional(),
-        api_key: z.string().optional(),
-        api_secret: z.string().optional(),
         is_active: z.boolean().default(true),
       })
       .parse(input ?? {}),
@@ -44,38 +57,24 @@ export const saveTelephonyConfig = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
-    const existing = await supabaseAdmin
+    const { data: existing } = await supabaseAdmin
       .from("telephony_configs")
-      .select("id, auth_token, api_secret")
+      .select("id")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       workspace_id: workspaceId,
       provider: data.provider,
-      account_sid: data.account_sid,
       is_active: data.is_active,
       updated_at: new Date().toISOString(),
     };
-    if (data.api_key) payload.api_key = data.api_key;
 
-    if (data.auth_token && !data.auth_token.startsWith("•")) {
-      payload.auth_token = data.auth_token;
-    } else if (existing.data?.auth_token) {
-      payload.auth_token = existing.data.auth_token;
-    }
-
-    if (data.api_secret && !data.api_secret.startsWith("•")) {
-      payload.api_secret = data.api_secret;
-    } else if (existing.data?.api_secret) {
-      payload.api_secret = existing.data.api_secret;
-    }
-
-    if (existing.data?.id) {
+    if (existing?.id) {
       const { error } = await supabaseAdmin
         .from("telephony_configs")
         .update(payload)
-        .eq("id", existing.data.id);
+        .eq("id", existing.id);
       if (error) throw new Error(error.message);
     } else {
       const { error } = await supabaseAdmin
@@ -413,18 +412,8 @@ export const autoConfigureWebhooks = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
-    // Load provider config (with real auth token via service role)
-    const { data: cfg, error: cfgErr } = await supabaseAdmin
-      .from("telephony_configs")
-      .select("*")
-      .eq("workspace_id", workspaceId)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (cfgErr) throw new Error(cfgErr.message);
-    if (!cfg) throw new Error("No active telephony configuration found. Save your credentials first.");
-    if (!cfg.account_sid || !cfg.auth_token)
-      throw new Error("Account SID and Auth Token are required.");
+    // Use master platform credentials from env vars
+    const { sid, token } = getMasterTwilioClient();
 
     // Resolve public host — prefer REPLIT_DEV_DOMAIN, fall back to PUBLIC_URL
     const devDomain = process.env.REPLIT_DEV_DOMAIN ?? "";
@@ -449,9 +438,9 @@ export const autoConfigureWebhooks = createServerFn({ method: "POST" })
     if (!numbers || numbers.length === 0)
       throw new Error("No active Twilio phone numbers found. Add numbers first.");
 
-    // Import Twilio and update each number
+    // Import Twilio and update each number using master credentials
     const twilio = (await import("twilio")).default;
-    const client = twilio(cfg.account_sid, cfg.auth_token);
+    const client = twilio(sid, token);
 
     const results: Array<{ number: string; ok: boolean; error?: string }> = [];
 
