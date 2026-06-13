@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export type PipelineStage =
   | "lead"
@@ -145,7 +146,7 @@ async function fetchIndicators(
       .select("lead_id")
       .eq("workspace_id", workspaceId)
       .not("lead_id", "is", null),
-    sb
+    (supabaseAdmin as any)
       .from("entity_notes")
       .select("entity_id")
       .eq("workspace_id", workspaceId)
