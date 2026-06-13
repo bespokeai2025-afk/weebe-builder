@@ -140,116 +140,70 @@ function LeadCard({
         if (!hasMoved.current && !overlay && onSelect) onSelect(lead);
       }}
       className={cn(
-        "group relative rounded-lg border bg-card px-3 py-3 shadow-sm cursor-pointer select-none",
+        "group relative rounded-md border bg-card px-2 py-2 shadow-sm cursor-pointer select-none",
         "transition-shadow hover:shadow-md hover:border-primary/30",
         isDragging && "opacity-40 shadow-none",
         overlay && "shadow-xl ring-2 ring-primary/30 rotate-1 cursor-grabbing",
       )}
     >
-      {/* Header: avatar + name + sentiment */}
-      <div className="flex items-start gap-2">
-        <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-[11px] font-semibold text-muted-foreground shrink-0 mt-0.5">
+      {/* Header: avatar + name + score */}
+      <div className="flex items-start gap-1.5">
+        <div className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[9px] font-bold text-muted-foreground shrink-0 mt-0.5">
           {initials(lead.full_name)}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm leading-tight text-foreground line-clamp-1">
+          <p className="font-semibold text-[11px] leading-tight text-foreground line-clamp-1">
             {lead.full_name ?? "Unknown"}
           </p>
           {lead.company_name && (
-            <p className="mt-0.5 text-xs text-muted-foreground truncate flex items-center gap-1">
-              <Building2 className="h-3 w-3 shrink-0" />
-              {lead.company_name}
-            </p>
+            <p className="text-[10px] text-muted-foreground truncate">{lead.company_name}</p>
           )}
         </div>
-        {/* Interest level score badge */}
         {score && (
-          <div className="shrink-0 flex flex-col items-end gap-0.5">
-            <span className={cn("text-[10px] font-semibold", score.cls)}>{score.label}</span>
-            <div className="w-10 h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className="shrink-0 flex flex-col items-end gap-0.5 pt-0.5">
+            <span className={cn("text-[9px] font-bold leading-none", score.cls)}>{score.label}</span>
+            <div className="w-8 h-1 rounded-full bg-muted overflow-hidden">
               <div className={cn("h-full rounded-full", score.bar)} style={{ width: `${score.pct}%` }} />
             </div>
           </div>
         )}
       </div>
 
-      {/* Funding / Revenue */}
-      {(funding || revenue) && (
-        <div className="mt-2 flex items-center gap-2">
-          {funding && (
-            <div className="flex items-center gap-1 text-xs font-semibold text-foreground">
-              <TrendingUp className="h-3 w-3 text-green-500" />
-              {funding}
-              <span className="text-muted-foreground font-normal">ask</span>
-            </div>
-          )}
-          {revenue && (
-            <div className="text-xs text-muted-foreground">{revenue}/mo</div>
-          )}
+      {/* Funding */}
+      {funding && (
+        <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-foreground">
+          <TrendingUp className="h-2.5 w-2.5 text-green-500 shrink-0" />
+          {funding}
+          <span className="text-muted-foreground font-normal">ask</span>
         </div>
       )}
 
-      {/* Contact info */}
-      <div className="mt-2 space-y-0.5">
-        {lead.phone && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Phone className="h-3 w-3 shrink-0" />
-            <span className="truncate">{lead.phone}</span>
-          </div>
-        )}
-        {lead.email && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Mail className="h-3 w-3 shrink-0" />
-            <span className="truncate">{lead.email}</span>
-          </div>
-        )}
-        {lead.state_name && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3 shrink-0" />
-            <span className="truncate">{lead.state_name}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Footer: status + attempts + last contact + indicators */}
-      <div className="mt-2.5 flex items-center justify-between gap-1.5 flex-wrap">
-        <span
-          className={cn(
-            "inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full",
-            statusCls,
-          )}
-        >
+      {/* Footer: status + meta icons */}
+      <div className="mt-1.5 flex items-center justify-between gap-1 flex-wrap">
+        <span className={cn("inline-flex items-center text-[9px] font-medium px-1 py-0.5 rounded-full", statusCls)}>
           {statusLabel}
         </span>
 
-        <div className="flex items-center gap-1.5 ml-auto shrink-0">
+        <div className="flex items-center gap-1 ml-auto shrink-0">
           {(lead.attempt_count ?? 0) > 0 && (
-            <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
-              <PhoneCall className="h-3 w-3" />
+            <div className="flex items-center gap-0.5 text-[9px] text-muted-foreground">
+              <PhoneCall className="h-2.5 w-2.5" />
               {lead.attempt_count}
             </div>
           )}
           {lastContact && (
-            <span className="text-[10px] text-muted-foreground">{lastContact}</span>
+            <span className="text-[9px] text-muted-foreground">{lastContact}</span>
           )}
           {lead.hasNotes && (
-            <StickyNote className="h-3 w-3 text-amber-500" title="Has notes" />
+            <StickyNote className="h-2.5 w-2.5 text-amber-500" title="Has notes" />
           )}
           {lead.hasBooking && (
-            <CalendarCheck className="h-3 w-3 text-green-500" title="Appointment booked" />
+            <CalendarCheck className="h-2.5 w-2.5 text-green-500" title="Appointment booked" />
           )}
         </div>
       </div>
 
-      {/* Call outcome */}
-      {lead.call_outcome && (
-        <p className="mt-1.5 text-[10px] text-muted-foreground/70 line-clamp-1 italic">
-          "{lead.call_outcome}"
-        </p>
-      )}
-
-      {/* Click hint on hover */}
-      <div className="absolute inset-x-0 bottom-0 h-0.5 rounded-b-lg bg-primary/0 group-hover:bg-primary/20 transition-colors" />
+      <div className="absolute inset-x-0 bottom-0 h-0.5 rounded-b-md bg-primary/0 group-hover:bg-primary/20 transition-colors" />
     </div>
   );
 }
@@ -271,12 +225,12 @@ function PipelineColumn({
   const totalFunding = leads.reduce((sum, l) => sum + (l.funding_amount ?? 0), 0);
 
   return (
-    <div className="flex flex-col w-64 shrink-0">
+    <div className="flex flex-col w-44 shrink-0">
       {/* Column header */}
-      <div className="mb-3">
-        <div className={cn("h-1 w-12 rounded-full mb-2", stage.color)} />
-        <h3 className="font-semibold text-sm text-foreground">{stage.label}</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+      <div className="mb-2">
+        <div className={cn("h-0.5 w-8 rounded-full mb-1.5", stage.color)} />
+        <h3 className="font-semibold text-xs text-foreground">{stage.label}</h3>
+        <p className="text-[10px] text-muted-foreground mt-0.5">
           {totalFunding > 0 ? `${fmt$(totalFunding)} · ` : ""}
           {leads.length} lead{leads.length !== 1 ? "s" : ""}
         </p>
@@ -286,7 +240,7 @@ function PipelineColumn({
       <div
         ref={setNodeRef}
         className={cn(
-          "flex flex-col gap-2 min-h-32 rounded-lg p-2 transition-colors",
+          "flex flex-col gap-1.5 min-h-20 rounded-md p-1.5 transition-colors",
           "bg-muted/40 border border-dashed border-transparent",
           isOver && "border-primary/40 bg-primary/5",
         )}
@@ -300,8 +254,8 @@ function PipelineColumn({
         ))}
 
         {leads.length === 0 && (
-          <div className="flex items-center justify-center h-24">
-            <p className="text-xs text-muted-foreground/40">Drop here</p>
+          <div className="flex items-center justify-center h-16">
+            <p className="text-[10px] text-muted-foreground/40">Drop here</p>
           </div>
         )}
       </div>
@@ -450,7 +404,7 @@ function PipelinePage() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-4 p-6 h-full">
+            <div className="flex gap-3 p-4 h-full">
               {PIPELINE_STAGES.map((stage) => (
                 <PipelineColumn
                   key={stage.id}
