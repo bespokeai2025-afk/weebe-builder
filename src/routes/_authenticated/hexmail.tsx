@@ -110,7 +110,7 @@ function HexmailPage() {
             <FollowUpCentre
               onOpenBuilder={(id) => {
                 setActiveCampaignId(id);
-                setFollowUpView("timeline");
+                setFollowUpView("visual");
               }}
             />
           )}
