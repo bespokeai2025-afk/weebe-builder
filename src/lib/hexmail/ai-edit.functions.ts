@@ -69,6 +69,52 @@ Keep the tone professional and appropriate for the document type.`;
     return { content: result.trim() };
   });
 
+export const extractTemplateDocumentText = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      publicUrl: z.string().url(),
+      mimeType:  z.string().optional(),
+      fileName:  z.string().optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const resp = await fetch(data.publicUrl);
+    if (!resp.ok) throw new Error("Could not download file for extraction");
+
+    const mime     = data.mimeType ?? "";
+    const ext      = (data.fileName ?? "").split(".").pop()?.toLowerCase() ?? "";
+    const arrayBuf = await resp.arrayBuffer();
+    const buffer   = Buffer.from(arrayBuf);
+
+    // ── DOCX ──────────────────────────────────────────────────────────────────
+    if (ext === "docx" || mime.includes("wordprocessingml") || mime.includes("msword")) {
+      const mammoth = await import("mammoth");
+      const result  = await mammoth.extractRawText({ buffer });
+      return { text: result.value.trim() };
+    }
+
+    // ── PDF ───────────────────────────────────────────────────────────────────
+    if (ext === "pdf" || mime === "application/pdf") {
+      const pdfParse = (await import("pdf-parse")).default;
+      const result   = await pdfParse(buffer);
+      return { text: result.text.trim() };
+    }
+
+    // ── Plain text / CSV / RTF ─────────────────────────────────────────────────
+    if (
+      ext === "txt" || ext === "csv" || ext === "rtf" ||
+      mime.startsWith("text/")
+    ) {
+      return { text: buffer.toString("utf-8").trim() };
+    }
+
+    throw new Error(
+      `Text extraction is not supported for this file type (${ext || mime}). ` +
+      `Please paste the content manually.`
+    );
+  });
+
 export const createTemplateDocumentUploadUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
