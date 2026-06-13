@@ -1086,12 +1086,16 @@ export function RetellDeployDialog({
               toolCount: toolDefs.length,
             });
             const hsSettings = useBuilderStore.getState().settings;
-            const tdMode = hsSettings.hyperstreamTurnDetection ?? "server_vad";
+            // Default to semantic_vad — it understands natural conversation boundaries
+            // far better than server_vad for multi-step flows and won't trigger on brief
+            // pauses mid-sentence. "low" eagerness means the model waits longer before
+            // deciding the user has finished speaking, preventing premature responses.
+            const tdMode = hsSettings.hyperstreamTurnDetection ?? "semantic_vad";
             const turnDetectionConfig =
               tdMode === "semantic_vad"
                 ? {
                     type: "semantic_vad" as const,
-                    eagerness: hsSettings.hyperstreamEagerness ?? "auto",
+                    eagerness: hsSettings.hyperstreamEagerness ?? "low",
                     create_response: true,
                     interrupt_response: true,
                   }
@@ -1099,7 +1103,7 @@ export function RetellDeployDialog({
                     type: "server_vad" as const,
                     threshold: hsSettings.hyperstreamVadThreshold ?? 0.5,
                     prefix_padding_ms: hsSettings.hyperstreamPrefixPaddingMs ?? 200,
-                    silence_duration_ms: hsSettings.hyperstreamSilenceDurationMs ?? 600,
+                    silence_duration_ms: hsSettings.hyperstreamSilenceDurationMs ?? 800,
                     create_response: true,
                     interrupt_response: true,
                   };
@@ -1126,9 +1130,11 @@ export function RetellDeployDialog({
                 },
               },
             };
-            if (hsSettings.hyperstreamMaxTokens) {
-              sessionConfig.max_response_output_tokens = hsSettings.hyperstreamMaxTokens;
-            }
+            // Cap tokens per response — prevents the model from speaking multiple
+            // conversation steps in one turn. 200 tokens ≈ 2–3 sentences, enough
+            // for one step but not enough to race through the entire script.
+            sessionConfig.max_response_output_tokens =
+              hsSettings.hyperstreamMaxTokens ?? 200;
             if (toolDefs.length > 0) {
               sessionConfig.tools = toolDefs;
             }

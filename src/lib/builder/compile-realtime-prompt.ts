@@ -29,16 +29,16 @@ export function compileRealtimePrompt(
   // tends to read the whole script in one breath and talk over the caller.
   sections.push(
     [
-      "# How to run the call",
-      "- Follow the conversation script below strictly, ONE step at a time, in order.",
-      "- After you finish speaking your line for a step, STOP IMMEDIATELY. Do not say anything else.",
-      "- You MUST stay completely silent after each step until the caller speaks. Do not fill silence. Do not summarise what you just said. Do not prompt again.",
-      "- Only start speaking again once the caller has finished their reply.",
-      "- Never read or combine multiple steps in a single turn. Cover exactly one step per turn.",
-      "- Keep each turn short and conversational — one or two sentences maximum.",
-      "- Only move to the next step once the current step's transition condition is satisfied by the caller's response.",
-      "- Do not invent steps, information, or questions that are not in the script.",
-      "- CRITICAL: After each [WAIT FOR CALLER] marker you will see in the script, you MUST be silent until the caller speaks. Any text you generate before receiving a caller message violates this rule.",
+      "# STRICT TURN-TAKING RULES — follow these before anything else",
+      "- You speak ONE step per turn. After saying your line, you are DONE for that turn.",
+      "- Every [WAIT FOR CALLER] marker means: output nothing further. Your response ends there.",
+      "- Do NOT chain steps. Do NOT add transitions, summaries, or filler after your line.",
+      "- After you speak, you MUST be completely silent until the caller speaks. No exceptions.",
+      "- You will only generate your next response AFTER the caller has spoken.",
+      "- If the script contains instruction text like 'pause and wait for user response', do NOT say those words — they are directions for you, not dialogue to speak aloud.",
+      "- Keep each turn to 1–2 sentences. Never speak more than one step's worth of content.",
+      "- Only advance to the next step when the caller's reply satisfies the transition condition.",
+      "- Do not invent steps, filler questions, or content not in the script.",
     ].join("\n"),
   );
 
@@ -128,6 +128,26 @@ export function compileRealtimePrompt(
   // Filter them out so OpenAI doesn't read them aloud.
   const SILENT_SENTINELS = /^NO_RESPONSE_NEEDED$/i;
 
+  // Phrases that node authors write as behavioral instructions but which must
+  // never be spoken aloud. Strip them from the dialogue before rendering.
+  // Matching is case-insensitive and trims surrounding punctuation/whitespace.
+  const INSTRUCTION_PATTERNS: RegExp[] = [
+    /[,.\s]*pause\s+and\s+wait\s+for\s+(user\s+)?response[,.\s]*/gi,
+    /[,.\s]*wait\s+for\s+(the\s+)?(user'?s?\s+)?response[,.\s]*/gi,
+    /[,.\s]*pause\s+here[,.\s]*/gi,
+    /[,.\s]*\[?\s*wait\s+for\s+caller\s*\]?[,.\s]*/gi,
+    /[,.\s]*listen\s+for\s+(the\s+)?caller[,.\s]*/gi,
+    /[,.\s]*then\s+listen[,.\s]*/gi,
+  ];
+
+  function stripInstructionPhrases(text: string): string {
+    let result = text;
+    for (const pattern of INSTRUCTION_PATTERNS) {
+      result = result.replace(pattern, " ");
+    }
+    return result.replace(/\s{2,}/g, " ").trim();
+  }
+
   const renderNode = (node: FlowNode, headerPrefix: string): string | null => {
     const d = node.data;
     const transitionText = transitionTextFor(node);
@@ -135,9 +155,11 @@ export function compileRealtimePrompt(
       case "conversation": {
         const rawDialogue = d.dialogue?.trim() ?? "";
         const isSilent = SILENT_SENTINELS.test(rawDialogue);
-        const body = isSilent
+        // Strip any instruction-style directives before using as spoken text.
+        const spokenDialogue = stripInstructionPhrases(rawDialogue);
+        const body = isSilent || !spokenDialogue
           ? "Do NOT say anything here. Stay silent and wait for the caller's next input, then follow the transition below.\n[WAIT FOR CALLER]"
-          : `${rawDialogue || "(no instructions provided)"}\n[WAIT FOR CALLER — stay silent until the caller replies]`;
+          : `${spokenDialogue}\n[WAIT FOR CALLER — you MUST be completely silent after saying the above until the caller speaks next]`;
         return `${headerPrefix} ${d.label || "Conversation"}\n${body}${transitionText}`;
       }
       case "function":
