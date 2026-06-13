@@ -136,7 +136,7 @@ function mapLead(
     effective_stage: effective,
     funding_amount: (lead.funding_amount as number | null) ?? null,
     monthly_revenue: (lead.monthly_revenue as number | null) ?? null,
-    sale_amount: (lead.sale_amount as number | null) ?? null,
+    sale_amount: (lead.sale_amount as number | null) ?? ((lead.meta as any)?.sale_amount as number | null) ?? null,
     sentiment: (lead.sentiment as "positive" | "neutral" | "negative" | null) ?? null,
     call_outcome: (lead.call_outcome as string | null) ?? null,
     attempt_count: (lead.attempt_count as number | null) ?? null,
@@ -349,15 +349,24 @@ export const setSaleDoneAmount = createServerFn({ method: "POST" })
       .eq("id", data.leadId)
       .eq("workspace_id", workspaceId);
     if (error) {
-      if (
+      const isMissingCol =
         String(error.message).toLowerCase().includes("sale_amount") ||
-        String(error.code) === "42703"
-      ) {
-        throw new Error(
-          "MIGRATION_NEEDED: Apply supabase/migrations/20260613180000_sale_amount.sql in your Supabase Dashboard.",
-        );
-      }
-      throw new Error(error.message);
+        String(error.code) === "42703";
+      if (!isMissingCol) throw new Error(error.message);
+      // Column not yet migrated — persist in meta JSON as fallback
+      const { data: row } = await sb
+        .from("leads")
+        .select("meta")
+        .eq("id", data.leadId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      const newMeta = { ...(row?.meta ?? {}), sale_amount: data.amount };
+      const { error: metaErr } = await sb
+        .from("leads")
+        .update({ meta: newMeta, updated_at: new Date().toISOString() })
+        .eq("id", data.leadId)
+        .eq("workspace_id", workspaceId);
+      if (metaErr) throw new Error(metaErr.message);
     }
     return { ok: true };
   });

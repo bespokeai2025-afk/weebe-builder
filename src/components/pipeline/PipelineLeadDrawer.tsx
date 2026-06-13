@@ -288,15 +288,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
       setSaleAmtEditing(false);
     } catch (e) {
       const msg = (e as Error)?.message ?? "";
-      if (msg.includes("MIGRATION_NEEDED")) {
-        toast.warning("Apply the sale_amount migration to save amounts.", {
-          description: "supabase/migrations/20260613180000_sale_amount.sql",
-          duration: 8000,
-        });
-        setSaleAmtEditing(false);
-      } else {
-        toast.error("Failed to save amount", { description: msg });
-      }
+      toast.error("Failed to save amount", { description: msg });
     } finally {
       setSavingSaleAmt(false);
     }
