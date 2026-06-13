@@ -94,7 +94,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Qualified", url: "/qualified", icon: Check },
   { title: "Calls",     url: "/calls",     icon: PhoneCall },
   { title: "Calendar",  url: "/calendar",  icon: CalendarDays },
-  { title: "WhatsApp",  url: "/whatsapp",  icon: MessageSquare },
+  { title: "Buzzchat",  url: "/whatsapp",  icon: MessageSquare },
   { title: "Billing",   url: "/billing",   icon: CreditCard },
 ];
 

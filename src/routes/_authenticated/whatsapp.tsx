@@ -10,7 +10,7 @@ import { WhatsAppSettings }  from "@/components/whatsapp/WhatsAppSettings";
 import { WhatsAppAgents }    from "@/components/whatsapp/WhatsAppAgents";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({
-  head: () => ({ meta: [{ title: "WhatsApp — Webee" }] }),
+  head: () => ({ meta: [{ title: "Buzzchat — Webee" }] }),
   component: WhatsappPage,
 });
 
@@ -28,7 +28,7 @@ function WhatsappPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">WhatsApp</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Buzzchat</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Manage conversations, contacts, campaigns and templates from one place.
         </p>
