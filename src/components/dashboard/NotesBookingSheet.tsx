@@ -21,12 +21,6 @@ import {
   createManualBooking,
 } from "@/lib/dashboard/notes.functions";
 import {
-  listContactDocuments,
-  listContactDocsByPhone,
-  getContactUploadToken,
-} from "@/lib/dashboard/documents.functions";
-import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
-import {
   StickyNote,
   Trash2,
   Plus,
@@ -34,7 +28,6 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
-  FolderOpen,
 } from "lucide-react";
 
 export type NotesEntityType = "lead" | "contact" | "call";
@@ -83,19 +76,15 @@ export function NotesBookingSheet({
   leadId,
 }: NotesBookingSheetProps) {
   const qc = useQueryClient();
-  const addFn      = useServerFn(addEntityNote);
-  const deleteFn   = useServerFn(deleteEntityNote);
-  const bookFn     = useServerFn(createManualBooking);
-  const listFn     = useServerFn(listEntityNotes);
-  const listDocsFn        = useServerFn(listContactDocuments);
-  const listDocsByPhoneFn = useServerFn(listContactDocsByPhone);
-  const getTokenFn        = useServerFn(getContactUploadToken);
+  const addFn    = useServerFn(addEntityNote);
+  const deleteFn = useServerFn(deleteEntityNote);
+  const bookFn   = useServerFn(createManualBooking);
+  const listFn   = useServerFn(listEntityNotes);
 
   const [noteText, setNoteText] = useState("");
   const [addingNote, setAddingNote] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
-  const [docsOpen, setDocsOpen] = useState(false);
 
   const [bTitle, setBTitle] = useState("");
   const [bDate, setBDate] = useState("");
@@ -114,45 +103,6 @@ export function NotesBookingSheet({
     enabled: open,
     staleTime: 0,
   });
-
-  // ── Documents ─────────────────────────────────────────────────────────────
-  // For contacts: entityId IS the data_records.id — fetch directly.
-  // For leads/calls with a phone: look up by phone to find the contact.
-  const isContact = entityType === "contact";
-  const hasPhone  = !!defaultPhone;
-
-  const directDocsQ = useQuery({
-    queryKey: ["contact-docs-direct", entityId],
-    queryFn: () => listDocsFn({ data: { contactId: entityId } }),
-    enabled: open && isContact,
-    staleTime: 0,
-  });
-
-  const directTokenQ = useQuery({
-    queryKey: ["contact-token-direct", entityId],
-    queryFn: () => getTokenFn({ data: { contactId: entityId } }),
-    enabled: open && isContact,
-    staleTime: 0,
-  });
-
-  const phoneDocsQ = useQuery({
-    queryKey: ["contact-docs-phone", defaultPhone],
-    queryFn: () => listDocsByPhoneFn({ data: { phone: defaultPhone! } }),
-    enabled: open && !isContact && hasPhone,
-    staleTime: 0,
-  });
-
-  // Resolved docs info regardless of lookup path
-  const docsReady = isContact ? !directDocsQ.isLoading : !phoneDocsQ.isLoading;
-  const docsContactId: string | null = isContact
-    ? entityId
-    : (phoneDocsQ.data as any)?.contactId ?? null;
-  const docsUploadToken: string | null = isContact
-    ? (directTokenQ.data as any)?.uploadToken ?? null
-    : (phoneDocsQ.data as any)?.uploadToken ?? null;
-  const docsCount: number = isContact
-    ? ((directDocsQ.data as any[]) ?? []).length
-    : ((phoneDocsQ.data as any)?.docs ?? []).length;
 
   useEffect(() => {
     if (open) {
@@ -243,7 +193,7 @@ export function NotesBookingSheet({
             <StickyNote className="h-4 w-4 text-amber-400 flex-shrink-0" />
             <span className="truncate">{entityName}</span>
           </SheetTitle>
-          <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">{entityType} notes &amp; documents</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 capitalize">{entityType} notes &amp; appointments</p>
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
@@ -325,54 +275,6 @@ export function NotesBookingSheet({
               </div>
             )}
           </div>
-
-          <Separator className="bg-white/[0.06]" />
-
-          {/* ── Documents ──────────────────────────────────── */}
-          {(isContact || hasPhone) && (
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setDocsOpen((v) => !v)}
-                className="flex items-center justify-between w-full group"
-              >
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground cursor-pointer group-hover:text-foreground transition-colors flex items-center gap-1.5">
-                  <FolderOpen className="h-3.5 w-3.5 text-blue-400/80" />
-                  Documents
-                  {docsCount > 0 && (
-                    <span className="normal-case font-bold text-blue-400 tracking-normal ml-0.5">
-                      ({docsCount})
-                    </span>
-                  )}
-                </Label>
-                {docsOpen ? (
-                  <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-              </button>
-
-              {docsOpen && (
-                !docsReady ? (
-                  <div className="flex items-center gap-2 py-3">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Loading documents…</span>
-                  </div>
-                ) : docsContactId ? (
-                  <ContactDocumentsPanel
-                    contactId={docsContactId}
-                    contactName={entityName}
-                    uploadToken={docsUploadToken}
-                  />
-                ) : (
-                  <p className="text-[11px] text-muted-foreground/60 py-2">
-                    No contact record found{defaultPhone ? ` for ${defaultPhone}` : ""}.
-                    Add this contact first to enable document uploads.
-                  </p>
-                )
-              )}
-            </div>
-          )}
 
           <Separator className="bg-white/[0.06]" />
 

@@ -2,12 +2,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { BookUser, RefreshCw, Search, StickyNote } from "lucide-react";
+import {
+  BookUser, RefreshCw, Search, StickyNote, FolderOpen, Loader2,
+} from "lucide-react";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { listDataRecords } from "@/lib/dashboard/data-records.functions";
+import {
+  listContactDocuments,
+  getContactUploadToken,
+} from "@/lib/dashboard/documents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 export const Route = createFileRoute("/_authenticated/contacts")({
@@ -29,12 +39,74 @@ type PanelTarget = {
   entityName: string;
   defaultPhone?: string;
   defaultEmail?: string;
-  leadId?: string | null;
 };
+
+type DocsTarget = {
+  contactId: string;
+  contactName: string;
+};
+
+/** Docs dialog — contactId is a data_records.id so no phone lookup needed */
+function ContactDocsDialog({
+  target,
+  onClose,
+}: {
+  target: DocsTarget | null;
+  onClose: () => void;
+}) {
+  const listFn     = useServerFn(listContactDocuments);
+  const getTokenFn = useServerFn(getContactUploadToken);
+
+  const docsQ = useQuery({
+    queryKey: ["contact-docs", target?.contactId],
+    queryFn: () => listFn({ data: { contactId: target!.contactId } }),
+    enabled: !!target,
+    staleTime: 0,
+  });
+
+  const tokenQ = useQuery({
+    queryKey: ["contact-upload-token", target?.contactId],
+    queryFn: () => getTokenFn({ data: { contactId: target!.contactId } }),
+    enabled: !!target,
+    staleTime: Infinity,
+    retry: 1,
+  });
+
+  const uploadToken = (tokenQ.data as any)?.uploadToken ?? null;
+
+  return (
+    <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FolderOpen className="h-4 w-4 text-blue-400" />
+            Documents — {target?.contactName}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Upload and manage documents for this contact.
+          </DialogDescription>
+        </DialogHeader>
+        {docsQ.isLoading || tokenQ.isLoading ? (
+          <div className="flex items-center gap-2 py-6">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Loading…</span>
+          </div>
+        ) : target ? (
+          <ContactDocumentsPanel
+            contactId={target.contactId}
+            contactName={target.contactName}
+            uploadToken={uploadToken}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function ContactsPage() {
   const [search, setSearch] = useState("");
-  const [panel, setPanel] = useState<PanelTarget | null>(null);
+  const [notesPanel, setNotesPanel] = useState<PanelTarget | null>(null);
+  const [docsTarget, setDocsTarget] = useState<DocsTarget | null>(null);
   const listFn = useServerFn(listDataRecords);
 
   const { data: records = [], isLoading, refetch, isFetching } = useQuery({
@@ -43,7 +115,7 @@ function ContactsPage() {
     staleTime: 60_000,
   });
 
-  // Deduplicate by mobile_number (keep first occurrence per phone)
+  // Deduplicate by mobile_number
   const deduped = useMemo(() => {
     const seen = new Set<string>();
     return (records as any[]).filter((r) => {
@@ -71,23 +143,26 @@ function ContactsPage() {
     );
   }, [deduped, search]);
 
-  const total = deduped.length;
+  const total       = deduped.length;
   const withAddress = deduped.filter((r: any) => r.address_line1).length;
-  const withEmail = deduped.filter((r: any) => r.email).length;
+  const withEmail   = deduped.filter((r: any) => r.email).length;
 
-  function openPanel(r: any) {
-    const displayName =
-      r.name ||
-      [r.first_name, r.last_name].filter(Boolean).join(" ") ||
-      r.mobile_number ||
-      "Contact";
-    setPanel({
+  function displayName(r: any) {
+    return r.name || [r.first_name, r.last_name].filter(Boolean).join(" ") || r.mobile_number || "Contact";
+  }
+
+  function openNotes(r: any) {
+    setNotesPanel({
       entityType: "contact",
-      entityId: r.id,         // data_records.id — docs load directly from this
-      entityName: displayName,
+      entityId:    r.id,
+      entityName:  displayName(r),
       defaultPhone: r.mobile_number ?? undefined,
       defaultEmail: r.email ?? undefined,
     });
+  }
+
+  function openDocs(r: any) {
+    setDocsTarget({ contactId: r.id, contactName: displayName(r) });
   }
 
   return (
@@ -97,20 +172,10 @@ function ContactsPage() {
       {/* KPI strip */}
       <div className="mb-4 grid grid-cols-3 gap-3">
         <KpiCard label="Total Contacts" value={total} icon={BookUser} />
-        <KpiCard
-          label="With Address"
-          value={withAddress}
-          icon={BookUser}
-          iconBg="bg-blue-500/15"
-          iconColor="text-blue-400"
-        />
-        <KpiCard
-          label="With Email"
-          value={withEmail}
-          icon={BookUser}
-          iconBg="bg-violet-500/15"
-          iconColor="text-violet-400"
-        />
+        <KpiCard label="With Address" value={withAddress} icon={BookUser}
+          iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+        <KpiCard label="With Email" value={withEmail} icon={BookUser}
+          iconBg="bg-violet-500/15" iconColor="text-violet-400" />
       </div>
 
       {/* Table card */}
@@ -129,13 +194,7 @@ function ContactsPage() {
           <p className="ml-auto text-[11px] text-muted-foreground tabular-nums">
             {filtered.length.toLocaleString()} of {total.toLocaleString()}
           </p>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 w-7 p-0"
-            onClick={() => refetch()}
-            disabled={isFetching}
-          >
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
@@ -147,13 +206,9 @@ function ContactsPage() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16">
             <BookUser className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">
-              {total === 0 ? "No contacts yet" : "No matches"}
-            </p>
+            <p className="text-sm font-medium">{total === 0 ? "No contacts yet" : "No matches"}</p>
             <p className="text-xs text-muted-foreground">
-              {total === 0
-                ? "Upload a CSV from the Data section to add contacts."
-                : "Try a different search term."}
+              {total === 0 ? "Upload a CSV from the Data section to add contacts." : "Try a different search term."}
             </p>
           </div>
         ) : (
@@ -166,69 +221,74 @@ function ContactsPage() {
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Address</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Notes</th>
-                  <th className="px-3 py-2 w-16"></th>
+                  <th className="px-3 py-2 w-20"></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r: any) => {
-                  const displayName =
-                    r.name ||
-                    [r.first_name, r.last_name].filter(Boolean).join(" ") ||
-                    "—";
-                  return (
-                    <tr
-                      key={r.id}
-                      className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{displayName}</td>
-                      <td className="px-3 py-1.5 text-[11px] text-muted-foreground font-mono whitespace-nowrap">
-                        {r.mobile_number ?? "—"}
-                      </td>
-                      <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                        {r.email ?? "—"}
-                      </td>
-                      <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[240px]">
-                        <span className="line-clamp-1">{fmtAddress(r)}</span>
-                      </td>
-                      <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[200px]">
-                        {r.notes ? (
-                          <span className="line-clamp-1">{r.notes}</span>
-                        ) : (
-                          <span className="text-muted-foreground/40">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5">
+                {filtered.map((r: any) => (
+                  <tr
+                    key={r.id}
+                    className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors"
+                  >
+                    <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{displayName(r)}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground font-mono whitespace-nowrap">
+                      {r.mobile_number ?? "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                      {r.email ?? "—"}
+                    </td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[240px]">
+                      <span className="line-clamp-1">{fmtAddress(r)}</span>
+                    </td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[200px]">
+                      {r.notes
+                        ? <span className="line-clamp-1">{r.notes}</span>
+                        : <span className="text-muted-foreground/40">—</span>}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => openPanel(r)}
-                          title="Notes, documents & appointment"
-                          className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors whitespace-nowrap"
+                          onClick={() => openNotes(r)}
+                          title="Notes & appointment"
+                          className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
                         >
                           <StickyNote className="h-3 w-3" />
-                          <span>Notes & Docs</span>
                         </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <button
+                          onClick={() => openDocs(r)}
+                          title="Documents"
+                          className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 transition-colors"
+                        >
+                          <FolderOpen className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Notes, Documents & Booking sheet */}
-      {panel && (
+      {/* Notes sheet */}
+      {notesPanel && (
         <NotesBookingSheet
-          open={!!panel}
-          onOpenChange={(o) => { if (!o) setPanel(null); }}
-          entityType={panel.entityType}
-          entityId={panel.entityId}
-          entityName={panel.entityName}
-          defaultPhone={panel.defaultPhone}
-          defaultEmail={panel.defaultEmail}
-          leadId={panel.leadId}
+          open={!!notesPanel}
+          onOpenChange={(o) => { if (!o) setNotesPanel(null); }}
+          entityType={notesPanel.entityType}
+          entityId={notesPanel.entityId}
+          entityName={notesPanel.entityName}
+          defaultPhone={notesPanel.defaultPhone}
+          defaultEmail={notesPanel.defaultEmail}
         />
       )}
+
+      {/* Documents dialog */}
+      <ContactDocsDialog
+        target={docsTarget}
+        onClose={() => setDocsTarget(null)}
+      />
     </div>
   );
 }

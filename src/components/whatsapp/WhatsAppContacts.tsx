@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { listWAContacts, createWAContact, updateWAContact, deleteWAContact } from "@/lib/dashboard/whatsapp.functions";
+import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import { getWatiConnection, syncWatiContacts } from "@/lib/whatsapp/wati.functions";
 import { toast } from "sonner";
@@ -27,6 +28,53 @@ const SOURCES  = ["manual", "import", "webhook", "campaign", "referral", "wati"]
 
 function emptyForm() {
   return { name: "", phone: "", tags: "", source: "", lead_status: "", notes: "" };
+}
+
+/** Resolves the data_records contact by WA phone, then shows the documents panel */
+function WADocsDialog({
+  contact,
+  onClose,
+}: {
+  contact: { name?: string | null; phone: string } | null;
+  onClose: () => void;
+}) {
+  const docsByPhoneFn = useServerFn(listContactDocsByPhone);
+  const docsQ = useQuery({
+    queryKey: ["wa-docs-phone", contact?.phone],
+    queryFn: () => docsByPhoneFn({ data: { phone: contact!.phone } }),
+    enabled: !!contact?.phone,
+    staleTime: 0,
+  });
+  const info = docsQ.data as { docs: any[]; contactId: string | null; uploadToken: string | null } | undefined;
+
+  return (
+    <Dialog open={!!contact} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FolderOpen className="h-4 w-4 text-blue-400" />
+            Documents — {contact?.name ?? contact?.phone}
+          </DialogTitle>
+        </DialogHeader>
+        {docsQ.isLoading ? (
+          <div className="flex items-center gap-2 py-6">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Loading…</span>
+          </div>
+        ) : info?.contactId ? (
+          <ContactDocumentsPanel
+            contactId={info.contactId}
+            contactName={contact?.name}
+            uploadToken={info.uploadToken}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground py-4">
+            No CRM contact found for {contact?.phone}. Import this number as a contact first to enable documents.
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function WhatsAppContacts() {
@@ -309,24 +357,8 @@ export function WhatsAppContacts() {
         </DialogContent>
       </Dialog>
 
-      {/* Documents dialog */}
-      <Dialog open={!!docsContact} onOpenChange={(o) => !o && setDocsContact(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4" />
-              Documents — {docsContact?.name ?? docsContact?.phone}
-            </DialogTitle>
-          </DialogHeader>
-          {docsContact && (
-            <ContactDocumentsPanel
-              contactId={docsContact.id}
-              contactName={docsContact.name}
-              uploadToken={docsContact.upload_token}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Documents dialog — looks up data_records by phone */}
+      <WADocsDialog contact={docsContact} onClose={() => setDocsContact(null)} />
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
