@@ -12,13 +12,16 @@ import {
   Target,
   CheckCircle2,
   StickyNote,
+  BarChart3,
 } from "lucide-react";
+import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
 import { setLeadStatus } from "@/lib/dashboard/leads.functions";
+import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
@@ -103,6 +106,15 @@ function QualifiedPage() {
   const [search, setSearch] = useState("");
   const [qualFilter, setQualFilter] = useState("all");
   const [panel, setPanel] = useState<PanelTarget | null>(null);
+  const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
+  const listAgentsFn = useServerFn(listLiveAgents);
+
+  const agentsQ = useQuery({
+    queryKey: ["qual-agents"],
+    queryFn: () => listAgentsFn(),
+    refetchOnWindowFocus: false,
+  });
+  const qualAgents = (agentsQ.data ?? []) as Array<{ id: string; name: string; retell_agent_id?: string | null }>;
 
   const leadsQ = useQuery({
     queryKey: ["leads-qualified", search, qualFilter],
@@ -171,6 +183,46 @@ function QualifiedPage() {
         </Button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 border-b border-white/[0.06]">
+        {(["contacts", "campaigns"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setQualTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              qualTab === t
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "contacts" ? (
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5" /> Contacts
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5" /> Campaigns
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {qualTab === "campaigns" && (
+        <CallSchedulingSection
+          pageType="qualified"
+          statusOptions={[
+            { value: "qualified", label: "Qualified" },
+            { value: "partially_qualified", label: "Partially Qualified" },
+            { value: "not_qualified", label: "Not Qualified" },
+            { value: "callback_required", label: "Callback Required" },
+          ]}
+          agents={qualAgents}
+        />
+      )}
+
+      {qualTab === "contacts" && (
+      <>
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">
         <KpiCard label="Total" value={stats?.total ?? "—"} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
@@ -313,6 +365,8 @@ function QualifiedPage() {
           )}
         </div>
       </div>
+      </>
+      )}
 
       {/* Notes & Booking sheet */}
       {panel && (

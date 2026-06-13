@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw } from "lucide-react";
+import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3 } from "lucide-react";
+import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -336,6 +337,7 @@ function DataPage() {
   const [startCallingOpen, setStartCallingOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [callScheduleOpen, setCallScheduleOpen] = useState(false);
+  const [dataTab, setDataTab] = useState<"records" | "campaigns">("records");
 
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -652,7 +654,47 @@ function DataPage() {
         </div>
       </div>
 
-      {showCsvImport && (
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 border-b border-white/[0.06]">
+        {(["records", "campaigns"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setDataTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              dataTab === t
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "records" ? (
+              <span className="flex items-center gap-1.5">
+                <Database className="h-3.5 w-3.5" /> Records
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <BarChart3 className="h-3.5 w-3.5" /> Campaigns
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {dataTab === "campaigns" && (
+        <CallSchedulingSection
+          pageType="data"
+          statusOptions={[
+            { value: "needs_to_call", label: "Needs to Call" },
+            { value: "queued", label: "Queued" },
+            { value: "calling", label: "Calling" },
+            { value: "completed", label: "Completed" },
+            { value: "failed", label: "Failed" },
+            { value: "do_not_call", label: "Do Not Call" },
+          ]}
+          agents={agents}
+        />
+      )}
+
+      {dataTab === "records" && showCsvImport && (
         <Card className="mb-6">
           <CardContent className="pt-6 space-y-4">
             <div>
@@ -700,6 +742,8 @@ function DataPage() {
         </Card>
       )}
 
+      {dataTab === "records" && (
+      <>
       {/* KPI strip — matches Leads page */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard label="Total" value={stats.total} icon={Database} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
@@ -814,6 +858,8 @@ function DataPage() {
           />
         )}
       </div>
+      </>
+      )}
 
       <ManualEntryDialog
         open={showManualEntry}
