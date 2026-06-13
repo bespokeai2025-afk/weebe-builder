@@ -2,7 +2,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, Send, CheckCheck, Eye, MessageCircle, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { getWAAnalytics } from "@/lib/dashboard/whatsapp.functions";
+import { getWatiConnection, listWatiCampaigns } from "@/lib/whatsapp/wati.functions";
 
 function KpiCard({
   label, value, sub, icon: Icon, color,
@@ -54,12 +56,31 @@ function SimpleBar({ data }: { data: { date: string; sent: number; received: num
 }
 
 export function WhatsAppAnalytics() {
-  const analyticsFn = useServerFn(getWAAnalytics);
+  const analyticsFn   = useServerFn(getWAAnalytics);
+  const watiConnFn    = useServerFn(getWatiConnection);
+  const watiCampFn    = useServerFn(listWatiCampaigns);
+
   const { data, isLoading } = useQuery({
     queryKey: ["wa-analytics"],
     queryFn: () => analyticsFn(),
     refetchInterval: 60_000,
   });
+
+  const { data: watiConn } = useQuery({
+    queryKey: ["wati-connection"],
+    queryFn: () => watiConnFn(),
+  });
+  const watiConnected = !!watiConn && watiConn.status === "connected";
+
+  const { data: watiCampaigns = [] } = useQuery({
+    queryKey: ["wati-campaigns"],
+    queryFn: () => watiCampFn(),
+    enabled: watiConnected,
+  });
+
+  const watiTotalSent      = (watiCampaigns as any[]).reduce((a, c) => a + (c.sent ?? 0), 0);
+  const watiTotalDelivered = (watiCampaigns as any[]).reduce((a, c) => a + (c.delivered ?? 0), 0);
+  const watiTotalRead      = (watiCampaigns as any[]).reduce((a, c) => a + (c.read_count ?? 0), 0);
 
   if (isLoading) {
     return <div className="py-16 text-center text-sm text-muted-foreground">Loading analytics…</div>;
@@ -162,6 +183,79 @@ export function WhatsAppAnalytics() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Provider Breakdown ─────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Provider Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="divide-y divide-border/40">
+            {[
+              {
+                provider: "Twilio",
+                color: "text-blue-400 border-blue-500/30",
+                dot: "bg-blue-500",
+                sent: data.sent,
+                delivered: data.delivered,
+                read: data.read,
+                always: true,
+              },
+              {
+                provider: "Meta Cloud API",
+                color: "text-green-400 border-green-500/30",
+                dot: "bg-green-500",
+                sent: 0,
+                delivered: 0,
+                read: 0,
+                always: true,
+              },
+              ...(watiConnected
+                ? [
+                    {
+                      provider: "WATI",
+                      color: "text-purple-400 border-purple-500/30",
+                      dot: "bg-purple-500",
+                      sent: watiTotalSent,
+                      delivered: watiTotalDelivered,
+                      read: watiTotalRead,
+                      always: false,
+                    },
+                  ]
+                : []),
+            ].map(({ provider, color, dot, sent, delivered, read }) => (
+              <div key={provider} className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${dot}`} />
+                  <span className="text-sm font-medium">{provider}</span>
+                  <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${color}`}>
+                    {provider === "WATI" ? "Connected" : "Active"}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-6 text-xs tabular-nums">
+                  <div className="text-right">
+                    <p className="text-muted-foreground">Sent</p>
+                    <p className="font-semibold">{sent.toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground">Delivered</p>
+                    <p className="font-semibold">{delivered.toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground">Read</p>
+                    <p className="font-semibold">{read.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {!watiConnected && (
+            <p className="text-[11px] text-muted-foreground mt-2 border-t border-border/40 pt-2">
+              Connect WATI in Settings → Optional Integrations to see WATI campaign analytics here.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

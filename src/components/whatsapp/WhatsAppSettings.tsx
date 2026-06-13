@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Settings, Copy, CheckCheck, ExternalLink, Info } from "lucide-react";
+import { WatiIntegrationSettings } from "./WatiIntegrationSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,6 +190,12 @@ export function WhatsAppSettings() {
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? "Saving…" : "Save Settings"}
         </Button>
+      </div>
+
+      {/* Optional integrations */}
+      <div className="pt-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Optional Integrations</p>
+        <WatiIntegrationSettings />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Pencil, FileText, Variable } from "lucide-react";
+import { Plus, Trash2, Pencil, FileText, Variable, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,7 @@ import {
 import {
   listWATemplates, createWATemplate, updateWATemplate, deleteWATemplate,
 } from "@/lib/dashboard/whatsapp.functions";
+import { getWatiConnection, listWatiTemplates, syncWatiTemplates } from "@/lib/whatsapp/wati.functions";
 import { toast } from "sonner";
 
 const CATEGORIES = ["MARKETING", "UTILITY", "AUTHENTICATION"];
@@ -35,14 +36,38 @@ function extractVars(body: string): string[] {
 
 export function WhatsAppTemplates() {
   const qc = useQueryClient();
-  const listFn   = useServerFn(listWATemplates);
-  const createFn = useServerFn(createWATemplate);
-  const updateFn = useServerFn(updateWATemplate);
-  const deleteFn = useServerFn(deleteWATemplate);
+  const listFn        = useServerFn(listWATemplates);
+  const createFn      = useServerFn(createWATemplate);
+  const updateFn      = useServerFn(updateWATemplate);
+  const deleteFn      = useServerFn(deleteWATemplate);
+  const watiConnFn    = useServerFn(getWatiConnection);
+  const watiListFn    = useServerFn(listWatiTemplates);
+  const watiSyncFn    = useServerFn(syncWatiTemplates);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["wa-templates"],
     queryFn: () => listFn(),
+  });
+
+  const { data: watiConn } = useQuery({
+    queryKey: ["wati-connection"],
+    queryFn: () => watiConnFn(),
+  });
+  const watiConnected = !!watiConn && watiConn.status === "connected";
+
+  const { data: watiTemplates = [] } = useQuery({
+    queryKey: ["wati-templates"],
+    queryFn: () => watiListFn(),
+    enabled: watiConnected,
+  });
+
+  const syncWati = useMutation({
+    mutationFn: () => watiSyncFn(),
+    onSuccess: (d: any) => {
+      qc.invalidateQueries({ queryKey: ["wati-templates"] });
+      toast.success(`Synced ${d.count} WATI templates`);
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const [open, setOpen]         = useState(false);
@@ -111,9 +136,25 @@ export function WhatsAppTemplates() {
         <p className="text-sm text-muted-foreground">
           Create reusable message templates with dynamic variables like <code className="text-xs bg-muted px-1 rounded">{"{{name}}"}</code>.
         </p>
-        <Button size="sm" onClick={openCreate} className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" /> New Template
-        </Button>
+        <div className="flex items-center gap-2">
+          {watiConnected && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 border-purple-500/30 text-purple-400 hover:text-purple-300"
+              disabled={syncWati.isPending}
+              onClick={() => syncWati.mutate()}
+            >
+              {syncWati.isPending
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <RefreshCw className="h-3.5 w-3.5" />}
+              Import from WATI
+            </Button>
+          )}
+          <Button size="sm" onClick={openCreate} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" /> New Template
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -134,7 +175,10 @@ export function WhatsAppTemplates() {
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold truncate">{t.name}</p>
-                  <Badge variant="secondary" className="text-[10px] mt-1">{t.category}</Badge>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Badge variant="secondary" className="text-[10px]">{t.category}</Badge>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-500/30 text-blue-400">Twilio</Badge>
+                  </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}>
@@ -248,6 +292,44 @@ export function WhatsAppTemplates() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── WATI Templates (only shown when WATI is connected) ─────────────── */}
+      {watiConnected && (watiTemplates as any[]).length > 0 && (
+        <div className="space-y-3 pt-4 border-t border-border/40">
+          <div className="flex items-center gap-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded bg-purple-500/15 text-purple-500 text-[10px] font-bold">W</span>
+            <span className="text-sm font-medium">WATI Templates</span>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-500/30 text-purple-400">
+              {(watiTemplates as any[]).length}
+            </Badge>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {(watiTemplates as any[]).map((t: any) => (
+              <div
+                key={t.id}
+                className="rounded-lg border border-purple-500/20 bg-card p-4 flex flex-col gap-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{t.name}</p>
+                    <div className="flex items-center gap-1 mt-1">
+                      {t.category && <Badge variant="secondary" className="text-[10px]">{t.category}</Badge>}
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-500/30 text-purple-400">WATI</Badge>
+                      {t.status && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{t.status}</Badge>}
+                    </div>
+                  </div>
+                </div>
+                {t.language && (
+                  <p className="text-[10px] text-muted-foreground">Language: {t.language}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-auto">
+                  Synced {new Date(t.synced_at).toLocaleDateString()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

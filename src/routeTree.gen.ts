@@ -38,6 +38,7 @@ import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
@@ -231,6 +232,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWebhookWatiInboundRoute = ApiWebhookWatiInboundRouteImport.update({
+  id: '/api/webhook/wati-inbound',
+  path: '/api/webhook/wati-inbound',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWebhookCustomTelemetryRoute =
@@ -543,6 +549,7 @@ export interface FileRoutesByFullPath {
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
+  '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
@@ -619,6 +626,7 @@ export interface FileRoutesByTo {
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
+  '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
@@ -698,6 +706,7 @@ export interface FileRoutesById {
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
+  '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
@@ -777,6 +786,7 @@ export interface FileRouteTypes {
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
+    | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/admin/'
     | '/api/internal/agent-tools/$id'
@@ -853,6 +863,7 @@ export interface FileRouteTypes {
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
+    | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/admin'
     | '/api/internal/agent-tools/$id'
@@ -931,6 +942,7 @@ export interface FileRouteTypes {
     | '/api/public/retell-webhook'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
+    | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
     | '/api/internal/agent-tools/$id'
@@ -984,6 +996,7 @@ export interface RootRouteChildren {
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
+  ApiWebhookWatiInboundRoute: typeof ApiWebhookWatiInboundRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   ApiInternalAgentToolsIdRoute: typeof ApiInternalAgentToolsIdRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
@@ -1216,6 +1229,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/webhook/wati-inbound': {
+      id: '/api/webhook/wati-inbound'
+      path: '/api/webhook/wati-inbound'
+      fullPath: '/api/webhook/wati-inbound'
+      preLoaderRoute: typeof ApiWebhookWatiInboundRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/webhook/custom-telemetry': {
@@ -1683,6 +1703,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
+  ApiWebhookWatiInboundRoute: ApiWebhookWatiInboundRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   ApiInternalAgentToolsIdRoute: ApiInternalAgentToolsIdRoute,
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,

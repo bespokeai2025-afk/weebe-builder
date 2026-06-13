@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Download, Upload, Search, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +18,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { listWAContacts, createWAContact, updateWAContact, deleteWAContact } from "@/lib/dashboard/whatsapp.functions";
+import { getWatiConnection, syncWatiContacts } from "@/lib/whatsapp/wati.functions";
 import { toast } from "sonner";
 
 const STATUSES = ["new", "contacted", "qualified", "closed", "lost"];
-const SOURCES  = ["manual", "import", "webhook", "campaign", "referral"];
+const SOURCES  = ["manual", "import", "webhook", "campaign", "referral", "wati"];
 
 function emptyForm() {
   return { name: "", phone: "", tags: "", source: "", lead_status: "", notes: "" };
@@ -29,14 +30,31 @@ function emptyForm() {
 
 export function WhatsAppContacts() {
   const qc = useQueryClient();
-  const listFn   = useServerFn(listWAContacts);
-  const createFn = useServerFn(createWAContact);
-  const updateFn = useServerFn(updateWAContact);
-  const deleteFn = useServerFn(deleteWAContact);
+  const listFn        = useServerFn(listWAContacts);
+  const createFn      = useServerFn(createWAContact);
+  const updateFn      = useServerFn(updateWAContact);
+  const deleteFn      = useServerFn(deleteWAContact);
+  const watiConnFn    = useServerFn(getWatiConnection);
+  const watiSyncFn    = useServerFn(syncWatiContacts);
 
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["wa-contacts"],
     queryFn: () => listFn(),
+  });
+
+  const { data: watiConn } = useQuery({
+    queryKey: ["wati-connection"],
+    queryFn: () => watiConnFn(),
+  });
+  const watiConnected = !!watiConn && watiConn.status === "connected";
+
+  const syncFromWati = useMutation({
+    mutationFn: () => watiSyncFn(),
+    onSuccess: (d: any) => {
+      qc.invalidateQueries({ queryKey: ["wa-contacts"] });
+      toast.success(`Synced ${d.count} contacts from WATI`);
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const [search, setSearch]     = useState("");
@@ -146,6 +164,20 @@ export function WhatsAppContacts() {
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {watiConnected && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-purple-500/30 text-purple-400 hover:text-purple-300"
+              disabled={syncFromWati.isPending}
+              onClick={() => syncFromWati.mutate()}
+            >
+              {syncFromWati.isPending
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <RefreshCw className="h-3.5 w-3.5" />}
+              Import from WATI
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={exportCsv} className="gap-1.5">
             <Download className="h-3.5 w-3.5" /> Export CSV
           </Button>

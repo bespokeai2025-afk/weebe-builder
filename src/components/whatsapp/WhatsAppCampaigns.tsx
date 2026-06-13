@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Megaphone, Clock, CheckCircle2, AlertCircle, PlayCircle, Rocket } from "lucide-react";
+import { Plus, Trash2, Megaphone, Clock, CheckCircle2, AlertCircle, PlayCircle, Rocket, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
 import {
   listWACampaigns, createWACampaign, deleteWACampaign, listWATemplates, launchWACampaign,
 } from "@/lib/dashboard/whatsapp.functions";
+import { getWatiConnection, listWatiCampaigns, syncWatiCampaigns } from "@/lib/whatsapp/wati.functions";
 import { toast } from "sonner";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -41,11 +42,14 @@ function emptyForm() {
 
 export function WhatsAppCampaigns() {
   const qc = useQueryClient();
-  const listFn   = useServerFn(listWACampaigns);
-  const createFn = useServerFn(createWACampaign);
-  const deleteFn = useServerFn(deleteWACampaign);
-  const tmplFn   = useServerFn(listWATemplates);
-  const launchFn = useServerFn(launchWACampaign);
+  const listFn        = useServerFn(listWACampaigns);
+  const createFn      = useServerFn(createWACampaign);
+  const deleteFn      = useServerFn(deleteWACampaign);
+  const tmplFn        = useServerFn(listWATemplates);
+  const launchFn      = useServerFn(launchWACampaign);
+  const watiConnFn    = useServerFn(getWatiConnection);
+  const watiListFn    = useServerFn(listWatiCampaigns);
+  const watiSyncFn    = useServerFn(syncWatiCampaigns);
 
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["wa-campaigns"],
@@ -54,6 +58,27 @@ export function WhatsAppCampaigns() {
   const { data: templates = [] } = useQuery({
     queryKey: ["wa-templates"],
     queryFn: () => tmplFn(),
+  });
+
+  const { data: watiConn } = useQuery({
+    queryKey: ["wati-connection"],
+    queryFn: () => watiConnFn(),
+  });
+  const watiConnected = !!watiConn && watiConn.status === "connected";
+
+  const { data: watiCampaigns = [] } = useQuery({
+    queryKey: ["wati-campaigns"],
+    queryFn: () => watiListFn(),
+    enabled: watiConnected,
+  });
+
+  const syncWati = useMutation({
+    mutationFn: () => watiSyncFn(),
+    onSuccess: (d: any) => {
+      qc.invalidateQueries({ queryKey: ["wati-campaigns"] });
+      toast.success(`Synced ${d.count} WATI campaigns`);
+    },
+    onError: (e: any) => toast.error(e.message),
   });
 
   const [open, setOpen]           = useState(false);
@@ -278,6 +303,68 @@ export function WhatsAppCampaigns() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── WATI Campaigns (only shown when WATI is connected) ─────────────── */}
+      {watiConnected && (
+        <div className="space-y-3 pt-4 border-t border-border/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded bg-purple-500/15 text-purple-500 text-[10px] font-bold">W</span>
+              <span className="text-sm font-medium">WATI Campaigns</span>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-500/30 text-purple-400">
+                {(watiCampaigns as any[]).length}
+              </Badge>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs h-7"
+              disabled={syncWati.isPending}
+              onClick={() => syncWati.mutate()}
+            >
+              {syncWati.isPending
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <RefreshCw className="h-3 w-3" />}
+              Sync from WATI
+            </Button>
+          </div>
+
+          {(watiCampaigns as any[]).length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-6">
+              No WATI campaigns synced yet. Click "Sync from WATI" to import.
+            </p>
+          ) : (
+            <div className="rounded-lg border border-purple-500/20 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-purple-500/5 border-b border-purple-500/20">
+                  <tr>
+                    {["Name", "Status", "Sent", "Delivered", "Read", "Failed", "Synced"].map((h) => (
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {(watiCampaigns as any[]).map((c: any) => (
+                    <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-2.5 font-medium">{c.name}</td>
+                      <td className="px-4 py-2.5">
+                        <Badge variant="outline" className="text-[10px]">{c.status ?? "—"}</Badge>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs tabular-nums">{c.sent ?? 0}</td>
+                      <td className="px-4 py-2.5 text-xs tabular-nums">{c.delivered ?? 0}</td>
+                      <td className="px-4 py-2.5 text-xs tabular-nums">{c.read_count ?? 0}</td>
+                      <td className="px-4 py-2.5 text-xs tabular-nums">{c.failed ?? 0}</td>
+                      <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
+                        {new Date(c.synced_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
