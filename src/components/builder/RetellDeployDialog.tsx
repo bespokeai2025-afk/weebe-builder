@@ -2632,7 +2632,7 @@ export function RetellDeployDialog({
         <Button
           size="sm"
           variant="ghost"
-          onClick={() => setCheckOpen(true)}
+          onClick={() => setCheckOpen((o) => !o)}
           className={cn(
             "relative !h-8 !w-8 !p-0",
             flowErrors.length > 0
