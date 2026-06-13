@@ -58,6 +58,9 @@ import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admi
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
+import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/_authenticated/hivemind.system-health'
+import { Route as AuthenticatedHivemindReportsRouteImport } from './routes/_authenticated/hivemind.reports'
+import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './routes/_authenticated/hivemind.recommendations'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
@@ -354,6 +357,24 @@ const AuthenticatedSettingsCalendarRoute =
     path: '/settings/calendar',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedHivemindSystemHealthRoute =
+  AuthenticatedHivemindSystemHealthRouteImport.update({
+    id: '/system-health',
+    path: '/system-health',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
+const AuthenticatedHivemindReportsRoute =
+  AuthenticatedHivemindReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
+const AuthenticatedHivemindRecommendationsRoute =
+  AuthenticatedHivemindRecommendationsRouteImport.update({
+    id: '/recommendations',
+    path: '/recommendations',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
 const AuthenticatedAgentsNewRoute = AuthenticatedAgentsNewRouteImport.update({
   id: '/agents/new',
   path: '/agents/new',
@@ -588,7 +609,7 @@ export interface FileRoutesByFullPath {
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/hexmail': typeof AuthenticatedHexmailRoute
-  '/hivemind': typeof AuthenticatedHivemindRoute
+  '/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -607,6 +628,9 @@ export interface FileRoutesByFullPath {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
+  '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
+  '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -675,7 +699,7 @@ export interface FileRoutesByTo {
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/hexmail': typeof AuthenticatedHexmailRoute
-  '/hivemind': typeof AuthenticatedHivemindRoute
+  '/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -694,6 +718,9 @@ export interface FileRoutesByTo {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
+  '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
+  '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -765,7 +792,7 @@ export interface FileRoutesById {
   '/_authenticated/data': typeof AuthenticatedDataRoute
   '/_authenticated/follow-up': typeof AuthenticatedFollowUpRoute
   '/_authenticated/hexmail': typeof AuthenticatedHexmailRoute
-  '/_authenticated/hivemind': typeof AuthenticatedHivemindRoute
+  '/_authenticated/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/my-agents': typeof AuthenticatedMyAgentsRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -784,6 +811,9 @@ export interface FileRoutesById {
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/_authenticated/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
+  '/_authenticated/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
+  '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -874,6 +904,9 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
+    | '/hivemind/recommendations'
+    | '/hivemind/reports'
+    | '/hivemind/system-health'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
@@ -961,6 +994,9 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
+    | '/hivemind/recommendations'
+    | '/hivemind/reports'
+    | '/hivemind/system-health'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
@@ -1050,6 +1086,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
+    | '/_authenticated/hivemind/recommendations'
+    | '/_authenticated/hivemind/reports'
+    | '/_authenticated/hivemind/system-health'
     | '/_authenticated/settings/calendar'
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/integrations'
@@ -1503,6 +1542,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsCalendarRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/hivemind/system-health': {
+      id: '/_authenticated/hivemind/system-health'
+      path: '/system-health'
+      fullPath: '/hivemind/system-health'
+      preLoaderRoute: typeof AuthenticatedHivemindSystemHealthRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
+    '/_authenticated/hivemind/reports': {
+      id: '/_authenticated/hivemind/reports'
+      path: '/reports'
+      fullPath: '/hivemind/reports'
+      preLoaderRoute: typeof AuthenticatedHivemindReportsRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
+    '/_authenticated/hivemind/recommendations': {
+      id: '/_authenticated/hivemind/recommendations'
+      path: '/recommendations'
+      fullPath: '/hivemind/recommendations'
+      preLoaderRoute: typeof AuthenticatedHivemindRecommendationsRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
     '/_authenticated/agents/new': {
       id: '/_authenticated/agents/new'
       path: '/agents/new'
@@ -1789,6 +1849,25 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
+interface AuthenticatedHivemindRouteChildren {
+  AuthenticatedHivemindRecommendationsRoute: typeof AuthenticatedHivemindRecommendationsRoute
+  AuthenticatedHivemindReportsRoute: typeof AuthenticatedHivemindReportsRoute
+  AuthenticatedHivemindSystemHealthRoute: typeof AuthenticatedHivemindSystemHealthRoute
+}
+
+const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
+  AuthenticatedHivemindRecommendationsRoute:
+    AuthenticatedHivemindRecommendationsRoute,
+  AuthenticatedHivemindReportsRoute: AuthenticatedHivemindReportsRoute,
+  AuthenticatedHivemindSystemHealthRoute:
+    AuthenticatedHivemindSystemHealthRoute,
+}
+
+const AuthenticatedHivemindRouteWithChildren =
+  AuthenticatedHivemindRoute._addFileChildren(
+    AuthenticatedHivemindRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
@@ -1802,7 +1881,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDataRoute: typeof AuthenticatedDataRoute
   AuthenticatedFollowUpRoute: typeof AuthenticatedFollowUpRoute
   AuthenticatedHexmailRoute: typeof AuthenticatedHexmailRoute
-  AuthenticatedHivemindRoute: typeof AuthenticatedHivemindRoute
+  AuthenticatedHivemindRoute: typeof AuthenticatedHivemindRouteWithChildren
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMyAgentsRoute: typeof AuthenticatedMyAgentsRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
@@ -1832,7 +1911,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDataRoute: AuthenticatedDataRoute,
   AuthenticatedFollowUpRoute: AuthenticatedFollowUpRoute,
   AuthenticatedHexmailRoute: AuthenticatedHexmailRoute,
-  AuthenticatedHivemindRoute: AuthenticatedHivemindRoute,
+  AuthenticatedHivemindRoute: AuthenticatedHivemindRouteWithChildren,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMyAgentsRoute: AuthenticatedMyAgentsRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,

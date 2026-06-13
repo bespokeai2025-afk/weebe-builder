@@ -11,3 +11,4 @@
 - [WATI optional connector pattern](wati-connector.md) — all WATI features gated on wati_connections row; zero runtime/builder changes; migration must be applied manually in Supabase SQL Editor.
 - [WhatsApp provider architecture](wa-provider-architecture.md) — Twilio/WATI/Meta creds, webhook routing, agent gate, runtime send routing. Meta needs manual hub.challenge step.
 - [Campaign executor architecture](campaign-executor-arch.md) — dual dev/prod: Vite plugin ticks every 5 min in dev; prod uses POST /api/public/campaign-executor hit by pg_cron. lastRunDate stored inside __sched_v1__ JSON blob.
+- [HiveMind architecture](hivemind-arch.md) — observer-only platform layer; 4 flat routes + shared HiveMindShell sidebar; recommendation engine extracted to recommendations.ts; all data in one server fn.
