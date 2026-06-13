@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -317,8 +317,8 @@ function LlmTab({ rows, onSaved }: { rows: LlmCost[]; onSaved: () => void }) {
           </thead>
           <tbody className="divide-y">
             {rows.map(row => (
-              <>
-                <tr key={row.id} className="hover:bg-muted/20">
+              <React.Fragment key={row.id}>
+                <tr className="hover:bg-muted/20">
                   <td className="px-3 py-2 font-medium">{row.provider}</td>
                   <td className="px-3 py-2">{row.model}</td>
                   <td className="px-3 py-2">{fmtCurrency(n(row.input_token_cost))}</td>
@@ -334,7 +334,7 @@ function LlmTab({ rows, onSaved }: { rows: LlmCost[]; onSaved: () => void }) {
                   </td>
                 </tr>
                 {editId === row.id && <EditForm key={`edit-${row.id}`} />}
-              </>
+              </React.Fragment>
             ))}
             {editId === "new" && <EditForm key="new" />}
           </tbody>
@@ -395,8 +395,8 @@ function VoiceTab({ rows, onSaved }: { rows: VoiceCost[]; onSaved: () => void })
           <thead className="bg-muted/50"><tr>{["Provider", "Voice", "/Char", "/Min", "/Request", "Notes", ""].map(h => <th key={h} className="text-left px-3 py-2 font-medium text-muted-foreground">{h}</th>)}</tr></thead>
           <tbody className="divide-y">
             {rows.map(row => (
-              <>
-                <tr key={row.id} className="hover:bg-muted/20">
+              <React.Fragment key={row.id}>
+                <tr className="hover:bg-muted/20">
                   <td className="px-3 py-2 font-medium">{row.provider}</td>
                   <td className="px-3 py-2">{row.voice_name}</td>
                   <td className="px-3 py-2">{fmtCurrency(n(row.cost_per_character))}</td>
@@ -409,7 +409,7 @@ function VoiceTab({ rows, onSaved }: { rows: VoiceCost[]; onSaved: () => void })
                   </div></td>
                 </tr>
                 {editId === row.id && <EditForm key={`edit-${row.id}`} />}
-              </>
+              </React.Fragment>
             ))}
             {editId === "new" && <EditForm key="new" />}
           </tbody>
@@ -466,8 +466,8 @@ function TelephonyTab({ rows, onSaved }: { rows: TelephonyCost[]; onSaved: () =>
           <thead className="bg-muted/50"><tr>{["Provider", "Country", "Inbound /min", "Outbound /min", "Recording /min", "Number /mo", "Notes", ""].map(h => <th key={h} className="text-left px-3 py-2 font-medium text-muted-foreground">{h}</th>)}</tr></thead>
           <tbody className="divide-y">
             {rows.map(row => (
-              <>
-                <tr key={row.id} className="hover:bg-muted/20">
+              <React.Fragment key={row.id}>
+                <tr className="hover:bg-muted/20">
                   <td className="px-3 py-2 font-medium">{row.provider}</td>
                   <td className="px-3 py-2">{row.country}</td>
                   <td className="px-3 py-2">{fmtCurrency(n(row.inbound_cost_per_min))}</td>
@@ -481,7 +481,7 @@ function TelephonyTab({ rows, onSaved }: { rows: TelephonyCost[]; onSaved: () =>
                   </div></td>
                 </tr>
                 {editId === row.id && <EditForm key={`edit-${row.id}`} />}
-              </>
+              </React.Fragment>
             ))}
             {editId === "new" && <EditForm key="new" />}
           </tbody>
@@ -645,10 +645,22 @@ function HyperstreamTab({ data }: { data: CostEngineData }) {
           <Row label="Selling Price / min" value={fmtCurrency(rtMk.selling)} />
           <Row label="Profit / min" value={fmtCurrency(rtMk.profit)} />
           <Row label="Margin" value={fmtPct(rtMk.margin)} />
-          <div className="mt-4 p-3 rounded bg-muted/40 text-xs space-y-1">
-            <p className="font-medium">HyperStream vs Retell</p>
-            <p>Cost difference: <span className={total < retellTotal ? "text-emerald-600" : "text-rose-600"}>{total < retellTotal ? "HyperStream is cheaper" : "Retell is cheaper"} by {fmtCurrency(Math.abs(total - retellTotal))}/min</span></p>
-            <p>Profit difference: <span className={hsMk.profit > rtMk.profit ? "text-emerald-600" : "text-rose-600"}>{hsMk.profit > rtMk.profit ? "HyperStream yields more profit" : "Retell yields more profit"} by {fmtCurrency(Math.abs(hsMk.profit - rtMk.profit))}/min</span></p>
+          <div className="mt-4 p-3 rounded bg-muted/40 text-xs space-y-2">
+            <p className="font-medium">Direct vs Retell Bundle — Cost Comparison</p>
+            <p className="text-muted-foreground">
+              {total < retellTotal
+                ? <>Your direct cost is <span className="text-emerald-600 font-medium">{fmtCurrency(Math.abs(total - retellTotal))}/min lower</span> than the Retell bundle.</>
+                : <>Your direct cost is <span className="font-medium">{fmtCurrency(Math.abs(total - retellTotal))}/min higher</span> than the Retell bundle — typically offset by greater control, quality, and margins on high-volume plans.</>
+              }
+            </p>
+            <p className="text-muted-foreground">
+              Profit advantage:{" "}
+              {hsMk.profit > rtMk.profit
+                ? <span className="text-emerald-600 font-medium">Direct yields {fmtCurrency(Math.abs(hsMk.profit - rtMk.profit))}/min more profit</span>
+                : <span className="font-medium">Retell bundle yields {fmtCurrency(Math.abs(hsMk.profit - rtMk.profit))}/min more profit at current markup</span>
+              }
+            </p>
+            <p className="text-muted-foreground/70 italic">Note: Retell's bundled rate includes LLM + voice. Adjust the Retell cost in Fixed Costs to match your actual contracted rate.</p>
           </div>
         </div>
       </div>

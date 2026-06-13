@@ -490,7 +490,7 @@ export function calcHyperstreamCostPerMin(opts: {
 }): { total: number; breakdown: Record<string, number> } {
   const llm = n(opts.llm?.audio_input_cost) + n(opts.llm?.audio_output_cost);
   const voice = n(opts.voice?.cost_per_minute);
-  const telephony = n(opts.telephony?.inbound_cost_per_min);
+  const telephony = n(opts.telephony?.outbound_cost_per_min);
   const knowledge = n(opts.knowledge?.retrieval_cost_per_query) * 2; // ~2 retrievals/min
   const tools = n(opts.tools?.webhook_cost_per_call) * 1; // ~1 call/min
   const infra = calcInfraCostPerMin(opts.infrastructure);
