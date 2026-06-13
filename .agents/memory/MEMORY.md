@@ -12,3 +12,4 @@
 - [WhatsApp provider architecture](wa-provider-architecture.md) — Twilio/WATI/Meta creds, webhook routing, agent gate, runtime send routing. Meta needs manual hub.challenge step.
 - [Campaign executor architecture](campaign-executor-arch.md) — dual dev/prod: Vite plugin ticks every 5 min in dev; prod uses POST /api/public/campaign-executor hit by pg_cron. lastRunDate stored inside __sched_v1__ JSON blob.
 - [HiveMind architecture](hivemind-arch.md) — observer-only platform layer; 4 flat routes + shared HiveMindShell sidebar; recommendation engine extracted to recommendations.ts; all data in one server fn.
+- [HiveMind Phase 2 AI assistant](hivemind-phase2-ai.md) — chat+voice at /hivemind/chat; reuses el-voice-relay (session.init injection); Web Speech API for STT; EL TTS REST → base64 audio; settings in localStorage.

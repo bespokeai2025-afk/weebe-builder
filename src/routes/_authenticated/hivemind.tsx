@@ -6,7 +6,7 @@ import {
   Users, CalendarCheck, MessageSquare, AlertTriangle,
   CheckCircle2, Loader2, RefreshCw, Clock,
   ChevronDown, Settings2, ArrowRight, Timer, Bot,
-  Zap, MailOpen, XCircle, EyeOff,
+  Zap, MailOpen, XCircle, EyeOff, Brain,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -344,10 +344,18 @@ function HiveMindOverview() {
               Watching {sinceLabel.toLowerCase()} · auto-refreshes every 90s
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => { briefingQ.refetch(); platformQ.refetch(); }} disabled={isFetching}>
-            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
-            Refresh now
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link to="/hivemind/chat">
+              <Button variant="outline" size="sm" className="gap-1.5 border-violet-500/30 bg-violet-500/[0.06] text-violet-300 hover:bg-violet-500/15 hover:text-violet-200">
+                <Brain className="h-3.5 w-3.5" />
+                Activate HiveMind
+              </Button>
+            </Link>
+            <Button variant="outline" size="sm" onClick={() => { briefingQ.refetch(); platformQ.refetch(); }} disabled={isFetching}>
+              <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
+              Refresh now
+            </Button>
+          </div>
         </div>
 
         {/* CONFIGURE PANEL */}

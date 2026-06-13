@@ -1,9 +1,10 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Brain, BarChart3, Lightbulb, FileText, Activity } from "lucide-react";
+import { Brain, BarChart3, Lightbulb, FileText, Activity, MessageSquareMore } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { label: "Overview",       href: "/hivemind",             icon: BarChart3 },
+  { label: "Assistant",      href: "/hivemind/chat",        icon: MessageSquareMore, highlight: true },
   { label: "Recommendations",href: "/hivemind/recommendations", icon: Lightbulb },
   { label: "Reports",        href: "/hivemind/reports",     icon: FileText },
   { label: "System Health",  href: "/hivemind/system-health", icon: Activity },
@@ -32,7 +33,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
 
         {/* Nav items */}
         <nav className="flex flex-col gap-0.5 px-2">
-          {NAV.map(({ label, href, icon: Icon }) => {
+          {NAV.map(({ label, href, icon: Icon, highlight }) => {
             const active = href === "/hivemind" ? path === "/hivemind" : path.startsWith(href);
             return (
               <Link
@@ -42,22 +43,38 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
                   "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
                   active
                     ? "bg-violet-500/15 text-violet-300"
-                    : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                    : highlight
+                      ? "text-violet-400/80 hover:bg-violet-500/[0.08] hover:text-violet-300"
+                      : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
                 )}
               >
-                <Icon className={cn("h-3.5 w-3.5 shrink-0", active && "text-violet-400")} />
+                <Icon className={cn("h-3.5 w-3.5 shrink-0", (active || highlight) && "text-violet-400")} />
                 {label}
+                {highlight && !active && (
+                  <span className="ml-auto rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-violet-400 leading-none">AI</span>
+                )}
               </Link>
             );
           })}
         </nav>
 
         {/* Footer badge */}
-        <div className="mt-auto px-4">
-          <div className="rounded-lg bg-violet-500/5 border border-violet-500/10 px-2.5 py-2">
-            <p className="text-[10px] text-violet-400/80 font-medium">Observe Only</p>
-            <p className="text-[10px] text-muted-foreground/60 mt-0.5 leading-tight">HiveMind monitors your platform — no autonomous actions.</p>
-          </div>
+        <div className="mt-auto px-4 space-y-2">
+          <Link
+            to="/hivemind/chat"
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-2.5 py-2 transition-all",
+              path.startsWith("/hivemind/chat")
+                ? "border-violet-500/30 bg-violet-500/15"
+                : "border-violet-500/20 bg-violet-500/[0.06] hover:bg-violet-500/15"
+            )}
+          >
+            <Brain className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[10px] text-violet-300 font-semibold leading-none">Activate HiveMind</p>
+              <p className="text-[10px] text-violet-400/60 mt-0.5 leading-tight truncate">Voice AI assistant</p>
+            </div>
+          </Link>
         </div>
       </aside>
 
@@ -82,7 +99,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Content */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      <main className="flex-1 min-w-0 h-full overflow-hidden">
         {children}
       </main>
     </div>

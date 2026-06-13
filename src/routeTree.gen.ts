@@ -61,6 +61,7 @@ import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_aut
 import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/_authenticated/hivemind.system-health'
 import { Route as AuthenticatedHivemindReportsRouteImport } from './routes/_authenticated/hivemind.reports'
 import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './routes/_authenticated/hivemind.recommendations'
+import { Route as AuthenticatedHivemindChatRouteImport } from './routes/_authenticated/hivemind.chat'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
@@ -375,6 +376,12 @@ const AuthenticatedHivemindRecommendationsRoute =
     path: '/recommendations',
     getParentRoute: () => AuthenticatedHivemindRoute,
   } as any)
+const AuthenticatedHivemindChatRoute =
+  AuthenticatedHivemindChatRouteImport.update({
+    id: '/chat',
+    path: '/chat',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
 const AuthenticatedAgentsNewRoute = AuthenticatedAgentsNewRouteImport.update({
   id: '/agents/new',
   path: '/agents/new',
@@ -628,6 +635,7 @@ export interface FileRoutesByFullPath {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
   '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
@@ -718,6 +726,7 @@ export interface FileRoutesByTo {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
   '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
@@ -811,6 +820,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/_authenticated/hivemind/chat': typeof AuthenticatedHivemindChatRoute
   '/_authenticated/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/_authenticated/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
@@ -904,6 +914,7 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
+    | '/hivemind/chat'
     | '/hivemind/recommendations'
     | '/hivemind/reports'
     | '/hivemind/system-health'
@@ -994,6 +1005,7 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
+    | '/hivemind/chat'
     | '/hivemind/recommendations'
     | '/hivemind/reports'
     | '/hivemind/system-health'
@@ -1086,6 +1098,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
+    | '/_authenticated/hivemind/chat'
     | '/_authenticated/hivemind/recommendations'
     | '/_authenticated/hivemind/reports'
     | '/_authenticated/hivemind/system-health'
@@ -1563,6 +1576,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHivemindRecommendationsRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
     }
+    '/_authenticated/hivemind/chat': {
+      id: '/_authenticated/hivemind/chat'
+      path: '/chat'
+      fullPath: '/hivemind/chat'
+      preLoaderRoute: typeof AuthenticatedHivemindChatRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
     '/_authenticated/agents/new': {
       id: '/_authenticated/agents/new'
       path: '/agents/new'
@@ -1850,12 +1870,14 @@ const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
 interface AuthenticatedHivemindRouteChildren {
+  AuthenticatedHivemindChatRoute: typeof AuthenticatedHivemindChatRoute
   AuthenticatedHivemindRecommendationsRoute: typeof AuthenticatedHivemindRecommendationsRoute
   AuthenticatedHivemindReportsRoute: typeof AuthenticatedHivemindReportsRoute
   AuthenticatedHivemindSystemHealthRoute: typeof AuthenticatedHivemindSystemHealthRoute
 }
 
 const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
+  AuthenticatedHivemindChatRoute: AuthenticatedHivemindChatRoute,
   AuthenticatedHivemindRecommendationsRoute:
     AuthenticatedHivemindRecommendationsRoute,
   AuthenticatedHivemindReportsRoute: AuthenticatedHivemindReportsRoute,
