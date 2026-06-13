@@ -1,0 +1,198 @@
+Implement a provider-agnostic Telephony Layer for WeeBee.
+
+CRITICAL REQUIREMENTS
+
+* Do not modify Retell functionality.
+* Do not modify Retell deployment paths.
+* Do not break existing OpenAI Native / HyperStream functionality.
+* Maintain backwards compatibility.
+* Generate implementation plan before coding.
+
+OBJECTIVE
+
+Create a standalone telephony architecture capable of handling:
+
+* Inbound calls
+* Outbound calls
+* Call transfers
+* Voicemail detection
+* Call recordings
+* Call status tracking
+* Live transcripts
+* Future provider expansion
+
+Architecture:
+
+Agent
+→ Runtime
+→ Telephony Provider
+→ Phone Network
+
+NOT:
+
+Agent
+→ Twilio directly
+
+Create Telephony Provider Abstraction Layer.
+
+Interfaces:
+
+TelephonyProvider
+TwilioProvider
+FutureTelnyxProvider
+FuturePlivoProvider
+FutureVonageProvider
+
+Store telephony configuration separately from agents.
+
+Provider configuration:
+
+{
+"provider": "twilio",
+"accountSid": "...",
+"phoneNumber": "...",
+"recordingEnabled": true
+}
+
+Implement:
+
+1. INBOUND CALLS
+
+Inbound Number
+→ Telephony Provider
+→ Runtime Router
+→ Assigned Agent
+→ Active Call Session
+
+Requirements:
+
+* Agent assignment
+* Business hours routing
+* Fallback routing
+* Voicemail handling
+* Call state tracking
+
+2. OUTBOUND CALLS
+
+Lead
+→ Campaign
+→ Agent
+→ Telephony Provider
+→ Call Session
+
+Requirements:
+
+* Single call
+* Bulk call campaigns
+* Retry logic
+* Call scheduling
+* Failure handling
+
+3. CALL STATE ENGINE
+
+Track:
+
+initiated
+ringing
+answered
+active
+transferred
+voicemail
+completed
+failed
+
+Store all state changes.
+
+4. RECORDING SYSTEM
+
+Support:
+
+* Start recording
+* Stop recording
+* Recording storage
+* Playback
+* Download
+* Retention settings
+
+5. LIVE TRANSCRIPT SYSTEM
+
+Support:
+
+* Agent transcript
+* User transcript
+* Real-time updates
+* Transcript storage
+* Transcript search
+
+6. CALL ANALYTICS
+
+Store:
+
+* duration
+* outcome
+* transferred
+* booked appointment
+* qualified lead
+* voicemail
+* recording URL
+
+7. DASHBOARD PAGES
+
+Create:
+
+* Phone Numbers
+* Active Calls
+* Call History
+* Recordings
+* Campaigns
+* Telephony Settings
+
+8. DATABASE TABLES
+
+Design required tables for:
+
+* phone_numbers
+* calls
+* recordings
+* transcripts
+* campaigns
+* call_events
+
+9. PROVIDER ROUTING
+
+If provider = twilio:
+use TwilioProvider
+
+Future support:
+
+telnyx
+plivo
+vonage
+
+Provider must be swappable without modifying agent logic.
+
+10. TELEMETRY
+
+Log:
+
+* provider
+* call latency
+* transcript latency
+* recording status
+* provider errors
+
+SUCCESS CRITERIA
+
+A customer should be able to:
+
+Buy Number
+→ Assign Agent
+→ Receive Calls
+→ Make Calls
+→ View Transcript
+→ View Recording
+→ View Analytics
+
+without using Retell.
+
+Retell functionality must remain completely untouched.

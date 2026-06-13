@@ -1731,13 +1731,6 @@ export function RetellDeployDialog({
       keepAliveOsc.start();
       keepAliveRef.current = keepAliveOsc;
 
-      // Mic with echo cancellation (critical: prevents AI audio looping back into VAD)
-      const micStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      streamRef.current = micStream;
-      const micSrc = audioCtx.createMediaStreamSource(micStream);
-
       let elDeltaCount = 0; // per-response audio delta counter (for jitter buffer)
 
       // ── Schedule incoming PCM16 audio chunk for playback ──────────────────
@@ -1773,7 +1766,12 @@ export function RetellDeployDialog({
         nextPlayTimeRef.current = startAt + buf.duration;
       }
 
+      // IMPORTANT: set ws.onopen synchronously here — no await before this line.
+      // The WebSocket opens in <10 ms on localhost. Any await (e.g. getUserMedia)
+      // between new WebSocket() and setting ws.onopen causes onopen to fire before
+      // the handler is attached, so session.init is never sent and the relay silently closes.
       ws.onopen = () => {
+        console.log("[elv-relay] ws.onopen — sending session.init");
         ws.send(JSON.stringify({
           type: "session.init",
           voiceId,
@@ -1788,9 +1786,18 @@ export function RetellDeployDialog({
         try { msg = JSON.parse(ev.data as string) as Record<string, unknown>; }
         catch { return; }
 
-        // relay.connected → set up AudioWorklet mic capture
+        // relay.connected → acquire mic then set up AudioWorklet capture
+        // getUserMedia lives here (not before new WebSocket) so it doesn't
+        // block onopen from being registered in time.
         if (msg.type === "relay.connected") {
           (async () => {
+            // Acquire mic here — after onopen is already set and session.init sent
+            const micStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            });
+            streamRef.current = micStream;
+            const micSrc = audioCtx.createMediaStreamSource(micStream);
+
             let usingWorklet = false;
             if (audioCtx.audioWorklet) {
               try {
