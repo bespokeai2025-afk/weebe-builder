@@ -12,27 +12,31 @@ export type PipelineStage =
   | "follow_up"
   | "dont_call";
 
-export const PIPELINE_STAGES: { id: PipelineStage; label: string; color: string }[] = [
-  { id: "lead",          label: "Leads",          color: "bg-blue-500" },
-  { id: "qualified",     label: "Qualified",       color: "bg-violet-500" },
-  { id: "contact_made",  label: "Contact Made",    color: "bg-orange-500" },
-  { id: "second_call",   label: "Second Call",     color: "bg-yellow-500" },
-  { id: "sale_done",     label: "Sale Done",       color: "bg-green-500" },
-  { id: "documentation", label: "Documentation",   color: "bg-teal-500" },
-  { id: "follow_up",     label: "Follow Up",       color: "bg-indigo-500" },
-  { id: "dont_call",     label: "Don't Call",      color: "bg-red-500" },
+export const PIPELINE_STAGES: {
+  id: PipelineStage;
+  label: string;
+  color: string;
+}[] = [
+  { id: "lead",          label: "Leads",        color: "bg-blue-500" },
+  { id: "qualified",     label: "Qualified",     color: "bg-violet-500" },
+  { id: "contact_made",  label: "Contact Made",  color: "bg-orange-500" },
+  { id: "second_call",   label: "Second Call",   color: "bg-yellow-500" },
+  { id: "sale_done",     label: "Sale Done",     color: "bg-green-500" },
+  { id: "documentation", label: "Documentation", color: "bg-teal-500" },
+  { id: "follow_up",     label: "Follow Up",     color: "bg-indigo-500" },
+  { id: "dont_call",     label: "Don't Call",    color: "bg-red-500" },
 ];
 
+// All real lead_status enum values → pipeline stage
 export const STATUS_TO_STAGE: Record<string, PipelineStage> = {
-  need_to_call:       "lead",
-  no_answer:          "lead",
-  interested:         "lead",
-  calling:            "lead",
-  qualified:          "qualified",
-  callback_requested: "contact_made",
-  completed:          "sale_done",
-  not_interested:     "dont_call",
-  scheduled:          "follow_up",
+  need_to_call:  "lead",
+  calling:       "lead",
+  interested:    "lead",
+  not_connected: "lead",
+  qualified:     "qualified",
+  completed:     "sale_done",
+  not_interested:"dont_call",
+  do_not_call:   "dont_call",
 };
 
 export type PipelineLead = {
@@ -44,17 +48,46 @@ export type PipelineLead = {
   status: string | null;
   pipeline_stage: PipelineStage | null;
   effective_stage: PipelineStage;
-  lead_score: number | null;
-  interest_level: string | null;
+  // real lead fields
+  funding_amount: number | null;
+  monthly_revenue: number | null;
+  sentiment: "positive" | "neutral" | "negative" | null;
+  call_outcome: string | null;
+  attempt_count: number | null;
   last_contacted_at: string | null;
   created_at: string | null;
-  migrationNeeded?: boolean;
+  source: string | null;
+  state_name: string | null;
 };
 
-function mapLead(lead: Record<string, unknown>, hasPipelineStage: boolean): PipelineLead {
-  const ps = hasPipelineStage ? (lead.pipeline_stage as PipelineStage | null) : null;
-  const effective =
-    (ps ?? STATUS_TO_STAGE[lead.status as string] ?? "lead") as PipelineStage;
+const BASE_SELECT = [
+  "id",
+  "full_name",
+  "phone",
+  "email",
+  "company_name",
+  "status",
+  "funding_amount",
+  "monthly_revenue",
+  "sentiment",
+  "call_outcome",
+  "attempt_count",
+  "last_contacted_at",
+  "created_at",
+  "source",
+  "state_name",
+].join(", ");
+
+function mapLead(
+  lead: Record<string, unknown>,
+  hasPipelineStage: boolean,
+): PipelineLead {
+  const ps = hasPipelineStage
+    ? (lead.pipeline_stage as PipelineStage | null)
+    : null;
+  const effective = (
+    ps ?? STATUS_TO_STAGE[lead.status as string] ?? "lead"
+  ) as PipelineStage;
   return {
     id: lead.id as string,
     full_name: (lead.full_name as string | null) ?? null,
@@ -64,15 +97,17 @@ function mapLead(lead: Record<string, unknown>, hasPipelineStage: boolean): Pipe
     status: (lead.status as string | null) ?? null,
     pipeline_stage: ps,
     effective_stage: effective,
-    lead_score: (lead.lead_score as number | null) ?? null,
-    interest_level: (lead.interest_level as string | null) ?? null,
+    funding_amount: (lead.funding_amount as number | null) ?? null,
+    monthly_revenue: (lead.monthly_revenue as number | null) ?? null,
+    sentiment: (lead.sentiment as "positive" | "neutral" | "negative" | null) ?? null,
+    call_outcome: (lead.call_outcome as string | null) ?? null,
+    attempt_count: (lead.attempt_count as number | null) ?? null,
     last_contacted_at: (lead.last_contacted_at as string | null) ?? null,
     created_at: (lead.created_at as string | null) ?? null,
+    source: (lead.source as string | null) ?? null,
+    state_name: (lead.state_name as string | null) ?? null,
   };
 }
-
-const BASE_SELECT =
-  "id, full_name, phone, email, company_name, status, lead_score, interest_level, last_contacted_at, created_at";
 
 export const getPipelineLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -82,7 +117,7 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     const sb = supabase as any;
 
     // Try with pipeline_stage first; fall back without it if the migration
-    // hasn't been applied yet (column doesn't exist → PostgREST 42703 error).
+    // hasn't been applied yet.
     const { data: d1, error: e1 } = await sb
       .from("leads")
       .select(`${BASE_SELECT}, pipeline_stage`)
@@ -95,11 +130,9 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
       );
     }
 
-    // Column not found — try without pipeline_stage
     const isColumnError =
       String(e1.message).toLowerCase().includes("pipeline_stage") ||
-      String(e1.code) === "42703" ||
-      String(e1.message).toLowerCase().includes("column");
+      String(e1.code) === "42703";
 
     if (!isColumnError) throw new Error(e1.message);
 
@@ -110,7 +143,6 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
       .order("created_at", { ascending: false });
 
     if (e2) throw new Error(e2.message);
-
     return ((d2 ?? []) as Array<Record<string, unknown>>).map((l) =>
       mapLead(l, false),
     );
@@ -127,7 +159,10 @@ export const setLeadPipelineStage = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const { error } = await sb
       .from("leads")
-      .update({ pipeline_stage: data.stage, updated_at: new Date().toISOString() })
+      .update({
+        pipeline_stage: data.stage,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", data.leadId)
       .eq("workspace_id", workspaceId);
     if (error) {

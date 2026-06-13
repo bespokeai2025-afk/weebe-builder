@@ -15,8 +15,17 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { User, Phone, Mail, Building2, ExternalLink, Loader2, AlertCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import {
+  Phone,
+  Mail,
+  Building2,
+  ExternalLink,
+  Loader2,
+  AlertCircle,
+  TrendingUp,
+  MapPin,
+  PhoneCall,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -32,30 +41,82 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
   component: PipelinePage,
 });
 
-// ── Interest level badge ──────────────────────────────────────────────────────
-const INTEREST_COLORS: Record<string, string> = {
-  high:   "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-  low:    "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmt$( n: number | null | undefined) {
+  if (!n) return null;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return null;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(
+    new Date(iso),
+  );
+}
+
+function initials(name: string | null) {
+  if (!name) return "?";
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0] ?? "")
+    .join("")
+    .toUpperCase();
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  need_to_call:  "New",
+  calling:       "Calling",
+  interested:    "Interested",
+  not_connected: "No Answer",
+  qualified:     "Qualified",
+  completed:     "Completed",
+  not_interested:"Not Interested",
+  do_not_call:   "Do Not Call",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  need_to_call:  "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  calling:       "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  interested:    "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  not_connected: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  qualified:     "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
+  completed:     "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  not_interested:"bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  do_not_call:   "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+};
+
+const SENTIMENT_ICON: Record<string, string> = {
+  positive: "😊",
+  neutral:  "😐",
+  negative: "😟",
 };
 
 // ── Draggable card ────────────────────────────────────────────────────────────
-function LeadCard({ lead, overlay = false }: { lead: PipelineLead; overlay?: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: lead.id,
-    data: { lead },
-  });
+function LeadCard({
+  lead,
+  overlay = false,
+}: {
+  lead: PipelineLead;
+  overlay?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: lead.id, data: { lead } });
 
   const style = overlay
     ? undefined
     : { transform: CSS.Translate.toString(transform) };
 
-  const initials = (lead.full_name ?? "?")
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
+  const funding = fmt$(lead.funding_amount);
+  const revenue = fmt$(lead.monthly_revenue);
+  const lastContact = fmtDate(lead.last_contacted_at);
+  const statusLabel = STATUS_LABEL[lead.status ?? ""] ?? lead.status ?? "";
+  const statusCls = STATUS_COLOR[lead.status ?? ""] ?? "";
 
   return (
     <div
@@ -70,50 +131,106 @@ function LeadCard({ lead, overlay = false }: { lead: PipelineLead; overlay?: boo
         overlay && "shadow-xl ring-2 ring-primary/30 rotate-1 cursor-grabbing",
       )}
     >
-      {/* Name */}
-      <p className="font-semibold text-sm leading-tight text-foreground line-clamp-2">
-        {lead.full_name ?? "Unknown"}
-      </p>
+      {/* Header row: avatar + name */}
+      <div className="flex items-start gap-2">
+        <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-[11px] font-semibold text-muted-foreground shrink-0 mt-0.5">
+          {initials(lead.full_name)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm leading-tight text-foreground line-clamp-1">
+            {lead.full_name ?? "Unknown"}
+          </p>
+          {lead.company_name && (
+            <p className="mt-0.5 text-xs text-muted-foreground truncate flex items-center gap-1">
+              <Building2 className="h-3 w-3 shrink-0" />
+              {lead.company_name}
+            </p>
+          )}
+        </div>
+        {/* Sentiment */}
+        {lead.sentiment && (
+          <span className="text-sm shrink-0" title={lead.sentiment}>
+            {SENTIMENT_ICON[lead.sentiment]}
+          </span>
+        )}
+      </div>
 
-      {/* Company */}
-      {lead.company_name && (
-        <p className="mt-0.5 text-xs text-muted-foreground truncate flex items-center gap-1">
-          <Building2 className="h-3 w-3 shrink-0" />
-          {lead.company_name}
-        </p>
+      {/* Funding / Revenue */}
+      {(funding || revenue) && (
+        <div className="mt-2 flex items-center gap-2">
+          {funding && (
+            <div className="flex items-center gap-1 text-xs font-semibold text-foreground">
+              <TrendingUp className="h-3 w-3 text-green-500" />
+              {funding}
+              <span className="text-muted-foreground font-normal">ask</span>
+            </div>
+          )}
+          {revenue && (
+            <div className="text-xs text-muted-foreground">
+              {revenue}/mo
+            </div>
+          )}
+        </div>
       )}
 
-      {/* Amount placeholder */}
-      <p className="mt-1 text-xs text-muted-foreground font-medium">$0</p>
+      {/* Contact info */}
+      <div className="mt-2 space-y-0.5">
+        {lead.phone && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Phone className="h-3 w-3 shrink-0" />
+            <span className="truncate">{lead.phone}</span>
+          </div>
+        )}
+        {lead.email && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Mail className="h-3 w-3 shrink-0" />
+            <span className="truncate">{lead.email}</span>
+          </div>
+        )}
+        {lead.state_name && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <MapPin className="h-3 w-3 shrink-0" />
+            <span className="truncate">{lead.state_name}</span>
+          </div>
+        )}
+      </div>
 
-      {/* Footer row */}
-      <div className="mt-2 flex items-center justify-between gap-2">
-        {/* Avatar */}
-        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-semibold text-muted-foreground shrink-0">
-          {initials}
-        </div>
-
-        <div className="flex items-center gap-1.5 ml-auto">
-          {lead.interest_level && (
-            <span
-              className={cn(
-                "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
-                INTEREST_COLORS[lead.interest_level] ?? INTEREST_COLORS.low,
-              )}
-            >
-              {lead.interest_level}
-            </span>
+      {/* Footer: status badge + attempt count + last contact */}
+      <div className="mt-2.5 flex items-center justify-between gap-1.5 flex-wrap">
+        <span
+          className={cn(
+            "inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+            statusCls,
           )}
-          {lead.phone && (
-            <Phone className="h-3 w-3 text-muted-foreground/60" />
+        >
+          {statusLabel}
+        </span>
+
+        <div className="flex items-center gap-1.5 ml-auto shrink-0">
+          {(lead.attempt_count ?? 0) > 0 && (
+            <div className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+              <PhoneCall className="h-3 w-3" />
+              {lead.attempt_count}
+            </div>
+          )}
+          {lastContact && (
+            <span className="text-[10px] text-muted-foreground">
+              {lastContact}
+            </span>
           )}
         </div>
       </div>
 
-      {/* Link overlay (non-dragging state) */}
+      {/* Call outcome note */}
+      {lead.call_outcome && (
+        <p className="mt-1.5 text-[10px] text-muted-foreground/70 line-clamp-1 italic">
+          "{lead.call_outcome}"
+        </p>
+      )}
+
+      {/* Invisible link overlay for navigation (non-dragging) */}
       <Link
         to="/leads"
-        search={{ leadId: lead.id } as any}
         className="absolute inset-0 rounded-lg opacity-0"
         aria-label={`View ${lead.full_name}`}
         onClick={(e) => e.stopPropagation()}
@@ -134,6 +251,11 @@ function PipelineColumn({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
+  const totalFunding = leads.reduce(
+    (sum, l) => sum + (l.funding_amount ?? 0),
+    0,
+  );
+
   return (
     <div className="flex flex-col w-64 shrink-0">
       {/* Column header */}
@@ -141,7 +263,8 @@ function PipelineColumn({
         <div className={cn("h-1 w-12 rounded-full mb-2", stage.color)} />
         <h3 className="font-semibold text-sm text-foreground">{stage.label}</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          $0 · {leads.length} deal{leads.length !== 1 ? "s" : ""}
+          {totalFunding > 0 ? `${fmt$(totalFunding)} · ` : ""}
+          {leads.length} lead{leads.length !== 1 ? "s" : ""}
         </p>
       </div>
 
@@ -159,8 +282,8 @@ function PipelineColumn({
         ))}
 
         {leads.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-24 text-center">
-            <p className="text-xs text-muted-foreground/50">Drop here</p>
+          <div className="flex flex-col items-center justify-center h-24">
+            <p className="text-xs text-muted-foreground/40">Drop here</p>
           </div>
         )}
       </div>
@@ -172,24 +295,26 @@ function PipelineColumn({
 function PipelinePage() {
   const qc = useQueryClient();
   const fetchLeads = useServerFn(getPipelineLeads);
-  const updateStage  = useServerFn(setLeadPipelineStage);
+  const updateStage = useServerFn(setLeadPipelineStage);
 
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 200, tolerance: 8 },
-    }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
   );
 
-  const { data: leads = [], isLoading, isError, error } = useQuery({
+  const {
+    data: leads = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["pipeline-leads"],
     queryFn: () => fetchLeads(),
     refetchOnWindowFocus: false,
   });
 
-  // Optimistic + server update on drag-end
   const { mutate: moveCard } = useMutation({
     mutationFn: ({ leadId, stage }: { leadId: string; stage: string }) =>
       updateStage({ data: { leadId, stage } }),
@@ -199,7 +324,11 @@ function PipelinePage() {
       qc.setQueryData<PipelineLead[]>(["pipeline-leads"], (old = []) =>
         old.map((l) =>
           l.id === leadId
-            ? { ...l, pipeline_stage: stage as PipelineStage, effective_stage: stage as PipelineStage }
+            ? {
+                ...l,
+                pipeline_stage: stage as PipelineStage,
+                effective_stage: stage as PipelineStage,
+              }
             : l,
         ),
       );
@@ -209,8 +338,9 @@ function PipelinePage() {
       if (ctx?.prev) qc.setQueryData(["pipeline-leads"], ctx.prev);
       const msg = (err as Error)?.message ?? "";
       if (msg.includes("MIGRATION_NEEDED")) {
-        toast.warning("Apply the pipeline migration in Supabase Dashboard to persist stage changes.", {
-          description: "supabase/migrations/20260613160000_pipeline_stage.sql",
+        toast.warning("Apply the pipeline migration to persist stage changes.", {
+          description:
+            "supabase/migrations/20260613160000_pipeline_stage.sql",
           duration: 8000,
         });
       } else {
@@ -222,7 +352,6 @@ function PipelinePage() {
     },
   });
 
-  // Group leads by effective stage
   const grouped = PIPELINE_STAGES.reduce<Record<string, PipelineLead[]>>(
     (acc, s) => {
       acc[s.id] = leads.filter((l) => l.effective_stage === s.id);
@@ -250,8 +379,7 @@ function PipelinePage() {
     [leads, moveCard],
   );
 
-  const totalLeads = leads.length;
-  const stageCount = PIPELINE_STAGES.length;
+  const totalFunding = leads.reduce((s, l) => s + (l.funding_amount ?? 0), 0);
 
   return (
     <div className="flex flex-col h-full">
@@ -259,20 +387,23 @@ function PipelinePage() {
       <div className="px-6 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Sales Pipeline</h1>
+            <h1 className="text-xl font-semibold text-foreground">
+              Sales Pipeline
+            </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {totalLeads} lead{totalLeads !== 1 ? "s" : ""} across {stageCount} stages
+              {leads.length} lead{leads.length !== 1 ? "s" : ""}
+              {totalFunding > 0 && ` · ${fmt$(totalFunding)} total ask`}
+              {" · "}
+              {PIPELINE_STAGES.length} stages
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Link to="/leads">
-              <button className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-                <ExternalLink className="h-3 w-3" />
-                Manage Leads
-              </button>
-            </Link>
-          </div>
+          <Link to="/leads">
+            <button className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+              <ExternalLink className="h-3 w-3" />
+              Manage Leads
+            </button>
+          </Link>
         </div>
       </div>
 
@@ -285,10 +416,8 @@ function PipelinePage() {
         ) : isError ? (
           <div className="flex flex-col items-center justify-center h-full gap-3">
             <AlertCircle className="h-8 w-8 text-destructive" />
-            <p className="text-sm text-muted-foreground">
-              {(error as Error)?.message?.includes("column")
-                ? 'Run the pipeline migration in Supabase Dashboard first: supabase/migrations/20260613160000_pipeline_stage.sql'
-                : (error as Error)?.message ?? "Failed to load leads"}
+            <p className="text-sm text-muted-foreground text-center max-w-sm">
+              {(error as Error)?.message ?? "Failed to load leads"}
             </p>
           </div>
         ) : (
