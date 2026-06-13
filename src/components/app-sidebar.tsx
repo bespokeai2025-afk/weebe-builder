@@ -228,8 +228,13 @@ export function AppSidebar() {
   });
   const [email, setEmail] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [navItems, setNavItems] = useState<NavItem[]>(loadOrder);
+  const [navItems, setNavItems] = useState<NavItem[]>(DEFAULT_NAV_ITEMS);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  // Load saved order after hydration to avoid SSR mismatch
+  useEffect(() => {
+    setNavItems(loadOrder());
+  }, []);
 
   useEffect(() => {
     let active = true;

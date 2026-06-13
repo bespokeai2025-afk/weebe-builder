@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -361,22 +361,24 @@ function PipelinePage() {
   const [selectedLead,  setSelectedLead]  = useState<PipelineLead | null>(null);
   const [drawerOpen,    setDrawerOpen]    = useState(false);
 
-  // Column order — persisted to localStorage so rearrangements survive refresh
-  const [columnOrder, setColumnOrder] = useState<PipelineStage[]>(() => {
-    if (typeof window === "undefined") return PIPELINE_STAGES.map((s) => s.id);
+  // Column order — always starts with default to avoid SSR hydration mismatch,
+  // then loads the saved order from localStorage after mount.
+  const [columnOrder, setColumnOrder] = useState<PipelineStage[]>(
+    () => PIPELINE_STAGES.map((s) => s.id),
+  );
+
+  useEffect(() => {
     try {
       const saved = localStorage.getItem("pipeline-column-order");
       if (saved) {
         const parsed: PipelineStage[] = JSON.parse(saved);
         const validIds = new Set(PIPELINE_STAGES.map((s) => s.id));
         const filtered = parsed.filter((id) => validIds.has(id));
-        // Add any new stages not yet in saved order
         const missing = PIPELINE_STAGES.map((s) => s.id).filter((id) => !filtered.includes(id));
-        return [...filtered, ...missing];
+        setColumnOrder([...filtered, ...missing]);
       }
     } catch {}
-    return PIPELINE_STAGES.map((s) => s.id);
-  });
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
