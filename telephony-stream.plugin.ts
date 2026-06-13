@@ -261,21 +261,32 @@ async function handleTwilioStream(ws: WebSocket, callId: string) {
     if (agentRow) {
       const settings = (agentRow.settings as any) ?? {};
       voiceId = settings.voice_id ?? "alloy";
-      model =
-        settings.openai_model ??
-        "gpt-4o-realtime-preview-2024-12-17";
+      model = settings.openai_model ?? "gpt-4o-realtime-preview-2024-12-17";
 
-      // Build a simple prompt from flow_data if available
+      // Use the same full flow-graph → prompt compiler the browser relay uses,
+      // so telephony HyperStream calls get the proper turn-taking rules, KB,
+      // begin message, and all conversation steps — not just raw node text.
       try {
-        const nodes =
-          (agentRow.flow_data as any)?.nodes ?? [];
+        const { compileRealtimePrompt } = await import(
+          "./src/lib/builder/compile-realtime-prompt.js"
+        );
+        const flowData = (agentRow.flow_data as any) ?? {};
+        const nodes    = flowData.nodes ?? [];
+        const edges    = flowData.edges ?? [];
+        const vars     = flowData.variables ?? settings.variables ?? [];
+        const compiled = compileRealtimePrompt(nodes, edges, settings, vars);
+        if (compiled.trim()) systemPrompt = compiled;
+      } catch (err) {
+        // Fallback: basic concatenation if compiler unavailable
+        console.warn("[tel-stream] compileRealtimePrompt failed, using fallback:", err);
+        const nodes = (agentRow.flow_data as any)?.nodes ?? [];
         const textNodes = nodes
-          .filter((n: any) => n.type === "conversation" || n.type === "start")
-          .map((n: any) => n.data?.prompt ?? n.data?.message ?? "")
+          .filter((n: any) => n.data?.kind === "conversation" || n.data?.kind === "start")
+          .map((n: any) => n.data?.dialogue ?? n.data?.prompt ?? n.data?.message ?? "")
           .filter(Boolean)
           .join("\n\n");
         if (textNodes) systemPrompt = textNodes;
-      } catch {}
+      }
     }
   }
 

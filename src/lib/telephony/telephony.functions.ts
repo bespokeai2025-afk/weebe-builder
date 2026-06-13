@@ -24,8 +24,7 @@ export const getTelephonyConfig = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
-    // Return env var status + DB metadata (no credentials from DB)
-    const sidConfigured  = !!process.env.TWILIO_ACCOUNT_SID;
+    const sidConfigured   = !!process.env.TWILIO_ACCOUNT_SID;
     const tokenConfigured = !!process.env.TWILIO_AUTH_TOKEN;
 
     const { data } = await supabaseAdmin
@@ -34,9 +33,18 @@ export const getTelephonyConfig = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
+    // Lazy-provision for existing workspaces that pre-date the auto-provision step
+    if (!data) {
+      await supabaseAdmin
+        .from("telephony_configs")
+        .insert({ workspace_id: workspaceId, provider: "twilio", is_active: true })
+        .then(() => {})
+        .catch(() => {});
+    }
+
     return {
       provider: data?.provider ?? "twilio",
-      is_active: data?.is_active ?? false,
+      is_active: data?.is_active ?? true,
       sid_configured: sidConfigured,
       token_configured: tokenConfigured,
       credentials_ready: sidConfigured && tokenConfigured,

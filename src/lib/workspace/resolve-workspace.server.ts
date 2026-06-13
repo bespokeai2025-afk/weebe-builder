@@ -117,6 +117,14 @@ async function autoProvisionWorkspace(userId: string): Promise<string | undefine
       .update({ default_workspace_id: ws.id })
       .eq("user_id", userId);
 
+    // Provision telephony config so every workspace is HyperStream-ready
+    // immediately — no manual setup required per user.
+    await supabaseAdmin
+      .from("telephony_configs")
+      .insert({ workspace_id: ws.id, provider: "twilio", is_active: true })
+      .then(() => {}) // ignore conflicts (unique constraint)
+      .catch(() => {});
+
     console.info(`[resolve-workspace] auto-provisioned workspace ${ws.id} for user ${userId}`);
     return ws.id;
   } catch (err) {
