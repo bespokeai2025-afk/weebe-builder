@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Settings, Copy, CheckCheck, CheckCircle2, XCircle,
   RefreshCw, Loader2, Phone, Zap, ArrowRight, ChevronRight,
-  Globe, ExternalLink, Eye, EyeOff,
+  Globe, ExternalLink, Eye, EyeOff, ShoppingCart, Search,
 } from "lucide-react";
 import { WatiIntegrationSettings } from "./WatiIntegrationSettings";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
   saveWASettings,
   registerTwilioWebhook,
   saveMetaSettings,
+  searchTwilioNumbers,
+  purchaseTwilioNumber,
 } from "@/lib/dashboard/whatsapp.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -45,6 +47,56 @@ export function WhatsAppSettings() {
   });
   const [webhookStatus, setWebhookStatus] = useState<{ registered: boolean; note: string } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // ── Buy-a-number panel state ──────────────────────────────────
+  const searchNumbersFn  = useServerFn(searchTwilioNumbers);
+  const purchaseNumberFn = useServerFn(purchaseTwilioNumber);
+  const [showBuyPanel, setShowBuyPanel] = useState(false);
+  const [buyCountry,   setBuyCountry]   = useState("US");
+  const [buyAreaCode,  setBuyAreaCode]  = useState("");
+  type TwilioNum = { phoneNumber: string; friendlyName: string; locality: string; region: string; sms: boolean; mms: boolean; voice: boolean };
+  const [buyResults,   setBuyResults]   = useState<TwilioNum[]>([]);
+  const [buySearched,  setBuySearched]  = useState(false);
+  const [purchasing,   setPurchasing]   = useState<string | null>(null);
+
+  const searchNumbers = useMutation({
+    mutationFn: () =>
+      searchNumbersFn({
+        accountSid:  twilioForm.twilio_account_sid,
+        authToken:   twilioForm.twilio_auth_token,
+        countryCode: buyCountry,
+        areaCode:    buyAreaCode.trim() || undefined,
+      }),
+    onSuccess: (results) => {
+      setBuyResults(results as TwilioNum[]);
+      setBuySearched(true);
+    },
+    onError: (e: any) => toast.error(`Search failed: ${e.message}`),
+  });
+
+  const buyNumber = useMutation({
+    mutationFn: (phoneNumber: string) => {
+      setPurchasing(phoneNumber);
+      return purchaseNumberFn({
+        accountSid:  twilioForm.twilio_account_sid,
+        authToken:   twilioForm.twilio_auth_token,
+        phoneNumber,
+      });
+    },
+    onSuccess: (result: any) => {
+      setTwilioForm((prev) => ({ ...prev, whatsapp_phone_id: result.phoneNumber }));
+      qc.invalidateQueries({ queryKey: ["wa-settings"] });
+      setShowBuyPanel(false);
+      setBuyResults([]);
+      setBuySearched(false);
+      setPurchasing(null);
+      toast.success(`${result.phoneNumber} purchased — auto-filled below.`);
+    },
+    onError: (e: any) => {
+      setPurchasing(null);
+      toast.error(`Purchase failed: ${e.message}`);
+    },
+  });
 
   // Meta form state
   const [metaForm, setMetaForm] = useState({
@@ -207,6 +259,143 @@ export function WhatsAppSettings() {
           {/* ── Twilio ── */}
           {selectedProvider === "twilio" && (
             <div className="space-y-4">
+
+              {/* Buy-a-number card */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                        <ShoppingCart className="h-4 w-4 text-green-500" />
+                        Buy a WhatsApp Number
+                      </CardTitle>
+                      <CardDescription className="text-xs mt-0.5">
+                        Purchase directly from Twilio — auto-fills the phone number field below.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { setShowBuyPanel(!showBuyPanel); setBuySearched(false); setBuyResults([]); }}
+                      className="shrink-0"
+                    >
+                      {showBuyPanel ? "Close" : "Browse numbers"}
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                {showBuyPanel && (
+                  <CardContent className="space-y-4 pt-0">
+                    {!twilioForm.twilio_account_sid || !twilioForm.twilio_auth_token ? (
+                      <p className="text-xs text-amber-500 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300 p-2.5">
+                        Enter your Account SID and Auth Token in the credentials card below first.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="flex gap-2 flex-wrap">
+                          <select
+                            value={buyCountry}
+                            onChange={(e) => setBuyCountry(e.target.value)}
+                            className="h-9 rounded-md border border-input bg-background px-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                          >
+                            {[
+                              { code: "US", flag: "🇺🇸", name: "United States" },
+                              { code: "CA", flag: "🇨🇦", name: "Canada" },
+                              { code: "GB", flag: "🇬🇧", name: "United Kingdom" },
+                              { code: "AU", flag: "🇦🇺", name: "Australia" },
+                              { code: "DE", flag: "🇩🇪", name: "Germany" },
+                              { code: "FR", flag: "🇫🇷", name: "France" },
+                              { code: "ES", flag: "🇪🇸", name: "Spain" },
+                              { code: "BR", flag: "🇧🇷", name: "Brazil" },
+                              { code: "MX", flag: "🇲🇽", name: "Mexico" },
+                              { code: "IN", flag: "🇮🇳", name: "India" },
+                            ].map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.flag} {c.name}
+                              </option>
+                            ))}
+                          </select>
+                          <Input
+                            value={buyAreaCode}
+                            onChange={(e) => setBuyAreaCode(e.target.value)}
+                            placeholder="Area code (optional)"
+                            className="w-44"
+                            onKeyDown={(e) => e.key === "Enter" && searchNumbers.mutate()}
+                          />
+                          <Button
+                            onClick={() => searchNumbers.mutate()}
+                            disabled={searchNumbers.isPending}
+                            className="gap-1.5"
+                          >
+                            {searchNumbers.isPending ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Search className="h-3.5 w-3.5" />
+                            )}
+                            Search
+                          </Button>
+                        </div>
+
+                        {buySearched && buyResults.length === 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            No numbers found. Try a different area code or country.
+                          </p>
+                        )}
+
+                        {buyResults.length > 0 && (
+                          <div className="space-y-2">
+                            {buyResults.map((n) => (
+                              <div
+                                key={n.phoneNumber}
+                                className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2.5"
+                              >
+                                <div className="min-w-0">
+                                  <p className="font-mono text-sm font-medium">{n.phoneNumber}</p>
+                                  {(n.locality || n.region) && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {[n.locality, n.region].filter(Boolean).join(", ")}
+                                    </p>
+                                  )}
+                                  <div className="flex gap-1 mt-1">
+                                    {n.sms   && <Badge variant="secondary" className="text-[10px] px-1 py-0">SMS</Badge>}
+                                    {n.mms   && <Badge variant="secondary" className="text-[10px] px-1 py-0">MMS</Badge>}
+                                    {n.voice && <Badge variant="secondary" className="text-[10px] px-1 py-0">Voice</Badge>}
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => buyNumber.mutate(n.phoneNumber)}
+                                  disabled={!!purchasing}
+                                  className="shrink-0 gap-1.5"
+                                >
+                                  {purchasing === n.phoneNumber ? (
+                                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Buying…</>
+                                  ) : (
+                                    <>Buy ~$1/mo</>
+                                  )}
+                                </Button>
+                              </div>
+                            ))}
+                            <p className="text-[11px] text-muted-foreground leading-relaxed">
+                              Purchasing provisions the number in your Twilio account. To enable WhatsApp on it, complete{" "}
+                              <a
+                                href="https://www.twilio.com/en-us/whatsapp/request-access"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline"
+                              >
+                                Twilio's WhatsApp Business onboarding <ExternalLink className="inline h-3 w-3" />
+                              </a>{" "}
+                              — typically takes 1–2 business days.
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                )}
+              </Card>
+
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold">Twilio Credentials</CardTitle>

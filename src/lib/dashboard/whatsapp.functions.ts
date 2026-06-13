@@ -731,3 +731,78 @@ export const launchWACampaign = createServerFn({ method: "POST" })
 
     return { ok: true, sent, failed, total: contactList.length };
   });
+
+/**
+ * Search available Twilio phone numbers that can be used for WhatsApp.
+ * Uses the caller's Account SID + Auth Token so they can search before saving.
+ */
+export const searchTwilioNumbers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      accountSid:  z.string().min(1),
+      authToken:   z.string().min(1),
+      countryCode: z.string().default("US"),
+      areaCode:    z.string().optional(),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { accountSid, authToken, countryCode, areaCode } = data;
+    const client = twilio(accountSid, authToken);
+
+    const list = await client
+      .availablePhoneNumbers(countryCode.toUpperCase())
+      .local.list({
+        smsEnabled: true,
+        ...(areaCode?.trim() ? { areaCode: areaCode.trim() } : {}),
+        pageSize: 10,
+      });
+
+    return list.map((n) => ({
+      phoneNumber:  n.phoneNumber,
+      friendlyName: n.friendlyName,
+      locality:     n.locality     ?? "",
+      region:       n.region       ?? "",
+      sms:          !!(n.capabilities as any)?.sms,
+      mms:          !!(n.capabilities as any)?.mms,
+      voice:        !!(n.capabilities as any)?.voice,
+    }));
+  });
+
+/**
+ * Purchase a Twilio phone number and save it to workspace_settings.
+ * The purchased number is auto-filled into whatsapp_phone_id.
+ */
+export const purchaseTwilioNumber = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      accountSid:  z.string().min(1),
+      authToken:   z.string().min(1),
+      phoneNumber: z.string().min(1),
+    }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    const { accountSid, authToken, phoneNumber } = data;
+
+    if (!workspaceId) throw new Error("No workspace");
+
+    const client = twilio(accountSid, authToken);
+    const purchased = await client.incomingPhoneNumbers.create({ phoneNumber });
+
+    const sb = supabase as any;
+    await sb
+      .from("workspace_settings")
+      .upsert(
+        { workspace_id: workspaceId, whatsapp_phone_id: purchased.phoneNumber },
+        { onConflict: "workspace_id" },
+      );
+
+    return {
+      ok:           true,
+      phoneNumber:  purchased.phoneNumber,
+      friendlyName: purchased.friendlyName,
+      sid:          purchased.sid,
+    };
+  });
