@@ -66,6 +66,7 @@ export function ContactDocumentsPanel({ contactId, contactName, uploadToken: tok
       return getTokenFn({ data: { contactId } });
     },
     staleTime: Infinity,
+    retry: 1,
   });
 
   const docs   = (docsQ.data ?? []) as any[];
@@ -143,7 +144,12 @@ export function ContactDocumentsPanel({ contactId, contactName, uploadToken: tok
           <Link2 className="h-3.5 w-3.5 text-primary shrink-0" />
           <p className="text-xs font-medium">Client Upload Link</p>
         </div>
-        {uploadUrl ? (
+        {tokenQ.isLoading ? (
+          <div className="flex items-center gap-1.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">Generating link…</p>
+          </div>
+        ) : uploadUrl ? (
           <>
             <p className="text-[11px] text-muted-foreground break-all font-mono bg-background/60 rounded px-2 py-1.5">
               {uploadUrl}
@@ -164,8 +170,7 @@ export function ContactDocumentsPanel({ contactId, contactName, uploadToken: tok
                 className="h-7 text-xs gap-1.5 flex-1"
                 onClick={() => {
                   if (!uploadUrl) return;
-                  const name = contactName ?? "them";
-                  const sms  = `sms:?&body=Hi, please upload your documents here: ${uploadUrl}`;
+                  const sms = `sms:?&body=Hi, please upload your documents here: ${uploadUrl}`;
                   window.open(sms, "_blank");
                 }}
               >
@@ -174,7 +179,9 @@ export function ContactDocumentsPanel({ contactId, contactName, uploadToken: tok
             </div>
           </>
         ) : (
-          <p className="text-xs text-muted-foreground">Generating link…</p>
+          <p className="text-xs text-muted-foreground/60 italic">
+            Upload link unavailable — apply the database migration first.
+          </p>
         )}
       </div>
 
