@@ -21,11 +21,12 @@ import {
   saveRetellCost, saveMarkup, savePlan, deletePlan,
   saveDevRole, deleteDevRole,
   getClientEstimates, saveClientEstimate, deleteClientEstimate,
-  calcHyperstreamCostPerMin, calcRetellCostPerMin, applyMarkup, calcInfraCostPerMin,
+  calcHyperstreamCostPerMin, calcRetellCostPerMin, calcRetellFullCostPerMin,
+  applyMarkup, calcInfraCostPerMin,
 } from "@/lib/cost-engine/cost-engine.functions";
 import type {
   CostEngineData, CostAnalytics, LlmCost, VoiceCost, TelephonyCost,
-  DevRole, ClientEstimate, TeamMember, AddonCharge,
+  DevRole, ClientEstimate, TeamMember, AddonCharge, RetellCostBreakdown,
 } from "@/lib/cost-engine/cost-engine.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/cost-engine")({
@@ -148,6 +149,7 @@ function CostEnginePage() {
           <TabsTrigger value="telephony">Telephony</TabsTrigger>
           <TabsTrigger value="fixed">Fixed Costs</TabsTrigger>
           <TabsTrigger value="hyperstream">HyperStream</TabsTrigger>
+          <TabsTrigger value="retell">Retell</TabsTrigger>
           <TabsTrigger value="profit">Profit & Plans</TabsTrigger>
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="clients">Client Estimates</TabsTrigger>
@@ -182,6 +184,11 @@ function CostEnginePage() {
         {/* ── HyperStream ──────────────────────────────────────────────────── */}
         <TabsContent value="hyperstream" className="mt-4">
           {data && <HyperstreamTab data={data} />}
+        </TabsContent>
+
+        {/* ── Retell ───────────────────────────────────────────────────────── */}
+        <TabsContent value="retell" className="mt-4">
+          {data && <RetellCalculatorTab data={data} />}
         </TabsContent>
 
         {/* ── Profit & Plans ───────────────────────────────────────────────── */}
@@ -683,6 +690,221 @@ function HyperstreamTab({ data }: { data: CostEngineData }) {
               }
             </p>
             <p className="text-muted-foreground/70 italic">Note: Retell's bundled rate includes LLM + voice. Adjust the Retell cost in Fixed Costs to match your actual contracted rate.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Retell Calculator Tab ─────────────────────────────────────────────────────
+
+function RetellCalculatorTab({ data }: { data: CostEngineData }) {
+  const realtimeLlm = data.llm.find(l => l.audio_input_cost > 0) ?? data.llm[0] ?? null;
+  const [llmId, setLlmId] = useState<string>(realtimeLlm?.id ?? "__bundled__");
+  const [voiceId, setVoiceId] = useState<string>("__bundled__");
+  const [telId, setTelId] = useState<string>(data.telephony[0]?.id ?? "__bundled__");
+  const [direction, setDirection] = useState<"inbound" | "outbound">("inbound");
+  const [monthlyMins, setMonthlyMins] = useState<number>(
+    n(data.infrastructure?.estimated_monthly_minutes) || 1000
+  );
+
+  const selLlm = llmId === "__bundled__" ? null : (data.llm.find(l => l.id === llmId) ?? null);
+  const selVoice = voiceId === "__bundled__" ? null : (data.voice.find(v => v.id === voiceId) ?? null);
+  const selTel = telId === "__bundled__" ? null : (data.telephony.find(t => t.id === telId) ?? null);
+
+  const bd = calcRetellFullCostPerMin({
+    retell: data.retell,
+    llm: selLlm,
+    voice: selVoice,
+    telephony: selTel,
+    estimatedMonthlyMinutes: monthlyMins,
+    callDirection: direction,
+  });
+
+  const mk = applyMarkup(bd.total, data.markup);
+  const hsSel = data.llm.find(l => l.audio_input_cost > 0) ?? data.llm[0] ?? null;
+  const { total: hsTotal } = calcHyperstreamCostPerMin({
+    llm: hsSel, voice: data.voice[0] ?? null, telephony: data.telephony[0] ?? null,
+    knowledge: data.knowledge, tools: data.tools, infrastructure: data.infrastructure,
+  });
+  const hsMk = applyMarkup(hsTotal, data.markup);
+
+  const Row = ({ label, value, sub, highlight }: { label: string; value: string; sub?: string; highlight?: boolean }) => (
+    <div className={`flex items-center justify-between py-2 border-b last:border-0 ${highlight ? "font-semibold" : ""}`}>
+      <span className={`text-sm ${highlight ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
+      <div className="text-right">
+        <span className={`text-sm ${highlight ? "text-foreground" : ""}`}>{value}</span>
+        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      </div>
+    </div>
+  );
+
+  const Sel = ({ label, value, onChange, opts }: { label: string; value: string; onChange: (v: string) => void; opts: { id: string; label: string }[] }) => (
+    <div>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <select className="w-full h-8 text-xs rounded border bg-background px-2 mt-0.5" value={value} onChange={e => onChange(e.target.value)}>
+        {opts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+
+  const noRetell = !data.retell;
+  const pct = (v: number) => bd.total > 0 ? `${((v / bd.total) * 100).toFixed(1)}%` : "0%";
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader icon={Zap} title="Retell Full Cost Calculator"
+        subtitle="All-in cost per minute: platform + LLM + voice + telephony + amortised fixed fees" />
+
+      {noRetell && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700">
+          No Retell cost config found — add it under <strong>Fixed Costs → Retell</strong> to populate platform, subscription and number rental rates.
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <Sel label="LLM / Model"
+          value={llmId}
+          onChange={setLlmId}
+          opts={[
+            { id: "__bundled__", label: "— Retell bundled (no extra LLM cost)" },
+            ...data.llm.map(l => ({ id: l.id, label: `${l.provider} — ${l.model}` })),
+          ]}
+        />
+        <Sel label="Voice Provider"
+          value={voiceId}
+          onChange={setVoiceId}
+          opts={[
+            { id: "__bundled__", label: "— Retell bundled voice (use Retell rate)" },
+            ...data.voice.map(v => ({ id: v.id, label: `${v.provider} — ${v.voice_name}` })),
+          ]}
+        />
+        <Sel label="Telephony / Carrier"
+          value={telId}
+          onChange={setTelId}
+          opts={[
+            { id: "__bundled__", label: "— Retell transfer rate (use Retell config)" },
+            ...data.telephony.map(t => ({ id: t.id, label: `${t.provider} — ${t.country}` })),
+          ]}
+        />
+        <div>
+          <Label className="text-xs text-muted-foreground">Call Direction</Label>
+          <select className="w-full h-8 text-xs rounded border bg-background px-2 mt-0.5" value={direction} onChange={e => setDirection(e.target.value as "inbound" | "outbound")}>
+            <option value="inbound">Inbound</option>
+            <option value="outbound">Outbound</option>
+          </select>
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground">Est. Monthly Minutes (for fixed cost amortisation)</Label>
+          <Input type="number" step="100" min="1" value={monthlyMins}
+            onChange={e => setMonthlyMins(Math.max(1, Number(e.target.value)))}
+            className="h-8 text-xs mt-0.5" />
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {/* Cost breakdown */}
+        <div className="rounded-lg border p-4 space-y-0">
+          <p className="text-sm font-semibold mb-3">Cost Breakdown / minute</p>
+
+          <Row label="Retell platform fee"
+            value={fmtCurrency(bd.platform)}
+            sub={data.retell ? `$${n(data.retell.minute_cost).toFixed(4)}/min · ${pct(bd.platform)} of total` : "not configured"} />
+
+          <Row label={selLlm ? `LLM — ${selLlm.model}` : "LLM (bundled / none)"}
+            value={fmtCurrency(bd.llm)}
+            sub={selLlm
+              ? (n(selLlm.audio_input_cost) > 0
+                  ? `audio in+out · ${pct(bd.llm)} of total`
+                  : `~150 tok/min · ${pct(bd.llm)} of total`)
+              : "no additional LLM cost"} />
+
+          <Row label={selVoice ? `Voice — ${selVoice.voice_name}` : "Voice (Retell bundled)"}
+            value={fmtCurrency(bd.voice)}
+            sub={selVoice ? `$${n(selVoice.cost_per_minute).toFixed(4)}/min · ${pct(bd.voice)} of total` : data.retell ? `$${n(data.retell.voice_cost_per_min).toFixed(4)}/min` : "not configured"} />
+
+          <Row label={selTel ? `Telephony — ${selTel.provider} ${selTel.country}` : "Telephony (Retell transfer rate)"}
+            value={fmtCurrency(bd.telephony)}
+            sub={selTel
+              ? `${direction} $${(direction === "inbound" ? n(selTel.inbound_cost_per_min) : n(selTel.outbound_cost_per_min)).toFixed(4)}/min · ${pct(bd.telephony)} of total`
+              : data.retell ? `$${n(data.retell.transfer_cost_per_min).toFixed(4)}/min` : "not configured"} />
+
+          <Row label="Phone number (amortised)"
+            value={fmtCurrency(bd.number)}
+            sub={data.retell ? `$${n(data.retell.number_cost_monthly).toFixed(2)}/mo ÷ ${monthlyMins.toLocaleString()} min` : "not configured"} />
+
+          <Row label="Subscription (amortised)"
+            value={fmtCurrency(bd.subscription)}
+            sub={data.retell ? `$${n(data.retell.subscription_cost_monthly).toFixed(2)}/mo ÷ ${monthlyMins.toLocaleString()} min` : "not configured"} />
+
+          <div className="pt-3 mt-1 border-t space-y-0">
+            <Row label="Total Cost / min" value={fmtCurrency(bd.total)} highlight />
+            <Row label="Selling Price / min" value={fmtCurrency(mk.selling)}
+              sub={data.markup ? `${data.markup.markup_type === "percentage" ? `+${data.markup.markup_value}%` : `+$${data.markup.markup_value}`} markup` : "no markup set"} />
+            <Row label="Profit / min" value={fmtCurrency(mk.profit)} />
+            <Row label="Margin" value={fmtPct(mk.margin)}
+              highlight />
+          </div>
+        </div>
+
+        {/* Monthly projection + comparison */}
+        <div className="space-y-4">
+          <div className="rounded-lg border p-4">
+            <p className="text-sm font-semibold mb-3">Monthly Projection ({monthlyMins.toLocaleString()} min)</p>
+            <Row label="Total cost"     value={`$${(bd.total * monthlyMins).toFixed(2)}`} />
+            <Row label="Revenue"        value={`$${(mk.selling * monthlyMins).toFixed(2)}`} />
+            <Row label="Gross profit"   value={`$${(mk.profit * monthlyMins).toFixed(2)}`} highlight />
+            <Row label="Margin"         value={fmtPct(mk.margin)} />
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-xs text-muted-foreground font-medium mb-2">Fixed cost component</p>
+              <Row label="Number rental" value={`$${n(data.retell?.number_cost_monthly).toFixed(2)}/mo`} />
+              <Row label="Subscription"  value={`$${n(data.retell?.subscription_cost_monthly).toFixed(2)}/mo`} />
+              <Row label="Total fixed / mo" value={`$${(n(data.retell?.number_cost_monthly) + n(data.retell?.subscription_cost_monthly)).toFixed(2)}`} highlight />
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-4">
+            <p className="text-sm font-semibold mb-3">vs HyperStream (direct stack)</p>
+            <Row label="Retell all-in / min"     value={fmtCurrency(bd.total)} />
+            <Row label="HyperStream / min"        value={fmtCurrency(hsTotal)} />
+            <Row label="Difference"
+              value={`${bd.total > hsTotal ? "+" : ""}${fmtCurrency(bd.total - hsTotal)}`}
+              sub={bd.total > hsTotal ? "Retell costs more" : "Retell costs less"} />
+            <div className="mt-3 pt-3 border-t text-xs text-muted-foreground space-y-1.5">
+              <p>Retell margin: <span className={mk.margin > 0 ? "text-emerald-600 font-medium" : "text-red-500 font-medium"}>{fmtPct(mk.margin)}</span></p>
+              <p>HyperStream margin: <span className="text-emerald-600 font-medium">{fmtPct(hsMk.margin)}</span></p>
+              <p className="italic pt-1 text-muted-foreground/70">
+                {bd.total <= hsTotal
+                  ? "Retell's bundle is competitive — good for rapid deployment without managing your own stack."
+                  : "Direct stack is cheaper at scale — Retell's value is in speed-to-market and reduced ops overhead."}
+              </p>
+            </div>
+          </div>
+
+          {/* Cost pie / bar breakdown visual */}
+          <div className="rounded-lg border p-4">
+            <p className="text-sm font-semibold mb-3">Cost Share</p>
+            {[
+              { label: "Platform", value: bd.platform, color: "bg-blue-500" },
+              { label: "LLM", value: bd.llm, color: "bg-violet-500" },
+              { label: "Voice", value: bd.voice, color: "bg-pink-500" },
+              { label: "Telephony", value: bd.telephony, color: "bg-orange-500" },
+              { label: "Number", value: bd.number, color: "bg-yellow-500" },
+              { label: "Subscription", value: bd.subscription, color: "bg-teal-500" },
+            ].filter(r => r.value > 0).map(r => (
+              <div key={r.label} className="mb-2">
+                <div className="flex justify-between text-xs mb-0.5">
+                  <span className="text-muted-foreground">{r.label}</span>
+                  <span>{fmtCurrency(r.value)} · {pct(r.value)}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className={`h-full rounded-full ${r.color}`} style={{ width: `${Math.min(100, (r.value / bd.total) * 100)}%` }} />
+                </div>
+              </div>
+            ))}
+            {bd.total === 0 && <p className="text-xs text-muted-foreground">Configure Retell costs in Fixed Costs to see breakdown.</p>}
           </div>
         </div>
       </div>

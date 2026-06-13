@@ -709,6 +709,46 @@ export function calcRetellCostPerMin(retell: RetellCost | null): number {
   return n(retell?.minute_cost) + n(retell?.voice_cost_per_min);
 }
 
+export interface RetellCostBreakdown {
+  platform: number;   // Retell per-minute agent fee
+  llm: number;        // custom LLM (audio in + out, or token cost)
+  voice: number;      // external voice provider per-min
+  telephony: number;  // inbound/outbound carrier cost
+  number: number;     // phone number rental amortised per-min
+  subscription: number; // monthly platform fee amortised per-min
+  total: number;
+}
+
+export function calcRetellFullCostPerMin(opts: {
+  retell: RetellCost | null;
+  llm: LlmCost | null;
+  voice: VoiceCost | null;
+  telephony: TelephonyCost | null;
+  estimatedMonthlyMinutes: number;
+  callDirection: "inbound" | "outbound";
+}): RetellCostBreakdown {
+  const mins = opts.estimatedMonthlyMinutes || 1;
+  const platform = n(opts.retell?.minute_cost);
+  // LLM: prefer audio rates (realtime), fall back to token rates at ~150 tokens/min
+  const llmAudio = n(opts.llm?.audio_input_cost) + n(opts.llm?.audio_output_cost);
+  const llmToken = (n(opts.llm?.input_token_cost) + n(opts.llm?.output_token_cost)) * (150 / 1000);
+  const llm = opts.llm ? (llmAudio > 0 ? llmAudio : llmToken) : 0;
+  // Voice: use either the Retell bundled rate or an explicit voice row
+  const voiceBundled = n(opts.retell?.voice_cost_per_min);
+  const voice = opts.voice ? n(opts.voice.cost_per_minute) : voiceBundled;
+  // Telephony: direction-aware
+  const telephony = opts.telephony
+    ? (opts.callDirection === "inbound"
+        ? n(opts.telephony.inbound_cost_per_min)
+        : n(opts.telephony.outbound_cost_per_min))
+    : n(opts.retell?.transfer_cost_per_min);
+  // Fixed costs amortised over monthly minutes
+  const number = n(opts.retell?.number_cost_monthly) / mins;
+  const subscription = n(opts.retell?.subscription_cost_monthly) / mins;
+  const total = platform + llm + voice + telephony + number + subscription;
+  return { platform, llm, voice, telephony, number, subscription, total };
+}
+
 export function applyMarkup(cost: number, markup: Markup | null): { selling: number; profit: number; margin: number } {
   if (!markup) return { selling: cost, profit: 0, margin: 0 };
   const selling =
