@@ -1,0 +1,375 @@
+WEEBEE HIVEMIND AI SUPERVISOR
+
+IMPORTANT
+
+DO NOT BUILD A CHATBOT.
+
+Build a platform-level AI Supervisor that lives inside WeeBee and has visibility across the entire platform.
+
+This system will be known internally as:
+
+HiveMind
+
+HiveMind must operate as an AI Operations Manager, AI Project Manager, AI System Auditor and AI Business Advisor.
+
+====================================================
+
+CORE OBJECTIVE
+
+HiveMind continuously monitors the entire platform and proactively identifies:
+
+* Missing configurations
+* Incomplete setups
+* Performance issues
+* Conversion issues
+* Missing documents
+* Missing follow-up campaigns
+* Agent problems
+* Knowledge base gaps
+* Automation opportunities
+* Costing issues
+
+HiveMind should not wait for the user to ask.
+
+HiveMind should continuously generate recommendations.
+
+====================================================
+
+SYSTEMS HIVEMIND MUST MONITOR
+
+Agent Builder
+
+* Voice Agents
+* WhatsApp Agents
+* SMS Agents
+* Future Channels
+
+HyperStream
+
+* OpenAI Native Agents
+* Runtime Health
+* Model Usage
+* Tool Usage
+* Voice Configuration
+
+Retell
+
+* Active Agents
+* Deployment Health
+* Call Volumes
+* Error States
+
+Telephony
+
+* Twilio
+* FreJun
+* Number Assignment
+* Routing Health
+* Missed Calls
+
+WhatsApp Centre
+
+* Meta Cloud API
+* Twilio WhatsApp
+* WATI Connector
+* Inbox Activity
+* Broadcast Activity
+
+CRM
+
+* Leads
+* Contacts
+* Companies
+* Opportunities
+
+Pipelines
+
+* Pipeline Stages
+* Stalled Leads
+* Unassigned Leads
+* Conversion Rates
+
+Knowledge Base
+
+* Documents
+* Websites
+* PDFs
+* Missing Assets
+
+HexMail Follow-Up Centre
+
+* Campaigns
+* Templates
+* Follow-Up Activity
+* Campaign Performance
+
+Analytics
+
+* Conversion Rates
+* Appointment Rates
+* Reply Rates
+* Revenue Metrics
+
+Cost Engine
+
+* OpenAI Cost
+* Retell Cost
+* Telephony Cost
+* WhatsApp Cost
+* Margin Tracking
+
+Automations
+
+* Active Automations
+* Failed Automations
+* Missing Automations
+
+====================================================
+
+HIVEMIND DASHBOARD
+
+Create:
+
+Command Centre
+
+Sidebar Menu:
+
+HiveMind
+
+Sections:
+
+Overview
+Recommendations
+Tasks
+System Health
+Agent Health
+Campaign Health
+Cost Health
+Reports
+
+====================================================
+
+RECOMMENDATION ENGINE
+
+HiveMind continuously creates recommendations.
+
+Examples:
+
+"Knowledge base uploaded but not attached to any agent."
+
+"Agent has no follow-up campaign assigned."
+
+"Lead has been inactive for 14 days."
+
+"Campaign open rate below platform average."
+
+"Client account currently running at a loss."
+
+Each recommendation must contain:
+
+Problem
+Impact
+Suggested Fix
+Priority Score
+
+====================================================
+
+TASK ENGINE
+
+HiveMind can create tasks.
+
+Examples:
+
+Upload company brochure.
+
+Connect WhatsApp account.
+
+Assign phone number.
+
+Review underperforming campaign.
+
+Create follow-up sequence.
+
+Tasks can be:
+
+Suggested
+Approved
+Completed
+
+====================================================
+
+DOCUMENT INTELLIGENCE
+
+When documents are uploaded:
+
+HiveMind analyses them.
+
+Examples:
+
+Proposal uploaded.
+
+HiveMind detects:
+
+* Not linked to Template Studio
+* Not linked to Knowledge Base
+
+Create recommendation automatically.
+
+====================================================
+
+AGENT AUDITING
+
+Score every agent.
+
+Categories:
+
+Prompt Quality
+Workflow Quality
+Knowledge Coverage
+Conversion Rate
+Tool Configuration
+
+Generate Agent Score:
+
+0-100
+
+Provide improvement recommendations.
+
+====================================================
+
+CAMPAIGN AUDITING
+
+Score:
+
+Email Campaigns
+WhatsApp Campaigns
+Follow-Up Campaigns
+
+Identify:
+
+Missing Follow-Ups
+Low Performance
+Inactive Campaigns
+
+====================================================
+
+PIPELINE AUDITING
+
+Identify:
+
+Leads with no owner
+Leads with no follow-up
+Leads stuck in stage
+Opportunities with no activity
+
+Generate recommendations.
+
+====================================================
+
+COST INTELLIGENCE
+
+Track:
+
+Actual Platform Cost
+Customer Revenue
+Gross Margin
+
+Generate warnings:
+
+Client is operating below profit threshold.
+
+Campaign cost exceeds target.
+
+Agent cost per appointment exceeds benchmark.
+
+====================================================
+
+EXECUTIVE REPORTS
+
+Allow user to click:
+
+Generate HiveMind Report
+
+Produce:
+
+Platform Summary
+Agent Summary
+Campaign Summary
+Pipeline Summary
+Cost Summary
+Recommended Actions
+
+====================================================
+
+ACTIVATION MODES
+
+Observe Only
+
+Recommend Only
+
+Semi-Autonomous
+
+Fully Autonomous
+
+Observe Only:
+No actions.
+
+Recommend Only:
+Suggestions only.
+
+Semi-Autonomous:
+Can create tasks automatically.
+
+Fully Autonomous:
+Can create tasks, automations and optimisation actions automatically.
+
+====================================================
+
+DATA SOURCES
+
+HiveMind must consume:
+
+Agents
+Calls
+Transcripts
+Messages
+Campaigns
+Documents
+Knowledge Bases
+Pipelines
+Leads
+Tasks
+Costs
+Analytics
+
+====================================================
+
+BACKWARDS COMPATIBILITY
+
+Do not modify:
+
+Retell functionality
+HyperStream functionality
+Builder functionality
+Telephony functionality
+WhatsApp functionality
+
+HiveMind is an observer and orchestrator layer above existing systems.
+
+====================================================
+
+SUCCESS CRITERIA
+
+A user can open HiveMind and immediately see:
+
+What is working
+What is broken
+What is missing
+What should be improved
+What tasks should be completed
+What campaigns need attention
+Which agents need optimisation
+Which clients are profitable
+Which clients are not profitable
+
+HiveMind becomes the AI Operations Director for the entire WeeBee platform.

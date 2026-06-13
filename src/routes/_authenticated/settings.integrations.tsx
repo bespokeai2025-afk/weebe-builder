@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, BrainCircuit, Check, Eye, EyeOff, Loader2, Mic, X } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Check, Eye, EyeOff, Loader2, Mic, X, Brain, Bot, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,8 @@ import {
   getOpenAiKey,
   saveOpenAiApiKey,
 } from "@/lib/dashboard/workspace-settings.functions";
+import { getHiveMindAgentId, saveHiveMindAgentId } from "@/lib/hivemind/hivemind.functions";
+import { listMyAgents } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/integrations")({
   head: () => ({
@@ -34,6 +36,9 @@ function IntegrationsPage() {
   const saveFn = useServerFn(saveElevenLabsApiKey);
   const getOAIFn = useServerFn(getOpenAiKey);
   const saveOAIFn = useServerFn(saveOpenAiApiKey);
+  const getHMFn = useServerFn(getHiveMindAgentId);
+  const saveHMFn = useServerFn(saveHiveMindAgentId);
+  const listAgentsFn = useServerFn(listMyAgents);
 
   const { data: elStatus, isLoading: elLoading } = useQuery({
     queryKey: ["el-key-status"],
@@ -47,6 +52,22 @@ function IntegrationsPage() {
     staleTime: 30_000,
   });
 
+  const { data: hmData, isLoading: hmLoading } = useQuery({
+    queryKey: ["hm-agent-id"],
+    queryFn: () => getHMFn(),
+    staleTime: 30_000,
+  });
+
+  const { data: agentsData } = useQuery({
+    queryKey: ["my-agents-list"],
+    queryFn: () => listAgentsFn(),
+    staleTime: 60_000,
+  });
+
+  const deployedAgents = (agentsData ?? []).filter(
+    (a: any) => a.settings?.deployedRetellAgentId || a.retell_agent_id,
+  );
+
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -55,6 +76,30 @@ function IntegrationsPage() {
   const [oaiKey, setOaiKey] = useState("");
   const [showOaiKey, setShowOaiKey] = useState(false);
   const [oaiSaving, setOaiSaving] = useState(false);
+
+  const [hmAgentId, setHmAgentId] = useState("");
+  const [hmSaving, setHmSaving] = useState(false);
+  const [hmDropOpen, setHmDropOpen] = useState(false);
+
+  async function handleHmSave(id: string) {
+    setHmSaving(true);
+    try {
+      const res = await saveHMFn({ data: { agentId: id || null } });
+      if (res.columnMissing) {
+        toast.warning("Column missing — run the migration shown below in Supabase SQL editor, then try again.", {
+          description: "ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS hivemind_retell_agent_id TEXT;",
+          duration: 10_000,
+        });
+        return;
+      }
+      toast.success(id ? "HiveMind voice agent saved" : "HiveMind voice agent cleared");
+      qc.invalidateQueries({ queryKey: ["hm-agent-id"] });
+    } catch (e) {
+      toast.error("Save failed", { description: (e as Error).message });
+    } finally {
+      setHmSaving(false); setHmDropOpen(false);
+    }
+  }
   const [oaiCopied, setOaiCopied] = useState(false);
 
   async function handleSave() {
@@ -383,6 +428,102 @@ function IntegrationsPage() {
                     </div>
                     <Button onClick={handleOaiSave} disabled={!oaiKey.trim() || oaiSaving}>
                       {oaiSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* HiveMind Voice Agent */}
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-violet-400" />
+                <CardTitle className="text-base">HiveMind Voice Agent</CardTitle>
+              </div>
+              {!hmLoading && hmData?.agentId && (
+                <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-violet-500/10 text-violet-400">
+                  <Check className="h-3 w-3" /> Configured
+                </span>
+              )}
+            </div>
+            <CardDescription>
+              Choose which deployed Retell agent will be used when you click "Talk to HiveMind" on the
+              dashboard. The agent must already be deployed in the Builder.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {hmLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+              </div>
+            ) : (
+              <>
+                {hmData?.agentId && (
+                  <div className="rounded-md bg-muted/50 px-3 py-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-3.5 w-3.5 text-violet-400" />
+                      <span className="font-mono text-xs text-muted-foreground">{hmData.agentId}</span>
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                      onClick={() => handleHmSave("")} disabled={hmSaving}>
+                      Clear
+                    </Button>
+                  </div>
+                )}
+
+                {deployedAgents.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Select from deployed agents</Label>
+                    <div className="relative">
+                      <button
+                        onClick={() => setHmDropOpen((p) => !p)}
+                        className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <span className="text-muted-foreground">
+                          {deployedAgents.find((a: any) => {
+                            const rid = a.settings?.deployedRetellAgentId ?? a.retell_agent_id;
+                            return rid === (hmData?.agentId ?? hmAgentId);
+                          })?.name ?? "Select an agent…"}
+                        </span>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      {hmDropOpen && (
+                        <div className="absolute left-0 right-0 top-10 z-20 rounded-md border border-input bg-popover shadow-lg overflow-hidden">
+                          {deployedAgents.map((a: any) => {
+                            const rid = a.settings?.deployedRetellAgentId ?? a.retell_agent_id;
+                            return (
+                              <button key={a.id} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
+                                onClick={() => { setHmAgentId(rid); handleHmSave(rid); }}>
+                                <Bot className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                                <span className="font-medium">{a.name}</span>
+                                <span className="ml-auto font-mono text-[10px] text-muted-foreground truncate max-w-[120px]">{rid}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No deployed agents found. Deploy an agent from the Builder first.</p>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Or paste a Retell agent ID manually</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="agent_..."
+                      value={hmAgentId}
+                      onChange={(e) => setHmAgentId(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleHmSave(hmAgentId)}
+                      className="font-mono text-sm"
+                    />
+                    <Button onClick={() => handleHmSave(hmAgentId)} disabled={!hmAgentId.trim() || hmSaving}>
+                      {hmSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
                     </Button>
                   </div>
                 </div>

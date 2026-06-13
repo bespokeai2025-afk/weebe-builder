@@ -28,6 +28,7 @@ import {
   GripVertical,
   Zap,
   FileText,
+  Brain,
 } from "lucide-react";
 import {
   DndContext,
@@ -85,6 +86,7 @@ type NavItem = {
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "HiveMind",  url: "/hivemind",  icon: Brain },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Agents",    url: "/my-agents", icon: LayoutGrid,    tourId: "nav-agents" },
   { title: "Builder",   url: "/builder",   icon: Workflow },

@@ -28,6 +28,7 @@ import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
 import { Route as AuthenticatedMyAgentsRouteImport } from './routes/_authenticated/my-agents'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
+import { Route as AuthenticatedHivemindRouteImport } from './routes/_authenticated/hivemind'
 import { Route as AuthenticatedHexmailRouteImport } from './routes/_authenticated/hexmail'
 import { Route as AuthenticatedFollowUpRouteImport } from './routes/_authenticated/follow-up'
 import { Route as AuthenticatedDataRouteImport } from './routes/_authenticated/data'
@@ -192,6 +193,11 @@ const AuthenticatedMyAgentsRoute = AuthenticatedMyAgentsRouteImport.update({
 const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedHivemindRoute = AuthenticatedHivemindRouteImport.update({
+  id: '/hivemind',
+  path: '/hivemind',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedHexmailRoute = AuthenticatedHexmailRouteImport.update({
@@ -582,6 +588,7 @@ export interface FileRoutesByFullPath {
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/hexmail': typeof AuthenticatedHexmailRoute
+  '/hivemind': typeof AuthenticatedHivemindRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -668,6 +675,7 @@ export interface FileRoutesByTo {
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/hexmail': typeof AuthenticatedHexmailRoute
+  '/hivemind': typeof AuthenticatedHivemindRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -757,6 +765,7 @@ export interface FileRoutesById {
   '/_authenticated/data': typeof AuthenticatedDataRoute
   '/_authenticated/follow-up': typeof AuthenticatedFollowUpRoute
   '/_authenticated/hexmail': typeof AuthenticatedHexmailRoute
+  '/_authenticated/hivemind': typeof AuthenticatedHivemindRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/my-agents': typeof AuthenticatedMyAgentsRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -846,6 +855,7 @@ export interface FileRouteTypes {
     | '/data'
     | '/follow-up'
     | '/hexmail'
+    | '/hivemind'
     | '/leads'
     | '/my-agents'
     | '/phone-numbers'
@@ -932,6 +942,7 @@ export interface FileRouteTypes {
     | '/data'
     | '/follow-up'
     | '/hexmail'
+    | '/hivemind'
     | '/leads'
     | '/my-agents'
     | '/phone-numbers'
@@ -1020,6 +1031,7 @@ export interface FileRouteTypes {
     | '/_authenticated/data'
     | '/_authenticated/follow-up'
     | '/_authenticated/hexmail'
+    | '/_authenticated/hivemind'
     | '/_authenticated/leads'
     | '/_authenticated/my-agents'
     | '/_authenticated/phone-numbers'
@@ -1279,6 +1291,13 @@ declare module '@tanstack/react-router' {
       path: '/leads'
       fullPath: '/leads'
       preLoaderRoute: typeof AuthenticatedLeadsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/hivemind': {
+      id: '/_authenticated/hivemind'
+      path: '/hivemind'
+      fullPath: '/hivemind'
+      preLoaderRoute: typeof AuthenticatedHivemindRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/hexmail': {
@@ -1783,6 +1802,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDataRoute: typeof AuthenticatedDataRoute
   AuthenticatedFollowUpRoute: typeof AuthenticatedFollowUpRoute
   AuthenticatedHexmailRoute: typeof AuthenticatedHexmailRoute
+  AuthenticatedHivemindRoute: typeof AuthenticatedHivemindRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMyAgentsRoute: typeof AuthenticatedMyAgentsRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
@@ -1812,6 +1832,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDataRoute: AuthenticatedDataRoute,
   AuthenticatedFollowUpRoute: AuthenticatedFollowUpRoute,
   AuthenticatedHexmailRoute: AuthenticatedHexmailRoute,
+  AuthenticatedHivemindRoute: AuthenticatedHivemindRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMyAgentsRoute: AuthenticatedMyAgentsRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
