@@ -41,6 +41,7 @@ import { Route as AuthenticatedBuilderRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedHivemindIndexRouteImport } from './routes/_authenticated/hivemind.index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
@@ -264,6 +265,12 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedHivemindIndexRoute =
+  AuthenticatedHivemindIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -656,6 +663,7 @@ export interface FileRoutesByFullPath {
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -707,7 +715,6 @@ export interface FileRoutesByTo {
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/hexmail': typeof AuthenticatedHexmailRoute
-  '/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -747,6 +754,7 @@ export interface FileRoutesByTo {
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/hivemind': typeof AuthenticatedHivemindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -841,6 +849,7 @@ export interface FileRoutesById {
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -935,6 +944,7 @@ export interface FileRouteTypes {
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/admin/'
+    | '/hivemind/'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -986,7 +996,6 @@ export interface FileRouteTypes {
     | '/data'
     | '/follow-up'
     | '/hexmail'
-    | '/hivemind'
     | '/leads'
     | '/my-agents'
     | '/phone-numbers'
@@ -1026,6 +1035,7 @@ export interface FileRouteTypes {
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/admin'
+    | '/hivemind'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -1119,6 +1129,7 @@ export interface FileRouteTypes {
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
+    | '/_authenticated/hivemind/'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -1435,6 +1446,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin'
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/hivemind/': {
+      id: '/_authenticated/hivemind/'
+      path: '/'
+      fullPath: '/hivemind/'
+      preLoaderRoute: typeof AuthenticatedHivemindIndexRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
@@ -1874,6 +1892,7 @@ interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindRecommendationsRoute: typeof AuthenticatedHivemindRecommendationsRoute
   AuthenticatedHivemindReportsRoute: typeof AuthenticatedHivemindReportsRoute
   AuthenticatedHivemindSystemHealthRoute: typeof AuthenticatedHivemindSystemHealthRoute
+  AuthenticatedHivemindIndexRoute: typeof AuthenticatedHivemindIndexRoute
 }
 
 const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
@@ -1883,6 +1902,7 @@ const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
   AuthenticatedHivemindReportsRoute: AuthenticatedHivemindReportsRoute,
   AuthenticatedHivemindSystemHealthRoute:
     AuthenticatedHivemindSystemHealthRoute,
+  AuthenticatedHivemindIndexRoute: AuthenticatedHivemindIndexRoute,
 }
 
 const AuthenticatedHivemindRouteWithChildren =
