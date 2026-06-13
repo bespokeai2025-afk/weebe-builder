@@ -6,3 +6,4 @@
 - [HyperStream relay pitfalls](hyperstream-relay-pitfalls.md) — four bugs to know: model name, beta header, sync upgrade, binary frames.
 - [HyperStream audio & turn-taking](hyperstream-audio-turntaking.md) — skip-steps/talk-over = prompt rules + semantic_vad; jitter/mishear = resample capture to guaranteed 24kHz in worklet.
 - [OpenAI Realtime flow prompt](openai-realtime-prompt-compile.md) — OpenAI takes one instruction string, not Retell's flow graph; must compile whole flow into a prompt for test + deploy.
+- [Telephony layer architecture](telephony-layer-arch.md) — provider-agnostic layer using separate DB tables; never touch Retell's calls table; audio bridge is a Vite plugin mirroring hyperstream-relay.

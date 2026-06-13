@@ -8,6 +8,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import path from "node:path";
 import { hyperStreamRelayPlugin } from "./hyperstream-relay.plugin";
 import { elVoiceRelayPlugin } from "./el-voice-relay.plugin";
+import { telephonyStreamPlugin } from "./telephony-stream.plugin";
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
@@ -29,7 +30,7 @@ export default defineConfig({
         },
       },
     },
-    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin()],
+    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin()],
     resolve: {
       alias: {
         "entities/lib/decode.js": path.resolve(

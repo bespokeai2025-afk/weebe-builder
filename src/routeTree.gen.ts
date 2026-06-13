@@ -19,12 +19,16 @@ import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as ApiVoiceCopilotRouteImport } from './routes/api/voice-copilot'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
+import { Route as AuthenticatedTelephonySettingsRouteImport } from './routes/_authenticated/telephony-settings'
+import { Route as AuthenticatedTelephonyCallsRouteImport } from './routes/_authenticated/telephony-calls'
 import { Route as AuthenticatedQualifiedRouteImport } from './routes/_authenticated/qualified'
+import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
 import { Route as AuthenticatedMyAgentsRouteImport } from './routes/_authenticated/my-agents'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedDataRouteImport } from './routes/_authenticated/data'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
+import { Route as AuthenticatedCampaignsRouteImport } from './routes/_authenticated/campaigns'
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedBuilderRouteImport } from './routes/_authenticated/builder'
@@ -57,6 +61,9 @@ import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/em
 import { Route as ApiRuntimeAgentIdRouteImport } from './routes/api/runtime/agent.$id'
 import { Route as ApiPublicWhatsappWebhookWorkspaceIdRouteImport } from './routes/api/public/whatsapp-webhook.$workspaceId'
 import { Route as ApiPublicVoiceWebhookHealthRouteImport } from './routes/api/public/voice-webhook.health'
+import { Route as ApiPublicTelephonyStatusRouteImport } from './routes/api/public/telephony/status'
+import { Route as ApiPublicTelephonyRecordingRouteImport } from './routes/api/public/telephony/recording'
+import { Route as ApiPublicTelephonyInboundRouteImport } from './routes/api/public/telephony/inbound'
 import { Route as ApiPublicRetellRescheduleRouteImport } from './routes/api/public/retell/reschedule'
 import { Route as ApiPublicRetellEventTypesRouteImport } from './routes/api/public/retell/event-types'
 import { Route as ApiPublicRetellCancelRouteImport } from './routes/api/public/retell/cancel'
@@ -124,11 +131,29 @@ const AuthenticatedTemplatesRoute = AuthenticatedTemplatesRouteImport.update({
   path: '/templates',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedTelephonySettingsRoute =
+  AuthenticatedTelephonySettingsRouteImport.update({
+    id: '/telephony-settings',
+    path: '/telephony-settings',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedTelephonyCallsRoute =
+  AuthenticatedTelephonyCallsRouteImport.update({
+    id: '/telephony-calls',
+    path: '/telephony-calls',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedQualifiedRoute = AuthenticatedQualifiedRouteImport.update({
   id: '/qualified',
   path: '/qualified',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedPhoneNumbersRoute =
+  AuthenticatedPhoneNumbersRouteImport.update({
+    id: '/phone-numbers',
+    path: '/phone-numbers',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedMyAgentsRoute = AuthenticatedMyAgentsRouteImport.update({
   id: '/my-agents',
   path: '/my-agents',
@@ -152,6 +177,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedContactsRoute = AuthenticatedContactsRouteImport.update({
   id: '/contacts',
   path: '/contacts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCampaignsRoute = AuthenticatedCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedCallsRoute = AuthenticatedCallsRouteImport.update({
@@ -328,6 +358,24 @@ const ApiPublicVoiceWebhookHealthRoute =
     path: '/health',
     getParentRoute: () => ApiPublicVoiceWebhookRoute,
   } as any)
+const ApiPublicTelephonyStatusRoute =
+  ApiPublicTelephonyStatusRouteImport.update({
+    id: '/api/public/telephony/status',
+    path: '/api/public/telephony/status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicTelephonyRecordingRoute =
+  ApiPublicTelephonyRecordingRouteImport.update({
+    id: '/api/public/telephony/recording',
+    path: '/api/public/telephony/recording',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicTelephonyInboundRoute =
+  ApiPublicTelephonyInboundRouteImport.update({
+    id: '/api/public/telephony/inbound',
+    path: '/api/public/telephony/inbound',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRetellRescheduleRoute =
   ApiPublicRetellRescheduleRouteImport.update({
     id: '/api/public/retell/reschedule',
@@ -437,12 +485,16 @@ export interface FileRoutesByFullPath {
   '/builder': typeof AuthenticatedBuilderRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/calls': typeof AuthenticatedCallsRoute
+  '/campaigns': typeof AuthenticatedCampaignsRoute
   '/contacts': typeof AuthenticatedContactsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/data': typeof AuthenticatedDataRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
+  '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
@@ -482,6 +534,9 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
+  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
+  '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
+  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
@@ -502,12 +557,16 @@ export interface FileRoutesByTo {
   '/builder': typeof AuthenticatedBuilderRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/calls': typeof AuthenticatedCallsRoute
+  '/campaigns': typeof AuthenticatedCampaignsRoute
   '/contacts': typeof AuthenticatedContactsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/data': typeof AuthenticatedDataRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
+  '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
@@ -547,6 +606,9 @@ export interface FileRoutesByTo {
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
+  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
+  '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
+  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
@@ -570,12 +632,16 @@ export interface FileRoutesById {
   '/_authenticated/builder': typeof AuthenticatedBuilderRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
+  '/_authenticated/campaigns': typeof AuthenticatedCampaignsRoute
   '/_authenticated/contacts': typeof AuthenticatedContactsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/data': typeof AuthenticatedDataRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/my-agents': typeof AuthenticatedMyAgentsRoute
+  '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/qualified': typeof AuthenticatedQualifiedRoute
+  '/_authenticated/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
+  '/_authenticated/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
@@ -615,6 +681,9 @@ export interface FileRoutesById {
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
+  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
+  '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
+  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
@@ -638,12 +707,16 @@ export interface FileRouteTypes {
     | '/builder'
     | '/calendar'
     | '/calls'
+    | '/campaigns'
     | '/contacts'
     | '/dashboard'
     | '/data'
     | '/leads'
     | '/my-agents'
+    | '/phone-numbers'
     | '/qualified'
+    | '/telephony-calls'
+    | '/telephony-settings'
     | '/templates'
     | '/whatsapp'
     | '/api/voice-copilot'
@@ -683,6 +756,9 @@ export interface FileRouteTypes {
     | '/api/public/retell/cancel'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
+    | '/api/public/telephony/inbound'
+    | '/api/public/telephony/recording'
+    | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/runtime/agent/$id'
@@ -703,12 +779,16 @@ export interface FileRouteTypes {
     | '/builder'
     | '/calendar'
     | '/calls'
+    | '/campaigns'
     | '/contacts'
     | '/dashboard'
     | '/data'
     | '/leads'
     | '/my-agents'
+    | '/phone-numbers'
     | '/qualified'
+    | '/telephony-calls'
+    | '/telephony-settings'
     | '/templates'
     | '/whatsapp'
     | '/api/voice-copilot'
@@ -748,6 +828,9 @@ export interface FileRouteTypes {
     | '/api/public/retell/cancel'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
+    | '/api/public/telephony/inbound'
+    | '/api/public/telephony/recording'
+    | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/runtime/agent/$id'
@@ -770,12 +853,16 @@ export interface FileRouteTypes {
     | '/_authenticated/builder'
     | '/_authenticated/calendar'
     | '/_authenticated/calls'
+    | '/_authenticated/campaigns'
     | '/_authenticated/contacts'
     | '/_authenticated/dashboard'
     | '/_authenticated/data'
     | '/_authenticated/leads'
     | '/_authenticated/my-agents'
+    | '/_authenticated/phone-numbers'
     | '/_authenticated/qualified'
+    | '/_authenticated/telephony-calls'
+    | '/_authenticated/telephony-settings'
     | '/_authenticated/templates'
     | '/_authenticated/whatsapp'
     | '/api/voice-copilot'
@@ -815,6 +902,9 @@ export interface FileRouteTypes {
     | '/api/public/retell/cancel'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
+    | '/api/public/telephony/inbound'
+    | '/api/public/telephony/recording'
+    | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/runtime/agent/$id'
@@ -860,6 +950,9 @@ export interface RootRouteChildren {
   ApiPublicRetellCancelRoute: typeof ApiPublicRetellCancelRoute
   ApiPublicRetellEventTypesRoute: typeof ApiPublicRetellEventTypesRoute
   ApiPublicRetellRescheduleRoute: typeof ApiPublicRetellRescheduleRoute
+  ApiPublicTelephonyInboundRoute: typeof ApiPublicTelephonyInboundRoute
+  ApiPublicTelephonyRecordingRoute: typeof ApiPublicTelephonyRecordingRoute
+  ApiPublicTelephonyStatusRoute: typeof ApiPublicTelephonyStatusRoute
   ApiPublicWhatsappWebhookWorkspaceIdRoute: typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   ApiRuntimeAgentIdRoute: typeof ApiRuntimeAgentIdRouteWithChildren
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
@@ -941,11 +1034,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTemplatesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/telephony-settings': {
+      id: '/_authenticated/telephony-settings'
+      path: '/telephony-settings'
+      fullPath: '/telephony-settings'
+      preLoaderRoute: typeof AuthenticatedTelephonySettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/telephony-calls': {
+      id: '/_authenticated/telephony-calls'
+      path: '/telephony-calls'
+      fullPath: '/telephony-calls'
+      preLoaderRoute: typeof AuthenticatedTelephonyCallsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/qualified': {
       id: '/_authenticated/qualified'
       path: '/qualified'
       fullPath: '/qualified'
       preLoaderRoute: typeof AuthenticatedQualifiedRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/phone-numbers': {
+      id: '/_authenticated/phone-numbers'
+      path: '/phone-numbers'
+      fullPath: '/phone-numbers'
+      preLoaderRoute: typeof AuthenticatedPhoneNumbersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/my-agents': {
@@ -981,6 +1095,13 @@ declare module '@tanstack/react-router' {
       path: '/contacts'
       fullPath: '/contacts'
       preLoaderRoute: typeof AuthenticatedContactsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/campaigns': {
+      id: '/_authenticated/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof AuthenticatedCampaignsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/calls': {
@@ -1207,6 +1328,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVoiceWebhookHealthRouteImport
       parentRoute: typeof ApiPublicVoiceWebhookRoute
     }
+    '/api/public/telephony/status': {
+      id: '/api/public/telephony/status'
+      path: '/api/public/telephony/status'
+      fullPath: '/api/public/telephony/status'
+      preLoaderRoute: typeof ApiPublicTelephonyStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/telephony/recording': {
+      id: '/api/public/telephony/recording'
+      path: '/api/public/telephony/recording'
+      fullPath: '/api/public/telephony/recording'
+      preLoaderRoute: typeof ApiPublicTelephonyRecordingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/telephony/inbound': {
+      id: '/api/public/telephony/inbound'
+      path: '/api/public/telephony/inbound'
+      fullPath: '/api/public/telephony/inbound'
+      preLoaderRoute: typeof ApiPublicTelephonyInboundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/retell/reschedule': {
       id: '/api/public/retell/reschedule'
       path: '/api/public/retell/reschedule'
@@ -1351,12 +1493,16 @@ interface AuthenticatedRouteChildren {
   AuthenticatedBuilderRoute: typeof AuthenticatedBuilderRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
+  AuthenticatedCampaignsRoute: typeof AuthenticatedCampaignsRoute
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDataRoute: typeof AuthenticatedDataRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMyAgentsRoute: typeof AuthenticatedMyAgentsRoute
+  AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedQualifiedRoute: typeof AuthenticatedQualifiedRoute
+  AuthenticatedTelephonyCallsRoute: typeof AuthenticatedTelephonyCallsRoute
+  AuthenticatedTelephonySettingsRoute: typeof AuthenticatedTelephonySettingsRoute
   AuthenticatedTemplatesRoute: typeof AuthenticatedTemplatesRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedAgentsNewRoute: typeof AuthenticatedAgentsNewRoute
@@ -1372,12 +1518,16 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBuilderRoute: AuthenticatedBuilderRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
+  AuthenticatedCampaignsRoute: AuthenticatedCampaignsRoute,
   AuthenticatedContactsRoute: AuthenticatedContactsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDataRoute: AuthenticatedDataRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMyAgentsRoute: AuthenticatedMyAgentsRoute,
+  AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedQualifiedRoute: AuthenticatedQualifiedRoute,
+  AuthenticatedTelephonyCallsRoute: AuthenticatedTelephonyCallsRoute,
+  AuthenticatedTelephonySettingsRoute: AuthenticatedTelephonySettingsRoute,
   AuthenticatedTemplatesRoute: AuthenticatedTemplatesRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedAgentsNewRoute: AuthenticatedAgentsNewRoute,
@@ -1466,6 +1616,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellCancelRoute: ApiPublicRetellCancelRoute,
   ApiPublicRetellEventTypesRoute: ApiPublicRetellEventTypesRoute,
   ApiPublicRetellRescheduleRoute: ApiPublicRetellRescheduleRoute,
+  ApiPublicTelephonyInboundRoute: ApiPublicTelephonyInboundRoute,
+  ApiPublicTelephonyRecordingRoute: ApiPublicTelephonyRecordingRoute,
+  ApiPublicTelephonyStatusRoute: ApiPublicTelephonyStatusRoute,
   ApiPublicWhatsappWebhookWorkspaceIdRoute:
     ApiPublicWhatsappWebhookWorkspaceIdRoute,
   ApiRuntimeAgentIdRoute: ApiRuntimeAgentIdRouteWithChildren,
