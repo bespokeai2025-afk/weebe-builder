@@ -38,6 +38,7 @@ create table if not exists public.hexmail_campaigns (
   name         text        not null,
   description  text,
   status       text        not null default 'draft',
+  config       jsonb       not null default '{}',
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   constraint hexmail_campaigns_status_check

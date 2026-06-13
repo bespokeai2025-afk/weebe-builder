@@ -26,12 +26,24 @@ export interface CampaignStep {
   actions: CampaignAction[];
 }
 
+export interface CampaignConfig {
+  template_id?: string | null;
+  target_statuses?: string[];
+  start_date?: string | null;
+  end_date?: string | null;
+  execution_time?: string | null;
+  timezone?: string | null;
+  frequency?: "daily" | "custom_interval";
+  interval_days?: number;
+}
+
 export interface HexmailCampaign {
   id: string;
   workspace_id: string;
   name: string;
   description: string | null;
   status: "draft" | "active" | "paused" | "archived";
+  config: CampaignConfig;
   created_at: string;
   updated_at: string;
   steps?: CampaignStep[];
@@ -95,6 +107,19 @@ export const getHexmailCampaignWithSteps = createServerFn({ method: "POST" })
     return { ...campaign, steps: (steps ?? []) } as HexmailCampaign;
   });
 
+const configSchema = z
+  .object({
+    template_id: z.string().nullable().optional(),
+    target_statuses: z.array(z.string()).optional(),
+    start_date: z.string().nullable().optional(),
+    end_date: z.string().nullable().optional(),
+    execution_time: z.string().nullable().optional(),
+    timezone: z.string().nullable().optional(),
+    frequency: z.enum(["daily", "custom_interval"]).optional(),
+    interval_days: z.number().int().positive().optional(),
+  })
+  .optional();
+
 export const saveHexmailCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -104,6 +129,7 @@ export const saveHexmailCampaign = createServerFn({ method: "POST" })
         name: z.string().min(1),
         description: z.string().optional().nullable(),
         status: z.enum(["draft", "active", "paused", "archived"]).optional(),
+        config: configSchema,
         steps: z.array(stepSchema),
       })
       .parse(input),
@@ -123,6 +149,7 @@ export const saveHexmailCampaign = createServerFn({ method: "POST" })
           name: data.name,
           description: data.description ?? null,
           status: data.status ?? "draft",
+          config: data.config ?? {},
           updated_at: now,
         })
         .eq("id", campaignId)
@@ -136,6 +163,7 @@ export const saveHexmailCampaign = createServerFn({ method: "POST" })
           name: data.name,
           description: data.description ?? null,
           status: data.status ?? "draft",
+          config: data.config ?? {},
         })
         .select("id")
         .single();

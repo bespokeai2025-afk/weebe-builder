@@ -29,6 +29,9 @@ import {
   Zap,
   Search,
   Mail,
+  ChevronDown,
+  FormInput,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -37,6 +40,7 @@ import {
   deleteHexmailCampaign,
   type HexmailCampaign,
 } from "@/lib/hexmail/campaigns.functions";
+import { CreateCampaignForm } from "./CreateCampaignForm";
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    "bg-slate-500/10 text-slate-400 border-slate-500/20",
@@ -70,10 +74,13 @@ interface FollowUpCentreProps {
   onOpenBuilder: (campaignId?: string) => void;
 }
 
+type InnerView = "list" | "create";
+
 export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
   const qc = useQueryClient();
   const [deleteTarget, setDeleteTarget] = useState<HexmailCampaign | null>(null);
   const [search, setSearch] = useState("");
+  const [innerView, setInnerView] = useState<InnerView>("list");
 
   const { data: campaigns = [], isLoading } = useQuery<HexmailCampaign[]>({
     queryKey: ["hexmail-campaigns"],
@@ -94,6 +101,15 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
     },
   });
 
+  if (innerView === "create") {
+    return (
+      <CreateCampaignForm
+        onBack={() => setInnerView("list")}
+        onSaved={() => setInnerView("list")}
+      />
+    );
+  }
+
   const filtered = search.trim()
     ? campaigns.filter(
         (c) =>
@@ -103,9 +119,9 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
     : campaigns;
 
   const counts = {
-    active: campaigns.filter((c) => c.status === "active").length,
-    draft: campaigns.filter((c) => c.status === "draft").length,
-    paused: campaigns.filter((c) => c.status === "paused").length,
+    active:   campaigns.filter((c) => c.status === "active").length,
+    draft:    campaigns.filter((c) => c.status === "draft").length,
+    paused:   campaigns.filter((c) => c.status === "paused").length,
   };
 
   return (
@@ -151,10 +167,40 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
               />
             </div>
           )}
-          <Button onClick={() => onOpenBuilder()} className="gap-1.5 h-8">
-            <Plus className="h-4 w-4" />
-            New Campaign
-          </Button>
+
+          {/* Split "New Campaign" button */}
+          <div className="flex items-center">
+            <Button
+              className="h-8 rounded-r-none border-r border-primary-foreground/20 gap-1.5 pr-3"
+              onClick={() => setInnerView("create")}
+            >
+              <Plus className="h-4 w-4" />
+              New Campaign
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="h-8 rounded-l-none px-2">
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => setInnerView("create")}>
+                  <FormInput className="mr-2 h-4 w-4" />
+                  <div>
+                    <p className="font-medium">Form Builder</p>
+                    <p className="text-xs text-muted-foreground">Fill in details step by step</p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onOpenBuilder()}>
+                  <Layers className="mr-2 h-4 w-4" />
+                  <div>
+                    <p className="font-medium">Visual Builder</p>
+                    <p className="text-xs text-muted-foreground">Day-by-day action timeline</p>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
@@ -174,15 +220,20 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
               Create your first multi-channel follow-up campaign.
             </p>
           </div>
-          <Button onClick={() => onOpenBuilder()} className="gap-1.5">
-            <Plus className="h-4 w-4" /> New Campaign
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setInnerView("create")} variant="outline" className="gap-1.5">
+              <FormInput className="h-4 w-4" /> Form Builder
+            </Button>
+            <Button onClick={() => onOpenBuilder()} className="gap-1.5">
+              <Layers className="h-4 w-4" /> Visual Builder
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">
           {/* Table header */}
           <div className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 border-b bg-muted/30 px-4 py-2.5">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground w-6" />
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground w-7" />
             <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               Campaign
             </span>
@@ -195,7 +246,6 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
             <span className="w-8" />
           </div>
 
-          {/* Rows */}
           {filtered.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
               No campaigns match "{search}"
@@ -258,7 +308,7 @@ function CampaignRow({
 }) {
   const isActive = campaign.status === "active";
   const isPaused = campaign.status === "paused";
-  const isDraft = campaign.status === "draft";
+  const isDraft  = campaign.status === "draft";
 
   return (
     <div
@@ -268,12 +318,10 @@ function CampaignRow({
       )}
       onClick={onEdit}
     >
-      {/* Icon */}
       <div className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-muted/40">
         <Mail className="h-3.5 w-3.5 text-muted-foreground" />
       </div>
 
-      {/* Name + description */}
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-foreground">{campaign.name}</p>
         {campaign.description && (
@@ -281,12 +329,10 @@ function CampaignRow({
         )}
       </div>
 
-      {/* Status */}
       <div className="w-20 flex justify-center" onClick={(e) => e.stopPropagation()}>
         <StatusBadge status={campaign.status} />
       </div>
 
-      {/* Created date */}
       <span className="w-24 text-right text-xs text-muted-foreground tabular-nums">
         {new Date(campaign.created_at).toLocaleDateString(undefined, {
           month: "short",
@@ -295,7 +341,6 @@ function CampaignRow({
         })}
       </span>
 
-      {/* Actions */}
       <div onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
