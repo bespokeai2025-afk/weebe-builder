@@ -105,16 +105,14 @@ const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; c
 ];
 
 const WA_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
-  { kind: "conversation", label: "Message", icon: MessageCircle, color: "text-sky-600" },
-  { kind: "wa_message", label: "WA Message", icon: MsgSq, color: "text-green-600" },
-  { kind: "wa_media", label: "WA Media", icon: ImageIcon, color: "text-lime-600" },
-  { kind: "wa_delay", label: "WA Delay", icon: Clock, color: "text-teal-600" },
-  { kind: "function", label: "Function", icon: Cpu, color: "text-violet-600" },
-  { kind: "logic_split", label: "Logic Split", icon: GitBranch, color: "text-pink-600" },
-  { kind: "extract_variable", label: "Extract Variable", icon: Braces, color: "text-indigo-600" },
-  { kind: "code", label: "Code", icon: CodeIcon, color: "text-slate-700" },
-  { kind: "ending", label: "Ending", icon: Square, color: "text-rose-600" },
-  { kind: "note", label: "Note", icon: StickyNote, color: "text-yellow-700" },
+  { kind: "wa_start",        label: "WA Start",        icon: MsgSq,       color: "text-green-500" },
+  { kind: "wa_message",      label: "WA Message",      icon: MsgSq,       color: "text-green-600" },
+  { kind: "wa_media",        label: "WA Media",        icon: ImageIcon,   color: "text-lime-600"  },
+  { kind: "wa_delay",        label: "WA Delay",        icon: Clock,       color: "text-teal-600"  },
+  { kind: "logic_split",     label: "Logic Split",     icon: GitBranch,   color: "text-pink-600"  },
+  { kind: "extract_variable",label: "Extract Variable",icon: Braces,      color: "text-indigo-600"},
+  { kind: "code",            label: "Code",            icon: CodeIcon,    color: "text-slate-700" },
+  { kind: "note",            label: "Note",            icon: StickyNote,  color: "text-yellow-700"},
 ];
 
 const LANGUAGES: { code: string; flag: string; name: string; region: string }[] = [
@@ -816,9 +814,11 @@ export function Builder({
                 <DropdownMenuItem onSelect={() => setImportOpen(true)}>
                   <Upload className="mr-2 h-3.5 w-3.5" /> Import JSON
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setImportPdfOpen(true)}>
-                  <FileUp className="mr-2 h-3.5 w-3.5" /> Upload Script (PDF)
-                </DropdownMenuItem>
+                {settings.channelType !== "whatsapp" && (
+                  <DropdownMenuItem onSelect={() => setImportPdfOpen(true)}>
+                    <FileUp className="mr-2 h-3.5 w-3.5" /> Upload Script (PDF)
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Export
@@ -849,7 +849,9 @@ export function Builder({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Clear the canvas?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This removes all nodes and leaves only an empty Start Call and End Call.
+                    {settings.channelType === "whatsapp"
+                      ? "This removes all nodes and leaves only a WA Start node."
+                      : "This removes all nodes and leaves only an empty Start Call and End Call."}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -912,12 +914,14 @@ export function Builder({
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Voice Copilot — own small capsule */}
-          <div className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5">
-            <VoiceCopilotButton
-              onModeChange={(m) => setGuideOpen(m === "PLATFORM_HELP")}
-            />
-          </div>
+          {/* Voice Copilot — hidden in WhatsApp mode */}
+          {settings.channelType !== "whatsapp" && (
+            <div className="flex items-center rounded-md bg-white/[0.03] border border-white/[0.05] px-0.5 gap-0.5">
+              <VoiceCopilotButton
+                onModeChange={(m) => setGuideOpen(m === "PLATFORM_HELP")}
+              />
+            </div>
+          )}
 
           {/* Separator */}
           <div className="h-4 w-px bg-white/[0.06]" />

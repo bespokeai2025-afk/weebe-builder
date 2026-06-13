@@ -1,0 +1,371 @@
+WHATSAPP MULTI-PROVIDER ARCHITECTURE
+
+IMPORTANT
+
+- Do not modify existing Builder functionality.
+- Do not modify existing WhatsApp workflow functionality.
+- Do not modify Retell functionality.
+- Do not modify HyperStream functionality.
+- Preserve all existing WhatsApp Manager features.
+- Extend the platform only.
+- Generate implementation plan before coding.
+
+OBJECTIVE
+
+Create a provider-agnostic WhatsApp infrastructure that supports multiple WhatsApp providers.
+
+Customers must be able to choose:
+
+1. Meta Cloud API
+2. Twilio WhatsApp
+
+without changing workflows, agents, automations or runtime logic.
+
+====================================================
+
+ARCHITECTURE
+
+Current:
+
+Agent
+→ WhatsApp
+→ User
+
+New:
+
+Agent
+→ WhatsApp Provider Layer
+→ Provider
+→ User
+
+Create:
+
+WhatsAppProvider Interface
+
+Implement:
+
+MetaCloudProvider
+TwilioWhatsAppProvider
+
+Future Ready:
+
+360DialogProvider
+MessageBirdProvider
+
+====================================================
+
+ADMIN SETTINGS
+
+Create:
+
+Settings
+→ WhatsApp Providers
+
+Display:
+
+Meta Cloud API
+Twilio WhatsApp
+
+Connection Status
+Webhook Status
+Phone Numbers
+Provider Health
+
+====================================================
+
+PROVIDER CONNECTIONS
+
+META CLOUD API
+
+Support:
+
+App ID
+App Secret
+Business Account ID
+Phone Number ID
+Access Token
+Webhook Verify Token
+
+Store securely.
+
+Validate connection.
+
+Display connected numbers.
+
+----------------------------------------------------
+
+TWILIO WHATSAPP
+
+Support:
+
+Account SID
+Auth Token
+WhatsApp Number
+Webhook URL
+
+Store securely.
+
+Validate connection.
+
+Display connected numbers.
+
+====================================================
+
+DATABASE
+
+Create provider records.
+
+Example:
+
+{
+  "provider": "meta",
+  "business_account_id": "...",
+  "phone_number_id": "...",
+  "status": "connected"
+}
+
+{
+  "provider": "twilio",
+  "account_sid": "...",
+  "whatsapp_number": "...",
+  "status": "connected"
+}
+
+====================================================
+
+PHONE NUMBER MANAGEMENT
+
+Create unified number management.
+
+Display:
+
+Provider
+Number
+Status
+Assigned Agent
+Assigned Workflow
+
+Support:
+
+Meta Numbers
+Twilio Numbers
+
+in the same interface.
+
+====================================================
+
+AGENT SETTINGS
+
+Add:
+
+WhatsApp Provider
+
+Dropdown:
+
+Meta Cloud API
+Twilio WhatsApp
+
+Add:
+
+WhatsApp Number
+
+Dropdown showing available connected numbers.
+
+Example:
+
+Agent:
+Sales Qualifier
+
+Provider:
+Meta Cloud API
+
+Number:
++971xxxxxxxxx
+
+====================================================
+
+WHATSAPP WORKFLOWS
+
+Existing Builder remains unchanged.
+
+Builder must not care which provider is used.
+
+Workflow:
+
+Inbound Message
+↓
+Runtime
+↓
+Workflow
+↓
+Response
+↓
+Provider Layer
+↓
+User
+
+Provider selected automatically from assigned number.
+
+====================================================
+
+WHATSAPP INBOX
+
+Unify all conversations.
+
+Display:
+
+Provider
+Contact
+Number
+Last Message
+Agent
+
+Support:
+
+Meta conversations
+Twilio conversations
+
+in a single inbox.
+
+====================================================
+
+BROADCAST SYSTEM
+
+Create provider-aware broadcast engine.
+
+Support:
+
+Broadcast Campaigns
+Scheduled Campaigns
+Template Campaigns
+
+Provider selected automatically.
+
+Track:
+
+Sent
+Delivered
+Read
+Replied
+Failed
+
+for each provider separately.
+
+====================================================
+
+WEBHOOKS
+
+Create separate webhook handlers.
+
+Meta Webhook
+
+/webhooks/whatsapp/meta
+
+Twilio Webhook
+
+/webhooks/whatsapp/twilio
+
+Normalize incoming events into a common message format.
+
+Runtime must receive identical message objects regardless of provider.
+
+====================================================
+
+ANALYTICS
+
+Display:
+
+Provider
+Messages Sent
+Delivered
+Read
+Replies
+Conversions
+
+Compare:
+
+Meta Cloud API
+Twilio WhatsApp
+
+====================================================
+
+COST TRACKING
+
+Integrate with Cost Engine.
+
+Track:
+
+Meta Costs
+Twilio Costs
+
+Display:
+
+Cost Per Conversation
+Cost Per Lead
+Cost Per Appointment
+
+====================================================
+
+SECURITY
+
+Encrypt all credentials.
+
+Never expose tokens to frontend.
+
+Validate provider ownership.
+
+Implement webhook signature validation.
+
+====================================================
+
+BACKWARDS COMPATIBILITY
+
+Existing WhatsApp workflows must continue working.
+
+Existing Builder functionality must continue working.
+
+Retell functionality must remain untouched.
+
+HyperStream functionality must remain untouched.
+
+====================================================
+
+SUCCESS CRITERIA
+
+Customer can:
+
+Connect Meta Cloud API
+OR
+
+Connect Twilio WhatsApp
+
+Import Numbers
+
+Assign Numbers To Agents
+
+Build WhatsApp Workflows
+
+Run Broadcast Campaigns
+
+Receive Messages
+
+Reply Automatically
+
+View Analytics
+
+Track Costs
+
+without changing workflows when switching providers.
+
+Generate implementation plan first.
+
+Identify:
+
+- Database changes
+- New services
+- Provider interfaces
+- Webhook endpoints
+- UI changes
+- Security requirements
+
+Then implement in safe phases.

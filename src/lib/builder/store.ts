@@ -286,34 +286,42 @@ export const useBuilderStore = create<State>()(
             data: { ...n.data, isStart: n.id === id },
           })),
         }),
-      clearAll: () =>
-        set({
-          nodes: [
-            makeNode("conversation", "start-node", 200, 200, {
-              label: "Start Call",
-              isStart: true,
-              startSpeaker: "agent",
-              instructionType: "static_text",
-              dialogue: "",
-            }),
-            makeNode("ending", "end-node", 700, 200, {
-              label: "End Call",
-              endingPrompt: "",
-            }),
-          ],
+      clearAll: () => {
+        const channelType = get().settings.channelType ?? "voice";
+        const isWA = channelType === "whatsapp";
+        return set({
+          nodes: isWA
+            ? [
+                makeNode("wa_start", "wa-start-node", 200, 200, {
+                  label: "Conversation Start",
+                  isStart: true,
+                  dialogue: "",
+                  transitions: [],
+                }),
+              ]
+            : [
+                makeNode("conversation", "start-node", 200, 200, {
+                  label: "Start Call",
+                  isStart: true,
+                  startSpeaker: "agent",
+                  instructionType: "static_text",
+                  dialogue: "",
+                }),
+                makeNode("ending", "end-node", 700, 200, {
+                  label: "End Call",
+                  endingPrompt: "",
+                }),
+              ],
           edges: [],
-          // Fully reset settings (speech, pronunciation, boosted keywords,
-          // backchannel words, saved Retell agent/flow IDs, etc.) and variables
-          // so a "new" flow starts truly blank.
-          settings: { ...defaultSettings },
+          // Preserve channelType through clear so WA flows stay in WA mode.
+          settings: { ...defaultSettings, channelType },
           variables: [],
           currentAgentRowId: null,
-          // Preserve testCallTotalSec across clears — cost history is cumulative.
-
           selectedNodeId: null,
           activeNodeId: null,
           flowVersion: get().flowVersion + 1,
-        }),
+        });
+      },
       setSettings: (s) => set({ settings: { ...get().settings, ...s } }),
       setVariables: (v) => set({ variables: v }),
       addTestCallSeconds: (seconds) =>

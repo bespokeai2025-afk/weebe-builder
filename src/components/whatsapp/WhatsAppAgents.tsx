@@ -83,9 +83,9 @@ export function WhatsAppAgents() {
           size="sm"
           className="gap-1.5"
           onClick={() => {
-            useBuilderStore.getState().resetFlow();
             useBuilderStore.getState().setSettings({ channelType: "whatsapp" });
-            navigate({ to: "/builder", search: { new: true } });
+            useBuilderStore.getState().clearAll();
+            navigate({ to: "/builder", search: { new: undefined } });
           }}
         >
           <Plus className="h-3.5 w-3.5" /> New WA Agent
@@ -107,9 +107,9 @@ export function WhatsAppAgents() {
             variant="outline"
             className="mt-2 gap-1.5"
             onClick={() => {
-              useBuilderStore.getState().resetFlow();
               useBuilderStore.getState().setSettings({ channelType: "whatsapp" });
-              navigate({ to: "/builder", search: { new: true } });
+              useBuilderStore.getState().clearAll();
+              navigate({ to: "/builder", search: { new: undefined } });
             }}
           >
             <Plus className="h-3.5 w-3.5" /> Create your first WA agent

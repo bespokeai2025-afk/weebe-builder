@@ -102,6 +102,11 @@ const STYLES: Record<NodeKind, Style> = {
     badgeClass: "bg-yellow-100 text-yellow-800",
     headerClass: "bg-yellow-50 border-yellow-200",
   },
+  wa_start: {
+    badge: "WA Start",
+    badgeClass: "bg-green-600 text-white",
+    headerClass: "bg-green-600/10 border-green-500/30",
+  },
   wa_message: {
     badge: "WA Message",
     badgeClass: "bg-green-100 text-green-800",
@@ -650,6 +655,7 @@ export const NodeRenderers: Record<NodeKind, typeof ConversationStyleNode> = {
   code: ConversationStyleNode,
   ending: SimpleNode,
   note: SimpleNode,
+  wa_start: ConversationStyleNode,
   wa_message: ConversationStyleNode,
   wa_delay: SimpleNode,
   wa_media: ConversationStyleNode,

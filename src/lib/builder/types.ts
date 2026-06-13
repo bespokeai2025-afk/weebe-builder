@@ -19,7 +19,8 @@ export type NodeKind =
   | "note"
   | "wa_message"
   | "wa_delay"
-  | "wa_media";
+  | "wa_media"
+  | "wa_start";
 
 export interface Transition {
   id: string;
