@@ -365,11 +365,12 @@ export const getWAProviderStatus = createServerFn({ method: "GET" })
 
     const { data: ws } = await sb
       .from("workspace_settings")
-      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider")
+      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
     const twilioConfigured = !!(ws?.twilio_account_sid?.trim() && ws?.twilio_auth_token?.trim() && ws?.whatsapp_phone_id?.trim());
+    const metaConfigured   = !!(ws?.meta_phone_number_id?.trim() && ws?.meta_access_token?.trim());
 
     const { data: watiRow } = await sb
       .from("wati_connections")
@@ -386,7 +387,8 @@ export const getWAProviderStatus = createServerFn({ method: "GET" })
       provider,
       twilioConfigured,
       watiConnected,
-      isConfigured: twilioConfigured || watiConnected,
+      metaConfigured,
+      isConfigured: twilioConfigured || watiConnected || metaConfigured,
     };
   });
 
@@ -419,7 +421,7 @@ export const getWASettings = createServerFn({ method: "GET" })
     const sb = supabase as any;
     const { data } = await sb
       .from("workspace_settings")
-      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider")
+      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_waba_id, meta_access_token, meta_verify_token")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     const domain = process.env.REPLIT_DEV_DOMAIN;
@@ -428,6 +430,43 @@ export const getWASettings = createServerFn({ method: "GET" })
       ...(data ?? {}),
       webhookUrl: `${origin}/api/public/whatsapp-webhook/${workspaceId}`,
     };
+  });
+
+export const saveMetaSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      data: z.object({
+        meta_phone_number_id: z.string().min(1),
+        meta_waba_id:         z.string().min(1),
+        meta_access_token:    z.string().min(1),
+        meta_verify_token:    z.string().optional(),
+      }),
+    }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("Not authenticated");
+    const sb = supabase as any;
+
+    const verifyToken = data.data.meta_verify_token?.trim() ||
+      crypto.randomUUID().replace(/-/g, "");
+
+    await sb
+      .from("workspace_settings")
+      .upsert(
+        {
+          workspace_id:         workspaceId,
+          whatsapp_provider:    "meta",
+          meta_phone_number_id: data.data.meta_phone_number_id.trim(),
+          meta_waba_id:         data.data.meta_waba_id.trim(),
+          meta_access_token:    data.data.meta_access_token.trim(),
+          meta_verify_token:    verifyToken,
+        },
+        { onConflict: "workspace_id" },
+      );
+
+    return { ok: true, meta_verify_token: verifyToken };
   });
 
 export const saveWASettings = createServerFn({ method: "POST" })

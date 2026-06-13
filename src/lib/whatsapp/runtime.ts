@@ -55,6 +55,38 @@ interface RuntimeInput {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+async function sendMeta(
+  to: string,
+  body: string,
+  phoneNumberId: string,
+  accessToken: string,
+): Promise<string | null> {
+  try {
+    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: to.replace(/^\+/, ""),
+        type: "text",
+        text: { body },
+      }),
+    });
+    const json = (await res.json()) as any;
+    if (!res.ok) {
+      console.error("[wa-runtime] Meta API error", json?.error?.message);
+    }
+    return (json?.messages?.[0]?.id as string | undefined) ?? null;
+  } catch (e) {
+    console.error("[wa-runtime] sendMeta failed", e);
+    return null;
+  }
+}
+
 async function sendTwilio(
   to: string,
   from: string,
@@ -242,20 +274,29 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
   const { workspaceId, contactPhone, contactName, inboundBody } = input;
   const sb = supabaseAdmin as any;
 
-  // 1. Get workspace settings (Twilio creds)
+  // 1. Get workspace settings (creds for whichever provider is active)
   const { data: ws } = await sb
     .from("workspace_settings")
-    .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id")
+    .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token")
     .eq("workspace_id", workspaceId)
     .single();
 
-  const accountSid = ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID;
-  const authToken  = ws?.twilio_auth_token  ?? process.env.TWILIO_AUTH_TOKEN;
-  const fromPhone  = ws?.whatsapp_phone_id;
+  const provider = (ws?.whatsapp_provider as string | undefined) ?? "twilio";
 
-  if (!accountSid || !authToken || !fromPhone) {
-    console.warn("[wa-runtime] Twilio credentials not configured for workspace", workspaceId);
-    return;
+  // Validate we have credentials for the active provider
+  if (provider === "meta") {
+    if (!ws?.meta_phone_number_id || !ws?.meta_access_token) {
+      console.warn("[wa-runtime] Meta credentials not configured for workspace", workspaceId);
+      return;
+    }
+  } else {
+    const accountSid = ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID;
+    const authToken  = ws?.twilio_auth_token  ?? process.env.TWILIO_AUTH_TOKEN;
+    const fromPhone  = ws?.whatsapp_phone_id;
+    if (!accountSid || !authToken || !fromPhone) {
+      console.warn("[wa-runtime] Twilio credentials not configured for workspace", workspaceId);
+      return;
+    }
   }
 
   // 2. Find active WhatsApp agent for this workspace
@@ -395,16 +436,27 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
   const nextNode = pickNextNode(currentNode, replyText, nodes);
   const nextNodeId = nextNode?.id ?? currentNodeId;
 
-  // 8. Send reply via Twilio
-  //    wa_media nodes: attach the configured media URL
+  // 8. Send reply via the active provider
+  //    wa_media nodes: attach the configured media URL (Twilio only)
   //    All other nodes: text only
   const isMediaNode = currentNode.data.kind === "wa_media";
-  const mediaUrl = isMediaNode ? (currentNode.data.mediaUrl ?? undefined) : undefined;
-  const messageBody = isMediaNode
-    ? (currentNode.data.mediaCaption ?? replyText)
-    : replyText;
+  const mediaUrl    = isMediaNode ? (currentNode.data.mediaUrl ?? undefined) : undefined;
+  const messageBody = isMediaNode ? (currentNode.data.mediaCaption ?? replyText) : replyText;
 
-  const sid = await sendTwilio(contactPhone, fromPhone, messageBody, accountSid, authToken, mediaUrl);
+  let sid: string | null = null;
+  if (provider === "meta") {
+    sid = await sendMeta(
+      contactPhone,
+      messageBody,
+      ws.meta_phone_number_id as string,
+      ws.meta_access_token as string,
+    );
+  } else {
+    const accountSid = (ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID) as string;
+    const authToken  = (ws?.twilio_auth_token  ?? process.env.TWILIO_AUTH_TOKEN)  as string;
+    const fromPhone  = ws?.whatsapp_phone_id as string;
+    sid = await sendTwilio(contactPhone, fromPhone, messageBody, accountSid, authToken, mediaUrl);
+  }
 
   // 9. Persist outbound message
   if (sid) {

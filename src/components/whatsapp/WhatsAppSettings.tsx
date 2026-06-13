@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Settings, Copy, CheckCheck, CheckCircle2, XCircle,
   RefreshCw, Loader2, Phone, Zap, ArrowRight, ChevronRight,
+  Globe, ExternalLink, Eye, EyeOff,
 } from "lucide-react";
 import { WatiIntegrationSettings } from "./WatiIntegrationSettings";
 import { Button } from "@/components/ui/button";
@@ -11,17 +12,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getWASettings, saveWASettings, registerTwilioWebhook } from "@/lib/dashboard/whatsapp.functions";
+import {
+  getWASettings,
+  saveWASettings,
+  registerTwilioWebhook,
+  saveMetaSettings,
+} from "@/lib/dashboard/whatsapp.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type Provider = "twilio" | "wati";
+type Provider = "twilio" | "wati" | "meta";
 
 export function WhatsAppSettings() {
   const qc = useQueryClient();
   const getSettingsFn     = useServerFn(getWASettings);
   const saveSettingsFn    = useServerFn(saveWASettings);
   const registerWebhookFn = useServerFn(registerTwilioWebhook);
+  const saveMetaFn        = useServerFn(saveMetaSettings);
 
   const { data, isLoading } = useQuery({
     queryKey: ["wa-settings"],
@@ -29,49 +36,68 @@ export function WhatsAppSettings() {
   });
 
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
-  const [form, setForm] = useState({
+
+  // Twilio form state
+  const [twilioForm, setTwilioForm] = useState({
     twilio_account_sid: "",
     twilio_auth_token: "",
     whatsapp_phone_id: "",
   });
+  const [webhookStatus, setWebhookStatus] = useState<{ registered: boolean; note: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [webhookStatus, setWebhookStatus] = useState<{
-    registered: boolean;
-    note: string;
-  } | null>(null);
+
+  // Meta form state
+  const [metaForm, setMetaForm] = useState({
+    meta_phone_number_id: "",
+    meta_waba_id: "",
+    meta_access_token: "",
+  });
+  const [metaVerifyToken, setMetaVerifyToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
-    if (data) {
-      const d = data as any;
-      setForm({
-        twilio_account_sid: d.twilio_account_sid ?? "",
-        twilio_auth_token:  d.twilio_auth_token  ?? "",
-        whatsapp_phone_id:  d.whatsapp_phone_id  ?? "",
-      });
-      if (d.whatsapp_provider === "wati") {
-        setSelectedProvider("wati");
-      } else if (d.whatsapp_provider === "twilio" || d.twilio_account_sid) {
-        setSelectedProvider("twilio");
-      }
+    if (!data) return;
+    const d = data as any;
+    setTwilioForm({
+      twilio_account_sid: d.twilio_account_sid ?? "",
+      twilio_auth_token:  d.twilio_auth_token  ?? "",
+      whatsapp_phone_id:  d.whatsapp_phone_id  ?? "",
+    });
+    setMetaForm({
+      meta_phone_number_id: d.meta_phone_number_id ?? "",
+      meta_waba_id:         d.meta_waba_id         ?? "",
+      meta_access_token:    d.meta_access_token    ?? "",
+    });
+    if (d.meta_verify_token) setMetaVerifyToken(d.meta_verify_token);
+
+    if (d.whatsapp_provider === "wati") {
+      setSelectedProvider("wati");
+    } else if (d.whatsapp_provider === "meta" || d.meta_phone_number_id) {
+      setSelectedProvider("meta");
+    } else if (d.whatsapp_provider === "twilio" || d.twilio_account_sid) {
+      setSelectedProvider("twilio");
     }
   }, [data]);
 
-  const webhookUrl = (data as any)?.webhookUrl ?? "";
-  const hasAllCreds = !!(form.twilio_account_sid && form.twilio_auth_token && form.whatsapp_phone_id);
+  const webhookUrl   = (data as any)?.webhookUrl ?? "";
+  const hasTwilio    = !!(twilioForm.twilio_account_sid && twilioForm.twilio_auth_token && twilioForm.whatsapp_phone_id);
+  const hasMetaCreds = !!(metaForm.meta_phone_number_id && metaForm.meta_waba_id && metaForm.meta_access_token);
 
-  const save = useMutation({
-    mutationFn: () => saveSettingsFn({ data: { ...form, whatsapp_provider: "twilio" } }),
+  // ── Twilio save ───────────────────────────────────────────────
+  const saveTwilio = useMutation({
+    mutationFn: () => saveSettingsFn({ data: { ...twilioForm, whatsapp_provider: "twilio" } }),
     onSuccess: (result: any) => {
       qc.invalidateQueries({ queryKey: ["wa-settings"] });
       qc.invalidateQueries({ queryKey: ["wa-provider-status"] });
       if (result?.webhookRegistered === true) {
         setWebhookStatus({ registered: true, note: result.webhookNote });
-        toast.success("Settings saved — webhook registered automatically");
-      } else if (result?.webhookRegistered === false && result?.webhookNote) {
+        toast.success("Settings saved — webhook registered on Twilio");
+      } else if (result?.webhookNote) {
         setWebhookStatus({ registered: false, note: result.webhookNote });
         toast.success("Settings saved");
       } else {
-        toast.success("WhatsApp settings saved");
+        toast.success("Twilio settings saved");
       }
     },
     onError: (e: any) => toast.error(e.message),
@@ -80,7 +106,7 @@ export function WhatsAppSettings() {
   const reRegister = useMutation({
     mutationFn: () => registerWebhookFn(),
     onSuccess: (result: any) => {
-      if (result?.webhookRegistered === true) {
+      if (result?.webhookRegistered) {
         setWebhookStatus({ registered: true, note: result.webhookNote });
         toast.success("Webhook registered on Twilio");
       } else {
@@ -91,12 +117,28 @@ export function WhatsAppSettings() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  function copyWebhook() {
-    navigator.clipboard.writeText(webhookUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  // ── Meta save ─────────────────────────────────────────────────
+  const saveMeta = useMutation({
+    mutationFn: () => saveMetaFn({
+      data: { ...metaForm, meta_verify_token: metaVerifyToken || undefined },
+    }),
+    onSuccess: (result: any) => {
+      qc.invalidateQueries({ queryKey: ["wa-settings"] });
+      qc.invalidateQueries({ queryKey: ["wa-provider-status"] });
+      if (result?.meta_verify_token) setMetaVerifyToken(result.meta_verify_token);
+      toast.success("Meta settings saved");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  function copyText(text: string, field: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
     });
   }
+
+  function copyWebhook() { copyText(webhookUrl, "webhook"); }
 
   if (isLoading) {
     return (
@@ -109,86 +151,60 @@ export function WhatsAppSettings() {
   return (
     <div className="space-y-8 max-w-2xl">
 
-      {/* ── Step 1: Choose provider ───────────────────────────────── */}
+      {/* ── Step 1: Choose provider ───────────────────────────────────── */}
       <div>
         <div className="mb-4">
-          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
-            Step 1
-          </p>
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Step 1</p>
           <h2 className="text-sm font-semibold">Choose your WhatsApp provider</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Connect one provider to start sending and receiving WhatsApp messages with your AI agents.
+            Connect one provider to send and receive WhatsApp messages with your AI agents.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {/* Twilio card */}
-          <button
+        <div className="grid grid-cols-3 gap-3">
+          {/* Twilio */}
+          <ProviderCard
+            selected={selectedProvider === "twilio"}
             onClick={() => setSelectedProvider("twilio")}
-            className={cn(
-              "relative rounded-xl border p-4 text-left transition-all hover:border-primary/50",
-              selectedProvider === "twilio"
-                ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                : "border-border bg-card hover:bg-muted/30"
-            )}
-          >
-            {selectedProvider === "twilio" && (
-              <span className="absolute top-2.5 right-2.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
-                <CheckCheck className="h-2.5 w-2.5 text-primary-foreground" />
-              </span>
-            )}
-            <div className="flex items-center gap-2.5 mb-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20">
-                <Phone className="h-4 w-4 text-red-400" />
-              </span>
-              <span className="font-semibold text-sm">Twilio</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Use your own Twilio number. Full control over the number, messaging and webhook setup — all automated.
-            </p>
-          </button>
-
-          {/* WATI card */}
-          <button
+            icon={<Phone className="h-4 w-4 text-red-400" />}
+            iconBg="bg-red-500/10 border-red-500/20"
+            name="Twilio"
+            description="Your own Twilio number. Automated webhook setup — no manual steps."
+          />
+          {/* WATI */}
+          <ProviderCard
+            selected={selectedProvider === "wati"}
             onClick={() => setSelectedProvider("wati")}
-            className={cn(
-              "relative rounded-xl border p-4 text-left transition-all hover:border-primary/50",
-              selectedProvider === "wati"
-                ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                : "border-border bg-card hover:bg-muted/30"
-            )}
-          >
-            {selectedProvider === "wati" && (
-              <span className="absolute top-2.5 right-2.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
-                <CheckCheck className="h-2.5 w-2.5 text-primary-foreground" />
-              </span>
-            )}
-            <div className="flex items-center gap-2.5 mb-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10 border border-green-500/20">
-                <Zap className="h-4 w-4 text-green-500" />
-              </span>
-              <span className="font-semibold text-sm">WATI</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Connect your WATI account for managed WhatsApp Business API with built-in templates and contacts.
-            </p>
-          </button>
+            icon={<Zap className="h-4 w-4 text-green-500" />}
+            iconBg="bg-green-500/10 border-green-500/20"
+            name="WATI"
+            description="Managed WhatsApp Business API with built-in templates and contacts."
+          />
+          {/* Meta */}
+          <ProviderCard
+            selected={selectedProvider === "meta"}
+            onClick={() => setSelectedProvider("meta")}
+            icon={<Globe className="h-4 w-4 text-blue-400" />}
+            iconBg="bg-blue-500/10 border-blue-500/20"
+            name="Meta"
+            description="Direct WhatsApp Business API via Meta Developer Portal."
+          />
         </div>
       </div>
 
-      {/* ── Step 2: Provider-specific setup ──────────────────────── */}
+      {/* ── Step 2: Provider setup ────────────────────────────────────── */}
       {selectedProvider ? (
         <div>
           <div className="mb-4">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">
-              Step 2
-            </p>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Step 2</p>
             <h2 className="text-sm font-semibold">
-              {selectedProvider === "twilio" ? "Enter your Twilio credentials" : "Connect your WATI account"}
+              {selectedProvider === "twilio" && "Enter your Twilio credentials"}
+              {selectedProvider === "wati"   && "Connect your WATI account"}
+              {selectedProvider === "meta"   && "Enter your Meta credentials"}
             </h2>
           </div>
 
-          {/* ── Twilio setup ── */}
+          {/* ── Twilio ── */}
           {selectedProvider === "twilio" && (
             <div className="space-y-4">
               <Card>
@@ -196,169 +212,318 @@ export function WhatsAppSettings() {
                   <CardTitle className="text-sm font-semibold">Twilio Credentials</CardTitle>
                   <CardDescription className="text-xs">
                     Find these in your{" "}
-                    <a
-                      href="https://console.twilio.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      Twilio Console
+                    <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Twilio Console <ExternalLink className="inline h-3 w-3" />
                     </a>
-                    . WeeBee will automatically register the inbound webhook when you save — no copy-paste needed.
+                    . WeeBee auto-registers the inbound webhook when you save.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Account SID</Label>
+                  <Field label="Account SID">
                     <Input
-                      value={form.twilio_account_sid}
-                      onChange={(e) => setForm({ ...form, twilio_account_sid: e.target.value })}
+                      value={twilioForm.twilio_account_sid}
+                      onChange={(e) => setTwilioForm({ ...twilioForm, twilio_account_sid: e.target.value })}
                       placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                       className="font-mono text-sm"
                     />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Auth Token</Label>
+                  </Field>
+                  <Field label="Auth Token">
                     <Input
                       type="password"
-                      value={form.twilio_auth_token}
-                      onChange={(e) => setForm({ ...form, twilio_auth_token: e.target.value })}
+                      value={twilioForm.twilio_auth_token}
+                      onChange={(e) => setTwilioForm({ ...twilioForm, twilio_auth_token: e.target.value })}
                       placeholder="••••••••••••••••••••••••••••••••"
                       className="font-mono text-sm"
                     />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">WhatsApp Phone Number</Label>
+                  </Field>
+                  <Field label="WhatsApp Phone Number" hint="Include + and country code, e.g. +14155238886">
                     <Input
-                      value={form.whatsapp_phone_id}
-                      onChange={(e) => setForm({ ...form, whatsapp_phone_id: e.target.value })}
+                      value={twilioForm.whatsapp_phone_id}
+                      onChange={(e) => setTwilioForm({ ...twilioForm, whatsapp_phone_id: e.target.value })}
                       placeholder="+14155238886"
                       className="font-mono text-sm"
                     />
-                    <p className="text-[11px] text-muted-foreground">
-                      Include the + and country code (e.g. +14155238886 for the Twilio sandbox).
-                    </p>
-                  </div>
+                  </Field>
                 </CardContent>
               </Card>
 
-              {/* Webhook card */}
               {webhookUrl && (
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
                       <Settings className="h-4 w-4" /> Inbound Webhook
                     </CardTitle>
-                    <CardDescription className="text-xs">
-                      Auto-registered on save. Copy for manual setup if needed.
-                    </CardDescription>
+                    <CardDescription className="text-xs">Auto-registered on save. Copy for manual setup if needed.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        readOnly
-                        value={webhookUrl}
-                        className="font-mono text-xs bg-muted/50"
-                      />
-                      <Button variant="outline" size="icon" onClick={copyWebhook} className="shrink-0">
-                        {copied
-                          ? <CheckCheck className="h-4 w-4 text-green-500" />
-                          : <Copy className="h-4 w-4" />}
-                      </Button>
-                    </div>
-
-                    {webhookStatus && (
-                      <div
-                        className={cn(
-                          "flex items-start gap-2 rounded-md border p-2.5",
-                          webhookStatus.registered
-                            ? "bg-green-500/10 border-green-500/20"
-                            : "bg-amber-500/10 border-amber-500/20"
-                        )}
-                      >
-                        {webhookStatus.registered
-                          ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
-                          : <XCircle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />}
-                        <p className="text-xs text-muted-foreground leading-relaxed">{webhookStatus.note}</p>
-                      </div>
-                    )}
-
-                    {hasAllCreds && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => reRegister.mutate()}
-                        disabled={reRegister.isPending}
-                        className="gap-1.5"
-                      >
-                        {reRegister.isPending
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          : <RefreshCw className="h-3.5 w-3.5" />}
-                        Re-register webhook on Twilio
+                    <CopyRow value={webhookUrl} copied={copiedField === "webhook"} onCopy={copyWebhook} />
+                    {webhookStatus && <WebhookStatusBadge status={webhookStatus} />}
+                    {hasTwilio && (
+                      <Button variant="outline" size="sm" onClick={() => reRegister.mutate()} disabled={reRegister.isPending} className="gap-1.5">
+                        {reRegister.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        Re-register webhook
                       </Button>
                     )}
                   </CardContent>
                 </Card>
               )}
 
-              {/* Status summary */}
-              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Phone className="h-3.5 w-3.5" />
-                  <span>Connection status</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={hasAllCreds ? "default" : "secondary"}
-                    className={cn(
-                      "text-[10px]",
-                      hasAllCreds && "bg-green-600 hover:bg-green-600 text-white"
-                    )}
-                  >
-                    {hasAllCreds ? "Credentials entered" : "Not configured"}
-                  </Badge>
-                  {webhookStatus?.registered && (
-                    <Badge className="text-[10px] bg-green-500/20 text-green-600 border border-green-500/30 hover:bg-green-500/20">
-                      Webhook ✓
-                    </Badge>
-                  )}
-                </div>
-              </div>
+              <StatusBar
+                icon={<Phone className="h-3.5 w-3.5" />}
+                label="Connection status"
+                ok={hasTwilio}
+                okLabel="Credentials entered"
+                nokLabel="Not configured"
+                extra={webhookStatus?.registered ? <Badge className="text-[10px] bg-green-500/20 text-green-600 border border-green-500/30">Webhook ✓</Badge> : null}
+              />
 
               <div className="flex justify-end">
-                <Button
-                  onClick={() => save.mutate()}
-                  disabled={save.isPending || !hasAllCreds}
-                  className="gap-2"
-                >
-                  {save.isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving & registering webhook…
-                    </>
-                  ) : (
-                    <>
-                      Save & Register Webhook
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
+                <Button onClick={() => saveTwilio.mutate()} disabled={saveTwilio.isPending || !hasTwilio} className="gap-2">
+                  {saveTwilio.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <>Save & Register Webhook <ArrowRight className="h-4 w-4" /></>}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* ── WATI setup ── */}
-          {selectedProvider === "wati" && (
-            <WatiIntegrationSettings />
+          {/* ── WATI ── */}
+          {selectedProvider === "wati" && <WatiIntegrationSettings />}
+
+          {/* ── Meta ── */}
+          {selectedProvider === "meta" && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">Meta WhatsApp Business API</CardTitle>
+                  <CardDescription className="text-xs">
+                    Get these from your{" "}
+                    <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Meta Developer Portal <ExternalLink className="inline h-3 w-3" />
+                    </a>
+                    {" "}→ your App → WhatsApp → API Setup.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Field
+                    label="Phone Number ID"
+                    hint="App → WhatsApp → API Setup → Phone Number ID"
+                  >
+                    <Input
+                      value={metaForm.meta_phone_number_id}
+                      onChange={(e) => setMetaForm({ ...metaForm, meta_phone_number_id: e.target.value })}
+                      placeholder="123456789012345"
+                      className="font-mono text-sm"
+                    />
+                  </Field>
+                  <Field
+                    label="WhatsApp Business Account ID (WABA ID)"
+                    hint="Meta Business Settings → WhatsApp Accounts → your account ID"
+                  >
+                    <Input
+                      value={metaForm.meta_waba_id}
+                      onChange={(e) => setMetaForm({ ...metaForm, meta_waba_id: e.target.value })}
+                      placeholder="987654321098765"
+                      className="font-mono text-sm"
+                    />
+                  </Field>
+                  <Field
+                    label="Permanent Access Token"
+                    hint="Meta Business Settings → System Users → Generate Token (never expires)"
+                  >
+                    <div className="relative">
+                      <Input
+                        type={showToken ? "text" : "password"}
+                        value={metaForm.meta_access_token}
+                        onChange={(e) => setMetaForm({ ...metaForm, meta_access_token: e.target.value })}
+                        placeholder="EAAxxxxxxxxxxxxxxxx…"
+                        className="font-mono text-sm pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowToken(!showToken)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </Field>
+                </CardContent>
+              </Card>
+
+              {/* Webhook config for Meta */}
+              {webhookUrl && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Settings className="h-4 w-4" /> Webhook Configuration
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Save first to generate your verify token, then paste both values into{" "}
+                      <strong>Meta Developer Portal → App → WhatsApp → Configuration → Webhook</strong>.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Callback URL — paste this into Meta</Label>
+                      <CopyRow
+                        value={webhookUrl}
+                        copied={copiedField === "webhook"}
+                        onCopy={copyWebhook}
+                      />
+                    </div>
+
+                    {metaVerifyToken && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Verify Token — paste this into Meta</Label>
+                        <CopyRow
+                          value={metaVerifyToken}
+                          copied={copiedField === "verifyToken"}
+                          onCopy={() => copyText(metaVerifyToken, "verifyToken")}
+                          mono
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          This is auto-generated. Paste it into the "Verify token" field in Meta's Webhook settings, then click Verify and Save.
+                        </p>
+                      </div>
+                    )}
+
+                    {!metaVerifyToken && (
+                      <p className="text-[11px] text-amber-500">
+                        Save your credentials below to generate the verify token.
+                      </p>
+                    )}
+
+                    {/* Subscriptions reminder */}
+                    <div className="rounded-md border border-blue-500/20 bg-blue-500/5 p-3 space-y-1">
+                      <p className="text-[11px] font-medium text-blue-400">After webhook is verified in Meta:</p>
+                      <ol className="text-[11px] text-muted-foreground space-y-0.5 list-decimal list-inside">
+                        <li>Click <strong>Manage</strong> next to Webhook fields</li>
+                        <li>Subscribe to <strong>messages</strong></li>
+                        <li>That's it — WeeBee handles everything else</li>
+                      </ol>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <StatusBar
+                icon={<Globe className="h-3.5 w-3.5" />}
+                label="Connection status"
+                ok={hasMetaCreds}
+                okLabel="Credentials entered"
+                nokLabel="Not configured"
+                extra={metaVerifyToken ? <Badge className="text-[10px] bg-blue-500/20 text-blue-600 border border-blue-500/30">Token ready</Badge> : null}
+              />
+
+              <div className="flex justify-end">
+                <Button onClick={() => saveMeta.mutate()} disabled={saveMeta.isPending || !hasMetaCreds} className="gap-2">
+                  {saveMeta.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <>Save Meta Settings <ArrowRight className="h-4 w-4" /></>}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-border bg-muted/20 flex flex-col items-center justify-center py-12 text-center gap-2">
           <ChevronRight className="h-8 w-8 text-muted-foreground/40" />
           <p className="text-sm font-medium text-muted-foreground">Select a provider above to begin setup</p>
-          <p className="text-xs text-muted-foreground/70">Twilio or WATI — pick the one your team already uses</p>
+          <p className="text-xs text-muted-foreground/70">Twilio, WATI, or Meta — pick the one your business already uses</p>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Small shared sub-components ─────────────────────────────────────────── */
+
+function ProviderCard({
+  selected, onClick, icon, iconBg, name, description,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  iconBg: string;
+  name: string;
+  description: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "relative rounded-xl border p-4 text-left transition-all hover:border-primary/50",
+        selected ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border bg-card hover:bg-muted/30",
+      )}
+    >
+      {selected && (
+        <span className="absolute top-2.5 right-2.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
+          <CheckCheck className="h-2.5 w-2.5 text-primary-foreground" />
+        </span>
+      )}
+      <div className="flex items-center gap-2.5 mb-2">
+        <span className={cn("flex h-8 w-8 items-center justify-center rounded-lg border", iconBg)}>{icon}</span>
+        <span className="font-semibold text-sm">{name}</span>
+      </div>
+      <p className="text-[11px] text-muted-foreground leading-relaxed">{description}</p>
+    </button>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      {children}
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function CopyRow({ value, copied, onCopy, mono = true }: { value: string; copied: boolean; onCopy: () => void; mono?: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Input readOnly value={value} className={cn("bg-muted/50 text-xs", mono && "font-mono")} />
+      <Button variant="outline" size="icon" onClick={onCopy} className="shrink-0">
+        {copied ? <CheckCheck className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+      </Button>
+    </div>
+  );
+}
+
+function WebhookStatusBadge({ status }: { status: { registered: boolean; note: string } }) {
+  return (
+    <div className={cn("flex items-start gap-2 rounded-md border p-2.5", status.registered ? "bg-green-500/10 border-green-500/20" : "bg-amber-500/10 border-amber-500/20")}>
+      {status.registered
+        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+        : <XCircle     className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />}
+      <p className="text-xs text-muted-foreground leading-relaxed">{status.note}</p>
+    </div>
+  );
+}
+
+function StatusBar({
+  icon, label, ok, okLabel, nokLabel, extra,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  ok: boolean;
+  okLabel: string;
+  nokLabel: string;
+  extra?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge
+          variant={ok ? "default" : "secondary"}
+          className={cn("text-[10px]", ok && "bg-green-600 hover:bg-green-600 text-white")}
+        >
+          {ok ? okLabel : nokLabel}
+        </Badge>
+        {extra}
+      </div>
     </div>
   );
 }
