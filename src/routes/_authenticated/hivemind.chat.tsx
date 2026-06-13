@@ -185,15 +185,20 @@ function useElRelay(
           const micSrc = audioCtx.createMediaStreamSource(stream);
           const worklet = new AudioWorkletNode(audioCtx, "pcm16-cap");
           worklet.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-            if (ws.readyState === WebSocket.OPEN) ws.send(e.data);
+            if (ws.readyState === WebSocket.OPEN) {
+              const bytes = new Uint8Array(e.data);
+              let bin = "";
+              for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+              ws.send(JSON.stringify({ type: "audio.chunk", data: btoa(bin) }));
+            }
           };
           micSrc.connect(worklet);
           worklet.connect(audioCtx.destination);
         } catch { setError("Microphone access denied"); setState("error"); }
       }
       if (msg.type === "audio.delta" && typeof msg.data === "string") scheduleChunk(msg.data);
-      if (msg.type === "transcript.user"      && msg.text) onTranscript("user",    String(msg.text));
-      if (msg.type === "transcript.assistant" && msg.text) onTranscript("hivemind", String(msg.text));
+      if (msg.type === "transcript" && msg.role === "user"  && msg.text) onTranscript("user",     String(msg.text));
+      if (msg.type === "transcript" && msg.role === "agent" && msg.text) onTranscript("hivemind", String(msg.text));
     };
     ws.onerror = () => { setError("Connection failed"); setState("error"); };
     ws.onclose = () => { setState("idle"); };
