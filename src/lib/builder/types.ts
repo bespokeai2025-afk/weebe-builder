@@ -25,7 +25,8 @@ export type NodeKind =
   | "wa_wait_reply"
   | "wa_extract_var"
   | "wa_tag"
-  | "wa_template";
+  | "wa_template"
+  | "check_documents";
 
 export interface Transition {
   id: string;

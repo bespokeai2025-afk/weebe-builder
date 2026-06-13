@@ -70,6 +70,7 @@ import {
   PauseCircle,
   Tag,
   FileText,
+  FolderOpen,
 } from "lucide-react";
 import { FlowCanvas } from "./FlowCanvas";
 import { NodeEditorDialog } from "./NodeEditorDialog";
@@ -106,6 +107,7 @@ const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; c
   { kind: "code", label: "Code", icon: CodeIcon, color: "text-slate-700" },
   { kind: "ending", label: "Ending", icon: Square, color: "text-rose-600" },
   { kind: "note", label: "Note", icon: StickyNote, color: "text-yellow-700" },
+  { kind: "check_documents", label: "Check Documents", icon: FolderOpen, color: "text-teal-600" },
 ];
 
 const WA_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [

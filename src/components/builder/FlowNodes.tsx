@@ -147,6 +147,13 @@ const STYLES: Record<NodeKind, Style> = {
     badgeClass: "bg-blue-100 text-blue-800",
     headerClass: "bg-blue-50/70 border-blue-200",
   },
+  check_documents: {
+    badge: "Check Docs",
+    badgeClass: "bg-teal-600 text-white shadow-sm",
+    headerClass: "bg-teal-100 border-teal-300 dark:bg-teal-500/20 dark:border-teal-400/40",
+    ringClass:
+      "!ring-2 !ring-teal-500/70 !border-teal-500/70 shadow-[0_0_24px_-4px_rgba(20,184,166,0.55)] dark:shadow-[0_0_28px_-4px_rgba(45,212,191,0.6)]",
+  },
 };
 
 /**
@@ -689,4 +696,5 @@ export const NodeRenderers: Record<NodeKind, typeof ConversationStyleNode> = {
   wa_extract_var: SimpleNode,
   wa_tag: SimpleNode,
   wa_template: ConversationStyleNode,
+  check_documents: ConversationStyleNode,
 };

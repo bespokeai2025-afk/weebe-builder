@@ -491,6 +491,46 @@ export function NodeEditorDialog() {
             </div>
           )}
 
+          {d.kind === "check_documents" && (
+            <>
+              <div className="rounded-lg border border-teal-200 bg-teal-50/60 px-4 py-3 space-y-1 text-sm dark:border-teal-700/50 dark:bg-teal-900/20">
+                <p className="font-medium text-teal-800 dark:text-teal-300">Check Documents tool</p>
+                <p className="text-teal-700 dark:text-teal-400 text-xs leading-relaxed">
+                  During the call the agent will look up whether the contact has uploaded any
+                  documents. The tool response includes a ready-made <code className="font-mono bg-teal-100 dark:bg-teal-800 rounded px-1">summary</code> sentence
+                  the agent can speak directly, plus counts of client- and admin-uploaded files.
+                </p>
+              </div>
+
+              <div>
+                <Label>Agent instruction</Label>
+                <Textarea
+                  rows={4}
+                  value={d.dialogue}
+                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                  placeholder={
+                    "Call check_documents to look up whether this contact has submitted their files.\n" +
+                    "Read the returned summary aloud verbatim.\n" +
+                    "If no documents are found and an upload_url is present, offer to send them the link via SMS."
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Speak during execution</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Say something while the lookup runs (recommended)
+                  </p>
+                </div>
+                <Switch
+                  checked={d.speakDuringExecution ?? true}
+                  onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
+                />
+              </div>
+            </>
+          )}
+
           {d.kind === "extract_variable" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
