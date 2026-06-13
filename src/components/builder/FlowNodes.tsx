@@ -127,6 +127,26 @@ const STYLES: Record<NodeKind, Style> = {
     badgeClass: "bg-sky-100 text-sky-800",
     headerClass: "bg-sky-50/70 border-sky-200",
   },
+  wa_wait_reply: {
+    badge: "WA Wait Reply",
+    badgeClass: "bg-amber-100 text-amber-800",
+    headerClass: "bg-amber-50/70 border-amber-200",
+  },
+  wa_extract_var: {
+    badge: "WA Extract Var",
+    badgeClass: "bg-indigo-100 text-indigo-800",
+    headerClass: "bg-indigo-50/70 border-indigo-200",
+  },
+  wa_tag: {
+    badge: "WA Tag",
+    badgeClass: "bg-purple-100 text-purple-800",
+    headerClass: "bg-purple-50/70 border-purple-200",
+  },
+  wa_template: {
+    badge: "WA Template",
+    badgeClass: "bg-blue-100 text-blue-800",
+    headerClass: "bg-blue-50/70 border-blue-200",
+  },
 };
 
 /**
@@ -665,4 +685,8 @@ export const NodeRenderers: Record<NodeKind, typeof ConversationStyleNode> = {
   wa_delay: SimpleNode,
   wa_media: ConversationStyleNode,
   wa_booking: ConversationStyleNode,
+  wa_wait_reply: ConversationStyleNode,
+  wa_extract_var: SimpleNode,
+  wa_tag: SimpleNode,
+  wa_template: ConversationStyleNode,
 };

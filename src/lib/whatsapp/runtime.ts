@@ -1,21 +1,35 @@
 /**
- * WhatsApp conversation runtime engine.
+ * WhatsApp conversation runtime engine — multi-step workflow edition.
  *
- * Processes an inbound WhatsApp message through an agent's flow graph and
- * sends an automated reply via Twilio. Called from the Twilio webhook handler.
+ * Three execution modes (set per-agent via waExecutionMode in BuilderSettings):
  *
- * Flow:
- *  1. Find the workspace's active WhatsApp agent
- *  2. Get/create conversation session (tracks current node)
- *  3. Fetch recent message history for context
- *  4. Call OpenAI to generate a reply from the current node's prompt
- *  5. Evaluate transitions to advance the node
- *  6. Send reply via Twilio REST API (with optional MediaUrl for wa_media nodes)
- *  7. Persist session + outbound message
+ *   structured       — Default. Strict node-by-node flow. Transitions evaluated
+ *                      via keyword matching against the user's message.
  *
- * wa_media nodes: send a media URL (image/video/audio/document) via Twilio MMS.
- * wa_booking nodes: fetch live Cal.com slots and inject into AI context so the
- *   agent can present booking times as plain text over WhatsApp.
+ *   ai_assisted      — Same flow structure but AI evaluates transition conditions
+ *                      and extracts named variables from user messages. Logic-split
+ *                      branches can reference {variables}.
+ *
+ *   fully_autonomous — AI sees the entire remaining flow as context, chooses its
+ *                      own response AND the next node in a single LLM call. The
+ *                      flow graph acts as guardrails, not a strict script.
+ *
+ * New node kinds:
+ *
+ *   wa_wait_reply    — Sends its dialogue verbatim, then pauses. The next inbound
+ *                      message resumes from this node, optionally extracts a
+ *                      variable, then evaluates transitions.
+ *
+ *   wa_extract_var   — AI extracts a named variable from the user's last message.
+ *                      No reply sent; advances silently.
+ *
+ *   wa_tag           — Tags the contact in whatsapp_contacts. No reply; advances.
+ *
+ *   wa_template      — Sends templateBody with {variable} substitution. No AI.
+ *
+ * Variable interpolation:
+ *   Any outbound message body can contain {variable_name} placeholders that are
+ *   replaced with values accumulated in session.workflow_variables.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
@@ -30,21 +44,21 @@ interface FlowNode {
     dialogue?: string;
     isStart?: boolean;
     endingPrompt?: string;
-    smsMessage?: string;
-    /** wa_media: publicly accessible URL of the media to send */
     mediaUrl?: string;
-    /** wa_media: optional caption shown below the media */
     mediaCaption?: string;
-    /** wa_booking: fallback Cal.com or Calendly link sent when no API key */
     bookingUrl?: string;
-    /** wa_booking: Cal.com event type ID (overrides workspace default) */
     bookingEventTypeId?: string;
-    /** wa_booking: how many days ahead to look for slots (default 7) */
     bookingLookaheadDays?: number;
+    extractVarName?: string;
+    extractVarPrompt?: string;
+    tagName?: string;
+    templateBody?: string;
     transitions: Array<{ id: string; condition: string; target: string | null }>;
     [key: string]: unknown;
   };
 }
+
+type ExecutionMode = "structured" | "ai_assisted" | "fully_autonomous";
 
 interface RuntimeInput {
   workspaceId: string;
@@ -53,7 +67,7 @@ interface RuntimeInput {
   inboundBody: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Send helpers ──────────────────────────────────────────────────────────────
 
 async function sendMeta(
   to: string,
@@ -62,8 +76,7 @@ async function sendMeta(
   accessToken: string,
 ): Promise<string | null> {
   try {
-    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
-    const res = await fetch(url, {
+    const res = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -77,9 +90,7 @@ async function sendMeta(
       }),
     });
     const json = (await res.json()) as any;
-    if (!res.ok) {
-      console.error("[wa-runtime] Meta API error", json?.error?.message);
-    }
+    if (!res.ok) console.error("[wa-runtime] Meta API error", json?.error?.message);
     return (json?.messages?.[0]?.id as string | undefined) ?? null;
   } catch (e) {
     console.error("[wa-runtime] sendMeta failed", e);
@@ -96,7 +107,6 @@ async function sendTwilio(
   mediaUrl?: string,
 ): Promise<string | null> {
   try {
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
     const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
     const params: Record<string, string> = {
       To: `whatsapp:${to}`,
@@ -105,18 +115,19 @@ async function sendTwilio(
     };
     if (mediaUrl) params.MediaUrl = mediaUrl;
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+    const res = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams(params),
       },
-      body: new URLSearchParams(params),
-    });
+    );
     const json = (await res.json()) as any;
-    if (!res.ok) {
-      console.error("[wa-runtime] Twilio error", json?.code, json?.message);
-    }
+    if (!res.ok) console.error("[wa-runtime] Twilio error", json?.code, json?.message);
     return json?.sid ?? null;
   } catch (e) {
     console.error("[wa-runtime] sendTwilio failed", e);
@@ -124,27 +135,24 @@ async function sendTwilio(
   }
 }
 
+// ── OpenAI helpers ────────────────────────────────────────────────────────────
+
 async function callOpenAI(
   systemPrompt: string,
   messages: Array<{ role: "user" | "assistant"; content: string }>,
+  maxTokens = 512,
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      max_tokens: 512,
+      max_tokens: maxTokens,
       temperature: 0.4,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages,
-      ],
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
     }),
   });
 
@@ -157,40 +165,109 @@ async function callOpenAI(
   return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
-function pickNextNode(
-  currentNode: FlowNode,
-  reply: string,
-  allNodes: FlowNode[],
-): FlowNode | null {
-  if (!currentNode.data.transitions || currentNode.data.transitions.length === 0) return null;
-  const replyLower = reply.toLowerCase();
+// ── Variable helpers ──────────────────────────────────────────────────────────
 
-  for (const t of currentNode.data.transitions) {
+function interpolate(text: string, vars: Record<string, string>): string {
+  return text.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
+}
+
+async function extractVariable(
+  varName: string,
+  instruction: string,
+  userMessage: string,
+): Promise<string | null> {
+  const prompt = instruction
+    ? instruction
+    : `Extract the value of "${varName}" from the user's message. Return ONLY the extracted value as plain text, or "null" if not found.`;
+
+  try {
+    const result = await callOpenAI(
+      `You are a data extraction assistant. ${prompt}\nRespond with ONLY the extracted value or the word "null".`,
+      [{ role: "user", content: userMessage }],
+      64,
+    );
+    return result && result.toLowerCase() !== "null" ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Transition helpers ────────────────────────────────────────────────────────
+
+function pickTransitionKeyword(
+  node: FlowNode,
+  userMessage: string,
+  nodes: FlowNode[],
+): FlowNode | null {
+  if (!node.data.transitions?.length) return null;
+  const lower = userMessage.toLowerCase();
+
+  for (const t of node.data.transitions) {
     if (!t.target) continue;
-    const cond = t.condition?.toLowerCase() ?? "";
-    if (!cond) {
-      return allNodes.find((n) => n.id === t.target) ?? null;
+    const cond = t.condition?.toLowerCase().trim() ?? "";
+    if (!cond || cond === "always" || cond === "default" || cond === "else") {
+      return nodes.find((n) => n.id === t.target) ?? null;
     }
-    if (replyLower.includes(cond) || cond.includes("always") || cond.includes("default")) {
-      return allNodes.find((n) => n.id === t.target) ?? null;
+    if (lower.includes(cond)) {
+      return nodes.find((n) => n.id === t.target) ?? null;
     }
   }
 
-  const first = currentNode.data.transitions.find((t) => t.target);
-  return first ? (allNodes.find((n) => n.id === first.target) ?? null) : null;
+  const first = node.data.transitions.find((t) => t.target);
+  return first ? (nodes.find((n) => n.id === first.target) ?? null) : null;
 }
 
-/**
- * Fetch available Cal.com slots for the next `lookaheadDays` days.
- * Returns a human-readable text list, or null if Cal.com is not configured.
- */
+async function pickTransitionAI(
+  node: FlowNode,
+  userMessage: string,
+  variables: Record<string, string>,
+  nodes: FlowNode[],
+): Promise<FlowNode | null> {
+  if (!node.data.transitions?.length) return null;
+
+  const validTargets = node.data.transitions.filter((t) => t.target);
+  if (validTargets.length === 0) return null;
+  if (validTargets.length === 1) {
+    const cond = validTargets[0].condition?.toLowerCase().trim() ?? "";
+    if (!cond || cond === "always" || cond === "default" || cond === "else") {
+      return nodes.find((n) => n.id === validTargets[0].target) ?? null;
+    }
+  }
+
+  const transitionList = validTargets
+    .map((t) => `- id="${t.target}" condition="${t.condition}"`)
+    .join("\n");
+
+  const varContext =
+    Object.keys(variables).length > 0
+      ? `\nCollected variables: ${JSON.stringify(variables)}`
+      : "";
+
+  const prompt = `You must choose the correct next node from the transitions below based on the user's message and the collected variables.
+User message: "${userMessage}"${varContext}
+
+Transitions:
+${transitionList}
+
+Respond with ONLY the id of the chosen next node (exactly as shown), nothing else.`;
+
+  try {
+    const raw = await callOpenAI(prompt, [], 32);
+    const chosen = raw.trim().replace(/^["']|["']$/g, "");
+    return nodes.find((n) => n.id === chosen) ?? null;
+  } catch {
+    return pickTransitionKeyword(node, userMessage, nodes);
+  }
+}
+
+// ── Cal.com booking helper ────────────────────────────────────────────────────
+
 async function fetchCalSlotSummary(
   workspaceId: string,
   eventTypeIdOverride?: string,
   lookaheadDays = 7,
-): Promise<{ summary: string; bookingLink: string | null } | null> {
+): Promise<string | null> {
   const sb = supabaseAdmin as any;
-
   const { data: ws } = await sb
     .from("workspace_settings")
     .select("calcom_api_key, default_event_type_id")
@@ -203,7 +280,6 @@ async function fetchCalSlotSummary(
   const eventTypeId = eventTypeIdOverride
     ? Number(eventTypeIdOverride)
     : (ws?.default_event_type_id as number | undefined);
-
   if (!eventTypeId) return null;
 
   try {
@@ -211,33 +287,21 @@ async function fetchCalSlotSummary(
     const end = new Date(now);
     end.setDate(end.getDate() + lookaheadDays);
 
-    const startTime = now.toISOString().split("T")[0];
-    const endTime = end.toISOString().split("T")[0];
-
-    const calRes = await fetch(
-      `https://api.cal.com/v2/slots/available?eventTypeId=${eventTypeId}&startTime=${startTime}&endTime=${endTime}`,
-      {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-      },
+    const res = await fetch(
+      `https://api.cal.com/v2/slots/available?eventTypeId=${eventTypeId}&startTime=${now.toISOString().split("T")[0]}&endTime=${end.toISOString().split("T")[0]}`,
+      { headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" } },
     );
 
-    if (!calRes.ok) {
-      console.warn("[wa-runtime] Cal.com slots fetch failed", await calRes.text());
-      return null;
-    }
+    if (!res.ok) return null;
 
-    const calData = (await calRes.json()) as any;
+    const calData = (await res.json()) as any;
     const slotsByDay: Record<string, Array<{ time: string }>> =
       calData?.data?.slots ?? calData?.slots ?? {};
 
     const lines: string[] = [];
     for (const [day, daySlots] of Object.entries(slotsByDay)) {
       if (!Array.isArray(daySlots) || daySlots.length === 0) continue;
-      const date = new Date(day);
-      const dayLabel = date.toLocaleDateString("en-US", {
+      const dayLabel = new Date(day).toLocaleDateString("en-US", {
         weekday: "short",
         month: "short",
         day: "numeric",
@@ -256,15 +320,124 @@ async function fetchCalSlotSummary(
       if (lines.length >= 5) break;
     }
 
-    if (lines.length === 0) return null;
-
-    return {
-      summary: lines.join("\n"),
-      bookingLink: null,
-    };
-  } catch (e) {
-    console.error("[wa-runtime] Cal.com slots error", e);
+    return lines.length > 0 ? lines.join("\n") : null;
+  } catch {
     return null;
+  }
+}
+
+// ── AI reply generators ───────────────────────────────────────────────────────
+
+async function generateStructuredReply(
+  currentNode: FlowNode,
+  chatHistory: Array<{ role: "user" | "assistant"; content: string }>,
+  inboundBody: string,
+  variables: Record<string, string>,
+  agentSettings: Record<string, unknown>,
+  bookingContext: string,
+  isNew: boolean,
+): Promise<string> {
+  const agentName = (agentSettings.agentName as string | undefined) ?? "Assistant";
+  const globalPrompt = (agentSettings.globalPrompt as string | undefined) ?? "";
+  const nodePrompt = interpolate(
+    currentNode.data.dialogue ?? currentNode.data.endingPrompt ?? "",
+    variables,
+  );
+
+  const varContext =
+    Object.keys(variables).length > 0
+      ? `\nCollected data so far: ${Object.entries(variables)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", ")}`
+      : "";
+
+  const systemPrompt = [
+    `You are ${agentName}, a WhatsApp AI assistant.`,
+    globalPrompt ? `\n${globalPrompt}` : "",
+    nodePrompt ? `\n\nCurrent instruction for this step:\n${nodePrompt}` : "",
+    varContext,
+    bookingContext,
+    "\n\nReply concisely (1-3 sentences). Do not use markdown. Be conversational.",
+    isNew ? "\nThis is the first message — greet the user appropriately." : "",
+  ]
+    .filter(Boolean)
+    .join("");
+
+  return callOpenAI(systemPrompt, [
+    ...chatHistory.slice(-8),
+    { role: "user", content: inboundBody },
+  ]);
+}
+
+async function generateFullyAutonomousReply(
+  nodes: FlowNode[],
+  currentNode: FlowNode,
+  chatHistory: Array<{ role: "user" | "assistant"; content: string }>,
+  inboundBody: string,
+  variables: Record<string, string>,
+  agentSettings: Record<string, unknown>,
+): Promise<{ reply: string; nextNodeId: string | null }> {
+  const agentName = (agentSettings.agentName as string | undefined) ?? "Assistant";
+  const globalPrompt = (agentSettings.globalPrompt as string | undefined) ?? "";
+
+  const flowSummary = nodes
+    .filter((n) => n.data.kind !== "note")
+    .map(
+      (n) =>
+        `[id=${n.id} kind=${n.data.kind} label="${n.data.label}"] ${n.data.dialogue ?? n.data.templateBody ?? ""}`.slice(
+          0,
+          200,
+        ),
+    )
+    .join("\n");
+
+  const varContext =
+    Object.keys(variables).length > 0
+      ? `\nCollected data: ${JSON.stringify(variables)}`
+      : "";
+
+  const validNextIds = (currentNode.data.transitions ?? [])
+    .filter((t) => t.target)
+    .map((t) => t.target)
+    .join(", ");
+
+  const systemPrompt = `You are ${agentName}, a WhatsApp AI assistant.
+${globalPrompt}
+
+You are currently at node "${currentNode.data.label}" (id=${currentNode.id}).${varContext}
+
+Full flow graph (for context):
+${flowSummary}
+
+Valid next node IDs from current node: [${validNextIds || "none — this is the end"}]
+
+The user just said: "${inboundBody}"
+
+Respond in JSON format ONLY:
+{"reply": "your reply to the user", "next_node_id": "id of next node or null"}
+
+Rules:
+- reply must be 1-3 sentences, conversational, no markdown.
+- next_node_id must be one of the valid next node IDs, or null if the conversation should end.`;
+
+  try {
+    const raw = await callOpenAI(systemPrompt, chatHistory.slice(-6), 256);
+    const json = JSON.parse(raw.replace(/^```json\s*|```\s*$/g, ""));
+    return {
+      reply: (json.reply as string | undefined) ?? "",
+      nextNodeId: (json.next_node_id as string | null | undefined) ?? null,
+    };
+  } catch {
+    const fallback = await generateStructuredReply(
+      currentNode,
+      chatHistory,
+      inboundBody,
+      variables,
+      agentSettings,
+      "",
+      false,
+    );
+    return { reply: fallback, nextNodeId: null };
   }
 }
 
@@ -274,16 +447,17 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
   const { workspaceId, contactPhone, contactName, inboundBody } = input;
   const sb = supabaseAdmin as any;
 
-  // 1. Get workspace settings (creds for whichever provider is active)
+  // 1. Get workspace settings
   const { data: ws } = await sb
     .from("workspace_settings")
-    .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token")
+    .select(
+      "twilio_account_sid, twilio_auth_token, whatsapp_phone_id, whatsapp_provider, meta_phone_number_id, meta_access_token",
+    )
     .eq("workspace_id", workspaceId)
     .single();
 
   const provider = (ws?.whatsapp_provider as string | undefined) ?? "twilio";
 
-  // Validate we have credentials for the active provider
   if (provider === "meta") {
     if (!ws?.meta_phone_number_id || !ws?.meta_access_token) {
       console.warn("[wa-runtime] Meta credentials not configured for workspace", workspaceId);
@@ -291,15 +465,14 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
     }
   } else {
     const accountSid = ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID;
-    const authToken  = ws?.twilio_auth_token  ?? process.env.TWILIO_AUTH_TOKEN;
-    const fromPhone  = ws?.whatsapp_phone_id;
-    if (!accountSid || !authToken || !fromPhone) {
+    const authToken = ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN;
+    if (!accountSid || !authToken || !ws?.whatsapp_phone_id) {
       console.warn("[wa-runtime] Twilio credentials not configured for workspace", workspaceId);
       return;
     }
   }
 
-  // 2. Find active WhatsApp agent for this workspace
+  // 2. Find active WhatsApp agent
   const { data: agentsRaw } = await sb
     .from("agents")
     .select("id, name, flow_data, settings, variables")
@@ -308,21 +481,23 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
     .limit(20);
 
   const agents = (agentsRaw ?? []) as any[];
-  const agent = agents.find((a) => {
-    const settings = (typeof a.settings === "string" ? JSON.parse(a.settings) : a.settings) ?? {};
-    return settings.channelType === "whatsapp";
+  const agent = agents.find((a: any) => {
+    const s = (typeof a.settings === "string" ? JSON.parse(a.settings) : a.settings) ?? {};
+    return s.channelType === "whatsapp";
   });
 
-  if (!agent) {
-    // No WhatsApp agent configured — messages stored, no auto-reply
-    return;
-  }
+  if (!agent) return;
 
-  const agentSettings = (typeof agent.settings === "string" ? JSON.parse(agent.settings) : agent.settings) ?? {};
-  const flowData = (typeof agent.flow_data === "string" ? JSON.parse(agent.flow_data) : agent.flow_data) ?? {};
+  const agentSettings: Record<string, unknown> =
+    (typeof agent.settings === "string" ? JSON.parse(agent.settings) : agent.settings) ?? {};
+  const flowData =
+    (typeof agent.flow_data === "string" ? JSON.parse(agent.flow_data) : agent.flow_data) ?? {};
   const nodes: FlowNode[] = flowData.nodes ?? [];
 
   if (nodes.length === 0) return;
+
+  const mode: ExecutionMode =
+    (agentSettings.waExecutionMode as ExecutionMode | undefined) ?? "structured";
 
   const startNode = nodes.find((n) => n.data.isStart) ?? nodes[0];
 
@@ -346,6 +521,8 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
         agent_id: agent.id,
         current_node_id: startNode.id,
         message_count: 0,
+        workflow_variables: {},
+        waiting_for_reply: false,
       })
       .select()
       .single();
@@ -354,20 +531,78 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
 
   if (session?.ended) return;
 
-  const currentNodeId = session?.current_node_id ?? startNode.id;
-  const currentNode = nodes.find((n) => n.id === currentNodeId) ?? startNode;
+  const currentNodeId: string = session?.current_node_id ?? startNode.id;
+  const currentNode: FlowNode = nodes.find((n) => n.id === currentNodeId) ?? startNode;
+  let variables: Record<string, string> = (session?.workflow_variables as Record<string, string>) ?? {};
+  const isResuming: boolean = session?.waiting_for_reply ?? false;
 
-  // Handle ending node — close session
-  if (currentNode.data.kind === "ending") {
+  // Helper: persist session updates
+  async function updateSession(patch: Record<string, unknown>) {
     await sb
       .from("whatsapp_sessions")
-      .update({ ended: true, updated_at: new Date().toISOString() })
+      .update({ ...patch, updated_at: new Date().toISOString() })
       .eq("workspace_id", workspaceId)
       .eq("contact_phone", contactPhone);
+  }
+
+  // Helper: send message via active provider and persist it
+  async function sendAndPersist(body: string, mediaUrl?: string): Promise<void> {
+    const msg = interpolate(body, variables);
+    let sid: string | null = null;
+
+    if (provider === "meta") {
+      sid = await sendMeta(
+        contactPhone,
+        msg,
+        ws.meta_phone_number_id as string,
+        ws.meta_access_token as string,
+      );
+    } else {
+      const accountSid = (ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID) as string;
+      const authToken = (ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN) as string;
+      const fromPhone = ws?.whatsapp_phone_id as string;
+      sid = await sendTwilio(contactPhone, fromPhone, msg, accountSid, authToken, mediaUrl);
+    }
+
+    if (sid) {
+      await sb.from("whatsapp_messages").insert({
+        workspace_id: workspaceId,
+        external_id: sid,
+        contact_phone: contactPhone,
+        contact_name: contactName,
+        direction: "outbound",
+        body: msg,
+        media_url: mediaUrl ?? null,
+        status: "sent",
+        sent_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  // Helper: tag contact
+  async function tagContact(tag: string) {
+    await sb
+      .from("whatsapp_contacts")
+      .upsert(
+        {
+          workspace_id: workspaceId,
+          phone: contactPhone,
+          tags: sb.raw(`array_append(COALESCE(tags, '{}'), '${tag.replace(/'/g, "''")}'::text)`),
+        },
+        { onConflict: "workspace_id,phone", ignoreDuplicates: false },
+      )
+      .catch(() => {
+        console.warn("[wa-runtime] Could not tag contact", tag);
+      });
+  }
+
+  // 4. Handle ending node
+  if (currentNode.data.kind === "ending") {
+    await updateSession({ ended: true });
     return;
   }
 
-  // 4. Fetch recent message history (last 10 messages) for context
+  // 5. Fetch message history
   const { data: historyRaw } = await sb
     .from("whatsapp_messages")
     .select("direction, body")
@@ -384,105 +619,202 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
       content: m.body as string,
     }));
 
-  // 5. Build system prompt — pulls globalPrompt from agent settings + node dialogue
-  const globalPrompt = agentSettings.globalPrompt ?? "";
-  const nodePrompt   = currentNode.data.dialogue ?? currentNode.data.smsMessage ?? "";
-  const agentName    = agentSettings.agentName ?? "Assistant";
+  // ── NODE DISPATCH ──────────────────────────────────────────────────────────
 
-  // 5a. For wa_booking nodes: fetch Cal.com slots and inject them
+  // ── wa_wait_reply ──────────────────────────────────────────────────────────
+  if (currentNode.data.kind === "wa_wait_reply") {
+    if (!isResuming) {
+      // First visit: send the dialogue and pause
+      const msg = currentNode.data.dialogue
+        ? interpolate(currentNode.data.dialogue, variables)
+        : "";
+      if (msg) await sendAndPersist(msg);
+      await updateSession({
+        waiting_for_reply: true,
+        message_count: (session?.message_count ?? 0) + 1,
+      });
+      return;
+    }
+
+    // Resuming: user sent a reply — optionally extract variable, then advance
+    if ((mode === "ai_assisted" || mode === "fully_autonomous") && currentNode.data.extractVarName) {
+      const extracted = await extractVariable(
+        currentNode.data.extractVarName,
+        currentNode.data.extractVarPrompt ?? "",
+        inboundBody,
+      );
+      if (extracted) variables[currentNode.data.extractVarName] = extracted;
+    }
+
+    const nextNode =
+      mode === "structured"
+        ? pickTransitionKeyword(currentNode, inboundBody, nodes)
+        : await pickTransitionAI(currentNode, inboundBody, variables, nodes);
+
+    const nextNodeId = nextNode?.id ?? currentNodeId;
+    const ended = nextNode?.data.kind === "ending";
+
+    await updateSession({
+      current_node_id: nextNodeId,
+      workflow_variables: variables,
+      waiting_for_reply: false,
+      message_count: (session?.message_count ?? 0) + 1,
+      ended,
+    });
+    return;
+  }
+
+  // ── wa_extract_var — silent extraction, no reply ───────────────────────────
+  if (currentNode.data.kind === "wa_extract_var") {
+    if (currentNode.data.extractVarName) {
+      const extracted = await extractVariable(
+        currentNode.data.extractVarName,
+        currentNode.data.extractVarPrompt ?? "",
+        inboundBody,
+      );
+      if (extracted) variables[currentNode.data.extractVarName] = extracted;
+    }
+
+    const nextNode = pickTransitionKeyword(currentNode, inboundBody, nodes);
+    await updateSession({
+      current_node_id: nextNode?.id ?? currentNodeId,
+      workflow_variables: variables,
+      message_count: (session?.message_count ?? 0) + 1,
+      ended: nextNode?.data.kind === "ending",
+    });
+    return;
+  }
+
+  // ── wa_tag — tag contact, no reply ────────────────────────────────────────
+  if (currentNode.data.kind === "wa_tag") {
+    if (currentNode.data.tagName) {
+      await tagContact(currentNode.data.tagName);
+    }
+    const nextNode = pickTransitionKeyword(currentNode, inboundBody, nodes);
+    await updateSession({
+      current_node_id: nextNode?.id ?? currentNodeId,
+      message_count: (session?.message_count ?? 0) + 1,
+      ended: nextNode?.data.kind === "ending",
+    });
+    return;
+  }
+
+  // ── wa_template — fixed message with variable interpolation ───────────────
+  if (currentNode.data.kind === "wa_template") {
+    const body = currentNode.data.templateBody ?? currentNode.data.dialogue ?? "";
+    if (body) await sendAndPersist(body);
+
+    const nextNode =
+      mode === "structured"
+        ? pickTransitionKeyword(currentNode, inboundBody, nodes)
+        : await pickTransitionAI(currentNode, inboundBody, variables, nodes);
+
+    await updateSession({
+      current_node_id: nextNode?.id ?? currentNodeId,
+      workflow_variables: variables,
+      message_count: (session?.message_count ?? 0) + 1,
+      ended: nextNode?.data.kind === "ending",
+    });
+    return;
+  }
+
+  // ── Booking context for wa_booking nodes ──────────────────────────────────
   let bookingContext = "";
   if (currentNode.data.kind === "wa_booking") {
     const lookahead = currentNode.data.bookingLookaheadDays ?? 7;
-    const calResult = await fetchCalSlotSummary(
+    const slots = await fetchCalSlotSummary(
       workspaceId,
       currentNode.data.bookingEventTypeId,
       lookahead,
     );
-
-    if (calResult && calResult.summary) {
-      bookingContext = `\n\nAvailable appointment slots for the next ${lookahead} days:\n${calResult.summary}\n\nPresent these options naturally to the contact. Ask which slot works for them. Do not include raw ISO timestamps — use the friendly times shown above.`;
+    if (slots) {
+      bookingContext = `\n\nAvailable appointment slots for the next ${lookahead} days:\n${slots}\n\nPresent these options naturally. Ask which slot works. Do not include raw ISO timestamps.`;
     } else if (currentNode.data.bookingUrl) {
-      bookingContext = `\n\nShare this booking link with the contact: ${currentNode.data.bookingUrl}\nTell them they can click it to pick a time that works for them.`;
+      bookingContext = `\n\nShare this booking link: ${currentNode.data.bookingUrl}`;
     }
   }
 
-  const systemPrompt = [
-    `You are ${agentName}, a WhatsApp AI assistant.`,
-    globalPrompt ? `\n${globalPrompt}` : "",
-    nodePrompt ? `\n\nCurrent instruction for this step:\n${nodePrompt}` : "",
-    bookingContext,
-    "\n\nReply concisely (1-3 sentences max). Do not use markdown. Be conversational.",
-    isNew ? "\nThis is the first message — greet the user appropriately." : "",
-  ]
-    .filter(Boolean)
-    .join("");
+  // ── AI-Assisted: extract variables from all wa_extract_var nodes passively ─
+  if (mode === "ai_assisted") {
+    for (const n of nodes) {
+      if (n.data.kind === "wa_extract_var" && n.data.extractVarName) {
+        if (!variables[n.data.extractVarName]) {
+          const extracted = await extractVariable(
+            n.data.extractVarName,
+            n.data.extractVarPrompt ?? "",
+            inboundBody,
+          ).catch(() => null);
+          if (extracted) variables[n.data.extractVarName] = extracted;
+        }
+      }
+    }
+  }
 
-  // 6. Generate reply with OpenAI
+  // ── Generate AI reply ──────────────────────────────────────────────────────
   let replyText: string;
-  try {
-    const msgs: Array<{ role: "user" | "assistant"; content: string }> = [
-      ...chatHistory.slice(-8),
-      { role: "user", content: inboundBody },
-    ];
-    replyText = await callOpenAI(systemPrompt, msgs);
-  } catch (e) {
-    console.error("[wa-runtime] OpenAI error", e);
-    return;
+  let overrideNextNodeId: string | null = null;
+
+  if (mode === "fully_autonomous") {
+    const result = await generateFullyAutonomousReply(
+      nodes,
+      currentNode,
+      chatHistory,
+      inboundBody,
+      variables,
+      agentSettings,
+    ).catch(async () => ({
+      reply: await generateStructuredReply(
+        currentNode,
+        chatHistory,
+        inboundBody,
+        variables,
+        agentSettings,
+        bookingContext,
+        isNew,
+      ),
+      nextNodeId: null as string | null,
+    }));
+    replyText = result.reply;
+    overrideNextNodeId = result.nextNodeId;
+  } else {
+    replyText = await generateStructuredReply(
+      currentNode,
+      chatHistory,
+      inboundBody,
+      variables,
+      agentSettings,
+      bookingContext,
+      isNew,
+    );
   }
 
   if (!replyText) return;
 
-  // 7. Advance to next node based on transitions
-  const nextNode = pickNextNode(currentNode, replyText, nodes);
-  const nextNodeId = nextNode?.id ?? currentNodeId;
+  // ── Determine next node ────────────────────────────────────────────────────
+  let nextNode: FlowNode | null = null;
 
-  // 8. Send reply via the active provider
-  //    wa_media nodes: attach the configured media URL (Twilio only)
-  //    All other nodes: text only
-  const isMediaNode = currentNode.data.kind === "wa_media";
-  const mediaUrl    = isMediaNode ? (currentNode.data.mediaUrl ?? undefined) : undefined;
-  const messageBody = isMediaNode ? (currentNode.data.mediaCaption ?? replyText) : replyText;
-
-  let sid: string | null = null;
-  if (provider === "meta") {
-    sid = await sendMeta(
-      contactPhone,
-      messageBody,
-      ws.meta_phone_number_id as string,
-      ws.meta_access_token as string,
-    );
+  if (overrideNextNodeId) {
+    nextNode = nodes.find((n) => n.id === overrideNextNodeId) ?? null;
+  } else if (mode === "ai_assisted") {
+    nextNode = await pickTransitionAI(currentNode, inboundBody, variables, nodes);
   } else {
-    const accountSid = (ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID) as string;
-    const authToken  = (ws?.twilio_auth_token  ?? process.env.TWILIO_AUTH_TOKEN)  as string;
-    const fromPhone  = ws?.whatsapp_phone_id as string;
-    sid = await sendTwilio(contactPhone, fromPhone, messageBody, accountSid, authToken, mediaUrl);
+    nextNode = pickTransitionKeyword(currentNode, replyText, nodes);
   }
 
-  // 9. Persist outbound message
-  if (sid) {
-    await sb.from("whatsapp_messages").insert({
-      workspace_id: workspaceId,
-      external_id: sid,
-      contact_phone: contactPhone,
-      contact_name: contactName,
-      direction: "outbound",
-      body: messageBody,
-      media_url: mediaUrl ?? null,
-      status: "sent",
-      sent_at: new Date().toISOString(),
-    });
-  }
+  // ── Send reply ─────────────────────────────────────────────────────────────
+  const isMediaNode = currentNode.data.kind === "wa_media";
+  const mediaUrl = isMediaNode ? (currentNode.data.mediaUrl ?? undefined) : undefined;
+  const messageBody =
+    isMediaNode && currentNode.data.mediaCaption ? currentNode.data.mediaCaption : replyText;
 
-  // 10. Update session state
+  await sendAndPersist(messageBody, mediaUrl);
+
+  // ── Update session ─────────────────────────────────────────────────────────
   const ended = nextNode?.data.kind === "ending";
-  await sb
-    .from("whatsapp_sessions")
-    .update({
-      current_node_id: nextNodeId,
-      message_count: (session?.message_count ?? 0) + 1,
-      ended,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("workspace_id", workspaceId)
-    .eq("contact_phone", contactPhone);
+  await updateSession({
+    current_node_id: nextNode?.id ?? currentNodeId,
+    workflow_variables: variables,
+    message_count: (session?.message_count ?? 0) + 1,
+    ended,
+  });
 }

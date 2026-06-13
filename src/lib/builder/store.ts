@@ -124,10 +124,15 @@ const NODE_LABELS: Record<NodeKind, string> = {
   code: "Code",
   ending: "Ending",
   note: "Note",
-  wa_message: "WA Message",
-  wa_delay: "WA Delay",
-  wa_media: "WA Media",
-  wa_booking: "WA Booking",
+  wa_start:       "WA Start",
+  wa_message:     "WA Message",
+  wa_delay:       "WA Delay",
+  wa_media:       "WA Media",
+  wa_booking:     "WA Booking",
+  wa_wait_reply:  "WA Wait Reply",
+  wa_extract_var: "WA Extract Var",
+  wa_tag:         "WA Tag",
+  wa_template:    "WA Template",
 };
 
 const makeNode = (
@@ -218,6 +223,10 @@ export const useBuilderStore = create<State>()(
           ...(kind === "function" ? { speakDuringExecution: false, waitForResult: true } : {}),
           ...(kind === "ending" ? { endingPrompt: "Politely end the call" } : {}),
           ...(kind === "conversation" ? { instructionType: "prompt" } : {}),
+          ...(kind === "wa_wait_reply" ? { dialogue: "" } : {}),
+          ...(kind === "wa_extract_var" ? { extractVarName: "", extractVarPrompt: "" } : {}),
+          ...(kind === "wa_tag" ? { tagName: "" } : {}),
+          ...(kind === "wa_template" ? { templateBody: "" } : {}),
         });
         set({ nodes: [...get().nodes, node] });
       },

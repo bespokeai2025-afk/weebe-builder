@@ -21,7 +21,11 @@ export type NodeKind =
   | "wa_delay"
   | "wa_media"
   | "wa_booking"
-  | "wa_start";
+  | "wa_start"
+  | "wa_wait_reply"
+  | "wa_extract_var"
+  | "wa_tag"
+  | "wa_template";
 
 export interface Transition {
   id: string;
@@ -115,6 +119,14 @@ export interface FlowNodeData {
   bookingEventTypeId?: string;
   /** For wa_booking — how many days ahead to look for available slots */
   bookingLookaheadDays?: number;
+  /** For wa_extract_var — variable name to extract */
+  extractVarName?: string;
+  /** For wa_extract_var — instruction for the AI extractor */
+  extractVarPrompt?: string;
+  /** For wa_tag — tag label to apply to the contact */
+  tagName?: string;
+  /** For wa_template — body text with {variable} placeholders */
+  templateBody?: string;
   /** For extract_variable — legacy single-variable fields (kept for round-trip compat) */
   variableName?: string;
   variableDescription?: string;
@@ -264,6 +276,13 @@ export interface BuilderSettings {
    * "whatsapp" shows WhatsApp-specific nodes and hides voice-only nodes/settings.
    */
   channelType?: "voice" | "whatsapp";
+  /**
+   * WhatsApp execution mode — controls how the runtime processes the flow.
+   * "structured"      — strict node-by-node with keyword transitions (default).
+   * "ai_assisted"     — AI evaluates transitions and extracts variables.
+   * "fully_autonomous"— AI sees full flow context, drives response + routing.
+   */
+  waExecutionMode?: "structured" | "ai_assisted" | "fully_autonomous";
   /**
    * Intended deployment type — controls which builder sections are visible.
    * Set here in the builder and mirrored as dashboardAgentType on Go Live.

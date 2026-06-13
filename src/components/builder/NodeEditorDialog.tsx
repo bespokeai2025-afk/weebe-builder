@@ -761,6 +761,115 @@ export function NodeEditorDialog() {
             </div>
           )}
 
+          {d.kind === "wa_wait_reply" && (
+            <div className="space-y-3">
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                When the flow reaches this node, the agent sends the message below and
+                <strong> pauses</strong>. The next message the contact sends resumes the flow
+                and evaluates the transitions below.
+              </div>
+              <div>
+                <Label>Question / prompt to send</Label>
+                <Textarea
+                  rows={3}
+                  value={d.dialogue ?? ""}
+                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                  placeholder="e.g. What's your budget range?"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Sent verbatim — no AI, no modifications. Use {"{"}<em>variable</em>{"}"} placeholders.
+                </p>
+              </div>
+              <div>
+                <Label>Variable to extract from reply (optional)</Label>
+                <Input
+                  value={d.extractVarName ?? ""}
+                  onChange={(e) => updateNode(node.id, { extractVarName: e.target.value })}
+                  placeholder="e.g. budget"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  In AI-Assisted mode the runtime will attempt to extract this named variable from
+                  the contact's reply and store it for use in later {"{"}<em>variable</em>{"}"} placeholders.
+                </p>
+              </div>
+              <div>
+                <Label>Extraction instruction (optional)</Label>
+                <Input
+                  value={d.extractVarPrompt ?? ""}
+                  onChange={(e) => updateNode(node.id, { extractVarPrompt: e.target.value })}
+                  placeholder="e.g. Extract the numeric budget the user mentioned"
+                />
+              </div>
+            </div>
+          )}
+
+          {d.kind === "wa_extract_var" && (
+            <div className="space-y-3">
+              <div className="rounded-md border border-indigo-200 bg-indigo-50 p-3 text-[12px] text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300">
+                Silently extracts a named variable from the contact's last message.
+                No reply is sent. The flow advances to the next node automatically.
+              </div>
+              <div>
+                <Label>Variable name</Label>
+                <Input
+                  value={d.extractVarName ?? ""}
+                  onChange={(e) => updateNode(node.id, { extractVarName: e.target.value })}
+                  placeholder="e.g. city"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Stored as <code>{"{"}<em>city</em>{"}"}</code> — use this in later WA Message or WA Template nodes.
+                </p>
+              </div>
+              <div>
+                <Label>Extraction instruction</Label>
+                <Textarea
+                  rows={2}
+                  value={d.extractVarPrompt ?? ""}
+                  onChange={(e) => updateNode(node.id, { extractVarPrompt: e.target.value })}
+                  placeholder="e.g. Extract the city or location the user mentioned"
+                />
+              </div>
+            </div>
+          )}
+
+          {d.kind === "wa_tag" && (
+            <div className="space-y-3">
+              <div className="rounded-md border border-purple-200 bg-purple-50 p-3 text-[12px] text-purple-800 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300">
+                Applies a tag to this contact in the contacts table. No message is sent.
+                Useful for segmenting contacts (e.g. "qualified", "high-intent").
+              </div>
+              <div>
+                <Label>Tag name</Label>
+                <Input
+                  value={d.tagName ?? ""}
+                  onChange={(e) => updateNode(node.id, { tagName: e.target.value })}
+                  placeholder="e.g. qualified"
+                />
+              </div>
+            </div>
+          )}
+
+          {d.kind === "wa_template" && (
+            <div className="space-y-3">
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-[12px] text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                Sends a fixed message with variable substitution — no AI generation.
+                Use <code>{"{"}<em>variable_name</em>{"}"}</code> placeholders for values collected earlier.
+              </div>
+              <div>
+                <Label>Message body</Label>
+                <Textarea
+                  rows={4}
+                  value={d.templateBody ?? ""}
+                  onChange={(e) => updateNode(node.id, { templateBody: e.target.value })}
+                  placeholder={`e.g. Hi {name}, thanks for reaching out! Your budget of {budget} looks good.`}
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Variables in {"{"}<em>curly braces</em>{"}"} are replaced with extracted values at runtime.
+                </p>
+              </div>
+            </div>
+          )}
+
           {d.kind !== "ending" && d.kind !== "note" && (
             <div>
               <div className="flex items-center justify-between mb-2">

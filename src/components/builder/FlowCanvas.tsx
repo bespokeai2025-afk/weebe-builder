@@ -35,11 +35,15 @@ const KIND_COLOR: Record<string, string> = {
   code: "var(--flow-node)",
   ending: "var(--flow-node)",
   note: "var(--flow-node)",
-  wa_start:   "var(--flow-node)",
-  wa_message: "var(--flow-node)",
-  wa_delay:   "var(--flow-node)",
-  wa_media:   "var(--flow-node)",
-  wa_booking: "var(--flow-node)",
+  wa_start:        "var(--flow-node)",
+  wa_message:      "var(--flow-node)",
+  wa_delay:        "var(--flow-node)",
+  wa_media:        "var(--flow-node)",
+  wa_booking:      "var(--flow-node)",
+  wa_wait_reply:   "var(--flow-node)",
+  wa_extract_var:  "var(--flow-node)",
+  wa_tag:          "var(--flow-node)",
+  wa_template:     "var(--flow-node)",
 };
 
 const MINI_MAP_WIDTH = 132;

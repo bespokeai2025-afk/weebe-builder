@@ -67,6 +67,9 @@ import {
   CalendarClock,
   LayoutGrid,
   Undo2,
+  PauseCircle,
+  Tag,
+  FileText,
 } from "lucide-react";
 import { FlowCanvas } from "./FlowCanvas";
 import { NodeEditorDialog } from "./NodeEditorDialog";
@@ -111,6 +114,10 @@ const WA_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; colo
   { kind: "wa_media",        label: "WA Media",        icon: ImageIcon,        color: "text-lime-600"  },
   { kind: "wa_booking",      label: "WA Booking",      icon: CalendarCheck,    color: "text-sky-600"   },
   { kind: "wa_delay",        label: "WA Delay",        icon: Clock,            color: "text-teal-600"  },
+  { kind: "wa_wait_reply",   label: "WA Wait Reply",   icon: PauseCircle,      color: "text-amber-600" },
+  { kind: "wa_extract_var",  label: "Extract Variable",icon: Braces,           color: "text-indigo-600"},
+  { kind: "wa_tag",          label: "WA Tag",          icon: Tag,              color: "text-purple-600"},
+  { kind: "wa_template",     label: "WA Template",     icon: FileText,         color: "text-blue-600"  },
   { kind: "logic_split",     label: "Logic Split",     icon: GitBranch,        color: "text-pink-600"  },
   { kind: "extract_variable",label: "Extract Variable",icon: Braces,           color: "text-indigo-600"},
   { kind: "code",            label: "Code",            icon: CodeIcon,         color: "text-slate-700" },
@@ -1985,17 +1992,42 @@ export function Builder({
             </Collapsible>
 
             {settings.channelType === "whatsapp" ? (
-              <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3 space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <MsgSq className="h-3.5 w-3.5 text-green-500" />
-                  <p className="text-[11px] font-semibold text-green-400">WhatsApp Mode</p>
+              <div className="space-y-3">
+                <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <MsgSq className="h-3.5 w-3.5 text-green-500" />
+                    <p className="text-[11px] font-semibold text-green-400">WhatsApp Mode</p>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    Use <strong>WA Message</strong>, <strong>WA Wait Reply</strong>, <strong>WA Media</strong>, and <strong>WA Booking</strong> nodes to build your conversation.
+                  </p>
                 </div>
-                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  This flow runs on WhatsApp. Use <strong>WA Message</strong>, <strong>WA Media</strong>, and <strong>WA Delay</strong> nodes to build your conversation. Voice settings are hidden.
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  Runtime: messages are sent via Twilio WhatsApp API when a contact replies inbound.
-                </p>
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Execution Mode</p>
+                  {(["structured", "ai_assisted", "fully_autonomous"] as const).map((mode) => {
+                    const labels: Record<string, string> = {
+                      structured: "Structured",
+                      ai_assisted: "AI-Assisted",
+                      fully_autonomous: "Fully Autonomous",
+                    };
+                    const descs: Record<string, string> = {
+                      structured: "Strict node-by-node flow, keyword transitions.",
+                      ai_assisted: "AI evaluates conditions and extracts variables.",
+                      fully_autonomous: "AI drives the conversation using the flow as context.",
+                    };
+                    const active = (settings.waExecutionMode ?? "structured") === mode;
+                    return (
+                      <button
+                        key={mode}
+                        onClick={() => setSettings({ waExecutionMode: mode })}
+                        className={`w-full text-left rounded-md border px-2.5 py-2 transition-colors ${active ? "border-green-500/40 bg-green-500/10" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]"}`}
+                      >
+                        <p className={`text-[11px] font-medium ${active ? "text-green-400" : "text-foreground"}`}>{labels[mode]}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{descs[mode]}</p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <>
