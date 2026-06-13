@@ -77,6 +77,8 @@ import { Route as ApiPublicHyperstreamEventTypesRouteImport } from './routes/api
 import { Route as ApiPublicHyperstreamCancelRouteImport } from './routes/api/public/hyperstream/cancel'
 import { Route as ApiPublicHyperstreamBookRouteImport } from './routes/api/public/hyperstream/book'
 import { Route as ApiPublicHyperstreamAvailabilityRouteImport } from './routes/api/public/hyperstream/availability'
+import { Route as ApiPublicFrejunStatusRouteImport } from './routes/api/public/frejun/status'
+import { Route as ApiPublicFrejunFlowRouteImport } from './routes/api/public/frejun/flow'
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
@@ -452,6 +454,16 @@ const ApiPublicHyperstreamAvailabilityRoute =
     path: '/api/public/hyperstream/availability',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicFrejunStatusRoute = ApiPublicFrejunStatusRouteImport.update({
+  id: '/api/public/frejun/status',
+  path: '/api/public/frejun/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicFrejunFlowRoute = ApiPublicFrejunFlowRouteImport.update({
+  id: '/api/public/frejun/flow',
+  path: '/api/public/frejun/flow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCalcomWebhookWorkspaceIdRoute =
   ApiPublicCalcomWebhookWorkspaceIdRouteImport.update({
     id: '/api/public/calcom-webhook/$workspaceId',
@@ -521,6 +533,8 @@ export interface FileRoutesByFullPath {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/frejun/flow': typeof ApiPublicFrejunFlowRoute
+  '/api/public/frejun/status': typeof ApiPublicFrejunStatusRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
   '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
@@ -593,6 +607,8 @@ export interface FileRoutesByTo {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/frejun/flow': typeof ApiPublicFrejunFlowRoute
+  '/api/public/frejun/status': typeof ApiPublicFrejunStatusRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
   '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
@@ -668,6 +684,8 @@ export interface FileRoutesById {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/frejun/flow': typeof ApiPublicFrejunFlowRoute
+  '/api/public/frejun/status': typeof ApiPublicFrejunStatusRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
   '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
@@ -743,6 +761,8 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/frejun/flow'
+    | '/api/public/frejun/status'
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
     | '/api/public/hyperstream/cancel'
@@ -815,6 +835,8 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/frejun/flow'
+    | '/api/public/frejun/status'
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
     | '/api/public/hyperstream/cancel'
@@ -889,6 +911,8 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/frejun/flow'
+    | '/api/public/frejun/status'
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
     | '/api/public/hyperstream/cancel'
@@ -939,6 +963,8 @@ export interface RootRouteChildren {
   ApiInternalAgentToolsIdRoute: typeof ApiInternalAgentToolsIdRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
   ApiPublicCalcomWebhookWorkspaceIdRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  ApiPublicFrejunFlowRoute: typeof ApiPublicFrejunFlowRoute
+  ApiPublicFrejunStatusRoute: typeof ApiPublicFrejunStatusRoute
   ApiPublicHyperstreamAvailabilityRoute: typeof ApiPublicHyperstreamAvailabilityRoute
   ApiPublicHyperstreamBookRoute: typeof ApiPublicHyperstreamBookRoute
   ApiPublicHyperstreamCancelRoute: typeof ApiPublicHyperstreamCancelRoute
@@ -1440,6 +1466,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHyperstreamAvailabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/frejun/status': {
+      id: '/api/public/frejun/status'
+      path: '/api/public/frejun/status'
+      fullPath: '/api/public/frejun/status'
+      preLoaderRoute: typeof ApiPublicFrejunStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/frejun/flow': {
+      id: '/api/public/frejun/flow'
+      path: '/api/public/frejun/flow'
+      fullPath: '/api/public/frejun/flow'
+      preLoaderRoute: typeof ApiPublicFrejunFlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/calcom-webhook/$workspaceId': {
       id: '/api/public/calcom-webhook/$workspaceId'
       path: '/api/public/calcom-webhook/$workspaceId'
@@ -1605,6 +1645,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
   ApiPublicCalcomWebhookWorkspaceIdRoute:
     ApiPublicCalcomWebhookWorkspaceIdRoute,
+  ApiPublicFrejunFlowRoute: ApiPublicFrejunFlowRoute,
+  ApiPublicFrejunStatusRoute: ApiPublicFrejunStatusRoute,
   ApiPublicHyperstreamAvailabilityRoute: ApiPublicHyperstreamAvailabilityRoute,
   ApiPublicHyperstreamBookRoute: ApiPublicHyperstreamBookRoute,
   ApiPublicHyperstreamCancelRoute: ApiPublicHyperstreamCancelRoute,

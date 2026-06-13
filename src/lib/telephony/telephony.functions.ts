@@ -24,8 +24,9 @@ export const getTelephonyConfig = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
-    const sidConfigured   = !!process.env.TWILIO_ACCOUNT_SID;
-    const tokenConfigured = !!process.env.TWILIO_AUTH_TOKEN;
+    const sidConfigured     = !!process.env.TWILIO_ACCOUNT_SID;
+    const tokenConfigured   = !!process.env.TWILIO_AUTH_TOKEN;
+    const frejunConfigured  = !!process.env.FREJUN_API_KEY;
 
     const { data } = await supabaseAdmin
       .from("telephony_configs")
@@ -48,6 +49,7 @@ export const getTelephonyConfig = createServerFn({ method: "POST" })
       sid_configured: sidConfigured,
       token_configured: tokenConfigured,
       credentials_ready: sidConfigured && tokenConfigured,
+      frejun_configured: frejunConfigured,
     };
   });
 
@@ -56,7 +58,7 @@ export const saveTelephonyConfig = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
-        provider: z.enum(["twilio", "telnyx", "plivo", "vonage"]).default("twilio"),
+        provider: z.enum(["twilio", "telnyx", "plivo", "vonage", "frejun"]).default("twilio"),
         is_active: z.boolean().default(true),
       })
       .parse(input ?? {}),
@@ -118,7 +120,7 @@ export const savePhoneNumber = createServerFn({ method: "POST" })
         id: z.string().uuid().optional(),
         phone_number: z.string().min(1),
         friendly_name: z.string().optional(),
-        provider: z.enum(["twilio", "telnyx", "plivo", "vonage"]).default("twilio"),
+        provider: z.enum(["twilio", "telnyx", "plivo", "vonage", "frejun"]).default("twilio"),
         provider_sid: z.string().optional(),
         agent_id: z.string().uuid().nullable().optional(),
         capabilities: z

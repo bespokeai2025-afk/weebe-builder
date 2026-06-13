@@ -1,10 +1,11 @@
 import type { TelephonyConfig, TelephonyProvider } from "./types";
 import { TwilioProvider } from "./twilio.provider";
+import { FreJunProvider } from "./frejun.provider";
 
 /**
  * Factory: returns the correct TelephonyProvider for the given config.
- * Adding a new carrier (Telnyx, Plivo, Vonage) requires only a new case here
- * and a corresponding Provider class — agent logic never changes.
+ * Adding a new carrier requires only a new case here and a corresponding
+ * Provider class — agent logic never changes.
  */
 export function createTelephonyProvider(config: TelephonyConfig): TelephonyProvider {
   switch (config.provider) {
@@ -12,6 +13,11 @@ export function createTelephonyProvider(config: TelephonyConfig): TelephonyProvi
       return new TwilioProvider({
         accountSid: config.account_sid ?? "",
         authToken: config.auth_token ?? "",
+      });
+
+    case "frejun":
+      return new FreJunProvider({
+        apiKey: config.api_key ?? process.env.FREJUN_API_KEY ?? "",
       });
 
     case "telnyx":

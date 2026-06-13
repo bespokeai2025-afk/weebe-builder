@@ -184,6 +184,7 @@ function AddNumberDialog({
   const [phone, setPhone] = useState(existing?.phone_number ?? "");
   const [friendly, setFriendly] = useState(existing?.friendly_name ?? "");
   const [agentId, setAgentId] = useState(existing?.agent_id ?? "");
+  const [provider, setProvider] = useState<"twilio" | "frejun">(existing?.provider ?? "twilio");
   const [voice, setVoice] = useState(existing?.capabilities?.voice ?? true);
   const [sms, setSms] = useState(existing?.capabilities?.sms ?? false);
 
@@ -193,6 +194,7 @@ function AddNumberDialog({
       ...(existing?.id ? { id: existing.id } : {}),
       phone_number: phone.trim(),
       friendly_name: friendly.trim() || undefined,
+      provider,
       agent_id: agentId || null,
       capabilities: { voice, sms },
     });
@@ -235,6 +237,25 @@ function AddNumberDialog({
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Provider</label>
+            <select
+              value={provider}
+              onChange={e => setProvider(e.target.value as "twilio" | "frejun")}
+              disabled={!!existing}
+              className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+            >
+              <option value="twilio">Twilio</option>
+              <option value="frejun">FreJun Teler</option>
+            </select>
+            {provider === "frejun" && !existing && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Purchase numbers in your{" "}
+                <a href="https://app.frejun.ai" target="_blank" rel="noreferrer" className="underline">FreJun dashboard</a>,
+                assign them to a Voice App there, then enter the number above.
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Capabilities</label>

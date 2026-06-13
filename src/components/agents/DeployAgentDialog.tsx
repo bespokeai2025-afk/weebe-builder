@@ -46,6 +46,35 @@ import { getMyWorkspaceRequest, requestWorkspace } from "@/lib/agents/workspace.
 import { getDeployConfig } from "@/lib/deploy/deploy.functions";
 import { getWorkspaceCalendarSettings } from "@/lib/calendar/calendar.functions";
 
+function FrejunWebhookUrls() {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const items = [
+    { label: "Call Flow URL (Incoming Call URL)", value: `${origin}/api/public/frejun/flow` },
+    { label: "Status Callback URL", value: `${origin}/api/public/frejun/status` },
+  ];
+  return (
+    <div className="space-y-2">
+      {items.map(({ label, value }) => (
+        <div key={label} className="rounded-md border bg-muted/30 p-2.5">
+          <p className="text-[11px] text-muted-foreground mb-1">{label}</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs font-mono break-all">{value}</code>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0 h-6 px-2 text-xs"
+              onClick={() => navigator.clipboard.writeText(value)}
+            >
+              Copy
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -160,6 +189,11 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
       setSubmittingWs(false);
     }
   }
+
+  // FreJun number state (HyperStream agents only)
+  const [frejunPhone, setFrejunPhone] = useState("");
+  const [frejunNick, setFrejunNick] = useState("");
+  const [savingFrejun, setSavingFrejun] = useState(false);
 
   // Direction (inbound vs outbound vs both) — applied to whichever number you attach.
   const [direction, setDirection] = useState<CallDirection>("inbound");
@@ -747,13 +781,18 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
             )}
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className={`grid w-full ${isOpenAiRealtime ? "grid-cols-4" : "grid-cols-3"}`}>
                 <TabsTrigger data-tour="deploy-dialog-phone-tab" value="buy">
                   <Phone className="h-4 w-4 mr-1" /> Buy number
                 </TabsTrigger>
                 <TabsTrigger value="sip">
                   <PhoneCall className="h-4 w-4 mr-1" /> SIP trunk
                 </TabsTrigger>
+                {isOpenAiRealtime && (
+                  <TabsTrigger value="frejun">
+                    <Phone className="h-4 w-4 mr-1" /> FreJun
+                  </TabsTrigger>
+                )}
                 <TabsTrigger data-tour="deploy-dialog-calcom-tab" value="calcom">
                   <Calendar className="h-4 w-4 mr-1" /> Cal.com
                 </TabsTrigger>
@@ -1102,6 +1141,104 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                   </>
                 )}
               </TabsContent>
+
+              {/* FREJUN — HyperStream agents only */}
+              {isOpenAiRealtime && (
+                <TabsContent value="frejun" className="space-y-4 mt-4">
+                  <div className="rounded-md border bg-muted/20 p-3 text-xs space-y-2">
+                    <p className="font-medium text-foreground">FreJun Teler — HyperStream Audio Bridge</p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      FreJun Teler has no number purchase API — buy your number in the{" "}
+                      <a href="https://app.frejun.ai" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+                        FreJun dashboard
+                      </a>
+                      , create a Voice App there, then enter the number below. The Call Flow URL below is what FreJun should call when a call arrives.
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                      <li>Log in to <strong className="text-foreground">app.frejun.ai</strong> → Voice → Numbers — buy or port a number.</li>
+                      <li>Create a Voice App and set its <strong className="text-foreground">Incoming Call URL</strong> to the Call Flow URL below.</li>
+                      <li>Set the <strong className="text-foreground">Status Callback URL</strong> in the same Voice App.</li>
+                      <li>Enter the number in E.164 format below and click Save.</li>
+                    </ol>
+                  </div>
+
+                  <FrejunWebhookUrls />
+
+                  <div className="rounded-md border bg-muted/20 p-3 text-xs">
+                    <p className="font-medium text-foreground mb-1">SIP Trunking (alternative to WebSocket)</p>
+                    <p className="text-muted-foreground leading-relaxed">
+                      FreJun supports SIP trunking as an alternative to WebSocket audio streaming.
+                      Configure your FreJun SIP trunk to point to your own SIP endpoint and set the
+                      Call Flow URL above — the HyperStream bridge handles the audio regardless of
+                      transport. No additional setup is required here; SIP is configured entirely in
+                      the FreJun dashboard.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Phone Number (E.164)</Label>
+                      <Input
+                        placeholder="+14155552671"
+                        value={frejunPhone}
+                        onChange={(e) => setFrejunPhone(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Nickname (optional)</Label>
+                      <Input
+                        placeholder={agent.name}
+                        value={frejunNick}
+                        onChange={(e) => setFrejunNick(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      disabled={savingFrejun || !frejunPhone.trim()}
+                      onClick={async () => {
+                        const num = frejunPhone.trim();
+                        if (!/^\+\d{7,15}$/.test(num)) {
+                          toast.error("Phone number must be E.164 format, e.g. +14155552671");
+                          return;
+                        }
+                        setSavingFrejun(true);
+                        try {
+                          await savePhoneFn({ data: { id: agent!.id, phoneNumber: num } });
+                          qc.invalidateQueries({ queryKey: ["my-agents"] });
+                          toast.success("FreJun number saved", { description: num });
+                          setFrejunPhone("");
+                          setFrejunNick("");
+                        } catch (e) {
+                          toast.error("Save failed", { description: (e as Error).message });
+                        } finally {
+                          setSavingFrejun(false);
+                        }
+                      }}
+                    >
+                      {savingFrejun && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Save FreJun number
+                    </Button>
+
+                    {settings.phoneNumber && (
+                      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          <span className="font-mono text-sm truncate">{settings.phoneNumber as string}</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0 ml-2"
+                          disabled={detachingPhone}
+                          onClick={handleDetachPhone}
+                        >
+                          {detachingPhone ? <Loader2 className="h-3 w-3 animate-spin" /> : <><X className="h-3 w-3 mr-1" />Detach</>}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              )}
 
               {/* CAL.COM */}
               <TabsContent value="calcom" className="space-y-3 mt-4">

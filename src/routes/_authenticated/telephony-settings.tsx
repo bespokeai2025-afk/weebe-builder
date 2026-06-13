@@ -19,6 +19,12 @@ const PROVIDERS = [
     description: "Industry-leading voice API with global coverage. Supports inbound/outbound calls, recordings, and real-time transcription.",
   },
   {
+    id: "frejun",
+    label: "FreJun Teler",
+    url: "https://app.frejun.ai",
+    description: "CPaaS with WebSocket audio streaming and Call Flow JSON system. Optimised for HyperStream (OpenAI Realtime) agents.",
+  },
+  {
     id: "telnyx",
     label: "Telnyx",
     url: "https://portal.telnyx.com",
@@ -72,6 +78,12 @@ function TelephonySettingsPage() {
     },
   });
 
+  const sidOk = config?.sid_configured ?? false;
+  const tokenOk = config?.token_configured ?? false;
+  const credentialsReady = sidOk && tokenOk;
+  const frejunOk = config?.frejun_configured ?? false;
+  const activeProvider = config?.provider ?? "twilio";
+
   const webhookHost =
     typeof window !== "undefined"
       ? window.location.origin
@@ -95,9 +107,18 @@ function TelephonySettingsPage() {
     },
   ];
 
-  const sidOk = config?.sid_configured ?? false;
-  const tokenOk = config?.token_configured ?? false;
-  const credentialsReady = sidOk && tokenOk;
+  const frejunWebhooks = [
+    {
+      label: "Call Flow URL",
+      url: `${webhookHost}/api/public/frejun/flow`,
+      note: "Set as the Incoming Call URL on your FreJun Voice App.",
+    },
+    {
+      label: "Status Callback URL",
+      url: `${webhookHost}/api/public/frejun/status`,
+      note: "Set as the Status Callback on your FreJun Voice App.",
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-8 p-6 max-w-2xl">
@@ -152,6 +173,61 @@ function TelephonySettingsPage() {
             <span>
               Add the missing secrets in the <strong>Replit Secrets</strong> panel (the lock icon in the sidebar), then reload this page.
             </span>
+          </div>
+        )}
+      </div>
+
+      {/* FreJun Credentials Status */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="mb-4 flex items-center gap-2">
+          {frejunOk
+            ? <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            : <ShieldOff className="h-4 w-4 text-muted-foreground" />}
+          <h2 className="text-sm font-semibold">FreJun Teler Credentials</h2>
+          <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${frejunOk ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+            {frejunOk ? "Ready" : "Not configured"}
+          </span>
+        </div>
+
+        <p className="mb-4 text-xs text-muted-foreground leading-relaxed">
+          Required when FreJun Teler is your active telephony provider. Set <code className="bg-black/20 rounded px-1">FREJUN_API_KEY</code> in Replit Secrets.
+          Numbers must be purchased in the{" "}
+          <a href="https://app.frejun.ai" target="_blank" rel="noreferrer" className="underline">FreJun dashboard</a>
+          {" "}and entered here manually.
+        </p>
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3 rounded-lg bg-muted/30 px-3 py-2.5">
+            {frejunOk
+              ? <Check className="h-4 w-4 flex-shrink-0 text-emerald-400" />
+              : <AlertCircle className="h-4 w-4 flex-shrink-0 text-muted-foreground" />}
+            <code className="flex-1 text-xs font-mono">FREJUN_API_KEY</code>
+            <span className={`text-xs ${frejunOk ? "text-emerald-400" : "text-muted-foreground"}`}>
+              {frejunOk ? "Configured" : "Not set"}
+            </span>
+          </div>
+        </div>
+
+        {activeProvider === "frejun" && (
+          <div className="mt-4 flex flex-col gap-3">
+            <p className="text-xs font-medium text-muted-foreground">FreJun Webhook URLs — set these on your FreJun Voice App:</p>
+            {frejunWebhooks.map(w => (
+              <div key={w.label} className="rounded-lg bg-muted/30 p-3">
+                <p className="text-xs font-medium text-muted-foreground">{w.label}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="flex-1 rounded bg-black/20 px-2 py-1 text-xs font-mono text-foreground break-all">
+                    {w.url}
+                  </code>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(w.url)}
+                    className="flex-shrink-0 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{w.note}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>

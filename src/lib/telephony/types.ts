@@ -1,4 +1,4 @@
-export type TelephonyProviderName = "twilio" | "telnyx" | "plivo" | "vonage";
+export type TelephonyProviderName = "twilio" | "telnyx" | "plivo" | "vonage" | "frejun";
 
 export type CallDirection = "inbound" | "outbound";
 
