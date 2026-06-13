@@ -67,7 +67,10 @@ const stepSchema = z.object({
 export const listHexmailCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ includeArchived: z.boolean().optional() }).parse(input),
+    z.object({
+      includeArchived: z.boolean().optional(),
+      includeSteps:    z.boolean().optional(),
+    }).parse(input),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
@@ -81,7 +84,25 @@ export const listHexmailCampaigns = createServerFn({ method: "POST" })
     if (!data.includeArchived) q = q.neq("status", "archived");
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
-    return (rows ?? []) as HexmailCampaign[];
+    const campaigns = (rows ?? []) as HexmailCampaign[];
+
+    if (!data.includeSteps) return campaigns;
+
+    // Attach steps for each campaign (used by campaign picker)
+    const ids = campaigns.map((c) => c.id);
+    if (ids.length === 0) return campaigns;
+    const { data: stepRows, error: se } = await sb
+      .from("hexmail_campaign_steps")
+      .select("*")
+      .in("campaign_id", ids)
+      .order("day_number", { ascending: true });
+    if (se) throw new Error(se.message);
+    const stepsByCampaign: Record<string, CampaignStep[]> = {};
+    for (const s of stepRows ?? []) {
+      if (!stepsByCampaign[s.campaign_id]) stepsByCampaign[s.campaign_id] = [];
+      stepsByCampaign[s.campaign_id].push(s);
+    }
+    return campaigns.map((c) => ({ ...c, steps: stepsByCampaign[c.id] ?? [] }));
   });
 
 export const getHexmailCampaignWithSteps = createServerFn({ method: "POST" })
@@ -223,4 +244,63 @@ export const deleteHexmailCampaign = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId);
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+export const enrollLeadInCampaign = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      leadId:     z.string().uuid(),
+      campaignId: z.string().uuid(),
+      notes:      z.string().optional(),
+    }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    const { data: row, error } = await sb
+      .from("hexmail_campaign_enrollments")
+      .upsert(
+        {
+          workspace_id: workspaceId,
+          campaign_id:  data.campaignId,
+          lead_id:      data.leadId,
+          status:       "active",
+          current_day:  1,
+          enrolled_at:  new Date().toISOString(),
+          notes:        data.notes ?? null,
+          updated_at:   new Date().toISOString(),
+        },
+        { onConflict: "campaign_id,lead_id" },
+      )
+      .select("id")
+      .single();
+    if (error) {
+      if (error.message?.includes("does not exist")) {
+        throw new Error("MIGRATION_NEEDED: hexmail_campaign_enrollments table missing");
+      }
+      throw new Error(error.message);
+    }
+    return { id: row.id as string };
+  });
+
+export const listLeadEnrollments = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ leadId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    const { data: rows, error } = await sb
+      .from("hexmail_campaign_enrollments")
+      .select("*, hexmail_campaigns(id, name, status)")
+      .eq("workspace_id", workspaceId)
+      .eq("lead_id", data.leadId)
+      .order("enrolled_at", { ascending: false });
+    if (error) {
+      if (error.message?.includes("does not exist")) return [];
+      throw new Error(error.message);
+    }
+    return rows ?? [];
   });

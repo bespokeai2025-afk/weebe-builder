@@ -58,6 +58,7 @@ import {
   type PipelineStage,
 } from "@/lib/pipeline/pipeline.functions";
 import { PipelineLeadDrawer } from "@/components/pipeline/PipelineLeadDrawer";
+import { CampaignPickerDialog } from "@/components/hexmail/CampaignPickerDialog";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({ meta: [{ title: "Sales Pipeline — Webee" }] }),
@@ -548,12 +549,14 @@ function PipelinePage() {
   const updateStage   = useServerFn(setLeadPipelineStage);
   const saveSaleAmt   = useServerFn(setSaleDoneAmount);
 
-  const [activeId,       setActiveId]       = useState<string | null>(null);
-  const [selectedLead,   setSelectedLead]   = useState<PipelineLead | null>(null);
-  const [drawerOpen,     setDrawerOpen]     = useState(false);
-  const [saleDialogLead, setSaleDialogLead] = useState<PipelineLead | null>(null);
-  const [saleDialogOpen, setSaleDialogOpen] = useState(false);
-  const [savingAmount,   setSavingAmount]   = useState(false);
+  const [activeId,           setActiveId]           = useState<string | null>(null);
+  const [selectedLead,       setSelectedLead]       = useState<PipelineLead | null>(null);
+  const [drawerOpen,         setDrawerOpen]         = useState(false);
+  const [saleDialogLead,     setSaleDialogLead]     = useState<PipelineLead | null>(null);
+  const [saleDialogOpen,     setSaleDialogOpen]     = useState(false);
+  const [savingAmount,       setSavingAmount]       = useState(false);
+  const [campaignPickerLead, setCampaignPickerLead] = useState<PipelineLead | null>(null);
+  const [campaignPickerOpen, setCampaignPickerOpen] = useState(false);
 
   const [columnOrder, setColumnOrder] = useState<PipelineStage[]>(
     () => PIPELINE_STAGES.map((s) => s.id),
@@ -624,13 +627,17 @@ function PipelinePage() {
     },
   });
 
-  // Move a card and, if it's going to sale_done, open the sale amount dialog
+  // Move a card and open the appropriate prompt dialog
   const moveCardAndPrompt = useCallback(
     (lead: PipelineLead, stage: PipelineStage) => {
       moveCard({ leadId: lead.id, stage });
       if (stage === "sale_done") {
         setSaleDialogLead({ ...lead, effective_stage: "sale_done" });
         setSaleDialogOpen(true);
+      }
+      if (stage === "follow_up") {
+        setCampaignPickerLead(lead);
+        setCampaignPickerOpen(true);
       }
     },
     [moveCard],
@@ -832,6 +839,14 @@ function PipelinePage() {
         onOpenChange={setSaleDialogOpen}
         onSave={handleSaveAmount}
         saving={savingAmount}
+      />
+
+      {/* Campaign picker — shown when a lead is dragged / moved to Follow-Up */}
+      <CampaignPickerDialog
+        open={campaignPickerOpen}
+        leadId={campaignPickerLead?.id ?? null}
+        leadName={campaignPickerLead?.full_name}
+        onClose={() => { setCampaignPickerOpen(false); setCampaignPickerLead(null); }}
       />
     </div>
   );

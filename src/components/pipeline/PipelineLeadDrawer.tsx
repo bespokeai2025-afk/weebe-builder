@@ -55,6 +55,7 @@ import {
 import { cn } from "@/lib/utils";
 import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
+import { CampaignPickerDialog } from "@/components/hexmail/CampaignPickerDialog";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function relTime(iso: string) {
@@ -153,7 +154,8 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // ── stage state ────────────────────────────────────────────────────────────
-  const [movingStage, setMovingStage] = useState(false);
+  const [movingStage,        setMovingStage]        = useState(false);
+  const [campaignPickerOpen, setCampaignPickerOpen] = useState(false);
 
   // ── sale amount state ───────────────────────────────────────────────────────
   const [saleAmtEditing, setSaleAmtEditing] = useState(false);
@@ -262,6 +264,9 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
         setSaleAmtEditing(true);
         setSaleAmtInput(lead.sale_amount != null ? String(lead.sale_amount) : "");
       }
+      if (stage === "follow_up") {
+        setCampaignPickerOpen(true);
+      }
     } catch (e) {
       toast.error("Failed to move lead", { description: (e as Error).message });
     } finally {
@@ -337,6 +342,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
   const existingBooking = detail?.booking ?? null;
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-[480px] sm:max-w-[480px] flex flex-col gap-0 p-0 overflow-hidden">
 
@@ -913,5 +919,15 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
         </div>
       </SheetContent>
     </Sheet>
+
+    {lead && (
+      <CampaignPickerDialog
+        open={campaignPickerOpen}
+        leadId={lead.id}
+        leadName={lead.full_name}
+        onClose={() => setCampaignPickerOpen(false)}
+      />
+    )}
+    </>
   );
 }
