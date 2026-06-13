@@ -59,7 +59,9 @@ import {
   type VarDef,
   type VarType,
   type EmailAttach,
+  type DocHeader,
 } from "@/lib/hexmail/vars-helpers";
+import { DocumentPreview } from "@/components/hexmail/DocumentPreview";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -137,9 +139,10 @@ interface Props {
 
 export function TemplateBuilder({ open, template, defaultType, onClose, onSaved }: Props) {
   const qc = useQueryClient();
-  const textareaRef      = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef     = useRef<HTMLInputElement>(null);
+  const textareaRef       = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef      = useRef<HTMLInputElement>(null);
   const emailFileInputRef = useRef<HTMLInputElement>(null);
+  const logoFileInputRef  = useRef<HTMLInputElement>(null);
 
   const [name,    setName]    = useState("");
   const [type,    setType]    = useState<TemplateType>(defaultType ?? "email");
@@ -165,6 +168,10 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
   const [emailAttachName,     setEmailAttachName]     = useState<string | null>(null);
   const [emailAttachMime,     setEmailAttachMime]     = useState<string>("");
   const [isEmailAttachUpload, setIsEmailAttachUpload] = useState(false);
+
+  // Document header (logo + branding)
+  const [docHeader,     setDocHeader]     = useState<DocHeader>({});
+  const [isLogoUpload,  setIsLogoUpload]  = useState(false);
 
   // AI
   const [aiInstruction,   setAiInstruction]   = useState("");
@@ -195,9 +202,10 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
     setPrimaryCat(DOC_TYPES.has(resolvedType) ? "document" : resolvedType as PrimaryCategory);
 
     if (DOC_TYPES.has(resolvedType)) {
-      // Doc types: parse vars from content sentinel
-      const { body: parsedBody, vars: parsedVars } = splitContent(rawContent);
+      // Doc types: parse vars + header from content sentinel
+      const { body: parsedBody, vars: parsedVars, header: parsedHeader } = splitContent(rawContent);
       setBody(parsedBody);
+      setDocHeader(parsedHeader);
       const detected = detectVars(parsedBody);
       setVars(mergeDetected(parsedVars, detected));
       const fills: Record<string, string> = {};
@@ -222,6 +230,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
       setEmailAttachUrl(null);
       setEmailAttachName(null);
       setEmailAttachMime("");
+      // leave docHeader as loaded above
     } else if (resolvedType === "email") {
       // Email: parse attachment from content sentinel
       const { body: emailBody, attach } = splitEmailContent(rawContent);
@@ -235,6 +244,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
       setEmailAttachUrl(attach?.url ?? null);
       setEmailAttachName(attach?.name ?? null);
       setEmailAttachMime(attach?.mime ?? "");
+      setDocHeader({});
     } else {
       // SMS / WhatsApp
       setBody(rawContent);
@@ -247,6 +257,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
       setEmailAttachUrl(null);
       setEmailAttachName(null);
       setEmailAttachMime("");
+      setDocHeader({});
     }
   }, [open, template, defaultType]);
 
@@ -265,7 +276,7 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
   const save = useMutation({
     mutationFn: () => {
       const content = isDocType
-        ? joinContent(body, vars)
+        ? joinContent(body, vars, docHeader)
         : isEmail
           ? joinEmailContent(body, emailAttach)
           : body;
@@ -342,6 +353,29 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
     const file = e.dataTransfer.files?.[0];
     if (file) uploadFile(file);
   };
+
+  // ── Logo upload (document header) ────────────────────────────────────────────
+
+  const uploadLogo = useCallback(async (file: File) => {
+    setIsLogoUpload(true);
+    try {
+      const { signedUrl, publicUrl } = await createTemplateDocumentUploadUrl({
+        data: { fileName: file.name, mimeType: file.type },
+      });
+      const res = await fetch(signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+      setDocHeader((h) => ({ ...h, logoUrl: publicUrl }));
+      toast.success("Logo uploaded");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Upload failed");
+    } finally {
+      setIsLogoUpload(false);
+    }
+  }, []);
 
   // ── Email attachment upload ───────────────────────────────────────────────────
 
@@ -630,6 +664,84 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
               </div>
             )}
 
+            {/* Document header config — logo, company name, tagline */}
+            {isDocType && (
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                <p className="text-sm font-semibold flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-muted-foreground" /> Document Header
+                  <span className="text-muted-foreground font-normal text-xs">(optional branding)</span>
+                </p>
+
+                {/* Logo */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Logo</Label>
+                  {docHeader.logoUrl ? (
+                    <div className="flex items-center gap-3 rounded-md border bg-background px-3 py-2">
+                      <img
+                        src={docHeader.logoUrl}
+                        alt="Logo"
+                        className="object-contain"
+                        style={{ maxHeight: 36, maxWidth: 120 }}
+                      />
+                      <span className="flex-1" />
+                      <button
+                        type="button"
+                        onClick={() => setDocHeader((h) => ({ ...h, logoUrl: undefined }))}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => logoFileInputRef.current?.click()}
+                      className="flex items-center gap-2 rounded-md border-2 border-dashed px-3 py-2 cursor-pointer hover:border-primary/40 hover:bg-muted/30 transition-colors"
+                    >
+                      {isLogoUpload
+                        ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                        : <Upload className="h-4 w-4 text-muted-foreground shrink-0" />}
+                      <p className="text-xs text-muted-foreground">
+                        {isLogoUpload ? "Uploading…" : "Upload logo (PNG, SVG, JPG)"}
+                      </p>
+                    </div>
+                  )}
+                  <input
+                    ref={logoFileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadLogo(file);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+
+                {/* Company name */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Company Name</Label>
+                  <Input
+                    placeholder="e.g. Acme Corp"
+                    value={docHeader.companyName ?? ""}
+                    onChange={(e) => setDocHeader((h) => ({ ...h, companyName: e.target.value || undefined }))}
+                    className="h-8 text-sm"
+                  />
+                </div>
+
+                {/* Tagline / address */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tagline / Address <span className="text-muted-foreground">(optional)</span></Label>
+                  <Input
+                    placeholder="e.g. 123 Main St · hello@acme.com"
+                    value={docHeader.tagline ?? ""}
+                    onChange={(e) => setDocHeader((h) => ({ ...h, tagline: e.target.value || undefined }))}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Content / body */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -664,24 +776,54 @@ export function TemplateBuilder({ open, template, defaultType, onClose, onSaved 
               )}
 
               {preview ? (
-                <div className="min-h-[200px] rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap text-foreground">
-                  {isDocType
-                    ? (applyVars(body, previewFills) || <span className="text-muted-foreground">Nothing to preview yet.</span>)
-                    : (applyEmailPreview(body) || <span className="text-muted-foreground">Nothing to preview yet.</span>)
-                  }
-                </div>
+                isDocType ? (
+                  <DocumentPreview
+                    body={body}
+                    header={docHeader}
+                    vars={vars}
+                    fills={previewFills}
+                    templateType={type}
+                    templateName={name}
+                    mode="preview"
+                    className="min-h-[300px]"
+                  />
+                ) : (
+                  <div className="min-h-[200px] rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap text-foreground">
+                    {applyEmailPreview(body) || <span className="text-muted-foreground">Nothing to preview yet.</span>}
+                  </div>
+                )
               ) : (
-                <Textarea
-                  ref={textareaRef}
-                  placeholder={
-                    isDocType
-                      ? `Write or paste your document body here.\n\nUse {{variable_name}} anywhere you want a fill-in field — e.g.\n  Invoice #: {{invoice_number}}\n  Billing Address: {{billing_address}}\n  Total: {{total_amount}}\n\nOr upload a file above and click 'Extract Text'.`
-                      : "Write your template content here."
-                  }
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  className="min-h-[200px] font-mono text-sm resize-y"
-                />
+                isDocType ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Editor — left side */}
+                    <Textarea
+                      ref={textareaRef}
+                      placeholder={`Write or paste your document body here.\n\nUse {{variable_name}} anywhere you want a fill-in field — e.g.\n  Invoice #: {{invoice_number}}\n  Billing Address: {{billing_address}}\n  Total: {{total_amount}}\n\nOr upload a file above and click 'Extract Text'.`}
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      className="min-h-[420px] font-mono text-sm resize-none"
+                    />
+                    {/* Live document preview — right side */}
+                    <DocumentPreview
+                      body={body}
+                      header={docHeader}
+                      vars={vars}
+                      fills={previewFills}
+                      templateType={type}
+                      templateName={name}
+                      mode="edit"
+                      className="min-h-[420px] overflow-auto"
+                    />
+                  </div>
+                ) : (
+                  <Textarea
+                    ref={textareaRef}
+                    placeholder="Write your template content here."
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    className="min-h-[200px] font-mono text-sm resize-y"
+                  />
+                )
               )}
             </div>
 

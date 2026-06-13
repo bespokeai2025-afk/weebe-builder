@@ -15,25 +15,43 @@ export interface VarDef {
 
 export type VarMap = Record<string, VarDef>;
 
+// ── Document header config (stored as _header key inside the vars JSON) ──────
+
+export interface DocHeader {
+  logoUrl?:     string;
+  companyName?: string;
+  tagline?:     string;
+}
+
 // ── Encode / decode ──────────────────────────────────────────────────────────
 
-/** Split stored content into { body, vars } */
-export function splitContent(raw: string): { body: string; vars: VarMap } {
+/** Split stored content into { body, vars, header } */
+export function splitContent(raw: string): { body: string; vars: VarMap; header: DocHeader } {
   const idx = raw.indexOf(SENTINEL);
-  if (idx === -1) return { body: raw, vars: {} };
+  if (idx === -1) return { body: raw, vars: {}, header: {} };
   const body    = raw.slice(0, idx);
   const jsonStr = raw.slice(idx + SENTINEL.length);
   try {
-    return { body, vars: JSON.parse(jsonStr) };
+    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+    const header = (parsed["_header"] ?? {}) as DocHeader;
+    const vars: VarMap = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (k !== "_header") vars[k] = v as VarDef;
+    }
+    return { body, vars, header };
   } catch {
-    return { body, vars: {} };
+    return { body, vars: {}, header: {} };
   }
 }
 
-/** Combine body text + var definitions into the value stored in the DB */
-export function joinContent(body: string, vars: VarMap): string {
-  if (Object.keys(vars).length === 0) return body;
-  return body + SENTINEL + JSON.stringify(vars);
+/** Combine body text + var definitions + optional header into the value stored in the DB */
+export function joinContent(body: string, vars: VarMap, header?: DocHeader): string {
+  const hasVars   = Object.keys(vars).length > 0;
+  const hasHeader = header && (header.logoUrl || header.companyName || header.tagline);
+  if (!hasVars && !hasHeader) return body;
+  const payload: Record<string, unknown> = { ...vars };
+  if (hasHeader) payload["_header"] = header;
+  return body + SENTINEL + JSON.stringify(payload);
 }
 
 /** Scan body text for all {{variable_name}} tokens */
