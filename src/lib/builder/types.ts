@@ -27,8 +27,7 @@ export type NodeKind =
   | "wa_tag"
   | "wa_template"
   | "check_documents"
-  | "send_upload_link"
-  | "start";
+  | "send_upload_link";
 
 export interface Transition {
   id: string;

@@ -1,5 +1,5 @@
 import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
-import { Pencil, Trash2, Flag, Plus, Hash, Globe, X, Play, PhoneOff } from "lucide-react";
+import { Pencil, Trash2, Flag, Plus, Hash, Globe, X } from "lucide-react";
 import { useState } from "react";
 import { useBuilderStore, type FlowNode } from "@/lib/builder/store";
 import { cn } from "@/lib/utils";
@@ -160,13 +160,6 @@ const STYLES: Record<NodeKind, Style> = {
     headerClass: "bg-sky-100 border-sky-300 dark:bg-sky-500/20 dark:border-sky-400/40",
     ringClass:
       "!ring-2 !ring-sky-500/70 !border-sky-500/70 shadow-[0_0_24px_-4px_rgba(14,165,233,0.55)] dark:shadow-[0_0_28px_-4px_rgba(56,189,248,0.6)]",
-  },
-  start: {
-    badge: "Start",
-    badgeClass: "bg-emerald-600 text-white shadow-sm",
-    headerClass: "bg-emerald-50/70 border-emerald-200 dark:bg-emerald-500/20 dark:border-emerald-400/40",
-    ringClass:
-      "!ring-2 !ring-emerald-500/70 !border-emerald-500/70 shadow-[0_0_24px_-4px_rgba(16,185,129,0.55)] dark:shadow-[0_0_28px_-4px_rgba(52,211,153,0.6)]",
   },
 };
 
@@ -389,161 +382,6 @@ function SimpleNode({ id, data }: NodeProps<FlowNode>) {
             />
           ) : (
             <p className="text-sm italic text-muted-foreground">Tap to configure…</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Terminal start node — no incoming handle, one outgoing source handle, emerald colour. */
-function StartNode({ id, data }: NodeProps<FlowNode>) {
-  const selectNode = useBuilderStore((s) => s.selectNode);
-  const deleteNode = useBuilderStore((s) => s.deleteNode);
-  const isActive = useBuilderStore((s) => s.activeNodeId === id);
-
-  return (
-    <div className="relative group">
-      <div
-        className={cn(
-          "w-60 rounded-2xl border bg-card shadow-md overflow-visible",
-          "border-emerald-200 dark:border-emerald-500/40",
-          STYLES.start.ringClass,
-          isActive &&
-            "!ring-4 !ring-emerald-400 !border-emerald-400 shadow-[0_0_36px_-2px_rgba(52,211,153,0.6)] animate-pulse",
-        )}
-      >
-        {/* Header */}
-        <div
-          className={cn(
-            "relative rounded-t-2xl border-b px-3 py-2.5",
-            STYLES.start.headerClass,
-          )}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 shadow-sm shrink-0">
-                <Play className="h-2.5 w-2.5 text-white ml-0.5" />
-              </span>
-              <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-                Start
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => selectNode(id)}
-                className="rounded p-1 text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
-                aria-label="Edit"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => deleteNode(id)}
-                className="rounded p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10"
-                aria-label="Delete"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="px-3 py-2.5 cursor-pointer" onClick={() => selectNode(id)}>
-          {data.dialogue ? (
-            <HighlightedPrompt
-              text={data.dialogue}
-              className="text-sm text-foreground dark:text-white whitespace-pre-wrap line-clamp-3"
-            />
-          ) : (
-            <p className="text-sm italic text-muted-foreground dark:text-white/50">
-              Opening message…
-            </p>
-          )}
-          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-700 dark:text-emerald-300 font-medium">
-            <span className="rounded bg-emerald-100 dark:bg-emerald-500/20 px-1.5 py-0.5">
-              {data.startSpeaker === "user" ? "User speaks first" : "Agent speaks first"}
-            </span>
-          </div>
-        </div>
-
-        {/* Single outgoing handle */}
-        <div className="flex items-center justify-end px-3 pb-3">
-          <div className="relative flex items-center gap-2 rounded-md bg-muted/40 border px-2 py-1 text-xs w-full">
-            <svg width="10" height="10" viewBox="0 0 12 12" className="text-emerald-600 shrink-0">
-              <path d="M2 6 L10 6 M7 3 L10 6 L7 9" stroke="currentColor" fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="flex-1 text-muted-foreground text-[10px]">Connect to first node</span>
-            <Handle
-              type="source"
-              position={Position.Right}
-              id="out"
-              className="!h-3 !w-3 !-right-1.5 !bg-emerald-500 !border-2 !border-white dark:!border-gray-900"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Terminal end node — has an incoming handle, no outgoing, rose colour. */
-function EndNode({ id, data }: NodeProps<FlowNode>) {
-  const selectNode = useBuilderStore((s) => s.selectNode);
-  const deleteNode = useBuilderStore((s) => s.deleteNode);
-  const isActive = useBuilderStore((s) => s.activeNodeId === id);
-
-  return (
-    <div className="relative group">
-      <div
-        className={cn(
-          "w-56 rounded-2xl border bg-card shadow-md overflow-visible",
-          "border-rose-200 dark:border-rose-500/40",
-          isActive &&
-            "!ring-4 !ring-rose-400 !border-rose-400 shadow-[0_0_36px_-2px_rgba(251,113,133,0.6)] animate-pulse",
-        )}
-      >
-        <div className="relative rounded-t-2xl border-b px-3 py-2.5 bg-rose-50/70 border-rose-100 dark:bg-rose-500/10 dark:border-rose-400/30">
-          <Handle
-            type="target"
-            position={Position.Left}
-            className="!h-3 !w-3 !-left-1.5 !top-3 !bg-rose-400 !border-2 !border-white dark:!border-gray-900"
-          />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 shadow-sm shrink-0">
-                <PhoneOff className="h-2.5 w-2.5 text-white" />
-              </span>
-              <span className="text-sm font-semibold text-rose-800 dark:text-rose-200">
-                End Call
-              </span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => selectNode(id)}
-                className="rounded p-1 text-rose-700 hover:bg-rose-100 dark:text-rose-300 dark:hover:bg-rose-500/20"
-                aria-label="Edit"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => deleteNode(id)}
-                className="rounded p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10"
-                aria-label="Delete"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="px-3 py-2.5 cursor-pointer" onClick={() => selectNode(id)}>
-          {data.endingPrompt || data.dialogue ? (
-            <HighlightedPrompt
-              text={data.endingPrompt || data.dialogue || ""}
-              className="text-sm text-foreground dark:text-white whitespace-pre-wrap line-clamp-3"
-            />
-          ) : (
-            <p className="text-sm italic text-muted-foreground dark:text-white/50">Tap to set closing message…</p>
           )}
         </div>
       </div>
@@ -867,5 +705,4 @@ export const NodeRenderers: Record<NodeKind, typeof ConversationStyleNode> = {
   wa_template: ConversationStyleNode,
   check_documents: ConversationStyleNode,
   send_upload_link: ConversationStyleNode,
-  start: StartNode,
 };

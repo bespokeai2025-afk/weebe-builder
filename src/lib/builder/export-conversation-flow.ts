@@ -939,7 +939,7 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         ...base,
         type: "function",
         tool_id: "check_documents",
-        tool_type: "custom",
+        tool_type: "local",
         speak_during_execution:
           d.speakDuringExecution ?? (raw.speak_during_execution as boolean) ?? true,
         wait_for_result: d.waitForResult ?? (raw.wait_for_result as boolean) ?? true,
@@ -951,7 +951,7 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         ...base,
         type: "function",
         tool_id: "send_upload_link",
-        tool_type: "custom",
+        tool_type: "local",
         speak_during_execution:
           d.speakDuringExecution ?? (raw.speak_during_execution as boolean) ?? true,
         wait_for_result: d.waitForResult ?? (raw.wait_for_result as boolean) ?? true,
@@ -965,19 +965,6 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         code: d.codeSource ?? (raw.code as string) ?? "",
         edges,
       });
-    case "start": {
-      const instruction = {
-        type: d.instructionType ?? "prompt",
-        text: d.dialogue ?? "",
-      };
-      return orderNode({
-        ...base,
-        type: "conversation",
-        ...(d.startSpeaker ? { start_speaker: d.startSpeaker } : { start_speaker: "agent" }),
-        instruction,
-        edges,
-      });
-    }
     case "ending":
       return orderNode({
         ...base,
@@ -991,7 +978,21 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
             "End the call",
         },
       });
-    default:
+    default: {
+      // Backward-compat: legacy "start" nodes (kind removed) compile as conversation.
+      if ((d.kind as string) === "start") {
+        return orderNode({
+          ...base,
+          type: "conversation",
+          start_speaker: (d as { startSpeaker?: string }).startSpeaker ?? "agent",
+          instruction: {
+            type: (d as { instructionType?: string }).instructionType ?? "prompt",
+            text: d.dialogue ?? "",
+          },
+          edges,
+        });
+      }
       return orderNode(hasRaw ? { ...base, edges } : { ...base, type: d.kind, edges });
+    }
   }
 }

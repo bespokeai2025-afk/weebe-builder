@@ -172,57 +172,6 @@ export function NodeEditorDialog() {
             </Button>
           </div>
 
-          {d.kind === "start" && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Instruction type</Label>
-                  <Select
-                    value={d.instructionType ?? "prompt"}
-                    onValueChange={(v) =>
-                      updateNode(node.id, { instructionType: v as "prompt" | "static_text" })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="prompt">Prompt (LLM)</SelectItem>
-                      <SelectItem value="static_text">Static text</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Who speaks first?</Label>
-                  <Select
-                    value={d.startSpeaker ?? "agent"}
-                    onValueChange={(v) =>
-                      updateNode(node.id, { startSpeaker: v as "agent" | "user" })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="agent">Agent speaks first</SelectItem>
-                      <SelectItem value="user">User speaks first</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div>
-                <Label>{d.instructionType === "static_text" ? "Opening message" : "Opening prompt"}</Label>
-                <Textarea
-                  rows={5}
-                  value={d.dialogue}
-                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
-                  placeholder="Greet the caller and introduce yourself…"
-                />
-              </div>
-              <GlobalNodeSettings nodeId={node.id} value={d.globalNodeSetting ?? {}} />
-            </>
-          )}
-
           {d.kind === "conversation" && (
             <>
               <div className="grid grid-cols-2 gap-3">

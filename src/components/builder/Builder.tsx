@@ -97,7 +97,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
-  { kind: "start", label: "Start", icon: Play, color: "text-emerald-600" },
   { kind: "ending", label: "End Call", icon: Square, color: "text-rose-600" },
   { kind: "conversation", label: "Conversation", icon: MessageCircle, color: "text-sky-600" },
   { kind: "function", label: "Function", icon: Cpu, color: "text-violet-600" },
