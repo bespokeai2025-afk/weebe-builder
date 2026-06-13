@@ -99,7 +99,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Content */}
-      <main className="flex-1 min-w-0 h-full overflow-hidden">
+      <main className="flex-1 min-w-0 overflow-y-auto">
         {children}
       </main>
     </div>
