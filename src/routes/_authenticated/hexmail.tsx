@@ -5,7 +5,7 @@ import { Mail, FileText, Settings, LayoutGrid, CalendarDays, Sparkles } from "lu
 import { FollowUpCentre } from "@/components/hexmail/FollowUpCentre";
 import { TemplateStudio } from "@/components/hexmail/TemplateStudio";
 import { HexMailSettings } from "@/components/hexmail/HexMailSettings";
-import { CampaignTimeline } from "@/components/hexmail/CampaignTimeline";
+import { CampaignCalendar } from "@/components/hexmail/CampaignCalendar";
 import { CampaignBuilderPage } from "@/components/hexmail/CampaignBuilderPage";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,7 @@ type FollowUpView = "cards" | "timeline" | "visual";
 
 const VIEW_TOGGLE: { value: FollowUpView; icon: typeof LayoutGrid; label: string }[] = [
   { value: "cards",    icon: LayoutGrid,   label: "Campaigns" },
-  { value: "timeline", icon: CalendarDays, label: "Timeline"  },
+  { value: "timeline", icon: CalendarDays, label: "Calendar"  },
   { value: "visual",   icon: Sparkles,     label: "Visual"    },
 ];
 
@@ -116,7 +116,7 @@ function HexmailPage() {
           )}
 
           {followUpView === "timeline" && (
-            <CampaignTimeline initialCampaignId={activeCampaignId} />
+            <CampaignCalendar initialCampaignId={activeCampaignId} />
           )}
 
           {followUpView === "visual" && (
