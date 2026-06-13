@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildBookingTools } from "@/lib/calendar/booking-tools.server";
+import { buildDocumentTools } from "@/lib/documents/document-tools.server";
 import {
   getRetailRetellApiKey,
   getRetailWorkspaceId,
@@ -472,10 +473,26 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
       reschedule_appointment: "Say: 'One moment while I reschedule that appointment for you.'",
       cancel_appointment: "Say: 'One moment while I cancel that appointment for you.'",
     };
+
+    // Force speak_during_execution on document tool function nodes too.
+    const DOC_TOOL_IDS = new Set(["check_documents", "send_upload_link"]);
+    const DOC_SPEAK_MESSAGES: Record<string, string> = {
+      check_documents: "Say: 'Let me just check that for you now, one moment.'",
+      send_upload_link: "Say: 'Of course, let me generate and send that link to you right now.'",
+    };
+
     if (Array.isArray(cf.nodes)) {
       cf.nodes = (cf.nodes as Array<Record<string, unknown>>).map((n) => {
         if (n.type !== "function") return n;
         const tid = String(n.tool_id ?? "");
+        if (DOC_TOOL_IDS.has(tid)) {
+          const msg = DOC_SPEAK_MESSAGES[tid];
+          return {
+            ...n,
+            speak_during_execution: true,
+            ...(msg ? { execution_message_description: msg } : {}),
+          };
+        }
         if (!BOOKING_TOOL_IDS.has(tid)) return n;
         const msg = BOOKING_SPEAK_MESSAGES[tid];
         return {
@@ -486,10 +503,15 @@ export const deployAgentToRetell = createServerFn({ method: "POST" })
       });
     }
 
+    // Always auto-attach document tools (check_documents + send_upload_link).
+    // These are stateless lookups — harmless when the agent never calls them.
+    const docTools = buildDocumentTools() as Array<Record<string, unknown>>;
+
     // Merge auto-attached + per-node Cal.com tools into agent.general_tools
     // AND cf.tools (Retell requires the tool exist in cf.tools for function
     // nodes to reference it by tool_id).
     const mergedTools: Array<Record<string, unknown>> = [
+      ...docTools,
       ...((bookingTools ?? []) as Array<Record<string, unknown>>),
       ...perNodeTools,
     ];
@@ -1782,6 +1804,20 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
       agentBody.general_tools = [
         ...existing.filter((t) => !ourNames.has(t.name as string)),
         ...bookingTools,
+      ];
+    }
+
+    // Auto-attach document tools (check_documents + send_upload_link) to every
+    // deployed agent — they degrade gracefully when unused.
+    {
+      const cloneDocTools = buildDocumentTools() as Array<Record<string, unknown>>;
+      const existing = Array.isArray(agentBody.general_tools)
+        ? (agentBody.general_tools as Array<Record<string, unknown>>)
+        : [];
+      const docNames = new Set(cloneDocTools.map((t) => t.name as string));
+      agentBody.general_tools = [
+        ...existing.filter((t) => !docNames.has(t.name as string)),
+        ...cloneDocTools,
       ];
     }
 
