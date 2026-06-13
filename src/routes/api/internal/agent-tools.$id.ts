@@ -15,6 +15,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildAgentRuntimeDefinition, unpackAgentRow } from "@/lib/runtime/export";
 import { buildHyperStreamBookingTools } from "@/lib/calendar/hyperstream-booking-tools";
+import { buildHyperStreamDocumentTools } from "@/lib/documents/hyperstream-document-tools";
 
 export interface RelayToolEntry {
   name: string;
@@ -74,6 +75,11 @@ export const Route = createFileRoute("/api/internal/agent-tools/$id")({
           ) as Array<Record<string, unknown>>;
           tools = [...tools, ...bookingTools];
         }
+
+        // Always include the document check tool — it's harmless when unused
+        // and requires no extra configuration.
+        const docTools = buildHyperStreamDocumentTools(agentId) as Array<Record<string, unknown>>;
+        tools = [...tools, ...docTools];
 
         const registry: RelayToolEntry[] = tools
           .map((t) => ({

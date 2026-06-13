@@ -70,6 +70,7 @@ import { Route as ApiPublicTelephonyRecordingRouteImport } from './routes/api/pu
 import { Route as ApiPublicTelephonyInboundRouteImport } from './routes/api/public/telephony/inbound'
 import { Route as ApiPublicRetellRescheduleRouteImport } from './routes/api/public/retell/reschedule'
 import { Route as ApiPublicRetellEventTypesRouteImport } from './routes/api/public/retell/event-types'
+import { Route as ApiPublicRetellCheckDocumentsRouteImport } from './routes/api/public/retell/check-documents'
 import { Route as ApiPublicRetellCancelRouteImport } from './routes/api/public/retell/cancel'
 import { Route as ApiPublicRetellBookRouteImport } from './routes/api/public/retell/book'
 import { Route as ApiPublicRetellAvailabilityRouteImport } from './routes/api/public/retell/availability'
@@ -78,6 +79,7 @@ import { Route as ApiPublicRetellWebhookDebugRouteImport } from './routes/api/pu
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicHyperstreamRescheduleRouteImport } from './routes/api/public/hyperstream/reschedule'
 import { Route as ApiPublicHyperstreamEventTypesRouteImport } from './routes/api/public/hyperstream/event-types'
+import { Route as ApiPublicHyperstreamCheckDocumentsRouteImport } from './routes/api/public/hyperstream/check-documents'
 import { Route as ApiPublicHyperstreamCancelRouteImport } from './routes/api/public/hyperstream/cancel'
 import { Route as ApiPublicHyperstreamBookRouteImport } from './routes/api/public/hyperstream/book'
 import { Route as ApiPublicHyperstreamAvailabilityRouteImport } from './routes/api/public/hyperstream/availability'
@@ -415,6 +417,12 @@ const ApiPublicRetellEventTypesRoute =
     path: '/api/public/retell/event-types',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicRetellCheckDocumentsRoute =
+  ApiPublicRetellCheckDocumentsRouteImport.update({
+    id: '/api/public/retell/check-documents',
+    path: '/api/public/retell/check-documents',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRetellCancelRoute = ApiPublicRetellCancelRouteImport.update({
   id: '/api/public/retell/cancel',
   path: '/api/public/retell/cancel',
@@ -459,6 +467,12 @@ const ApiPublicHyperstreamEventTypesRoute =
   ApiPublicHyperstreamEventTypesRouteImport.update({
     id: '/api/public/hyperstream/event-types',
     path: '/api/public/hyperstream/event-types',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHyperstreamCheckDocumentsRoute =
+  ApiPublicHyperstreamCheckDocumentsRouteImport.update({
+    id: '/api/public/hyperstream/check-documents',
+    path: '/api/public/hyperstream/check-documents',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHyperstreamCancelRoute =
@@ -567,6 +581,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
   '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
+  '/api/public/hyperstream/check-documents': typeof ApiPublicHyperstreamCheckDocumentsRoute
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -575,6 +590,7 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
   '/api/public/retell/book': typeof ApiPublicRetellBookRoute
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
+  '/api/public/retell/check-documents': typeof ApiPublicRetellCheckDocumentsRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
@@ -645,6 +661,7 @@ export interface FileRoutesByTo {
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
   '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
+  '/api/public/hyperstream/check-documents': typeof ApiPublicHyperstreamCheckDocumentsRoute
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -653,6 +670,7 @@ export interface FileRoutesByTo {
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
   '/api/public/retell/book': typeof ApiPublicRetellBookRoute
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
+  '/api/public/retell/check-documents': typeof ApiPublicRetellCheckDocumentsRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
@@ -726,6 +744,7 @@ export interface FileRoutesById {
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
   '/api/public/hyperstream/cancel': typeof ApiPublicHyperstreamCancelRoute
+  '/api/public/hyperstream/check-documents': typeof ApiPublicHyperstreamCheckDocumentsRoute
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
@@ -734,6 +753,7 @@ export interface FileRoutesById {
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
   '/api/public/retell/book': typeof ApiPublicRetellBookRoute
   '/api/public/retell/cancel': typeof ApiPublicRetellCancelRoute
+  '/api/public/retell/check-documents': typeof ApiPublicRetellCheckDocumentsRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
@@ -807,6 +827,7 @@ export interface FileRouteTypes {
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
     | '/api/public/hyperstream/cancel'
+    | '/api/public/hyperstream/check-documents'
     | '/api/public/hyperstream/event-types'
     | '/api/public/hyperstream/reschedule'
     | '/api/public/payments/webhook'
@@ -815,6 +836,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/availability'
     | '/api/public/retell/book'
     | '/api/public/retell/cancel'
+    | '/api/public/retell/check-documents'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/telephony/inbound'
@@ -885,6 +907,7 @@ export interface FileRouteTypes {
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
     | '/api/public/hyperstream/cancel'
+    | '/api/public/hyperstream/check-documents'
     | '/api/public/hyperstream/event-types'
     | '/api/public/hyperstream/reschedule'
     | '/api/public/payments/webhook'
@@ -893,6 +916,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/availability'
     | '/api/public/retell/book'
     | '/api/public/retell/cancel'
+    | '/api/public/retell/check-documents'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/telephony/inbound'
@@ -965,6 +989,7 @@ export interface FileRouteTypes {
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
     | '/api/public/hyperstream/cancel'
+    | '/api/public/hyperstream/check-documents'
     | '/api/public/hyperstream/event-types'
     | '/api/public/hyperstream/reschedule'
     | '/api/public/payments/webhook'
@@ -973,6 +998,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/availability'
     | '/api/public/retell/book'
     | '/api/public/retell/cancel'
+    | '/api/public/retell/check-documents'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/telephony/inbound'
@@ -1019,12 +1045,14 @@ export interface RootRouteChildren {
   ApiPublicHyperstreamAvailabilityRoute: typeof ApiPublicHyperstreamAvailabilityRoute
   ApiPublicHyperstreamBookRoute: typeof ApiPublicHyperstreamBookRoute
   ApiPublicHyperstreamCancelRoute: typeof ApiPublicHyperstreamCancelRoute
+  ApiPublicHyperstreamCheckDocumentsRoute: typeof ApiPublicHyperstreamCheckDocumentsRoute
   ApiPublicHyperstreamEventTypesRoute: typeof ApiPublicHyperstreamEventTypesRoute
   ApiPublicHyperstreamRescheduleRoute: typeof ApiPublicHyperstreamRescheduleRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicRetellAvailabilityRoute: typeof ApiPublicRetellAvailabilityRoute
   ApiPublicRetellBookRoute: typeof ApiPublicRetellBookRoute
   ApiPublicRetellCancelRoute: typeof ApiPublicRetellCancelRoute
+  ApiPublicRetellCheckDocumentsRoute: typeof ApiPublicRetellCheckDocumentsRoute
   ApiPublicRetellEventTypesRoute: typeof ApiPublicRetellEventTypesRoute
   ApiPublicRetellRescheduleRoute: typeof ApiPublicRetellRescheduleRoute
   ApiPublicTelephonyInboundRoute: typeof ApiPublicTelephonyInboundRoute
@@ -1468,6 +1496,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRetellEventTypesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/retell/check-documents': {
+      id: '/api/public/retell/check-documents'
+      path: '/api/public/retell/check-documents'
+      fullPath: '/api/public/retell/check-documents'
+      preLoaderRoute: typeof ApiPublicRetellCheckDocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/retell/cancel': {
       id: '/api/public/retell/cancel'
       path: '/api/public/retell/cancel'
@@ -1522,6 +1557,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hyperstream/event-types'
       fullPath: '/api/public/hyperstream/event-types'
       preLoaderRoute: typeof ApiPublicHyperstreamEventTypesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hyperstream/check-documents': {
+      id: '/api/public/hyperstream/check-documents'
+      path: '/api/public/hyperstream/check-documents'
+      fullPath: '/api/public/hyperstream/check-documents'
+      preLoaderRoute: typeof ApiPublicHyperstreamCheckDocumentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hyperstream/cancel': {
@@ -1735,12 +1777,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHyperstreamAvailabilityRoute: ApiPublicHyperstreamAvailabilityRoute,
   ApiPublicHyperstreamBookRoute: ApiPublicHyperstreamBookRoute,
   ApiPublicHyperstreamCancelRoute: ApiPublicHyperstreamCancelRoute,
+  ApiPublicHyperstreamCheckDocumentsRoute:
+    ApiPublicHyperstreamCheckDocumentsRoute,
   ApiPublicHyperstreamEventTypesRoute: ApiPublicHyperstreamEventTypesRoute,
   ApiPublicHyperstreamRescheduleRoute: ApiPublicHyperstreamRescheduleRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicRetellAvailabilityRoute: ApiPublicRetellAvailabilityRoute,
   ApiPublicRetellBookRoute: ApiPublicRetellBookRoute,
   ApiPublicRetellCancelRoute: ApiPublicRetellCancelRoute,
+  ApiPublicRetellCheckDocumentsRoute: ApiPublicRetellCheckDocumentsRoute,
   ApiPublicRetellEventTypesRoute: ApiPublicRetellEventTypesRoute,
   ApiPublicRetellRescheduleRoute: ApiPublicRetellRescheduleRoute,
   ApiPublicTelephonyInboundRoute: ApiPublicTelephonyInboundRoute,
