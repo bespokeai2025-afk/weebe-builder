@@ -6,7 +6,7 @@ import {
   Users, CalendarCheck, MessageSquare, AlertTriangle,
   CheckCircle2, Loader2, RefreshCw, Clock,
   ChevronDown, Settings2, ArrowRight, Timer, Bot,
-  Zap, MailOpen, XCircle, EyeOff, Brain,
+  Zap, MailOpen, XCircle, EyeOff, Brain, Bell, X,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,10 @@ import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
 import { getHiveMindBriefing, getHiveMindPlatformData } from "@/lib/hivemind/hivemind.functions";
 import { generateRecommendations } from "@/lib/hivemind/recommendations";
 import { Button } from "@/components/ui/button";
+import {
+  runHiveMindScan, getHiveMindTasksAndEvents, markHiveMindEventsRead,
+  type HiveMindEvent,
+} from "@/lib/hivemind/hivemind.tasks";
 
 export const Route = createFileRoute("/_authenticated/hivemind/")({
   head: () => ({ meta: [{ title: "HiveMind — Webee" }] }),
@@ -225,10 +229,55 @@ function Dropdown<T extends string | number>({ value, options, onChange, renderL
   );
 }
 
+// ── Event notification strip for overview ─────────────────────────────────────
+function OverviewEventStrip({ events, onMarkRead }: { events: HiveMindEvent[]; onMarkRead: () => void }) {
+  const unread = events.filter(e => !e.is_read);
+  const [dismissed, setDismissed] = useState(false);
+  if (!unread.length || dismissed) return null;
+  const hasCritical = unread.some(e => e.severity === "critical");
+  const hasWarning  = unread.some(e => e.severity === "warning");
+  const color = hasCritical ? "border-red-500/30 bg-red-500/[0.05]" : hasWarning ? "border-amber-500/30 bg-amber-500/[0.05]" : "border-violet-500/20 bg-violet-500/[0.04]";
+  const iconColor = hasCritical ? "text-red-400" : hasWarning ? "text-amber-400" : "text-violet-400";
+  return (
+    <div className={cn("rounded-xl border px-4 py-3 flex items-start gap-3", color)}>
+      <Bell className={cn("h-4 w-4 shrink-0 mt-0.5", iconColor)} />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold">
+          HiveMind detected {unread.length} new issue{unread.length !== 1 ? "s" : ""}
+        </p>
+        <ul className="mt-1.5 space-y-0.5">
+          {unread.slice(0, 3).map(ev => (
+            <li key={ev.id} className="text-[11px] text-muted-foreground">
+              • {ev.title}
+            </li>
+          ))}
+          {unread.length > 3 && (
+            <li className="text-[11px] text-muted-foreground">• +{unread.length - 3} more</li>
+          )}
+        </ul>
+        <div className="flex items-center gap-3 mt-2">
+          <Link to="/hivemind/tasks" className={cn("text-[11px] font-medium hover:underline", iconColor)}>
+            View tasks →
+          </Link>
+          <button onClick={onMarkRead} className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+            Mark read
+          </button>
+        </div>
+      </div>
+      <button onClick={() => setDismissed(true)} className="p-0.5 text-muted-foreground hover:text-foreground transition-colors shrink-0">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 function HiveMindOverview() {
   const briefingFn = useServerFn(getHiveMindBriefing);
   const platformFn = useServerFn(getHiveMindPlatformData);
+  const scanFn     = useServerFn(runHiveMindScan);
+  const getTasksFn = useServerFn(getHiveMindTasksAndEvents);
+  const markReadFn = useServerFn(markHiveMindEventsRead);
 
   const [prefs, setPrefs]       = useState<BriefingPrefs>(DEFAULT_PREFS);
   const [staleDays, setStaleDays] = useState(7);
@@ -287,6 +336,27 @@ function HiveMindOverview() {
     staleTime: 60_000,
     refetchInterval: REFRESH_MS,
   });
+
+  // Tasks + events query (for notification strip)
+  const tasksQ = useQuery({
+    queryKey: ["hivemind-tasks"],
+    queryFn: () => getTasksFn(),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+
+  // Auto-scan once on mount (fire-and-forget, refresh tasks after)
+  useEffect(() => {
+    let mounted = true;
+    scanFn().then(() => { if (mounted) tasksQ.refetch(); }).catch(() => {});
+    return () => { mounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleMarkEventsRead() {
+    await markReadFn({ data: {} });
+    tasksQ.refetch();
+  }
 
   // Detect newly arrived items between fetches
   useEffect(() => {
@@ -358,6 +428,14 @@ function HiveMindOverview() {
             </Button>
           </div>
         </div>
+
+        {/* EVENT NOTIFICATIONS */}
+        {tasksQ.data?.events && tasksQ.data.events.length > 0 && (
+          <OverviewEventStrip
+            events={tasksQ.data.events}
+            onMarkRead={handleMarkEventsRead}
+          />
+        )}
 
         {/* CONFIGURE PANEL */}
         <div className="rounded-xl border border-white/[0.07] bg-card/50 overflow-hidden">

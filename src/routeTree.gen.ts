@@ -59,6 +59,7 @@ import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admi
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
+import { Route as AuthenticatedHivemindTasksRouteImport } from './routes/_authenticated/hivemind.tasks'
 import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/_authenticated/hivemind.system-health'
 import { Route as AuthenticatedHivemindReportsRouteImport } from './routes/_authenticated/hivemind.reports'
 import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './routes/_authenticated/hivemind.recommendations'
@@ -365,6 +366,12 @@ const AuthenticatedSettingsCalendarRoute =
     path: '/settings/calendar',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedHivemindTasksRoute =
+  AuthenticatedHivemindTasksRouteImport.update({
+    id: '/tasks',
+    path: '/tasks',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
 const AuthenticatedHivemindSystemHealthRoute =
   AuthenticatedHivemindSystemHealthRouteImport.update({
     id: '/system-health',
@@ -646,6 +653,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
+  '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -737,6 +745,7 @@ export interface FileRoutesByTo {
   '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
+  '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -832,6 +841,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/_authenticated/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
   '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
+  '/_authenticated/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -927,6 +937,7 @@ export interface FileRouteTypes {
     | '/hivemind/recommendations'
     | '/hivemind/reports'
     | '/hivemind/system-health'
+    | '/hivemind/tasks'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
@@ -1018,6 +1029,7 @@ export interface FileRouteTypes {
     | '/hivemind/recommendations'
     | '/hivemind/reports'
     | '/hivemind/system-health'
+    | '/hivemind/tasks'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
@@ -1112,6 +1124,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/recommendations'
     | '/_authenticated/hivemind/reports'
     | '/_authenticated/hivemind/system-health'
+    | '/_authenticated/hivemind/tasks'
     | '/_authenticated/settings/calendar'
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/integrations'
@@ -1573,6 +1586,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsCalendarRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/hivemind/tasks': {
+      id: '/_authenticated/hivemind/tasks'
+      path: '/tasks'
+      fullPath: '/hivemind/tasks'
+      preLoaderRoute: typeof AuthenticatedHivemindTasksRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
     '/_authenticated/hivemind/system-health': {
       id: '/_authenticated/hivemind/system-health'
       path: '/system-health'
@@ -1892,6 +1912,7 @@ interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindRecommendationsRoute: typeof AuthenticatedHivemindRecommendationsRoute
   AuthenticatedHivemindReportsRoute: typeof AuthenticatedHivemindReportsRoute
   AuthenticatedHivemindSystemHealthRoute: typeof AuthenticatedHivemindSystemHealthRoute
+  AuthenticatedHivemindTasksRoute: typeof AuthenticatedHivemindTasksRoute
   AuthenticatedHivemindIndexRoute: typeof AuthenticatedHivemindIndexRoute
 }
 
@@ -1902,6 +1923,7 @@ const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
   AuthenticatedHivemindReportsRoute: AuthenticatedHivemindReportsRoute,
   AuthenticatedHivemindSystemHealthRoute:
     AuthenticatedHivemindSystemHealthRoute,
+  AuthenticatedHivemindTasksRoute: AuthenticatedHivemindTasksRoute,
   AuthenticatedHivemindIndexRoute: AuthenticatedHivemindIndexRoute,
 }
 

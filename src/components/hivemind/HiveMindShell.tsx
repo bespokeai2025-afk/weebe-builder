@@ -1,14 +1,35 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Brain, BarChart3, Lightbulb, FileText, Activity, MessageSquareMore } from "lucide-react";
+import { Brain, BarChart3, Lightbulb, FileText, Activity, MessageSquareMore, CheckCircle2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
+import { getHiveMindTasksAndEvents } from "@/lib/hivemind/hivemind.tasks";
 
 const NAV = [
-  { label: "Overview",       href: "/hivemind",             icon: BarChart3 },
-  { label: "Assistant",      href: "/hivemind/chat",        icon: MessageSquareMore, highlight: true },
-  { label: "Recommendations",href: "/hivemind/recommendations", icon: Lightbulb },
-  { label: "Reports",        href: "/hivemind/reports",     icon: FileText },
-  { label: "System Health",  href: "/hivemind/system-health", icon: Activity },
+  { label: "Overview",        href: "/hivemind",                  icon: BarChart3 },
+  { label: "Assistant",       href: "/hivemind/chat",             icon: MessageSquareMore, highlight: true },
+  { label: "Tasks",           href: "/hivemind/tasks",            icon: CheckCircle2,      tasks: true },
+  { label: "Recommendations", href: "/hivemind/recommendations",  icon: Lightbulb },
+  { label: "Reports",         href: "/hivemind/reports",          icon: FileText },
+  { label: "System Health",   href: "/hivemind/system-health",    icon: Activity },
 ];
+
+function TasksBadge() {
+  const getFn = useServerFn(getHiveMindTasksAndEvents);
+  const { data } = useQuery({
+    queryKey: ["hivemind-shell-badge"],
+    queryFn:  () => getFn(),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+  const n = data?.badge ?? 0;
+  if (!n) return null;
+  return (
+    <span className="ml-auto rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-violet-400 leading-none">
+      {n > 99 ? "99+" : n}
+    </span>
+  );
+}
 
 export function HiveMindShell({ children }: { children: React.ReactNode }) {
   const router = useRouterState();
@@ -33,7 +54,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
 
         {/* Nav items */}
         <nav className="flex flex-col gap-0.5 px-2">
-          {NAV.map(({ label, href, icon: Icon, highlight }) => {
+          {NAV.map(({ label, href, icon: Icon, highlight, tasks }) => {
             const active = href === "/hivemind" ? path === "/hivemind" : path.startsWith(href);
             return (
               <Link
@@ -53,6 +74,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
                 {highlight && !active && (
                   <span className="ml-auto rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-violet-400 leading-none">AI</span>
                 )}
+                {tasks && !active && <TasksBadge />}
               </Link>
             );
           })}
@@ -78,7 +100,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Fix #4: mobile nav is relative (not absolute) so content isn't hidden under it */}
+      {/* Mobile nav */}
       <div className="flex md:hidden border-b border-white/[0.06] px-4 overflow-x-auto shrink-0">
         {NAV.map(({ label, href, icon: Icon }) => {
           const active = href === "/hivemind" ? path === "/hivemind" : path.startsWith(href);

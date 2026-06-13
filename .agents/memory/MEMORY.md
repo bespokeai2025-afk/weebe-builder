@@ -13,3 +13,4 @@
 - [Campaign executor architecture](campaign-executor-arch.md) — dual dev/prod: Vite plugin ticks every 5 min in dev; prod uses POST /api/public/campaign-executor hit by pg_cron. lastRunDate stored inside __sched_v1__ JSON blob.
 - [HiveMind architecture](hivemind-arch.md) — observer-only platform layer; 4 flat routes + shared HiveMindShell sidebar; recommendation engine extracted to recommendations.ts; all data in one server fn.
 - [HiveMind Phase 2 AI assistant](hivemind-phase2-ai.md) — chat+voice at /hivemind/chat; reuses el-voice-relay (session.init injection); Web Speech API for STT; EL TTS REST → base64 audio; settings in localStorage.
+- [HiveMind Phase 3 tasks & events](hivemind-phase3-tasks.md) — hivemind_tasks + hivemind_events tables; scanner deduplicates by trigger_type+entity_id; migration must be applied in Supabase SQL Editor.

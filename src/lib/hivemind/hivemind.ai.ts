@@ -5,11 +5,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // ── Context builder ────────────────────────────────────────────────────────────
 function buildPlatformContext(data: any): string {
   if (!data) return "No platform data available yet.";
-  const { agents, agentScores, today, calls, leads, bookings, campaigns, whatsapp, systemHealth } = data;
+  const { agents, agentScores, today, calls, leads, bookings, campaigns, whatsapp, systemHealth, tasks } = data;
 
   const lines: string[] = [];
 
   lines.push(`TODAY: ${today?.leads ?? 0} new leads | ${today?.bookings ?? 0} bookings | ${today?.calls ?? 0} calls | ${today?.messages ?? 0} WhatsApp msgs`);
+
+  if (tasks) {
+    lines.push(`\nHIVEMIND TASKS: ${tasks.suggested} suggested | ${tasks.approved} approved | ${tasks.inProgress} in-progress | ${tasks.completed} completed`);
+    if (tasks.suggested > 0) lines.push(`  ⚠ ${tasks.suggested} task${tasks.suggested !== 1 ? "s" : ""} waiting for approval — check /hivemind/tasks`);
+  }
 
   lines.push(`\nAGENTS (${agents?.length ?? 0} total):`);
   for (const a of (agentScores ?? []).slice(0, 8)) {
@@ -160,8 +165,8 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    // Fetch platform data + OpenAI key in parallel
-    const [platformRes, apiKey] = await Promise.all([
+    // Fetch platform data, task counts + OpenAI key in parallel
+    const [platformRes, taskCounts, apiKey] = await Promise.all([
       (async () => {
         const now = new Date();
         const s30 = new Date(now); s30.setDate(now.getDate() - 30);
@@ -217,10 +222,22 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
           systemHealth: { retell: !!(cfg.retell_workspace_id), calcom: !!cfg.calcom_api_key, elevenlabs: !!cfg.elevenlabs_api_key, openai: !!cfg.openai_api_key, whatsapp: !!cfg.whatsapp_phone_id, twilio: !!cfg.twilio_auth_token },
         };
       })(),
+      (async () => {
+        try {
+          const { data: rows } = await sb.from("hivemind_tasks").select("status").eq("workspace_id", workspaceId);
+          const t = rows ?? [];
+          return {
+            suggested:  t.filter((r: any) => r.status === "suggested").length,
+            approved:   t.filter((r: any) => r.status === "approved").length,
+            inProgress: t.filter((r: any) => r.status === "in_progress").length,
+            completed:  t.filter((r: any) => r.status === "completed").length,
+          };
+        } catch { return null; }
+      })(),
       getOpenAIKey(sb, workspaceId),
     ]);
 
-    const context2 = buildPlatformContext(platformRes);
+    const context2 = buildPlatformContext({ ...platformRes, tasks: taskCounts });
     const systemPrompt = buildSystemPrompt(context2, data.personality ?? "professional");
 
     const messages = [
