@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, FileText, Settings, LayoutGrid, CalendarDays } from "lucide-react";
+import { Mail, FileText, Settings, LayoutGrid, CalendarDays, Sparkles } from "lucide-react";
 import { FollowUpCentre } from "@/components/hexmail/FollowUpCentre";
 import { TemplateStudio } from "@/components/hexmail/TemplateStudio";
 import { HexMailSettings } from "@/components/hexmail/HexMailSettings";
 import { CampaignTimeline } from "@/components/hexmail/CampaignTimeline";
+import { CampaignBuilderPage } from "@/components/hexmail/CampaignBuilderPage";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/hexmail")({
@@ -18,16 +19,29 @@ export const Route = createFileRoute("/_authenticated/hexmail")({
   component: HexmailPage,
 });
 
-type FollowUpView = "cards" | "timeline";
+type FollowUpView = "cards" | "timeline" | "visual";
+
+const VIEW_TOGGLE: { value: FollowUpView; icon: typeof LayoutGrid; label: string }[] = [
+  { value: "cards",    icon: LayoutGrid,   label: "Campaigns" },
+  { value: "timeline", icon: CalendarDays, label: "Timeline"  },
+  { value: "visual",   icon: Sparkles,     label: "Visual"    },
+];
 
 function HexmailPage() {
   const [followUpView, setFollowUpView] = useState<FollowUpView>("cards");
-  const [timelineCampaignId, setTimelineCampaignId] = useState<string | undefined>(undefined);
+  const [activeCampaignId, setActiveCampaignId] = useState<string | undefined>(undefined);
 
   const handleOpenBuilder = (campaignId?: string) => {
-    setTimelineCampaignId(campaignId);
+    setActiveCampaignId(campaignId);
     setFollowUpView("timeline");
   };
+
+  const handleOpenVisual = (campaignId?: string) => {
+    setActiveCampaignId(campaignId);
+    setFollowUpView("visual");
+  };
+
+  const isVisual = followUpView === "visual";
 
   return (
     <div className="flex flex-col h-full p-6 gap-4">
@@ -58,49 +72,65 @@ function HexmailPage() {
           <TemplateStudio />
         </TabsContent>
 
-        <TabsContent value="followup" className="flex-1 overflow-y-auto mt-4">
-          <div className="space-y-4">
-            {/* View toggle row */}
-            <div className="flex items-center justify-end">
-              <div className="flex items-center rounded-lg border bg-muted/30 p-0.5 gap-0.5">
+        {/* Follow-Up Centre — switches between 3 views */}
+        <TabsContent
+          value="followup"
+          className={cn(
+            "mt-4",
+            isVisual
+              ? "flex-1 min-h-0 overflow-hidden flex flex-col"
+              : "flex-1 overflow-y-auto",
+          )}
+        >
+          {/* View toggle — always visible */}
+          <div className="flex items-center justify-end mb-4 shrink-0">
+            <div className="flex items-center rounded-lg border bg-muted/30 p-0.5 gap-0.5">
+              {VIEW_TOGGLE.map(({ value, icon: Icon, label }) => (
                 <button
+                  key={value}
                   type="button"
-                  onClick={() => setFollowUpView("cards")}
-                  title="Card view"
+                  onClick={() => setFollowUpView(value)}
+                  title={label}
                   className={cn(
                     "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                    followUpView === "cards"
+                    followUpView === value
                       ? "bg-background shadow-sm text-foreground"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  Campaigns
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setFollowUpView("timeline")}
-                  title="Timeline view"
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                    followUpView === "timeline"
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Timeline
-                </button>
-              </div>
+              ))}
             </div>
-
-            {/* View content */}
-            {followUpView === "cards" ? (
-              <FollowUpCentre onOpenBuilder={handleOpenBuilder} />
-            ) : (
-              <CampaignTimeline initialCampaignId={timelineCampaignId} />
-            )}
           </div>
+
+          {/* View content */}
+          {followUpView === "cards" && (
+            <FollowUpCentre
+              onOpenBuilder={(id) => {
+                setActiveCampaignId(id);
+                setFollowUpView("timeline");
+              }}
+            />
+          )}
+
+          {followUpView === "timeline" && (
+            <CampaignTimeline initialCampaignId={activeCampaignId} />
+          )}
+
+          {followUpView === "visual" && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <CampaignBuilderPage
+                campaignId={activeCampaignId}
+                onBack={() => setFollowUpView("cards")}
+                onSaved={(id) => {
+                  setActiveCampaignId(id);
+                  setFollowUpView("cards");
+                }}
+              />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-y-auto mt-4">

@@ -156,7 +156,7 @@ export function CampaignBuilderPage({ campaignId, onBack, onSaved }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+      className="flex flex-col h-full overflow-hidden rounded-lg"
       style={{
         background:
           "radial-gradient(ellipse at 15% 40%, rgba(76,0,160,0.45) 0%, transparent 45%)," +
