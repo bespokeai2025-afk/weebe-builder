@@ -673,6 +673,37 @@ export const goLiveAgent = createServerFn({ method: "POST" })
           console.warn("[go-live] Failed to configure ElevenLabs webhook", elErr);
         }
       }
+
+      // Register Cal.com webhook for HyperStream (OpenAI Realtime) agents that
+      // have booking enabled. The webhook keeps calendar_bookings in sync when
+      // Cal.com fires BOOKING_CREATED / BOOKING_RESCHEDULED / BOOKING_CANCELLED.
+      // This is workspace-level — safe to call for any provider; Cal.com skips
+      // registration if the webhook URL is already registered.
+      if (isOpenAiRealtime && context.workspaceId && webhookBase) {
+        const bookingEnabled =
+          (settings.booking as Record<string, unknown> | undefined)?.enabled === true;
+        if (bookingEnabled) {
+          try {
+            const { registerCalcomWebhook } = await import(
+              "@/lib/providers/calcom/webhook-register.server"
+            );
+            const calResult = await registerCalcomWebhook({
+              workspaceId: context.workspaceId,
+              subscriberUrl: `${webhookBase}/api/public/calcom-webhook/${context.workspaceId}`,
+            });
+            if (calResult.ok) {
+              console.log(
+                "[go-live] Cal.com webhook registered for HyperStream agent",
+                { created: calResult.created, webhookId: calResult.webhookId },
+              );
+            } else {
+              console.warn("[go-live] Cal.com webhook registration skipped:", calResult.message);
+            }
+          } catch (calErr) {
+            console.warn("[go-live] Cal.com webhook registration error:", calErr);
+          }
+        }
+      }
     }
 
     return { ok: true, live: true, elevenLabsPhoneNumber: elPhoneAssigned, webOnly: elPhoneWebOnly };

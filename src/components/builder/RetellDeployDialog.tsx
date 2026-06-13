@@ -1241,6 +1241,18 @@ export function RetellDeployDialog({
             return;
           }
 
+          // relay.tool_executed is sent by the relay in deployed-agent mode when
+          // it has executed a booking tool server-side. The browser should NOT
+          // also call executeToolCall for this event — just log it for debugging.
+          if (msg.type === "relay.tool_executed") {
+            hsLog("IN ", "relay.tool_executed", {
+              tool: msg.tool,
+              call_id: msg.call_id,
+              resultBytes: typeof msg.result === "string" ? msg.result.length : 0,
+            });
+            return;
+          }
+
           // Forward OpenAI-native error events so they aren't silently swallowed.
           if (msg.type === "error") {
             const detail = String(
