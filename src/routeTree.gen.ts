@@ -14,6 +14,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as UploadTokenRouteImport } from './routes/upload.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as ApiVoiceCopilotRouteImport } from './routes/api/voice-copilot'
@@ -109,6 +110,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UploadTokenRoute = UploadTokenRouteImport.update({
+  id: '/upload/$token',
+  path: '/upload/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
@@ -532,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/upload/$token': typeof UploadTokenRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -609,6 +616,7 @@ export interface FileRoutesByTo {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/upload/$token': typeof UploadTokenRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -689,6 +697,7 @@ export interface FileRoutesById {
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
+  '/upload/$token': typeof UploadTokenRoute
   '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
@@ -769,6 +778,7 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/upload/$token'
     | '/admin/cost-engine'
     | '/admin/user-activity'
     | '/admin/users'
@@ -846,6 +856,7 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/upload/$token'
     | '/admin/cost-engine'
     | '/admin/user-activity'
     | '/admin/users'
@@ -925,6 +936,7 @@ export interface FileRouteTypes {
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
+    | '/upload/$token'
     | '/_authenticated/admin/cost-engine'
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
@@ -986,6 +998,7 @@ export interface RootRouteChildren {
   ApiVoiceCopilotRoute: typeof ApiVoiceCopilotRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  UploadTokenRoute: typeof UploadTokenRoute
   ApiAdminTestRetellWebhookRoute: typeof ApiAdminTestRetellWebhookRoute
   ApiBuilderImportPdfRoute: typeof ApiBuilderImportPdfRoute
   ApiBuilderScanPdfRoute: typeof ApiBuilderScanPdfRoute
@@ -1061,6 +1074,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/upload/$token': {
+      id: '/upload/$token'
+      path: '/upload/$token'
+      fullPath: '/upload/$token'
+      preLoaderRoute: typeof UploadTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/email/unsubscribe': {
@@ -1693,6 +1713,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVoiceCopilotRoute: ApiVoiceCopilotRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  UploadTokenRoute: UploadTokenRoute,
   ApiAdminTestRetellWebhookRoute: ApiAdminTestRetellWebhookRoute,
   ApiBuilderImportPdfRoute: ApiBuilderImportPdfRoute,
   ApiBuilderScanPdfRoute: ApiBuilderScanPdfRoute,

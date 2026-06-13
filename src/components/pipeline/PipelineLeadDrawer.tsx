@@ -50,8 +50,11 @@ import {
   DollarSign,
   Pencil,
   Check,
+  FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
+import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function relTime(iso: string) {
@@ -169,6 +172,10 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
   const [booking,    setBooking]    = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const docsByPhoneFn = useServerFn(listContactDocsByPhone);
+
+  // ── documents state ────────────────────────────────────────────────────────
+  const [docsOpen, setDocsOpen] = useState(false);
 
   // Reset form when lead changes
   useEffect(() => {
@@ -203,8 +210,16 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
     staleTime: 0,
   });
 
+  const docsQ = useQuery({
+    queryKey: ["contact-docs-phone", lead?.phone],
+    queryFn:  () => docsByPhoneFn({ data: { phone: lead!.phone! } }),
+    enabled:  open && !!lead?.phone,
+    staleTime: 0,
+  });
+
   const detail  = detailQ.data ?? null;
   const notes   = (notesQ.data ?? []) as { id: string; body: string; created_at: string }[];
+  const docsInfo = docsQ.data as { docs: any[]; contactId: string | null; uploadToken: string | null } | undefined;
 
   // ── handlers ───────────────────────────────────────────────────────────────
   async function handleAddNote() {
@@ -619,6 +634,49 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                   </div>
                 ))}
               </div>
+            )}
+          </section>
+
+          <Separator className="bg-white/[0.06]" />
+
+          {/* ── Documents ─────────────────────────────────────────────────── */}
+          <section className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setDocsOpen((v) => !v)}
+              className="flex items-center justify-between w-full group"
+            >
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors">
+                <FolderOpen className="h-3.5 w-3.5 text-primary/70" />
+                Documents
+                {docsInfo && docsInfo.docs.length > 0 && (
+                  <span className="ml-1 text-primary font-bold">({docsInfo.docs.length})</span>
+                )}
+              </span>
+              {docsOpen ? (
+                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </button>
+
+            {docsOpen && (
+              docsQ.isLoading ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Loading…</span>
+                </div>
+              ) : docsInfo?.contactId ? (
+                <ContactDocumentsPanel
+                  contactId={docsInfo.contactId}
+                  contactName={lead?.full_name}
+                  uploadToken={docsInfo.uploadToken}
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground/60 py-2">
+                  No WhatsApp contact found for {lead?.phone} — add this number as a contact first to enable documents.
+                </p>
+              )
             )}
           </section>
 

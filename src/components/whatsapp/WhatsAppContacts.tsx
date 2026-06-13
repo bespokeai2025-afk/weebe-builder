@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { listWAContacts, createWAContact, updateWAContact, deleteWAContact } from "@/lib/dashboard/whatsapp.functions";
+import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import { getWatiConnection, syncWatiContacts } from "@/lib/whatsapp/wati.functions";
 import { toast } from "sonner";
 
@@ -62,6 +63,7 @@ export function WhatsAppContacts() {
   const [editRow, setEditRow]   = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm]         = useState(emptyForm());
+  const [docsContact, setDocsContact] = useState<any>(null);
 
   const filtered = (contacts as any[]).filter((c) =>
     (c.name ?? c.phone).toLowerCase().includes(search.toLowerCase()) ||
@@ -234,6 +236,9 @@ export function WhatsAppContacts() {
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1 justify-end">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Documents" onClick={() => setDocsContact(c)}>
+                        <FolderOpen className="h-3.5 w-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(c)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -301,6 +306,25 @@ export function WhatsAppContacts() {
               {save.isPending ? "Saving…" : editRow ? "Save Changes" : "Create Contact"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Documents dialog */}
+      <Dialog open={!!docsContact} onOpenChange={(o) => !o && setDocsContact(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              Documents — {docsContact?.name ?? docsContact?.phone}
+            </DialogTitle>
+          </DialogHeader>
+          {docsContact && (
+            <ContactDocumentsPanel
+              contactId={docsContact.id}
+              contactName={docsContact.name}
+              uploadToken={docsContact.upload_token}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
