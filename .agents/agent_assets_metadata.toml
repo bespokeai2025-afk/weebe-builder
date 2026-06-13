@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "33I_XTlfQH0pKNMqsLRqk"
+uri = "file://frejun-integration-questions.md"
+type = "text"
+title = "FreJun API — Questions for Automated Setup"
