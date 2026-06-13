@@ -219,9 +219,11 @@ function useElRelay(
         const errMsg = String(msg.message);
         const friendly = errMsg.includes("paid_plan_required") || errMsg.includes("payment_required")
           ? "Voice playback requires an ElevenLabs paid plan for this voice. Open Voice Settings and select a voice from your own ElevenLabs library."
-          : errMsg.trimStart().startsWith("<") || errMsg.length > 300
-            ? "Voice error — please refresh the page and try again."
-            : `Voice error: ${errMsg.slice(0, 150)}`;
+          : errMsg.includes("quota_exceeded") || errMsg.includes("quota of")
+            ? "ElevenLabs character quota reached — audio playback is paused. You can still speak and read responses as text. Top up your ElevenLabs credits to restore audio."
+            : errMsg.trimStart().startsWith("<") || errMsg.length > 300
+              ? "Voice error — please refresh the page and try again."
+              : `Voice error: ${errMsg.slice(0, 150)}`;
         setError(friendly);
       }
     };
