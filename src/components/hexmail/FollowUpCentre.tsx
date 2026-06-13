@@ -18,6 +18,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Plus,
@@ -32,6 +39,8 @@ import {
   ChevronDown,
   FormInput,
   Layers,
+  Sparkles,
+  ListOrdered,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -71,16 +80,18 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 interface FollowUpCentreProps {
-  onOpenBuilder: (campaignId?: string) => void;
+  onOpenVisualBuilder: (campaignId?: string) => void;
+  onOpenFormBuilder:   (campaignId?: string) => void;
 }
 
 type InnerView = "list" | "create";
 
-export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
+export function FollowUpCentre({ onOpenVisualBuilder, onOpenFormBuilder }: FollowUpCentreProps) {
   const qc = useQueryClient();
-  const [deleteTarget, setDeleteTarget] = useState<HexmailCampaign | null>(null);
-  const [search, setSearch] = useState("");
-  const [innerView, setInnerView] = useState<InnerView>("list");
+  const [deleteTarget,   setDeleteTarget]   = useState<HexmailCampaign | null>(null);
+  const [pickerCampaign, setPickerCampaign] = useState<HexmailCampaign | null>(null);
+  const [search,         setSearch]         = useState("");
+  const [innerView,      setInnerView]      = useState<InnerView>("list");
 
   const { data: campaigns = [], isLoading } = useQuery<HexmailCampaign[]>({
     queryKey: ["hexmail-campaigns"],
@@ -191,7 +202,7 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
                     <p className="text-xs text-muted-foreground">Fill in details step by step</p>
                   </div>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onOpenBuilder()}>
+                <DropdownMenuItem onClick={() => onOpenVisualBuilder()}>
                   <Layers className="mr-2 h-4 w-4" />
                   <div>
                     <p className="font-medium">Visual Builder</p>
@@ -224,7 +235,7 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
             <Button onClick={() => setInnerView("create")} variant="outline" className="gap-1.5">
               <FormInput className="h-4 w-4" /> Form Builder
             </Button>
-            <Button onClick={() => onOpenBuilder()} className="gap-1.5">
+            <Button onClick={() => onOpenVisualBuilder()} className="gap-1.5">
               <Layers className="h-4 w-4" /> Visual Builder
             </Button>
           </div>
@@ -256,7 +267,8 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
                 key={c.id}
                 campaign={c}
                 isLast={idx === filtered.length - 1}
-                onEdit={() => onOpenBuilder(c.id)}
+                onEditVisual={() => onOpenVisualBuilder(c.id)}
+                onEditForm={() => onOpenFormBuilder(c.id)}
                 onStatusChange={(status) => updateStatus.mutate({ id: c.id, status })}
                 onDelete={() => setDeleteTarget(c)}
                 isUpdating={updateStatus.isPending}
@@ -294,14 +306,16 @@ export function FollowUpCentre({ onOpenBuilder }: FollowUpCentreProps) {
 function CampaignRow({
   campaign,
   isLast,
-  onEdit,
+  onEditVisual,
+  onEditForm,
   onStatusChange,
   onDelete,
   isUpdating,
 }: {
   campaign: HexmailCampaign;
   isLast: boolean;
-  onEdit: () => void;
+  onEditVisual: () => void;
+  onEditForm: () => void;
   onStatusChange: (status: HexmailCampaign["status"]) => void;
   onDelete: () => void;
   isUpdating: boolean;
@@ -316,7 +330,7 @@ function CampaignRow({
         "grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 px-4 py-3 hover:bg-muted/20 transition-colors cursor-pointer group",
         !isLast && "border-b border-border/60",
       )}
-      onClick={onEdit}
+      onClick={onEditVisual}
     >
       <div className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-muted/40">
         <Mail className="h-3.5 w-3.5 text-muted-foreground" />
@@ -352,19 +366,36 @@ function CampaignRow({
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={onEdit}>
-              <Pencil className="mr-2 h-3.5 w-3.5" /> Open Builder
+          <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuItem onClick={onEditVisual}>
+              <Sparkles className="mr-2 h-3.5 w-3.5" />
+              <div>
+                <p className="font-medium text-xs">Visual Builder</p>
+                <p className="text-[10px] text-muted-foreground">Day-by-day action timeline</p>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onEditForm}>
+              <ListOrdered className="mr-2 h-3.5 w-3.5" />
+              <div>
+                <p className="font-medium text-xs">Form Builder</p>
+                <p className="text-[10px] text-muted-foreground">Fill in details step by step</p>
+              </div>
             </DropdownMenuItem>
             {(isDraft || isPaused) && (
-              <DropdownMenuItem onClick={() => onStatusChange("active")} disabled={isUpdating}>
-                <Play className="mr-2 h-3.5 w-3.5" /> Activate
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onStatusChange("active")} disabled={isUpdating}>
+                  <Play className="mr-2 h-3.5 w-3.5" /> Activate
+                </DropdownMenuItem>
+              </>
             )}
             {isActive && (
-              <DropdownMenuItem onClick={() => onStatusChange("paused")} disabled={isUpdating}>
-                <Pause className="mr-2 h-3.5 w-3.5" /> Pause
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onStatusChange("paused")} disabled={isUpdating}>
+                  <Pause className="mr-2 h-3.5 w-3.5" /> Pause
+                </DropdownMenuItem>
+              </>
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem

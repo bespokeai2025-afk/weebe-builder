@@ -4,6 +4,7 @@ import { LayoutGrid, CalendarDays, Sparkles } from "lucide-react";
 import { FollowUpCentre } from "@/components/hexmail/FollowUpCentre";
 import { CampaignCalendar } from "@/components/hexmail/CampaignCalendar";
 import { CampaignBuilderPage } from "@/components/hexmail/CampaignBuilderPage";
+import { CampaignBuilder } from "@/components/hexmail/CampaignBuilder";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/follow-up")({
@@ -25,12 +26,19 @@ const VIEW_TOGGLE: { value: View; icon: typeof LayoutGrid; label: string }[] = [
 ];
 
 function FollowUpPage() {
-  const [view, setView] = useState<View>("cards");
-  const [activeCampaignId, setActiveCampaignId] = useState<string | undefined>(undefined);
+  const [view,              setView]              = useState<View>("cards");
+  const [activeCampaignId,  setActiveCampaignId]  = useState<string | undefined>(undefined);
+  const [formBuilderOpen,   setFormBuilderOpen]   = useState(false);
+  const [formBuilderCampaignId, setFormBuilderCampaignId] = useState<string | undefined>(undefined);
 
   const openVisual = (id?: string) => {
     setActiveCampaignId(id);
     setView("visual");
+  };
+
+  const openFormBuilder = (id?: string) => {
+    setFormBuilderCampaignId(id);
+    setFormBuilderOpen(true);
   };
 
   const isVisual = view === "visual";
@@ -70,7 +78,10 @@ function FollowUpPage() {
       {/* Content */}
       <div className={cn("flex-1 min-h-0", isVisual ? "overflow-hidden flex flex-col" : "overflow-y-auto")}>
         {view === "cards" && (
-          <FollowUpCentre onOpenBuilder={openVisual} />
+          <FollowUpCentre
+            onOpenVisualBuilder={openVisual}
+            onOpenFormBuilder={openFormBuilder}
+          />
         )}
 
         {view === "visual" && (
@@ -90,6 +101,16 @@ function FollowUpPage() {
           <CampaignCalendar initialCampaignId={activeCampaignId} />
         )}
       </div>
+
+      {/* Form builder sheet — opened when user picks "Form Builder" on any campaign */}
+      <CampaignBuilder
+        open={formBuilderOpen}
+        campaignId={formBuilderCampaignId}
+        onClose={() => setFormBuilderOpen(false)}
+        onSaved={() => {
+          setFormBuilderOpen(false);
+        }}
+      />
     </div>
   );
 }
