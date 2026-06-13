@@ -125,7 +125,10 @@ export const createWAContact = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const { data: row, error } = await sb
       .from("whatsapp_contacts")
-      .insert({ workspace_id: workspaceId, ...data })
+      .upsert(
+        { workspace_id: workspaceId, ...data, updated_at: new Date().toISOString() },
+        { onConflict: "workspace_id,phone", ignoreDuplicates: false },
+      )
       .select()
       .single();
     if (error) throw new Error(error.message);
