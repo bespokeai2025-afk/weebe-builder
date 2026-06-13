@@ -109,6 +109,7 @@ const defaultSettings: BuilderSettings = {
   voiceProvider: "RETELL",
   openaiVoice: "alloy",
   openaiReasoningEffort: "low",
+  channelType: "voice",
 };
 
 const NODE_LABELS: Record<NodeKind, string> = {
@@ -123,6 +124,9 @@ const NODE_LABELS: Record<NodeKind, string> = {
   code: "Code",
   ending: "Ending",
   note: "Note",
+  wa_message: "WA Message",
+  wa_delay: "WA Delay",
+  wa_media: "WA Media",
 };
 
 const makeNode = (

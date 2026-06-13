@@ -1,0 +1,375 @@
+WHATSAPP MANAGEMENT CENTRE + WHATSAPP WORKFLOW BUILDER
+
+IMPORTANT
+
+* Do not modify Retell functionality.
+* Do not modify HyperStream voice functionality.
+* Do not modify existing Builder functionality.
+* Extend the existing Builder architecture.
+* Reuse existing workflow engine wherever possible.
+* Do not create a separate WhatsApp builder.
+* Use the existing Builder shown in the platform.
+* Generate implementation plan before coding.
+
+OBJECTIVE
+
+Transform the existing WhatsApp page into a complete WhatsApp Management Centre and allow the existing Builder to create WhatsApp conversation workflows by switching channel type.
+
+The existing Builder must support:
+
+Voice Agent Mode
+WhatsApp Agent Mode
+
+using the same workflow engine.
+
+====================================================
+
+PART 1 – WHATSAPP MANAGEMENT CENTRE
+
+Create a complete WhatsApp Management Centre.
+
+Navigation:
+
+Communications
+→ WhatsApp Centre
+
+Dashboard Sections:
+
+1. Inbox
+
+Display:
+
+* Contact Name
+* Phone Number
+* Last Message
+* Last Activity
+* Assigned Agent
+* Status
+
+Support:
+
+* Open conversation
+* Search conversation
+* Filter conversation
+* Archive conversation
+* Assign conversation
+
+2. Contacts
+
+Store:
+
+* Name
+* Phone Number
+* Tags
+* Source
+* Lead Status
+* Assigned Agent
+
+Support:
+
+* Create
+* Edit
+* Delete
+* Import CSV
+* Export CSV
+
+3. Campaigns
+
+Support:
+
+* Broadcast Campaigns
+* Follow-Up Campaigns
+* Scheduled Campaigns
+
+Track:
+
+* Sent
+* Delivered
+* Read
+* Replied
+
+4. Templates
+
+Support:
+
+* WhatsApp Templates
+* Variables
+* Dynamic Fields
+
+5. Analytics
+
+Display:
+
+* Messages Sent
+* Messages Delivered
+* Messages Read
+* Responses
+* Conversion Rate
+
+====================================================
+
+PART 2 – BUILDER CHANNEL SWITCHER
+
+Modify existing Builder.
+
+Add:
+
+Channel Type Selector
+
+Options:
+
+* Voice
+* WhatsApp
+
+Store:
+
+channel_type
+
+inside agent definition.
+
+Example:
+
+{
+"channel_type": "whatsapp"
+}
+
+Builder remains identical.
+
+====================================================
+
+PART 3 – WHATSAPP WORKFLOW MODE
+
+When channel_type = "whatsapp"
+
+Reuse existing Builder nodes.
+
+Supported Nodes:
+
+Conversation
+Function
+Logic Split
+Extract Variable
+Code
+Ending
+Note
+
+Disable Voice Only Nodes:
+
+Call Transfer
+Agent Transfer
+Press Digit
+In-Call SMS
+
+Show:
+
+Message
+Condition
+Delay
+Template Send
+
+====================================================
+
+PART 4 – MESSAGE FLOW EXECUTION
+
+Workflow Example:
+
+User sends message
+↓
+Greeting
+↓
+Question
+↓
+Extract Variable
+↓
+Logic Split
+↓
+Response
+↓
+Book Appointment
+
+Use existing workflow execution engine.
+
+Do not create a separate runtime.
+
+====================================================
+
+PART 5 – WHATSAPP RUNTIME
+
+Inbound WhatsApp Message
+↓
+WhatsApp Provider
+↓
+Runtime Router
+↓
+Workflow Engine
+↓
+Response Generator
+↓
+Send WhatsApp Message
+
+Use existing variable system.
+
+Use existing tool system.
+
+Use existing knowledge base system.
+
+====================================================
+
+PART 6 – WHATSAPP PROVIDERS
+
+Create provider abstraction.
+
+WhatsAppProvider
+
+Supported:
+
+Meta Cloud API
+
+Future:
+
+Twilio WhatsApp
+360Dialog
+MessageBird
+
+Store:
+
+provider
+phone_number_id
+business_account_id
+
+====================================================
+
+PART 7 – BROADCAST SYSTEM
+
+Support:
+
+Broadcast Campaign
+↓
+Audience Selection
+↓
+Template Selection
+↓
+Schedule
+↓
+Send
+
+Track:
+
+sent
+delivered
+read
+replied
+
+====================================================
+
+PART 8 – SHARED KNOWLEDGE BASE
+
+Voice Agents and WhatsApp Agents must both support:
+
+* Knowledge Base
+* Variables
+* Tools
+* CRM Integrations
+* Calendars
+* Webhooks
+
+No duplicated systems.
+
+====================================================
+
+PART 9 – SHARED ANALYTICS
+
+Display:
+
+Voice Analytics
+WhatsApp Analytics
+
+Compare:
+
+* Leads Generated
+* Appointments Booked
+* Conversations
+* Conversion Rate
+
+====================================================
+
+PART 10 – AGENT DEPLOYMENT
+
+Support:
+
+Deploy As:
+
+Voice Agent
+WhatsApp Agent
+Both
+
+Same workflow.
+
+Different channels.
+
+====================================================
+
+PART 11 – DATABASE
+
+Create or extend tables:
+
+whatsapp_conversations
+whatsapp_messages
+whatsapp_contacts
+whatsapp_campaigns
+whatsapp_templates
+whatsapp_analytics
+
+Link to existing:
+
+agents
+workflows
+leads
+
+====================================================
+
+PART 12 – ADMIN SETTINGS
+
+Create:
+
+Settings
+→ WhatsApp
+
+Support:
+
+Meta Credentials
+Phone Numbers
+Templates
+Webhook Status
+
+====================================================
+
+SUCCESS CRITERIA
+
+A user can:
+
+Open Builder
+↓
+Select WhatsApp Mode
+↓
+Build Workflow
+↓
+Deploy Agent
+↓
+Receive WhatsApp Messages
+↓
+Respond Automatically
+↓
+Book Appointments
+↓
+Capture Leads
+↓
+Run Broadcast Campaigns
+↓
+View Analytics
+
+using the same Builder architecture currently used for Voice Agents.
+
+Do not create a separate WhatsApp builder.
+
+Reuse the existing Builder, Runtime, Variables, Tools, Knowledge Base, Analytics and Deployment architecture wherever possible.

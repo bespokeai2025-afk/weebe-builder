@@ -16,7 +16,10 @@ export type NodeKind =
   | "extract_variable"
   | "code"
   | "ending"
-  | "note";
+  | "note"
+  | "wa_message"
+  | "wa_delay"
+  | "wa_media";
 
 export interface Transition {
   id: string;
@@ -243,6 +246,12 @@ export interface BuilderSettings {
   rawAgent?: Record<string, unknown>;
   /** Raw conversationFlow object (without nodes) round-tripped from import. */
   rawConversationFlow?: Record<string, unknown>;
+  /**
+   * Channel type — controls which nodes and settings panels are shown.
+   * "voice" (default) shows the full voice builder.
+   * "whatsapp" shows WhatsApp-specific nodes and hides voice-only nodes/settings.
+   */
+  channelType?: "voice" | "whatsapp";
   /**
    * Intended deployment type — controls which builder sections are visible.
    * Set here in the builder and mirrored as dashboardAgentType on Go Live.

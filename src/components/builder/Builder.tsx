@@ -29,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Volume2, Play, Loader2, Download } from "lucide-react";
+import { ChevronDown, MoreHorizontal, FileJson, Upload, FileUp, Search, Check, ArrowLeftRight, Globe, Mic, MessageSquare as MsgSq, Settings2, Zap, Radio, Lock, Sparkles, Gem, Volume2, Play, Loader2, Download, Clock, Phone } from "lucide-react";
 import { KnowledgeBaseSection } from "@/components/builder/KnowledgeBaseSection";
 import { SpeechSettingsSection } from "@/components/builder/SpeechSettingsSection";
 import { HyperStreamSettingsSection } from "@/components/builder/HyperStreamSettingsSection";
@@ -90,19 +90,27 @@ import { saveHyperStreamTestCall, updateCallSentiment } from "@/lib/builder/save
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
+const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
   { kind: "conversation", label: "Conversation", icon: MessageCircle, color: "text-sky-600" },
   { kind: "function", label: "Function", icon: Cpu, color: "text-violet-600" },
-  {
-    kind: "call_transfer",
-    label: "Call Transfer",
-    icon: PhoneForwarded,
-    color: "text-emerald-600",
-  },
+  { kind: "call_transfer", label: "Call Transfer", icon: PhoneForwarded, color: "text-emerald-600" },
   { kind: "press_digit", label: "Press Digit", icon: Hash, color: "text-cyan-600" },
   { kind: "logic_split", label: "Logic Split", icon: GitBranch, color: "text-pink-600" },
   { kind: "agent_transfer", label: "Agent Transfer", icon: Users, color: "text-orange-600" },
   { kind: "sms", label: "In-Call SMS", icon: MessageSquare, color: "text-amber-600" },
+  { kind: "extract_variable", label: "Extract Variable", icon: Braces, color: "text-indigo-600" },
+  { kind: "code", label: "Code", icon: CodeIcon, color: "text-slate-700" },
+  { kind: "ending", label: "Ending", icon: Square, color: "text-rose-600" },
+  { kind: "note", label: "Note", icon: StickyNote, color: "text-yellow-700" },
+];
+
+const WA_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
+  { kind: "conversation", label: "Message", icon: MessageCircle, color: "text-sky-600" },
+  { kind: "wa_message", label: "WA Message", icon: MsgSq, color: "text-green-600" },
+  { kind: "wa_media", label: "WA Media", icon: ImageIcon, color: "text-lime-600" },
+  { kind: "wa_delay", label: "WA Delay", icon: Clock, color: "text-teal-600" },
+  { kind: "function", label: "Function", icon: Cpu, color: "text-violet-600" },
+  { kind: "logic_split", label: "Logic Split", icon: GitBranch, color: "text-pink-600" },
   { kind: "extract_variable", label: "Extract Variable", icon: Braces, color: "text-indigo-600" },
   { kind: "code", label: "Code", icon: CodeIcon, color: "text-slate-700" },
   { kind: "ending", label: "Ending", icon: Square, color: "text-rose-600" },
@@ -368,6 +376,7 @@ export function Builder({
 }) {
   const { addNode, addBookingNode, clearAll, autoLayout, revertLayout, settings, setSettings } =
     useBuilderStore();
+  const PALETTE = settings.channelType === "whatsapp" ? WA_PALETTE : VOICE_PALETTE;
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const saveVersion = useBuilderStore((s) => s.saveVersion);
   const [pendingEngine, setPendingEngine] = useState<DeploymentMode | null>(null);
@@ -727,6 +736,31 @@ export function Builder({
               Enterprise Line
             </Badge>
           )}
+          {/* Channel switcher */}
+          <div className="flex items-center rounded-md border border-white/[0.06] bg-white/[0.02] p-0.5 gap-0.5 shrink-0">
+            <button
+              onClick={() => setSettings({ channelType: "voice" })}
+              className={cn(
+                "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                (settings.channelType ?? "voice") === "voice"
+                  ? "bg-white/[0.08] text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Phone className="h-3 w-3" /> Voice
+            </button>
+            <button
+              onClick={() => setSettings({ channelType: "whatsapp" })}
+              className={cn(
+                "flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium transition-colors",
+                settings.channelType === "whatsapp"
+                  ? "bg-green-500/20 text-green-400"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <MsgSq className="h-3 w-3" /> WhatsApp
+            </button>
+          </div>
           {toolbarLeading}
         </div>
 
@@ -1919,9 +1953,26 @@ export function Builder({
               </CollapsibleContent>
             </Collapsible>
 
-            <SpeechSettingsSection isRetell={isRetell} />
-            <TranscriptionSettingsSection isRetell={isRetell} isHyperStream={isOpenAI} />
-            {isOpenAI && <HyperStreamSettingsSection />}
+            {settings.channelType === "whatsapp" ? (
+              <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <MsgSq className="h-3.5 w-3.5 text-green-500" />
+                  <p className="text-[11px] font-semibold text-green-400">WhatsApp Mode</p>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  This flow runs on WhatsApp. Use <strong>WA Message</strong>, <strong>WA Media</strong>, and <strong>WA Delay</strong> nodes to build your conversation. Voice settings are hidden.
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  Runtime: messages are sent via Twilio WhatsApp API when a contact replies inbound.
+                </p>
+              </div>
+            ) : (
+              <>
+                <SpeechSettingsSection isRetell={isRetell} />
+                <TranscriptionSettingsSection isRetell={isRetell} isHyperStream={isOpenAI} />
+                {isOpenAI && <HyperStreamSettingsSection />}
+              </>
+            )}
             </>
             )}
           </aside>

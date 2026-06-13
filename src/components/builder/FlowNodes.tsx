@@ -102,6 +102,21 @@ const STYLES: Record<NodeKind, Style> = {
     badgeClass: "bg-yellow-100 text-yellow-800",
     headerClass: "bg-yellow-50 border-yellow-200",
   },
+  wa_message: {
+    badge: "WA Message",
+    badgeClass: "bg-green-100 text-green-800",
+    headerClass: "bg-green-50/70 border-green-200",
+  },
+  wa_delay: {
+    badge: "WA Delay",
+    badgeClass: "bg-teal-100 text-teal-800",
+    headerClass: "bg-teal-50/70 border-teal-200",
+  },
+  wa_media: {
+    badge: "WA Media",
+    badgeClass: "bg-lime-100 text-lime-800",
+    headerClass: "bg-lime-50/70 border-lime-200",
+  },
 };
 
 /**
@@ -635,4 +650,7 @@ export const NodeRenderers: Record<NodeKind, typeof ConversationStyleNode> = {
   code: ConversationStyleNode,
   ending: SimpleNode,
   note: SimpleNode,
+  wa_message: ConversationStyleNode,
+  wa_delay: SimpleNode,
+  wa_media: ConversationStyleNode,
 };

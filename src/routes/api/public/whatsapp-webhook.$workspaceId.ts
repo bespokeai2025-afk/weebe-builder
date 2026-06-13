@@ -13,6 +13,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { processWhatsAppMessage } from "@/lib/whatsapp/runtime";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -153,6 +154,16 @@ export const Route = createFileRoute("/api/public/whatsapp-webhook/$workspaceId"
             from,
           });
           return new Response("db error", { status: 500, headers: CORS });
+        }
+
+        // Trigger WhatsApp flow runtime (non-blocking — errors are logged, not surfaced)
+        if (body) {
+          processWhatsAppMessage({
+            workspaceId,
+            contactPhone: from,
+            contactName: profileName,
+            inboundBody: body,
+          }).catch((e) => console.error("[whatsapp-webhook] runtime error", e));
         }
 
         return new Response(TWIML_OK, { status: 200, headers: TWIML_HEADERS });
