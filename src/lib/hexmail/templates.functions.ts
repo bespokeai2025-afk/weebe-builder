@@ -91,6 +91,8 @@ export const upsertHexmailTemplate = createServerFn({ method: "POST" })
           type: data.type,
           subject: data.subject ?? null,
           content: data.content,
+          status: "active",
+          usage_count: 0,
         })
         .select("id")
         .single();

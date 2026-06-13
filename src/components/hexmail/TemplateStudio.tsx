@@ -248,9 +248,9 @@ export function TemplateStudio() {
           </div>
           <Button
             onClick={() => openNew(
-              filter === "all" || filter === "documents" ? undefined :
-              DOC_SUB_TYPES.includes(filter as TemplateType) ? (filter as TemplateType) :
-              (filter as TemplateType)
+              filter === "all"       ? undefined :
+              filter === "documents" ? "document" :
+              filter as TemplateType
             )}
             size="sm"
             className="gap-1.5 ml-auto"
