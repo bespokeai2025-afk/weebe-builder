@@ -6,11 +6,11 @@ import {
   Users, CalendarCheck, MessageSquare, AlertTriangle,
   CheckCircle2, Loader2, RefreshCw, Clock,
   ChevronDown, Settings2, ArrowRight, Timer, Bot,
-  Zap, MailOpen, XCircle, EyeOff, Brain, Bell, X,
+  Zap, MailOpen, XCircle, EyeOff, Brain, Bell, X, Newspaper,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
+import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindShell";
 import { getHiveMindBriefing, getHiveMindPlatformData } from "@/lib/hivemind/hivemind.functions";
 import { generateRecommendations } from "@/lib/hivemind/recommendations";
 import { Button } from "@/components/ui/button";
@@ -273,6 +273,7 @@ function OverviewEventStrip({ events, onMarkRead }: { events: HiveMindEvent[]; o
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 function HiveMindOverview() {
+  const mode       = useHiveMindMode();
   const briefingFn = useServerFn(getHiveMindBriefing);
   const platformFn = useServerFn(getHiveMindPlatformData);
   const scanFn     = useServerFn(runHiveMindScan);
@@ -436,6 +437,26 @@ function HiveMindOverview() {
             onMarkRead={handleMarkEventsRead}
           />
         )}
+
+        {/* EXECUTIVE BRIEFING BANNER */}
+        <Link
+          to="/hivemind/briefing"
+          className="flex items-center gap-3 rounded-xl border border-violet-500/20 bg-gradient-to-r from-violet-500/[0.07] to-transparent px-4 py-3 hover:from-violet-500/[0.12] transition-all group"
+        >
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 ring-1 ring-violet-500/30 shrink-0">
+            <Newspaper className="h-4 w-4 text-violet-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-violet-200">Executive Briefing</p>
+            <p className="text-[11px] text-violet-400/60 mt-0.5">
+              Monthly stats · lead velocity · costs · risks · recommendations
+            </p>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-violet-400/60 group-hover:text-violet-300 transition-colors shrink-0">
+            View briefing
+            <ArrowRight className="h-3 w-3" />
+          </div>
+        </Link>
 
         {/* CONFIGURE PANEL */}
         <div className="rounded-xl border border-white/[0.07] bg-card/50 overflow-hidden">
