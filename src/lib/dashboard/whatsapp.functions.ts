@@ -354,6 +354,27 @@ export const getWAAnalytics = createServerFn({ method: "GET" })
     return { sent, delivered, read, responses, convRate, days, total: all.length };
   });
 
+// ── WhatsApp Agents ───────────────────────────────────────────────────────────
+
+export const listWAAgents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) return [];
+    const sb = supabase as any;
+    const { data, error } = await sb
+      .from("agents")
+      .select("id, name, settings, flow_data, updated_at, created_at, retell_agent_id")
+      .eq("workspace_id", workspaceId)
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    const all = (data ?? []) as any[];
+    return all.filter((a) => {
+      const s = typeof a.settings === "string" ? JSON.parse(a.settings) : (a.settings ?? {});
+      return s.channelType === "whatsapp";
+    });
+  });
+
 // ── Settings ───────────────────────────────────────────────────────────────────
 
 export const getWASettings = createServerFn({ method: "GET" })

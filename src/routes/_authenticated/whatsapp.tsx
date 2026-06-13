@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageCircle, Users, Megaphone, FileText, BarChart3, Settings } from "lucide-react";
+import { MessageCircle, Users, Megaphone, FileText, BarChart3, Settings, Bot } from "lucide-react";
 import { WhatsAppInbox }     from "@/components/whatsapp/WhatsAppInbox";
 import { WhatsAppContacts }  from "@/components/whatsapp/WhatsAppContacts";
 import { WhatsAppCampaigns } from "@/components/whatsapp/WhatsAppCampaigns";
 import { WhatsAppTemplates } from "@/components/whatsapp/WhatsAppTemplates";
 import { WhatsAppAnalytics } from "@/components/whatsapp/WhatsAppAnalytics";
 import { WhatsAppSettings }  from "@/components/whatsapp/WhatsAppSettings";
+import { WhatsAppAgents }    from "@/components/whatsapp/WhatsAppAgents";
 
 export const Route = createFileRoute("/_authenticated/whatsapp")({
   head: () => ({ meta: [{ title: "WhatsApp — Webee" }] }),
@@ -18,6 +19,7 @@ const TABS = [
   { id: "contacts",  label: "Contacts",  icon: Users },
   { id: "campaigns", label: "Campaigns", icon: Megaphone },
   { id: "templates", label: "Templates", icon: FileText },
+  { id: "agents",    label: "Agents",    icon: Bot },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "settings",  label: "Settings",  icon: Settings },
 ];
@@ -46,6 +48,7 @@ function WhatsappPage() {
         <TabsContent value="contacts"  className="mt-0"><WhatsAppContacts /></TabsContent>
         <TabsContent value="campaigns" className="mt-0"><WhatsAppCampaigns /></TabsContent>
         <TabsContent value="templates" className="mt-0"><WhatsAppTemplates /></TabsContent>
+        <TabsContent value="agents"    className="mt-0"><WhatsAppAgents /></TabsContent>
         <TabsContent value="analytics" className="mt-0"><WhatsAppAnalytics /></TabsContent>
         <TabsContent value="settings"  className="mt-0"><WhatsAppSettings /></TabsContent>
       </Tabs>
