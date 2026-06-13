@@ -133,11 +133,13 @@ function LeadCard({
   overlay = false,
   onSelect,
   onMove,
+  stageOrder = PIPELINE_STAGES,
 }: {
   lead: PipelineLead;
   overlay?: boolean;
   onSelect?: (lead: PipelineLead) => void;
   onMove?: (lead: PipelineLead, stage: PipelineStage) => void;
+  stageOrder?: (typeof PIPELINE_STAGES)[number][];
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: lead.id, data: { lead } });
@@ -263,9 +265,9 @@ function LeadCard({
             <CalendarCheck className="h-3.5 w-3.5 text-green-500" title="Appointment booked" />
           )}
           {onMove && !overlay && (() => {
-            const idx = PIPELINE_STAGES.findIndex((s) => s.id === lead.effective_stage);
-            const prev = PIPELINE_STAGES[idx - 1];
-            const next = PIPELINE_STAGES[idx + 1];
+            const idx = stageOrder.findIndex((s) => s.id === lead.effective_stage);
+            const prev = stageOrder[idx - 1];
+            const next = stageOrder[idx + 1];
             return (
               <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
@@ -302,12 +304,14 @@ function PipelineColumn({
   onSelectLead,
   onMoveLead,
   isDraggingColumn,
+  stageOrder,
 }: {
   stage: (typeof PIPELINE_STAGES)[number];
   leads: PipelineLead[];
   onSelectLead: (lead: PipelineLead) => void;
   onMoveLead: (lead: PipelineLead, stage: PipelineStage) => void;
   isDraggingColumn: boolean;
+  stageOrder: (typeof PIPELINE_STAGES)[number][];
 }) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage.id });
 
@@ -371,6 +375,7 @@ function PipelineColumn({
             lead={lead}
             onSelect={onSelectLead}
             onMove={onMoveLead}
+            stageOrder={stageOrder}
           />
         ))}
 
@@ -780,6 +785,7 @@ function PipelinePage() {
                   onSelectLead={handleSelectLead}
                   onMoveLead={(lead, s) => moveCardAndPrompt(lead, s)}
                   isDraggingColumn={isColDrag}
+                  stageOrder={orderedStages}
                 />
               ))}
             </div>
