@@ -398,14 +398,14 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) setDialogOpen(false); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-md flex flex-col max-h-[85vh]">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2 text-sm">
               {editTarget ? "Edit Campaign" : "Create Call Campaign"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 pb-1">
+          <div className="overflow-y-auto flex-1 pr-1 space-y-4 pb-1">
             {/* Campaign Details */}
             <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -559,7 +559,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 shrink-0 pt-2">
             <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={saving}>
               Cancel
             </Button>
