@@ -22,6 +22,7 @@ import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedTelephonySettingsRouteImport } from './routes/_authenticated/telephony-settings'
 import { Route as AuthenticatedTelephonyCallsRouteImport } from './routes/_authenticated/telephony-calls'
 import { Route as AuthenticatedQualifiedRouteImport } from './routes/_authenticated/qualified'
+import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
 import { Route as AuthenticatedMyAgentsRouteImport } from './routes/_authenticated/my-agents'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
@@ -149,6 +150,11 @@ const AuthenticatedTelephonyCallsRoute =
 const AuthenticatedQualifiedRoute = AuthenticatedQualifiedRouteImport.update({
   id: '/qualified',
   path: '/qualified',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedPhoneNumbersRoute =
@@ -511,6 +517,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
+  '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
@@ -586,6 +593,7 @@ export interface FileRoutesByTo {
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
+  '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
@@ -664,6 +672,7 @@ export interface FileRoutesById {
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/my-agents': typeof AuthenticatedMyAgentsRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
+  '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/qualified': typeof AuthenticatedQualifiedRoute
   '/_authenticated/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/_authenticated/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
@@ -742,6 +751,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/my-agents'
     | '/phone-numbers'
+    | '/pipeline'
     | '/qualified'
     | '/telephony-calls'
     | '/telephony-settings'
@@ -817,6 +827,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/my-agents'
     | '/phone-numbers'
+    | '/pipeline'
     | '/qualified'
     | '/telephony-calls'
     | '/telephony-settings'
@@ -894,6 +905,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads'
     | '/_authenticated/my-agents'
     | '/_authenticated/phone-numbers'
+    | '/_authenticated/pipeline'
     | '/_authenticated/qualified'
     | '/_authenticated/telephony-calls'
     | '/_authenticated/telephony-settings'
@@ -1092,6 +1104,13 @@ declare module '@tanstack/react-router' {
       path: '/qualified'
       fullPath: '/qualified'
       preLoaderRoute: typeof AuthenticatedQualifiedRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/pipeline': {
+      id: '/_authenticated/pipeline'
+      path: '/pipeline'
+      fullPath: '/pipeline'
+      preLoaderRoute: typeof AuthenticatedPipelineRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/phone-numbers': {
@@ -1562,6 +1581,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMyAgentsRoute: typeof AuthenticatedMyAgentsRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
+  AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedQualifiedRoute: typeof AuthenticatedQualifiedRoute
   AuthenticatedTelephonyCallsRoute: typeof AuthenticatedTelephonyCallsRoute
   AuthenticatedTelephonySettingsRoute: typeof AuthenticatedTelephonySettingsRoute
@@ -1587,6 +1607,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMyAgentsRoute: AuthenticatedMyAgentsRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
+  AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedQualifiedRoute: AuthenticatedQualifiedRoute,
   AuthenticatedTelephonyCallsRoute: AuthenticatedTelephonyCallsRoute,
   AuthenticatedTelephonySettingsRoute: AuthenticatedTelephonySettingsRoute,

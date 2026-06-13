@@ -24,6 +24,7 @@ import {
   Megaphone,
   Settings2,
   PhoneIncoming,
+  Kanban,
 } from "lucide-react";
 import { restartTour } from "@/components/onboarding/useOnboarding";
 import {
@@ -63,6 +64,7 @@ const navItems = [
   { title: "Data",      url: "/data",      icon: Database },
   { title: "Contacts",  url: "/contacts",  icon: BookUser },
   { title: "Leads",     url: "/leads",     icon: UserCheck },
+  { title: "Pipeline",  url: "/pipeline",  icon: Kanban },
   { title: "Qualified", url: "/qualified", icon: Check },
   { title: "Calls",     url: "/calls",     icon: PhoneCall },
   { title: "Calendar",  url: "/calendar",  icon: CalendarDays },

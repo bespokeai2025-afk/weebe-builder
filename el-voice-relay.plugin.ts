@@ -328,10 +328,7 @@ function handleConnection(ws: WebSocket, openaiKey: string, elKey: string) {
 
     // ── audio.chunk ───────────────────────────────────────────────────────────
     if (msg.type === "audio.chunk") {
-      if (busy) {
-        console.log("[el-voice-relay] audio.chunk blocked (busy=true)");
-        return; // discard mic input while agent is processing/speaking
-      }
+      if (busy) return; // discard mic input while agent is processing/speaking
       const chunk = Buffer.from(String(msg.data ?? ""), "base64");
       if (chunk.byteLength < 2) return;
       const rms = computeRms(chunk);
