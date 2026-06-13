@@ -1,0 +1,358 @@
+WHATSAPP MULTI-STEP AI WORKFLOW EXECUTION ENGINE
+
+IMPORTANT
+
+* Do not modify Retell functionality.
+* Do not modify HyperStream voice functionality.
+* Do not modify existing Builder functionality.
+* Do not create a separate WhatsApp Builder.
+* Reuse the existing Builder architecture.
+* Preserve all existing Voice Agent functionality.
+* Preserve all existing WhatsApp functionality.
+* Generate implementation plan before coding.
+
+OBJECTIVE
+
+Upgrade WhatsApp agents from simple prompt-based responders into full multi-step AI workflow agents using the same Builder architecture currently used for Voice Agents.
+
+The Builder must become the single source of truth for:
+
+* Voice Agents
+* WhatsApp Agents
+* Future SMS Agents
+
+====================================================
+
+CURRENT PROBLEM
+
+Most WhatsApp bots operate using:
+
+Single Prompt
+↓
+User Message
+↓
+AI Response
+
+This creates:
+
+* Unpredictable conversations
+* Poor qualification
+* Weak lead capture
+* Difficult automation handling
+
+====================================================
+
+TARGET ARCHITECTURE
+
+Builder
+↓
+Workflow
+↓
+Runtime
+↓
+Channel
+
+Supported Channels:
+
+Voice
+WhatsApp
+SMS (future)
+
+The workflow must remain identical regardless of channel.
+
+====================================================
+
+CHANNEL SELECTOR
+
+Inside Builder Settings add:
+
+Channel Type
+
+Options:
+
+* Voice
+* WhatsApp
+* SMS (future)
+
+Store:
+
+channel_type
+
+inside agent definition.
+
+====================================================
+
+WHATSAPP EXECUTION MODES
+
+Add:
+
+Execution Mode
+
+Options:
+
+1. Structured Workflow
+2. AI Assisted Workflow
+3. Fully Autonomous AI
+
+====================================================
+
+MODE 1 – STRUCTURED WORKFLOW
+
+Execute nodes sequentially.
+
+Example:
+
+Greeting
+↓
+Ask Name
+↓
+Save Variable
+↓
+Ask Budget
+↓
+Logic Split
+↓
+Book Appointment
+↓
+Confirmation
+
+AI must remain inside the workflow.
+
+Users cannot skip workflow stages.
+
+====================================================
+
+MODE 2 – AI ASSISTED WORKFLOW
+
+Workflow controls conversation.
+
+AI interprets user responses.
+
+Example:
+
+Node:
+Ask Name
+
+User may respond:
+
+"My name is Nathan"
+"Nathan Smith"
+"Call me Nathan"
+
+All responses must map correctly:
+
+name = Nathan
+
+Workflow then advances.
+
+====================================================
+
+MODE 3 – FULLY AUTONOMOUS AI
+
+AI controls the conversation.
+
+Workflow acts as:
+
+* Guardrails
+* Tools
+* Knowledge
+* Variables
+
+Similar to OpenAI Assistant behaviour.
+
+====================================================
+
+WHATSAPP SUPPORTED NODES
+
+Reuse existing nodes:
+
+Conversation
+Logic Split
+Function
+Code
+Variable Extraction
+Webhook
+Knowledge Base
+End Conversation
+
+Create WhatsApp-specific nodes:
+
+Send Message
+Send Template
+Delay
+Wait For Reply
+Tag Contact
+Assign Contact
+Broadcast Trigger
+
+====================================================
+
+VARIABLE EXTRACTION
+
+Allow AI extraction.
+
+Example:
+
+User:
+"I have around £5,000 budget."
+
+Automatically:
+
+budget = 5000
+
+Store in workflow variables.
+
+====================================================
+
+WAIT FOR REPLY NODE
+
+New Node:
+
+Wait For Reply
+
+Allows workflow to pause.
+
+When user replies:
+
+Resume from same node.
+
+Store workflow state.
+
+====================================================
+
+CONVERSATION MEMORY
+
+Store:
+
+Current Node
+Variables
+Workflow State
+Lead State
+
+Allow conversations to resume days later.
+
+====================================================
+
+AI QUALIFICATION
+
+Allow AI to:
+
+* Extract Name
+* Extract Email
+* Extract Budget
+* Extract Timeframes
+* Extract Requirements
+
+Update lead records automatically.
+
+====================================================
+
+AUTOMATION INTEGRATION
+
+Allow workflows to trigger:
+
+Create Lead
+Update Lead
+Move Pipeline Stage
+Create Task
+Schedule Callback
+Send Email
+Send SMS
+Send WhatsApp
+Book Appointment
+
+====================================================
+
+KNOWLEDGE BASE SUPPORT
+
+WhatsApp Agents must support:
+
+* PDFs
+* Websites
+* Documents
+* FAQs
+
+using the existing Knowledge Base architecture.
+
+No duplicate systems.
+
+====================================================
+
+SHARED ANALYTICS
+
+Track:
+
+Messages
+Replies
+Conversions
+Appointments
+Lead Qualification
+Workflow Completion
+
+====================================================
+
+BUILDER COMPATIBILITY
+
+Voice Workflow:
+
+Greeting
+↓
+Qualify
+↓
+Book
+
+WhatsApp Workflow:
+
+Greeting
+↓
+Qualify
+↓
+Book
+
+Same workflow.
+
+Different channel.
+
+====================================================
+
+DATABASE REQUIREMENTS
+
+Store:
+
+workflow_state
+conversation_state
+current_node
+last_node
+resume_token
+
+Support long-running conversations.
+
+====================================================
+
+SUCCESS CRITERIA
+
+A user can:
+
+Build one workflow
+↓
+Choose WhatsApp
+↓
+Deploy
+↓
+Receive WhatsApp Messages
+↓
+Collect Variables
+↓
+Execute Logic Splits
+↓
+Use AI Qualification
+↓
+Book Appointments
+↓
+Trigger Automations
+↓
+Resume Conversations Later
+
+without using a single-prompt chatbot architecture.
+
+The existing Builder becomes a true multi-channel AI workflow engine supporting Voice, WhatsApp and future SMS channels.
