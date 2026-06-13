@@ -148,6 +148,94 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     );
   });
 
+// ── Lead detail (call summary + booking) ─────────────────────────────────────
+export type LeadBooking = {
+  id: string;
+  title: string;
+  start_at: string;
+  end_at: string;
+  attendee_name: string | null;
+  attendee_phone: string | null;
+  attendee_email: string | null;
+  meeting_url: string | null;
+  notes: string | null;
+  status: string;
+};
+
+export type LeadDetail = {
+  callSummary: string | null;
+  appointmentBooked: boolean;
+  appointmentDate: string | null;
+  appointmentReason: string | null;
+  booking: LeadBooking | null;
+};
+
+export const getLeadDetail = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        leadId: z.string(),
+        phone: z.string().nullable().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }): Promise<LeadDetail> => {
+    const { supabase, workspaceId } = context;
+    const empty: LeadDetail = {
+      callSummary: null,
+      appointmentBooked: false,
+      appointmentDate: null,
+      appointmentReason: null,
+      booking: null,
+    };
+    if (!workspaceId) return empty;
+    const sb = supabase as any;
+
+    // Latest call summary for this lead's phone
+    let callSummary: string | null = null;
+    let appointmentBooked = false;
+    let appointmentDate: string | null = null;
+    let appointmentReason: string | null = null;
+
+    if (data.phone) {
+      const { data: sd } = await sb
+        .from("booking_summaries")
+        .select("summary, appointment_booked, appointment_date, appointment_reason")
+        .eq("workspace_id", workspaceId)
+        .eq("customer_phone", data.phone)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (sd) {
+        callSummary = (sd.summary as string | null) ?? null;
+        appointmentBooked = Boolean(sd.appointment_booked);
+        appointmentDate = (sd.appointment_date as string | null) ?? null;
+        appointmentReason = (sd.appointment_reason as string | null) ?? null;
+      }
+    }
+
+    // Most recent calendar booking for this lead
+    const { data: bd } = await sb
+      .from("calendar_bookings")
+      .select(
+        "id, title, start_at, end_at, attendee_name, attendee_phone, attendee_email, meeting_url, notes, status",
+      )
+      .eq("workspace_id", workspaceId)
+      .eq("lead_id", data.leadId)
+      .order("start_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return {
+      callSummary,
+      appointmentBooked,
+      appointmentDate,
+      appointmentReason,
+      booking: (bd as LeadBooking | null) ?? null,
+    };
+  });
+
 export const setLeadPipelineStage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>

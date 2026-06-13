@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -35,6 +35,7 @@ import {
   type PipelineLead,
   type PipelineStage,
 } from "@/lib/pipeline/pipeline.functions";
+import { PipelineLeadDrawer } from "@/components/pipeline/PipelineLeadDrawer";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({ meta: [{ title: "Sales Pipeline — Webee" }] }),
@@ -42,7 +43,7 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function fmt$( n: number | null | undefined) {
+function fmt$(n: number | null | undefined) {
   if (!n) return null;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -54,9 +55,10 @@ function fmt$( n: number | null | undefined) {
 
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(
-    new Date(iso),
-  );
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(iso));
 }
 
 function initials(name: string | null) {
@@ -101,22 +103,27 @@ const SENTIMENT_ICON: Record<string, string> = {
 function LeadCard({
   lead,
   overlay = false,
+  onSelect,
 }: {
   lead: PipelineLead;
   overlay?: boolean;
+  onSelect?: (lead: PipelineLead) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: lead.id, data: { lead } });
+
+  // Distinguish a tap from a drag: track pointer movement
+  const hasMoved = useRef(false);
 
   const style = overlay
     ? undefined
     : { transform: CSS.Translate.toString(transform) };
 
-  const funding = fmt$(lead.funding_amount);
-  const revenue = fmt$(lead.monthly_revenue);
+  const funding   = fmt$(lead.funding_amount);
+  const revenue   = fmt$(lead.monthly_revenue);
   const lastContact = fmtDate(lead.last_contacted_at);
   const statusLabel = STATUS_LABEL[lead.status ?? ""] ?? lead.status ?? "";
-  const statusCls = STATUS_COLOR[lead.status ?? ""] ?? "";
+  const statusCls   = STATUS_COLOR[lead.status ?? ""] ?? "";
 
   return (
     <div
@@ -124,14 +131,19 @@ function LeadCard({
       style={style}
       {...(overlay ? {} : attributes)}
       {...(overlay ? {} : listeners)}
+      onPointerDown={() => { hasMoved.current = false; }}
+      onPointerMove={() => { hasMoved.current = true; }}
+      onClick={() => {
+        if (!hasMoved.current && !overlay && onSelect) onSelect(lead);
+      }}
       className={cn(
-        "group relative rounded-lg border bg-card px-3 py-3 shadow-sm cursor-grab active:cursor-grabbing select-none",
-        "transition-shadow hover:shadow-md",
+        "group relative rounded-lg border bg-card px-3 py-3 shadow-sm cursor-pointer select-none",
+        "transition-shadow hover:shadow-md hover:border-primary/30",
         isDragging && "opacity-40 shadow-none",
         overlay && "shadow-xl ring-2 ring-primary/30 rotate-1 cursor-grabbing",
       )}
     >
-      {/* Header row: avatar + name */}
+      {/* Header: avatar + name + sentiment */}
       <div className="flex items-start gap-2">
         <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-[11px] font-semibold text-muted-foreground shrink-0 mt-0.5">
           {initials(lead.full_name)}
@@ -147,7 +159,6 @@ function LeadCard({
             </p>
           )}
         </div>
-        {/* Sentiment */}
         {lead.sentiment && (
           <span className="text-sm shrink-0" title={lead.sentiment}>
             {SENTIMENT_ICON[lead.sentiment]}
@@ -166,9 +177,7 @@ function LeadCard({
             </div>
           )}
           {revenue && (
-            <div className="text-xs text-muted-foreground">
-              {revenue}/mo
-            </div>
+            <div className="text-xs text-muted-foreground">{revenue}/mo</div>
           )}
         </div>
       )}
@@ -195,7 +204,7 @@ function LeadCard({
         )}
       </div>
 
-      {/* Footer: status badge + attempt count + last contact */}
+      {/* Footer: status + attempts + last contact */}
       <div className="mt-2.5 flex items-center justify-between gap-1.5 flex-wrap">
         <span
           className={cn(
@@ -214,27 +223,20 @@ function LeadCard({
             </div>
           )}
           {lastContact && (
-            <span className="text-[10px] text-muted-foreground">
-              {lastContact}
-            </span>
+            <span className="text-[10px] text-muted-foreground">{lastContact}</span>
           )}
         </div>
       </div>
 
-      {/* Call outcome note */}
+      {/* Call outcome */}
       {lead.call_outcome && (
         <p className="mt-1.5 text-[10px] text-muted-foreground/70 line-clamp-1 italic">
           "{lead.call_outcome}"
         </p>
       )}
 
-      {/* Invisible link overlay for navigation (non-dragging) */}
-      <Link
-        to="/leads"
-        className="absolute inset-0 rounded-lg opacity-0"
-        aria-label={`View ${lead.full_name}`}
-        onClick={(e) => e.stopPropagation()}
-      />
+      {/* Click hint on hover */}
+      <div className="absolute inset-x-0 bottom-0 h-0.5 rounded-b-lg bg-primary/0 group-hover:bg-primary/20 transition-colors" />
     </div>
   );
 }
@@ -244,17 +246,16 @@ function PipelineColumn({
   stage,
   leads,
   activeId,
+  onSelectLead,
 }: {
   stage: (typeof PIPELINE_STAGES)[number];
   leads: PipelineLead[];
   activeId: string | null;
+  onSelectLead: (lead: PipelineLead) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
-  const totalFunding = leads.reduce(
-    (sum, l) => sum + (l.funding_amount ?? 0),
-    0,
-  );
+  const totalFunding = leads.reduce((sum, l) => sum + (l.funding_amount ?? 0), 0);
 
   return (
     <div className="flex flex-col w-64 shrink-0">
@@ -278,11 +279,15 @@ function PipelineColumn({
         )}
       >
         {leads.map((lead) => (
-          <LeadCard key={lead.id} lead={lead} />
+          <LeadCard
+            key={lead.id}
+            lead={lead}
+            onSelect={onSelectLead}
+          />
         ))}
 
         {leads.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-24">
+          <div className="flex items-center justify-center h-24">
             <p className="text-xs text-muted-foreground/40">Drop here</p>
           </div>
         )}
@@ -294,10 +299,12 @@ function PipelineColumn({
 // ── Main page ─────────────────────────────────────────────────────────────────
 function PipelinePage() {
   const qc = useQueryClient();
-  const fetchLeads = useServerFn(getPipelineLeads);
+  const fetchLeads  = useServerFn(getPipelineLeads);
   const updateStage = useServerFn(setLeadPipelineStage);
 
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId,      setActiveId]      = useState<string | null>(null);
+  const [selectedLead,  setSelectedLead]  = useState<PipelineLead | null>(null);
+  const [drawerOpen,    setDrawerOpen]    = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -339,8 +346,7 @@ function PipelinePage() {
       const msg = (err as Error)?.message ?? "";
       if (msg.includes("MIGRATION_NEEDED")) {
         toast.warning("Apply the pipeline migration to persist stage changes.", {
-          description:
-            "supabase/migrations/20260613160000_pipeline_stage.sql",
+          description: "supabase/migrations/20260613160000_pipeline_stage.sql",
           duration: 8000,
         });
       } else {
@@ -378,6 +384,11 @@ function PipelinePage() {
     },
     [leads, moveCard],
   );
+
+  const handleSelectLead = useCallback((lead: PipelineLead) => {
+    setSelectedLead(lead);
+    setDrawerOpen(true);
+  }, []);
 
   const totalFunding = leads.reduce((s, l) => s + (l.funding_amount ?? 0), 0);
 
@@ -433,6 +444,7 @@ function PipelinePage() {
                   stage={stage}
                   leads={grouped[stage.id] ?? []}
                   activeId={activeId}
+                  onSelectLead={handleSelectLead}
                 />
               ))}
             </div>
@@ -443,6 +455,13 @@ function PipelinePage() {
           </DndContext>
         )}
       </div>
+
+      {/* Lead detail drawer */}
+      <PipelineLeadDrawer
+        lead={selectedLead}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </div>
   );
 }
