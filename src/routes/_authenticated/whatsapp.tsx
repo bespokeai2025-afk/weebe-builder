@@ -29,6 +29,7 @@ function WhatsappPage() {
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Buzzchat</h1>
+        <p className="mt-0.5 text-xs font-medium text-muted-foreground/60 uppercase tracking-widest">Meta</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Manage conversations, contacts, campaigns and templates from one place.
         </p>
