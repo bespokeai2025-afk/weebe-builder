@@ -2,21 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { BookUser, RefreshCw, Search, StickyNote, FolderOpen, Loader2 } from "lucide-react";
+import { BookUser, RefreshCw, Search, StickyNote } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { listDataRecords } from "@/lib/dashboard/data-records.functions";
-import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
-import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 export const Route = createFileRoute("/_authenticated/contacts")({
@@ -41,68 +32,9 @@ type PanelTarget = {
   leadId?: string | null;
 };
 
-function ContactDocsDialog({
-  contact,
-  onClose,
-}: {
-  contact: { displayName: string; phone?: string } | null;
-  onClose: () => void;
-}) {
-  const docsByPhoneFn = useServerFn(listContactDocsByPhone);
-
-  const docsQ = useQuery({
-    queryKey: ["contact-docs-phone", contact?.phone],
-    queryFn: () => docsByPhoneFn({ data: { phone: contact!.phone! } }),
-    enabled: !!contact?.phone,
-    staleTime: 0,
-  });
-
-  const docsInfo = docsQ.data as
-    | { docs: any[]; contactId: string | null; uploadToken: string | null }
-    | undefined;
-
-  return (
-    <Dialog open={!!contact} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4" />
-            Documents — {contact?.displayName}
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            Upload and manage documents for this contact.
-          </DialogDescription>
-        </DialogHeader>
-
-        {docsQ.isLoading ? (
-          <div className="flex items-center gap-2 py-6">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Loading…</span>
-          </div>
-        ) : docsInfo?.contactId ? (
-          <ContactDocumentsPanel
-            contactId={docsInfo.contactId}
-            contactName={contact?.displayName}
-            uploadToken={docsInfo.uploadToken}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground py-4">
-            No WhatsApp contact found for {contact?.phone}. Add this number as a
-            WhatsApp contact first to enable documents.
-          </p>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function ContactsPage() {
   const [search, setSearch] = useState("");
   const [panel, setPanel] = useState<PanelTarget | null>(null);
-  const [docsContact, setDocsContact] = useState<{
-    displayName: string;
-    phone?: string;
-  } | null>(null);
   const listFn = useServerFn(listDataRecords);
 
   const { data: records = [], isLoading, refetch, isFetching } = useQuery({
@@ -111,6 +43,7 @@ function ContactsPage() {
     staleTime: 60_000,
   });
 
+  // Deduplicate by mobile_number (keep first occurrence per phone)
   const deduped = useMemo(() => {
     const seen = new Set<string>();
     return (records as any[]).filter((r) => {
@@ -150,20 +83,11 @@ function ContactsPage() {
       "Contact";
     setPanel({
       entityType: "contact",
-      entityId: r.id,
+      entityId: r.id,         // data_records.id — docs load directly from this
       entityName: displayName,
       defaultPhone: r.mobile_number ?? undefined,
       defaultEmail: r.email ?? undefined,
     });
-  }
-
-  function openDocs(r: any) {
-    const displayName =
-      r.name ||
-      [r.first_name, r.last_name].filter(Boolean).join(" ") ||
-      r.mobile_number ||
-      "Contact";
-    setDocsContact({ displayName, phone: r.mobile_number ?? undefined });
   }
 
   return (
@@ -242,7 +166,7 @@ function ContactsPage() {
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Address</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Notes</th>
-                  <th className="px-3 py-2 w-24"></th>
+                  <th className="px-3 py-2 w-16"></th>
                 </tr>
               </thead>
               <tbody>
@@ -274,26 +198,14 @@ function ContactsPage() {
                         )}
                       </td>
                       <td className="px-3 py-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => openPanel(r)}
-                            title="Notes & appointment"
-                            className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors"
-                          >
-                            <StickyNote className="h-3 w-3" />
-                            <span>Notes</span>
-                          </button>
-                          {r.mobile_number && (
-                            <button
-                              onClick={() => openDocs(r)}
-                              title="Documents"
-                              className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 hover:border-blue-500/40 transition-colors"
-                            >
-                              <FolderOpen className="h-3 w-3" />
-                              <span>Docs</span>
-                            </button>
-                          )}
-                        </div>
+                        <button
+                          onClick={() => openPanel(r)}
+                          title="Notes, documents & appointment"
+                          className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-colors whitespace-nowrap"
+                        >
+                          <StickyNote className="h-3 w-3" />
+                          <span>Notes & Docs</span>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -304,7 +216,7 @@ function ContactsPage() {
         )}
       </div>
 
-      {/* Notes & Booking sheet */}
+      {/* Notes, Documents & Booking sheet */}
       {panel && (
         <NotesBookingSheet
           open={!!panel}
@@ -317,12 +229,6 @@ function ContactsPage() {
           leadId={panel.leadId}
         />
       )}
-
-      {/* Documents dialog */}
-      <ContactDocsDialog
-        contact={docsContact}
-        onClose={() => setDocsContact(null)}
-      />
     </div>
   );
 }

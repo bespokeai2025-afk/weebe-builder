@@ -16,6 +16,9 @@ async function ensureBucket() {
   }
 }
 
+// ── Authenticated functions ───────────────────────────────────────────────────
+
+/** List all documents for a contact by their data_records.id */
 export const listContactDocuments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -35,6 +38,7 @@ export const listContactDocuments = createServerFn({ method: "POST" })
     return docs ?? [];
   });
 
+/** Look up a contact by phone (mobile_number in data_records) and return their docs + token */
 export const listContactDocsByPhone = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -44,18 +48,26 @@ export const listContactDocsByPhone = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) return { docs: [], contactId: null, uploadToken: null };
     const sb = supabaseAdmin as any;
+
+    // Normalise phone for matching (strip spaces/dashes, keep +)
+    const phone = data.phone.replace(/[\s\-().]/g, "");
+
     const { data: contact } = await sb
-      .from("whatsapp_contacts")
+      .from("data_records")
       .select("id, upload_token, name")
       .eq("workspace_id", workspaceId)
-      .eq("phone", data.phone)
+      .eq("is_deleted", false)
+      .or(`mobile_number.eq.${phone},mobile_number.eq.${data.phone}`)
       .maybeSingle();
+
     if (!contact) return { docs: [], contactId: null, uploadToken: null };
+
     const { data: docs } = await sb
       .from("contact_documents")
       .select("*")
       .eq("contact_id", contact.id)
       .order("created_at", { ascending: false });
+
     return {
       docs: docs ?? [],
       contactId: contact.id as string,
@@ -63,6 +75,7 @@ export const listContactDocsByPhone = createServerFn({ method: "POST" })
     };
   });
 
+/** Delete a document and remove it from storage */
 export const deleteContactDocument = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -82,6 +95,7 @@ export const deleteContactDocument = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** Get the upload token for a contact by their data_records.id */
 export const getContactUploadToken = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -92,8 +106,8 @@ export const getContactUploadToken = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabaseAdmin as any;
     const { data: contact, error } = await sb
-      .from("whatsapp_contacts")
-      .select("upload_token, name, phone")
+      .from("data_records")
+      .select("upload_token, name, mobile_number")
       .eq("id", data.contactId)
       .eq("workspace_id", workspaceId)
       .single();
@@ -101,12 +115,13 @@ export const getContactUploadToken = createServerFn({ method: "POST" })
     return {
       uploadToken: contact.upload_token as string,
       name: contact.name as string | null,
-      phone: contact.phone as string,
+      phone: contact.mobile_number as string,
     };
   });
 
-// ── Anon functions — no auth middleware; token is the security ────────────────
+// ── Anon functions — no auth middleware; upload_token is the security ─────────
 
+/** Create a signed upload URL for a client using their upload token */
 export const getSignedUploadUrl = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z.object({
@@ -119,7 +134,7 @@ export const getSignedUploadUrl = createServerFn({ method: "POST" })
     await ensureBucket();
     const sb = supabaseAdmin as any;
     const { data: contact, error } = await sb
-      .from("whatsapp_contacts")
+      .from("data_records")
       .select("id, workspace_id, name")
       .eq("upload_token", data.token)
       .single();
@@ -143,6 +158,7 @@ export const getSignedUploadUrl = createServerFn({ method: "POST" })
     };
   });
 
+/** Record a completed upload in the database */
 export const recordDocumentUpload = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z.object({
@@ -158,7 +174,7 @@ export const recordDocumentUpload = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const sb = supabaseAdmin as any;
     const { data: contact, error } = await sb
-      .from("whatsapp_contacts")
+      .from("data_records")
       .select("id, workspace_id")
       .eq("upload_token", data.uploadToken)
       .single();
