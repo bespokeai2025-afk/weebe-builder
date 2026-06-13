@@ -127,6 +127,7 @@ const NODE_LABELS: Record<NodeKind, string> = {
   wa_message: "WA Message",
   wa_delay: "WA Delay",
   wa_media: "WA Media",
+  wa_booking: "WA Booking",
 };
 
 const makeNode = (

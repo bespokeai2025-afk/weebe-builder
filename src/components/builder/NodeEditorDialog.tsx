@@ -661,6 +661,106 @@ export function NodeEditorDialog() {
             </div>
           )}
 
+          {(d.kind === "wa_start" || d.kind === "wa_message") && (
+            <div className="space-y-3">
+              <div>
+                <Label>Message / Prompt</Label>
+                <Textarea
+                  rows={4}
+                  value={d.dialogue ?? ""}
+                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                  placeholder="What should the agent say at this step? Use {variable} placeholders."
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  This text is included in the AI's instructions for this step. The agent responds conversationally based on it.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {d.kind === "wa_media" && (
+            <div className="space-y-3">
+              <div>
+                <Label>Media URL</Label>
+                <Input
+                  value={d.mediaUrl ?? ""}
+                  onChange={(e) => updateNode(node.id, { mediaUrl: e.target.value })}
+                  placeholder="https://example.com/image.jpg"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Publicly accessible URL of the image, video, audio, or document to send via WhatsApp.
+                  Twilio supports JPEG, PNG, GIF, MP4, PDF, and more.
+                </p>
+              </div>
+              <div>
+                <Label>Caption (optional)</Label>
+                <Textarea
+                  rows={2}
+                  value={d.mediaCaption ?? ""}
+                  onChange={(e) => updateNode(node.id, { mediaCaption: e.target.value })}
+                  placeholder="Caption shown below the media (optional)"
+                />
+              </div>
+              <div>
+                <Label>Follow-up prompt (optional)</Label>
+                <Textarea
+                  rows={3}
+                  value={d.dialogue ?? ""}
+                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                  placeholder="What should the agent say after sending the media?"
+                />
+              </div>
+            </div>
+          )}
+
+          {d.kind === "wa_booking" && (
+            <div className="space-y-3">
+              <div className="rounded-md border border-sky-200 bg-sky-50 p-3 text-[12px] text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
+                When the conversation reaches this node, the agent automatically fetches available
+                Cal.com slots (if a Cal.com API key is configured in Settings) and presents them
+                to the contact. If no API key is set, it falls back to sending the booking link below.
+              </div>
+              <div>
+                <Label>Booking link (fallback)</Label>
+                <Input
+                  value={d.bookingUrl ?? ""}
+                  onChange={(e) => updateNode(node.id, { bookingUrl: e.target.value })}
+                  placeholder="https://cal.com/your-name/30min"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Sent when live slot fetching is unavailable or as a confirmation link.
+                </p>
+              </div>
+              <div>
+                <Label>Cal.com Event Type ID (optional override)</Label>
+                <Input
+                  value={d.bookingEventTypeId ?? ""}
+                  onChange={(e) => updateNode(node.id, { bookingEventTypeId: e.target.value })}
+                  placeholder="e.g. 12345 — leave blank to use workspace default"
+                />
+              </div>
+              <div>
+                <Label>Days ahead to show slots</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={d.bookingLookaheadDays ?? 7}
+                  onChange={(e) => updateNode(node.id, { bookingLookaheadDays: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label>Intro message</Label>
+                <Textarea
+                  rows={3}
+                  value={d.dialogue ?? ""}
+                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                  placeholder="e.g. Let me check what slots are available for you..."
+                />
+              </div>
+            </div>
+          )}
+
           {d.kind !== "ending" && d.kind !== "note" && (
             <div>
               <div className="flex items-center justify-between mb-2">

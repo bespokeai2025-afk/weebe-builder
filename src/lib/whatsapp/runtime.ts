@@ -10,8 +10,12 @@
  *  3. Fetch recent message history for context
  *  4. Call OpenAI to generate a reply from the current node's prompt
  *  5. Evaluate transitions to advance the node
- *  6. Send reply via Twilio REST API
+ *  6. Send reply via Twilio REST API (with optional MediaUrl for wa_media nodes)
  *  7. Persist session + outbound message
+ *
+ * wa_media nodes: send a media URL (image/video/audio/document) via Twilio MMS.
+ * wa_booking nodes: fetch live Cal.com slots and inject into AI context so the
+ *   agent can present booking times as plain text over WhatsApp.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
@@ -27,6 +31,16 @@ interface FlowNode {
     isStart?: boolean;
     endingPrompt?: string;
     smsMessage?: string;
+    /** wa_media: publicly accessible URL of the media to send */
+    mediaUrl?: string;
+    /** wa_media: optional caption shown below the media */
+    mediaCaption?: string;
+    /** wa_booking: fallback Cal.com or Calendly link sent when no API key */
+    bookingUrl?: string;
+    /** wa_booking: Cal.com event type ID (overrides workspace default) */
+    bookingEventTypeId?: string;
+    /** wa_booking: how many days ahead to look for slots (default 7) */
+    bookingLookaheadDays?: number;
     transitions: Array<{ id: string; condition: string; target: string | null }>;
     [key: string]: unknown;
   };
@@ -47,19 +61,30 @@ async function sendTwilio(
   body: string,
   accountSid: string,
   authToken: string,
+  mediaUrl?: string,
 ): Promise<string | null> {
   try {
     const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
     const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+    const params: Record<string, string> = {
+      To: `whatsapp:${to}`,
+      From: `whatsapp:${from}`,
+      Body: body,
+    };
+    if (mediaUrl) params.MediaUrl = mediaUrl;
+
     const res = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Basic ${credentials}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({ To: `whatsapp:${to}`, From: `whatsapp:${from}`, Body: body }),
+      body: new URLSearchParams(params),
     });
     const json = (await res.json()) as any;
+    if (!res.ok) {
+      console.error("[wa-runtime] Twilio error", json?.code, json?.message);
+    }
     return json?.sid ?? null;
   } catch (e) {
     console.error("[wa-runtime] sendTwilio failed", e);
@@ -108,23 +133,107 @@ function pickNextNode(
   if (!currentNode.data.transitions || currentNode.data.transitions.length === 0) return null;
   const replyLower = reply.toLowerCase();
 
-  // Try to match a transition condition to the reply content
   for (const t of currentNode.data.transitions) {
     if (!t.target) continue;
     const cond = t.condition?.toLowerCase() ?? "";
     if (!cond) {
-      // Unconditional — always match
       return allNodes.find((n) => n.id === t.target) ?? null;
     }
-    // Simple keyword matching on the AI reply or condition
     if (replyLower.includes(cond) || cond.includes("always") || cond.includes("default")) {
       return allNodes.find((n) => n.id === t.target) ?? null;
     }
   }
 
-  // Fallback: take first transition with a target
   const first = currentNode.data.transitions.find((t) => t.target);
   return first ? (allNodes.find((n) => n.id === first.target) ?? null) : null;
+}
+
+/**
+ * Fetch available Cal.com slots for the next `lookaheadDays` days.
+ * Returns a human-readable text list, or null if Cal.com is not configured.
+ */
+async function fetchCalSlotSummary(
+  workspaceId: string,
+  eventTypeIdOverride?: string,
+  lookaheadDays = 7,
+): Promise<{ summary: string; bookingLink: string | null } | null> {
+  const sb = supabaseAdmin as any;
+
+  const { data: ws } = await sb
+    .from("workspace_settings")
+    .select("calcom_api_key, default_event_type_id")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  const apiKey = ws?.calcom_api_key as string | undefined;
+  if (!apiKey) return null;
+
+  const eventTypeId = eventTypeIdOverride
+    ? Number(eventTypeIdOverride)
+    : (ws?.default_event_type_id as number | undefined);
+
+  if (!eventTypeId) return null;
+
+  try {
+    const now = new Date();
+    const end = new Date(now);
+    end.setDate(end.getDate() + lookaheadDays);
+
+    const startTime = now.toISOString().split("T")[0];
+    const endTime = end.toISOString().split("T")[0];
+
+    const calRes = await fetch(
+      `https://api.cal.com/v2/slots/available?eventTypeId=${eventTypeId}&startTime=${startTime}&endTime=${endTime}`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    if (!calRes.ok) {
+      console.warn("[wa-runtime] Cal.com slots fetch failed", await calRes.text());
+      return null;
+    }
+
+    const calData = (await calRes.json()) as any;
+    const slotsByDay: Record<string, Array<{ time: string }>> =
+      calData?.data?.slots ?? calData?.slots ?? {};
+
+    const lines: string[] = [];
+    for (const [day, daySlots] of Object.entries(slotsByDay)) {
+      if (!Array.isArray(daySlots) || daySlots.length === 0) continue;
+      const date = new Date(day);
+      const dayLabel = date.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      const times = daySlots
+        .slice(0, 4)
+        .map((s) =>
+          new Date(s.time).toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          }),
+        )
+        .join(", ");
+      lines.push(`• ${dayLabel}: ${times}`);
+      if (lines.length >= 5) break;
+    }
+
+    if (lines.length === 0) return null;
+
+    return {
+      summary: lines.join("\n"),
+      bookingLink: null,
+    };
+  } catch (e) {
+    console.error("[wa-runtime] Cal.com slots error", e);
+    return null;
+  }
 }
 
 // ── Main runtime ──────────────────────────────────────────────────────────────
@@ -202,7 +311,6 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
     session = newSession;
   }
 
-  // Skip if session is ended
   if (session?.ended) return;
 
   const currentNodeId = session?.current_node_id ?? startNode.id;
@@ -235,17 +343,33 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
       content: m.body as string,
     }));
 
-  // 5. Build system prompt
+  // 5. Build system prompt — pulls globalPrompt from agent settings + node dialogue
   const globalPrompt = agentSettings.globalPrompt ?? "";
   const nodePrompt   = currentNode.data.dialogue ?? currentNode.data.smsMessage ?? "";
   const agentName    = agentSettings.agentName ?? "Assistant";
 
+  // 5a. For wa_booking nodes: fetch Cal.com slots and inject them
+  let bookingContext = "";
+  if (currentNode.data.kind === "wa_booking") {
+    const lookahead = currentNode.data.bookingLookaheadDays ?? 7;
+    const calResult = await fetchCalSlotSummary(
+      workspaceId,
+      currentNode.data.bookingEventTypeId,
+      lookahead,
+    );
+
+    if (calResult && calResult.summary) {
+      bookingContext = `\n\nAvailable appointment slots for the next ${lookahead} days:\n${calResult.summary}\n\nPresent these options naturally to the contact. Ask which slot works for them. Do not include raw ISO timestamps — use the friendly times shown above.`;
+    } else if (currentNode.data.bookingUrl) {
+      bookingContext = `\n\nShare this booking link with the contact: ${currentNode.data.bookingUrl}\nTell them they can click it to pick a time that works for them.`;
+    }
+  }
+
   const systemPrompt = [
     `You are ${agentName}, a WhatsApp AI assistant.`,
     globalPrompt ? `\n${globalPrompt}` : "",
-    nodePrompt
-      ? `\n\nCurrent instruction for this step:\n${nodePrompt}`
-      : "",
+    nodePrompt ? `\n\nCurrent instruction for this step:\n${nodePrompt}` : "",
+    bookingContext,
     "\n\nReply concisely (1-3 sentences max). Do not use markdown. Be conversational.",
     isNew ? "\nThis is the first message — greet the user appropriately." : "",
   ]
@@ -255,7 +379,6 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
   // 6. Generate reply with OpenAI
   let replyText: string;
   try {
-    // Add the current inbound message if not already in history
     const msgs: Array<{ role: "user" | "assistant"; content: string }> = [
       ...chatHistory.slice(-8),
       { role: "user", content: inboundBody },
@@ -273,7 +396,15 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
   const nextNodeId = nextNode?.id ?? currentNodeId;
 
   // 8. Send reply via Twilio
-  const sid = await sendTwilio(contactPhone, fromPhone, replyText, accountSid, authToken);
+  //    wa_media nodes: attach the configured media URL
+  //    All other nodes: text only
+  const isMediaNode = currentNode.data.kind === "wa_media";
+  const mediaUrl = isMediaNode ? (currentNode.data.mediaUrl ?? undefined) : undefined;
+  const messageBody = isMediaNode
+    ? (currentNode.data.mediaCaption ?? replyText)
+    : replyText;
+
+  const sid = await sendTwilio(contactPhone, fromPhone, messageBody, accountSid, authToken, mediaUrl);
 
   // 9. Persist outbound message
   if (sid) {
@@ -283,7 +414,8 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
       contact_phone: contactPhone,
       contact_name: contactName,
       direction: "outbound",
-      body: replyText,
+      body: messageBody,
+      media_url: mediaUrl ?? null,
       status: "sent",
       sent_at: new Date().toISOString(),
     });

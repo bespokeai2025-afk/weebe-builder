@@ -122,6 +122,11 @@ const STYLES: Record<NodeKind, Style> = {
     badgeClass: "bg-lime-100 text-lime-800",
     headerClass: "bg-lime-50/70 border-lime-200",
   },
+  wa_booking: {
+    badge: "WA Booking",
+    badgeClass: "bg-sky-100 text-sky-800",
+    headerClass: "bg-sky-50/70 border-sky-200",
+  },
 };
 
 /**
@@ -659,4 +664,5 @@ export const NodeRenderers: Record<NodeKind, typeof ConversationStyleNode> = {
   wa_message: ConversationStyleNode,
   wa_delay: SimpleNode,
   wa_media: ConversationStyleNode,
+  wa_booking: ConversationStyleNode,
 };

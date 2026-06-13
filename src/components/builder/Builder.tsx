@@ -58,6 +58,7 @@ import {
   Code as CodeIcon,
   Square,
   StickyNote,
+  CalendarCheck,
   Maximize,
   Trash,
   Image as ImageIcon,
@@ -105,14 +106,15 @@ const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; c
 ];
 
 const WA_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
-  { kind: "wa_start",        label: "WA Start",        icon: MsgSq,       color: "text-green-500" },
-  { kind: "wa_message",      label: "WA Message",      icon: MsgSq,       color: "text-green-600" },
-  { kind: "wa_media",        label: "WA Media",        icon: ImageIcon,   color: "text-lime-600"  },
-  { kind: "wa_delay",        label: "WA Delay",        icon: Clock,       color: "text-teal-600"  },
-  { kind: "logic_split",     label: "Logic Split",     icon: GitBranch,   color: "text-pink-600"  },
-  { kind: "extract_variable",label: "Extract Variable",icon: Braces,      color: "text-indigo-600"},
-  { kind: "code",            label: "Code",            icon: CodeIcon,    color: "text-slate-700" },
-  { kind: "note",            label: "Note",            icon: StickyNote,  color: "text-yellow-700"},
+  { kind: "wa_start",        label: "WA Start",        icon: MsgSq,            color: "text-green-500" },
+  { kind: "wa_message",      label: "WA Message",      icon: MsgSq,            color: "text-green-600" },
+  { kind: "wa_media",        label: "WA Media",        icon: ImageIcon,        color: "text-lime-600"  },
+  { kind: "wa_booking",      label: "WA Booking",      icon: CalendarCheck,    color: "text-sky-600"   },
+  { kind: "wa_delay",        label: "WA Delay",        icon: Clock,            color: "text-teal-600"  },
+  { kind: "logic_split",     label: "Logic Split",     icon: GitBranch,        color: "text-pink-600"  },
+  { kind: "extract_variable",label: "Extract Variable",icon: Braces,           color: "text-indigo-600"},
+  { kind: "code",            label: "Code",            icon: CodeIcon,         color: "text-slate-700" },
+  { kind: "note",            label: "Note",            icon: StickyNote,       color: "text-yellow-700"},
 ];
 
 const LANGUAGES: { code: string; flag: string; name: string; region: string }[] = [

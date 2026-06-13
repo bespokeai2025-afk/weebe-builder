@@ -39,6 +39,7 @@ const KIND_COLOR: Record<string, string> = {
   wa_message: "var(--flow-node)",
   wa_delay:   "var(--flow-node)",
   wa_media:   "var(--flow-node)",
+  wa_booking: "var(--flow-node)",
 };
 
 const MINI_MAP_WIDTH = 132;

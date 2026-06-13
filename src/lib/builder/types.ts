@@ -20,6 +20,7 @@ export type NodeKind =
   | "wa_message"
   | "wa_delay"
   | "wa_media"
+  | "wa_booking"
   | "wa_start";
 
 export interface Transition {
@@ -104,6 +105,16 @@ export interface FlowNodeData {
   /** For logic_split — array of branches lives in transitions */
   /** For sms */
   smsMessage?: string;
+  /** For wa_media — publicly accessible URL of image/video/audio/document */
+  mediaUrl?: string;
+  /** For wa_media — optional caption shown below the media */
+  mediaCaption?: string;
+  /** For wa_booking — direct Cal.com or Calendly booking page URL (fallback when no API key) */
+  bookingUrl?: string;
+  /** For wa_booking — Cal.com event type ID to fetch live slots (overrides workspace default) */
+  bookingEventTypeId?: string;
+  /** For wa_booking — how many days ahead to look for available slots */
+  bookingLookaheadDays?: number;
   /** For extract_variable — legacy single-variable fields (kept for round-trip compat) */
   variableName?: string;
   variableDescription?: string;
