@@ -182,6 +182,28 @@ function LeadCard({
         </div>
       )}
 
+      {/* Contact info */}
+      <div className="mt-1 space-y-0.5">
+        {lead.phone && (
+          <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+            <Phone className="h-2 w-2 shrink-0" />
+            <span className="truncate">{lead.phone}</span>
+          </div>
+        )}
+        {lead.email && (
+          <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+            <Mail className="h-2 w-2 shrink-0" />
+            <span className="truncate">{lead.email}</span>
+          </div>
+        )}
+        {lead.state_name && (
+          <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+            <MapPin className="h-2 w-2 shrink-0" />
+            <span className="truncate">{lead.state_name}</span>
+          </div>
+        )}
+      </div>
+
       {/* Footer: status + meta icons + stage arrows */}
       <div className="mt-1.5 flex items-center justify-between gap-1 flex-wrap">
         <span className={cn("inline-flex items-center text-[9px] font-medium px-1 py-0.5 rounded-full", statusCls)}>
