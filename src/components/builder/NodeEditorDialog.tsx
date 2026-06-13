@@ -531,6 +531,50 @@ export function NodeEditorDialog() {
             </>
           )}
 
+          {d.kind === "send_upload_link" && (
+            <>
+              <div className="rounded-lg border border-sky-200 bg-sky-50/60 px-4 py-3 space-y-1 text-sm dark:border-sky-700/50 dark:bg-sky-900/20">
+                <p className="font-medium text-sky-800 dark:text-sky-300">Send Upload Link tool</p>
+                <p className="text-sky-700 dark:text-sky-400 text-xs leading-relaxed">
+                  During the call the agent generates a unique, secure upload URL for the contact
+                  and texts it to their mobile number via SMS. The tool returns a{" "}
+                  <code className="font-mono bg-sky-100 dark:bg-sky-800 rounded px-1">summary</code>{" "}
+                  the agent reads aloud, and a{" "}
+                  <code className="font-mono bg-sky-100 dark:bg-sky-800 rounded px-1">sms_sent</code>{" "}
+                  flag. Requires a Twilio phone number configured on this workspace.
+                </p>
+              </div>
+
+              <div>
+                <Label>Agent instruction</Label>
+                <Textarea
+                  rows={4}
+                  value={d.dialogue}
+                  onChange={(e) => updateNode(node.id, { dialogue: e.target.value })}
+                  placeholder={
+                    "Call send_upload_link to generate and text a secure document upload link to the caller.\n" +
+                    "Read the returned summary aloud verbatim.\n" +
+                    "If sms_sent is true, tell them to check their messages.\n" +
+                    "If sms_sent is false, apologise and advise them to contact the office directly."
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Speak during execution</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Say something while the link is being generated (recommended)
+                  </p>
+                </div>
+                <Switch
+                  checked={d.speakDuringExecution ?? true}
+                  onCheckedChange={(v) => updateNode(node.id, { speakDuringExecution: v })}
+                />
+              </div>
+            </>
+          )}
+
           {d.kind === "extract_variable" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">

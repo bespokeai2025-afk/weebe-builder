@@ -68,6 +68,7 @@ import { Route as ApiPublicVoiceWebhookHealthRouteImport } from './routes/api/pu
 import { Route as ApiPublicTelephonyStatusRouteImport } from './routes/api/public/telephony/status'
 import { Route as ApiPublicTelephonyRecordingRouteImport } from './routes/api/public/telephony/recording'
 import { Route as ApiPublicTelephonyInboundRouteImport } from './routes/api/public/telephony/inbound'
+import { Route as ApiPublicRetellSendUploadLinkRouteImport } from './routes/api/public/retell/send-upload-link'
 import { Route as ApiPublicRetellRescheduleRouteImport } from './routes/api/public/retell/reschedule'
 import { Route as ApiPublicRetellEventTypesRouteImport } from './routes/api/public/retell/event-types'
 import { Route as ApiPublicRetellCheckDocumentsRouteImport } from './routes/api/public/retell/check-documents'
@@ -77,6 +78,7 @@ import { Route as ApiPublicRetellAvailabilityRouteImport } from './routes/api/pu
 import { Route as ApiPublicRetellWebhookHealthRouteImport } from './routes/api/public/retell-webhook.health'
 import { Route as ApiPublicRetellWebhookDebugRouteImport } from './routes/api/public/retell-webhook.debug'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicHyperstreamSendUploadLinkRouteImport } from './routes/api/public/hyperstream/send-upload-link'
 import { Route as ApiPublicHyperstreamRescheduleRouteImport } from './routes/api/public/hyperstream/reschedule'
 import { Route as ApiPublicHyperstreamEventTypesRouteImport } from './routes/api/public/hyperstream/event-types'
 import { Route as ApiPublicHyperstreamCheckDocumentsRouteImport } from './routes/api/public/hyperstream/check-documents'
@@ -405,6 +407,12 @@ const ApiPublicTelephonyInboundRoute =
     path: '/api/public/telephony/inbound',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicRetellSendUploadLinkRoute =
+  ApiPublicRetellSendUploadLinkRouteImport.update({
+    id: '/api/public/retell/send-upload-link',
+    path: '/api/public/retell/send-upload-link',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRetellRescheduleRoute =
   ApiPublicRetellRescheduleRouteImport.update({
     id: '/api/public/retell/reschedule',
@@ -455,6 +463,12 @@ const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
     path: '/api/public/payments/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHyperstreamSendUploadLinkRoute =
+  ApiPublicHyperstreamSendUploadLinkRouteImport.update({
+    id: '/api/public/hyperstream/send-upload-link',
+    path: '/api/public/hyperstream/send-upload-link',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHyperstreamRescheduleRoute =
@@ -584,6 +598,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hyperstream/check-documents': typeof ApiPublicHyperstreamCheckDocumentsRoute
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
+  '/api/public/hyperstream/send-upload-link': typeof ApiPublicHyperstreamSendUploadLinkRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
@@ -593,6 +608,7 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/check-documents': typeof ApiPublicRetellCheckDocumentsRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
+  '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
@@ -664,6 +680,7 @@ export interface FileRoutesByTo {
   '/api/public/hyperstream/check-documents': typeof ApiPublicHyperstreamCheckDocumentsRoute
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
+  '/api/public/hyperstream/send-upload-link': typeof ApiPublicHyperstreamSendUploadLinkRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
@@ -673,6 +690,7 @@ export interface FileRoutesByTo {
   '/api/public/retell/check-documents': typeof ApiPublicRetellCheckDocumentsRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
+  '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
@@ -747,6 +765,7 @@ export interface FileRoutesById {
   '/api/public/hyperstream/check-documents': typeof ApiPublicHyperstreamCheckDocumentsRoute
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
+  '/api/public/hyperstream/send-upload-link': typeof ApiPublicHyperstreamSendUploadLinkRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
@@ -756,6 +775,7 @@ export interface FileRoutesById {
   '/api/public/retell/check-documents': typeof ApiPublicRetellCheckDocumentsRoute
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
+  '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
@@ -830,6 +850,7 @@ export interface FileRouteTypes {
     | '/api/public/hyperstream/check-documents'
     | '/api/public/hyperstream/event-types'
     | '/api/public/hyperstream/reschedule'
+    | '/api/public/hyperstream/send-upload-link'
     | '/api/public/payments/webhook'
     | '/api/public/retell-webhook/debug'
     | '/api/public/retell-webhook/health'
@@ -839,6 +860,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/check-documents'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
+    | '/api/public/retell/send-upload-link'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
@@ -910,6 +932,7 @@ export interface FileRouteTypes {
     | '/api/public/hyperstream/check-documents'
     | '/api/public/hyperstream/event-types'
     | '/api/public/hyperstream/reschedule'
+    | '/api/public/hyperstream/send-upload-link'
     | '/api/public/payments/webhook'
     | '/api/public/retell-webhook/debug'
     | '/api/public/retell-webhook/health'
@@ -919,6 +942,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/check-documents'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
+    | '/api/public/retell/send-upload-link'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
@@ -992,6 +1016,7 @@ export interface FileRouteTypes {
     | '/api/public/hyperstream/check-documents'
     | '/api/public/hyperstream/event-types'
     | '/api/public/hyperstream/reschedule'
+    | '/api/public/hyperstream/send-upload-link'
     | '/api/public/payments/webhook'
     | '/api/public/retell-webhook/debug'
     | '/api/public/retell-webhook/health'
@@ -1001,6 +1026,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/check-documents'
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
+    | '/api/public/retell/send-upload-link'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
@@ -1048,6 +1074,7 @@ export interface RootRouteChildren {
   ApiPublicHyperstreamCheckDocumentsRoute: typeof ApiPublicHyperstreamCheckDocumentsRoute
   ApiPublicHyperstreamEventTypesRoute: typeof ApiPublicHyperstreamEventTypesRoute
   ApiPublicHyperstreamRescheduleRoute: typeof ApiPublicHyperstreamRescheduleRoute
+  ApiPublicHyperstreamSendUploadLinkRoute: typeof ApiPublicHyperstreamSendUploadLinkRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicRetellAvailabilityRoute: typeof ApiPublicRetellAvailabilityRoute
   ApiPublicRetellBookRoute: typeof ApiPublicRetellBookRoute
@@ -1055,6 +1082,7 @@ export interface RootRouteChildren {
   ApiPublicRetellCheckDocumentsRoute: typeof ApiPublicRetellCheckDocumentsRoute
   ApiPublicRetellEventTypesRoute: typeof ApiPublicRetellEventTypesRoute
   ApiPublicRetellRescheduleRoute: typeof ApiPublicRetellRescheduleRoute
+  ApiPublicRetellSendUploadLinkRoute: typeof ApiPublicRetellSendUploadLinkRoute
   ApiPublicTelephonyInboundRoute: typeof ApiPublicTelephonyInboundRoute
   ApiPublicTelephonyRecordingRoute: typeof ApiPublicTelephonyRecordingRoute
   ApiPublicTelephonyStatusRoute: typeof ApiPublicTelephonyStatusRoute
@@ -1482,6 +1510,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelephonyInboundRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/retell/send-upload-link': {
+      id: '/api/public/retell/send-upload-link'
+      path: '/api/public/retell/send-upload-link'
+      fullPath: '/api/public/retell/send-upload-link'
+      preLoaderRoute: typeof ApiPublicRetellSendUploadLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/retell/reschedule': {
       id: '/api/public/retell/reschedule'
       path: '/api/public/retell/reschedule'
@@ -1543,6 +1578,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/payments/webhook'
       fullPath: '/api/public/payments/webhook'
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hyperstream/send-upload-link': {
+      id: '/api/public/hyperstream/send-upload-link'
+      path: '/api/public/hyperstream/send-upload-link'
+      fullPath: '/api/public/hyperstream/send-upload-link'
+      preLoaderRoute: typeof ApiPublicHyperstreamSendUploadLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hyperstream/reschedule': {
@@ -1781,6 +1823,8 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicHyperstreamCheckDocumentsRoute,
   ApiPublicHyperstreamEventTypesRoute: ApiPublicHyperstreamEventTypesRoute,
   ApiPublicHyperstreamRescheduleRoute: ApiPublicHyperstreamRescheduleRoute,
+  ApiPublicHyperstreamSendUploadLinkRoute:
+    ApiPublicHyperstreamSendUploadLinkRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicRetellAvailabilityRoute: ApiPublicRetellAvailabilityRoute,
   ApiPublicRetellBookRoute: ApiPublicRetellBookRoute,
@@ -1788,6 +1832,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellCheckDocumentsRoute: ApiPublicRetellCheckDocumentsRoute,
   ApiPublicRetellEventTypesRoute: ApiPublicRetellEventTypesRoute,
   ApiPublicRetellRescheduleRoute: ApiPublicRetellRescheduleRoute,
+  ApiPublicRetellSendUploadLinkRoute: ApiPublicRetellSendUploadLinkRoute,
   ApiPublicTelephonyInboundRoute: ApiPublicTelephonyInboundRoute,
   ApiPublicTelephonyRecordingRoute: ApiPublicTelephonyRecordingRoute,
   ApiPublicTelephonyStatusRoute: ApiPublicTelephonyStatusRoute,

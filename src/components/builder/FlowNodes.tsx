@@ -154,6 +154,13 @@ const STYLES: Record<NodeKind, Style> = {
     ringClass:
       "!ring-2 !ring-teal-500/70 !border-teal-500/70 shadow-[0_0_24px_-4px_rgba(20,184,166,0.55)] dark:shadow-[0_0_28px_-4px_rgba(45,212,191,0.6)]",
   },
+  send_upload_link: {
+    badge: "Send Link",
+    badgeClass: "bg-sky-600 text-white shadow-sm",
+    headerClass: "bg-sky-100 border-sky-300 dark:bg-sky-500/20 dark:border-sky-400/40",
+    ringClass:
+      "!ring-2 !ring-sky-500/70 !border-sky-500/70 shadow-[0_0_24px_-4px_rgba(14,165,233,0.55)] dark:shadow-[0_0_28px_-4px_rgba(56,189,248,0.6)]",
+  },
 };
 
 /**
@@ -697,4 +704,5 @@ export const NodeRenderers: Record<NodeKind, typeof ConversationStyleNode> = {
   wa_tag: SimpleNode,
   wa_template: ConversationStyleNode,
   check_documents: ConversationStyleNode,
+  send_upload_link: ConversationStyleNode,
 };

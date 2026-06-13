@@ -18,6 +18,35 @@ export function buildHyperStreamDocumentTools(agentId: string) {
   return [
     {
       type: "custom",
+      name: "send_upload_link",
+      description:
+        "Generate a secure document upload link for the caller and send it to them by SMS. " +
+        "Call this when the caller wants to send their documents but hasn't done so yet, " +
+        "or when you need to resend the upload link. " +
+        "Pass the caller's phone number as 'phone'. " +
+        "Returns a 'summary' field you can read aloud directly, and a 'sms_sent' boolean. " +
+        "If sms_sent is true, tell the caller to check their messages. " +
+        "If sms_sent is false, inform them the link couldn't be texted.",
+      url: `${base}/send-upload-link`,
+      parameters: {
+        type: "object",
+        properties: {
+          agent_id: {
+            type: "string",
+            description: `Your agent identifier. Always pass exactly: "${agentId}"`,
+          },
+          phone: {
+            type: "string",
+            description:
+              "The caller's phone number in E.164 format e.g. +447700900000. " +
+              "Use the number you are currently speaking with.",
+          },
+        },
+        required: ["agent_id", "phone"],
+      },
+    },
+    {
+      type: "custom",
       name: "check_documents",
       description:
         "Check whether the caller has already uploaded their required documents. " +

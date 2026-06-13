@@ -946,6 +946,18 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
         edges,
         ...(raw.else_edge !== undefined ? { else_edge: raw.else_edge } : {}),
       });
+    case "send_upload_link":
+      return orderNode({
+        ...base,
+        type: "function",
+        tool_id: "send_upload_link",
+        tool_type: "custom",
+        speak_during_execution:
+          d.speakDuringExecution ?? (raw.speak_during_execution as boolean) ?? true,
+        wait_for_result: d.waitForResult ?? (raw.wait_for_result as boolean) ?? true,
+        edges,
+        ...(raw.else_edge !== undefined ? { else_edge: raw.else_edge } : {}),
+      });
     case "code":
       return orderNode({
         ...base,
