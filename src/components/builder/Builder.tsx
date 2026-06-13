@@ -1036,22 +1036,14 @@ export function Builder({
                   <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2.5 shrink-0">
                     {/* Recording player */}
                     {recordingUrl && (
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Recording</p>
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/70">Recording</p>
                         <audio
                           controls
                           src={recordingUrl}
-                          className="w-full h-8"
-                          style={{ colorScheme: "dark" }}
+                          className="w-full"
+                          style={{ colorScheme: "dark", height: "28px" }}
                         />
-                        <a
-                          href={recordingUrl}
-                          download="call-recording.webm"
-                          className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-violet-300 transition-colors"
-                        >
-                          <Download className="h-3 w-3 shrink-0" />
-                          Download recording
-                        </a>
                       </div>
                     )}
                     {/* Extraction loading */}
