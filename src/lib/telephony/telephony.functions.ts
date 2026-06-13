@@ -402,3 +402,105 @@ export const deleteCampaign = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { success: true };
   });
+
+// ── Auto-configure Twilio webhooks ────────────────────────────────────────────
+// Reads saved credentials + phone numbers, then calls the Twilio API to set
+// every number's Voice URL and Status Callback to this app's public endpoints.
+
+export const autoConfigureWebhooks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    // Load provider config (with real auth token via service role)
+    const { data: cfg, error: cfgErr } = await supabaseAdmin
+      .from("telephony_configs")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (cfgErr) throw new Error(cfgErr.message);
+    if (!cfg) throw new Error("No active telephony configuration found. Save your credentials first.");
+    if (!cfg.account_sid || !cfg.auth_token)
+      throw new Error("Account SID and Auth Token are required.");
+
+    // Resolve public host — prefer REPLIT_DEV_DOMAIN, fall back to PUBLIC_URL
+    const devDomain = process.env.REPLIT_DEV_DOMAIN ?? "";
+    const publicUrl = process.env.PUBLIC_URL ?? "";
+    const host = devDomain
+      ? `https://${devDomain}`
+      : publicUrl || "https://localhost:5000";
+
+    const inboundUrl  = `${host}/api/public/telephony/inbound`;
+    const statusUrl   = `${host}/api/public/telephony/status`;
+    const recordingUrl = `${host}/api/public/telephony/recording`;
+
+    // Load all phone numbers that have a Twilio SID
+    const { data: numbers, error: numErr } = await supabaseAdmin
+      .from("phone_numbers")
+      .select("id, phone_number, provider_sid, friendly_name")
+      .eq("workspace_id", workspaceId)
+      .eq("provider", "twilio")
+      .eq("is_active", true);
+
+    if (numErr) throw new Error(numErr.message);
+    if (!numbers || numbers.length === 0)
+      throw new Error("No active Twilio phone numbers found. Add numbers first.");
+
+    // Import Twilio and update each number
+    const twilio = (await import("twilio")).default;
+    const client = twilio(cfg.account_sid, cfg.auth_token);
+
+    const results: Array<{ number: string; ok: boolean; error?: string }> = [];
+
+    for (const num of numbers) {
+      try {
+        if (num.provider_sid) {
+          // Update by SID (fastest path)
+          await client.incomingPhoneNumbers(num.provider_sid).update({
+            voiceUrl: inboundUrl,
+            voiceMethod: "POST",
+            statusCallback: statusUrl,
+            statusCallbackMethod: "POST",
+            voiceFallbackUrl: statusUrl,
+          } as any);
+        } else {
+          // No SID stored — look up by number then update
+          const list = await client.incomingPhoneNumbers.list({
+            phoneNumber: num.phone_number,
+            limit: 1,
+          });
+          if (list.length === 0) {
+            results.push({ number: num.phone_number, ok: false, error: "Number not found in Twilio account" });
+            continue;
+          }
+          await client.incomingPhoneNumbers(list[0].sid).update({
+            voiceUrl: inboundUrl,
+            voiceMethod: "POST",
+            statusCallback: statusUrl,
+            statusCallbackMethod: "POST",
+          } as any);
+          // Save the SID for future calls
+          await supabaseAdmin
+            .from("phone_numbers")
+            .update({ provider_sid: list[0].sid, updated_at: new Date().toISOString() })
+            .eq("id", num.id);
+        }
+        results.push({ number: num.phone_number, ok: true });
+      } catch (err: any) {
+        results.push({ number: num.phone_number, ok: false, error: err.message ?? String(err) });
+      }
+    }
+
+    return {
+      host,
+      inboundUrl,
+      statusUrl,
+      recordingUrl,
+      results,
+      configured: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+    };
+  });

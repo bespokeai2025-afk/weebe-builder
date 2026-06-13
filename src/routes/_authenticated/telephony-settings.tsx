@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
-import { Settings, Check, AlertCircle, RefreshCw, ExternalLink, Phone } from "lucide-react";
+import { Settings, Check, AlertCircle, RefreshCw, ExternalLink, Phone, Zap, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getTelephonyConfig, saveTelephonyConfig } from "@/lib/telephony/telephony.functions";
+import { getTelephonyConfig, saveTelephonyConfig, autoConfigureWebhooks } from "@/lib/telephony/telephony.functions";
 
 export const Route = createFileRoute("/_authenticated/telephony-settings")({
   head: () => ({ meta: [{ title: "Telephony Settings — Webee" }] }),
@@ -45,6 +45,7 @@ function TelephonySettingsPage() {
   const qc = useQueryClient();
   const getFn = useServerFn(getTelephonyConfig);
   const saveFn = useServerFn(saveTelephonyConfig);
+  const autoConfigFn = useServerFn(autoConfigureWebhooks);
 
   const { data: config, isFetching, refetch } = useQuery({
     queryKey: ["telephony-config"],
@@ -56,6 +57,12 @@ function TelephonySettingsPage() {
   const [authToken, setAuthToken] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [autoResult, setAutoResult] = useState<Awaited<ReturnType<typeof autoConfigFn>> | null>(null);
+
+  const autoConfigMut = useMutation({
+    mutationFn: () => autoConfigFn({}),
+    onSuccess: (data) => setAutoResult(data),
+  });
 
   useEffect(() => {
     if (config) {
@@ -216,10 +223,56 @@ function TelephonySettingsPage() {
       )}
 
       <div className="rounded-xl border border-border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold">Webhook URLs</h2>
-        <p className="mb-4 text-xs text-muted-foreground">
-          Configure these URLs in your Twilio phone number settings so Twilio can send call events to your platform.
-        </p>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Webhook URLs</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              These endpoints receive call events from Twilio. Use <strong>Auto-Configure</strong> to set them on every phone number automatically, or copy them manually.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-shrink-0 gap-1.5"
+            onClick={() => { setAutoResult(null); autoConfigMut.mutate(); }}
+            disabled={autoConfigMut.isPending}
+          >
+            <Zap className={`h-3.5 w-3.5 ${autoConfigMut.isPending ? "animate-pulse" : ""}`} />
+            {autoConfigMut.isPending ? "Configuring…" : "Auto-Configure"}
+          </Button>
+        </div>
+
+        {autoConfigMut.isError && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <span>{String((autoConfigMut.error as any)?.message ?? "Failed to auto-configure")}</span>
+          </div>
+        )}
+
+        {autoResult && (
+          <div className="mb-4 rounded-lg border border-border bg-muted/20 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold">
+                {autoResult.configured} of {autoResult.configured + autoResult.failed} number{autoResult.configured + autoResult.failed !== 1 ? "s" : ""} configured
+              </p>
+              <button onClick={() => setAutoResult(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-1">
+              {autoResult.results.map((r, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  {r.ok
+                    ? <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                    : <AlertCircle className="h-3.5 w-3.5 text-destructive flex-shrink-0" />}
+                  <span className="font-mono">{r.number}</span>
+                  {r.error && <span className="text-muted-foreground">— {r.error}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-3">
           {webhooks.map(w => (
             <div key={w.label} className="rounded-lg bg-muted/30 p-3">
