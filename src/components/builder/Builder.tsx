@@ -72,7 +72,7 @@ import { NodeEditorDialog } from "./NodeEditorDialog";
 import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
 import { ImportPDFDialog } from "./ImportPDFDialog";
-import { RetellDeployDialog, type TxEntry } from "./RetellDeployDialog";
+import { RetellDeployDialog, type TxEntry, type CallEndMeta } from "./RetellDeployDialog";
 import { VoiceCopilotButton } from "./VoiceCopilot";
 import { PlatformGuideDrawer } from "./PlatformGuideDrawer";
 import { PostCallDataSection } from "./PostCallDataSection";
@@ -452,7 +452,7 @@ export function Builder({
     }
   }, [callActive]);
 
-  async function handleCallEnd(transcript: TxEntry[], blob: Blob | null) {
+  async function handleCallEnd(transcript: TxEntry[], blob: Blob | null, meta?: CallEndMeta) {
     // Compute call duration from start timestamp recorded when callActive became true.
     const callDuration = callStartedAtRef.current
       ? Math.max(0, Math.round((Date.now() - callStartedAtRef.current) / 1000))
@@ -494,6 +494,12 @@ export function Builder({
               transcript: transcriptText || null,
               recordingBase64,
               recordingMimeType,
+              costUsd: meta?.costUsd ?? null,
+              disconnectionReason: meta?.endReason ?? null,
+              channelType: meta?.channelType ?? null,
+              sessionId: meta?.sessionId ?? null,
+              fromNumber: null,
+              sentiment: null,
             },
           });
           // Replace blob URL with durable server URL if upload succeeded.

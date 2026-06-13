@@ -46,7 +46,7 @@ export const listTestCalls = createServerFn({ method: "POST" })
     const sb = supabase as any;
     const { data: rows, error } = await sb
       .from("calls")
-      .select("id, agent_id, agent_name, call_status, duration_seconds, started_at, ended_at, recording_url, transcript, call_summary, retell_call_id")
+      .select("id, agent_id, agent_name, call_status, call_type, duration_seconds, started_at, ended_at, recording_url, transcript, call_summary, retell_call_id, from_number, to_number, sentiment, disconnection_reason, cost_cents")
       .eq("workspace_id", workspaceId)
       .eq("to_number", "unknown")
       .order("started_at", { ascending: false, nullsFirst: false })
@@ -57,6 +57,7 @@ export const listTestCalls = createServerFn({ method: "POST" })
       agent_id: string | null;
       agent_name: string | null;
       call_status: string | null;
+      call_type: string | null;
       duration_seconds: number | null;
       started_at: string | null;
       ended_at: string | null;
@@ -64,6 +65,11 @@ export const listTestCalls = createServerFn({ method: "POST" })
       transcript: string | null;
       call_summary: string | null;
       retell_call_id: string | null;
+      from_number: string | null;
+      to_number: string | null;
+      sentiment: string | null;
+      disconnection_reason: string | null;
+      cost_cents: number | null;
     }>;
   });
 

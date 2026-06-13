@@ -24,6 +24,12 @@ export const saveHyperStreamTestCall = createServerFn({ method: "POST" })
         transcript: z.string().nullable().optional(),
         recordingBase64: z.string().nullable().optional(),
         recordingMimeType: z.string().default("audio/webm"),
+        costUsd: z.number().nullable().optional(),
+        disconnectionReason: z.string().nullable().optional(),
+        channelType: z.string().nullable().optional(),
+        sessionId: z.string().nullable().optional(),
+        fromNumber: z.string().nullable().optional(),
+        sentiment: z.enum(["positive", "neutral", "negative"]).nullable().optional(),
       })
       .parse(input),
   )
@@ -55,21 +61,33 @@ export const saveHyperStreamTestCall = createServerFn({ method: "POST" })
       }
     }
 
-    const row = {
+    const now = new Date();
+    const startedAt = new Date(now.getTime() - (data.durationSeconds ?? 0) * 1000);
+    // NOTE: `provider` and `channel_type` columns require migration
+    // supabase/migrations/20260613_calls_provider_channel.sql — apply via CLI.
+    // Until then we use from_number="web" as a proxy for HyperStream calls.
+    const row: Record<string, unknown> = {
       workspace_id: workspaceId,
       agent_id: data.agentId ?? null,
       agent_name: data.agentName ?? null,
       call_status: "completed",
-      call_type: "inbound",
+      call_type: "outbound",
       to_number: "unknown",
-      from_number: null,
-      started_at: new Date(Date.now() - (data.durationSeconds ?? 0) * 1000).toISOString(),
-      ended_at: new Date().toISOString(),
+      from_number: "web",
+      started_at: startedAt.toISOString(),
+      ended_at: now.toISOString(),
       duration_seconds: data.durationSeconds ?? null,
       transcript: data.transcript ?? null,
       recording_url: recordingUrl,
-      provider: "HYPERSTREAM",
+      disconnection_reason: data.disconnectionReason ?? null,
+      sentiment: data.sentiment ?? null,
     };
+    if (data.costUsd != null) {
+      row.cost_cents = Math.round(data.costUsd * 100);
+    }
+    if (data.sessionId) {
+      row.retell_call_id = data.sessionId;
+    }
 
     const { data: inserted, error } = await sb.from("calls").insert(row).select("id").single();
     if (error) {

@@ -43,6 +43,13 @@ import { cn } from "@/lib/utils";
 
 export type TxEntry = { id: string; role: "user" | "agent"; text: string; partial: boolean };
 
+export type CallEndMeta = {
+  costUsd?: number;
+  endReason?: string;
+  sessionId?: string;
+  channelType?: string;
+};
+
 export function RetellDeployDialog({
   onCallActive,
   onTranscriptUpdate,
@@ -50,7 +57,7 @@ export function RetellDeployDialog({
 }: {
   onCallActive?: (active: boolean) => void;
   onTranscriptUpdate?: (entries: TxEntry[]) => void;
-  onCallEnd?: (transcript: TxEntry[], recordingBlob: Blob | null) => void;
+  onCallEnd?: (transcript: TxEntry[], recordingBlob: Blob | null, meta?: CallEndMeta) => void;
 } = {}) {
   const {
     nodes,
@@ -109,6 +116,11 @@ export function RetellDeployDialog({
   const transcriptRef = useRef<TxEntry[]>([]);
   // Guard: prevents onCallEnd from firing twice (endCall + ws.onclose both trigger cleanup)
   const callEndFiredRef = useRef(false);
+  // Metadata captured at call-end time and forwarded to onCallEnd.
+  const endReasonRef = useRef<string | undefined>(undefined);
+  const hsSessionIdRef = useRef<string | undefined>(undefined);
+  const callCostUsdRef = useRef<number | undefined>(undefined);
+  const channelTypeRef = useRef<string | undefined>(undefined);
 
   // Always-current ref so WS message handlers can call onTranscriptUpdate / onCallEnd
   // without capturing a stale closure (avoids render → useEffect round-trip).
@@ -140,8 +152,14 @@ export function RetellDeployDialog({
     recorderRef.current = null;
     masterGainRef.current?.disconnect();
     masterGainRef.current = null;
+    const meta: CallEndMeta = {
+      costUsd: callCostUsdRef.current,
+      endReason: endReasonRef.current,
+      sessionId: hsSessionIdRef.current,
+      channelType: channelTypeRef.current,
+    };
     if (!recorder || recorder.state === "inactive") {
-      onCallEndRef.current?.(transcriptRef.current, null);
+      onCallEndRef.current?.(transcriptRef.current, null, meta);
       return;
     }
     recorder.onstop = () => {
@@ -150,7 +168,7 @@ export function RetellDeployDialog({
           ? new Blob(recChunksRef.current, { type: recorder.mimeType || "audio/webm" })
           : null;
       recChunksRef.current = [];
-      onCallEndRef.current?.(transcriptRef.current, blob);
+      onCallEndRef.current?.(transcriptRef.current, blob, meta);
     };
     try { recorder.stop(); } catch { /* already inactive */ }
   }
@@ -1168,6 +1186,12 @@ export function RetellDeployDialog({
             setElapsedSec(0);
             pushTranscript([]);
             setHsExactCostUsd(null);
+            // Reset per-call metadata refs.
+            endReasonRef.current = "agent_hangup";
+            hsSessionIdRef.current = crypto.randomUUID();
+            callCostUsdRef.current = undefined;
+            channelTypeRef.current = "web";
+            callEndFiredRef.current = false;
             setInCall(true);
             setCalling(false);
             const startNode = nodes.find((n) => n.data?.isStart) ?? nodes[0];
@@ -1678,6 +1702,11 @@ export function RetellDeployDialog({
       for (const ev of pendingMessages) ws.onmessage!(ev);
 
       ws.onclose = (ev) => {
+        // Only override if the user didn't explicitly hang up.
+        if (endReasonRef.current !== "user_hangup") {
+          endReasonRef.current = ev.code === 1000 ? "agent_hangup" : "connection_error";
+        }
+        callCostUsdRef.current = callCostUsdRef.current ?? (hsExactCostUsd ?? undefined);
         finalizeRecording();
         console.log(
           `[hyperstream] browser ws.onclose code=${ev.code} reason="${ev.reason}" wasClean=${ev.wasClean}`,
@@ -2224,6 +2253,8 @@ export function RetellDeployDialog({
   }
 
   function endCall() {
+    endReasonRef.current = "user_hangup";
+    callCostUsdRef.current = hsExactCostUsd ?? undefined;
     finalizeRecording();
     recordCurrentCallCost();
     // OmniVoice (Retell) path

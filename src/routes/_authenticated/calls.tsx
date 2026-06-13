@@ -102,11 +102,28 @@ type PanelTarget = {
   leadId?: string | null;
 };
 
+function fmtCost(cents?: number | null) {
+  if (cents == null) return "—";
+  return `$${(cents / 100).toFixed(3)}`;
+}
+
+function channelLabel(fromNumber?: string | null, callType?: string | null) {
+  // HyperStream web calls use from_number="web" as a proxy until the
+  // provider column migration is applied (20260613_calls_provider_channel.sql).
+  if (fromNumber === "web") return "web";
+  if (callType === "inbound") return "phone_call";
+  return "phone_call";
+}
+
 function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promise<infer T> ? T extends Array<infer U> ? U : never : never }) {
   const [expanded, setExpanded] = useState(false);
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const label = c.agent_name ?? c.agent_id ?? "Builder test";
   const when = c.started_at ? new Date(c.started_at).toLocaleString() : "—";
+  const sessionId = c.retell_call_id ?? "—";
+  const shortSessionId = sessionId !== "—" && sessionId.length > 24
+    ? sessionId.slice(0, 24) + "…"
+    : sessionId;
 
   return (
     <>
@@ -133,16 +150,52 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
           )}
         </td>
         <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{label}</td>
+        <td className="px-3 py-1.5 text-muted-foreground tabular-nums text-[11px] whitespace-nowrap">
+          {fmtDuration(c.duration_seconds)}
+        </td>
+        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+          {channelLabel(c.from_number, c.call_type)}
+        </td>
+        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
+          {fmtCost(c.cost_cents)}
+        </td>
+        <td className="px-3 py-1.5 text-[11px] text-muted-foreground font-mono max-w-[200px] truncate" title={sessionId !== "—" ? sessionId : undefined}>
+          {shortSessionId}
+        </td>
+        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+          {c.disconnection_reason
+            ? String(c.disconnection_reason).replace(/_/g, " ")
+            : "—"}
+        </td>
         <td className="px-3 py-1.5">
           <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
             {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
           </span>
         </td>
-        <td className="px-3 py-1.5 text-muted-foreground tabular-nums text-[11px] whitespace-nowrap">
-          {fmtDuration(c.duration_seconds)}
+        <td className="px-3 py-1.5">
+          {c.sentiment ? (
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>
+              {c.sentiment}
+            </span>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">—</span>
+          )}
         </td>
-        <td className="max-w-[260px] px-3 py-1.5 text-xs text-muted-foreground">
-          <SummaryTooltip text={c.call_summary} lines={2} />
+        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+          {c.from_number ?? "—"}
+        </td>
+        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+          {c.to_number ?? "—"}
+        </td>
+        <td className="px-3 py-1.5">
+          <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            {c.call_type === "inbound" ? (
+              <PhoneIncoming className="h-3 w-3 text-primary" />
+            ) : (
+              <PhoneOutgoing className="h-3 w-3" />
+            )}
+            {c.call_type === "inbound" ? "Inbound" : "Outbound"}
+          </span>
         </td>
         <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
           {c.recording_url ? (
@@ -160,7 +213,7 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
       </tr>
       {expanded && c.transcript && (
         <tr className="border-b border-white/[0.04]">
-          <td colSpan={7} className="px-4 pb-3 pt-1">
+          <td colSpan={14} className="px-4 pb-3 pt-1">
             <div className="rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap max-h-64 overflow-y-auto">
               {c.transcript}
             </div>
@@ -436,9 +489,16 @@ function CallsPage() {
                     <tr className="border-b border-white/[0.06] bg-card/30">
                       <th className="w-6 px-3 py-2" />
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Channel Type</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Cost</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Session ID</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">End Reason</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Session Status</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">From</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">To</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Direction</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
                     </tr>
