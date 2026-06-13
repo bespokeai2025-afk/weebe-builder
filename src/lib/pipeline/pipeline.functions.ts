@@ -79,6 +79,7 @@ export type PipelineLead = {
   // indicator flags
   hasBooking: boolean;
   hasNotes: boolean;
+  hasDocuments: boolean;
 };
 
 // Core columns that are always present
@@ -104,11 +105,16 @@ const CORE_SELECT = [
 // Optional columns added once migrations are applied
 const BASE_SELECT = `${CORE_SELECT}, sale_amount`;
 
+function normalizePhone(p: string) {
+  return p.replace(/[\s\-().]/g, "");
+}
+
 function mapLead(
   lead: Record<string, unknown>,
   hasPipelineStage: boolean,
   bookedIds: Set<string>,
   notedIds: Set<string>,
+  docsPhones: Set<string>,
 ): PipelineLead {
   const id = lead.id as string;
   const ps = hasPipelineStage
@@ -117,10 +123,12 @@ function mapLead(
   const effective = (
     ps ?? STATUS_TO_STAGE[lead.status as string] ?? "lead"
   ) as PipelineStage;
+  const rawPhone = (lead.phone as string | null) ?? null;
+  const normPhone = rawPhone ? normalizePhone(rawPhone) : null;
   return {
     id,
     full_name: (lead.full_name as string | null) ?? null,
-    phone: (lead.phone as string | null) ?? null,
+    phone: rawPhone,
     email: (lead.email as string | null) ?? null,
     company_name: (lead.company_name as string | null) ?? null,
     status: (lead.status as string | null) ?? null,
@@ -139,14 +147,15 @@ function mapLead(
     state_name: (lead.state_name as string | null) ?? null,
     hasBooking: bookedIds.has(id),
     hasNotes: notedIds.has(id),
+    hasDocuments: normPhone ? docsPhones.has(normPhone) : false,
   };
 }
 
 async function fetchIndicators(
   sb: any,
   workspaceId: string,
-): Promise<{ bookedIds: Set<string>; notedIds: Set<string> }> {
-  const [bookingsRes, notesRes] = await Promise.all([
+): Promise<{ bookedIds: Set<string>; notedIds: Set<string>; docsPhones: Set<string> }> {
+  const [bookingsRes, notesRes, docsRes] = await Promise.all([
     sb
       .from("calendar_bookings")
       .select("lead_id")
@@ -157,14 +166,35 @@ async function fetchIndicators(
       .select("entity_id")
       .eq("workspace_id", workspaceId)
       .eq("entity_type", "lead"),
+    (supabaseAdmin as any)
+      .from("contact_documents")
+      .select("contact_id")
+      .eq("workspace_id", workspaceId)
+      .eq("uploaded_by", "client"),
   ]);
+
   const bookedIds = new Set<string>(
     ((bookingsRes.data ?? []) as { lead_id: string }[]).map((r) => r.lead_id),
   );
   const notedIds = new Set<string>(
     ((notesRes.data ?? []) as { entity_id: string }[]).map((r) => r.entity_id),
   );
-  return { bookedIds, notedIds };
+
+  // Resolve data_record IDs → phone numbers
+  const docsPhones = new Set<string>();
+  const rawContactIds = (docsRes.data ?? []) as { contact_id: string }[];
+  const uniqueContactIds = [...new Set(rawContactIds.map((r) => r.contact_id))];
+  if (uniqueContactIds.length > 0) {
+    const { data: records } = await (supabaseAdmin as any)
+      .from("data_records")
+      .select("mobile_number")
+      .in("id", uniqueContactIds);
+    ((records ?? []) as { mobile_number: string | null }[]).forEach((r) => {
+      if (r.mobile_number) docsPhones.add(normalizePhone(r.mobile_number));
+    });
+  }
+
+  return { bookedIds, notedIds, docsPhones };
 }
 
 const isColMissing = (err: any) =>
@@ -190,11 +220,11 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
       query(`${BASE_SELECT}, pipeline_stage`),   // full: sale_amount + pipeline_stage
       fetchIndicators(sb, workspaceId),
     ]);
-    const { bookedIds, notedIds } = indicators;
+    const { bookedIds, notedIds, docsPhones } = indicators;
 
     if (!r1.error) {
       return ((r1.data ?? []) as Array<Record<string, unknown>>).map(
-        (l) => mapLead(l, true, bookedIds, notedIds),
+        (l) => mapLead(l, true, bookedIds, notedIds, docsPhones),
       );
     }
     if (!isColMissing(r1.error)) throw new Error(r1.error.message);
@@ -203,7 +233,7 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     const r2 = await query(`${CORE_SELECT}, pipeline_stage`);
     if (!r2.error) {
       return ((r2.data ?? []) as Array<Record<string, unknown>>).map(
-        (l) => mapLead(l, true, bookedIds, notedIds),
+        (l) => mapLead(l, true, bookedIds, notedIds, docsPhones),
       );
     }
     if (!isColMissing(r2.error)) throw new Error(r2.error.message);
@@ -212,7 +242,7 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     const r3 = await query(CORE_SELECT);
     if (r3.error) throw new Error(r3.error.message);
     return ((r3.data ?? []) as Array<Record<string, unknown>>).map(
-      (l) => mapLead(l, false, bookedIds, notedIds),
+      (l) => mapLead(l, false, bookedIds, notedIds, docsPhones),
     );
   });
 

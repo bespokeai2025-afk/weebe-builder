@@ -660,6 +660,40 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
               )}
             </button>
 
+            {/* ── Docs received banner (documentation stage only) ─────────── */}
+            {(() => {
+              const clientDocs = (docsInfo?.docs ?? []).filter((d: any) => d.uploaded_by === "client");
+              const isDocStage = lead.effective_stage === "documentation";
+              if (!isDocStage || clientDocs.length === 0) return null;
+              return (
+                <div className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-teal-500 shrink-0" />
+                    <p className="text-sm font-semibold text-teal-600 dark:text-teal-400">
+                      Client documents received
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {clientDocs.length} document{clientDocs.length !== 1 ? "s" : ""} uploaded by the client.
+                    Mark as done to move this lead to Follow Up.
+                  </p>
+                  <Button
+                    size="sm"
+                    className="w-full gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
+                    onClick={() => handleMoveStage("follow_up")}
+                    disabled={movingStage}
+                  >
+                    {movingStage ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                    Mark Done → Move to Follow Up
+                  </Button>
+                </div>
+              );
+            })()}
+
             {docsOpen && (
               docsQ.isLoading ? (
                 <div className="flex items-center gap-2 py-2">
@@ -674,7 +708,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                 />
               ) : (
                 <p className="text-xs text-muted-foreground/60 py-2">
-                  No WhatsApp contact found for {lead?.phone} — add this number as a contact first to enable documents.
+                  No CRM contact found for {lead?.phone} — add this number as a contact first to enable documents.
                 </p>
               )
             )}
