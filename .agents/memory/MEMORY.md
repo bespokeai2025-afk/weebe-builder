@@ -9,3 +9,4 @@
 - [OpenAI Realtime flow prompt](openai-realtime-prompt-compile.md) — OpenAI takes one instruction string, not Retell's flow graph; must compile whole flow into a prompt for test + deploy.
 - [Telephony layer architecture](telephony-layer-arch.md) — provider-agnostic layer using separate DB tables; never touch Retell's calls table; audio bridge is a Vite plugin mirroring hyperstream-relay.
 - [WATI optional connector pattern](wati-connector.md) — all WATI features gated on wati_connections row; zero runtime/builder changes; migration must be applied manually in Supabase SQL Editor.
+- [WhatsApp provider architecture](wa-provider-architecture.md) — Twilio/WATI/Meta creds, webhook routing, agent gate, runtime send routing. Meta needs manual hub.challenge step.
