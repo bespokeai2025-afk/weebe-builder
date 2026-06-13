@@ -27,6 +27,7 @@ import {
   Kanban,
   GripVertical,
   Zap,
+  FileText,
 } from "lucide-react";
 import {
   DndContext,
@@ -95,14 +96,14 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Qualified", url: "/qualified", icon: Check },
   { title: "Calls",     url: "/calls",     icon: PhoneCall },
   { title: "Calendar",  url: "/calendar",  icon: CalendarDays },
-  { title: "Templates",   url: "/template-studio", icon: LayoutTemplate },
+  { title: "Mail Studio", url: "/template-studio", icon: FileText },
   { title: "HexMail",    url: "/hexmail",    icon: Mail },
   { title: "Follow-Up",  url: "/follow-up",  icon: Zap },
   { title: "Buzzchat",  url: "/whatsapp",  icon: MessageSquare },
   { title: "Billing",   url: "/billing",   icon: CreditCard },
 ];
 
-const STORAGE_KEY = "sidebar-nav-order-v2";
+const STORAGE_KEY = "sidebar-nav-order-v3";
 
 function loadOrder(): NavItem[] {
   if (typeof window === "undefined") return DEFAULT_NAV_ITEMS;
