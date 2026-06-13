@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -12,14 +12,10 @@ import {
   useDroppable,
   useDraggable,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import {
-  SortableContext,
-  horizontalListSortingStrategy,
-  useSortable,
-  arrayMove,
-} from "@dnd-kit/sortable";
+import { arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   Phone,
@@ -286,31 +282,26 @@ function PipelineColumn({
   // Droppable: receives cards
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage.id });
 
-  // Sortable: allows this column to be reordered
+  // Draggable: column header grip for reordering
   const {
     attributes,
     listeners,
-    setNodeRef: setSortRef,
+    setNodeRef: setDragRef,
     transform,
-    transition,
     isDragging,
-  } = useSortable({ id: `col::${stage.id}` });
+  } = useDraggable({ id: `col::${stage.id}` });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  const style = isDragging
+    ? { transform: CSS.Transform.toString(transform), opacity: 0.4 }
+    : undefined;
 
   const totalFunding = leads.reduce((sum, l) => sum + (l.funding_amount ?? 0), 0);
 
   return (
     <div
-      ref={setSortRef}
+      ref={setDragRef}
       style={style}
-      className={cn(
-        "flex flex-col w-44 shrink-0",
-        isDragging && "opacity-40",
-      )}
+      className="flex flex-col w-44 shrink-0"
     >
       {/* Column header with drag handle */}
       <div className="mb-2 group/col">
@@ -461,35 +452,53 @@ function PipelinePage() {
     setActiveId(String(e.active.id));
   }, []);
 
+  // Live swap columns as you drag past them.
+  // over.id is always the card-droppable stage ID (e.g. "lead"), not "col::lead",
+  // because the column body's useDroppable wins collision detection.
+  const handleDragOver = useCallback((e: DragOverEvent) => {
+    const { active, over } = e;
+    if (!over) return;
+    const activeStr = String(active.id);
+    if (!activeStr.startsWith("col::")) return; // card drag — ignore here
+
+    const fromId = activeStr.replace("col::", "") as PipelineStage;
+    // over.id is the card droppable of the target column (its plain stage id)
+    const overStr = String(over.id);
+    const toId = (overStr.startsWith("col::") ? overStr.replace("col::", "") : overStr) as PipelineStage;
+
+    if (fromId === toId) return;
+    const stageIds = new Set(PIPELINE_STAGES.map((s) => s.id));
+    if (!stageIds.has(toId)) return;
+
+    setColumnOrder((prev) => {
+      const fi = prev.indexOf(fromId);
+      const ti = prev.indexOf(toId);
+      if (fi === -1 || ti === -1 || fi === ti) return prev;
+      return arrayMove(prev, fi, ti);
+    });
+  }, []);
+
   const handleDragEnd = useCallback(
     (e: DragEndEvent) => {
       setActiveId(null);
       const { active, over } = e;
-      if (!over) return;
-
       const activeStr = String(active.id);
-      const overStr   = String(over.id);
 
-      // ── Column reorder ──────────────────────────────────────────────────────
-      if (activeStr.startsWith("col::") && overStr.startsWith("col::")) {
-        const fromId = activeStr.replace("col::", "") as PipelineStage;
-        const toId   = overStr.replace("col::", "")   as PipelineStage;
-        if (fromId === toId) return;
+      // ── Column reorder: persist final order to localStorage ─────────────────
+      if (activeStr.startsWith("col::")) {
         setColumnOrder((prev) => {
-          const next = arrayMove(prev, prev.indexOf(fromId), prev.indexOf(toId));
-          try { localStorage.setItem("pipeline-column-order", JSON.stringify(next)); } catch {}
-          return next;
+          try { localStorage.setItem("pipeline-column-order", JSON.stringify(prev)); } catch {}
+          return prev;
         });
         return;
       }
 
       // ── Card move ───────────────────────────────────────────────────────────
-      if (!activeStr.startsWith("col::")) {
-        const targetStage = overStr as PipelineStage;
-        const lead = leads.find((l) => l.id === activeStr);
-        if (!lead || lead.effective_stage === targetStage) return;
-        moveCard({ leadId: lead.id, stage: targetStage });
-      }
+      if (!over) return;
+      const targetStage = String(over.id) as PipelineStage;
+      const lead = leads.find((l) => l.id === activeStr);
+      if (!lead || lead.effective_stage === targetStage) return;
+      moveCard({ leadId: lead.id, stage: targetStage });
     },
     [leads, moveCard],
   );
@@ -544,12 +553,9 @@ function PipelinePage() {
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext
-              items={columnOrder.map((id) => `col::${id}`)}
-              strategy={horizontalListSortingStrategy}
-            >
               <div className="flex gap-3 p-4 h-full">
                 {orderedStages.map((stage) => (
                   <PipelineColumn
@@ -562,7 +568,6 @@ function PipelinePage() {
                   />
                 ))}
               </div>
-            </SortableContext>
 
             <DragOverlay dropAnimation={null}>
               {activeLead ? (
