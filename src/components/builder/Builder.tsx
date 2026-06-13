@@ -966,6 +966,93 @@ export function Builder({
                   <span className="text-[9px] text-muted-foreground">Routed via ElevenLabs Conversational AI</span>
                 </div>
               )}
+
+              {/* Voice Output — shown inline below cards when HyperStream is active */}
+              {isOpenAI && (
+                <div className="pt-1 space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Voice Output</p>
+                  <div className="flex gap-1.5">
+                    {(["openai", "elevenlabs"] as const).map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={cn(
+                          "flex-1 text-[10px] py-1 rounded-md border font-medium transition-all duration-150",
+                          hsVoiceProvider === p
+                            ? "border-primary/60 bg-primary/10 text-primary ring-1 ring-primary/30"
+                            : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:border-white/[0.16] hover:bg-white/[0.04] hover:text-foreground",
+                        )}
+                        onClick={() => setSettings({ voiceOutputProvider: p })}
+                      >
+                        {p === "openai" ? "OpenAI Built-in" : "ElevenLabs TTS"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {hsVoiceProvider === "openai" && (
+                    <Select
+                      value={settings.openaiVoice ?? "alloy"}
+                      onValueChange={(v) => setSettings({ openaiVoice: v as BuilderSettings["openaiVoice"] })}
+                    >
+                      <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(
+                          [
+                            { id: "alloy",   desc: "Neutral, Balanced" },
+                            { id: "ash",     desc: "Casual, Warm" },
+                            { id: "ballad",  desc: "Professional, Deep" },
+                            { id: "coral",   desc: "Clear, Friendly" },
+                            { id: "echo",    desc: "Confident, Crispy" },
+                            { id: "shimmer", desc: "Bright, Professional" },
+                            { id: "sage",    desc: "Calm, Measured" },
+                            { id: "verse",   desc: "Expressive, Dynamic" },
+                            { id: "marine",  desc: "Smooth, Polite" },
+                          ] as const
+                        ).map(({ id, desc }) => (
+                          <SelectItem key={id} value={id}>
+                            <span className="flex items-center justify-between gap-3 w-full">
+                              <span className="capitalize font-medium">{id.charAt(0).toUpperCase() + id.slice(1)}</span>
+                              <span className="text-muted-foreground text-[10px]">{desc}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+
+                  {hsVoiceProvider === "elevenlabs" && (
+                    elHsVoicesLoading ? (
+                      <div className="flex items-center gap-1.5 py-1.5 text-[9px] text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />Loading ElevenLabs voices…
+                      </div>
+                    ) : elHsVoicesError ? (
+                      <p className="text-[9px] text-destructive leading-snug">{elHsVoicesError}</p>
+                    ) : (
+                      <Select
+                        value={settings.voiceOutputId ?? ""}
+                        onValueChange={(v) => {
+                          const voice = elHsVoicesList.find((x) => x.voice_id === v);
+                          setSettings({ voiceOutputId: v, voiceOutputName: voice?.name });
+                        }}
+                      >
+                        <SelectTrigger className="h-7 text-[10px]">
+                          <SelectValue placeholder="Select ElevenLabs voice…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {elHsVoicesList.map((v) => (
+                            <SelectItem key={v.voice_id} value={v.voice_id}>
+                              <span className="flex items-center justify-between gap-3 w-full">
+                                <span className="font-medium">{v.name}</span>
+                                <span className="text-muted-foreground text-[10px] capitalize">{v.category}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )
+                  )}
+                </div>
+              )}
             </div>
 
             <Collapsible data-tour="voice-section" className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
@@ -1093,91 +1180,6 @@ export function Builder({
                   <ChevronDown className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-2.5 px-2.5 pb-2.5">
-                  {/* Voice Output — provider toggle + dynamic voice selector */}
-                  <div>
-                    <Label className="text-[9px]">Voice Output</Label>
-                    <div className="flex gap-1 mt-1 mb-1.5">
-                      {(["openai", "elevenlabs"] as const).map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          className={cn(
-                            "text-[9px] px-2 py-0.5 rounded border transition-colors",
-                            hsVoiceProvider === p
-                              ? "bg-primary/10 text-primary border-primary/30 font-medium"
-                              : "border-border text-muted-foreground hover:text-foreground",
-                          )}
-                          onClick={() => setSettings({ voiceOutputProvider: p })}
-                        >
-                          {p === "openai" ? "OpenAI" : "ElevenLabs"}
-                        </button>
-                      ))}
-                    </div>
-
-                    {hsVoiceProvider === "openai" && (
-                      <Select
-                        value={settings.openaiVoice ?? "alloy"}
-                        onValueChange={(v) => setSettings({ openaiVoice: v as BuilderSettings["openaiVoice"] })}
-                      >
-                        <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {(
-                            [
-                              { id: "alloy",   desc: "Neutral, Balanced" },
-                              { id: "ash",     desc: "Casual, Warm" },
-                              { id: "ballad",  desc: "Professional, Deep" },
-                              { id: "coral",   desc: "Clear, Friendly" },
-                              { id: "echo",    desc: "Confident, Crispy" },
-                              { id: "shimmer", desc: "Bright, Professional" },
-                              { id: "sage",    desc: "Calm, Measured" },
-                              { id: "verse",   desc: "Expressive, Dynamic" },
-                              { id: "marine",  desc: "Smooth, Polite" },
-                            ] as const
-                          ).map(({ id, desc }) => (
-                            <SelectItem key={id} value={id}>
-                              <span className="flex items-center justify-between gap-3 w-full">
-                                <span className="capitalize font-medium">{id.charAt(0).toUpperCase() + id.slice(1)}</span>
-                                <span className="text-muted-foreground text-[10px]">{desc}</span>
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    {hsVoiceProvider === "elevenlabs" && (
-                      elHsVoicesLoading ? (
-                        <div className="flex items-center gap-1.5 py-1.5 text-[9px] text-muted-foreground">
-                          <Loader2 className="h-3 w-3 animate-spin" />Loading ElevenLabs voices…
-                        </div>
-                      ) : elHsVoicesError ? (
-                        <p className="text-[9px] text-destructive leading-snug mt-1">{elHsVoicesError}</p>
-                      ) : (
-                        <Select
-                          value={settings.voiceOutputId ?? ""}
-                          onValueChange={(v) => {
-                            const voice = elHsVoicesList.find((x) => x.voice_id === v);
-                            setSettings({ voiceOutputId: v, voiceOutputName: voice?.name });
-                          }}
-                        >
-                          <SelectTrigger className="h-7 text-[10px]">
-                            <SelectValue placeholder="Select ElevenLabs voice…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {elHsVoicesList.map((v) => (
-                              <SelectItem key={v.voice_id} value={v.voice_id}>
-                                <span className="flex items-center justify-between gap-3 w-full">
-                                  <span className="font-medium">{v.name}</span>
-                                  <span className="text-muted-foreground text-[10px] capitalize">{v.category}</span>
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )
-                    )}
-                  </div>
-
                   {/* Realtime LLM Model */}
                   <div>
                     <Label className="text-[9px] flex items-center gap-1">
