@@ -62,10 +62,12 @@ export function WhatsAppSettings() {
   const searchNumbers = useMutation({
     mutationFn: () =>
       searchNumbersFn({
-        accountSid:  twilioForm.twilio_account_sid,
-        authToken:   twilioForm.twilio_auth_token,
-        countryCode: buyCountry,
-        areaCode:    buyAreaCode.trim() || undefined,
+        data: {
+          accountSid:  twilioForm.twilio_account_sid,
+          authToken:   twilioForm.twilio_auth_token,
+          countryCode: buyCountry,
+          areaCode:    buyAreaCode.trim() || undefined,
+        },
       }),
     onSuccess: (results) => {
       setBuyResults(results as TwilioNum[]);
@@ -78,9 +80,11 @@ export function WhatsAppSettings() {
     mutationFn: (phoneNumber: string) => {
       setPurchasing(phoneNumber);
       return purchaseNumberFn({
-        accountSid:  twilioForm.twilio_account_sid,
-        authToken:   twilioForm.twilio_auth_token,
-        phoneNumber,
+        data: {
+          accountSid:  twilioForm.twilio_account_sid,
+          authToken:   twilioForm.twilio_auth_token,
+          phoneNumber,
+        },
       });
     },
     onSuccess: (result: any) => {
