@@ -1,20 +1,21 @@
 import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings, Copy, CheckCheck, ExternalLink, Info } from "lucide-react";
+import { Settings, Copy, CheckCheck, ExternalLink, CheckCircle2, XCircle, RefreshCw, Loader2 } from "lucide-react";
 import { WatiIntegrationSettings } from "./WatiIntegrationSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getWASettings, saveWASettings } from "@/lib/dashboard/whatsapp.functions";
+import { getWASettings, saveWASettings, registerTwilioWebhook } from "@/lib/dashboard/whatsapp.functions";
 import { toast } from "sonner";
 
 export function WhatsAppSettings() {
   const qc = useQueryClient();
-  const getSettingsFn  = useServerFn(getWASettings);
-  const saveSettingsFn = useServerFn(saveWASettings);
+  const getSettingsFn      = useServerFn(getWASettings);
+  const saveSettingsFn     = useServerFn(saveWASettings);
+  const registerWebhookFn  = useServerFn(registerTwilioWebhook);
 
   const { data, isLoading } = useQuery({
     queryKey: ["wa-settings"],
@@ -28,6 +29,10 @@ export function WhatsAppSettings() {
     whatsapp_provider: "twilio",
   });
   const [copied, setCopied] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<{
+    registered: boolean;
+    note: string;
+  } | null>(null);
 
   useEffect(() => {
     if (data) {
@@ -44,9 +49,31 @@ export function WhatsAppSettings() {
 
   const save = useMutation({
     mutationFn: () => saveSettingsFn({ data: form }),
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       qc.invalidateQueries({ queryKey: ["wa-settings"] });
-      toast.success("WhatsApp settings saved");
+      if (result?.webhookRegistered === true) {
+        setWebhookStatus({ registered: true, note: result.webhookNote });
+        toast.success("Settings saved — webhook registered automatically on Twilio");
+      } else if (result?.webhookRegistered === false && result?.webhookNote) {
+        setWebhookStatus({ registered: false, note: result.webhookNote });
+        toast.success("Settings saved");
+      } else {
+        toast.success("WhatsApp settings saved");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const reRegister = useMutation({
+    mutationFn: () => registerWebhookFn(),
+    onSuccess: (result: any) => {
+      if (result?.webhookRegistered === true) {
+        setWebhookStatus({ registered: true, note: result.webhookNote });
+        toast.success("Webhook registered on Twilio");
+      } else {
+        setWebhookStatus({ registered: false, note: result?.webhookNote ?? "Registration failed" });
+        toast.error(result?.webhookNote ?? "Registration failed");
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -58,47 +85,10 @@ export function WhatsAppSettings() {
     });
   }
 
+  const hasAllCreds = !!(form.twilio_account_sid && form.twilio_auth_token && form.whatsapp_phone_id);
+
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Webhook URL */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Settings className="h-4 w-4" /> Webhook URL
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Paste this URL into your Twilio WhatsApp Sandbox or Phone Number settings as the "When a message comes in" webhook.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Input
-              readOnly
-              value={webhookUrl}
-              className="font-mono text-xs bg-muted/50"
-            />
-            <Button variant="outline" size="icon" onClick={copyWebhook} className="shrink-0">
-              {copied ? <CheckCheck className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-            </Button>
-          </div>
-          <div className="flex items-start gap-2 rounded-md bg-blue-500/10 border border-blue-500/20 p-2.5">
-            <Info className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Set this as the webhook in your{" "}
-              <a
-                href="https://console.twilio.com/us1/develop/phone-numbers/manage/active"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 hover:underline inline-flex items-center gap-0.5"
-              >
-                Twilio Console <ExternalLink className="h-2.5 w-2.5" />
-              </a>.
-              HTTP method: <strong>POST</strong>.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Twilio credentials */}
       <Card>
         <CardHeader className="pb-3">
@@ -107,7 +97,7 @@ export function WhatsAppSettings() {
             Find these in your{" "}
             <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
               Twilio Console
-            </a>. Your auth token is stored encrypted.
+            </a>. When you save, WeeBee will automatically register the webhook on your phone number — no manual copy-paste needed.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -143,7 +133,7 @@ export function WhatsAppSettings() {
                   className="font-mono text-sm"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Include the + and country code. For Twilio Sandbox, this is the sandbox number (e.g. +14155238886).
+                  Include the + and country code. For Twilio Sandbox, use the sandbox number (e.g. +14155238886).
                 </p>
               </div>
             </>
@@ -151,7 +141,75 @@ export function WhatsAppSettings() {
         </CardContent>
       </Card>
 
-      {/* Status */}
+      {/* Webhook status */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Settings className="h-4 w-4" /> Webhook
+          </CardTitle>
+          <CardDescription className="text-xs">
+            WeeBee registers this URL on your Twilio number automatically when you save. You can also copy it for manual setup.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Input
+              readOnly
+              value={webhookUrl}
+              className="font-mono text-xs bg-muted/50"
+            />
+            <Button variant="outline" size="icon" onClick={copyWebhook} className="shrink-0">
+              {copied ? <CheckCheck className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+
+          {/* Webhook registration result */}
+          {webhookStatus && (
+            <div
+              className={`flex items-start gap-2 rounded-md border p-2.5 ${
+                webhookStatus.registered
+                  ? "bg-green-500/10 border-green-500/20"
+                  : "bg-amber-500/10 border-amber-500/20"
+              }`}
+            >
+              {webhookStatus.registered ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+              )}
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {webhookStatus.note}
+              </p>
+            </div>
+          )}
+
+          {!webhookStatus && hasAllCreds && (
+            <p className="text-[11px] text-muted-foreground">
+              Save your settings to auto-register the webhook on your Twilio number.
+            </p>
+          )}
+
+          {/* Re-register button (shown after a failed attempt, or always when connected) */}
+          {hasAllCreds && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => reRegister.mutate()}
+              disabled={reRegister.isPending}
+              className="gap-1.5"
+            >
+              {reRegister.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Re-register webhook on Twilio
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Connection Status */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold">Connection Status</CardTitle>
@@ -180,6 +238,15 @@ export function WhatsAppSettings() {
             </Badge>
           </div>
           <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Webhook</span>
+            <Badge
+              variant={webhookStatus?.registered ? "default" : "secondary"}
+              className={`text-[10px] ${webhookStatus?.registered ? "bg-green-500/20 text-green-600 border-green-500/30" : ""}`}
+            >
+              {webhookStatus?.registered ? "Auto-registered" : "Manual setup needed"}
+            </Badge>
+          </div>
+          <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">AI Runtime</span>
             <Badge variant="outline" className="text-[10px]">GPT-4o mini</Badge>
           </div>
@@ -188,7 +255,14 @@ export function WhatsAppSettings() {
 
       <div className="flex justify-end">
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending ? "Saving…" : "Save Settings"}
+          {save.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+              Saving & registering webhook…
+            </>
+          ) : (
+            "Save & Register Webhook"
+          )}
         </Button>
       </div>
 

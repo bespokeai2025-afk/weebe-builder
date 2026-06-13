@@ -99,7 +99,78 @@ export const connectWati = createServerFn({ method: "POST" })
       records_synced: 0,
     });
 
-    return { ok: true };
+    // Auto-register our inbound webhook with WATI so the user doesn't
+    // have to paste the URL in WATI's dashboard manually.
+    const domain = process.env.REPLIT_DEV_DOMAIN;
+    const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
+    const webhookUrl = `${origin}/api/webhook/wati-inbound?workspace=${workspaceId}`;
+    const webhookResult = await registerWatiWebhook(data.tenantId, data.apiKey, webhookUrl);
+
+    return { ok: true, webhookUrl, ...webhookResult };
+  });
+
+/**
+ * Register our inbound URL with WATI's webhook configuration API.
+ * WATI: POST /api/v1/updateWebhook  body: { webhookUrl }
+ */
+async function registerWatiWebhook(
+  tenantId: string,
+  apiKey: string,
+  webhookUrl: string,
+): Promise<{ webhookRegistered: boolean; webhookNote: string }> {
+  try {
+    const res = await fetch(`${watiBase(tenantId)}/updateWebhook`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ webhookUrl }),
+    });
+
+    if (res.ok) {
+      return {
+        webhookRegistered: true,
+        webhookNote: "Webhook registered automatically in WATI. Inbound messages will flow through WeeBee.",
+      };
+    }
+
+    const txt = await res.text();
+    console.warn("[wati-connect] webhook register failed:", res.status, txt);
+    return {
+      webhookRegistered: false,
+      webhookNote: `WATI connected but auto-webhook failed (${res.status}). Go to WATI Settings → Webhook and paste the URL above manually.`,
+    };
+  } catch (e) {
+    console.error("[wati-connect] webhook register error", e);
+    return {
+      webhookRegistered: false,
+      webhookNote: "WATI connected. Auto-webhook failed — paste the webhook URL in WATI Settings → Webhook manually.",
+    };
+  }
+}
+
+export const registerWatiWebhookFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const sb = adminClient() as any;
+    const { data: conn } = await sb
+      .from("wati_connections")
+      .select("api_key, tenant_id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (!conn?.api_key || !conn?.tenant_id) {
+      throw new Error("WATI not connected — connect it first.");
+    }
+
+    const domain = process.env.REPLIT_DEV_DOMAIN;
+    const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
+    const webhookUrl = `${origin}/api/webhook/wati-inbound?workspace=${workspaceId}`;
+    const result = await registerWatiWebhook(conn.tenant_id, conn.api_key, webhookUrl);
+    return { webhookUrl, ...result };
   });
 
 export const disconnectWati = createServerFn({ method: "POST" })

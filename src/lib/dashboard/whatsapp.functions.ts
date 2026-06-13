@@ -416,7 +416,137 @@ export const saveWASettings = createServerFn({ method: "POST" })
       .from("workspace_settings")
       .upsert({ workspace_id: workspaceId, ...data.data }, { onConflict: "workspace_id" });
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    // Auto-register Twilio webhook on the phone number so the user doesn't
+    // have to copy-paste the URL into the Twilio Console manually.
+    const accountSid  = data.data.twilio_account_sid?.trim();
+    const authToken   = data.data.twilio_auth_token?.trim();
+    const phoneNumber = data.data.whatsapp_phone_id?.trim();
+
+    if (accountSid && authToken && phoneNumber) {
+      const domain = process.env.REPLIT_DEV_DOMAIN;
+      const origin = domain
+        ? `https://${domain}`
+        : (process.env.VITE_PUBLIC_APP_URL ?? "");
+      const webhookUrl = `${origin}/api/public/whatsapp-webhook/${workspaceId}`;
+      const webhookResult = await registerTwilioWebhookForNumber(
+        accountSid,
+        authToken,
+        phoneNumber,
+        webhookUrl,
+      );
+      return { ok: true, webhookUrl, ...webhookResult };
+    }
+
+    return { ok: true, webhookUrl: null, webhookRegistered: false, webhookNote: "Enter all credentials to auto-register." };
+  });
+
+/**
+ * Register our WhatsApp webhook URL on a Twilio phone number.
+ * Looks up the IncomingPhoneNumber SID by phone number then PATCHes SmsUrl.
+ */
+async function registerTwilioWebhookForNumber(
+  accountSid: string,
+  authToken: string,
+  phoneNumber: string,
+  webhookUrl: string,
+): Promise<{ webhookRegistered: boolean; webhookNote: string; phoneSid?: string }> {
+  const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+  const phoneE164 = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
+
+  try {
+    // 1. Find the IncomingPhoneNumber SID for this number
+    const lookupRes = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(phoneE164)}`,
+      { headers: { Authorization: `Basic ${credentials}` } },
+    );
+
+    if (!lookupRes.ok) {
+      const txt = await lookupRes.text();
+      console.warn("[wa-settings] Twilio number lookup failed:", txt);
+      return {
+        webhookRegistered: false,
+        webhookNote: `Credentials saved. Twilio number lookup failed (${lookupRes.status}) — paste the webhook URL manually in the Twilio Console.`,
+      };
+    }
+
+    const lookupData = (await lookupRes.json()) as any;
+    const phoneSid: string | undefined =
+      lookupData?.incoming_phone_numbers?.[0]?.sid;
+
+    if (!phoneSid) {
+      return {
+        webhookRegistered: false,
+        webhookNote: `Credentials saved. The number ${phoneE164} was not found on this Twilio account — double-check the number and account SID. Paste the webhook URL in the Twilio Console manually.`,
+      };
+    }
+
+    // 2. Set SmsUrl + SmsMethod on that number
+    const updateRes = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/IncomingPhoneNumbers/${phoneSid}.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${credentials}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          SmsUrl: webhookUrl,
+          SmsMethod: "POST",
+        }),
+      },
+    );
+
+    if (!updateRes.ok) {
+      const txt = await updateRes.text();
+      console.warn("[wa-settings] Twilio webhook update failed:", txt);
+      return {
+        webhookRegistered: false,
+        webhookNote: `Credentials saved but webhook registration failed (${updateRes.status}). Paste the URL in the Twilio Console manually.`,
+        phoneSid,
+      };
+    }
+
+    return {
+      webhookRegistered: true,
+      webhookNote: `Webhook registered automatically on ${phoneE164} (SID ${phoneSid}). You don't need to configure anything in Twilio.`,
+      phoneSid,
+    };
+  } catch (e) {
+    console.error("[wa-settings] Twilio auto-register error", e);
+    return {
+      webhookRegistered: false,
+      webhookNote: "Credentials saved. Auto-webhook registration failed — paste the URL into the Twilio Console manually.",
+    };
+  }
+}
+
+export const registerTwilioWebhook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const sb = supabase as any;
+    const { data: ws } = await sb
+      .from("workspace_settings")
+      .select("twilio_account_sid, twilio_auth_token, whatsapp_phone_id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    const accountSid  = ws?.twilio_account_sid?.trim();
+    const authToken   = ws?.twilio_auth_token?.trim();
+    const phoneNumber = ws?.whatsapp_phone_id?.trim();
+
+    if (!accountSid || !authToken || !phoneNumber) {
+      throw new Error("Save your Twilio credentials and phone number first.");
+    }
+
+    const domain = process.env.REPLIT_DEV_DOMAIN;
+    const origin = domain ? `https://${domain}` : (process.env.VITE_PUBLIC_APP_URL ?? "");
+    const webhookUrl = `${origin}/api/public/whatsapp-webhook/${workspaceId}`;
+
+    const result = await registerTwilioWebhookForNumber(accountSid, authToken, phoneNumber, webhookUrl);
+    return { webhookUrl, ...result };
   });
 
 // ── Campaign launch ───────────────────────────────────────────────────────────

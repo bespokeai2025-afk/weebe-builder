@@ -20,6 +20,7 @@ import {
   syncWatiTemplates,
   syncWatiCampaigns,
   syncWatiContacts,
+  registerWatiWebhookFn,
 } from "@/lib/whatsapp/wati.functions";
 
 function relTime(iso: string | null | undefined) {
@@ -36,13 +37,14 @@ function relTime(iso: string | null | undefined) {
 export function WatiIntegrationSettings() {
   const qc = useQueryClient();
 
-  const getConnFn       = useServerFn(getWatiConnection);
-  const connectFn       = useServerFn(connectWati);
-  const disconnectFn    = useServerFn(disconnectWati);
-  const testFn          = useServerFn(testWatiConnection);
-  const syncTmplFn      = useServerFn(syncWatiTemplates);
-  const syncCampFn      = useServerFn(syncWatiCampaigns);
-  const syncContactsFn  = useServerFn(syncWatiContacts);
+  const getConnFn        = useServerFn(getWatiConnection);
+  const connectFn        = useServerFn(connectWati);
+  const disconnectFn     = useServerFn(disconnectWati);
+  const testFn           = useServerFn(testWatiConnection);
+  const syncTmplFn       = useServerFn(syncWatiTemplates);
+  const syncCampFn       = useServerFn(syncWatiCampaigns);
+  const syncContactsFn   = useServerFn(syncWatiContacts);
+  const reRegisterWHFn   = useServerFn(registerWatiWebhookFn);
 
   const { data: conn, isLoading } = useQuery({
     queryKey: ["wati-connection"],
@@ -54,14 +56,39 @@ export function WatiIntegrationSettings() {
 
   const [form, setForm] = useState({ apiKey: "", tenantId: "", webhookSecret: "" });
   const [showForm, setShowForm] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<{
+    registered: boolean;
+    note: string;
+    url?: string;
+  } | null>(null);
 
   const connect = useMutation({
     mutationFn: () => connectFn({ data: { apiKey: form.apiKey, tenantId: form.tenantId, webhookSecret: form.webhookSecret || undefined } }),
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       qc.invalidateQueries({ queryKey: ["wati-connection"] });
-      toast.success("WATI connected successfully");
       setForm({ apiKey: "", tenantId: "", webhookSecret: "" });
       setShowForm(false);
+      if (result?.webhookRegistered === true) {
+        setWebhookStatus({ registered: true, note: result.webhookNote, url: result.webhookUrl });
+        toast.success("WATI connected — webhook registered automatically");
+      } else {
+        setWebhookStatus({ registered: false, note: result?.webhookNote ?? "", url: result?.webhookUrl });
+        toast.success("WATI connected");
+      }
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const reRegisterWH = useMutation({
+    mutationFn: () => reRegisterWHFn(),
+    onSuccess: (result: any) => {
+      if (result?.webhookRegistered === true) {
+        setWebhookStatus({ registered: true, note: result.webhookNote, url: result.webhookUrl });
+        toast.success("Webhook re-registered in WATI");
+      } else {
+        setWebhookStatus({ registered: false, note: result?.webhookNote ?? "Registration failed", url: result?.webhookUrl });
+        toast.error(result?.webhookNote ?? "Registration failed");
+      }
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -185,6 +212,48 @@ export function WatiIntegrationSettings() {
                   <span className="text-foreground">{relTime(conn.lastTestedAt)}</span>
                 </div>
               )}
+            </div>
+
+            {/* Webhook registration status */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Inbound Webhook</p>
+              {webhookStatus ? (
+                <div
+                  className={`flex items-start gap-2 rounded-md border p-2.5 ${
+                    webhookStatus.registered
+                      ? "bg-green-500/10 border-green-500/20"
+                      : "bg-amber-500/10 border-amber-500/20"
+                  }`}
+                >
+                  {webhookStatus.registered ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                  )}
+                  <div className="space-y-1 min-w-0">
+                    <p className="text-xs text-muted-foreground leading-relaxed">{webhookStatus.note}</p>
+                    {webhookStatus.url && !webhookStatus.registered && (
+                      <p className="text-[10px] font-mono text-muted-foreground break-all">{webhookStatus.url}</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Click "Re-register Webhook" to auto-configure the inbound webhook in WATI.
+                </p>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs h-8"
+                disabled={reRegisterWH.isPending}
+                onClick={() => reRegisterWH.mutate()}
+              >
+                {reRegisterWH.isPending
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <RefreshCw className="h-3 w-3" />}
+                Re-register Webhook in WATI
+              </Button>
             </div>
 
             {/* Sync status */}
