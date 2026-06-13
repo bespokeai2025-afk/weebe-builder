@@ -86,6 +86,8 @@ import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
 import { searchElevenLabsVoices, previewElevenLabsVoice, previewRetellVoice } from "@/lib/builder/retell.functions";
 import { listElevenLabsVoices, cloneElevenLabsVoice } from "@/lib/builder/elevenlabs-voices.functions";
 import { extractPostCallVariables, type PostCallExtracted } from "@/lib/builder/post-call-extract.functions";
+import { saveHyperStreamTestCall } from "@/lib/builder/save-hyperstream-call.functions";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 const PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [
@@ -342,6 +344,8 @@ export function Builder({
   const [postCallLoading, setPostCallLoading] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const recordingUrlRef = useRef<string | null>(null);
+  const callStartedAtRef = useRef<number | null>(null);
+  const saveHyperStreamTestCallFn = useServerFn(saveHyperStreamTestCall);
   const transcriptPanelRef = useRef<HTMLDivElement | null>(null);
   const [elVoiceQuery, setElVoiceQuery] = useState("");
   const [elVoiceResults, setElVoiceResults] = useState<Array<{ voice_id: string; name: string; description: string | null; labels: Record<string, string>; preview_url: string | null; public_owner_id?: string | null }>>([]);
@@ -434,6 +438,7 @@ export function Builder({
   // Force the right panel open when a call starts; clear stale post-call data when a new call begins.
   useEffect(() => {
     if (callActive) {
+      callStartedAtRef.current = Date.now();
       setRightOpen(true);
       setPostCallData(null);
       setPostCallLoading(false);
@@ -442,17 +447,67 @@ export function Builder({
         recordingUrlRef.current = null;
         setRecordingUrl(null);
       }
+    } else {
+      callStartedAtRef.current = null;
     }
   }, [callActive]);
 
   async function handleCallEnd(transcript: TxEntry[], blob: Blob | null) {
-    // Store recording blob URL.
+    // Compute call duration from start timestamp recorded when callActive became true.
+    const callDuration = callStartedAtRef.current
+      ? Math.max(0, Math.round((Date.now() - callStartedAtRef.current) / 1000))
+      : 0;
+    callStartedAtRef.current = null;
+
+    // Store recording blob URL immediately for local playback.
+    let localBlobUrl: string | null = null;
     if (blob) {
       if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
-      const url = URL.createObjectURL(blob);
-      recordingUrlRef.current = url;
-      setRecordingUrl(url);
+      localBlobUrl = URL.createObjectURL(blob);
+      recordingUrlRef.current = localBlobUrl;
+      setRecordingUrl(localBlobUrl);
     }
+
+    // Save call to DB with recording upload in the background.
+    const transcriptText = transcript
+      .map((t) => `${t.role === "agent" ? "Agent" : "User"}: ${t.text}`)
+      .join("\n");
+
+    if (transcript.length > 0 || blob) {
+      (async () => {
+        try {
+          let recordingBase64: string | null = null;
+          let recordingMimeType = "audio/webm";
+          if (blob && blob.size > 0) {
+            recordingMimeType = blob.type || "audio/webm";
+            const ab = await blob.arrayBuffer();
+            const bytes = new Uint8Array(ab);
+            let binary = "";
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            recordingBase64 = btoa(binary);
+          }
+          const saved = await saveHyperStreamTestCallFn({
+            data: {
+              agentId: currentAgentRowId ?? null,
+              agentName: settings.agentName ?? null,
+              durationSeconds: callDuration,
+              transcript: transcriptText || null,
+              recordingBase64,
+              recordingMimeType,
+            },
+          });
+          // Replace blob URL with durable server URL if upload succeeded.
+          if (saved.recordingUrl) {
+            recordingUrlRef.current = saved.recordingUrl;
+            setRecordingUrl(saved.recordingUrl);
+            if (localBlobUrl) URL.revokeObjectURL(localBlobUrl);
+          }
+        } catch (e) {
+          console.warn("[builder] saveHyperStreamTestCall failed:", e);
+        }
+      })();
+    }
+
     // Run post-call extraction if there's anything to analyse.
     if (transcript.length === 0) return;
     setPostCallLoading(true);
@@ -973,16 +1028,25 @@ export function Builder({
                 {/* ── Post-call analysis section ── */}
                 {!callActive && (postCallData || postCallLoading || recordingUrl) && (
                   <div className="mt-3 pt-3 border-t border-white/[0.06] space-y-2.5 shrink-0">
-                    {/* Recording download */}
+                    {/* Recording player */}
                     {recordingUrl && (
-                      <a
-                        href={recordingUrl}
-                        download="call-recording.webm"
-                        className="flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
-                      >
-                        <Download className="h-3 w-3 shrink-0" />
-                        Download recording
-                      </a>
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Recording</p>
+                        <audio
+                          controls
+                          src={recordingUrl}
+                          className="w-full h-8"
+                          style={{ colorScheme: "dark" }}
+                        />
+                        <a
+                          href={recordingUrl}
+                          download="call-recording.webm"
+                          className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-violet-300 transition-colors"
+                        >
+                          <Download className="h-3 w-3 shrink-0" />
+                          Download recording
+                        </a>
+                      </div>
                     )}
                     {/* Extraction loading */}
                     {postCallLoading && (

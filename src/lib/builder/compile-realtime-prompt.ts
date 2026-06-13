@@ -31,11 +31,14 @@ export function compileRealtimePrompt(
     [
       "# How to run the call",
       "- Follow the conversation script below strictly, ONE step at a time, in order.",
-      "- After you speak or ask something, STOP talking and WAIT for the caller to respond. Do not continue until they have replied.",
+      "- After you finish speaking your line for a step, STOP IMMEDIATELY. Do not say anything else.",
+      "- You MUST stay completely silent after each step until the caller speaks. Do not fill silence. Do not summarise what you just said. Do not prompt again.",
+      "- Only start speaking again once the caller has finished their reply.",
       "- Never read or combine multiple steps in a single turn. Cover exactly one step per turn.",
-      "- Keep each turn short and conversational — one or two sentences.",
+      "- Keep each turn short and conversational — one or two sentences maximum.",
       "- Only move to the next step once the current step's transition condition is satisfied by the caller's response.",
       "- Do not invent steps, information, or questions that are not in the script.",
+      "- CRITICAL: After each [WAIT FOR CALLER] marker you will see in the script, you MUST be silent until the caller speaks. Any text you generate before receiving a caller message violates this rule.",
     ].join("\n"),
   );
 
@@ -133,8 +136,8 @@ export function compileRealtimePrompt(
         const rawDialogue = d.dialogue?.trim() ?? "";
         const isSilent = SILENT_SENTINELS.test(rawDialogue);
         const body = isSilent
-          ? "Do NOT say anything here. Stay silent and wait for the caller's next input, then follow the transition below."
-          : rawDialogue || "(no instructions provided)";
+          ? "Do NOT say anything here. Stay silent and wait for the caller's next input, then follow the transition below.\n[WAIT FOR CALLER]"
+          : `${rawDialogue || "(no instructions provided)"}\n[WAIT FOR CALLER — stay silent until the caller replies]`;
         return `${headerPrefix} ${d.label || "Conversation"}\n${body}${transitionText}`;
       }
       case "function":

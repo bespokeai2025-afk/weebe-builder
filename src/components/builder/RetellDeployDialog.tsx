@@ -1081,7 +1081,7 @@ export function RetellDeployDialog({
                     type: "server_vad" as const,
                     threshold: hsSettings.hyperstreamVadThreshold ?? 0.5,
                     prefix_padding_ms: hsSettings.hyperstreamPrefixPaddingMs ?? 200,
-                    silence_duration_ms: hsSettings.hyperstreamSilenceDurationMs ?? 200,
+                    silence_duration_ms: hsSettings.hyperstreamSilenceDurationMs ?? 600,
                     create_response: true,
                     interrupt_response: true,
                   };
