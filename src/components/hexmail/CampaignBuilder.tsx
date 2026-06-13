@@ -32,6 +32,9 @@ import {
   type HexmailTemplate,
   type TemplateType,
 } from "@/lib/hexmail/templates.functions";
+import { splitContent } from "@/lib/hexmail/vars-helpers";
+
+const DOC_TEMPLATE_TYPES: TemplateType[] = ["document", "proposal", "quote", "invoice", "contract"];
 
 const ACTION_TYPES: { value: ActionType; label: string; icon: string }[] = [
   { value: "email", label: "Email", icon: "✉️" },
@@ -44,10 +47,12 @@ const ACTION_TYPES: { value: ActionType; label: string; icon: string }[] = [
   { value: "tag_assignment", label: "Tag Assignment", icon: "🏷️" },
 ];
 
-const ACTION_TO_TEMPLATE_TYPE: Partial<Record<ActionType, TemplateType>> = {
-  email: "email",
-  whatsapp: "whatsapp",
-  sms: "sms",
+// Maps action types to the template type(s) they use for selection
+const ACTION_TO_TEMPLATE_TYPES: Partial<Record<ActionType, TemplateType[]>> = {
+  email:    ["email"],
+  whatsapp: ["whatsapp"],
+  sms:      ["sms"],
+  task:     DOC_TEMPLATE_TYPES,   // task = "send a document" in follow-up campaigns
 };
 
 interface LocalAction extends CampaignAction {}
@@ -201,9 +206,9 @@ export function CampaignBuilder({ open, campaignId, onClose, onSaved }: Props) {
   };
 
   const templatesForType = (type: ActionType): HexmailTemplate[] => {
-    const tType = ACTION_TO_TEMPLATE_TYPE[type];
-    if (!tType) return [];
-    return templates.filter((t) => t.type === tType && t.status === "active");
+    const tTypes = ACTION_TO_TEMPLATE_TYPES[type];
+    if (!tTypes) return [];
+    return templates.filter((t) => tTypes.includes(t.type) && t.status === "active");
   };
 
   const sortedSteps = [...steps].sort((a, b) => a.day_number - b.day_number);
@@ -278,7 +283,7 @@ export function CampaignBuilder({ open, campaignId, onClose, onSaved }: Props) {
                   <div className="p-3 space-y-2">
                     {step.actions.map((action) => {
                       const tmplOptions = templatesForType(action.type);
-                      const needsTemplate = !!ACTION_TO_TEMPLATE_TYPE[action.type];
+                      const needsTemplate = !!ACTION_TO_TEMPLATE_TYPES[action.type];
                       return (
                         <div
                           key={action.id}
@@ -336,7 +341,7 @@ export function CampaignBuilder({ open, campaignId, onClose, onSaved }: Props) {
                                 </SelectItem>
                                 {tmplOptions.length === 0 && (
                                   <SelectItem value="__empty__" disabled className="text-xs">
-                                    No {ACTION_TO_TEMPLATE_TYPE[action.type]} templates yet
+                                    No {action.type} templates yet
                                   </SelectItem>
                                 )}
                                 {tmplOptions.map((t) => (

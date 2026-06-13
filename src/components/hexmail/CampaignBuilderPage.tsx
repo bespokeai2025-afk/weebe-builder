@@ -45,14 +45,20 @@ import {
   type TemplateType,
 } from "@/lib/hexmail/templates.functions";
 import { TemplateBuilder } from "./TemplateBuilder";
+import { splitContent } from "@/lib/hexmail/vars-helpers";
 
 // ── Channel definitions ────────────────────────────────────────────────────────
 
 type Channel = "email" | "whatsapp" | "sms" | "document";
 
+// All TemplateTypes that belong to the document channel
+const DOC_TEMPLATE_TYPES: TemplateType[] = [
+  "document", "proposal", "quote", "invoice", "contract",
+];
+
 interface ChannelDef {
   type: Channel;
-  templateType: TemplateType;
+  templateTypes: TemplateType[];   // one or more template types this channel accepts
   actionType: ActionType;
   label: string;
   icon: React.ElementType;
@@ -64,7 +70,7 @@ interface ChannelDef {
 const CHANNELS: ChannelDef[] = [
   {
     type: "email",
-    templateType: "email",
+    templateTypes: ["email"],
     actionType: "email",
     label: "Email",
     icon: Mail,
@@ -74,7 +80,7 @@ const CHANNELS: ChannelDef[] = [
   },
   {
     type: "whatsapp",
-    templateType: "whatsapp",
+    templateTypes: ["whatsapp"],
     actionType: "whatsapp",
     label: "WhatsApp",
     icon: MessageCircle,
@@ -84,7 +90,7 @@ const CHANNELS: ChannelDef[] = [
   },
   {
     type: "sms",
-    templateType: "sms",
+    templateTypes: ["sms"],
     actionType: "sms",
     label: "SMS",
     icon: MessageSquare,
@@ -94,7 +100,7 @@ const CHANNELS: ChannelDef[] = [
   },
   {
     type: "document",
-    templateType: "document",
+    templateTypes: DOC_TEMPLATE_TYPES,
     actionType: "task",
     label: "Document",
     icon: FileText,
@@ -204,7 +210,7 @@ function TemplateCard({
         {template.name}
       </p>
       <p className="text-[10px] text-muted-foreground line-clamp-3 leading-relaxed flex-1">
-        {template.content || template.subject || "No preview"}
+        {splitContent(template.content ?? "").body || template.subject || "No preview"}
       </p>
       <div className="flex gap-1.5 mt-auto">
         <Button size="sm" variant="outline" className="h-6 flex-1 text-[10px] px-2" onClick={onEdit}>
@@ -252,10 +258,10 @@ export function CampaignBuilderPage({ campaignId, onBack, onSaved }: Props) {
     queryFn: () => listHexmailTemplates({ data: { includeArchived: false } }),
   });
 
-  // Build template lookup by channel type
+  // Build template lookup by channel type (document channel spans all doc sub-types)
   const templatesByChannel = CHANNELS.reduce(
     (acc, ch) => {
-      acc[ch.type] = allTemplates.filter((t) => t.type === ch.templateType);
+      acc[ch.type] = allTemplates.filter((t) => ch.templateTypes.includes(t.type));
       return acc;
     },
     {} as Record<Channel, HexmailTemplate[]>,
