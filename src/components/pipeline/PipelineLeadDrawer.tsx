@@ -203,6 +203,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
       await addFn({ data: { entityType: "lead", entityId: lead.id, body: noteText.trim() } });
       setNoteText("");
       qc.invalidateQueries({ queryKey: ["entity-notes", "lead", lead.id] });
+      qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
     } catch (e) {
       toast.error("Failed to save note", { description: (e as Error).message });
     } finally {
@@ -216,6 +217,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange }: Props) {
     try {
       await deleteFn({ data: { id } });
       qc.invalidateQueries({ queryKey: ["entity-notes", "lead", lead.id] });
+      qc.invalidateQueries({ queryKey: ["pipeline-leads"] });
     } catch (e) {
       toast.error("Failed to delete note", { description: (e as Error).message });
     } finally {
