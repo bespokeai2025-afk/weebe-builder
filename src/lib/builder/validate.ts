@@ -14,12 +14,6 @@ export function validateFlow(
   variables: BuilderVariable[] = [],
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const starts = nodes.filter((n) => n.data.isStart);
-  if (starts.length === 0)
-    issues.push({ level: "error", message: "No start node selected. Mark one node as Start." });
-  if (starts.length > 1)
-    issues.push({ level: "error", message: "More than one start node selected." });
-
   const ids = new Set(nodes.map((n) => n.id));
   for (const e of edges) {
     if (!ids.has(e.source) || !ids.has(e.target))
