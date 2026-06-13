@@ -13,7 +13,35 @@ import { createClient } from "@supabase/supabase-js";
 
 const MARKER = "__sched_v1__";
 const MAX_RECORDS_PER_RUN = 200;
-const INTER_CALL_DELAY_MS = 250;
+const MAX_CONCURRENT_CALLS = 20;
+
+/**
+ * Concurrency pool — runs `fn` over all `items` with at most `limit` promises
+ * in-flight simultaneously.  Workers pull from a shared queue so the pool
+ * stays full until every item is processed.
+ *
+ * JS is single-threaded: queue.shift() and counter mutations are safe without
+ * locks even while multiple workers are "concurrent" via await-interleaving.
+ */
+async function withConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<void>,
+): Promise<void> {
+  const queue = items.map((item, i) => ({ item, i }));
+
+  async function worker(): Promise<void> {
+    while (true) {
+      const next = queue.shift();
+      if (!next) break;
+      await fn(next.item, next.i);
+    }
+  }
+
+  const poolSize = Math.min(limit, items.length);
+  if (poolSize === 0) return;
+  await Promise.all(Array.from({ length: poolSize }, worker));
+}
 
 export type PageType = "data" | "qualified" | "leads";
 
@@ -254,14 +282,16 @@ export async function runCampaignTick(opts?: {
         .map((r: any) => ({ id: r.id, phone: r.phone as string, tableSource: "leads" as const }));
     }
 
+    const total = records.length;
     console.log(
-      `[campaign-scheduler] "${campaign.name}" — ${records.length} record(s) to call`,
+      `[campaign-scheduler] "${campaign.name}" — ${total} record(s) to call` +
+        ` (pool=${Math.min(MAX_CONCURRENT_CALLS, total)} concurrent)`,
     );
 
     let placed = 0;
     let failed = 0;
 
-    for (const record of records) {
+    await withConcurrency(records, MAX_CONCURRENT_CALLS, async (record) => {
       try {
         const payload = {
           from_number: fromNumber,
@@ -315,14 +345,11 @@ export async function runCampaignTick(opts?: {
           e?.message ?? e,
         );
       }
-
-      if (records.indexOf(record) < records.length - 1) {
-        await new Promise((r) => setTimeout(r, INTER_CALL_DELAY_MS));
-      }
-    }
+    });
 
     console.log(
-      `[campaign-scheduler] "${campaign.name}" done — placed: ${placed}, failed: ${failed}`,
+      `[campaign-scheduler] "${campaign.name}" done — placed: ${placed}, failed: ${failed}` +
+        (failed > 0 ? ` (${total - placed - failed} still queued)` : ""),
     );
 
     results.push({ ...base, placed, failed });
