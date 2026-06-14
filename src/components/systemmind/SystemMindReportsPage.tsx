@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { FileText, RefreshCw, Loader2, Sparkles, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,13 @@ export function SystemMindReportsPage() {
   const renderedBody = useMemo(() => {
     if (!selected?.body) return "";
     try {
-      return marked.parse(selected.body, { async: false }) as string;
+      const raw = marked.parse(selected.body, { async: false }) as string;
+      return DOMPurify.sanitize(raw, {
+        ALLOWED_TAGS: ["h1","h2","h3","h4","h5","h6","p","ul","ol","li","strong","em","code","pre","blockquote","br","hr","table","thead","tbody","tr","th","td"],
+        ALLOWED_ATTR: [],
+      });
     } catch {
-      return selected.body;
+      return DOMPurify.sanitize(selected.body);
     }
   }, [selected?.body]);
 

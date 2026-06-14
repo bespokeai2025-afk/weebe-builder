@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckSquare, Plus, Loader2, Trash2, RefreshCw, X } from "lucide-react";
+import { CheckSquare, Plus, Loader2, Trash2, RefreshCw, X, Pencil, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SystemMindShell } from "./SystemMindShell";
@@ -27,10 +27,13 @@ const COLUMNS = [
 
 type Status = "open" | "in_progress" | "done";
 
-function TaskCard({ task, onMove, onDelete }: {
+type EditState = { title: string; description: string; priority: string; due_at: string };
+
+function TaskCard({ task, onMove, onDelete, onEdit }: {
   task: any;
   onMove: (id: string, status: Status) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onEdit: (task: any) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
 
@@ -63,9 +66,95 @@ function TaskCard({ task, onMove, onDelete }: {
           <p className="text-xs font-semibold leading-snug">{task.title}</p>
           {task.description && <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">{task.description}</p>}
         </div>
-        <button onClick={del} disabled={deleting} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-400">
-          {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-        </button>
+        <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => onEdit(task)} className="text-muted-foreground hover:text-sky-400 p-0.5" title="Edit">
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button onClick={del} disabled={deleting} className="text-muted-foreground hover:text-red-400 p-0.5" title="Delete">
+            {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditModal({ task, onSave, onClose, saving }: {
+  task: any;
+  onSave: (id: string, patch: EditState) => Promise<void>;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<EditState>({
+    title: task.title ?? "",
+    description: task.description ?? "",
+    priority: task.priority ?? "medium",
+    due_at: task.due_at ? task.due_at.slice(0, 10) : "",
+  });
+
+  async function submit() {
+    if (!form.title.trim()) return;
+    await onSave(task.id, { ...form, due_at: form.due_at || "" });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-xl border border-white/[0.10] bg-[#0f1117] shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+          <h3 className="text-sm font-semibold">Edit Task</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Title</label>
+            <input
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="Task title"
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Priority</label>
+            <select
+              value={form.priority}
+              onChange={(e) => setForm({ ...form, priority: e.target.value })}
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+            >
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Description</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Description (optional)"
+              rows={3}
+              className="w-full resize-none rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Due date</label>
+            <input
+              type="date"
+              value={form.due_at}
+              onChange={(e) => setForm({ ...form, due_at: e.target.value })}
+              className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-white/[0.06]">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={saving || !form.title.trim()} className="bg-sky-600 hover:bg-sky-500 text-white">
+            {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : <><Save className="h-3.5 w-3.5" /> Save</>}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -82,6 +171,8 @@ export function SystemMindTasksPage() {
   const [form, setForm] = useState({ title: "", description: "", priority: "medium", due_at: "" });
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [editTask, setEditTask] = useState<any | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   const { data: tasks, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-tasks"],
@@ -115,6 +206,17 @@ export function SystemMindTasksPage() {
     qc.invalidateQueries({ queryKey: ["systemmind-tasks"] });
   }
 
+  async function saveEdit(id: string, patch: EditState) {
+    setEditSaving(true);
+    try {
+      await updateFn({ data: { id, title: patch.title, description: patch.description || undefined, priority: patch.priority, due_at: patch.due_at || null } });
+      qc.invalidateQueries({ queryKey: ["systemmind-tasks"] });
+      setEditTask(null);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   function handleDragOver(e: React.DragEvent, colKey: string) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
@@ -136,6 +238,14 @@ export function SystemMindTasksPage() {
 
   return (
     <SystemMindShell>
+      {editTask && (
+        <EditModal
+          task={editTask}
+          onSave={saveEdit}
+          onClose={() => setEditTask(null)}
+          saving={editSaving}
+        />
+      )}
       <div className="px-4 py-6 md:px-8 h-full flex flex-col">
         <div className="flex items-start justify-between gap-4 mb-6 shrink-0">
           <div className="flex items-center gap-3">
@@ -144,7 +254,7 @@ export function SystemMindTasksPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold">Tasks</h1>
-              <p className="text-xs text-muted-foreground">CTO task board — drag cards between columns to change status</p>
+              <p className="text-xs text-muted-foreground">CTO task board — drag cards to move, hover to edit or delete</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -238,7 +348,7 @@ export function SystemMindTasksPage() {
                       </div>
                     )}
                     {items.map((task: any) => (
-                      <TaskCard key={task.id} task={task} onMove={move} onDelete={del} />
+                      <TaskCard key={task.id} task={task} onMove={move} onDelete={del} onEdit={setEditTask} />
                     ))}
                   </div>
                 </div>
