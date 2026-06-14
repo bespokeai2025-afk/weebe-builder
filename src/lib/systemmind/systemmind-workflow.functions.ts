@@ -208,6 +208,74 @@ export const getSystemMindAgentList = createServerFn({ method: "POST" })
     return data ?? [];
   });
 
+// ── Workflow Intelligence: score + health + complexity ─────────────────────────
+export const getWorkflowIntelligence = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { getWorkflowIntelligenceServer } = await import(
+      "@/lib/systemmind/systemmind-workflow-intelligence.server"
+    );
+    return getWorkflowIntelligenceServer(workspaceId);
+  });
+
+// ── Clone workflow to draft ────────────────────────────────────────────────────
+export const cloneWorkflowToDraft = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ agentId: z.string().uuid(), newTitle: z.string().optional() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { cloneWorkflowToDraftServer } = await import(
+      "@/lib/systemmind/systemmind-workflow-intelligence.server"
+    );
+    return cloneWorkflowToDraftServer(workspaceId, data.agentId, data.newTitle ?? "");
+  });
+
+// ── Compare two workflows (AI) ─────────────────────────────────────────────────
+export const compareWorkflows = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ agentIdA: z.string().uuid(), agentIdB: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const settings = (context as any).settings ?? {};
+    const apiKey = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
+    if (!apiKey) throw new Error("OpenAI API key not configured.");
+    const { compareWorkflowsServer } = await import(
+      "@/lib/systemmind/systemmind-workflow-intelligence.server"
+    );
+    return compareWorkflowsServer(workspaceId, data.agentIdA, data.agentIdB, apiKey);
+  });
+
+// ── Generate from example template ────────────────────────────────────────────
+export const generateFromExample = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        exampleKey: z.string().min(1),
+        customDesc: z.string().optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const settings = (context as any).settings ?? {};
+    const apiKey = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
+    if (!apiKey) throw new Error("OpenAI API key not configured.");
+    const { generateFromExampleServer } = await import(
+      "@/lib/systemmind/systemmind-workflow-intelligence.server"
+    );
+    return generateFromExampleServer(workspaceId, data.exampleKey, data.customDesc ?? "", apiKey);
+  });
+
 // ── Submit repair plan to HiveMind event log ──────────────────────────────────
 export const submitRepairPlanToHiveMind = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

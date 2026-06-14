@@ -5,8 +5,10 @@ import { useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   GitBranch, RefreshCw, Loader2, Sparkles, Wrench, Trash2,
-  CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Search,
-  Bot, Webhook, BookOpen, Users, ArrowRight,
+  CheckCircle2, AlertTriangle, ChevronDown, ChevronUp,
+  Bot, Webhook, BookOpen, Users, ArrowRight, Copy,
+  BarChart2, Zap, ArrowLeftRight, TrendingUp,
+  Phone, FileText, MessageCircle, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,10 +32,21 @@ import {
   inspectWorkflowRepair,
   getSystemMindAgentList,
   submitRepairPlanToHiveMind,
+  getWorkflowIntelligence,
+  cloneWorkflowToDraft,
+  compareWorkflows,
+  generateFromExample,
 } from "@/lib/systemmind/systemmind-workflow.functions";
 import type { RepairIssue } from "@/lib/systemmind/systemmind-workflow.server";
 
-const TABS = ["Library", "Patterns", "Create Draft", "Inspect & Repair"] as const;
+const TABS = [
+  "Library",
+  "Score & Health",
+  "Generate",
+  "Compare",
+  "Patterns",
+  "Inspect & Repair",
+] as const;
 type Tab = (typeof TABS)[number];
 
 const CATEGORIES = [
@@ -50,28 +63,69 @@ const RISK_COLORS: Record<string, string> = {
   low:      "text-emerald-400 border-emerald-500/30 bg-emerald-500/[0.08]",
 };
 
-// Helper: mirrors the same heuristic used in computeSystemMindData
 function workflowNeedsRepair(row: any): boolean {
   const nc = Number(row.node_count ?? 0);
   const ec = Number(row.edge_count ?? 0);
   return nc === 0 || (nc > 1 && ec === 0);
 }
 
-type HealthFilter = "all" | "healthy" | "needs-repair";
+// ── Score badge ────────────────────────────────────────────────────────────────
+function ScoreBadge({ score }: { score: number }) {
+  const cls =
+    score >= 80 ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/[0.08]"
+    : score >= 60 ? "text-sky-400 border-sky-500/30 bg-sky-500/[0.08]"
+    : score >= 40 ? "text-amber-400 border-amber-500/30 bg-amber-500/[0.08]"
+    : "text-red-400 border-red-500/30 bg-red-500/[0.08]";
+  return (
+    <span className={cn("text-[10px] font-bold border rounded px-1.5 py-0.5", cls)}>
+      {score}
+    </span>
+  );
+}
 
-// ── Library tab ───────────────────────────────────────────────────────────────
+function HealthBadge({ label, badgeClass }: { label: string; badgeClass: string }) {
+  return (
+    <span className={cn("text-[10px] rounded px-1.5 py-0.5 font-medium", badgeClass)}>
+      {label}
+    </span>
+  );
+}
+
+function ComplexityBadge({ label, color }: { label: string; color: string }) {
+  return <span className={cn("text-[10px]", color)}>{label}</span>;
+}
+
+// ── Library tab ────────────────────────────────────────────────────────────────
 function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
   const [catFilter, setCatFilter] = useState("all");
-  const [healthFilter, setHealthFilter] = useState<HealthFilter>(
-    (initialHealth === "healthy" || initialHealth === "needs-repair") ? initialHealth as HealthFilter : "all",
+  const [healthFilter, setHealthFilter] = useState<"all" | "healthy" | "needs-repair">(
+    initialHealth === "healthy" || initialHealth === "needs-repair"
+      ? (initialHealth as any)
+      : "all",
   );
   const [scanning, setScanning]   = useState(false);
-  const listFn = useServerFn(getWorkflowLibrary);
-  const scanFn = useServerFn(scanAgentWorkflows);
+  const [cloningId, setCloningId] = useState<string | null>(null);
+  const qc = useQueryClient();
+
+  const listFn   = useServerFn(getWorkflowLibrary);
+  const scanFn   = useServerFn(scanAgentWorkflows);
+  const intellFn = useServerFn(getWorkflowIntelligence);
+  const cloneFn  = useServerFn(cloneWorkflowToDraft);
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["sm-wl", catFilter],
     queryFn: () => listFn({ data: { category: catFilter !== "all" ? catFilter : undefined } }),
   });
+
+  const { data: intellData } = useQuery({
+    queryKey: ["sm-intel"],
+    queryFn: () => intellFn({ data: {} }),
+    enabled: !isLoading,
+  });
+
+  const intellMap: Record<string, any> = {};
+  ((intellData as any[]) ?? []).forEach((r: any) => { intellMap[r.agent_id] = r; });
+
   const allRows: any[] = (data as any[]) ?? [];
   const rows = healthFilter === "healthy"
     ? allRows.filter((r) => !workflowNeedsRepair(r))
@@ -83,19 +137,27 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
     setScanning(true);
     try {
       const res: any = await scanFn({ data: {} });
-      toast.success(`Scanned ${res.scanned} agent${res.scanned !== 1 ? "s" : ""}, stored ${res.stored}`);
+      toast.success(`Scanned ${res.scanned} agents, stored ${res.stored}`);
       refetch();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Scan failed");
-    } finally {
-      setScanning(false);
-    }
+      qc.invalidateQueries({ queryKey: ["sm-intel"] });
+    } catch (e: any) { toast.error(e?.message ?? "Scan failed"); }
+    finally { setScanning(false); }
   }
 
-  const HEALTH_FILTERS: { value: HealthFilter; label: string }[] = [
-    { value: "all",          label: `All (${allRows.length})` },
-    { value: "healthy",      label: `Healthy (${allRows.filter((r) => !workflowNeedsRepair(r)).length})` },
-    { value: "needs-repair", label: `Need repair (${allRows.filter(workflowNeedsRepair).length})` },
+  async function handleClone(row: any) {
+    setCloningId(row.agent_id);
+    try {
+      const res: any = await cloneFn({ data: { agentId: row.agent_id, newTitle: `Clone of ${row.workflow_name}` } });
+      toast.success(`Cloned as draft: "${res.title}"`);
+      qc.invalidateQueries({ queryKey: ["sm-drafts"] });
+    } catch (e: any) { toast.error(e?.message ?? "Clone failed"); }
+    finally { setCloningId(null); }
+  }
+
+  const HEALTH_FILTERS = [
+    { value: "all" as const,          label: `All (${allRows.length})` },
+    { value: "healthy" as const,      label: `Healthy (${allRows.filter((r) => !workflowNeedsRepair(r)).length})` },
+    { value: "needs-repair" as const, label: `Need repair (${allRows.filter(workflowNeedsRepair).length})` },
   ];
 
   return (
@@ -117,7 +179,6 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
         <span className="text-xs text-muted-foreground ml-auto">{rows.length} workflow{rows.length !== 1 ? "s" : ""}</span>
       </div>
 
-      {/* Health filter pills */}
       {allRows.length > 0 && (
         <div className="flex gap-1.5 flex-wrap">
           {HEALTH_FILTERS.map((f) => (
@@ -152,43 +213,698 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
       )}
 
       <div className="space-y-2">
-        {rows.map((row) => (
-          <div key={row.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-            <div className="flex items-start gap-3">
-              <Bot className="h-4 w-4 text-sky-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold">{row.workflow_name}</span>
-                  {row.category && (
-                    <span className="text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
-                      {row.category}
-                    </span>
-                  )}
-                  {row.provider && (
-                    <span className="text-[10px] border border-sky-500/20 rounded px-1.5 py-0.5 text-sky-400">
-                      {row.provider}
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-3 mt-1 flex-wrap">
-                  <span className="text-[10px] text-muted-foreground">{row.node_count} nodes · {row.edge_count} edges</span>
-                  {row.has_webhook   && <span className="text-[10px] text-violet-400">webhook</span>}
-                  {row.has_booking   && <span className="text-[10px] text-emerald-400">booking</span>}
-                  {row.has_transfer  && <span className="text-[10px] text-amber-400">transfer</span>}
-                  {row.has_knowledge_base && <span className="text-[10px] text-sky-400">KB</span>}
-                </div>
-                {(row.node_types ?? []).length > 0 && (
-                  <div className="mt-1 flex gap-1 flex-wrap">
-                    {(row.node_types as string[]).slice(0, 5).map((t) => (
-                      <code key={t} className="text-[9px] bg-white/[0.04] border border-white/[0.05] rounded px-1 py-0.5 text-muted-foreground">{t}</code>
-                    ))}
+        {rows.map((row) => {
+          const intel = intellMap[row.agent_id];
+          const score: number = intel?.score ?? 0;
+          const health = intel?.health ?? { label: "—", badgeClass: "bg-white/[0.04] text-muted-foreground" };
+          const complexity = intel?.complexity ?? { label: "—", color: "text-muted-foreground" };
+          return (
+            <div key={row.id} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+              <div className="flex items-start gap-3">
+                <Bot className="h-4 w-4 text-sky-400 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold">{row.workflow_name}</span>
+                    {row.category && (
+                      <span className="text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
+                        {row.category}
+                      </span>
+                    )}
+                    {row.provider && (
+                      <span className="text-[10px] border border-sky-500/20 rounded px-1.5 py-0.5 text-sky-400">
+                        {row.provider}
+                      </span>
+                    )}
+                    {intel && <ScoreBadge score={score} />}
+                    {intel && <HealthBadge label={health.label} badgeClass={health.badgeClass} />}
+                    {intel && <ComplexityBadge label={complexity.label} color={complexity.color} />}
                   </div>
-                )}
+                  <div className="flex gap-3 mt-1 flex-wrap">
+                    <span className="text-[10px] text-muted-foreground">{row.node_count} nodes · {row.edge_count} edges</span>
+                    {row.has_webhook   && <span className="text-[10px] text-violet-400">webhook</span>}
+                    {row.has_booking   && <span className="text-[10px] text-emerald-400">booking</span>}
+                    {row.has_transfer  && <span className="text-[10px] text-amber-400">transfer</span>}
+                    {row.has_knowledge_base && <span className="text-[10px] text-sky-400">KB</span>}
+                  </div>
+                  {(row.node_types ?? []).length > 0 && (
+                    <div className="mt-1 flex gap-1 flex-wrap">
+                      {(row.node_types as string[]).slice(0, 5).map((t) => (
+                        <code key={t} className="text-[9px] bg-white/[0.04] border border-white/[0.05] rounded px-1 py-0.5 text-muted-foreground">{t}</code>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-[10px] gap-1 text-muted-foreground hover:text-sky-300 shrink-0"
+                  disabled={cloningId === row.agent_id}
+                  onClick={() => handleClone(row)}
+                >
+                  {cloningId === row.agent_id
+                    ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                    : <Copy className="h-2.5 w-2.5" />}
+                  Clone
+                </Button>
               </div>
             </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Score & Health tab ─────────────────────────────────────────────────────────
+function ScoreHealthTab() {
+  const intellFn = useServerFn(getWorkflowIntelligence);
+  const scanFn   = useServerFn(scanAgentWorkflows);
+  const qc = useQueryClient();
+  const [scanning, setScanning] = useState(false);
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["sm-intel"],
+    queryFn: () => intellFn({ data: {} }),
+  });
+
+  const rows: any[] = (data as any[]) ?? [];
+
+  async function handleScan() {
+    setScanning(true);
+    try {
+      const res: any = await scanFn({ data: {} });
+      toast.success(`Scanned ${res.scanned} agents`);
+      refetch();
+      qc.invalidateQueries({ queryKey: ["sm-wl"] });
+    } catch (e: any) { toast.error(e?.message ?? "Scan failed"); }
+    finally { setScanning(false); }
+  }
+
+  const healthy   = rows.filter((r) => r.score >= 80).length;
+  const good      = rows.filter((r) => r.score >= 60 && r.score < 80).length;
+  const attention = rows.filter((r) => r.score >= 40 && r.score < 60).length;
+  const critical  = rows.filter((r) => r.score < 40).length;
+  const avg       = rows.length ? Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length) : 0;
+
+  const sorted = [...rows].sort((a, b) => b.score - a.score);
+  const top5   = sorted.slice(0, 5);
+  const bot5   = sorted.slice(-5).reverse();
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={handleScan} disabled={scanning} className="text-xs gap-1.5">
+          {scanning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          Refresh Scores
+        </Button>
+        <span className="text-xs text-muted-foreground ml-auto">{rows.length} workflows analysed</span>
+      </div>
+
+      {isLoading && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
+
+      {!isLoading && rows.length === 0 && (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+          <BarChart2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">No workflows to score yet</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Scan agents on the Library tab first</p>
+        </div>
+      )}
+
+      {!isLoading && rows.length > 0 && (
+        <>
+          {/* Stats row */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              { label: "Avg Score",    value: avg,       unit: "/100", cls: "text-sky-400" },
+              { label: "Healthy",      value: healthy,   unit: "",     cls: "text-emerald-400" },
+              { label: "Good",         value: good,      unit: "",     cls: "text-sky-400" },
+              { label: "Needs Attn",   value: attention, unit: "",     cls: "text-amber-400" },
+              { label: "Critical",     value: critical,  unit: "",     cls: "text-red-400" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
+                <p className={cn("text-xl font-bold", s.cls)}>{s.value}<span className="text-xs font-normal text-muted-foreground">{s.unit}</span></p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{s.label}</p>
+              </div>
+            ))}
           </div>
+
+          {/* Health distribution bar */}
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+            <p className="text-xs font-semibold mb-3">Health Distribution</p>
+            <div className="flex h-3 rounded-full overflow-hidden gap-px">
+              {healthy   > 0 && <div className="bg-emerald-500/70 transition-all" style={{ flex: healthy   }} title={`Healthy: ${healthy}`} />}
+              {good      > 0 && <div className="bg-sky-500/70 transition-all"     style={{ flex: good      }} title={`Good: ${good}`} />}
+              {attention > 0 && <div className="bg-amber-500/70 transition-all"   style={{ flex: attention }} title={`Needs attention: ${attention}`} />}
+              {critical  > 0 && <div className="bg-red-500/70 transition-all"     style={{ flex: critical  }} title={`Critical: ${critical}`} />}
+              {rows.length === 0 && <div className="bg-white/10 flex-1" />}
+            </div>
+            <div className="flex gap-4 mt-2 flex-wrap">
+              {[
+                { label: "Healthy ≥ 80",      cls: "bg-emerald-500/70", count: healthy   },
+                { label: "Good 60–79",         cls: "bg-sky-500/70",     count: good      },
+                { label: "Needs attn 40–59",   cls: "bg-amber-500/70",   count: attention },
+                { label: "Critical < 40",      cls: "bg-red-500/70",     count: critical  },
+              ].map((l) => (
+                <span key={l.label} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <span className={cn("inline-block h-2 w-2 rounded-sm", l.cls)} />
+                  {l.label} ({l.count})
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            {/* Top 5 */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
+              <p className="text-xs font-semibold flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 text-emerald-400" /> Top Workflows
+              </p>
+              {top5.map((r) => (
+                <div key={r.id} className="flex items-center gap-2">
+                  <ScoreBadge score={r.score} />
+                  <span className="text-xs text-muted-foreground truncate flex-1">{r.workflow_name}</span>
+                  <ComplexityBadge label={r.complexity.label} color={r.complexity.color} />
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom 5 */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
+              <p className="text-xs font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-400" /> Needs Attention
+              </p>
+              {bot5.map((r) => (
+                <div key={r.id} className="flex items-center gap-2">
+                  <ScoreBadge score={r.score} />
+                  <span className="text-xs text-muted-foreground truncate flex-1">{r.workflow_name}</span>
+                  <HealthBadge label={r.health.label} badgeClass={r.health.badgeClass} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Full table */}
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+            <div className="grid grid-cols-[1fr_60px_80px_80px_70px] gap-2 px-4 py-2 border-b border-white/[0.05] text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">
+              <span>Workflow</span><span className="text-right">Score</span><span>Health</span><span>Complexity</span><span className="text-right">Nodes</span>
+            </div>
+            {sorted.map((r) => (
+              <div key={r.id} className="grid grid-cols-[1fr_60px_80px_80px_70px] gap-2 px-4 py-2.5 border-b border-white/[0.03] last:border-0 items-center">
+                <div className="min-w-0">
+                  <p className="text-xs truncate">{r.workflow_name}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{r.category}</p>
+                </div>
+                <div className="flex justify-end"><ScoreBadge score={r.score} /></div>
+                <HealthBadge label={r.health.label} badgeClass={r.health.badgeClass} />
+                <ComplexityBadge label={r.complexity.label} color={r.complexity.color} />
+                <span className="text-[10px] text-muted-foreground text-right">{r.node_count}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Generate tab ───────────────────────────────────────────────────────────────
+const EXAMPLE_ICONS: Record<string, React.ComponentType<any>> = {
+  receptionist:     Phone,
+  qualification:    Zap,
+  legal_intake:     FileText,
+  whatsapp_flow:    MessageCircle,
+  followup_campaign: CalendarClock,
+};
+
+const EXAMPLES = [
+  {
+    key: "receptionist",
+    title: "Receptionist",
+    subtitle: "Call handler & router",
+    description: "Greets callers, collects intent, routes to department or books an appointment.",
+    tags: ["routing", "booking", "FAQ"],
+    complexity: "Moderate",
+    estimatedNodes: "6–9",
+  },
+  {
+    key: "qualification",
+    title: "Qualification Agent",
+    subtitle: "Lead scoring & routing",
+    description: "Qualifies leads with structured questions, scores them, routes high-value prospects.",
+    tags: ["lead-scoring", "sales", "booking"],
+    complexity: "Moderate",
+    estimatedNodes: "7–10",
+  },
+  {
+    key: "legal_intake",
+    title: "Legal Intake",
+    subtitle: "Case intake & consultation",
+    description: "Collects case details, checks conflicts, schedules consultations via Cal.com.",
+    tags: ["legal", "intake", "booking"],
+    complexity: "Complex",
+    estimatedNodes: "8–12",
+  },
+  {
+    key: "whatsapp_flow",
+    title: "WhatsApp Flow",
+    subtitle: "Conversational WA automation",
+    description: "Handles WA messages, responds from KB, escalates to human when needed.",
+    tags: ["whatsapp", "messaging", "KB"],
+    complexity: "Moderate",
+    estimatedNodes: "6–8",
+  },
+  {
+    key: "followup_campaign",
+    title: "Follow-Up Campaign",
+    subtitle: "Multi-touch nurture sequence",
+    description: "Personalised outreach, handles objections, books demos, respects opt-outs.",
+    tags: ["follow-up", "nurture", "campaign"],
+    complexity: "Complex",
+    estimatedNodes: "8–11",
+  },
+];
+
+function GenerateTab() {
+  const qc = useQueryClient();
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [customDesc, setCustomDesc]   = useState("");
+  const [category, setCategory]       = useState("Receptionist");
+  const [description, setDescription] = useState("");
+  const [mode, setMode]               = useState<"examples" | "custom">("examples");
+  const [creating, setCreating]       = useState(false);
+  const [openDraftId, setOpenDraftId] = useState<string | null>(null);
+  const [lastDraft, setLastDraft]     = useState<any>(null);
+
+  const fromExFn  = useServerFn(generateFromExample);
+  const createFn  = useServerFn(createWorkflowDraft);
+  const listFn    = useServerFn(getWorkflowDrafts);
+  const deleteFn  = useServerFn(deleteWorkflowDraft);
+
+  const { data: drafts, isLoading, refetch } = useQuery({
+    queryKey: ["sm-drafts"],
+    queryFn: () => listFn({ data: {} }),
+  });
+  const draftList: any[] = (drafts as any[]) ?? [];
+
+  async function handleGenerateExample() {
+    if (!selectedKey) { toast.error("Select an example first"); return; }
+    setCreating(true);
+    try {
+      const res: any = await fromExFn({ data: { exampleKey: selectedKey, customDesc } });
+      setLastDraft(res.draft);
+      setOpenDraftId(res.draftId);
+      toast.success(`Draft created: "${res.draft?.title ?? "Workflow"}"`);
+      refetch();
+      qc.invalidateQueries({ queryKey: ["sm-drafts"] });
+    } catch (e: any) { toast.error(e?.message ?? "Generate failed"); }
+    finally { setCreating(false); }
+  }
+
+  async function handleCustomCreate() {
+    if (!description.trim()) { toast.error("Enter a description"); return; }
+    setCreating(true);
+    try {
+      const res: any = await createFn({ data: { description, category } });
+      setLastDraft(res.draft);
+      setOpenDraftId(res.draftId);
+      toast.success("Draft workflow created");
+      refetch();
+      qc.invalidateQueries({ queryKey: ["sm-drafts"] });
+    } catch (e: any) { toast.error(e?.message ?? "Draft creation failed"); }
+    finally { setCreating(false); }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteFn({ data: { id } });
+      toast.success("Draft deleted");
+      refetch();
+    } catch (e: any) { toast.error(e?.message ?? "Delete failed"); }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Mode switcher */}
+      <div className="flex gap-1.5">
+        {(["examples", "custom"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={cn(
+              "rounded-lg px-3 py-1.5 text-xs font-medium border transition-colors",
+              mode === m
+                ? "bg-sky-500/20 border-sky-500/40 text-sky-300"
+                : "bg-white/[0.02] border-white/[0.08] text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {m === "examples" ? "Example Templates" : "Custom Generate"}
+          </button>
         ))}
       </div>
+
+      {mode === "examples" && (
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Pick a template. SystemMind uses Architecture KB, Workflow KB, and Repair KB to build it.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {EXAMPLES.map((ex) => {
+              const Icon = EXAMPLE_ICONS[ex.key] ?? Bot;
+              return (
+                <button
+                  key={ex.key}
+                  onClick={() => setSelectedKey(ex.key === selectedKey ? null : ex.key)}
+                  className={cn(
+                    "rounded-xl border p-4 text-left space-y-2 transition-all",
+                    selectedKey === ex.key
+                      ? "border-sky-500/50 bg-sky-500/[0.08]"
+                      : "border-white/[0.07] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={cn("rounded-lg p-1.5", selectedKey === ex.key ? "bg-sky-500/20" : "bg-white/[0.05]")}>
+                      <Icon className={cn("h-4 w-4", selectedKey === ex.key ? "text-sky-400" : "text-muted-foreground")} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold">{ex.title}</p>
+                      <p className="text-[10px] text-muted-foreground">{ex.subtitle}</p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{ex.description}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] text-muted-foreground/60">{ex.complexity} · ~{ex.estimatedNodes} nodes</span>
+                    <div className="flex gap-1">
+                      {ex.tags.slice(0, 2).map((t) => (
+                        <span key={t} className="text-[9px] border border-white/[0.08] rounded px-1 py-0.5 text-muted-foreground">{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedKey && (
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+              <p className="text-xs font-semibold">Additional requirements (optional)</p>
+              <Textarea
+                value={customDesc}
+                onChange={(e) => setCustomDesc(e.target.value)}
+                placeholder="Add any specific requirements, e.g. 'Use WhatsApp instead of voice, integrate with HubSpot'"
+                className="text-xs min-h-[60px] resize-none"
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground">Grounded in Architecture KB + Workflow KB + Repair KB</p>
+                <Button
+                  size="sm"
+                  onClick={handleGenerateExample}
+                  disabled={creating}
+                  className="text-xs gap-1.5"
+                >
+                  {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  Generate Draft
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {mode === "custom" && (
+        <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+          <p className="text-xs font-semibold">Custom Workflow Description</p>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Describe the workflow you want to create… e.g. 'A real estate intake agent that qualifies leads, books viewings via Cal.com, and sends a confirmation WhatsApp'"
+            className="text-xs min-h-[80px] resize-none"
+          />
+          <div className="flex gap-2">
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="h-8 text-xs flex-1">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              onClick={handleCustomCreate}
+              disabled={creating || !description.trim()}
+              className="text-xs gap-1.5 shrink-0"
+            >
+              {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+              Generate Draft
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Drafts are never deployed automatically. Review the structure in the Builder before using it.
+          </p>
+        </div>
+      )}
+
+      {/* Drafts list */}
+      {isLoading && <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
+
+      {!isLoading && draftList.length === 0 && (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-10 text-center">
+          <Sparkles className="h-7 w-7 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">No drafts yet</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Pick a template above to generate your first draft</p>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {draftList.map((d) => {
+          const isOpen = openDraftId === d.id;
+          const draftData = isOpen && lastDraft ? lastDraft : d;
+          return (
+            <div key={d.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <GitBranch className="h-4 w-4 text-sky-400 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold truncate">{d.title}</p>
+                  <p className="text-[10px] text-muted-foreground">{d.category} · {(d.nodes ?? []).length} nodes · draft</p>
+                </div>
+                <button onClick={() => setOpenDraftId(isOpen ? null : d.id)} className="text-muted-foreground hover:text-foreground">
+                  {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+                <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-400" onClick={() => handleDelete(d.id)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+
+              {isOpen && (
+                <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
+                  {(draftData.nodes ?? []).length > 0 && (
+                    <section>
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Nodes ({(draftData.nodes as any[]).length})</p>
+                      <div className="space-y-1">
+                        {(draftData.nodes as any[]).map((n: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <code className="text-[9px] bg-white/[0.04] border border-white/[0.05] rounded px-1 py-0.5 text-sky-300 shrink-0">{n.type ?? n.id}</code>
+                            <span className="text-xs text-muted-foreground truncate">{n.name ?? n.description ?? n.instruction ?? ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {(draftData.variables ?? []).length > 0 && (
+                    <section>
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Variables</p>
+                      <div className="flex flex-wrap gap-1">
+                        {(draftData.variables as any[]).map((v: any, i: number) => (
+                          <span key={i} className="text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
+                            {"{{"}{v.name}{"}}"} <span className="opacity-50">{v.type}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                  {(draftData.tools ?? []).length > 0 && (
+                    <section>
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Tools</p>
+                      {(draftData.tools as any[]).map((t: any, i: number) => (
+                        <div key={i} className="text-xs text-muted-foreground">• <strong>{t.name}</strong>: {t.description}</div>
+                      ))}
+                    </section>
+                  )}
+                  {(draftData.kb_suggestions ?? []).length > 0 && (
+                    <section className="rounded-lg bg-sky-500/[0.05] border border-sky-500/10 px-3 py-2">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <BookOpen className="h-3 w-3 text-sky-400" />
+                        <p className="text-[10px] font-semibold text-sky-400">KB Suggestions</p>
+                      </div>
+                      {(draftData.kb_suggestions as string[]).map((s, i) => (
+                        <p key={i} className="text-xs text-muted-foreground">• {s}</p>
+                      ))}
+                    </section>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Compare tab ────────────────────────────────────────────────────────────────
+function CompareTab() {
+  const [agentIdA, setAgentIdA] = useState("");
+  const [agentIdB, setAgentIdB] = useState("");
+  const [comparing, setComparing] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const agentListFn = useServerFn(getSystemMindAgentList);
+  const compareFn   = useServerFn(compareWorkflows);
+
+  const { data: agents } = useQuery({
+    queryKey: ["sm-agent-list"],
+    queryFn: () => agentListFn({ data: {} }),
+  });
+  const agentList: any[] = (agents as any[]) ?? [];
+
+  async function handleCompare() {
+    if (!agentIdA || !agentIdB) { toast.error("Select two workflows to compare"); return; }
+    if (agentIdA === agentIdB) { toast.error("Select two different workflows"); return; }
+    setComparing(true);
+    setResult(null);
+    try {
+      const res = await compareFn({ data: { agentIdA, agentIdB } });
+      setResult(res);
+    } catch (e: any) { toast.error(e?.message ?? "Comparison failed"); }
+    finally { setComparing(false); }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        Select two agents from your scanned workflow library to compare them side by side using AI analysis.
+      </p>
+
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Workflow A</p>
+          <Select value={agentIdA} onValueChange={setAgentIdA}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select workflow A…" />
+            </SelectTrigger>
+            <SelectContent>
+              {agentList.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name} {a.agent_type ? `(${a.agent_type.replace(/_/g, " ")})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Workflow B</p>
+          <Select value={agentIdB} onValueChange={setAgentIdB}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Select workflow B…" />
+            </SelectTrigger>
+            <SelectContent>
+              {agentList.map((a) => (
+                <SelectItem key={a.id} value={a.id}>
+                  {a.name} {a.agent_type ? `(${a.agent_type.replace(/_/g, " ")})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Button
+        size="sm"
+        onClick={handleCompare}
+        disabled={!agentIdA || !agentIdB || comparing}
+        className="text-xs gap-1.5"
+      >
+        {comparing ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowLeftRight className="h-3 w-3" />}
+        Compare Workflows
+      </Button>
+
+      {comparing && (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-sky-400 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Running AI comparison…</p>
+        </div>
+      )}
+
+      {!comparing && !result && (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
+          <ArrowLeftRight className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Select two workflows and click Compare</p>
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-4">
+          {/* Scores header */}
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { name: result.agentAName, score: result.scoreA, cx: result.complexityA, winner: result.winnerKey === "A" },
+              { name: result.agentBName, score: result.scoreB, cx: result.complexityB, winner: result.winnerKey === "B" },
+            ] as any[]).map((w, i) => (
+              <div key={i} className={cn(
+                "rounded-xl border p-4 space-y-1",
+                w.winner ? "border-sky-500/40 bg-sky-500/[0.06]" : "border-white/[0.07] bg-white/[0.02]",
+              )}>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold truncate flex-1">{w.name}</p>
+                  {w.winner && result.winnerKey !== "tie" && (
+                    <span className="text-[10px] bg-sky-500/20 text-sky-300 rounded px-1.5 py-0.5 shrink-0">Winner</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <ScoreBadge score={w.score} />
+                  <span className="text-[10px] text-muted-foreground">{w.cx}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Similarities */}
+          {result.similarities?.length > 0 && (
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground">Similarities</p>
+              {result.similarities.map((s: string, i: number) => (
+                <p key={i} className="text-xs text-muted-foreground">• {s}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Differences */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[
+              { label: `${result.agentAName} unique strengths`, items: result.differencesA, color: "text-sky-400", border: "border-sky-500/20" },
+              { label: `${result.agentBName} unique strengths`, items: result.differencesB, color: "text-violet-400", border: "border-violet-500/20" },
+            ].map((col) => (
+              <div key={col.label} className={cn("rounded-xl border bg-white/[0.02] p-4 space-y-2", col.border)}>
+                <p className={cn("text-xs font-semibold", col.color)}>{col.label}</p>
+                {(col.items as string[]).length === 0
+                  ? <p className="text-xs text-muted-foreground">None identified</p>
+                  : (col.items as string[]).map((s, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">• {s}</p>
+                    ))
+                }
+              </div>
+            ))}
+          </div>
+
+          {/* Recommendation */}
+          {result.recommendation && (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 space-y-1">
+              <p className="text-xs font-semibold text-emerald-400">Recommendation</p>
+              <p className="text-xs text-muted-foreground">{result.recommendation}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -210,11 +926,8 @@ function PatternsTab() {
       const res: any = await extractFn({ data: {} });
       toast.success(`Extracted ${res.extracted} pattern${res.extracted !== 1 ? "s" : ""}`);
       refetch();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Pattern extraction failed");
-    } finally {
-      setExtracting(false);
-    }
+    } catch (e: any) { toast.error(e?.message ?? "Pattern extraction failed"); }
+    finally { setExtracting(false); }
   }
 
   return (
@@ -233,7 +946,7 @@ function PatternsTab() {
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
           <Sparkles className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">No patterns yet</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Scan agents first, then extract patterns</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Scan agents first, then extract patterns to find reusable structures</p>
         </div>
       )}
 
@@ -270,179 +983,11 @@ function PatternsTab() {
   );
 }
 
-// ── Create Draft tab ──────────────────────────────────────────────────────────
-function CreateDraftTab() {
-  const qc = useQueryClient();
-  const [description, setDescription] = useState("");
-  const [category, setCategory]       = useState("Receptionist");
-  const [creating, setCreating]       = useState(false);
-  const [lastDraft, setLastDraft]     = useState<any>(null);
-  const [openDraftId, setOpenDraftId] = useState<string | null>(null);
-
-  const createFn  = useServerFn(createWorkflowDraft);
-  const listFn    = useServerFn(getWorkflowDrafts);
-  const deleteFn  = useServerFn(deleteWorkflowDraft);
-
-  const { data: drafts, isLoading, refetch } = useQuery({
-    queryKey: ["sm-drafts"],
-    queryFn: () => listFn({ data: {} }),
-  });
-  const draftList: any[] = (drafts as any[]) ?? [];
-
-  async function handleCreate() {
-    if (!description.trim()) { toast.error("Enter a description"); return; }
-    setCreating(true);
-    try {
-      const res: any = await createFn({ data: { description, category } });
-      setLastDraft(res.draft);
-      setOpenDraftId(res.draftId);
-      toast.success("Draft workflow created");
-      refetch();
-      qc.invalidateQueries({ queryKey: ["sm-drafts"] });
-    } catch (e: any) {
-      toast.error(e?.message ?? "Draft creation failed");
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    try {
-      await deleteFn({ data: { id } });
-      toast.success("Draft deleted");
-      refetch();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Delete failed");
-    }
-  }
-
-  return (
-    <div className="space-y-5">
-      <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
-        <p className="text-xs font-semibold">Generate Workflow Draft</p>
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe the workflow you want to create… e.g. 'A real estate intake agent that qualifies leads, books property viewings via Cal.com, and sends a confirmation WhatsApp'"
-          className="text-xs min-h-[80px] resize-none"
-        />
-        <div className="flex gap-2">
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="h-8 text-xs flex-1">
-              <SelectValue placeholder="Category" />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={handleCreate} disabled={creating || !description.trim()} className="text-xs gap-1.5 shrink-0">
-            {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-            Generate Draft
-          </Button>
-        </div>
-        <p className="text-[10px] text-muted-foreground">
-          Drafts are never deployed automatically. Review the structure in the Builder before using it.
-        </p>
-      </div>
-
-      {isLoading && <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
-
-      {!isLoading && draftList.length === 0 && !lastDraft && (
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-10 text-center">
-          <Sparkles className="h-7 w-7 text-muted-foreground mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">No drafts yet</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Fill in the form above to generate your first draft</p>
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {draftList.map((d) => {
-          const isOpen = openDraftId === d.id;
-          const draftData = isOpen && lastDraft && openDraftId === d.id ? lastDraft : d;
-          return (
-            <div key={d.id} className="rounded-xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
-              <div className="flex items-center gap-3 px-4 py-3">
-                <GitBranch className="h-4 w-4 text-sky-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold truncate">{d.title}</p>
-                  <p className="text-[10px] text-muted-foreground">{d.category} · {(d.nodes ?? []).length} nodes · draft</p>
-                </div>
-                <button onClick={() => setOpenDraftId(isOpen ? null : d.id)} className="text-muted-foreground hover:text-foreground">
-                  {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                </button>
-                <Button size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-400" onClick={() => handleDelete(d.id)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-
-              {isOpen && (
-                <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
-                  {/* Nodes */}
-                  {(draftData.nodes ?? []).length > 0 && (
-                    <section>
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Nodes ({(draftData.nodes as any[]).length})</p>
-                      <div className="space-y-1">
-                        {(draftData.nodes as any[]).map((n: any, i: number) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <code className="text-[9px] bg-white/[0.04] border border-white/[0.05] rounded px-1 py-0.5 text-sky-300 shrink-0">{n.type ?? n.id}</code>
-                            <span className="text-xs text-muted-foreground truncate">{n.name ?? n.description ?? n.instruction ?? ""}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
-
-                  {/* Variables */}
-                  {(draftData.variables ?? []).length > 0 && (
-                    <section>
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Variables</p>
-                      <div className="flex flex-wrap gap-1">
-                        {(draftData.variables as any[]).map((v: any, i: number) => (
-                          <span key={i} className="text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
-                            {"{{"}{v.name}{"}}"} <span className="opacity-50">{v.type}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </section>
-                  )}
-
-                  {/* Tools */}
-                  {(draftData.tools ?? []).length > 0 && (
-                    <section>
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Tools</p>
-                      {(draftData.tools as any[]).map((t: any, i: number) => (
-                        <div key={i} className="text-xs text-muted-foreground">• <strong>{t.name}</strong>: {t.description}</div>
-                      ))}
-                    </section>
-                  )}
-
-                  {/* Suggestions */}
-                  {(draftData.kb_suggestions ?? []).length > 0 && (
-                    <section className="rounded-lg bg-sky-500/[0.05] border border-sky-500/10 px-3 py-2">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <BookOpen className="h-3 w-3 text-sky-400" />
-                        <p className="text-[10px] font-semibold text-sky-400">KB Suggestions</p>
-                      </div>
-                      {(draftData.kb_suggestions as string[]).map((s, i) => (
-                        <p key={i} className="text-xs text-muted-foreground">• {s}</p>
-                      ))}
-                    </section>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Inspect & Repair tab ──────────────────────────────────────────────────────
 function RepairTab() {
-  const [agentId, setAgentId]     = useState("");
+  const [agentId, setAgentId]       = useState("");
   const [inspecting, setInspecting] = useState(false);
-  const [result, setResult]       = useState<any>(null);
+  const [result, setResult]         = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const agentListFn = useServerFn(getSystemMindAgentList);
@@ -462,35 +1007,22 @@ function RepairTab() {
     try {
       const res: any = await inspectFn({ data: { agentId } });
       setResult(res);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Inspection failed");
-    } finally {
-      setInspecting(false);
-    }
+    } catch (e: any) { toast.error(e?.message ?? "Inspection failed"); }
+    finally { setInspecting(false); }
   }
 
   async function handleSubmitToHiveMind() {
     if (!result) return;
     setSubmitting(true);
     try {
-      await submitFn({
-        data: {
-          agentName: result.agentName,
-          summary: result.summary,
-          issueCount: result.issues?.length ?? 0,
-        },
-      });
+      await submitFn({ data: { agentName: result.agentName, summary: result.summary, issueCount: result.issues?.length ?? 0 } });
       toast.success("Repair plan submitted to HiveMind event log");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Submit failed");
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (e: any) { toast.error(e?.message ?? "Submit failed"); }
+    finally { setSubmitting(false); }
   }
 
   return (
     <div className="space-y-4">
-      {/* Picker */}
       <div className="flex gap-2">
         <Select value={agentId} onValueChange={setAgentId}>
           <SelectTrigger className="h-8 text-xs flex-1">
@@ -519,7 +1051,6 @@ function RepairTab() {
 
       {result && !inspecting && (
         <div className="space-y-4">
-          {/* Summary */}
           <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-semibold">"{result.agentName}" — Repair Report</p>
@@ -537,30 +1068,17 @@ function RepairTab() {
             </div>
             <p className="text-xs text-muted-foreground">{result.summary}</p>
             {result.requiresApproval && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-xs gap-1.5 mt-1"
-                onClick={handleSubmitToHiveMind}
-                disabled={submitting}
-              >
+              <Button size="sm" variant="outline" className="text-xs gap-1.5 mt-1" onClick={handleSubmitToHiveMind} disabled={submitting}>
                 {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Users className="h-3 w-3" />}
                 Submit to HiveMind
               </Button>
             )}
           </div>
 
-          {/* Issues */}
           {(result.issues as RepairIssue[]).length > 0 && (
             <div className="space-y-2">
               {(result.issues as RepairIssue[]).map((issue, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "rounded-xl border px-4 py-3 space-y-1",
-                    RISK_COLORS[issue.riskLevel] ?? RISK_COLORS.medium,
-                  )}
-                >
+                <div key={i} className={cn("rounded-xl border px-4 py-3 space-y-1", RISK_COLORS[issue.riskLevel] ?? RISK_COLORS.medium)}>
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                     <span className="text-xs font-semibold">{issue.problem}</span>
@@ -610,20 +1128,20 @@ export function SystemMindWorkflowsPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       <div>
-        <h1 className="text-lg font-semibold">Workflow Library</h1>
+        <h1 className="text-lg font-semibold">Workflow Intelligence</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Scan, analyse, and generate AI agent workflows. Inspect for issues before deployment.
+          Score, analyse, clone, generate, and compare AI agent workflows. Grounded in Architecture KB, Workflow KB, and Repair KB.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-white/[0.06] gap-4">
+      <div className="flex border-b border-white/[0.06] gap-4 overflow-x-auto no-scrollbar">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "pb-2 text-xs font-medium border-b-2 -mb-px transition-colors",
+              "pb-2 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
               activeTab === tab
                 ? "border-sky-400 text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground",
@@ -635,8 +1153,10 @@ export function SystemMindWorkflowsPage() {
       </div>
 
       {activeTab === "Library"          && <LibraryTab initialHealth={search.health} />}
+      {activeTab === "Score & Health"   && <ScoreHealthTab />}
+      {activeTab === "Generate"         && <GenerateTab />}
+      {activeTab === "Compare"          && <CompareTab />}
       {activeTab === "Patterns"         && <PatternsTab />}
-      {activeTab === "Create Draft"     && <CreateDraftTab />}
       {activeTab === "Inspect & Repair" && <RepairTab />}
     </div>
   );
