@@ -26,4 +26,5 @@ export interface CalendarProvider {
   getAvailability(eventTypeId: string | number, dateFrom: string, dateTo: string): Promise<CalendarSlot[]>;
   createBooking(booking: CalendarBooking): Promise<CalendarBookingResult>;
   cancelBooking(bookingId: string | number, reason?: string): Promise<void>;
+  healthCheck?(): Promise<boolean>;
 }

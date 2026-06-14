@@ -16,4 +16,5 @@ export interface KnowledgeProvider {
   query(params: KnowledgeQueryParams): Promise<KnowledgeDocument[]>;
   upsert?(documents: KnowledgeDocument[]): Promise<void>;
   delete?(ids: string[]): Promise<void>;
+  healthCheck?(): Promise<boolean>;
 }

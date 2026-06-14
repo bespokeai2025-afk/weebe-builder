@@ -16,4 +16,5 @@ export interface AnalyticsProvider {
   readonly name: string;
   getReport(params: { from: string; to: string; metrics: string[] }): Promise<AnalyticsReport>;
   getRealtimeUsers?(): Promise<number>;
+  healthCheck?(): Promise<boolean>;
 }

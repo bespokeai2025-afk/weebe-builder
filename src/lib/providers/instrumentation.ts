@@ -72,6 +72,21 @@ export interface TrackParams<T = unknown> {
    * the call (e.g. result.costUsd). Takes precedence over costUsd.
    */
   costExtractor?: (result: T) => number;
+  /**
+   * Number of provider-specific units consumed by this call (e.g. 1 email,
+   * 1 image, 1 session). Used by trackProviderUsage to compute per-unit costs
+   * from provider_cost_rates when costUsd is 0.
+   * If unitsExtractor is provided it takes precedence.
+   */
+  unitsConsumed?: number;
+  /** Unit type label stored in provider_usage (e.g. "email", "image", "session", "api_call"). */
+  unitType?: string;
+  /**
+   * Optional extractor for variable-count operations (e.g. sendBroadcast where
+   * the number of messages sent is only known after the call).
+   * Takes precedence over unitsConsumed when provided.
+   */
+  unitsExtractor?: (result: T) => number;
 }
 
 /**
@@ -89,6 +104,9 @@ export async function withProviderTracking<T>(
     const costUsd = params.costExtractor
       ? params.costExtractor(result)
       : (params.costUsd ?? 0);
+    const unitsConsumed = params.unitsExtractor
+      ? params.unitsExtractor(result)
+      : params.unitsConsumed;
     trackProviderUsage({
       workspaceId: params.workspaceId,
       category: params.category,
@@ -96,6 +114,8 @@ export async function withProviderTracking<T>(
       durationMs: Date.now() - t0,
       costUsd,
       isError: false,
+      unitsConsumed,
+      unitType: params.unitType,
     }).catch(() => {});
     return result;
   } catch (err) {

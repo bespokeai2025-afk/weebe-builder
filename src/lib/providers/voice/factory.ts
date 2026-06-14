@@ -37,7 +37,7 @@ export function createInstrumentedVoiceProvider(
     status: inner.status,
     async createSession(params: VoiceSessionParams): Promise<VoiceSessionResult> {
       return withProviderTracking(
-        { workspaceId, category: "voice", providerName: name },
+        { workspaceId, category: "voice", providerName: name, unitsConsumed: 1, unitType: "session" },
         () => inner.createSession(params),
       );
     },

@@ -34,7 +34,7 @@ export function createAnalyticsProvider(
 
   const { workspaceId, provider: providerName } = config;
   const track = <T>(fn: () => Promise<T>) =>
-    withProviderTracking({ workspaceId, category: "analytics", providerName }, fn);
+    withProviderTracking({ workspaceId, category: "analytics", providerName, unitsConsumed: 1, unitType: "api_call" }, fn);
 
   return {
     name: inner.name,

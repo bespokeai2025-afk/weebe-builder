@@ -18,4 +18,5 @@ export interface VideoProvider {
   readonly name: string;
   generate(params: VideoGenerateParams): Promise<VideoGenerateResult>;
   pollStatus(jobId: string): Promise<VideoGenerateResult>;
+  healthCheck?(): Promise<boolean>;
 }

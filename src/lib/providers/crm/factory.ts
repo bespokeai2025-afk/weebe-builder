@@ -44,7 +44,7 @@ export function createCRMProvider(config: CRMConfig & { workspaceId?: string }):
 
   const { workspaceId, provider: providerName } = config;
   const track = <T>(fn: () => Promise<T>) =>
-    withProviderTracking({ workspaceId, category: "crm", providerName }, fn);
+    withProviderTracking({ workspaceId, category: "crm", providerName, unitsConsumed: 1, unitType: "api_call" }, fn);
 
   return {
     name: inner.name,

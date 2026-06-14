@@ -37,15 +37,19 @@ export function createVideoProvider(
   if (!config.workspaceId) return inner;
 
   const { workspaceId, provider: providerName } = config;
-  const track = <T>(fn: () => Promise<T>) =>
-    withProviderTracking({ workspaceId, category: "video", providerName }, fn);
 
   return {
     name: inner.name,
     generate: (params: VideoGenerateParams): Promise<VideoGenerateResult> =>
-      track(() => inner.generate(params)),
+      withProviderTracking(
+        { workspaceId, category: "video", providerName, unitsConsumed: 1, unitType: "video" },
+        () => inner.generate(params),
+      ),
     pollStatus: (jobId: string): Promise<VideoGenerateResult> =>
-      track(() => inner.pollStatus(jobId)),
+      withProviderTracking(
+        { workspaceId, category: "video", providerName },
+        () => inner.pollStatus(jobId),
+      ),
   };
 }
 

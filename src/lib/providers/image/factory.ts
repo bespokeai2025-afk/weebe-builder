@@ -40,13 +40,14 @@ export function createImageProvider(
   if (!config.workspaceId) return inner;
 
   const { workspaceId, provider: providerName } = config;
-  const track = <T>(fn: () => Promise<T>) =>
-    withProviderTracking({ workspaceId, category: "image", providerName }, fn);
 
   return {
     name: inner.name,
     generate: (params: ImageGenerateParams): Promise<ImageGenerateResult> =>
-      track(() => inner.generate(params)),
+      withProviderTracking(
+        { workspaceId, category: "image", providerName, unitsConsumed: 1, unitType: "image" },
+        () => inner.generate(params),
+      ),
   };
 }
 

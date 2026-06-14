@@ -16,4 +16,5 @@ export interface VoiceProvider {
   createSession(params: VoiceSessionParams): Promise<VoiceSessionResult>;
   endSession?(sessionId: string): Promise<void>;
   readonly status: "available" | "coming_soon";
+  healthCheck?(): Promise<boolean>;
 }

@@ -17,4 +17,5 @@ export interface LLMProvider {
   readonly name: string;
   generateText(params: LLMGenerateParams): Promise<LLMGenerateResult>;
   generateJson<T = unknown>(params: LLMGenerateParams): Promise<T>;
+  healthCheck?(): Promise<boolean>;
 }

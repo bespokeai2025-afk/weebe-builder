@@ -24,4 +24,5 @@ export interface EmailProvider {
   readonly name: string;
   sendEmail(msg: EmailMessage): Promise<EmailSendResult>;
   sendCampaign?(campaign: EmailCampaign): Promise<{ sent: number; failed: number }>;
+  healthCheck?(): Promise<boolean>;
 }

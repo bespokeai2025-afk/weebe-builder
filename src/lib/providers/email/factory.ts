@@ -39,7 +39,7 @@ export function createInstrumentedEmailProvider(
     name: inner.name,
     async sendEmail(message: EmailMessage): Promise<EmailSendResult> {
       return withProviderTracking(
-        { workspaceId, category: "email", providerName },
+        { workspaceId, category: "email", providerName, unitsConsumed: 1, unitType: "email" },
         () => inner.sendEmail(message),
       );
     },
@@ -47,7 +47,13 @@ export function createInstrumentedEmailProvider(
       ? {
           async sendCampaign(campaign: EmailCampaign): Promise<{ sent: number; failed: number }> {
             return withProviderTracking(
-              { workspaceId, category: "email", providerName },
+              {
+                workspaceId,
+                category: "email",
+                providerName,
+                unitType: "email",
+                unitsExtractor: (r: { sent: number; failed: number }) => r.sent,
+              },
               () => inner.sendCampaign!(campaign),
             );
           },

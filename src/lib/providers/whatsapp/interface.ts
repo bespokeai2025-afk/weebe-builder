@@ -23,4 +23,5 @@ export interface WhatsAppProvider {
   sendMessage(msg: WhatsAppMessage): Promise<{ messageId: string }>;
   sendTemplate(msg: WhatsAppTemplate): Promise<{ messageId: string }>;
   sendBroadcast(broadcast: WhatsAppBroadcast): Promise<{ sent: number; failed: number }>;
+  healthCheck?(): Promise<boolean>;
 }

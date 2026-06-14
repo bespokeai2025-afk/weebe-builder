@@ -15,4 +15,5 @@ export interface AdProvider {
   readonly name: string;
   getCampaigns(accountId: string): Promise<AdCampaignStats[]>;
   getSpendSummary(accountId: string, from: string, to: string): Promise<{ totalSpend: number; campaigns: number }>;
+  healthCheck?(): Promise<boolean>;
 }

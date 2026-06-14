@@ -36,14 +36,30 @@ export function createWhatsAppProvider(
   if (!config.workspaceId) return inner;
 
   const { workspaceId, provider: providerName } = config;
-  const track = <T>(fn: () => Promise<T>) =>
-    withProviderTracking({ workspaceId, category: "whatsapp", providerName }, fn);
 
   return {
     name: inner.name,
-    sendMessage: (msg: WhatsAppMessage) => track(() => inner.sendMessage(msg)),
-    sendTemplate: (msg: WhatsAppTemplate) => track(() => inner.sendTemplate(msg)),
-    sendBroadcast: (b: WhatsAppBroadcast) => track(() => inner.sendBroadcast(b)),
+    sendMessage: (msg: WhatsAppMessage) =>
+      withProviderTracking(
+        { workspaceId, category: "whatsapp", providerName, unitsConsumed: 1, unitType: "message" },
+        () => inner.sendMessage(msg),
+      ),
+    sendTemplate: (msg: WhatsAppTemplate) =>
+      withProviderTracking(
+        { workspaceId, category: "whatsapp", providerName, unitsConsumed: 1, unitType: "message" },
+        () => inner.sendTemplate(msg),
+      ),
+    sendBroadcast: (b: WhatsAppBroadcast) =>
+      withProviderTracking(
+        {
+          workspaceId,
+          category: "whatsapp",
+          providerName,
+          unitType: "message",
+          unitsExtractor: (r: { sent: number; failed: number }) => r.sent,
+        },
+        () => inner.sendBroadcast(b),
+      ),
   };
 }
 

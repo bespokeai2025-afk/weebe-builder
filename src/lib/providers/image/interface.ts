@@ -16,4 +16,5 @@ export interface ImageGenerateResult {
 export interface ImageProvider {
   readonly name: string;
   generate(params: ImageGenerateParams): Promise<ImageGenerateResult>;
+  healthCheck?(): Promise<boolean>;
 }
