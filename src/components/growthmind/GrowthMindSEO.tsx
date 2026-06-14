@@ -16,6 +16,7 @@ import { getGrowthMindData } from "@/lib/growthmind/growthmind.functions";
 import {
   getSeoSite,
   saveSeoSite,
+  saveAiRecs,
   type SeoKeyword,
   type ContentIdea,
 } from "@/lib/growthmind/growthmind.seo";
@@ -605,11 +606,12 @@ function ContentIdeaRow({
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function GrowthMindSEO() {
-  const qc         = useQueryClient();
-  const getSiteFn  = useServerFn(getSeoSite);
-  const saveSiteFn = useServerFn(saveSeoSite);
-  const aiRespFn   = useServerFn(getGrowthMindAIResponse);
-  const getDataFn  = useServerFn(getGrowthMindData);
+  const qc            = useQueryClient();
+  const getSiteFn     = useServerFn(getSeoSite);
+  const saveSiteFn    = useServerFn(saveSeoSite);
+  const saveAiRecsFn  = useServerFn(saveAiRecs);
+  const aiRespFn      = useServerFn(getGrowthMindAIResponse);
+  const getDataFn     = useServerFn(getGrowthMindData);
 
   const [urlInput, setUrlInput]         = useState("");
   const [saving, setSaving]             = useState(false);
@@ -647,6 +649,7 @@ export function GrowthMindSEO() {
     setSiteUrl(site.url);
     setKeywords(site.keywords);
     setContentIdeas(site.contentIdeas);
+    if (site.aiRecs) setAiInsight(site.aiRecs);
   }, [siteData]);
 
   const connected = !!siteUrl;
@@ -791,6 +794,13 @@ export function GrowthMindSEO() {
         personality: "professional",
       });
       setAiInsight(reply);
+      if (siteId) {
+        try {
+          await saveAiRecsFn({ id: siteId, text: reply });
+        } catch {
+          // non-critical — insight is already shown in UI
+        }
+      }
     } catch (e: any) {
       setAiInsight("Unable to generate recommendations: " + e.message);
     } finally {

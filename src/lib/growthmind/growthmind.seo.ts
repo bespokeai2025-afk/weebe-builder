@@ -24,6 +24,8 @@ export type SeoSite = {
   url:          string;
   keywords:     SeoKeyword[];
   contentIdeas: ContentIdea[];
+  aiRecs:       string | null;
+  aiRecAt:      string | null;
   createdAt:    string;
   updatedAt:    string;
 };
@@ -39,7 +41,7 @@ export const getSeoSite = createServerFn({ method: "GET" })
 
     const { data } = await sb
       .from("growthmind_seo_sites")
-      .select("id, url, keywords, content_ideas, created_at, updated_at")
+      .select("id, url, keywords, content_ideas, ai_recs, ai_rec_at, created_at, updated_at")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -47,12 +49,18 @@ export const getSeoSite = createServerFn({ method: "GET" })
 
     if (!data) return { site: null };
 
+    // ai_recs is stored as [{ text, at }]; grab the latest entry's text
+    const aiRecsArr = Array.isArray(data.ai_recs) ? data.ai_recs : [];
+    const latestRec = aiRecsArr.length > 0 ? aiRecsArr[aiRecsArr.length - 1] : null;
+
     return {
       site: {
         id:           data.id,
         url:          data.url,
         keywords:     (data.keywords     ?? []) as SeoKeyword[],
         contentIdeas: (data.content_ideas ?? []) as ContentIdea[],
+        aiRecs:       latestRec?.text ?? null,
+        aiRecAt:      data.ai_rec_at ?? null,
         createdAt:    data.created_at,
         updatedAt:    data.updated_at,
       } as SeoSite,
@@ -107,5 +115,34 @@ export const saveSeoSite = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
 
+    return { ok: true };
+  });
+
+export const saveAiRecs = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      id:   z.string().uuid(),
+      text: z.string(),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const now = new Date().toISOString();
+
+    const { error } = await sb
+      .from("growthmind_seo_sites")
+      .update({
+        ai_recs:    [{ text: data.text, at: now }],
+        ai_rec_at:  now,
+        updated_at: now,
+      })
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+
+    if (error) throw new Error(error.message);
     return { ok: true };
   });
