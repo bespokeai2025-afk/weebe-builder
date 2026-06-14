@@ -9,6 +9,7 @@ import {
   ChevronDown, Settings2, ArrowRight, Timer, Bot,
   Zap, MailOpen, XCircle, EyeOff, Brain, Bell, X, Newspaper,
 } from "lucide-react";
+import { HiveMindProviderHealth } from "@/components/hivemind/HiveMindProviderHealth";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindShell";
@@ -875,6 +876,9 @@ function HiveMindOverview() {
                     </div>
                   </>
                 )}
+
+                {/* Provider Health */}
+                <HiveMindProviderHealth />
               </div>
             )}
           </div>

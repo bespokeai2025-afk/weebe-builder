@@ -568,13 +568,17 @@ export function AppSidebar() {
               {email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate({ to: "/settings/calendar" })}>
+            <DropdownMenuItem onClick={() => navigate({ to: "/settings/integrations" })}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => navigate({ to: "/settings/crm" })}>
               <Settings className="mr-2 h-4 w-4" />
               CRM Integrations
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ to: "/settings/providers" })}>
+              <Database className="mr-2 h-4 w-4" />
+              Provider Registry
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {

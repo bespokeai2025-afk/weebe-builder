@@ -1,0 +1,59 @@
+import type { CrmAdapter, CrmContactInput, CrmCallActivityInput } from "@/lib/crm/crm-adapter.interface";
+import { HubSpotAdapter } from "@/lib/crm/hubspot.adapter";
+import { GoHighLevelAdapter } from "@/lib/crm/gohighlevel.adapter";
+import { SalesforceAdapter } from "./adapters/salesforce.adapter";
+import { PipedriveAdapter } from "./adapters/pipedrive.adapter";
+import { withProviderTracking } from "@/lib/providers/instrumentation";
+
+export type CRMProviderName = "hubspot" | "gohighlevel" | "salesforce" | "pipedrive" | "dynamics";
+
+export type CRMConfig =
+  | { provider: "hubspot"; apiKey: string }
+  | { provider: "gohighlevel"; apiKey: string; locationId: string }
+  | { provider: "salesforce"; instanceUrl: string; accessToken: string }
+  | { provider: "pipedrive"; apiToken: string }
+  | { provider: "dynamics"; tenantId: string; clientId: string; clientSecret: string };
+
+/**
+ * Create a CrmAdapter. When `workspaceId` is included in `config`, every
+ * method call is automatically tracked in provider_usage. Omit `workspaceId`
+ * for call sites that do not have workspace context (e.g. migrations, seeds).
+ */
+export function createCRMProvider(config: CRMConfig & { workspaceId?: string }): CrmAdapter {
+  let inner: CrmAdapter;
+  switch (config.provider) {
+    case "hubspot":
+      inner = new HubSpotAdapter(config.apiKey);
+      break;
+    case "gohighlevel":
+      inner = new GoHighLevelAdapter(config.apiKey, config.locationId);
+      break;
+    case "salesforce":
+      inner = new SalesforceAdapter({ instanceUrl: config.instanceUrl, accessToken: config.accessToken });
+      break;
+    case "pipedrive":
+      inner = new PipedriveAdapter(config.apiToken);
+      break;
+    case "dynamics":
+      throw new Error("Microsoft Dynamics CRM adapter not yet implemented.");
+    default:
+      throw new Error(`Unknown CRM provider: ${String((config as any).provider)}`);
+  }
+
+  if (!config.workspaceId) return inner;
+
+  const { workspaceId, provider: providerName } = config;
+  const track = <T>(fn: () => Promise<T>) =>
+    withProviderTracking({ workspaceId, category: "crm", providerName }, fn);
+
+  return {
+    name: inner.name,
+    upsertContact: (contact: CrmContactInput) => track(() => inner.upsertContact(contact)),
+    logCallActivity: (activity: CrmCallActivityInput) => track(() => inner.logCallActivity(activity)),
+  };
+}
+
+/** @deprecated Use createCRMProvider({ ..., workspaceId }) instead. */
+export const createInstrumentedCRMProvider = (
+  config: CRMConfig & { workspaceId: string },
+): CrmAdapter => createCRMProvider(config);

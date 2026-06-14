@@ -59,6 +59,7 @@ import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/build
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
 import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admin/test-retell-webhook'
+import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_authenticated/settings.providers'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
@@ -385,6 +386,12 @@ const ApiAdminTestRetellWebhookRoute =
     id: '/api/admin/test-retell-webhook',
     path: '/api/admin/test-retell-webhook',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedSettingsProvidersRoute =
+  AuthenticatedSettingsProvidersRouteImport.update({
+    id: '/settings/providers',
+    path: '/settings/providers',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSettingsIntegrationsRoute =
   AuthenticatedSettingsIntegrationsRouteImport.update({
@@ -829,6 +836,7 @@ export interface FileRoutesByFullPath {
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
+  '/settings/providers': typeof AuthenticatedSettingsProvidersRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -942,6 +950,7 @@ export interface FileRoutesByTo {
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
+  '/settings/providers': typeof AuthenticatedSettingsProvidersRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -1060,6 +1069,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
+  '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -1178,6 +1188,7 @@ export interface FileRouteTypes {
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
+    | '/settings/providers'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -1291,6 +1302,7 @@ export interface FileRouteTypes {
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
+    | '/settings/providers'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -1408,6 +1420,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/calendar'
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/integrations'
+    | '/_authenticated/settings/providers'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -1868,6 +1881,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/admin/test-retell-webhook'
       preLoaderRoute: typeof ApiAdminTestRetellWebhookRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/settings/providers': {
+      id: '/_authenticated/settings/providers'
+      path: '/settings/providers'
+      fullPath: '/settings/providers'
+      preLoaderRoute: typeof AuthenticatedSettingsProvidersRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings/integrations': {
       id: '/_authenticated/settings/integrations'
@@ -2459,6 +2479,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
   AuthenticatedSettingsCrmRoute: typeof AuthenticatedSettingsCrmRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
+  AuthenticatedSettingsProvidersRoute: typeof AuthenticatedSettingsProvidersRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -2491,6 +2512,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsCrmRoute: AuthenticatedSettingsCrmRoute,
   AuthenticatedSettingsIntegrationsRoute:
     AuthenticatedSettingsIntegrationsRoute,
+  AuthenticatedSettingsProvidersRoute: AuthenticatedSettingsProvidersRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

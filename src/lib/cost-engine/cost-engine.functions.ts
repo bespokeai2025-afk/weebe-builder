@@ -759,3 +759,72 @@ export function applyMarkup(cost: number, markup: Markup | null): { selling: num
   const margin = selling > 0 ? (profit / selling) * 100 : 0;
   return { selling, profit, margin };
 }
+
+// ── Provider Spend Rollup ─────────────────────────────────────────────────────
+// Aggregates provider_usage across all workspaces so the admin cost dashboard
+// can surface third-party API spend broken down by integration category.
+
+export interface ProviderSpendRow {
+  provider_category: string;
+  provider_name: string;
+  workspaces: number;
+  total_requests: number;
+  total_errors: number;
+  total_cost_usd: number;
+  total_duration_ms: number;
+}
+
+export const getProviderSpendRollup = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .handler(async (): Promise<{
+    rows: ProviderSpendRow[];
+    grandTotalUsd: number;
+    grandTotalRequests: number;
+  }> => {
+    try {
+      const { data } = await supabaseAdmin
+        .from("provider_usage" as any)
+        .select("provider_category, provider_name, requests, errors, total_cost_usd, total_duration_ms, workspace_id");
+
+      const rows = data ?? [];
+
+      // Group by category + provider_name across all workspaces
+      const map = new Map<string, ProviderSpendRow>();
+      const wsTracker = new Map<string, Set<string>>();
+
+      for (const r of rows) {
+        const key = `${r.provider_category}:${r.provider_name}`;
+        const existing = map.get(key) ?? {
+          provider_category: r.provider_category,
+          provider_name: r.provider_name,
+          workspaces: 0,
+          total_requests: 0,
+          total_errors: 0,
+          total_cost_usd: 0,
+          total_duration_ms: 0,
+        };
+        existing.total_requests += n(r.requests);
+        existing.total_errors += n(r.errors);
+        existing.total_cost_usd += n(r.total_cost_usd);
+        existing.total_duration_ms += n(r.total_duration_ms);
+        map.set(key, existing);
+
+        if (r.workspace_id) {
+          if (!wsTracker.has(key)) wsTracker.set(key, new Set());
+          wsTracker.get(key)!.add(r.workspace_id);
+        }
+      }
+
+      for (const [key, row] of map.entries()) {
+        row.workspaces = wsTracker.get(key)?.size ?? 0;
+      }
+
+      const result = Array.from(map.values()).sort((a, b) => b.total_cost_usd - a.total_cost_usd);
+      const grandTotalUsd = result.reduce((s, r) => s + r.total_cost_usd, 0);
+      const grandTotalRequests = result.reduce((s, r) => s + r.total_requests, 0);
+
+      return { rows: result, grandTotalUsd, grandTotalRequests };
+    } catch {
+      return { rows: [], grandTotalUsd: 0, grandTotalRequests: 0 };
+    }
+  });

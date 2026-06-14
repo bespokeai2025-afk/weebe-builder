@@ -17,3 +17,4 @@
 - [HiveMind Phase 4 COO mode & actions](hivemind-phase4-coo.md) — 4 modes (observe/recommend/assistant/operator) in workspace_settings.hivemind_mode; hivemind_actions table for approval workflow; HiveMindModeCtx from HiveMindShell; migration 20260622000001 must be applied.
 - [GrowthMind Multi-LLM routing](growthmind-multi-llm.md) — model-router.shared.ts exports SMART_ROUTING/MODEL_META/FALLBACK (safe client-side); server side only in model-router.server.ts + providers/.
 - [GrowthMind Content Calendar + Growth Scheduler](growthmind-calendar-scheduler.md) — 6-table schema; generateGrowthPlan bulk-inserts to growthmind_content_calendar + growthmind_marketing_tasks; HiveMind scanner extended with 4 new findings.
+- [Universal Provider Framework registry isolation](provider-registry-isolation.md) — REGISTRY is global/immutable seed; buildScopedView() clones + overlays per request — never call mergeDbSettings or mutate entries directly.
