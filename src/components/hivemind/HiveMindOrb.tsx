@@ -35,12 +35,13 @@ function MiniChat({ onClose, speaking, setSpeaking }: {
   const [recording, setRecording] = useState(false);
   const [micError, setMicError]   = useState<string | null>(null);
 
-  const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
-  const bottomRef  = useRef<HTMLDivElement>(null);
-  const audioRef   = useRef<HTMLAudioElement | null>(null);
-  const recognRef  = useRef<any>(null);
-  const prefs      = useRef(loadPrefs());
-  const userName   = useRef(loadUserName());
+  const historyRef   = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
+  const bottomRef    = useRef<HTMLDivElement>(null);
+  const audioRef     = useRef<HTMLAudioElement | null>(null);
+  const recognRef    = useRef<any>(null);
+  const ttsGenRef    = useRef(0);          // incremented on every new TTS call; stale fetches bail out
+  const prefs        = useRef(loadPrefs());
+  const userName     = useRef(loadUserName());
 
   useEffect(() => {
     if (!minimized) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,9 +56,11 @@ function MiniChat({ onClose, speaking, setSpeaking }: {
 
   async function playTTS(text: string) {
     stopAudio();
+    const gen = ++ttsGenRef.current;   // claim this generation; any older fetch will bail
     const p = prefs.current;
     try {
       const r = await ttsFn({ data: { text: text.slice(0, 600), voiceId: p.voiceId, speed: p.speed } });
+      if (gen !== ttsGenRef.current) return;   // a newer call started — discard this result
       if (!r.audioBase64) return;
       const audio = new Audio(`data:audio/mpeg;base64,${r.audioBase64}`);
       audio.playbackRate = p.speed;
@@ -66,7 +69,7 @@ function MiniChat({ onClose, speaking, setSpeaking }: {
       audio.play().catch(() => setSpeaking(false));
       audio.onended = () => { setSpeaking(false); audioRef.current = null; };
       audio.onerror = () => { setSpeaking(false); audioRef.current = null; };
-    } catch { setSpeaking(false); }
+    } catch { if (gen === ttsGenRef.current) setSpeaking(false); }
   }
 
   async function send(text: string) {
