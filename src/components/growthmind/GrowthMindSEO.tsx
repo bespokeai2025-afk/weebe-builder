@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRelativeTime } from "@/lib/use-relative-time";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
@@ -1079,18 +1080,6 @@ function GscConnectionPanel({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatRelativeTime(isoString: string): string {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1)  return "just now";
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24)   return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 30)    return `${days} day${days === 1 ? "" : "s"} ago`;
-  const months = Math.floor(days / 30);
-  return `${months} month${months === 1 ? "" : "s"} ago`;
-}
 
 // ── GSC property URL matcher ──────────────────────────────────────────────────
 
@@ -1155,13 +1144,7 @@ export function GrowthMindSEO() {
   const [aiInsight, setAiInsight]       = useState<string | null>(null);
   const [aiRecAt, setAiRecAt]           = useState<string | null>(null);
   const [aiLoading, setAiLoading]       = useState(false);
-  const [, setTimeTick]                 = useState(0);
-
-  useEffect(() => {
-    if (!aiRecAt) return;
-    const id = setInterval(() => setTimeTick(n => n + 1), 60_000);
-    return () => clearInterval(id);
-  }, [aiRecAt]);
+  const aiRecRelTime = useRelativeTime(aiRecAt);
   const [aiSuggestedIdeas, setAiSuggestedIdeas] = useState<ContentIdea[]>([]);
   const [dismissedAiIdeaIds, setDismissedAiIdeaIds] = useState<Set<string>>(new Set());
 
@@ -1836,7 +1819,7 @@ export function GrowthMindSEO() {
                       <div className="flex items-center gap-3">
                         {aiRecAt && !aiLoading && (
                           <span className="text-[11px] text-muted-foreground">
-                            Last generated: {formatRelativeTime(aiRecAt)}
+                            Last generated: {aiRecRelTime}
                           </span>
                         )}
                         <Button

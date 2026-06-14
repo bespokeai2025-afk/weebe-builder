@@ -57,17 +57,7 @@ import { listContactDocsByPhone } from "@/lib/dashboard/documents.functions";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import { CampaignPickerDialog } from "@/components/hexmail/CampaignPickerDialog";
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-function relTime(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return new Date(iso).toLocaleDateString();
-}
+import { RelativeTime } from "@/components/ui/relative-time";
 
 function fmtDatetime(iso: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -613,7 +603,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                   >
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="text-[10px] text-muted-foreground/70 tabular-nums">
-                        {relTime(note.created_at)}
+                        <RelativeTime date={note.created_at} short />
                       </span>
                       <button
                         onClick={() => handleDeleteNote(note.id)}

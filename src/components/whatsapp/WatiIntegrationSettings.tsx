@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -23,16 +24,6 @@ import {
   registerWatiWebhookFn,
 } from "@/lib/whatsapp/wati.functions";
 
-function relTime(iso: string | null | undefined) {
-  if (!iso) return null;
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
 
 export function WatiIntegrationSettings() {
   const qc = useQueryClient();
@@ -209,7 +200,7 @@ export function WatiIntegrationSettings() {
               {conn.lastTestedAt && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Last tested</span>
-                  <span className="text-foreground">{relTime(conn.lastTestedAt)}</span>
+                  <span className="text-foreground"><RelativeTime date={conn.lastTestedAt} short /></span>
                 </div>
               )}
             </div>
@@ -272,7 +263,7 @@ export function WatiIntegrationSettings() {
                     <span className="text-xs">{label}</span>
                     {(conn.lastSync as any)?.[key] && (
                       <span className="text-[10px] text-muted-foreground">
-                        synced {relTime((conn.lastSync as any)[key])}
+                        synced <RelativeTime date={(conn.lastSync as any)[key]} short />
                       </span>
                     )}
                   </div>

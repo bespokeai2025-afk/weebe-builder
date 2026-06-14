@@ -11,6 +11,7 @@ import { SaveAsTemplateDialog } from "@/components/builder/SaveAsTemplateDialog"
 import { upsertMyAgent } from "@/lib/agents/agents.functions";
 import { cn } from "@/lib/utils";
 import { restartTour } from "@/components/onboarding/useOnboarding";
+import { useRelativeTime } from "@/lib/use-relative-time";
 
 export const Route = createFileRoute("/_authenticated/builder")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -28,19 +29,6 @@ export const Route = createFileRoute("/_authenticated/builder")({
   component: BuilderPage,
 });
 
-function formatRelative(ts: number | null): string {
-  if (!ts) return "Not saved";
-  const diff = Math.max(0, Date.now() - ts);
-  const s = Math.floor(diff / 1000);
-  if (s < 5) return "Just now";
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
 
 function BuilderPage() {
   const { new: newAgent } = Route.useSearch();
@@ -58,7 +46,7 @@ function BuilderPage() {
   }, [newAgent]);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
-  const [, force] = useState(0);
+  const savedRelTime = useRelativeTime(lastSavedAt, { short: true, fallback: "Not saved" });
   const saveAgent = useServerFn(upsertMyAgent);
   const currentAgentRowId = useBuilderStore((s) => s.currentAgentRowId);
   const channelType = useBuilderStore((s) => s.settings.channelType);
@@ -100,11 +88,6 @@ function BuilderPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [saving]);
 
-  useEffect(() => {
-    const t = setInterval(() => force((n) => n + 1), 30_000);
-    return () => clearInterval(t);
-  }, []);
-
   const status = currentAgentRowId ? "Saved" : "Draft";
   const statusTone = currentAgentRowId ? "text-emerald-400" : "text-amber-400";
 
@@ -128,7 +111,7 @@ function BuilderPage() {
         ) : (
           <>
             <Check className="h-3 w-3 opacity-60" />
-            {formatRelative(lastSavedAt)}
+            {savedRelTime}
           </>
         )}
       </span>

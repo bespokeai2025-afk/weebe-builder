@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect, useRef } from "react";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Users, CalendarCheck, MessageSquare, AlertTriangle,
   CheckCircle2, Loader2, RefreshCw, Clock,
@@ -44,14 +45,6 @@ const SINCE_OPTIONS = [
 const REFRESH_MS = 90_000;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-function fmtRelative(isoStr: string) {
-  const mins = Math.round((Date.now() - new Date(isoStr).getTime()) / 60000);
-  if (mins < 2) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.round(hrs / 24)}d ago`;
-}
 function fmtDateTime(isoStr: string) {
   if (!isoStr) return "—";
   return new Date(isoStr).toLocaleString(undefined, {
@@ -197,7 +190,7 @@ function LiveIndicator({ lastUpdated, loading }: { lastUpdated: Date | null; loa
         {loading ? "Checking…" : "Live"}
       </span>
       {lastUpdated && !loading && (
-        <span className="text-muted-foreground">· {fmtRelative(lastUpdated.toISOString())}</span>
+        <span className="text-muted-foreground">· <RelativeTime date={lastUpdated} short /></span>
       )}
     </div>
   );
@@ -565,7 +558,7 @@ function HiveMindOverview() {
               ))}
               <div className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground/50 py-2 shrink-0">
                 <Clock className="h-3 w-3" />
-                {lastUpdated ? fmtRelative(lastUpdated.toISOString()) : "Checking…"}
+                {lastUpdated ? <RelativeTime date={lastUpdated} short /> : "Checking…"}
               </div>
             </div>
 
@@ -597,7 +590,7 @@ function HiveMindOverview() {
                                 </div>
                                 <p className="text-[11px] text-muted-foreground">{fmtStatus(lead.status)}{lead.phone ? " · " + lead.phone : ""}</p>
                               </div>
-                              <span className="text-[10px] text-muted-foreground shrink-0">{fmtRelative(lead.created_at)}</span>
+                              <span className="text-[10px] text-muted-foreground shrink-0"><RelativeTime date={lead.created_at} short /></span>
                               <Button asChild size="sm" variant="ghost" className="h-6 w-6 p-0 shrink-0">
                                 <Link to="/leads"><ArrowRight className="h-3 w-3" /></Link>
                               </Button>
@@ -743,7 +736,7 @@ function HiveMindOverview() {
                                   {fmtStatus(c.status)}{c.pipeline_stage ? " · " + fmtStatus(c.pipeline_stage) : ""}
                                 </p>
                               </div>
-                              <span className="text-[10px] text-muted-foreground shrink-0">{fmtRelative(c.updated_at)}</span>
+                              <span className="text-[10px] text-muted-foreground shrink-0"><RelativeTime date={c.updated_at} short /></span>
                               <Button asChild size="sm" variant="ghost" className="h-6 w-6 p-0 shrink-0">
                                 <Link to="/pipeline"><ArrowRight className="h-3 w-3" /></Link>
                               </Button>
@@ -779,7 +772,7 @@ function HiveMindOverview() {
                               )}
                             </div>
                             <div className="shrink-0 text-right">
-                              <span className="text-[10px] text-muted-foreground">{fmtRelative(m.sent_at)}</span>
+                              <span className="text-[10px] text-muted-foreground"><RelativeTime date={m.sent_at} short /></span>
                               <div className="mt-1">
                                 <Button asChild size="sm" variant="ghost" className="h-6 w-6 p-0">
                                   <Link to="/whatsapp"><ArrowRight className="h-3 w-3" /></Link>
@@ -821,7 +814,7 @@ function HiveMindOverview() {
                               </div>
                               <p className="text-[11px] text-muted-foreground">{fmtStatus(c.status)}</p>
                             </div>
-                            <span className="text-[10px] text-muted-foreground shrink-0">{fmtRelative(c.updated_at)}</span>
+                            <span className="text-[10px] text-muted-foreground shrink-0"><RelativeTime date={c.updated_at} short /></span>
                             <Button asChild size="sm" variant="ghost" className="h-6 w-6 p-0 shrink-0">
                               <Link to="/campaigns"><ArrowRight className="h-3 w-3" /></Link>
                             </Button>

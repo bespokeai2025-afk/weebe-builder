@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -43,18 +44,6 @@ export interface NotesBookingSheetProps {
   leadId?: string | null;
 }
 
-function relTime(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
-  return new Date(iso).toLocaleDateString();
-}
 
 const DURATION_OPTIONS = [
   { value: "15", label: "15 min" },
@@ -253,7 +242,7 @@ export function NotesBookingSheet({
                   >
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <span className="text-[10px] text-muted-foreground/70 tabular-nums">
-                        {relTime(note.created_at)}
+                        <RelativeTime date={note.created_at} short />
                       </span>
                       <button
                         onClick={() => handleDeleteNote(note.id)}
