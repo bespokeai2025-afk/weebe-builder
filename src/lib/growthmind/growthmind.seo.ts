@@ -5,11 +5,14 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export type SeoKeyword = {
-  id:         string;
-  term:       string;
-  volume:     number | null;
-  difficulty: number | null;
-  rank:       number | null;
+  id:              string;
+  term:            string;
+  volume:          number | null;
+  difficulty:      number | null;
+  rank:            number | null;
+  gsc_clicks?:     number | null;
+  gsc_impressions?: number | null;
+  gsc_position?:   number | null;
 };
 
 export type ContentIdea = {
@@ -81,11 +84,14 @@ export const saveSeoSite = createServerFn({ method: "POST" })
       id:           z.string().uuid().optional(),
       url:          z.string().url("Please enter a valid URL"),
       keywords:     z.array(z.object({
-        id:         z.string(),
-        term:       z.string(),
-        volume:     z.number().nullable(),
-        difficulty: z.number().min(0).max(100).nullable(),
-        rank:       z.number().nullable(),
+        id:              z.string(),
+        term:            z.string(),
+        volume:          z.number().nullable(),
+        difficulty:      z.number().min(0).max(100).nullable(),
+        rank:            z.number().nullable(),
+        gsc_clicks:      z.number().nullable().optional(),
+        gsc_impressions: z.number().nullable().optional(),
+        gsc_position:    z.number().nullable().optional(),
       })).default([]),
       contentIdeas: z.array(z.object({
         id:            z.string(),
@@ -495,4 +501,122 @@ export const fetchGscQueries = createServerFn({ method: "POST" })
       .sort((a, b) => b.impressions - a.impressions);
 
     return { queries };
+  });
+
+export const syncGscToKeywords = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      siteId:      z.string().uuid(),
+      propertyUrl: z.string(),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    // Load the site + its keywords
+    const { data: siteRow } = await sb
+      .from("growthmind_seo_sites")
+      .select("keywords")
+      .eq("id", data.siteId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (!siteRow) throw new Error("Site not found");
+    const keywords: SeoKeyword[] = siteRow.keywords ?? [];
+    if (keywords.length === 0) return { matched: 0 };
+
+    // Fetch GSC data — up to 500 rows to maximise match rate
+    const { data: settings } = await sb
+      .from("workspace_settings")
+      .select("gsc_access_token, gsc_refresh_token, gsc_token_expiry")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (!settings?.gsc_access_token) throw new Error("Google Search Console is not connected");
+
+    let accessToken: string = settings.gsc_access_token;
+
+    if (settings.gsc_token_expiry) {
+      const expiry = new Date(settings.gsc_token_expiry).getTime();
+      if (Date.now() > expiry - 60_000 && settings.gsc_refresh_token) {
+        accessToken = await refreshGscToken(sb, workspaceId, settings.gsc_refresh_token);
+      }
+    }
+
+    const endDate   = new Date();
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - 90);
+    const fmtDate = (d: Date) => d.toISOString().split("T")[0];
+
+    const encodedUrl = encodeURIComponent(data.propertyUrl);
+    const res = await fetch(
+      `https://www.googleapis.com/webmasters/v3/sites/${encodedUrl}/searchAnalytics/query`,
+      {
+        method:  "POST",
+        headers: {
+          Authorization:  `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          startDate:  fmtDate(startDate),
+          endDate:    fmtDate(endDate),
+          dimensions: ["query"],
+          rowLimit:   500,
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`GSC Search Analytics error: ${err}`);
+    }
+
+    const gscJson = await res.json() as {
+      rows?: Array<{
+        keys:        string[];
+        clicks:      number;
+        impressions: number;
+        position:    number;
+      }>;
+    };
+
+    // Build lookup map: lowercased term → GSC metrics
+    const gscMap = new Map<string, { clicks: number; impressions: number; position: number | null }>();
+    for (const row of gscJson.rows ?? []) {
+      const term = (row.keys[0] ?? "").toLowerCase();
+      gscMap.set(term, {
+        clicks:      Math.round(row.clicks),
+        impressions: Math.round(row.impressions),
+        position:    row.position ? Math.round(row.position * 10) / 10 : null,
+      });
+    }
+
+    // Merge GSC data into tracked keywords
+    let matched = 0;
+    const updated: SeoKeyword[] = keywords.map(kw => {
+      const gsc = gscMap.get(kw.term.toLowerCase());
+      if (!gsc) return kw;
+      matched++;
+      return {
+        ...kw,
+        gsc_clicks:      gsc.clicks,
+        gsc_impressions: gsc.impressions,
+        gsc_position:    gsc.position,
+      };
+    });
+
+    // Persist updated keywords
+    const now = new Date().toISOString();
+    const { error } = await sb
+      .from("growthmind_seo_sites")
+      .update({ keywords: updated, updated_at: now })
+      .eq("id", data.siteId)
+      .eq("workspace_id", workspaceId);
+
+    if (error) throw new Error(error.message);
+
+    return { matched, total: keywords.length };
   });

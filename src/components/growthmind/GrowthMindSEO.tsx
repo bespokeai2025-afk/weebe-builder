@@ -26,6 +26,7 @@ import {
   listGscProperties,
   saveGscProperty,
   fetchGscQueries,
+  syncGscToKeywords,
   type SeoKeyword,
   type ContentIdea,
   type GscQuery,
@@ -627,6 +628,14 @@ function GscSuggestModal({
 
 // ── Keyword row — view or edit ────────────────────────────────────────────────
 
+function GscBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/[0.08] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-blue-400 select-none ml-1.5">
+      GSC
+    </span>
+  );
+}
+
 function KeywordRow({
   kw, onSave, onDelete,
 }: {
@@ -641,6 +650,8 @@ function KeywordRow({
     difficulty: kw.difficulty !== null ? String(kw.difficulty) : "",
     rank:       kw.rank       !== null ? String(kw.rank)       : "",
   });
+
+  const hasGsc = kw.gsc_clicks != null || kw.gsc_impressions != null;
 
   function commit() {
     if (!draft.term.trim()) return;
@@ -704,6 +715,16 @@ function KeywordRow({
             className="h-6 text-xs w-20 tabular-nums"
           />
         </td>
+        {/* GSC columns — read-only even in edit mode */}
+        <td className="px-3 py-2 tabular-nums text-muted-foreground/60 text-center">
+          {kw.gsc_clicks != null ? kw.gsc_clicks.toLocaleString() : "—"}
+        </td>
+        <td className="px-3 py-2 tabular-nums text-muted-foreground/60 text-center">
+          {kw.gsc_impressions != null ? kw.gsc_impressions.toLocaleString() : "—"}
+        </td>
+        <td className="px-3 py-2 tabular-nums text-muted-foreground/60 text-center">
+          {kw.gsc_position != null ? `#${kw.gsc_position}` : "—"}
+        </td>
         <td className="px-3 py-2">
           <div className="flex items-center gap-1">
             <button onClick={commit} className="text-emerald-400 hover:text-emerald-300 transition-colors" title="Save">
@@ -720,7 +741,12 @@ function KeywordRow({
 
   return (
     <tr className="hover:bg-white/[0.02] transition-colors group">
-      <td className="px-4 py-2.5 font-medium">{kw.term}</td>
+      <td className="px-4 py-2.5 font-medium">
+        <span className="inline-flex items-center">
+          {kw.term}
+          {hasGsc && <GscBadge />}
+        </span>
+      </td>
       <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
         {kw.volume !== null ? kw.volume.toLocaleString() : "—"}
       </td>
@@ -729,6 +755,15 @@ function KeywordRow({
       </td>
       <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
         {kw.rank !== null ? `#${kw.rank}` : <span className="text-amber-400/80">Not ranking</span>}
+      </td>
+      <td className="px-4 py-2.5 tabular-nums text-center text-blue-300">
+        {kw.gsc_clicks != null ? kw.gsc_clicks.toLocaleString() : <span className="text-muted-foreground/40">—</span>}
+      </td>
+      <td className="px-4 py-2.5 tabular-nums text-center text-blue-300/80">
+        {kw.gsc_impressions != null ? kw.gsc_impressions.toLocaleString() : <span className="text-muted-foreground/40">—</span>}
+      </td>
+      <td className="px-4 py-2.5 tabular-nums text-center text-blue-300/70">
+        {kw.gsc_position != null ? `#${kw.gsc_position}` : <span className="text-muted-foreground/40">—</span>}
       </td>
       <td className="px-4 py-2.5">
         <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1102,6 +1137,7 @@ export function GrowthMindSEO() {
   const fetchQueryFn  = useServerFn(fetchGscQueries);
   const listPropsFn   = useServerFn(listGscProperties);
   const savePropFn    = useServerFn(saveGscProperty);
+  const syncGscFn     = useServerFn(syncGscToKeywords);
   const navigate      = useNavigate();
 
   const [urlInput, setUrlInput]         = useState("");
@@ -1130,6 +1166,7 @@ export function GrowthMindSEO() {
   const [gscQueries, setGscQueries]         = useState<GscQuery[]>([]);
   const [gscFetchLoading, setGscFetchLoading] = useState(false);
   const [gscFetchError, setGscFetchError]   = useState<string | null>(null);
+  const [gscSyncing, setGscSyncing]         = useState(false);
 
   const { data: siteData, isLoading } = useQuery({
     queryKey: ["growthmind-seo-site"],
@@ -1305,6 +1342,25 @@ export function GrowthMindSEO() {
       flashMsg("Search Console disconnected");
     } catch (e: any) {
       flashMsg("Disconnect failed: " + e.message, true);
+    }
+  }
+
+  async function handleGscSync(propertyUrl: string) {
+    if (!siteId) return;
+    setGscSyncing(true);
+    try {
+      const { matched, total } = await syncGscFn({ siteId, propertyUrl });
+      await qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] });
+      const { site } = await getSiteFn();
+      if (site) setKeywords(site.keywords);
+      flashMsg(matched > 0
+        ? `Synced GSC data for ${matched} of ${total} keyword${total !== 1 ? "s" : ""}`
+        : `No GSC matches found for your ${total} tracked keyword${total !== 1 ? "s" : ""}`
+      );
+    } catch (e: any) {
+      flashMsg("GSC sync failed: " + e.message, true);
+    } finally {
+      setGscSyncing(false);
     }
   }
 
@@ -1601,6 +1657,19 @@ export function GrowthMindSEO() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {gscStatus?.connected && gscStatus?.propertyUrl && keywords.length > 0 && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleGscSync(gscStatus.propertyUrl!)}
+                          disabled={gscSyncing}
+                          className="h-7 text-xs bg-blue-700 hover:bg-blue-600 text-white"
+                        >
+                          {gscSyncing
+                            ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Syncing…</>
+                            : <><RefreshCw className="mr-1 h-3 w-3" />Sync from GSC</>
+                          }
+                        </Button>
+                      )}
                       {gscStatus?.connected && gscStatus?.propertyUrl && (
                         <Button
                           size="sm"
@@ -1712,11 +1781,17 @@ export function GrowthMindSEO() {
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="border-b border-white/[0.06]">
-                            {["Keyword", "Volume / mo", "Difficulty", "Current Rank", ""].map(h => (
+                            {["Keyword", "Volume / mo", "Difficulty", "Current Rank"].map(h => (
                               <th key={h} className="px-4 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
                                 {h}
                               </th>
                             ))}
+                            {["Clicks", "Impressions", "GSC Pos"].map(h => (
+                              <th key={h} className="px-4 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-blue-400/60">
+                                {h}
+                              </th>
+                            ))}
+                            <th className="px-4 py-2" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/[0.04]">
