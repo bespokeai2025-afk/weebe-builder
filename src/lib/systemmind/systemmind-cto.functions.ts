@@ -194,10 +194,12 @@ export const listSystemMindReports = createServerFn({ method: "GET" })
 
 export const getSystemMindReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input: unknown) => z.object({ id: z.string() }).parse(input))
+  .handler(async ({ context, data }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
-    return { workspaceId };
+    const { getSystemMindReportServer } = await import("./systemmind-cto.server");
+    return getSystemMindReportServer(workspaceId, data.id);
   });
 
 export const generateSystemMindReport = createServerFn({ method: "POST" })

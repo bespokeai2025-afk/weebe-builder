@@ -1,26 +1,41 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { marked } from "marked";
 import { FileText, RefreshCw, Loader2, Sparkles, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SystemMindShell } from "./SystemMindShell";
 import {
   listSystemMindReports,
+  getSystemMindReport,
   generateSystemMindReport,
 } from "@/lib/systemmind/systemmind-cto.functions";
 
 export function SystemMindReportsPage() {
   const listFn = useServerFn(listSystemMindReports);
+  const getFn = useServerFn(getSystemMindReport);
   const generateFn = useServerFn(generateSystemMindReport);
   const qc = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [selected, setSelected] = useState<any | null>(null);
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
   const { data: reports, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-reports"],
     queryFn: () => listFn(),
   });
+
+  async function openReport(report: any) {
+    if (report.body) { setSelected(report); return; }
+    setLoadingId(report.id);
+    try {
+      const full = await getFn({ data: { id: report.id } });
+      setSelected(full ?? report);
+    } finally {
+      setLoadingId(null);
+    }
+  }
 
   async function generate() {
     setGenerating(true);
@@ -32,6 +47,15 @@ export function SystemMindReportsPage() {
       setGenerating(false);
     }
   }
+
+  const renderedBody = useMemo(() => {
+    if (!selected?.body) return "";
+    try {
+      return marked.parse(selected.body, { async: false }) as string;
+    } catch {
+      return selected.body;
+    }
+  }, [selected?.body]);
 
   if (selected) {
     return (
@@ -54,9 +78,10 @@ export function SystemMindReportsPage() {
             </div>
           </div>
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
-            <div className="prose prose-sm prose-invert max-w-none">
-              <pre className="whitespace-pre-wrap text-xs text-foreground leading-relaxed font-sans">{selected.body}</pre>
-            </div>
+            <div
+              className="prose prose-sm prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/80 prose-strong:text-foreground prose-li:text-foreground/80 prose-code:text-sky-300 prose-code:bg-white/[0.06] prose-code:px-1 prose-code:rounded"
+              dangerouslySetInnerHTML={{ __html: renderedBody || selected.body || "" }}
+            />
           </div>
         </div>
       </SystemMindShell>
@@ -111,10 +136,13 @@ export function SystemMindReportsPage() {
             {(reports as any[]).map((report) => (
               <button
                 key={report.id}
-                onClick={() => setSelected(report)}
-                className="w-full text-left rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 flex items-center gap-3 hover:bg-white/[0.04] transition-colors group"
+                onClick={() => openReport(report)}
+                disabled={loadingId === report.id}
+                className="w-full text-left rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 flex items-center gap-3 hover:bg-white/[0.04] transition-colors group disabled:opacity-60"
               >
-                <FileText className="h-4 w-4 text-emerald-400 shrink-0" />
+                {loadingId === report.id
+                  ? <Loader2 className="h-4 w-4 text-emerald-400 shrink-0 animate-spin" />
+                  : <FileText className="h-4 w-4 text-emerald-400 shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold truncate">{report.title}</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">

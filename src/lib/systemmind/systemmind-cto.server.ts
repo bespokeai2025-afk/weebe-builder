@@ -104,21 +104,66 @@ export async function getSystemMindIssuesServer(workspaceId: string): Promise<Sy
     issues.push({ id: "no-whatsapp", severity: "low", category: "configuration", title: "WhatsApp channel inactive", detail: "No WhatsApp Phone ID configured. WhatsApp messaging agents will not receive or send messages.", fixable: true, fixHref: "/settings" });
   }
 
-  // Agent workflow issues
+  // CRM disconnection checks
+  if (!s.hubspot_api_key && !s.ghl_api_key) {
+    issues.push({ id: "no-crm", severity: "medium", category: "configuration", title: "No CRM connected", detail: "Neither HubSpot nor GoHighLevel is connected. Agent conversations cannot be synced to a CRM.", fixable: true, fixHref: "/settings" });
+  } else {
+    if (!s.hubspot_api_key) {
+      issues.push({ id: "no-hubspot", severity: "low", category: "configuration", title: "HubSpot not connected", detail: "HubSpot API key is absent. Agents relying on HubSpot CRM sync will not function.", fixable: true, fixHref: "/settings" });
+    }
+    if (!s.ghl_api_key) {
+      issues.push({ id: "no-ghl", severity: "low", category: "configuration", title: "GoHighLevel not connected", detail: "GoHighLevel API key is absent. GHL-based CRM automations will not execute.", fixable: true, fixHref: "/settings" });
+    }
+  }
+
+  // Agent workflow structural analysis (mirrors analyzeWorkflowRepair deterministic checks)
   try {
-    const { data: wfRows } = await sb.from("systemmind_workflow_library").select("workflow_name, node_count, edge_count, category, agent_id").eq("workspace_id", workspaceId);
-    if (wfRows) {
-      for (const wf of wfRows) {
-        const nc = Number(wf.node_count ?? 0);
-        const ec = Number(wf.edge_count ?? 0);
-        if (nc === 0) {
-          issues.push({ id: `wf-empty-${wf.agent_id}`, severity: "high", category: "agent", title: `Empty flow: "${wf.workflow_name}"`, detail: `Agent has no flow nodes. It cannot handle any conversation.`, fixable: true, fixHref: "/systemmind/workflows" });
-        } else if (nc > 1 && ec === 0) {
-          issues.push({ id: `wf-disconnected-${wf.agent_id}`, severity: "high", category: "agent", title: `Disconnected flow: "${wf.workflow_name}"`, detail: `Agent has ${nc} nodes but no edges connecting them. The flow will stall after the first node.`, fixable: true, fixHref: "/systemmind/workflows" });
+    const { data: agents } = await sb.from("agents").select("id, name, flow_data").eq("workspace_id", workspaceId);
+    if (agents) {
+      for (const agent of agents) {
+        const flowData = agent.flow_data ?? {};
+        const nodes: any[] = Array.isArray(flowData.nodes) ? flowData.nodes : [];
+        const edges: any[] = Array.isArray(flowData.edges) ? flowData.edges : [];
+        if (nodes.length === 0) {
+          issues.push({ id: `wf-empty-${agent.id}`, severity: "high", category: "agent", title: `Empty flow: "${agent.name}"`, detail: "Agent has no flow nodes. It cannot handle any conversation.", fixable: true, fixHref: "/systemmind/workflows" });
+          continue;
+        }
+        // Build in/out degree maps
+        const inDeg = new Map<string, number>();
+        const outDeg = new Map<string, number>();
+        for (const n of nodes) { inDeg.set(n.id, 0); outDeg.set(n.id, 0); }
+        for (const e of edges) {
+          inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
+          outDeg.set(e.source, (outDeg.get(e.source) ?? 0) + 1);
+        }
+        // Missing / ambiguous entry point
+        const startNodes = nodes.filter((n) => (inDeg.get(n.id) ?? 0) === 0 && String(n.type ?? "").toLowerCase() !== "end");
+        if (nodes.length > 1 && startNodes.length === 0) {
+          issues.push({ id: `wf-no-start-${agent.id}`, severity: "critical", category: "agent", title: `No entry point: "${agent.name}"`, detail: "Every node has at least one incoming edge (loop). The flow will never start.", fixable: true, fixHref: "/systemmind/workflows" });
+        } else if (startNodes.length > 1) {
+          issues.push({ id: `wf-multi-start-${agent.id}`, severity: "high", category: "agent", title: `Ambiguous entry: "${agent.name}"`, detail: `${startNodes.length} nodes have no incoming edges. The provider may pick the wrong entry point.`, fixable: true, fixHref: "/systemmind/workflows" });
+        }
+        // Missing end node
+        const endNodes = nodes.filter((n) => (outDeg.get(n.id) ?? 0) === 0);
+        if (endNodes.length === 0) {
+          issues.push({ id: `wf-no-end-${agent.id}`, severity: "high", category: "agent", title: `No terminal node: "${agent.name}"`, detail: "No terminal node found. The call may loop indefinitely or not terminate cleanly.", fixable: true, fixHref: "/systemmind/workflows" });
+        }
+        // Fully disconnected nodes
+        for (const n of nodes) {
+          if ((inDeg.get(n.id) ?? 0) === 0 && (outDeg.get(n.id) ?? 0) === 0 && nodes.length > 1) {
+            issues.push({ id: `wf-orphan-${agent.id}-${n.id}`, severity: "medium", category: "agent", title: `Orphan node in "${agent.name}"`, detail: `Node "${n.id}" (type: ${n.type ?? "unknown"}) is disconnected — unreachable and never executes.`, fixable: true, fixHref: "/systemmind/workflows" });
+          }
+        }
+        // Webhook nodes missing URL
+        for (const n of nodes) {
+          const nd = n.data ?? {};
+          if ((String(n.type ?? "").toLowerCase().includes("webhook") || nd.webhookUrl !== undefined) && !nd.webhookUrl && !nd.webhook_url) {
+            issues.push({ id: `wf-webhook-nourl-${agent.id}-${n.id}`, severity: "high", category: "agent", title: `Webhook missing URL in "${agent.name}"`, detail: `Webhook node "${n.id}" has no URL. The call will fail silently on that branch.`, fixable: true, fixHref: "/systemmind/workflows" });
+          }
         }
       }
     }
-  } catch { /* workflow library may not be populated */ }
+  } catch { /* graceful — agents table or flow_data may be missing */ }
 
   // Provider usage error rate check
   try {
@@ -378,7 +423,7 @@ export async function deleteSystemMindTaskServer(workspaceId: string, id: string
 // ── 7. Reports ────────────────────────────────────────────────────────────────
 export async function listSystemMindReportsServer(workspaceId: string) {
   const sb = supabaseAdmin as any;
-  const { data } = await sb.from("systemmind_reports").select("id, title, model, created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(20);
+  const { data } = await sb.from("systemmind_reports").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(20);
   return data ?? [];
 }
 
@@ -441,28 +486,72 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
   const sb = supabaseAdmin as any;
   const { data: ws } = await sb.from("workspace_settings").select("*").eq("workspace_id", workspaceId).maybeSingle();
   const s = ws ?? {};
-  const hasOpenAI = !!(s.openai_api_key || process.env.OPENAI_API_KEY);
-  const hasRetell = !!(s.retell_workspace_id || process.env.RETELL_API_KEY);
-  const hasEL = !!s.elevenlabs_api_key;
-  const hasTwilio = !!(s.twilio_auth_token && s.twilio_account_sid);
-  const hasWA = !!s.whatsapp_phone_id;
-  const hasCal = !!s.calcom_api_key;
-  const hasResend = !!process.env.RESEND_API_KEY;
+
+  // Derive live status flags from workspace settings (mirrors getSystemMindData signals)
+  const hasOpenAI  = !!(s.openai_api_key || process.env.OPENAI_API_KEY);
+  const hasRetell  = !!(s.retell_workspace_id || process.env.RETELL_API_KEY);
+  const hasEL      = !!s.elevenlabs_api_key;
+  const hasTwilio  = !!(s.twilio_auth_token && s.twilio_account_sid);
+  const hasWA      = !!s.whatsapp_phone_id;
+  const hasCal     = !!s.calcom_api_key;
+  const hasHubSpot = !!s.hubspot_api_key;
+  const hasGHL     = !!s.ghl_api_key;
+  const hasResend  = !!process.env.RESEND_API_KEY;
+  const hasStripe  = !!(s.stripe_secret_key || process.env.STRIPE_SECRET_KEY);
+
+  // AI-enriched per-layer descriptions — cached in workspace_settings to avoid redundant calls
+  let enrichedDescriptions: Record<string, string> = {};
+  const apiKey = s.openai_api_key || process.env.OPENAI_API_KEY;
+  if (apiKey) {
+    const cacheKey = "systemmind_arch_descriptions";
+    const cached = s[cacheKey];
+    const cacheAge = cached?.ts ? Date.now() - new Date(cached.ts).getTime() : Infinity;
+    if (cached?.data && cacheAge < 24 * 60 * 60 * 1000) {
+      enrichedDescriptions = cached.data;
+    } else {
+      try {
+        const snapshot = `Active: ${[
+          hasOpenAI && "OpenAI", hasRetell && "Retell", hasEL && "ElevenLabs",
+          hasTwilio && "Twilio", hasWA && "WhatsApp", hasCal && "Cal.com",
+          hasHubSpot && "HubSpot", hasGHL && "GoHighLevel", hasResend && "Resend",
+          hasStripe && "Stripe",
+        ].filter(Boolean).join(", ") || "none"}`;
+        const raw = await gpt(
+          apiKey,
+          "You are a CTO AI. Return a JSON object mapping layer IDs to one-sentence descriptions (≤25 words) that reflect which services are actually active. Be specific and technical.",
+          `Platform snapshot: ${snapshot}\n\nLayer IDs: data, ai-runtime, voice, messaging, integrations, builder, executive-layer, scheduler\n\nReturn: {"data":"...","ai-runtime":"...","voice":"...","messaging":"...","integrations":"...","builder":"...","executive-layer":"...","scheduler":"..."}`,
+          600,
+        );
+        const parsed = JSON.parse(raw.replace(/```json?\n?/g, "").replace(/```\n?/g, "").trim());
+        enrichedDescriptions = typeof parsed === "object" && parsed !== null ? parsed : {};
+        // Cache for 24 h
+        await sb.from("workspace_settings")
+          .update({ [cacheKey]: { ts: new Date().toISOString(), data: enrichedDescriptions } })
+          .eq("workspace_id", workspaceId);
+      } catch { /* best-effort — fall back to static descriptions */ }
+    }
+  }
+
+  function desc(id: string, fallback: string): string {
+    return (enrichedDescriptions as any)[id] || fallback;
+  }
 
   return [
     {
       id: "data", order: 1, name: "Data Layer", role: "Persistence & vector search",
-      description: "Supabase PostgreSQL with pgvector for semantic search. Stores all agents, conversations, usage telemetry, campaign data, and executive knowledge bases.",
+      description: desc("data", "Supabase PostgreSQL with pgvector for semantic search. Stores agents, conversations, usage telemetry, campaign data, and executive knowledge bases."),
       components: [
         { name: "Supabase PostgreSQL", status: "active" },
-        { name: "pgvector (1536-dim)", status: "active" },
+        { name: "pgvector (1536-dim)", status: hasOpenAI ? "active" : "partial", note: hasOpenAI ? undefined : "Embeddings require OpenAI key" },
         { name: "Realtime subscriptions", status: "active" },
         { name: "Row-Level Security", status: "active" },
       ],
     },
     {
       id: "ai-runtime", order: 2, name: "AI Runtime", role: "LLM, embeddings & reasoning",
-      description: "OpenAI GPT-4o for executive reasoning and content generation. text-embedding-3-small for semantic vector indexing across all knowledge bases.",
+      description: desc("ai-runtime", hasOpenAI
+        ? "OpenAI GPT-4o active for executive reasoning and content generation. text-embedding-3-small indexes all knowledge bases."
+        : "OpenAI key missing — AI executives, embeddings, and all LLM features are unavailable."),
       components: [
         { name: "GPT-4o", status: hasOpenAI ? "active" : "inactive", note: hasOpenAI ? undefined : "API key missing" },
         { name: "GPT-4o-mini", status: hasOpenAI ? "active" : "inactive" },
@@ -471,7 +560,7 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
     },
     {
       id: "voice", order: 3, name: "Voice & Telephony", role: "Real-time voice agents",
-      description: "Retell AI manages the voice agent lifecycle and SIP routing. ElevenLabs provides HyperStream real-time TTS. Twilio handles outbound SIP and phone number management.",
+      description: desc("voice", `Retell AI ${hasRetell ? "active" : "inactive"} for voice lifecycle. ElevenLabs HyperStream TTS ${hasEL ? "active" : "inactive"}. Twilio SIP ${hasTwilio ? "active" : "inactive"}.`),
       components: [
         { name: "Retell AI", status: hasRetell ? "active" : "inactive", note: hasRetell ? undefined : "Not configured" },
         { name: "ElevenLabs HyperStream", status: hasEL ? "active" : "inactive", note: hasEL ? undefined : "API key missing" },
@@ -481,7 +570,7 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
     },
     {
       id: "messaging", order: 4, name: "Messaging Layer", role: "Async & WhatsApp channels",
-      description: "WhatsApp Business API (Meta/WATI) for conversational automation. Resend for transactional emails. Supports multi-channel campaigns.",
+      description: desc("messaging", `WhatsApp ${hasWA ? "active" : "inactive"}. Resend email ${hasResend ? "active" : "inactive"}. Multi-channel campaign executor active.`),
       components: [
         { name: "WhatsApp (Meta/WATI)", status: hasWA ? "active" : "inactive", note: hasWA ? undefined : "Phone ID missing" },
         { name: "Resend (email)", status: hasResend ? "active" : "inactive", note: hasResend ? undefined : "API key missing" },
@@ -490,16 +579,17 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
     },
     {
       id: "integrations", order: 5, name: "CRM & Calendar", role: "External system connectors",
-      description: "Cal.com for scheduling automation. HubSpot and GoHighLevel for CRM sync. Connectors are workspace-scoped and isolated per client.",
+      description: desc("integrations", `Cal.com ${hasCal ? "connected" : "not connected"}. HubSpot ${hasHubSpot ? "connected" : "not connected"}. GoHighLevel ${hasGHL ? "connected" : "not connected"}.`),
       components: [
         { name: "Cal.com", status: hasCal ? "active" : "inactive", note: hasCal ? undefined : "API key missing" },
-        { name: "HubSpot CRM", status: "partial", note: "Connector-based" },
-        { name: "GoHighLevel", status: "partial", note: "Connector-based" },
+        { name: "HubSpot CRM", status: hasHubSpot ? "active" : "inactive", note: hasHubSpot ? undefined : "API key missing" },
+        { name: "GoHighLevel", status: hasGHL ? "active" : "inactive", note: hasGHL ? undefined : "API key missing" },
+        { name: "Stripe", status: hasStripe ? "active" : "inactive", note: hasStripe ? undefined : "Secret key missing" },
       ],
     },
     {
       id: "builder", order: 6, name: "Agent Builder", role: "Flow design & deployment",
-      description: "Visual drag-and-drop flow builder with TanStack Start SSR. Agents are defined as flow graphs (nodes + edges) persisted in the agents table and deployed to Retell or ElevenLabs.",
+      description: desc("builder", "Visual drag-and-drop flow builder with TanStack Start SSR. Agents are defined as flow graphs and deployed to the configured voice provider."),
       components: [
         { name: "Flow Builder (React Flow)", status: "active" },
         { name: "Agent runtime (Retell)", status: hasRetell ? "active" : "inactive" },
@@ -509,7 +599,7 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
     },
     {
       id: "executive-layer", order: 7, name: "Executive AI Layer", role: "Strategic intelligence modules",
-      description: "Three AI executives share platform telemetry but are RAG-isolated per KB access rules. HiveMind (COO) coordinates all three. Each executive has its own knowledge base.",
+      description: desc("executive-layer", "Three AI executives (HiveMind/GrowthMind/SystemMind) share platform telemetry and are RAG-isolated per knowledge base access rules."),
       components: [
         { name: "HiveMind (COO)", status: "active" },
         { name: "GrowthMind (CMO)", status: hasOpenAI ? "active" : "inactive" },
@@ -519,7 +609,7 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
     },
     {
       id: "scheduler", order: 8, name: "Automation & Scheduler", role: "Campaign execution & cron",
-      description: "Campaign executor ticks every 5 minutes in dev (Vite plugin) and is triggered by pg_cron in production via POST /api/public/campaign-executor. Handles follow-up sequences and scheduled messaging.",
+      description: desc("scheduler", "Campaign executor ticks every 5 min in dev; pg_cron triggers it in production via POST /api/public/campaign-executor."),
       components: [
         { name: "Campaign executor", status: "active" },
         { name: "pg_cron (prod)", status: "partial", note: "Verify in Supabase Dashboard" },
