@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SystemMindShell } from "./SystemMindShell";
 import { getSystemMindData } from "@/lib/systemmind/systemmind.functions";
-import { getSystemMindAIResponse } from "@/lib/systemmind/systemmind.ai";
+import { supabase } from "@/integrations/supabase/client";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = { role: "user" | "assistant"; content: string; streaming?: boolean };
 
 const STARTERS = [
   "What are the highest-risk issues on the platform right now?",
@@ -19,7 +19,6 @@ const STARTERS = [
 
 export function SystemMindChatPage() {
   const dataFn = useServerFn(getSystemMindData);
-  const chatFn = useServerFn(getSystemMindAIResponse);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -28,6 +27,7 @@ export function SystemMindChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const voiceEnabledRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   const { data: platformData } = useQuery({
     queryKey: ["systemmind-data"],
@@ -65,9 +65,7 @@ export function SystemMindChatPage() {
       setListening(false);
     };
     recognition.onerror = () => setListening(false);
-    recognition.onend = () => {
-      setListening(false);
-    };
+    recognition.onend = () => setListening(false);
 
     recognition.start();
     recognitionRef.current = recognition;
@@ -96,17 +94,110 @@ export function SystemMindChatPage() {
   async function send(text?: string) {
     const content = (text ?? input).trim();
     if (!content || sending) return;
-    const newMsgs: Message[] = [...messages, { role: "user", content }];
+
+    const userMsg: Message = { role: "user", content };
+    const newMsgs: Message[] = [...messages, userMsg];
     setMessages(newMsgs);
     setInput("");
     setSending(true);
+
+    // Placeholder assistant bubble that will stream tokens into it
+    const assistantIndex = newMsgs.length;
+    setMessages((prev) => [...prev, { role: "assistant", content: "", streaming: true }]);
+
+    const abort = new AbortController();
+    abortRef.current = abort;
+
     try {
-      const res = await chatFn({ data: { messages: newMsgs, platformData, personality: "professional" } });
-      setMessages([...newMsgs, { role: "assistant", content: res.reply }]);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const res = await fetch("/api/public/systemmind/chat-stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          messages: newMsgs.map(({ role, content }) => ({ role, content })),
+          platformData,
+          personality: "professional",
+        }),
+        signal: abort.signal,
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response stream");
+
+      const dec = new TextDecoder();
+      let accumulated = "";
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += dec.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data:")) continue;
+          const payload = trimmed.slice(5).trim();
+          try {
+            const evt = JSON.parse(payload);
+            if (evt.type === "token" && evt.content) {
+              accumulated += evt.content;
+              const snap = accumulated;
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[assistantIndex] = { role: "assistant", content: snap, streaming: true };
+                return updated;
+              });
+            } else if (evt.type === "done") {
+              const final = accumulated;
+              setMessages((prev) => {
+                const updated = [...prev];
+                updated[assistantIndex] = { role: "assistant", content: final || "…", streaming: false };
+                return updated;
+              });
+            } else if (evt.type === "error") {
+              throw new Error(evt.message ?? "Stream error");
+            }
+          } catch (parseErr: any) {
+            if (parseErr?.message && !parseErr.message.startsWith("JSON")) throw parseErr;
+          }
+        }
+      }
+
+      // Finalize if done event was not explicit
+      setMessages((prev) => {
+        const updated = [...prev];
+        if (updated[assistantIndex]?.streaming) {
+          updated[assistantIndex] = { role: "assistant", content: accumulated || "…", streaming: false };
+        }
+        return updated;
+      });
     } catch (e: any) {
-      setMessages([...newMsgs, { role: "assistant", content: `⚠️ ${e?.message ?? "Request failed."}` }]);
+      if (e?.name === "AbortError") return;
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[assistantIndex] = {
+          role: "assistant",
+          content: `⚠️ ${e?.message ?? "Request failed."}`,
+          streaming: false,
+        };
+        return updated;
+      });
     } finally {
       setSending(false);
+      abortRef.current = null;
     }
   }
 
@@ -123,7 +214,6 @@ export function SystemMindChatPage() {
             <p className="text-[11px] text-muted-foreground">Technical advisor grounded in live platform telemetry</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            {/* Voice toggle */}
             <button
               onClick={toggleVoice}
               title={voiceEnabled ? "Disable voice input" : "Enable voice input"}
@@ -138,7 +228,7 @@ export function SystemMindChatPage() {
               <span className="hidden sm:inline">{voiceEnabled ? "Voice on" : "Voice"}</span>
             </button>
             {messages.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => setMessages([])}>
+              <Button variant="ghost" size="sm" onClick={() => { abortRef.current?.abort(); setMessages([]); setSending(false); }}>
                 <RefreshCw className="h-3.5 w-3.5" /> Clear
               </Button>
             )}
@@ -187,7 +277,15 @@ export function SystemMindChatPage() {
                     ? "bg-sky-500/15 text-sky-100 rounded-br-sm"
                     : "border border-white/[0.06] bg-white/[0.03] text-foreground rounded-bl-sm",
                 )}>
-                  {m.content}
+                  {m.content || (m.streaming ? (
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Thinking…</span>
+                    </span>
+                  ) : "…")}
+                  {m.streaming && m.content && (
+                    <span className="inline-block w-[2px] h-[11px] ml-[1px] bg-sky-400 animate-pulse align-middle" />
+                  )}
                 </div>
                 {m.role === "user" && (
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.08] mt-0.5">
@@ -196,16 +294,6 @@ export function SystemMindChatPage() {
                 )}
               </div>
             ))
-          )}
-          {sending && (
-            <div className="flex gap-3 justify-start">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-500/20 mt-0.5">
-                <Bot className="h-3.5 w-3.5 text-sky-400" />
-              </div>
-              <div className="border border-white/[0.06] bg-white/[0.03] rounded-xl rounded-bl-sm px-3.5 py-2.5">
-                <Loader2 className="h-4 w-4 animate-spin text-sky-400" />
-              </div>
-            </div>
           )}
           <div ref={bottomRef} />
         </div>

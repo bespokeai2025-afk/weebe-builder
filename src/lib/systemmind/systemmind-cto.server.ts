@@ -482,85 +482,90 @@ Open Recommendations: ${openRecsCount ?? 0}`;
 }
 
 // ── 8. Architecture ───────────────────────────────────────────────────────────
+// Returns exactly 8 layers named: Database, Runtime, Telephony, Providers,
+// Builder, CRM, GrowthMind, HiveMind — matching the required architecture taxonomy.
 export async function getArchitectureLayersServer(workspaceId: string): Promise<ArchitectureLayer[]> {
   const sb = supabaseAdmin as any;
   const { data: ws } = await sb.from("workspace_settings").select("*").eq("workspace_id", workspaceId).maybeSingle();
   const s = ws ?? {};
 
-  // Derive live status flags from workspace settings (mirrors getSystemMindData signals)
+  // Live status flags derived from workspace settings
   const hasOpenAI  = !!(s.openai_api_key || process.env.OPENAI_API_KEY);
   const hasRetell  = !!(s.retell_workspace_id || process.env.RETELL_API_KEY);
   const hasEL      = !!s.elevenlabs_api_key;
   const hasTwilio  = !!(s.twilio_auth_token && s.twilio_account_sid);
   const hasWA      = !!s.whatsapp_phone_id;
+  const hasWATI    = !!s.wati_api_key;
   const hasCal     = !!s.calcom_api_key;
   const hasHubSpot = !!s.hubspot_api_key;
   const hasGHL     = !!s.ghl_api_key;
   const hasResend  = !!process.env.RESEND_API_KEY;
   const hasStripe  = !!(s.stripe_secret_key || process.env.STRIPE_SECRET_KEY);
 
-  // AI-enriched per-layer descriptions — cached in workspace_settings to avoid redundant calls
-  let enrichedDescriptions: Record<string, string> = {};
+  // AI-enriched descriptions — cached 24 h in workspace_settings
+  let enriched: Record<string, string> = {};
   const apiKey = s.openai_api_key || process.env.OPENAI_API_KEY;
   if (apiKey) {
     const cacheKey = "systemmind_arch_descriptions";
     const cached = s[cacheKey];
     const cacheAge = cached?.ts ? Date.now() - new Date(cached.ts).getTime() : Infinity;
     if (cached?.data && cacheAge < 24 * 60 * 60 * 1000) {
-      enrichedDescriptions = cached.data;
+      enriched = cached.data;
     } else {
       try {
-        const snapshot = `Active: ${[
+        const active = [
           hasOpenAI && "OpenAI", hasRetell && "Retell", hasEL && "ElevenLabs",
-          hasTwilio && "Twilio", hasWA && "WhatsApp", hasCal && "Cal.com",
-          hasHubSpot && "HubSpot", hasGHL && "GoHighLevel", hasResend && "Resend",
-          hasStripe && "Stripe",
-        ].filter(Boolean).join(", ") || "none"}`;
+          hasTwilio && "Twilio", hasWA && "WhatsApp", hasWATI && "WATI",
+          hasCal && "Cal.com", hasHubSpot && "HubSpot", hasGHL && "GoHighLevel",
+          hasResend && "Resend", hasStripe && "Stripe",
+        ].filter(Boolean).join(", ") || "none";
         const raw = await gpt(
           apiKey,
-          "You are a CTO AI. Return a JSON object mapping layer IDs to one-sentence descriptions (≤25 words) that reflect which services are actually active. Be specific and technical.",
-          `Platform snapshot: ${snapshot}\n\nLayer IDs: data, ai-runtime, voice, messaging, integrations, builder, executive-layer, scheduler\n\nReturn: {"data":"...","ai-runtime":"...","voice":"...","messaging":"...","integrations":"...","builder":"...","executive-layer":"...","scheduler":"..."}`,
-          600,
+          "You are a CTO AI. Return a JSON object mapping layer IDs to one-sentence descriptions (≤25 words) that reflect which services are active. Technical and specific.",
+          `Active services: ${active}\n\nLayer IDs: database, runtime, telephony, providers, builder, crm, growthmind, hivemind\n\nReturn JSON only: {"database":"...","runtime":"...","telephony":"...","providers":"...","builder":"...","crm":"...","growthmind":"...","hivemind":"..."}`,
+          700,
         );
         const parsed = JSON.parse(raw.replace(/```json?\n?/g, "").replace(/```\n?/g, "").trim());
-        enrichedDescriptions = typeof parsed === "object" && parsed !== null ? parsed : {};
-        // Cache for 24 h
+        enriched = typeof parsed === "object" && parsed !== null ? parsed : {};
         await sb.from("workspace_settings")
-          .update({ [cacheKey]: { ts: new Date().toISOString(), data: enrichedDescriptions } })
+          .update({ [cacheKey]: { ts: new Date().toISOString(), data: enriched } })
           .eq("workspace_id", workspaceId);
-      } catch { /* best-effort — fall back to static descriptions */ }
+      } catch { /* fall back to static */ }
     }
   }
 
-  function desc(id: string, fallback: string): string {
-    return (enrichedDescriptions as any)[id] || fallback;
+  function d(id: string, fallback: string): string {
+    return (enriched as any)[id] || fallback;
   }
 
   return [
     {
-      id: "data", order: 1, name: "Data Layer", role: "Persistence & vector search",
-      description: desc("data", "Supabase PostgreSQL with pgvector for semantic search. Stores agents, conversations, usage telemetry, campaign data, and executive knowledge bases."),
+      id: "database", order: 1, name: "Database", role: "Persistence & vector search",
+      description: d("database", "Supabase PostgreSQL with pgvector for semantic search. Stores all agents, conversations, usage telemetry, campaigns, and executive knowledge bases."),
       components: [
         { name: "Supabase PostgreSQL", status: "active" },
-        { name: "pgvector (1536-dim)", status: hasOpenAI ? "active" : "partial", note: hasOpenAI ? undefined : "Embeddings require OpenAI key" },
+        { name: "pgvector (1536-dim)", status: hasOpenAI ? "active" : "partial", note: hasOpenAI ? undefined : "Needs OpenAI key for embeddings" },
         { name: "Realtime subscriptions", status: "active" },
         { name: "Row-Level Security", status: "active" },
       ],
     },
     {
-      id: "ai-runtime", order: 2, name: "AI Runtime", role: "LLM, embeddings & reasoning",
-      description: desc("ai-runtime", hasOpenAI
-        ? "OpenAI GPT-4o active for executive reasoning and content generation. text-embedding-3-small indexes all knowledge bases."
-        : "OpenAI key missing — AI executives, embeddings, and all LLM features are unavailable."),
+      id: "runtime", order: 2, name: "Runtime", role: "AI models, embeddings & automation engine",
+      description: d("runtime", hasOpenAI
+        ? "OpenAI GPT-4o active. text-embedding-3-small powers all KB RAG. Campaign executor + pg_cron automate scheduled operations."
+        : "OpenAI key missing. AI executives, RAG embeddings, and content generation are unavailable."),
       components: [
-        { name: "GPT-4o", status: hasOpenAI ? "active" : "inactive", note: hasOpenAI ? undefined : "API key missing" },
+        { name: "OpenAI GPT-4o", status: hasOpenAI ? "active" : "inactive", note: hasOpenAI ? undefined : "API key missing" },
         { name: "GPT-4o-mini", status: hasOpenAI ? "active" : "inactive" },
         { name: "text-embedding-3-small", status: hasOpenAI ? "active" : "inactive" },
+        { name: "Campaign executor", status: "active" },
+        { name: "pg_cron (prod)", status: "partial", note: "Verify in Supabase Dashboard" },
+        { name: "HiveMind scanner", status: "active" },
       ],
     },
     {
-      id: "voice", order: 3, name: "Voice & Telephony", role: "Real-time voice agents",
-      description: desc("voice", `Retell AI ${hasRetell ? "active" : "inactive"} for voice lifecycle. ElevenLabs HyperStream TTS ${hasEL ? "active" : "inactive"}. Twilio SIP ${hasTwilio ? "active" : "inactive"}.`),
+      id: "telephony", order: 3, name: "Telephony", role: "Real-time voice agents & SIP",
+      description: d("telephony", `Retell AI ${hasRetell ? "active" : "inactive"} for voice lifecycle. ElevenLabs HyperStream TTS ${hasEL ? "active" : "inactive"}. Twilio SIP ${hasTwilio ? "active" : "inactive"}.`),
       components: [
         { name: "Retell AI", status: hasRetell ? "active" : "inactive", note: hasRetell ? undefined : "Not configured" },
         { name: "ElevenLabs HyperStream", status: hasEL ? "active" : "inactive", note: hasEL ? undefined : "API key missing" },
@@ -569,27 +574,18 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
       ],
     },
     {
-      id: "messaging", order: 4, name: "Messaging Layer", role: "Async & WhatsApp channels",
-      description: desc("messaging", `WhatsApp ${hasWA ? "active" : "inactive"}. Resend email ${hasResend ? "active" : "inactive"}. Multi-channel campaign executor active.`),
+      id: "providers", order: 4, name: "Providers", role: "External service integrations",
+      description: d("providers", `Messaging via WhatsApp${hasWATI ? " + WATI" : ""}${hasResend ? " + Resend" : ""}. Payments via Stripe${hasStripe ? "" : " (not connected)"}.`),
       components: [
-        { name: "WhatsApp (Meta/WATI)", status: hasWA ? "active" : "inactive", note: hasWA ? undefined : "Phone ID missing" },
-        { name: "Resend (email)", status: hasResend ? "active" : "inactive", note: hasResend ? undefined : "API key missing" },
-        { name: "Campaign executor", status: "active" },
-      ],
-    },
-    {
-      id: "integrations", order: 5, name: "CRM & Calendar", role: "External system connectors",
-      description: desc("integrations", `Cal.com ${hasCal ? "connected" : "not connected"}. HubSpot ${hasHubSpot ? "connected" : "not connected"}. GoHighLevel ${hasGHL ? "connected" : "not connected"}.`),
-      components: [
-        { name: "Cal.com", status: hasCal ? "active" : "inactive", note: hasCal ? undefined : "API key missing" },
-        { name: "HubSpot CRM", status: hasHubSpot ? "active" : "inactive", note: hasHubSpot ? undefined : "API key missing" },
-        { name: "GoHighLevel", status: hasGHL ? "active" : "inactive", note: hasGHL ? undefined : "API key missing" },
+        { name: "WhatsApp (Meta)", status: hasWA ? "active" : "inactive", note: hasWA ? undefined : "Phone ID missing" },
+        { name: "WATI", status: hasWATI ? "active" : "inactive", note: hasWATI ? undefined : "API key missing" },
+        { name: "Resend (email)", status: hasResend ? "active" : "inactive", note: hasResend ? undefined : "RESEND_API_KEY missing" },
         { name: "Stripe", status: hasStripe ? "active" : "inactive", note: hasStripe ? undefined : "Secret key missing" },
       ],
     },
     {
-      id: "builder", order: 6, name: "Agent Builder", role: "Flow design & deployment",
-      description: desc("builder", "Visual drag-and-drop flow builder with TanStack Start SSR. Agents are defined as flow graphs and deployed to the configured voice provider."),
+      id: "builder", order: 5, name: "Builder", role: "Visual flow design & agent deployment",
+      description: d("builder", "React Flow drag-and-drop builder. Agents defined as flow graphs and deployed to Retell or ElevenLabs. Webhook engine handles event-driven branching."),
       components: [
         { name: "Flow Builder (React Flow)", status: "active" },
         { name: "Agent runtime (Retell)", status: hasRetell ? "active" : "inactive" },
@@ -598,26 +594,41 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
       ],
     },
     {
-      id: "executive-layer", order: 7, name: "Executive AI Layer", role: "Strategic intelligence modules",
-      description: desc("executive-layer", "Three AI executives (HiveMind/GrowthMind/SystemMind) share platform telemetry and are RAG-isolated per knowledge base access rules."),
+      id: "crm", order: 6, name: "CRM", role: "Customer relationship & calendar connectors",
+      description: d("crm", `HubSpot ${hasHubSpot ? "connected" : "not connected"}. GoHighLevel ${hasGHL ? "connected" : "not connected"}. Cal.com scheduling ${hasCal ? "active" : "inactive"}.`),
       components: [
-        { name: "HiveMind (COO)", status: "active" },
-        { name: "GrowthMind (CMO)", status: hasOpenAI ? "active" : "inactive" },
-        { name: "SystemMind (CTO)", status: "active" },
-        { name: "Executive KB (pgvector RAG)", status: hasOpenAI ? "active" : "inactive" },
+        { name: "HubSpot CRM", status: hasHubSpot ? "active" : "inactive", note: hasHubSpot ? undefined : "API key missing" },
+        { name: "GoHighLevel", status: hasGHL ? "active" : "inactive", note: hasGHL ? undefined : "API key missing" },
+        { name: "Cal.com", status: hasCal ? "active" : "inactive", note: hasCal ? undefined : "API key missing" },
       ],
     },
     {
-      id: "scheduler", order: 8, name: "Automation & Scheduler", role: "Campaign execution & cron",
-      description: desc("scheduler", "Campaign executor ticks every 5 min in dev; pg_cron triggers it in production via POST /api/public/campaign-executor."),
+      id: "growthmind", order: 7, name: "GrowthMind", role: "AI Chief Marketing Officer module",
+      description: d("growthmind", "GrowthMind CMO drives content calendar, growth scheduling, and marketing task generation grounded in the executive knowledge base."),
       components: [
-        { name: "Campaign executor", status: "active" },
-        { name: "pg_cron (prod)", status: "partial", note: "Verify in Supabase Dashboard" },
+        { name: "GrowthMind AI (CMO)", status: hasOpenAI ? "active" : "inactive", note: hasOpenAI ? undefined : "Requires OpenAI key" },
+        { name: "Content Calendar", status: "active" },
+        { name: "Growth Scheduler", status: "active" },
+        { name: "GrowthMind KB (RAG)", status: hasOpenAI ? "active" : "inactive" },
+      ],
+    },
+    {
+      id: "hivemind", order: 8, name: "HiveMind", role: "AI Chief Operating Officer module",
+      description: d("hivemind", "HiveMind COO observes, recommends, and coordinates all executives. Runs the HiveMind scanner and surfaces cross-platform findings."),
+      components: [
+        { name: "HiveMind AI (COO)", status: "active" },
+        { name: "Executive council", status: hasOpenAI ? "active" : "inactive" },
         { name: "HiveMind scanner", status: "active" },
-        { name: "Workflow validator", status: "active" },
+        { name: "HiveMind KB (RAG)", status: hasOpenAI ? "active" : "inactive" },
       ],
     },
   ];
+}
+
+// Singular layer lookup — returns just the requested layer by id.
+export async function getArchitectureLayerServer(workspaceId: string, layerId: string): Promise<ArchitectureLayer | null> {
+  const all = await getArchitectureLayersServer(workspaceId);
+  return all.find((l) => l.id === layerId) ?? null;
 }
 
 // ── 9. CTO Settings ───────────────────────────────────────────────────────────

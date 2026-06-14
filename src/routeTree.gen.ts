@@ -120,6 +120,7 @@ import { Route as ApiPublicVoiceWebhookHealthRouteImport } from './routes/api/pu
 import { Route as ApiPublicTelephonyStatusRouteImport } from './routes/api/public/telephony/status'
 import { Route as ApiPublicTelephonyRecordingRouteImport } from './routes/api/public/telephony/recording'
 import { Route as ApiPublicTelephonyInboundRouteImport } from './routes/api/public/telephony/inbound'
+import { Route as ApiPublicSystemmindChatStreamRouteImport } from './routes/api/public/systemmind/chat-stream'
 import { Route as ApiPublicRetellSendUploadLinkRouteImport } from './routes/api/public/retell/send-upload-link'
 import { Route as ApiPublicRetellRescheduleRouteImport } from './routes/api/public/retell/reschedule'
 import { Route as ApiPublicRetellEventTypesRouteImport } from './routes/api/public/retell/event-types'
@@ -765,6 +766,12 @@ const ApiPublicTelephonyInboundRoute =
     path: '/api/public/telephony/inbound',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicSystemmindChatStreamRoute =
+  ApiPublicSystemmindChatStreamRouteImport.update({
+    id: '/api/public/systemmind/chat-stream',
+    path: '/api/public/systemmind/chat-stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRetellSendUploadLinkRoute =
   ApiPublicRetellSendUploadLinkRouteImport.update({
     id: '/api/public/retell/send-upload-link',
@@ -1019,6 +1026,7 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
+  '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
@@ -1149,6 +1157,7 @@ export interface FileRoutesByTo {
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
+  '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
@@ -1286,6 +1295,7 @@ export interface FileRoutesById {
   '/api/public/retell/event-types': typeof ApiPublicRetellEventTypesRoute
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
+  '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
   '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
@@ -1423,6 +1433,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/retell/send-upload-link'
+    | '/api/public/systemmind/chat-stream'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
@@ -1553,6 +1564,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/retell/send-upload-link'
+    | '/api/public/systemmind/chat-stream'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
@@ -1689,6 +1701,7 @@ export interface FileRouteTypes {
     | '/api/public/retell/event-types'
     | '/api/public/retell/reschedule'
     | '/api/public/retell/send-upload-link'
+    | '/api/public/systemmind/chat-stream'
     | '/api/public/telephony/inbound'
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
@@ -1747,6 +1760,7 @@ export interface RootRouteChildren {
   ApiPublicRetellEventTypesRoute: typeof ApiPublicRetellEventTypesRoute
   ApiPublicRetellRescheduleRoute: typeof ApiPublicRetellRescheduleRoute
   ApiPublicRetellSendUploadLinkRoute: typeof ApiPublicRetellSendUploadLinkRoute
+  ApiPublicSystemmindChatStreamRoute: typeof ApiPublicSystemmindChatStreamRoute
   ApiPublicTelephonyInboundRoute: typeof ApiPublicTelephonyInboundRoute
   ApiPublicTelephonyRecordingRoute: typeof ApiPublicTelephonyRecordingRoute
   ApiPublicTelephonyStatusRoute: typeof ApiPublicTelephonyStatusRoute
@@ -2538,6 +2552,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicTelephonyInboundRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/systemmind/chat-stream': {
+      id: '/api/public/systemmind/chat-stream'
+      path: '/api/public/systemmind/chat-stream'
+      fullPath: '/api/public/systemmind/chat-stream'
+      preLoaderRoute: typeof ApiPublicSystemmindChatStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/retell/send-upload-link': {
       id: '/api/public/retell/send-upload-link'
       path: '/api/public/retell/send-upload-link'
@@ -3030,6 +3051,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellEventTypesRoute: ApiPublicRetellEventTypesRoute,
   ApiPublicRetellRescheduleRoute: ApiPublicRetellRescheduleRoute,
   ApiPublicRetellSendUploadLinkRoute: ApiPublicRetellSendUploadLinkRoute,
+  ApiPublicSystemmindChatStreamRoute: ApiPublicSystemmindChatStreamRoute,
   ApiPublicTelephonyInboundRoute: ApiPublicTelephonyInboundRoute,
   ApiPublicTelephonyRecordingRoute: ApiPublicTelephonyRecordingRoute,
   ApiPublicTelephonyStatusRoute: ApiPublicTelephonyStatusRoute,

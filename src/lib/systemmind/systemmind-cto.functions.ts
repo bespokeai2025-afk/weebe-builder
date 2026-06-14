@@ -223,6 +223,16 @@ export const getArchitectureLayers = createServerFn({ method: "GET" })
     return getArchitectureLayersServer(workspaceId);
   });
 
+export const getArchitectureLayer = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ layer: z.string() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { getArchitectureLayerServer } = await import("./systemmind-cto.server");
+    return getArchitectureLayerServer(workspaceId, data.layer);
+  });
+
 // ── CTO Settings ──────────────────────────────────────────────────────────────
 export const getSystemMindCTOSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
