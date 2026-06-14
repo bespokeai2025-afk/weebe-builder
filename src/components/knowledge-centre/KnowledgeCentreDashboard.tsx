@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import {
-  Library, Loader2, FileText, Layers, Search, Brain, TrendingUp, Server, Globe, ArrowRight, Sparkles,
+  Library, Loader2, FileText, Layers, Search, Brain,
+  TrendingUp, Server, Globe, ArrowRight, Sparkles,
+  Database, CheckCircle2, Clock, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -13,19 +15,41 @@ import {
 import { DEFAULT_EXECUTIVE_KBS } from "@/lib/executives/executive-knowledge.config";
 
 const KB_ICON: Record<string, React.ElementType> = {
-  hivemind: Brain,
+  hivemind:   Brain,
   growthmind: TrendingUp,
   systemmind: Server,
-  shared: Globe,
+  shared:     Globe,
 };
 const KB_ACCENT: Record<string, string> = {
-  hivemind: "text-violet-400 bg-violet-500/15 ring-violet-500/30",
+  hivemind:   "text-violet-400 bg-violet-500/15 ring-violet-500/30",
   growthmind: "text-emerald-400 bg-emerald-500/15 ring-emerald-500/30",
   systemmind: "text-sky-400 bg-sky-500/15 ring-sky-500/30",
-  shared: "text-amber-400 bg-amber-500/15 ring-amber-500/30",
+  shared:     "text-amber-400 bg-amber-500/15 ring-amber-500/30",
+};
+const MIND_LABEL: Record<string, string> = {
+  hivemind:   "HiveMind",
+  growthmind: "GrowthMind",
+  systemmind: "SystemMind",
+  shared:     "Shared",
+};
+const MIND_COLOR: Record<string, string> = {
+  hivemind:   "text-violet-400",
+  growthmind: "text-emerald-400",
+  systemmind: "text-sky-400",
+  shared:     "text-amber-400",
 };
 
-function Stat({ label, value, icon: Icon }: { label: string; value: number; icon: React.ElementType }) {
+function Stat({
+  label,
+  value,
+  sub,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  icon: React.ElementType;
+}) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -33,20 +57,32 @@ function Stat({ label, value, icon: Icon }: { label: string; value: number; icon
         <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
       </div>
       <p className="mt-2 text-2xl font-bold">{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
 }
 
+function formatRelative(iso: string | null): string {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 export function KnowledgeCentreDashboard() {
   const statsFn = useServerFn(getExecutiveKnowledgeStats);
-  const seedFn = useServerFn(seedExecutiveStarterKnowledge);
+  const seedFn  = useServerFn(seedExecutiveStarterKnowledge);
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["executive-knowledge-stats"],
-    queryFn: () => statsFn(),
+    queryFn:  () => statsFn(),
   });
 
-  // Self-driving starter-knowledge seeding: batches until nothing remains, then
-  // refreshes stats. Idempotent server-side, so a single run per mount is safe.
+  // Self-driving starter-knowledge seeding: batches until nothing remains.
   const seedStarted = useRef(false);
   const [seeding, setSeeding] = useState<{ remaining: number; total: number } | null>(null);
   useEffect(() => {
@@ -59,27 +95,25 @@ export function KnowledgeCentreDashboard() {
           const r = await seedFn({ data: { limit: 4 } });
           if (cancelled) return;
           if (r.remaining > 0) setSeeding({ remaining: r.remaining, total: r.total });
-          // Stop if done, or if a batch made no progress (avoids infinite loop).
           if (r.remaining === 0 || (r.processed === 0 && r.failed > 0)) break;
         }
       } catch {
-        /* seeding is best-effort; surfaced via empty KBs otherwise */
+        /* best-effort */
       } finally {
-        if (!cancelled) {
-          setSeeding(null);
-          refetch();
-        }
+        if (!cancelled) { setSeeding(null); refetch(); }
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [seedFn, refetch]);
 
-  const perKbBySlug = new Map((data?.perKb ?? []).map((k) => [k.slug, k]));
+  const perKbBySlug = new Map((data?.perKb ?? []).map((k: any) => [k.slug, k]));
+  const totals = data?.totals;
+  const perMind: Record<string, number> = data?.perMindUsage ?? {};
+  const mindKeys = Object.keys(perMind).sort((a, b) => (perMind[b] ?? 0) - (perMind[a] ?? 0));
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 md:px-8">
+    <div className="mx-auto max-w-5xl px-4 py-6 md:px-8 space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/[0.04] ring-1 ring-white/[0.08]">
           <Library className="h-5 w-5 text-foreground" />
@@ -92,11 +126,12 @@ export function KnowledgeCentreDashboard() {
         </div>
       </div>
 
+      {/* Seeding banner */}
       {seeding && (
-        <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-4 py-3 text-xs text-violet-200">
+        <div className="flex items-center gap-2.5 rounded-xl border border-violet-500/20 bg-violet-500/[0.06] px-4 py-3 text-xs text-violet-200">
           <Sparkles className="h-4 w-4 animate-pulse" />
           <span>
-            Preparing starter knowledge for your executives — {seeding.total - seeding.remaining}/{seeding.total} ready…
+            Preparing starter knowledge — {seeding.total - seeding.remaining}/{seeding.total} ready…
           </span>
         </div>
       )}
@@ -106,17 +141,87 @@ export function KnowledgeCentreDashboard() {
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
       ) : (
-        <div className="mt-6 space-y-6">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Stat label="Documents" value={data?.totals.documents ?? 0} icon={FileText} />
-            <Stat label="Chunks indexed" value={data?.totals.chunks ?? 0} icon={Layers} />
-            <Stat label="Retrievals" value={data?.totals.queries ?? 0} icon={Search} />
+        <>
+          {/* ── Stats row 1: KB-level totals ─────────────────────────── */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Stat
+              label="Knowledge Bases"
+              value={totals?.knowledgeBases ?? 0}
+              icon={Database}
+              sub="HiveMind, GrowthMind, SystemMind, Shared"
+            />
+            <Stat
+              label="Indexed Files"
+              value={totals?.indexedFiles ?? 0}
+              sub={`${totals?.documents ?? 0} total uploaded`}
+              icon={CheckCircle2}
+            />
+            <Stat
+              label="Chunks Indexed"
+              value={totals?.chunks ?? 0}
+              sub="Semantic search chunks"
+              icon={Layers}
+            />
+            <Stat
+              label="Last Upload"
+              value={formatRelative(totals?.lastUpload ?? null)}
+              sub={totals?.lastUpload ? new Date(totals.lastUpload).toLocaleDateString() : "No uploads yet"}
+              icon={Clock}
+            />
           </div>
 
+          {/* ── Stats row 2: usage totals ─────────────────────────────── */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-3">
+                <Search className="h-3.5 w-3.5" />
+                <span className="text-[11px] font-medium uppercase tracking-wide">Total Retrievals</span>
+              </div>
+              <p className="text-2xl font-bold">{totals?.queries ?? 0}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">AI knowledge lookups across all executives</p>
+            </div>
+
+            {/* Per-mind usage breakdown */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+              <div className="flex items-center gap-2 text-muted-foreground mb-3">
+                <BarChart3 className="h-3.5 w-3.5" />
+                <span className="text-[11px] font-medium uppercase tracking-wide">Usage by Executive</span>
+              </div>
+              {mindKeys.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground">No retrievals yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {mindKeys.map((mind) => {
+                    const count = perMind[mind] ?? 0;
+                    const max   = perMind[mindKeys[0]] ?? 1;
+                    const pct   = Math.round((count / max) * 100);
+                    return (
+                      <div key={mind}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className={cn("text-[11px] font-medium", MIND_COLOR[mind] ?? "text-foreground")}>
+                            {MIND_LABEL[mind] ?? mind}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">{count}</span>
+                        </div>
+                        <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                          <div
+                            className={cn("h-full rounded-full", mind === "hivemind" ? "bg-violet-500/60" : mind === "growthmind" ? "bg-emerald-500/60" : mind === "systemmind" ? "bg-sky-500/60" : "bg-amber-500/60")}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Per-KB cards ──────────────────────────────────────────── */}
           <div className="grid gap-3 sm:grid-cols-2">
             {DEFAULT_EXECUTIVE_KBS.map((kb) => {
               const Icon = KB_ICON[kb.slug] ?? Library;
-              const stat = perKbBySlug.get(kb.slug);
+              const stat = perKbBySlug.get(kb.slug) as any;
               return (
                 <Link
                   key={kb.slug}
@@ -134,21 +239,38 @@ export function KnowledgeCentreDashboard() {
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground line-clamp-2">{kb.description}</p>
                   <div className="mt-3 flex items-center gap-4 text-[11px] text-muted-foreground">
                     <span>{stat?.documentCount ?? 0} docs</span>
-                    <span>{stat?.indexedCount ?? 0} indexed</span>
-                    <span>{stat?.chunkCount ?? 0} chunks</span>
+                    <span className="text-emerald-400/80">{stat?.indexedCount ?? 0} indexed</span>
+                    {(stat?.pendingCount ?? 0) > 0 && (
+                      <span className="text-amber-400/80">{stat.pendingCount} pending</span>
+                    )}
+                    {(stat?.failedCount ?? 0) > 0 && (
+                      <span className="text-red-400/80">{stat.failedCount} failed</span>
+                    )}
+                    <span className="ml-auto">{stat?.chunkCount ?? 0} chunks</span>
                   </div>
+                  {stat?.lastUpload && (
+                    <p className="mt-1 text-[10px] text-muted-foreground/50">
+                      Last upload {formatRelative(stat.lastUpload)}
+                    </p>
+                  )}
                 </Link>
               );
             })}
           </div>
 
+          {/* ── Recent retrievals ─────────────────────────────────────── */}
           {(data?.recentQueries?.length ?? 0) > 0 && (
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-              <h2 className="text-sm font-semibold mb-3">Recent Retrievals</h2>
+              <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                Recent Retrievals
+              </h2>
               <div className="space-y-1.5">
                 {data!.recentQueries.map((q: any) => (
                   <div key={q.id} className="flex items-center gap-3 text-[11px]">
-                    <span className="shrink-0 rounded bg-white/[0.05] px-1.5 py-0.5 font-medium capitalize">{q.mind_type}</span>
+                    <span className={cn("shrink-0 rounded px-1.5 py-0.5 font-medium capitalize", MIND_COLOR[q.mind_type] ?? "text-foreground", "bg-white/[0.04]")}>
+                      {MIND_LABEL[q.mind_type] ?? q.mind_type}
+                    </span>
                     <span className="truncate text-muted-foreground">{q.query}</span>
                     <span className="ml-auto shrink-0 text-muted-foreground/60">{q.matched_count} hits</span>
                   </div>
@@ -156,7 +278,7 @@ export function KnowledgeCentreDashboard() {
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

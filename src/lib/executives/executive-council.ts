@@ -227,6 +227,7 @@ export type ExecutiveCouncilSummary = {
   council:     ExecutiveMember[];
   operations:  HiveMindExecutiveSummary;
   marketing:   GrowthMindExecutiveSummary;
+  system?:     SystemMindExecutiveSummary;   // CTO — present when workflow library is active
   topOpportunity:      ExecOpportunity | null;
   topRisk:             ExecRisk | null;
   topRecommendedAction: ExecRecommendedAction | null;

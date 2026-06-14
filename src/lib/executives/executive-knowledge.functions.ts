@@ -225,15 +225,41 @@ export const getExecutiveKnowledgeStats = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabaseAdmin as any;
     const { ensureDefaultKnowledgeBases } = await import("@/lib/executives/executive-knowledge.server");
-    const kbs = await ensureDefaultKnowledgeBases(sb, workspaceId);
 
-    const { data: docs } = await sb
-      .from("executive_documents")
-      .select("id, knowledge_base_id, embedding_status, chunk_count")
-      .eq("workspace_id", workspaceId);
+    const [kbs, docsResult, latestDocResult, recentQueriesResult, allQueriesResult] = await Promise.all([
+      ensureDefaultKnowledgeBases(sb, workspaceId),
+      sb
+        .from("executive_documents")
+        .select("id, knowledge_base_id, embedding_status, chunk_count, created_at")
+        .eq("workspace_id", workspaceId),
+      sb
+        .from("executive_documents")
+        .select("created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      sb
+        .from("executive_knowledge_queries")
+        .select("id, mind_type, query, matched_count, matched_kb_slugs, created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(10),
+      sb
+        .from("executive_knowledge_queries")
+        .select("mind_type")
+        .eq("workspace_id", workspaceId),
+    ]);
 
-    const perKb = kbs.map((kb) => {
-      const kbDocs = (docs ?? []).filter((d: any) => d.knowledge_base_id === kb.id);
+    const docs = docsResult.data ?? [];
+
+    const perKb = kbs.map((kb: any) => {
+      const kbDocs = docs.filter((d: any) => d.knowledge_base_id === kb.id);
+      const latestKbDoc = kbDocs.reduce(
+        (latest: string | null, d: any) =>
+          !latest || d.created_at > latest ? d.created_at : latest,
+        null,
+      );
       return {
         id: kb.id,
         slug: kb.slug,
@@ -241,29 +267,31 @@ export const getExecutiveKnowledgeStats = createServerFn({ method: "POST" })
         isShared: kb.is_shared,
         documentCount: kbDocs.length,
         indexedCount: kbDocs.filter((d: any) => d.embedding_status === "indexed").length,
+        pendingCount: kbDocs.filter((d: any) => d.embedding_status === "pending" || d.embedding_status === "processing").length,
+        failedCount: kbDocs.filter((d: any) => d.embedding_status === "failed").length,
         chunkCount: kbDocs.reduce((s: number, d: any) => s + (d.chunk_count ?? 0), 0),
+        lastUpload: latestKbDoc,
       };
     });
 
-    const { count: queryCount } = await sb
-      .from("executive_knowledge_queries")
-      .select("id", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId);
-
-    const { data: recentQueries } = await sb
-      .from("executive_knowledge_queries")
-      .select("id, mind_type, query, matched_count, matched_kb_slugs, created_at")
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false })
-      .limit(10);
+    // Per-mind usage breakdown
+    const allQueriesData: any[] = allQueriesResult.data ?? [];
+    const perMindUsage: Record<string, number> = {};
+    for (const q of allQueriesData) {
+      perMindUsage[q.mind_type] = (perMindUsage[q.mind_type] ?? 0) + 1;
+    }
 
     return {
       perKb,
       totals: {
-        documents: (docs ?? []).length,
-        chunks: perKb.reduce((s, k) => s + k.chunkCount, 0),
-        queries: queryCount ?? 0,
+        knowledgeBases: kbs.length,
+        documents: docs.length,
+        indexedFiles: perKb.reduce((s: number, k: any) => s + k.indexedCount, 0),
+        chunks: perKb.reduce((s: number, k: any) => s + k.chunkCount, 0),
+        queries: allQueriesData.length,
+        lastUpload: latestDocResult.data?.created_at ?? null,
       },
-      recentQueries: recentQueries ?? [],
+      perMindUsage,
+      recentQueries: recentQueriesResult.data ?? [],
     };
   });

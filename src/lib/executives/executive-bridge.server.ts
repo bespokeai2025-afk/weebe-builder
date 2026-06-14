@@ -312,22 +312,27 @@ export async function buildExecutiveCouncilSummary(
   sb: any,
   workspaceId: string,
 ): Promise<ExecutiveCouncilSummary> {
-  const [operations, marketing] = await Promise.all([
+  const [operations, marketing, system] = await Promise.all([
     buildHiveMindExecutiveSummary(sb, workspaceId),
     buildGrowthMindExecutiveSummary(sb, workspaceId),
+    buildSystemMindExecutiveSummary(sb, workspaceId),
   ]);
 
   const topOpportunity       = marketing.topOpportunities[0] ?? null;
-  const topRisk              = marketing.topRisks[0] ?? null;
-  const topRecommendedAction = marketing.recommendedActions[0] ?? null;
+  const topRisk              = marketing.topRisks[0]          ?? system.topRisks[0]          ?? null;
+  const topRecommendedAction = marketing.recommendedActions[0] ?? system.recommendedActions[0] ?? null;
 
-  const headline = `${operations.headline} ${marketing.headline}`;
+  const systemNote = system.workflowLibraryCount != null && system.workflowLibraryCount > 0
+    ? ` CTO: ${system.workflowLibraryCount} workflow${system.workflowLibraryCount !== 1 ? "s" : ""} in library${system.playbooksCount ? `, ${system.playbooksCount} repair playbooks` : ""}.`
+    : "";
+  const headline = `${operations.headline} ${marketing.headline}${systemNote}`.trim();
 
   return {
     generatedAt: new Date().toISOString(),
     council: EXECUTIVE_COUNCIL,
     operations,
     marketing,
+    system,
     topOpportunity,
     topRisk,
     topRecommendedAction,
