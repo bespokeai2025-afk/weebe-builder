@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   generateVideo, getVideoAssets, deleteVideoAsset, scheduleVideoAsset, getVideoCostStats,
-  retryVideoJob,
+  retryVideoJob, pollVideoJob, getVideoDownloadUrl,
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
   type VideoType, type QualityMode, type VideoAsset, type StoryboardScene,
 } from "@/lib/growthmind/growthmind.video-studio";
@@ -177,11 +177,31 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   onSchedule: (asset: VideoAsset) => void;
   onRetry:    (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded]           = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const [downloadError, setDownloadError] = useState("");
+
+  const getDownloadFn = useServerFn(getVideoDownloadUrl);
 
   const label  = VIDEO_TYPE_LABELS[asset.videoType] ?? asset.videoType;
   const qMode  = QUALITY_MODES.find(q => q.id === asset.qualityMode) ?? QUALITY_MODES[0];
   const QIcon  = qMode.icon;
+
+  async function handleDownload() {
+    setDownloadLoading(true);
+    setDownloadError("");
+    try {
+      const res = await getDownloadFn({ data: { id: asset.id } });
+      if (res.downloadUrl) {
+        window.open(res.downloadUrl, "_blank", "noopener,noreferrer");
+      } else {
+        setDownloadError(res.error ?? "Could not generate download URL. Check Google Cloud credentials.");
+      }
+    } catch (e: any) {
+      setDownloadError(e?.message ?? "Download failed");
+    }
+    setDownloadLoading(false);
+  }
 
   const jobPending   = isJobPending(asset.videoUrl);
   const jobError     = isJobError(asset.videoUrl);
@@ -321,14 +341,30 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
       )}
 
       {videoReady && isGcsUri && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-violet-500/15 bg-violet-500/[0.04] px-3 py-2.5">
-          <ExternalLink className="h-3.5 w-3.5 text-violet-400 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-violet-400">Video ready (Google Cloud Storage)</p>
-            <p className="text-[10px] text-muted-foreground/60 truncate" title={asset.videoUrl!}>
-              {asset.videoUrl}
-            </p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5 rounded-lg border border-violet-500/15 bg-violet-500/[0.04] px-3 py-2.5">
+            <ExternalLink className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-semibold text-violet-400">Video ready (Google Cloud Storage)</p>
+              <p className="text-[10px] text-muted-foreground/60 truncate" title={asset.videoUrl!}>
+                {asset.videoUrl}
+              </p>
+            </div>
+            <button
+              onClick={handleDownload}
+              disabled={downloadLoading}
+              className="shrink-0 flex items-center gap-1.5 rounded-lg bg-violet-500/15 border border-violet-500/25 px-2.5 py-1.5 text-[10px] font-semibold text-violet-300 hover:bg-violet-500/25 transition-colors disabled:opacity-50"
+              title="Download video from GCS"
+            >
+              {downloadLoading
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <ExternalLink className="h-3 w-3" />}
+              {downloadLoading ? "Loading…" : "Download"}
+            </button>
           </div>
+          {downloadError && (
+            <p className="text-[10px] text-red-400/80 leading-relaxed px-1">{downloadError}</p>
+          )}
         </div>
       )}
 
@@ -548,6 +584,7 @@ export function GrowthMindVideoStudio() {
   const getAssetsFn   = useServerFn(getVideoAssets);
   const deleteAssetFn = useServerFn(deleteVideoAsset);
   const retryFn       = useServerFn(retryVideoJob);
+  const pollJobFn     = useServerFn(pollVideoJob);
   const voicesFn      = useServerFn(listGrowthMindVoices);
 
   const [videoType, setVideoType]     = useState<VideoType>("explainer_video");
@@ -606,6 +643,32 @@ export function GrowthMindVideoStudio() {
   const assets = assetsData?.assets ?? [];
 
   const displayedAssets = assets;
+
+  // Active polling: every 10 s, call pollVideoJob for each pending asset so the
+  // DB is updated promptly and the query cache is invalidated on resolution.
+  useEffect(() => {
+    const pendingIds = assets.filter(a => isJobPending(a.videoUrl)).map(a => a.id);
+    if (pendingIds.length === 0) return;
+
+    const interval = setInterval(async () => {
+      let anyResolved = false;
+      await Promise.allSettled(
+        pendingIds.map(async (id) => {
+          try {
+            const res = await pollJobFn({ data: { id } });
+            if (res.status === "resolved" || res.status === "failed") {
+              anyResolved = true;
+            }
+          } catch { /* ignore transient errors */ }
+        }),
+      );
+      if (anyResolved) {
+        qc.invalidateQueries({ queryKey: ["video-assets"] });
+      }
+    }, 10_000);
+
+    return () => clearInterval(interval);
+  }, [assets, pollJobFn, qc]);
 
   async function handleGenerate() {
     setStep("strategy");

@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { routeGenerate } from "./model-router.server";
+import {
+  parseJobSentinel, isJobPending,
+} from "./video-job-poller";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -780,6 +783,199 @@ export const retryVideoJob = createServerFn({ method: "POST" })
 
     return { ok: true, videoUrl: newVideoUrl, provider: newProvider };
   });
+
+// ── Poll a single video job (called on-demand from the UI) ────────────────────
+
+export const pollVideoJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const settings    = (context as any).settings ?? {};
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: asset, error: fetchErr } = await sb
+      .from("growthmind_video_assets")
+      .select("id, video_url, provider")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (fetchErr || !asset) return { status: "not_found" as const };
+
+    const videoUrl: string | null = asset.video_url ?? null;
+
+    if (!isJobPending(videoUrl)) {
+      return { status: "not_pending" as const, videoUrl };
+    }
+
+    const job = parseJobSentinel(videoUrl);
+    if (!job) return { status: "not_pending" as const, videoUrl };
+
+    const accessToken = process.env.GOOGLE_CLOUD_ACCESS_TOKEN ?? settings.google_cloud_access_token ?? "";
+    const runwayKey   = process.env.RUNWAY_API_KEY ?? settings.runway_api_key ?? "";
+
+    let pollResult:
+      | { done: false }
+      | { done: true; videoUrl: string }
+      | { done: true; error: string };
+
+    if (job.type === "veo3") {
+      if (!accessToken) return { status: "pending" as const, videoUrl };
+      pollResult = await pollVeo3JobFn(job.jobId, accessToken);
+    } else {
+      if (!runwayKey) return { status: "pending" as const, videoUrl };
+      pollResult = await pollRunwayJobFn(job.jobId, runwayKey);
+    }
+
+    if (!pollResult.done) return { status: "pending" as const, videoUrl };
+
+    const newUrl = "videoUrl" in pollResult
+      ? pollResult.videoUrl
+      : `[error:${"error" in pollResult ? pollResult.error : "Generation failed"}]`;
+
+    const { error: updateErr } = await sb
+      .from("growthmind_video_assets")
+      .update({ video_url: newUrl })
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+
+    if (updateErr) {
+      throw new Error(`Failed to persist video result: ${updateErr.message}`);
+    }
+
+    return {
+      status: ("videoUrl" in pollResult ? "resolved" : "failed") as "resolved" | "failed",
+      videoUrl: newUrl,
+    };
+  });
+
+// ── Get a usable download URL for a GCS-hosted video ─────────────────────────
+// Veo 3 returns gs://bucket/path URIs. This server fn converts them to an
+// authenticated HTTPS download URL the browser can fetch/open directly.
+
+export const getVideoDownloadUrl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const settings    = (context as any).settings ?? {};
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: asset, error: fetchErr } = await sb
+      .from("growthmind_video_assets")
+      .select("video_url, title")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (fetchErr || !asset) throw new Error("Asset not found");
+
+    const videoUrl: string = asset.video_url ?? "";
+
+    if (!videoUrl.startsWith("gs://")) {
+      return { downloadUrl: videoUrl };
+    }
+
+    // Parse gs://bucket/object
+    const withoutScheme = videoUrl.slice("gs://".length);
+    const slashIdx      = withoutScheme.indexOf("/");
+    if (slashIdx === -1) throw new Error("Invalid GCS URI format");
+
+    const bucket = withoutScheme.slice(0, slashIdx);
+    const object = withoutScheme.slice(slashIdx + 1);
+
+    const accessToken = process.env.GOOGLE_CLOUD_ACCESS_TOKEN ?? settings.google_cloud_access_token ?? "";
+
+    if (!accessToken) {
+      // No credentials — return the raw GCS URI so the caller can show it
+      return { downloadUrl: null, gcsUri: videoUrl };
+    }
+
+    // GCS JSON API media download URL — valid while the access token is alive
+    const encodedObject = encodeURIComponent(object);
+    const downloadUrl   = `https://storage.googleapis.com/download/storage/v1/b/${bucket}/o/${encodedObject}?alt=media`;
+
+    // Verify accessibility with a HEAD request before handing URL to client
+    try {
+      const probe = await fetch(downloadUrl, {
+        method:  "HEAD",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!probe.ok) {
+        return { downloadUrl: null, gcsUri: videoUrl, error: `GCS returned ${probe.status}` };
+      }
+    } catch {
+      return { downloadUrl: null, gcsUri: videoUrl, error: "Could not reach GCS" };
+    }
+
+    // Return the URL + token so the client can open it.
+    // Note: access tokens are short-lived (~1 h) and user-scoped — acceptable here.
+    return { downloadUrl: `${downloadUrl}&access_token=${encodeURIComponent(accessToken)}` };
+  });
+
+// ── Provider poll helpers (mirrored from video-job-poller for server fn use) ──
+
+async function pollVeo3JobFn(
+  operationName: string,
+  accessToken:   string,
+): Promise<{ done: false } | { done: true; videoUrl: string } | { done: true; error: string }> {
+  try {
+    const res = await fetch(
+      `https://us-central1-aiplatform.googleapis.com/v1/${operationName}`,
+      { headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" } },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      return { done: true, error: `Veo 3 poll HTTP ${res.status}: ${text.slice(0, 200)}` };
+    }
+    const json = await res.json() as any;
+    if (json.error) return { done: true, error: json.error.message ?? JSON.stringify(json.error).slice(0, 200) };
+    if (!json.done) return { done: false };
+    const predictions = json.response?.predictions ?? [];
+    for (const pred of predictions) {
+      if (typeof pred === "string" && (pred.startsWith("http") || pred.startsWith("gs://"))) return { done: true, videoUrl: pred };
+      const uri = pred?.videoUri ?? pred?.gcsUri ?? pred?.uri ?? pred?.url;
+      if (typeof uri === "string") return { done: true, videoUrl: uri };
+      if (pred?.bytesBase64Encoded) return { done: true, videoUrl: `data:video/mp4;base64,${pred.bytesBase64Encoded}` };
+    }
+    return { done: true, error: "Veo 3 completed but no video URL found in response" };
+  } catch (e: any) {
+    return { done: true, error: `Veo 3 poll exception: ${e?.message ?? String(e)}` };
+  }
+}
+
+async function pollRunwayJobFn(
+  taskId:    string,
+  runwayKey: string,
+): Promise<{ done: false } | { done: true; videoUrl: string } | { done: true; error: string }> {
+  try {
+    const res = await fetch(`https://api.dev.runwayml.com/v1/tasks/${taskId}`, {
+      headers: { Authorization: `Bearer ${runwayKey}`, "X-Runway-Version": "2024-11-06" },
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      return { done: true, error: `Runway poll HTTP ${res.status}: ${text.slice(0, 200)}` };
+    }
+    const json = await res.json() as any;
+    const status: string = json.status ?? "";
+    if (status === "PENDING" || status === "THROTTLED" || status === "RUNNING") return { done: false };
+    if (status === "FAILED" || status === "CANCELLED") {
+      return { done: true, error: json.failure ?? json.failureCode ?? `Runway task ${status.toLowerCase()}` };
+    }
+    if (status === "SUCCEEDED") {
+      const output = json.output;
+      const url = Array.isArray(output) ? output[0] : (typeof output === "string" ? output : null);
+      if (url) return { done: true, videoUrl: url };
+      return { done: true, error: "Runway succeeded but output URL missing" };
+    }
+    return { done: false };
+  } catch (e: any) {
+    return { done: true, error: `Runway poll exception: ${e?.message ?? String(e)}` };
+  }
+}
 
 // ── HiveMind video summary ────────────────────────────────────────────────────
 
