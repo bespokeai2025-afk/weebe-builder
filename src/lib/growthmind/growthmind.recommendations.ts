@@ -1,5 +1,6 @@
-// ── GrowthMind Recommendation Engine ──────────────────────────────────────────
+// ── GrowthMind Marketing Recommendation Engine ────────────────────────────────
 // Pure client-side function — no server calls
+// Exclusively CMO/marketing focused — no platform infrastructure checks
 
 export type GrowthPriority = "critical" | "high" | "medium" | "low";
 
@@ -17,10 +18,33 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
   if (!data) return [];
 
   const recs: GrowthRecommendation[] = [];
-  const { calls, leads, bookings, campaigns, agentPerf, systemHealth, agents, whatsapp, email } = data;
+  const { calls, leads, bookings, campaigns, whatsapp, email, marketing, systemHealth } = data;
+
+  // ── CAMPAIGN READINESS ────────────────────────────────────────────────────
+  if (!systemHealth?.campaigns && (leads?.total ?? 0) > 5) {
+    recs.push({
+      id: "no-campaigns",
+      category: "Campaigns",
+      priority: "critical",
+      problem: "No outreach campaigns created — leads are not being contacted at scale",
+      impact: "Without campaigns, lead contact depends entirely on manual effort. Automation can 10× your outreach volume.",
+      fix: "Create your first call campaign targeting leads with 'need to call' status.",
+      action: { href: "/campaigns", label: "Create Campaign" },
+    });
+  } else if (!systemHealth?.activeCampaigns && systemHealth?.campaigns) {
+    recs.push({
+      id: "inactive-campaigns",
+      category: "Campaigns",
+      priority: "high",
+      problem: "All campaigns are paused — no automated outreach is running",
+      impact: "Paused campaigns mean your leads are not being contacted. Pipeline velocity drops without active outreach.",
+      fix: "Restart an existing campaign or create a new one to resume automated lead contact.",
+      action: { href: "/campaigns", label: "View Campaigns" },
+    });
+  }
 
   // ── LEAD RESPONSE TIME ────────────────────────────────────────────────────
-  if (leads.avgResponseHrs !== null && leads.avgResponseHrs > 24) {
+  if ((leads?.avgResponseHrs ?? null) !== null && leads.avgResponseHrs > 24) {
     recs.push({
       id: "slow-response",
       category: "Lead Response",
@@ -30,7 +54,7 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
       fix: "Deploy an outbound call campaign to contact new leads automatically within minutes of enquiry.",
       action: { href: "/campaigns", label: "View Campaigns" },
     });
-  } else if (leads.avgResponseHrs !== null && leads.avgResponseHrs > 4) {
+  } else if ((leads?.avgResponseHrs ?? null) !== null && leads.avgResponseHrs > 4) {
     recs.push({
       id: "medium-response",
       category: "Lead Response",
@@ -43,7 +67,7 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
   }
 
   // ── FOLLOW-UP COVERAGE ────────────────────────────────────────────────────
-  if (leads.active > 0 && leads.followUpCoverage < 50) {
+  if ((leads?.active ?? 0) > 0 && (leads?.followUpCoverage ?? 0) < 50) {
     recs.push({
       id: "low-followup",
       category: "Pipeline",
@@ -53,7 +77,7 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
       fix: "Create a call campaign targeting all untouched leads immediately.",
       action: { href: "/leads", label: "View Leads" },
     });
-  } else if (leads.active > 0 && leads.followUpCoverage < 75) {
+  } else if ((leads?.active ?? 0) > 0 && (leads?.followUpCoverage ?? 0) < 75) {
     recs.push({
       id: "medium-followup",
       category: "Pipeline",
@@ -66,7 +90,7 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
   }
 
   // ── STALE LEADS ───────────────────────────────────────────────────────────
-  if (leads.staleCount > 20) {
+  if ((leads?.staleCount ?? 0) > 20) {
     recs.push({
       id: "stale-leads-high",
       category: "Pipeline",
@@ -76,7 +100,7 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
       fix: "Re-engage stale leads with a targeted WhatsApp broadcast or re-activation call campaign.",
       action: { href: "/leads", label: "View Stale Leads" },
     });
-  } else if (leads.staleCount > 5) {
+  } else if ((leads?.staleCount ?? 0) > 5) {
     recs.push({
       id: "stale-leads-medium",
       category: "Pipeline",
@@ -89,139 +113,113 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
   }
 
   // ── CONVERSION RATE ───────────────────────────────────────────────────────
-  if (leads.total >= 20 && leads.conversionRate < 5) {
+  if ((leads?.total ?? 0) >= 20 && (leads?.conversionRate ?? 0) < 5) {
     recs.push({
       id: "low-conversion",
       category: "Conversion",
       priority: "high",
       problem: `Conversion rate is ${leads.conversionRate}% — well below industry average`,
       impact: "Most leads are not converting. Improving to 10% would double your closed deals from the same pipeline.",
-      fix: "Review your AI agent script, qualification criteria, and follow-up cadence. Consider A/B testing different opening messages.",
-      action: { href: "/my-agents", label: "Review Agents" },
+      fix: "Review your outreach script, qualification criteria, and follow-up cadence. A/B test different opening messages.",
+      action: { href: "/campaigns", label: "Review Campaigns" },
     });
-  } else if (leads.total >= 10 && leads.conversionRate < 10) {
+  } else if ((leads?.total ?? 0) >= 10 && (leads?.conversionRate ?? 0) < 10) {
     recs.push({
       id: "medium-conversion",
       category: "Conversion",
       priority: "medium",
       problem: `Conversion rate of ${leads.conversionRate}% has room to improve`,
       impact: "Each percentage point improvement compounds into significant revenue gains over time.",
-      fix: "Analyse call recordings for objections, refine your agent prompt, and add a stronger call-to-action.",
+      fix: "Analyse call outcomes for common objections, refine your messaging, and add a stronger call-to-action.",
       action: { href: "/calls", label: "Review Calls" },
     });
   }
 
   // ── BOOKING RATE ──────────────────────────────────────────────────────────
-  if (leads.total >= 10 && bookings.total === 0) {
+  if ((leads?.total ?? 0) >= 10 && (bookings?.total ?? 0) === 0) {
     recs.push({
       id: "no-bookings",
-      category: "Bookings",
+      category: "Funnel",
       priority: "high",
       problem: "No bookings recorded despite having active leads",
-      impact: "Bookings are a key conversion milestone. Zero bookings signals a funnel blockage.",
-      fix: "Connect your calendar (Cal.com) and instruct your agents to offer appointments during calls.",
-      action: { href: "/settings/calendar", label: "Connect Calendar" },
+      impact: "Bookings are a key conversion milestone. Zero bookings signals a mid-funnel blockage.",
+      fix: "Instruct your agents to offer appointment bookings and ensure your calendar is connected.",
+      action: { href: "/growthmind/lead-opportunities", label: "View Funnel" },
     });
   }
 
-  // ── CAMPAIGNS ─────────────────────────────────────────────────────────────
-  if (!systemHealth.campaigns && leads.total > 5) {
+  // ── CONTENT MARKETING ────────────────────────────────────────────────────
+  if (!(marketing?.recentContentCount > 0)) {
     recs.push({
-      id: "no-campaigns",
-      category: "Campaigns",
-      priority: "high",
-      problem: "No call campaigns created — leads are not being contacted at scale",
-      impact: "Without campaigns, lead outreach depends entirely on manual effort. Automation can 10× your outreach volume.",
-      fix: "Create your first call campaign targeting leads with 'need to call' status.",
-      action: { href: "/campaigns", label: "Create Campaign" },
-    });
-  } else if (campaigns.active === 0 && campaigns.total > 0) {
-    recs.push({
-      id: "inactive-campaigns",
-      category: "Campaigns",
+      id: "no-recent-content",
+      category: "Content",
       priority: "medium",
-      problem: "All campaigns are inactive — no automated outreach running",
-      impact: "Paused campaigns mean your leads are not being contacted. Pipeline activity drops without active outreach.",
-      fix: "Restart or create a new campaign to resume automated lead contact.",
-      action: { href: "/campaigns", label: "View Campaigns" },
+      problem: "No content published in the last 14 days",
+      impact: "Consistent content publishing builds brand authority and drives organic inbound leads at zero ad cost.",
+      fix: "Use Content Studio to generate and publish blog posts, social media, or email campaigns.",
+      action: { href: "/growthmind/content-studio", label: "Open Content Studio" },
     });
   }
 
-  // ── AGENT PERFORMANCE ─────────────────────────────────────────────────────
-  if (calls.total > 10 && calls.successRate < 30) {
+  // ── SEO ───────────────────────────────────────────────────────────────────
+  if (!(marketing?.seoKeywords > 0)) {
     recs.push({
-      id: "low-call-success",
-      category: "Agent Performance",
-      priority: "high",
-      problem: `Call success rate is only ${calls.successRate}% — agents are underperforming`,
-      impact: "Low success rates mean most outreach attempts fail. Improving to 50%+ would dramatically increase qualified opportunities.",
-      fix: "Review call recordings, update agent prompts with better objection handling, and refine your opening script.",
-      action: { href: "/calls", label: "Review Calls" },
-    });
-  }
-
-  const idleAgents = (agentPerf ?? []).filter((a: any) => a.callCount === 0 && a.deployed);
-  if (idleAgents.length > 0) {
-    recs.push({
-      id: "idle-agents",
-      category: "Agent Performance",
+      id: "no-seo-keywords",
+      category: "SEO",
       priority: "medium",
-      problem: `${idleAgents.length} deployed agent${idleAgents.length > 1 ? "s" : ""} with zero call activity`,
-      impact: "Deployed agents sitting idle are wasted capacity that could be generating revenue.",
-      fix: "Assign these agents to an active campaign or check their phone number assignment.",
-      action: { href: "/my-agents", label: "View Agents" },
+      problem: "No SEO keywords being tracked",
+      impact: "Without keyword tracking you have no visibility into organic search performance or ranking opportunities.",
+      fix: "Add your target keywords in GrowthMind SEO to start monitoring your search presence.",
+      action: { href: "/growthmind/seo", label: "Open SEO" },
     });
   }
 
-  // ── WHATSAPP ──────────────────────────────────────────────────────────────
-  if (!systemHealth.whatsapp && leads.total > 10) {
+  // ── FOLLOW-UP EMAIL CAMPAIGNS ─────────────────────────────────────────────
+  if (!systemHealth?.followUpCampaigns && (leads?.total ?? 0) > 10) {
     recs.push({
-      id: "no-whatsapp",
-      category: "Channels",
+      id: "no-followup-email",
+      category: "Nurture",
       priority: "medium",
-      problem: "WhatsApp not connected — missing a high-response outreach channel",
-      impact: "WhatsApp messages have 98% open rates vs 20% for email. Connecting it could significantly boost engagement.",
-      fix: "Set up WhatsApp integration in Buzzchat settings to reach leads via their preferred channel.",
-      action: { href: "/whatsapp", label: "Set Up Buzzchat" },
-    });
-  }
-
-  // ── EMAIL ─────────────────────────────────────────────────────────────────
-  if (!systemHealth.email && leads.total > 10) {
-    recs.push({
-      id: "no-email",
-      category: "Channels",
-      priority: "low",
-      problem: "No email campaigns — missing nurture touchpoints",
-      impact: "Email nurture sequences keep leads warm between calls, improving eventual conversion rates.",
-      fix: "Create a HexMail campaign to send follow-up sequences to unresponsive leads.",
+      problem: "No follow-up email sequence configured",
+      impact: "Email nurture sequences keep leads warm between calls, improving eventual conversion rates by up to 50%.",
+      fix: "Create a follow-up email sequence in HexMail to automatically nurture leads between touchpoints.",
       action: { href: "/hexmail", label: "Open HexMail" },
     });
   }
 
-  // ── CALENDAR ─────────────────────────────────────────────────────────────
-  if (!systemHealth.calcom) {
+  // ── WHATSAPP OUTREACH ─────────────────────────────────────────────────────
+  if (!systemHealth?.whatsapp && (leads?.total ?? 0) > 10) {
     recs.push({
-      id: "no-calendar",
-      category: "Setup",
+      id: "no-whatsapp",
+      category: "Channels",
       priority: "medium",
-      problem: "Calendar not connected — agents cannot book appointments",
-      impact: "Without calendar access, agents cannot close the loop by booking discovery calls or demos.",
-      fix: "Connect your Cal.com account in Settings to enable agent-driven bookings.",
-      action: { href: "/settings/calendar", label: "Connect Calendar" },
+      problem: "WhatsApp not connected — missing the highest-response outreach channel",
+      impact: "WhatsApp messages have 98% open rates vs 20% for email. Connecting it could significantly boost engagement.",
+      fix: "Set up WhatsApp in settings to reach leads via their preferred channel.",
+      action: { href: "/whatsapp", label: "Set Up WhatsApp" },
+    });
+  } else if (systemHealth?.whatsapp && !systemHealth?.waOutreach && (leads?.total ?? 0) > 10) {
+    recs.push({
+      id: "wa-connected-no-outreach",
+      category: "Channels",
+      priority: "low",
+      problem: "WhatsApp is connected but no outbound messages sent in the last 30 days",
+      impact: "You have WhatsApp set up but aren't using it — this is a high-ROI channel sitting idle.",
+      fix: "Send a broadcast to your leads or set up a WhatsApp campaign to re-engage your audience.",
+      action: { href: "/whatsapp", label: "Open WhatsApp" },
     });
   }
 
-  // ── NO AGENTS ─────────────────────────────────────────────────────────────
-  if (!systemHealth.agents) {
+  // ── COMPETITOR TRACKING ───────────────────────────────────────────────────
+  if (!(marketing?.competitorsCount > 0)) {
     recs.push({
-      id: "no-agents",
-      category: "Setup",
-      priority: "critical",
-      problem: "No AI agents configured",
-      impact: "Without agents, there is no automated outreach, qualification, or booking capability.",
-      fix: "Create and deploy your first AI agent from the Agents page.",
-      action: { href: "/my-agents", label: "Create Agent" },
+      id: "no-competitors",
+      category: "Strategy",
+      priority: "low",
+      problem: "No competitors being tracked in GrowthMind",
+      impact: "Without competitive intelligence you may be missing positioning opportunities or pricing insights.",
+      fix: "Add your top competitors in GrowthMind to track their moves and benchmark your performance.",
+      action: { href: "/growthmind/competitors", label: "Track Competitors" },
     });
   }
 

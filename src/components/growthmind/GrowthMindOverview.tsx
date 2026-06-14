@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import {
   TrendingUp, TrendingDown, Loader2, RefreshCw, Target, Megaphone,
-  Users, ArrowRight, Lightbulb, AlertTriangle, Minus, BookOpen, CheckCircle2,
+  ArrowRight, Lightbulb, AlertTriangle, Minus, BookOpen, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -92,7 +92,7 @@ export function GrowthMindOverview() {
               <TrendingUp className="h-5 w-5 text-emerald-400" />
               GrowthMind Overview
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Your AI-powered revenue intelligence dashboard</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Your AI Chief Marketing Officer — marketing readiness &amp; growth strategy</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["growthmind-data"] })}>
             <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
@@ -114,7 +114,7 @@ export function GrowthMindOverview() {
                 <div className="text-center min-w-[80px]">
                   <div className={cn("text-5xl font-bold tabular-nums", scoreColor)}>{score.total}</div>
                   <div className={cn("text-lg font-bold", scoreColor)}>{score.grade}</div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5 font-semibold uppercase tracking-[0.1em]">Growth Score</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5 font-semibold uppercase tracking-[0.1em]">Marketing Readiness</p>
                 </div>
 
                 <div className="flex-1 min-w-[200px] space-y-3">
@@ -196,21 +196,13 @@ export function GrowthMindOverview() {
                 momPct={t?.conversionRate?.momPct}
               />
               <StatCard
-                label="Calls (30d)"
-                value={data?.calls.total ?? 0}
-                sub={`${data?.calls.successRate ?? 0}% success rate`}
-                color="blue"
-                wowPct={t?.calls?.wowPct}
-                momPct={t?.calls?.momPct}
-              />
-              <StatCard
                 label="Active Campaigns"
                 value={data?.campaigns.active ?? 0}
-                sub={`${data?.campaigns.total ?? 0} total`}
+                sub={`${data?.campaigns.total ?? 0} total campaigns`}
                 color="purple"
               />
               <StatCard
-                label="Bookings"
+                label="Bookings (total)"
                 value={data?.bookings.total ?? 0}
                 sub={`${data?.bookings.last7 ?? 0} this week`}
                 color="amber"
@@ -221,20 +213,24 @@ export function GrowthMindOverview() {
                 label="Follow-Up Coverage"
                 value={`${data?.leads.followUpCoverage ?? 0}%`}
                 sub="of active leads contacted"
-                color={data?.leads.followUpCoverage >= 75 ? "emerald" : "amber"}
+                color={(data?.leads.followUpCoverage ?? 0) >= 75 ? "emerald" : "amber"}
               />
               <StatCard
-                label="Call Success Rate"
-                value={`${data?.calls.successRate ?? 0}%`}
-                sub={`${data?.calls.success ?? 0} of ${data?.calls.total ?? 0} calls`}
-                color={data?.calls.successRate >= 60 ? "emerald" : "amber"}
-                wowPct={t?.callSuccess?.wowPct}
-                momPct={t?.callSuccess?.momPct}
+                label="SEO Keywords"
+                value={data?.marketing?.seoKeywords ?? 0}
+                sub={`${data?.marketing?.seoSitesCount ?? 0} site${(data?.marketing?.seoSitesCount ?? 0) !== 1 ? "s" : ""} monitored`}
+                color={(data?.marketing?.seoKeywords ?? 0) > 0 ? "emerald" : "slate"}
+              />
+              <StatCard
+                label="Content (14d)"
+                value={data?.marketing?.recentContentCount ?? 0}
+                sub="pieces published"
+                color={(data?.marketing?.recentContentCount ?? 0) >= 2 ? "emerald" : "amber"}
               />
               <StatCard
                 label="WhatsApp (30d)"
                 value={data?.whatsapp.total ?? 0}
-                sub={`${data?.whatsapp.inbound ?? 0} inbound`}
+                sub={`${data?.whatsapp.outbound ?? 0} outbound`}
                 color="emerald"
               />
             </div>
@@ -246,7 +242,7 @@ export function GrowthMindOverview() {
                 <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
                   <p className="text-sm font-semibold flex items-center gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-                    Top Issues
+                    Growth Opportunities
                   </p>
                   <Link to="/growthmind/recommendations" className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5">
                     View all <ArrowRight className="h-3 w-3" />
@@ -279,15 +275,15 @@ export function GrowthMindOverview() {
                 <div className="px-4 py-3 border-b border-white/[0.06]">
                   <p className="text-sm font-semibold flex items-center gap-1.5">
                     <Lightbulb className="h-3.5 w-3.5 text-emerald-400" />
-                    Quick Actions
+                    CMO Actions
                   </p>
                 </div>
                 <div className="p-3 grid grid-cols-2 gap-2">
                   {[
-                    { label: "AI Assistant",        href: "/growthmind/chat",               icon: TrendingUp, desc: "Ask GrowthMind anything" },
+                    { label: "AI CMO Chat",         href: "/growthmind/chat",               icon: TrendingUp, desc: "Ask GrowthMind anything" },
                     { label: "Lead Opportunities",  href: "/growthmind/lead-opportunities", icon: Target,     desc: "Revenue in your pipeline" },
-                    { label: "Campaigns",           href: "/growthmind/campaigns",          icon: Megaphone,  desc: "Campaign performance" },
-                    { label: "Full Report",         href: "/growthmind/reports",            icon: Users,      desc: "Trends & marketing report" },
+                    { label: "Content Studio",      href: "/growthmind/content-studio",     icon: BookOpen,   desc: "Generate & publish content" },
+                    { label: "Full Report",         href: "/growthmind/reports",            icon: Megaphone,  desc: "Trends & marketing report" },
                   ].map(item => (
                     <Link
                       key={item.href}

@@ -30,6 +30,7 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const [
       agentsRes, callsRes, leadsRes, bookingsRes, settingsRes,
       campaignsRes, waMessagesRes, hexmailRes, telephonyRes, phoneNumsRes,
+      seoSitesRes, contentAssetsRes, competitorsRes, waContactsRes,
     ] = await Promise.all([
       sb.from("agents")
         .select("id, name, retell_agent_id, inbound_phone_number, settings, created_at, updated_at")
@@ -52,9 +53,9 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .limit(1000),
 
-      // Only fetch existence/boolean fields — no API keys returned to client
+      // Marketing-relevant settings only — no infrastructure keys
       sb.from("workspace_settings")
-        .select("calcom_api_key, retell_default_agent_id, retell_workspace_id, elevenlabs_api_key, openai_api_key, whatsapp_phone_id, twilio_auth_token, twilio_account_sid")
+        .select("calcom_api_key, whatsapp_phone_id")
         .eq("workspace_id", workspaceId)
         .maybeSingle(),
 
@@ -70,7 +71,7 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
         .limit(1000),
 
       sb.from("hexmail_campaigns")
-        .select("id, name, status, created_at, updated_at")
+        .select("id, name, status, type, created_at, updated_at")
         .eq("workspace_id", workspaceId)
         .limit(100),
 
@@ -84,6 +85,29 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
         .select("id, phone_number, agent_id, active, created_at")
         .eq("workspace_id", workspaceId)
         .limit(50),
+
+      // Marketing intelligence data
+      sb.from("growthmind_seo_sites")
+        .select("id, keywords")
+        .eq("workspace_id", workspaceId)
+        .limit(20),
+
+      sb.from("growthmind_content_assets")
+        .select("id, content_type, status, created_at")
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", since14.toISOString())
+        .limit(200),
+
+      sb.from("growthmind_competitors")
+        .select("id, name")
+        .eq("workspace_id", workspaceId)
+        .limit(50),
+
+      sb.from("whatsapp_contacts")
+        .select("id, created_at")
+        .eq("workspace_id", workspaceId)
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     const agents: any[]          = agentsRes.data          ?? [];
@@ -96,6 +120,23 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const hexmailCampaigns: any[]= hexmailRes.data         ?? [];
     const telephonyCalls: any[]  = telephonyRes.data       ?? [];
     const phoneNumbers: any[]    = phoneNumsRes.data       ?? [];
+    const seoSites: any[]        = seoSitesRes.data        ?? [];
+    const recentContent: any[]   = contentAssetsRes.data   ?? [];
+    const competitors: any[]     = competitorsRes.data     ?? [];
+
+    // Derived marketing intelligence flags
+    const totalSeoKeywords = seoSites.reduce((acc: number, s: any) => {
+      const kw = s.keywords;
+      if (Array.isArray(kw)) return acc + kw.length;
+      if (typeof kw === "string") {
+        try { const arr = JSON.parse(kw); return acc + (Array.isArray(arr) ? arr.length : 0); }
+        catch { return acc; }
+      }
+      return acc;
+    }, 0);
+    const recentContentCount = recentContent.length;
+    const competitorsCount   = competitors.length;
+    const hasWaContacts      = !!waContactsRes.data;
 
     // ── CALLS ────────────────────────────────────────────────────────────────
     const calls30   = calls.filter(c => c.started_at >= s30);
@@ -221,17 +262,26 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       };
     }).sort((a, b) => b.callCount - a.callCount);
 
-    // ── SYSTEM HEALTH — boolean flags only, no credentials ──────────────────
+    // ── MARKETING READINESS FLAGS — marketing stack status only ─────────────
+    const followUpCampaigns = hexmailCampaigns.filter((c: any) =>
+      c.type === "follow_up" ||
+      (c.name ?? "").toLowerCase().includes("follow") ||
+      (c.name ?? "").toLowerCase().includes("nurture")
+    );
+    const waOutboundLast30  = waMessages.filter(m => m.direction === "outbound").length;
+
     const systemHealth = {
-      retell:      !!(settings.retell_workspace_id || settings.retell_default_agent_id),
-      calcom:      !!settings.calcom_api_key,
-      elevenlabs:  !!settings.elevenlabs_api_key,
-      openai:      !!settings.openai_api_key,
-      whatsapp:    !!settings.whatsapp_phone_id,
-      twilio:      !!(settings.twilio_auth_token && settings.twilio_account_sid),
-      agents:      agents.length > 0,
-      campaigns:   campaigns.length > 0,
-      email:       hexmailCampaigns.length > 0,
+      campaigns:          campaigns.length > 0,
+      activeCampaigns:    activeCampaigns > 0,
+      emailCampaigns:     hexmailCampaigns.length > 0,
+      followUpCampaigns:  followUpCampaigns.length > 0,
+      whatsapp:           !!settings.whatsapp_phone_id,
+      waOutreach:         waOutboundLast30 > 0,
+      seoKeywords:        totalSeoKeywords > 0,
+      recentContent:      recentContentCount > 0,
+      competitors:        competitorsCount > 0,
+      agents:             agents.length > 0,
+      calendar:           !!settings.calcom_api_key,
     };
 
     // ── STALE LEAD DETAIL ─────────────────────────────────────────────────────
@@ -437,6 +487,15 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       email: { total: hexmailCampaigns.length, active: activeEmail },
       telephony: { total: telephonyCalls.length },
       phoneNumbers,
+      marketing: {
+        seoKeywords:        totalSeoKeywords,
+        seoSitesCount:      seoSites.length,
+        recentContentCount,
+        competitorsCount,
+        followUpCampaignsCount: followUpCampaigns.length,
+        waOutboundLast30,
+        hasWaContacts,
+      },
       systemHealth,
       // No `settings` key — credentials never leave the server
     };
