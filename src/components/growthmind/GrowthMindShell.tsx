@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   TrendingUp, BarChart3, Lightbulb, FileText,
   MessageSquareMore, Target, Megaphone,
-  BarChart2, Filter, BookOpen, Search, Swords, LineChart,
+  BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ const CORE_NAV = [
   { label: "AI Assistant",       href: "/growthmind/chat",                 icon: MessageSquareMore, highlight: true },
   { label: "Recommendations",    href: "/growthmind/recommendations",      icon: Lightbulb },
   { label: "Lead Opportunities", href: "/growthmind/lead-opportunities",   icon: Target },
+  { label: "Goals",              href: "/growthmind/goals",                icon: Flag },
   { label: "Campaigns",          href: "/growthmind/campaigns",            icon: Megaphone },
   { label: "Reports",            href: "/growthmind/reports",              icon: FileText },
 ];

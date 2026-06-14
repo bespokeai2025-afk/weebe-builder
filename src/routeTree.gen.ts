@@ -74,6 +74,7 @@ import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_au
 import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
 import { Route as AuthenticatedGrowthmindPlaybooksRouteImport } from './routes/_authenticated/growthmind.playbooks'
 import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
+import { Route as AuthenticatedGrowthmindGoalsRouteImport } from './routes/_authenticated/growthmind.goals'
 import { Route as AuthenticatedGrowthmindFunnelsRouteImport } from './routes/_authenticated/growthmind.funnels'
 import { Route as AuthenticatedGrowthmindForecastRouteImport } from './routes/_authenticated/growthmind.forecast'
 import { Route as AuthenticatedGrowthmindCompetitorsRouteImport } from './routes/_authenticated/growthmind.competitors'
@@ -471,6 +472,12 @@ const AuthenticatedGrowthmindLeadOpportunitiesRoute =
     path: '/lead-opportunities',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindGoalsRoute =
+  AuthenticatedGrowthmindGoalsRouteImport.update({
+    id: '/goals',
+    path: '/goals',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindFunnelsRoute =
   AuthenticatedGrowthmindFunnelsRouteImport.update({
     id: '/funnels',
@@ -767,6 +774,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
+  '/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
@@ -874,6 +882,7 @@ export interface FileRoutesByTo {
   '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
+  '/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
@@ -986,6 +995,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
   '/_authenticated/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/_authenticated/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
+  '/_authenticated/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
   '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/_authenticated/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
@@ -1098,6 +1108,7 @@ export interface FileRouteTypes {
     | '/growthmind/competitors'
     | '/growthmind/forecast'
     | '/growthmind/funnels'
+    | '/growthmind/goals'
     | '/growthmind/lead-opportunities'
     | '/growthmind/playbooks'
     | '/growthmind/recommendations'
@@ -1205,6 +1216,7 @@ export interface FileRouteTypes {
     | '/growthmind/competitors'
     | '/growthmind/forecast'
     | '/growthmind/funnels'
+    | '/growthmind/goals'
     | '/growthmind/lead-opportunities'
     | '/growthmind/playbooks'
     | '/growthmind/recommendations'
@@ -1316,6 +1328,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/competitors'
     | '/_authenticated/growthmind/forecast'
     | '/_authenticated/growthmind/funnels'
+    | '/_authenticated/growthmind/goals'
     | '/_authenticated/growthmind/lead-opportunities'
     | '/_authenticated/growthmind/playbooks'
     | '/_authenticated/growthmind/recommendations'
@@ -1896,6 +1909,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/goals': {
+      id: '/_authenticated/growthmind/goals'
+      path: '/goals'
+      fullPath: '/growthmind/goals'
+      preLoaderRoute: typeof AuthenticatedGrowthmindGoalsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/funnels': {
       id: '/_authenticated/growthmind/funnels'
       path: '/funnels'
@@ -2231,6 +2251,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindCompetitorsRoute: typeof AuthenticatedGrowthmindCompetitorsRoute
   AuthenticatedGrowthmindForecastRoute: typeof AuthenticatedGrowthmindForecastRoute
   AuthenticatedGrowthmindFunnelsRoute: typeof AuthenticatedGrowthmindFunnelsRoute
+  AuthenticatedGrowthmindGoalsRoute: typeof AuthenticatedGrowthmindGoalsRoute
   AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   AuthenticatedGrowthmindPlaybooksRoute: typeof AuthenticatedGrowthmindPlaybooksRoute
   AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
@@ -2249,6 +2270,7 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindCompetitorsRoute,
     AuthenticatedGrowthmindForecastRoute: AuthenticatedGrowthmindForecastRoute,
     AuthenticatedGrowthmindFunnelsRoute: AuthenticatedGrowthmindFunnelsRoute,
+    AuthenticatedGrowthmindGoalsRoute: AuthenticatedGrowthmindGoalsRoute,
     AuthenticatedGrowthmindLeadOpportunitiesRoute:
       AuthenticatedGrowthmindLeadOpportunitiesRoute,
     AuthenticatedGrowthmindPlaybooksRoute:
