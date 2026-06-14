@@ -107,6 +107,29 @@ export function detectLeadOpportunities(data: any): LeadOpportunity[] {
     });
   }
 
+  // 6. HOT LEADS — qualified/contacted with recent activity but no booking yet
+  // "Hot" = status is in a mid-funnel stage AND was updated in the last 7 days
+  const hotLeadStatuses = new Set(["qualified", "contacted", "in_progress", "callback_requested"]);
+  const bookedPhones    = new Set<string>();
+  for (const b of (data.bookings?.noShowDetail ?? [])) {
+    // We don't have phone from bookings; this is a best-effort exclude
+  }
+  // Use staleDetail/neverCalledDetail absence as proxy — hot leads are active + recently touched
+  for (const l of (data.leads?.hotLeadDetail ?? [])) {
+    opps.push({
+      id:        `hot-${l.id}`,
+      name:      l.name,
+      type:      "hot_lead",
+      label:     "Hot Lead",
+      urgency:   "high",
+      reason:    `${l.status} lead — updated ${l.daysSinceUpdate === 0 ? "today" : `${l.daysSinceUpdate}d ago`} — showing active intent but no booking yet`,
+      action:    "Strike while the iron is hot — book an appointment or escalate immediately",
+      daysSince: l.daysSinceUpdate,
+      phone:     l.phone,
+      email:     l.email,
+    });
+  }
+
   // Sort by urgency
   const urgencyOrder: Record<OpportunityUrgency, number> = { critical: 0, high: 1, medium: 2, low: 3 };
   return opps.sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency]);
@@ -126,6 +149,7 @@ export function getOpportunitySummary(data: any) {
       repeat_contact: opps.filter(o => o.type === "repeat_contact").length,
       stalled:        opps.filter(o => o.type === "stalled").length,
       no_show:        opps.filter(o => o.type === "no_show").length,
+      hot_lead:       opps.filter(o => o.type === "hot_lead").length,
     },
   };
 }

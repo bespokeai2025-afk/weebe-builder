@@ -99,8 +99,8 @@ export function GrowthMindLeadOpportunities() {
               { label: "Total",          value: summary.total,                color: "text-foreground" },
               { label: "Critical",       value: summary.critical,             color: "text-red-400" },
               { label: "High",           value: summary.high,                 color: "text-orange-400" },
+              { label: "Hot Leads",      value: summary.byType.hot_lead,      color: "text-emerald-400" },
               { label: "Never Called",   value: summary.byType.never_called,  color: "text-orange-400" },
-              { label: "Stale (14d+)",   value: summary.byType.stale,         color: "text-amber-400" },
               { label: "No-Shows",       value: summary.byType.no_show,       color: "text-red-400" },
             ].map(s => (
               <div key={s.label} className="rounded-xl border border-white/[0.06] bg-card/60 p-3 text-center">
@@ -140,7 +140,7 @@ export function GrowthMindLeadOpportunities() {
         {/* Type filter */}
         {!isLoading && (
           <div className="flex flex-wrap gap-1.5 mb-5">
-            {(["all", "stale", "never_called", "repeat_contact", "stalled", "no_show"] as const).map(t => {
+            {(["all", "hot_lead", "stale", "never_called", "repeat_contact", "stalled", "no_show"] as const).map(t => {
               const label = t === "all" ? "All types" : TYPE_LABELS[t];
               const cnt   = t === "all" ? opps.length : opps.filter(o => o.type === t).length;
               return (

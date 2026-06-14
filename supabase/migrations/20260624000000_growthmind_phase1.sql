@@ -176,3 +176,12 @@ CREATE POLICY "growthmind_events_update"
       WHERE user_id = auth.uid()
     )
   );
+
+CREATE POLICY "growthmind_events_delete"
+  ON growthmind_events FOR DELETE
+  USING (
+    workspace_id IN (
+      SELECT workspace_id FROM workspace_members
+      WHERE user_id = auth.uid()
+    )
+  );

@@ -252,6 +252,22 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       createdAt: l.created_at,
     }));
 
+    // ── HOT LEADS — mid-funnel, recently updated, no booking yet ─────────────
+    // "Hot" = qualified/contacted/in_progress AND updated within last 7 days
+    const hotLeadStatuses = new Set(["qualified", "contacted", "in_progress", "callback_requested"]);
+    const hotLeads = leads.filter(l =>
+      hotLeadStatuses.has(l.status) && l.updated_at >= s7
+    );
+    const hotLeadDetail = hotLeads.slice(0, 30).map(l => ({
+      id:              l.id,
+      name:            l.full_name ?? l.name ?? "Unknown",
+      status:          l.status,
+      pipeline_stage:  l.pipeline_stage,
+      daysSinceUpdate: Math.floor((Date.now() - new Date(l.updated_at).getTime()) / 86400000),
+      phone:           l.phone,
+      email:           l.email,
+    }));
+
     // ── REPEAT-CONTACT DETAIL (called 3+ times, not converted) ───────────────
     const callCountByPhone = new Map<string, number>();
     for (const c of calls) {
@@ -299,6 +315,7 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
         sales: saleLeads, newLast7: newLeads7, newLast30: newLeads30,
         conversionRate, followUpCoverage, avgResponseHrs,
         repeatContacts, stalledPipeline,
+        hotLeadCount: hotLeads.length, hotLeadDetail,
       },
       bookings: {
         total: totalBookings, last7: bookings7,

@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import {
   Loader2, RefreshCw, CheckCircle2, AlertTriangle,
-  ChevronDown, ChevronUp, ExternalLink,
+  ChevronDown, ChevronUp, ExternalLink, Database,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -11,10 +11,12 @@ import { GrowthMindShell } from "./GrowthMindShell";
 import {
   getGrowthMindData,
   saveGrowthMindRecommendations,
+  getStoredGrowthMindRecommendations,
 } from "@/lib/growthmind/growthmind.functions";
 import {
   generateGrowthRecommendations,
   type GrowthPriority,
+  type GrowthRecommendation,
 } from "@/lib/growthmind/growthmind.recommendations";
 import { Button } from "@/components/ui/button";
 
@@ -28,22 +30,69 @@ const PRIORITY_COLORS: Record<GrowthPriority, { badge: string; border: string; i
 const CATEGORIES = ["All", "Lead Response", "Pipeline", "Conversion", "Bookings", "Campaigns", "Agent Performance", "Channels", "Setup"];
 
 export function GrowthMindRecommendations() {
-  const fn     = useServerFn(getGrowthMindData);
-  const saveFn = useServerFn(saveGrowthMindRecommendations);
-  const qc     = useQueryClient();
-
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["growthmind-data"],
-    queryFn:  () => fn(),
-    staleTime: 60_000,
-  });
+  const dataFn   = useServerFn(getGrowthMindData);
+  const saveFn   = useServerFn(saveGrowthMindRecommendations);
+  const storedFn = useServerFn(getStoredGrowthMindRecommendations);
+  const qc       = useQueryClient();
 
   const [filterPriority, setFilterPriority] = useState<"all" | GrowthPriority>("all");
   const [filterCategory, setFilterCategory] = useState("All");
   const [expanded, setExpanded]             = useState<Set<string>>(new Set());
-  const [saved, setSaved]                   = useState(false);
+  const [saveInProgress, setSaveInProgress] = useState(false);
 
-  const all      = generateGrowthRecommendations(data);
+  // 1. Load stored DB recommendations as primary source
+  const {
+    data: storedResult,
+    isLoading: storedLoading,
+    refetch: refetchStored,
+  } = useQuery({
+    queryKey: ["growthmind-recs-stored"],
+    queryFn:  () => storedFn(),
+    staleTime: 60_000,
+  });
+
+  // 2. Fetch live platform data — always in background
+  const { data: platformData, isFetching: dataFetching } = useQuery({
+    queryKey: ["growthmind-data"],
+    queryFn:  () => dataFn(),
+    staleTime: 60_000,
+  });
+
+  // 3. Generate fresh recs from live data
+  const freshRecs = generateGrowthRecommendations(platformData);
+
+  // 4. Persist fresh recs to DB whenever platform data loads and stored recs are stale/empty
+  useEffect(() => {
+    if (!platformData || freshRecs.length === 0 || saveInProgress) return;
+    const isStale = storedResult?.stale !== false;
+    if (!isStale) return;
+
+    setSaveInProgress(true);
+    saveFn({
+      data: {
+        recommendations: freshRecs.map(r => ({
+          category:     r.category,
+          priority:     r.priority,
+          problem:      r.problem,
+          impact:       r.impact,
+          fix:          r.fix,
+          action_href:  r.action?.href ?? null,
+          action_label: r.action?.label ?? null,
+        })),
+      },
+    }).then(() => {
+      refetchStored();
+    }).catch(() => {}).finally(() => {
+      setSaveInProgress(false);
+    });
+  }, [platformData, storedResult?.stale]);
+
+  // 5. Display: prefer DB recs when fresh, fall back to generated recs
+  const dbRecs: GrowthRecommendation[] = storedResult?.recommendations ?? [];
+  const all: GrowthRecommendation[] = dbRecs.length > 0 ? dbRecs : freshRecs;
+  const isLoading = storedLoading;
+  const isFetching = dataFetching || saveInProgress;
+
   const filtered = all.filter(r => {
     const pOk = filterPriority === "all" || r.priority === filterPriority;
     const cOk = filterCategory === "All" || r.category === filterCategory;
@@ -57,32 +106,13 @@ export function GrowthMindRecommendations() {
     low:      all.filter(r => r.priority === "low").length,
   };
 
-  // Persist to DB whenever platform data loads / refreshes
-  useEffect(() => {
-    if (!data || all.length === 0 || saved) return;
-    setSaved(true);
-    saveFn({
-      data: {
-        recommendations: all.map(r => ({
-          category:     r.category,
-          priority:     r.priority,
-          problem:      r.problem,
-          impact:       r.impact,
-          fix:          r.fix,
-          action_href:  r.action?.href ?? null,
-          action_label: r.action?.label ?? null,
-        })),
-      },
-    }).catch(() => {});
-  }, [data]);
-
-  // Reset saved flag on refresh so new data gets saved
-  useEffect(() => {
-    if (isFetching) setSaved(false);
-  }, [isFetching]);
-
   function toggle(id: string) {
     setExpanded(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  function handleRefresh() {
+    qc.invalidateQueries({ queryKey: ["growthmind-data"] });
+    qc.invalidateQueries({ queryKey: ["growthmind-recs-stored"] });
   }
 
   return (
@@ -92,11 +122,17 @@ export function GrowthMindRecommendations() {
         <div className="mb-6 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold">Growth Recommendations</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
               {all.length} marketing opportunit{all.length !== 1 ? "ies" : "y"} identified
+              {dbRecs.length > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-emerald-400/60">
+                  <Database className="h-2.5 w-2.5" />
+                  <span className="text-[10px]">from database</span>
+                </span>
+              )}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["growthmind-data"] })}>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
             <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
             Refresh
           </Button>
@@ -151,7 +187,7 @@ export function GrowthMindRecommendations() {
         {isLoading ? (
           <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
-            <span className="text-sm">Analysing marketing data…</span>
+            <span className="text-sm">Loading recommendations…</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
@@ -168,7 +204,7 @@ export function GrowthMindRecommendations() {
         ) : (
           <div className="space-y-3">
             {filtered.map(r => {
-              const c    = PRIORITY_COLORS[r.priority];
+              const c    = PRIORITY_COLORS[r.priority as GrowthPriority] ?? PRIORITY_COLORS.medium;
               const open = expanded.has(r.id);
               return (
                 <div key={r.id} className={cn("rounded-xl border bg-card/60 overflow-hidden transition-colors", c.border)}>
