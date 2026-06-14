@@ -181,7 +181,7 @@ export function GrowthMindFunnels() {
     if (stages.length === 0) return;
     const name = snapshotName.trim() || `Snapshot ${new Date().toLocaleDateString("en-GB")}`;
     try {
-      await saveSnapFn({ name, stages });
+      await saveSnapFn({ data: { name, stages } });
       setSnapshotName("");
       setSaveMsg("Snapshot saved!");
       setTimeout(() => setSaveMsg(null), 3000);
@@ -193,7 +193,7 @@ export function GrowthMindFunnels() {
 
   async function handleDelete(id: string) {
     try {
-      await deleteSnapFn({ id });
+      await deleteSnapFn({ data: { id } });
       qc.invalidateQueries({ queryKey: ["growthmind-funnel-snapshots"] });
     } catch {}
   }
@@ -208,12 +208,14 @@ export function GrowthMindFunnels() {
       ).join("\n");
 
       const { reply } = await aiResponseFn({
-        messages: [{
-          role: "user",
-          content: `Here is my current 6-stage marketing funnel:\n\n${funnelSummary}\n\nThe biggest drop-off is at "${biggestDrop.label}" (${biggestDrop.dropPct}% drop). In 2-3 sentences, diagnose why this might be happening and give one specific fix.`,
-        }],
-        platformData,
-        personality: "professional",
+        data: {
+          messages: [{
+            role: "user",
+            content: `Here is my current 6-stage marketing funnel:\n\n${funnelSummary}\n\nThe biggest drop-off is at "${biggestDrop.label}" (${biggestDrop.dropPct}% drop). In 2-3 sentences, diagnose why this might be happening and give one specific fix.`,
+          }],
+          platformData,
+          personality: "professional",
+        },
       });
       setAiDiagnosis(reply);
     } catch (e: any) {

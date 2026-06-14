@@ -255,7 +255,7 @@ export function GrowthMindCompetitors() {
 
   async function handleDelete(id: string) {
     try {
-      await deleteCompFn({ id });
+      await deleteCompFn({ data: { id } });
       qc.invalidateQueries({ queryKey: ["growthmind-competitors"] });
     } catch {}
   }
@@ -265,7 +265,7 @@ export function GrowthMindCompetitors() {
     setAiLoading(true);
     setAiAnalysis(null);
     try {
-      const { analysis } = await analyseFn({ personality: "professional" });
+      const { analysis } = await analyseFn({ data: { personality: "professional" } });
       setAiAnalysis(analysis);
     } catch (e: any) {
       setAiAnalysis("Unable to generate analysis: " + e.message);

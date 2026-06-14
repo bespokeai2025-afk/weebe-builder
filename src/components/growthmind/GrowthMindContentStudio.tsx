@@ -1008,25 +1008,25 @@ export function GrowthMindContentStudio() {
   }
 
   async function handleDeleteAsset(id: string) {
-    await deleteAssetFn({ id }).catch(() => {});
+    await deleteAssetFn({ data: { id } }).catch(() => {});
     qc.invalidateQueries({ queryKey: ["growthmind-content-assets"] });
     qc.invalidateQueries({ queryKey: ["growthmind-content-stats"] });
   }
 
   async function handleToggleFav(id: string, isFavourite: boolean) {
-    await toggleFavFn({ id, isFavourite }).catch(() => {});
+    await toggleFavFn({ data: { id, isFavourite } }).catch(() => {});
     qc.invalidateQueries({ queryKey: ["growthmind-content-assets"] });
   }
 
   async function handleStatusChange(id: string, status: ContentAsset["status"]) {
     const asset = allAssets.find(a => a.id === id);
     if (!asset) return;
-    await saveAssetFn({ ...asset, folderId: asset.folderId ?? undefined, scheduledAt: asset.scheduledAt ?? undefined, status }).catch(() => {});
+    await saveAssetFn({ data: { ...asset, folderId: asset.folderId ?? undefined, scheduledAt: asset.scheduledAt ?? undefined, status } }).catch(() => {});
     qc.invalidateQueries({ queryKey: ["growthmind-content-assets"] });
   }
 
   async function handleSaveAsset(updated: ContentAsset) {
-    await saveAssetFn({
+    await saveAssetFn({ data: {
       id:          updated.id,
       folderId:    updated.folderId ?? undefined,
       title:       updated.title,
@@ -1037,7 +1037,7 @@ export function GrowthMindContentStudio() {
       status:      updated.status,
       isFavourite: updated.isFavourite,
       scheduledAt: updated.scheduledAt ?? undefined,
-    }).catch(() => {});
+    } }).catch(() => {});
     qc.invalidateQueries({ queryKey: ["growthmind-content-assets"] });
     if (viewingAsset?.id === updated.id) setViewingAsset(updated);
   }

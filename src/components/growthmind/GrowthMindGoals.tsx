@@ -238,12 +238,12 @@ function CreateGoalForm({
 
     setSaving(true);
     try {
-      await createFn({
+      await createFn({ data: {
         metric,
         label: label.trim() || selectedMeta.label,
         target: t,
         deadline,
-      });
+      } });
       onCreated();
     } catch (e: any) {
       setErr(e.message ?? "Failed to create goal");
@@ -408,7 +408,7 @@ export function GrowthMindGoals() {
   async function handleDelete(id: string) {
     setDeletingId(id);
     try {
-      await deleteGoalFn({ id });
+      await deleteGoalFn({ data: { id } });
       qc.invalidateQueries({ queryKey: ["growthmind-goals"] });
     } catch (e: any) {
       console.error("Delete goal error:", e);

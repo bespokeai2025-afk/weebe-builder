@@ -33,7 +33,7 @@ export function HiveMindReportBanner({
     setScanning(true);
     setScanned(false);
     try {
-      await scanFn({});
+      await scanFn({ data: {} });
       setScanned(true);
       setTimeout(() => setScanned(false), 5000);
     } catch {}

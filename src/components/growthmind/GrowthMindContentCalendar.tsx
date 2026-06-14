@@ -411,7 +411,7 @@ function CampaignPanel({ onClose }: { onClose: () => void }) {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      await saveCampaignFn({ name: form.name.trim(), campaignType: form.campaignType, description: form.description, color: form.color });
+      await saveCampaignFn({ data: { name: form.name.trim(), campaignType: form.campaignType, description: form.description, color: form.color } });
       qc.invalidateQueries({ queryKey: ["growthmind-campaigns"] });
       setForm({ name: "", campaignType: "Brand Awareness", description: "", color: "#10b981" });
     } catch {}
@@ -419,7 +419,7 @@ function CampaignPanel({ onClose }: { onClose: () => void }) {
   }
 
   async function handleDelete(id: string) {
-    await deleteCampaignFn({ id });
+    await deleteCampaignFn({ data: { id } });
     qc.invalidateQueries({ queryKey: ["growthmind-campaigns"] });
   }
 
@@ -480,7 +480,7 @@ function SeriesPanel({ onClose }: { onClose: () => void }) {
     if (!form.name.trim()) return;
     setSaving(true);
     try {
-      await saveSeriesFn({ name: form.name.trim(), contentType: form.contentType, cadence: form.cadence, channel: form.channel });
+      await saveSeriesFn({ data: { name: form.name.trim(), contentType: form.contentType, cadence: form.cadence, channel: form.channel } });
       qc.invalidateQueries({ queryKey: ["growthmind-series"] });
       setForm({ name: "", contentType: "Blog", cadence: "weekly", channel: "" });
     } catch {}
@@ -609,7 +609,7 @@ export function GrowthMindContentCalendar() {
   async function handleSave(form: typeof EMPTY_ENTRY) {
     setSaving(true);
     try {
-      await saveEntryFn({
+      await saveEntryFn({ data: {
         id:            form.id,
         title:         form.title,
         contentType:   form.contentType,
@@ -621,7 +621,7 @@ export function GrowthMindContentCalendar() {
         scheduledDate: form.scheduledDate ? new Date(form.scheduledDate).toISOString() : null,
         description:   form.description,
         notes:         form.notes,
-      });
+      } });
       qc.invalidateQueries({ queryKey: ["growthmind-calendar"] });
       setShowModal(false);
       setMsg("Saved!");
@@ -633,7 +633,7 @@ export function GrowthMindContentCalendar() {
   }
 
   async function handleDelete(id: string) {
-    await deleteEntryFn({ id });
+    await deleteEntryFn({ data: { id } });
     qc.invalidateQueries({ queryKey: ["growthmind-calendar"] });
   }
 

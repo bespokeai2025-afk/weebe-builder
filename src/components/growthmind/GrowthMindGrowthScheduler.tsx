@@ -409,7 +409,7 @@ export function GrowthMindGrowthScheduler() {
   async function handleCreatePlan(form: typeof EMPTY_PLAN_FORM) {
     setSavingPlan(true);
     try {
-      const res = await saveGrowthPlanFn({
+      const res = await saveGrowthPlanFn({ data: {
         name:                form.name.trim(),
         planType:            form.planType,
         businessType:        form.businessType,
@@ -421,7 +421,7 @@ export function GrowthMindGrowthScheduler() {
         keywords:            form.keywordsRaw ? form.keywordsRaw.split(",").map(k => k.trim()).filter(Boolean) : [],
         growthGoals:         form.growthGoals,
         targetLeadsPerMonth: form.targetLeadsPerMonth ? parseInt(form.targetLeadsPerMonth, 10) : 0,
-      });
+      } });
       qc.invalidateQueries({ queryKey: ["growthmind-growth-plans"] });
       setSelectedPlanId(res.id);
       setShowNewPlan(false);
@@ -435,7 +435,7 @@ export function GrowthMindGrowthScheduler() {
   async function handleGeneratePlan(plan: GrowthPlan) {
     setGeneratingId(plan.id);
     try {
-      const res = await generateFn({
+      const res = await generateFn({ data: {
         planId:              plan.id,
         planType:            plan.planType,
         businessType:        plan.businessType,
@@ -446,7 +446,7 @@ export function GrowthMindGrowthScheduler() {
         keywords:            plan.keywords,
         growthGoals:         plan.growthGoals,
         targetLeadsPerMonth: plan.targetLeadsPerMonth,
-      });
+      } });
       qc.invalidateQueries({ queryKey: ["growthmind-growth-plans"] });
       qc.invalidateQueries({ queryKey: ["growthmind-marketing-tasks"] });
       qc.invalidateQueries({ queryKey: ["growthmind-calendar"] });
@@ -459,7 +459,7 @@ export function GrowthMindGrowthScheduler() {
   }
 
   async function handleDeletePlan(id: string) {
-    await deleteGrowthPlanFn({ id });
+    await deleteGrowthPlanFn({ data: { id } });
     if (selectedPlanId === id) setSelectedPlanId(null);
     qc.invalidateQueries({ queryKey: ["growthmind-growth-plans"] });
   }
@@ -467,12 +467,12 @@ export function GrowthMindGrowthScheduler() {
   async function handleAddTask(title: string, type: string, priority: string, dueDate: string) {
     setAddingTask(true);
     try {
-      await saveTaskFn({
+      await saveTaskFn({ data: {
         title,
         taskType:  type,
         priority:  priority as "low" | "medium" | "high" | "urgent",
         dueDate:   dueDate || null,
-      });
+      } });
       qc.invalidateQueries({ queryKey: ["growthmind-marketing-tasks"] });
       qc.invalidateQueries({ queryKey: ["growthmind-marketing-readiness"] });
     } catch {}
@@ -480,13 +480,13 @@ export function GrowthMindGrowthScheduler() {
   }
 
   async function handleComplete(id: string) {
-    await completeFn({ id });
+    await completeFn({ data: { id } });
     qc.invalidateQueries({ queryKey: ["growthmind-marketing-tasks"] });
     qc.invalidateQueries({ queryKey: ["growthmind-marketing-readiness"] });
   }
 
   async function handleDeleteTask(id: string) {
-    await deleteTaskFn({ id });
+    await deleteTaskFn({ data: { id } });
     qc.invalidateQueries({ queryKey: ["growthmind-marketing-tasks"] });
     qc.invalidateQueries({ queryKey: ["growthmind-marketing-readiness"] });
   }

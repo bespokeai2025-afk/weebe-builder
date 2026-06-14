@@ -201,7 +201,7 @@ export function GrowthMindPlaybooks() {
   async function handleActivate(industryId: string) {
     setActivating(industryId);
     try {
-      await activateFn({ industry: industryId });
+      await activateFn({ data: { industry: industryId } });
       setMsg("Playbook activated!");
       setTimeout(() => setMsg(null), 3000);
       qc.invalidateQueries({ queryKey: ["growthmind-active-playbook"] });
@@ -228,7 +228,7 @@ export function GrowthMindPlaybooks() {
 
   async function handleGenerateBriefing() {
     setBriefingLoading(true);
-    try { setBriefingData(await briefingFn({})); } catch {} finally { setBriefingLoading(false); }
+    try { setBriefingData(await briefingFn({ data: {} })); } catch {} finally { setBriefingLoading(false); }
   }
 
   return (

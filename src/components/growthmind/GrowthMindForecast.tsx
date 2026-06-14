@@ -241,14 +241,14 @@ export function GrowthMindForecast() {
   async function handleSaveForecast() {
     if (!result) return;
     try {
-      await saveFcFn({
+      await saveFcFn({ data: {
         scenario,
         periodWeeks: 12,
         dealValue:   dv,
         currency,
         buckets:     result.forecast as any,
         summary:     result.summary,
-      });
+      } });
       setSaveMsg("Forecast saved!");
       setTimeout(() => setSaveMsg(null), 3000);
       qc.invalidateQueries({ queryKey: ["growthmind-saved-forecasts"] });
@@ -260,7 +260,7 @@ export function GrowthMindForecast() {
   async function handleSaveSettings() {
     setSavingSettings(true);
     try {
-      await saveSetFn({ dealValue: dv, currency });
+      await saveSetFn({ data: { dealValue: dv, currency } });
       setSaveMsg("Settings saved!");
       setTimeout(() => setSaveMsg(null), 3000);
       qc.invalidateQueries({ queryKey: ["growthmind-forecast-raw"] });
@@ -273,7 +273,7 @@ export function GrowthMindForecast() {
 
   async function handleGenerateBriefing() {
     setBriefingLoading(true);
-    try { setBriefingData(await briefingFn({})); } catch {} finally { setBriefingLoading(false); }
+    try { setBriefingData(await briefingFn({ data: {} })); } catch {} finally { setBriefingLoading(false); }
   }
 
   return (
