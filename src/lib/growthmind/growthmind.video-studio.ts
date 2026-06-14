@@ -469,7 +469,19 @@ export const generateVideo = createServerFn({ method: "POST" })
       .select("id")
       .single();
 
-    if (insertErr) throw new Error(insertErr.message);
+    if (insertErr) {
+      const isTableMissing =
+        insertErr.code === "PGRST205" ||
+        (insertErr.message?.includes("relation") && insertErr.message?.includes("does not exist"));
+      if (isTableMissing) {
+        throw new Error(
+          "Video Studio database table is not set up yet. " +
+          "Apply the migration: supabase/migrations/20260704000000_growthmind_video_assets.sql " +
+          "or run: node scripts/apply-video-studio-migration.mjs"
+        );
+      }
+      throw new Error(insertErr.message);
+    }
 
     // ── Log to growthmind_generation_logs ─────────────────────────────────
     // asset_id is left null: the FK references growthmind_content_assets, not
@@ -527,7 +539,13 @@ export const getVideoAssets = createServerFn({ method: "GET" })
     if (data.videoType) q = q.eq("video_type", data.videoType);
 
     const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
+    if (error) {
+      const isTableMissing =
+        error.code === "PGRST205" ||
+        (error.message?.includes("relation") && error.message?.includes("does not exist"));
+      if (isTableMissing) return { assets: [] };
+      throw new Error(error.message);
+    }
 
     const assets: VideoAsset[] = (rows ?? []).map((r: any) => ({
       id:           r.id,
