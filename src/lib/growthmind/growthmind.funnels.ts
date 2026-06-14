@@ -89,8 +89,15 @@ export function computeFunnelStages(data: FunnelLiveData): FunnelStage[] {
     { key: "sale",        label: "Sale",                  count: data.sales },
   ];
 
-  return rawStages.map((stage, i) => {
-    const prev = i === 0 ? null : rawStages[i - 1].count;
+  // Clamp so each stage never exceeds the one before it (monotonic funnel)
+  const clamped = rawStages.map((stage, i) => {
+    if (i === 0) return stage;
+    const prevClamped = clamped[i - 1].count;
+    return { ...stage, count: Math.min(stage.count, prevClamped) };
+  });
+
+  return clamped.map((stage, i) => {
+    const prev = i === 0 ? null : clamped[i - 1].count;
     if (prev === null) {
       return { ...stage, convFromPrev: null, dropPct: null, dropColor: "none" as const };
     }

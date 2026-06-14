@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -180,11 +180,16 @@ export function GrowthMindForecast() {
     queryKey: ["growthmind-forecast-raw"],
     queryFn:  () => getDataFn(),
     staleTime: 120_000,
-    onSuccess: (d: any) => {
-      if (d.dealValue && !dealValue) setDealValue(String(d.dealValue));
-      if (d.currency)                setCurrency(d.currency);
-    },
-  } as any);
+  });
+
+  useEffect(() => {
+    if (!rawData) return;
+    if ((rawData as any).dealValue && !dealValue)
+      setDealValue(String((rawData as any).dealValue));
+    if ((rawData as any).currency)
+      setCurrency((rawData as any).currency);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawData]);
 
   const { data: histData, isLoading: histLoading } = useQuery({
     queryKey: ["growthmind-saved-forecasts"],
