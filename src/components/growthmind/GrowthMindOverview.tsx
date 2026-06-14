@@ -3,13 +3,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import {
   TrendingUp, TrendingDown, Loader2, RefreshCw, Target, Megaphone,
-  Users, ArrowRight, Lightbulb, AlertTriangle, Minus,
+  Users, ArrowRight, Lightbulb, AlertTriangle, Minus, BookOpen, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
 import { getGrowthMindData } from "@/lib/growthmind/growthmind.functions";
 import { computeGrowthScore } from "@/lib/growthmind/growthmind.score";
 import { generateGrowthRecommendations } from "@/lib/growthmind/growthmind.recommendations";
+import { getActivePlaybook, PLAYBOOKS } from "@/lib/growthmind/growthmind.playbooks";
 import { Button } from "@/components/ui/button";
 
 function TrendPill({ pct, label = "wow" }: { pct: number | null; label?: string }) {
@@ -55,7 +56,8 @@ function StatCard({ label, value, sub, color = "emerald", wowPct, momPct }: {
 }
 
 export function GrowthMindOverview() {
-  const fn = useServerFn(getGrowthMindData);
+  const fn            = useServerFn(getGrowthMindData);
+  const getPlaybookFn = useServerFn(getActivePlaybook);
   const qc = useQueryClient();
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["growthmind-data"],
@@ -63,8 +65,17 @@ export function GrowthMindOverview() {
     staleTime: 60_000,
   });
 
+  const { data: playbookData } = useQuery({
+    queryKey: ["growthmind-active-playbook"],
+    queryFn:  () => getPlaybookFn(),
+    staleTime: 60_000,
+  });
+
   const score = computeGrowthScore(data);
   const recs  = generateGrowthRecommendations(data);
+
+  const activePlaybookId = playbookData?.activePlaybook?.industry ?? null;
+  const activePlaybook   = PLAYBOOKS.find(p => p.id === activePlaybookId) ?? null;
 
   const scoreColor = score.total >= 70 ? "text-emerald-400" : score.total >= 40 ? "text-amber-400" : "text-red-400";
   const barColor   = score.total >= 70 ? "bg-emerald-500" : score.total >= 40 ? "bg-amber-500" : "bg-red-500";
@@ -140,6 +151,32 @@ export function GrowthMindOverview() {
                 </div>
               </div>
             </div>
+
+            {/* Active Playbook summary */}
+            {activePlaybook ? (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] px-4 py-3 flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <p className="text-xs font-semibold text-emerald-300">Active Playbook</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-sm font-medium">{activePlaybook.industry}</span>
+                </div>
+                <p className="text-xs text-muted-foreground flex-1 min-w-[180px] truncate">{activePlaybook.description}</p>
+                <Link to="/growthmind/playbooks" className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 shrink-0">
+                  View tactics <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3 flex items-center gap-3">
+                <BookOpen className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                <p className="text-xs text-muted-foreground flex-1">No playbook active.</p>
+                <Link to="/growthmind/playbooks" className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 shrink-0">
+                  Choose a playbook <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            )}
 
             {/* Key metrics with trend indicators */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">

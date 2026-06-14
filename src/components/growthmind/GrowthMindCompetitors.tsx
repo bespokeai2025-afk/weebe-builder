@@ -11,9 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { getGrowthMindAIResponse } from "@/lib/growthmind/growthmind.ai";
-import { getGrowthMindData } from "@/lib/growthmind/growthmind.functions";
 import {
+  analyseCompetitors,
   getCompetitors,
   saveCompetitor,
   deleteCompetitor,
@@ -216,12 +215,11 @@ function CompetitorForm({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function GrowthMindCompetitors() {
-  const qc          = useQueryClient();
-  const getCompsFn  = useServerFn(getCompetitors);
-  const saveCompFn  = useServerFn(saveCompetitor);
-  const deleteCompFn = useServerFn(deleteCompetitor);
-  const aiRespFn    = useServerFn(getGrowthMindAIResponse);
-  const getDataFn   = useServerFn(getGrowthMindData);
+  const qc             = useQueryClient();
+  const getCompsFn     = useServerFn(getCompetitors);
+  const saveCompFn     = useServerFn(saveCompetitor);
+  const deleteCompFn   = useServerFn(deleteCompetitor);
+  const analyseFn      = useServerFn(analyseCompetitors);
 
   const [showForm, setShowForm]           = useState(false);
   const [editingComp, setEditingComp]     = useState<Competitor | null>(null);
@@ -234,12 +232,6 @@ export function GrowthMindCompetitors() {
     queryKey: ["growthmind-competitors"],
     queryFn:  () => getCompsFn(),
     staleTime: 60_000,
-  });
-
-  const { data: platformData } = useQuery({
-    queryKey: ["growthmind-data"],
-    queryFn:  () => getDataFn(),
-    staleTime: 120_000,
   });
 
   const competitors = data?.competitors ?? [];
@@ -272,23 +264,8 @@ export function GrowthMindCompetitors() {
     setAiLoading(true);
     setAiAnalysis(null);
     try {
-      const summary = competitors.map(c =>
-        `**${c.name}** (${c.website || "no site"})\n` +
-        (c.services     ? `Services: ${c.services}\n`     : "") +
-        (c.offers       ? `Offers: ${c.offers}\n`         : "") +
-        (c.positioning  ? `Positioning: ${c.positioning}\n` : "") +
-        (c.observations ? `Observations: ${c.observations}\n` : "")
-      ).join("\n---\n");
-
-      const { reply } = await aiRespFn({
-        messages: [{
-          role: "user",
-          content: `Here is my competitor intelligence:\n\n${summary}\n\nAnalyse this competitive landscape in 3-4 sentences. Identify: (1) the main competitive differentiators I should emphasise, (2) a gap or weakness in their collective positioning I could exploit, (3) a specific threat I need to defend against. Be concrete and actionable.`,
-        }],
-        platformData,
-        personality: "professional",
-      });
-      setAiAnalysis(reply);
+      const { analysis } = await analyseFn({ personality: "professional" });
+      setAiAnalysis(analysis);
     } catch (e: any) {
       setAiAnalysis("Unable to generate analysis: " + e.message);
     } finally {

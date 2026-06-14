@@ -1,27 +1,6 @@
--- GrowthMind Phase 2 — Playbooks, SEO Sites, Competitors
-
--- Playbooks: tracks which industry playbook is active per workspace
-CREATE TABLE IF NOT EXISTS growthmind_playbooks (
-  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  workspace_id  UUID NOT NULL,
-  industry      TEXT NOT NULL,
-  status        TEXT NOT NULL DEFAULT 'active',
-  activated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_growthmind_playbooks_workspace
-  ON growthmind_playbooks (workspace_id, status);
-
-ALTER TABLE growthmind_playbooks ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "workspace_members_growthmind_playbooks"
-  ON growthmind_playbooks FOR ALL
-  USING (
-    workspace_id IN (
-      SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
-    )
-  );
+-- GrowthMind Phase 2 — SEO Sites & Competitors
+-- NOTE: growthmind_playbooks was already created in 20260625000000_growthmind_phase2.sql
+--       with CHECK (status IN ('active','archived')). Do not re-create it here.
 
 -- SEO Sites: one site per workspace with JSONB keywords and content ideas
 CREATE TABLE IF NOT EXISTS growthmind_seo_sites (

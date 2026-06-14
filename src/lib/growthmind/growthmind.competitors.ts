@@ -95,6 +95,68 @@ export const saveCompetitor = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const analyseCompetitors = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      platformData: z.any().optional(),
+      personality:  z.string().default("professional"),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const settings = (context as any).settings ?? {};
+    const apiKey   = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
+    if (!apiKey) throw new Error("OpenAI API key not configured. Add it in Settings → Integrations.");
+
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: rows, error } = await sb
+      .from("growthmind_competitors")
+      .select("name, website, services, offers, positioning, observations")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) throw new Error(error.message);
+    if (!rows || rows.length === 0) return { analysis: "No competitors added yet. Add competitors to generate a competitive analysis." };
+
+    const competitorSummary = rows.map((c: any, i: number) =>
+      `${i + 1}. **${c.name}**${c.website ? ` (${c.website})` : ""}\n` +
+      (c.services    ? `   Services: ${c.services}\n`    : "") +
+      (c.offers      ? `   Offers: ${c.offers}\n`        : "") +
+      (c.positioning ? `   Positioning: ${c.positioning}\n` : "") +
+      (c.observations ? `   Observations: ${c.observations}\n` : "")
+    ).join("\n");
+
+    const systemPrompt = `You are GrowthMind, an AI Chief Marketing Officer. Your tone is ${
+      data.personality === "friendly" ? "warm and practical" :
+      data.personality === "concise"  ? "direct and brief" :
+      "professional and strategic"
+    }. You help identify competitive advantages and market opportunities based on competitor intelligence.`;
+
+    const userPrompt = `Here is my competitor intelligence:\n\n${competitorSummary}\n\nAnalyse this competitive landscape in 3-4 sentences:\n1. The main differentiators I should emphasise to stand out\n2. A gap or weakness in their collective positioning I could exploit\n3. A specific threat I need to defend against\n\nBe concrete and actionable.`;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model:       "gpt-4o",
+        messages:    [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+        max_tokens:  500,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text().catch(() => res.statusText);
+      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+    }
+    const json = await res.json() as any;
+    return { analysis: (json.choices?.[0]?.message?.content as string) ?? "" };
+  });
+
 export const deleteCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))

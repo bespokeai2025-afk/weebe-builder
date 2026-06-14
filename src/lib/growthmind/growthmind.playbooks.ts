@@ -415,10 +415,10 @@ export const activatePlaybook = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    // Deactivate any current active playbook
+    // Archive any current active playbook (schema CHECK: 'active' | 'archived')
     await sb
       .from("growthmind_playbooks")
-      .update({ status: "inactive" })
+      .update({ status: "archived" })
       .eq("workspace_id", workspaceId)
       .eq("status", "active");
 
