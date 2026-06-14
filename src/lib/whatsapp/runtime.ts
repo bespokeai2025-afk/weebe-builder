@@ -69,73 +69,7 @@ interface RuntimeInput {
   inboundBody: string;
 }
 
-// ── Send helpers ──────────────────────────────────────────────────────────────
-
-async function sendMeta(
-  to: string,
-  body: string,
-  phoneNumberId: string,
-  accessToken: string,
-): Promise<string | null> {
-  try {
-    const res = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: to.replace(/^\+/, ""),
-        type: "text",
-        text: { body },
-      }),
-    });
-    const json = (await res.json()) as any;
-    if (!res.ok) console.error("[wa-runtime] Meta API error", json?.error?.message);
-    return (json?.messages?.[0]?.id as string | undefined) ?? null;
-  } catch (e) {
-    console.error("[wa-runtime] sendMeta failed", e);
-    return null;
-  }
-}
-
-async function sendTwilio(
-  to: string,
-  from: string,
-  body: string,
-  accountSid: string,
-  authToken: string,
-  mediaUrl?: string,
-): Promise<string | null> {
-  try {
-    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-    const params: Record<string, string> = {
-      To: `whatsapp:${to}`,
-      From: `whatsapp:${from}`,
-      Body: body,
-    };
-    if (mediaUrl) params.MediaUrl = mediaUrl;
-
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${credentials}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams(params),
-      },
-    );
-    const json = (await res.json()) as any;
-    if (!res.ok) console.error("[wa-runtime] Twilio error", json?.code, json?.message);
-    return json?.sid ?? null;
-  } catch (e) {
-    console.error("[wa-runtime] sendTwilio failed", e);
-    return null;
-  }
-}
+// ── Send helpers (all outbound sends now routed via createWhatsAppProviderWithFallback) ──
 
 // ── OpenAI helpers ────────────────────────────────────────────────────────────
 
@@ -562,7 +496,7 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
       .from("provider_settings")
       .select("credentials")
       .eq("workspace_id", workspaceId)
-      .eq("category", "whatsapp")
+      .eq("provider_category", "whatsapp")
       .eq("provider_name", "wati")
       .eq("status", "connected")
       .maybeSingle();

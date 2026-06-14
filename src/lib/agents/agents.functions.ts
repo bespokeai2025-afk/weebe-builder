@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { retellFetch } from "@/lib/providers/retell/client.server";
+import { createVoiceProviderWithFallback } from "@/lib/providers/voice/factory";
 
 type Json = Database["public"]["Tables"]["agents"]["Row"]["flow_data"];
 
@@ -869,51 +870,19 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
     const model = "gpt-realtime";
     const voice = schema.voice ?? "alloy";
 
-    // Use node:https directly to avoid any Vinxi/undici fetch interceptors
-    // that can re-route absolute HTTPS URLs back through the app server.
-    const sessionPayload = JSON.stringify({ model, voice, instructions });
-    const { request: httpsRequest } = await import("node:https");
-    const clientSecret = await new Promise<string>((resolve, reject) => {
-      const req = httpsRequest(
-        {
-          hostname: "api.openai.com",
-          port: 443,
-          path: "/v1/realtime/sessions",
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(sessionPayload),
-          },
-        },
-        (res) => {
-          let body = "";
-          res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
-          res.on("end", () => {
-            try {
-              const parsed = JSON.parse(body) as {
-                client_secret?: { value?: string };
-                error?: { message?: string };
-              };
-              if (!res.statusCode || res.statusCode >= 400) {
-                reject(new Error(parsed.error?.message ?? body));
-              } else if (!parsed.client_secret?.value) {
-                reject(new Error(`Unexpected response: ${body}`));
-              } else {
-                resolve(parsed.client_secret.value);
-              }
-            } catch {
-              reject(new Error(`Non-JSON response: ${body}`));
-            }
-          });
-        },
-      );
-      req.on("error", (e: Error) => reject(e));
-      req.write(sessionPayload);
-      req.end();
+    // Route voice session creation through the provider framework.
+    // Primary: OpenAI Realtime (uses node:https internally to bypass Vinxi interceptors).
+    // Fallback: ElevenLabs native voice if primary throws.
+    const workspaceId = context.workspaceId ?? "";
+    const voiceProvider = createVoiceProviderWithFallback("openai", "elevenlabs", workspaceId);
+    const sessionResult = await voiceProvider.createSession({
+      agentRowId: data.agentRowId,
+      compiledPrompt: instructions,
+      additionalConfig: { model, voice },
     });
+    if (!sessionResult.clientSecret) throw new Error("Voice provider returned no client secret");
 
-    return { clientSecret, model, voice };
+    return { clientSecret: sessionResult.clientSecret, model, voice };
   });
 
 /** Buy a Twilio phone number directly (used for OpenAI Realtime agents). */

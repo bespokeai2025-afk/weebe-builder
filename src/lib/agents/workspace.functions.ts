@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { sendResendEmail, renderBasicEmail, escapeHtml } from "@/lib/email/resend.server";
+import { renderBasicEmail, escapeHtml } from "@/lib/email/resend.server";
+import { createEmailProviderWithFallback } from "@/lib/providers/email/factory";
+import type { EmailConfig } from "@/lib/providers/email/factory";
 
 const APP_URL =
   process.env.PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
@@ -155,35 +157,60 @@ export const decideWorkspaceRequest = createServerFn({ method: "POST" })
       const name = escapeHtml(rawName);
       const workspaceName = escapeHtml(rawWorkspaceName);
       try {
-        let result;
+        // Route notification email through the provider framework.
+        // Primary: Resend (platform RESEND_API_KEY). Fallback: per-workspace
+        // SendGrid key if one has been stored in provider_settings.
+        const adminWorkspaceId = context.workspaceId ?? "";
+        const { data: sgRow } = await supabaseAdmin
+          .from("provider_settings" as never)
+          .select("credentials")
+          .eq("workspace_id" as never, adminWorkspaceId)
+          .eq("provider_category" as never, "email")
+          .eq("provider_name" as never, "sendgrid")
+          .eq("status" as never, "connected")
+          .maybeSingle() as any;
+        const sgKey: string | null = sgRow?.credentials?.apiKey ?? null;
+        const primaryCfg: EmailConfig = {
+          provider: "resend",
+          apiKey: process.env.RESEND_API_KEY ?? "",
+          defaultFrom: process.env.RESEND_FROM,
+        };
+        const fallbackCfg: EmailConfig | null = sgKey
+          ? { provider: "sendgrid", apiKey: sgKey }
+          : null;
+        const emailProvider = createEmailProviderWithFallback(
+          { ...primaryCfg, workspaceId: adminWorkspaceId },
+          fallbackCfg,
+        );
+
+        let subject: string;
+        let html: string;
+        let text: string;
         if (data.approve) {
           const cta = APP_URL
             ? `<p style="margin:20px 0 0;"><a href="${APP_URL}/dashboard" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-size:14px;font-weight:600;">Open your workspace</a></p>`
             : "";
-          result = await sendResendEmail({
-            to: profile.email,
-            subject: `Your workspace "${rawWorkspaceName}" has been approved`,
-            html: renderBasicEmail({
-              heading: "Your workspace is approved",
-              bodyHtml: `<p style="margin:0 0 12px;">Hi ${name},</p>
-                <p style="margin:0 0 12px;">Good news — your workspace <strong>${workspaceName}</strong> has been approved and is ready to use. You can now build agents and take them live.</p>
-                ${cta}`,
-            }),
-            text: `Hi ${rawName},\n\nYour workspace "${rawWorkspaceName}" has been approved and is ready to use.${APP_URL ? `\n\nOpen it: ${APP_URL}/dashboard` : ""}\n\n— Webespoke AI`,
+          subject = `Your workspace "${rawWorkspaceName}" has been approved`;
+          html = renderBasicEmail({
+            heading: "Your workspace is approved",
+            bodyHtml: `<p style="margin:0 0 12px;">Hi ${name},</p>
+              <p style="margin:0 0 12px;">Good news — your workspace <strong>${workspaceName}</strong> has been approved and is ready to use. You can now build agents and take them live.</p>
+              ${cta}`,
           });
+          text = `Hi ${rawName},\n\nYour workspace "${rawWorkspaceName}" has been approved and is ready to use.${APP_URL ? `\n\nOpen it: ${APP_URL}/dashboard` : ""}\n\n— Webespoke AI`;
         } else {
-          result = await sendResendEmail({
-            to: profile.email,
-            subject: `Update on your workspace request "${rawWorkspaceName}"`,
-            html: renderBasicEmail({
-              heading: "Workspace request update",
-              bodyHtml: `<p style="margin:0 0 12px;">Hi ${name},</p>
-                <p style="margin:0 0 12px;">Thanks for your interest. Unfortunately your request for the workspace <strong>${workspaceName}</strong> was not approved at this time.</p>
-                <p style="margin:0;">If you think this was a mistake or want to discuss it, just reply to this email.</p>`,
-            }),
-            text: `Hi ${rawName},\n\nYour request for the workspace "${rawWorkspaceName}" was not approved at this time. Reply to this email if you'd like to discuss it.\n\n— Webespoke AI`,
+          subject = `Update on your workspace request "${rawWorkspaceName}"`;
+          html = renderBasicEmail({
+            heading: "Workspace request update",
+            bodyHtml: `<p style="margin:0 0 12px;">Hi ${name},</p>
+              <p style="margin:0 0 12px;">Thanks for your interest. Unfortunately your request for the workspace <strong>${workspaceName}</strong> was not approved at this time.</p>
+              <p style="margin:0;">If you think this was a mistake or want to discuss it, just reply to this email.</p>`,
           });
+          text = `Hi ${rawName},\n\nYour request for the workspace "${rawWorkspaceName}" was not approved at this time. Reply to this email if you'd like to discuss it.\n\n— Webespoke AI`;
         }
+
+        const sendResult = await emailProvider.sendEmail({ to: profile.email, subject, html, text });
+        const result = { success: sendResult.accepted.length > 0, error: sendResult.rejected.length > 0 ? "rejected" : undefined };
         if (!result.success) {
           console.error(
             `[workspace] approval email not sent (request=${data.id}, user=${req.user_id}): ${result.error}`,

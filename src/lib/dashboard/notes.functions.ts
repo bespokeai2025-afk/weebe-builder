@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { createBooking, getCalcomUserTimezone } from "@/lib/calendar/calcom.server";
+import { getCalcomUserTimezone } from "@/lib/calendar/calcom.server";
+import { createCalendarProviderWithFallback } from "@/lib/providers/calendar/factory";
 
 const ENTITY_TYPES = ["lead", "contact", "call"] as const;
 
@@ -136,22 +137,29 @@ export const createManualBooking = createServerFn({ method: "POST" })
           if (!timezone) timezone = await getCalcomUserTimezone(apiKey);
           timezone = timezone ?? "UTC";
 
-          const booking = await createBooking(apiKey, {
+          // Route booking through the provider framework (CalCom primary, no fallback yet).
+          // createCalendarProviderWithFallback enables future fallback to Google/Outlook
+          // by swapping the second arg to a configured fallback CalendarConfig.
+          const calProvider = createCalendarProviderWithFallback(
+            { provider: "calcom", apiKey, workspaceId },
+            null,
+          );
+          const bookingResult = await calProvider.createBooking({
             eventTypeId,
-            start: data.startAt,
             name,
             email,
             phone: data.attendeePhone ?? undefined,
+            start: data.startAt,
+            timezone,
             notes: data.notes ?? undefined,
-            timeZone: timezone,
           });
 
           // Link the local row to the new Cal.com booking
           await (supabase as any)
             .from("calendar_bookings")
             .update({
-              external_id: booking.uid,
-              meeting_url: booking.meetingUrl ?? null,
+              external_id: bookingResult.uid ?? String(bookingResult.bookingId),
+              meeting_url: bookingResult.meetUrl ?? null,
             })
             .eq("id", localId);
         }
