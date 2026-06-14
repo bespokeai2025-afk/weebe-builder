@@ -35,6 +35,7 @@ export type SystemMindIssue = {
   category: "provider" | "agent" | "reliability" | "security" | "configuration" | "knowledge";
   title: string;
   detail: string;
+  fixable: boolean;
   fixHref?: string;
 };
 
@@ -44,9 +45,13 @@ export type SystemMindProvider = {
   category: "ai" | "voice" | "telephony" | "crm" | "calendar" | "messaging" | "email" | "payment";
   displayName: string;
   status: "connected" | "disconnected" | "partial";
+  keyPresent: boolean;
+  lastChecked: string;
+  fallback: string | null;
   cost: number;
   requests: number;
   errors: number;
+  errorCount: number;
   errorRate: number;
   lastUsedAt: string | null;
   configHint: string;
@@ -67,6 +72,9 @@ export type SystemMindCTOSettings = {
   autoScanInterval: "off" | "daily" | "weekly";
   errorRateThreshold: number;
   costDailyThreshold: number;
+  defaultAiModel: "gpt-4o-mini" | "gpt-4o" | "gpt-3.5-turbo";
+  notificationsEnabled: boolean;
+  providerPriority: string[];
 };
 
 // ── 1. Issues ─────────────────────────────────────────────────────────────────
@@ -78,22 +86,22 @@ export async function getSystemMindIssuesServer(workspaceId: string): Promise<Sy
 
   // Provider key checks
   if (!s.openai_api_key && !process.env.OPENAI_API_KEY) {
-    issues.push({ id: "no-openai", severity: "critical", category: "provider", title: "OpenAI API key missing", detail: "No OpenAI key is configured. AI executives, embeddings, and all LLM features will not work.", fixHref: "/settings" });
+    issues.push({ id: "no-openai", severity: "critical", category: "provider", title: "OpenAI API key missing", detail: "No OpenAI key is configured. AI executives, embeddings, and all LLM features will not work.", fixable: true, fixHref: "/settings" });
   }
   if (!s.retell_workspace_id && !s.retell_default_agent_id && !process.env.RETELL_API_KEY) {
-    issues.push({ id: "no-retell", severity: "high", category: "provider", title: "Retell not configured", detail: "No Retell workspace ID or API key. Voice agents cannot be deployed.", fixHref: "/settings" });
+    issues.push({ id: "no-retell", severity: "high", category: "provider", title: "Retell not configured", detail: "No Retell workspace ID or API key. Voice agents cannot be deployed.", fixable: true, fixHref: "/settings" });
   }
   if (!s.elevenlabs_api_key) {
-    issues.push({ id: "no-elevenlabs", severity: "medium", category: "provider", title: "ElevenLabs not connected", detail: "ElevenLabs API key is absent. Real-time voice (HyperStream) will fall back to Retell's default TTS.", fixHref: "/settings" });
+    issues.push({ id: "no-elevenlabs", severity: "medium", category: "provider", title: "ElevenLabs not connected", detail: "ElevenLabs API key is absent. Real-time voice (HyperStream) will fall back to Retell's default TTS.", fixable: true, fixHref: "/settings" });
   }
   if (!s.twilio_auth_token || !s.twilio_account_sid) {
-    issues.push({ id: "no-twilio", severity: "medium", category: "telephony", title: "Twilio telephony not configured", detail: "Missing Twilio SID/Auth Token. Outbound calls and SMS cannot be placed through Twilio.", fixHref: "/settings" });
+    issues.push({ id: "no-twilio", severity: "medium", category: "provider", title: "Twilio telephony not configured", detail: "Missing Twilio SID/Auth Token. Outbound calls and SMS cannot be placed through Twilio.", fixable: true, fixHref: "/settings" });
   }
   if (!s.calcom_api_key) {
-    issues.push({ id: "no-calcom", severity: "low", category: "configuration", title: "Cal.com not connected", detail: "No Cal.com API key. Appointment-booking flows will be unable to create calendar events.", fixHref: "/settings" });
+    issues.push({ id: "no-calcom", severity: "low", category: "configuration", title: "Cal.com not connected", detail: "No Cal.com API key. Appointment-booking flows will be unable to create calendar events.", fixable: true, fixHref: "/settings" });
   }
   if (!s.whatsapp_phone_id) {
-    issues.push({ id: "no-whatsapp", severity: "low", category: "configuration", title: "WhatsApp channel inactive", detail: "No WhatsApp Phone ID configured. WhatsApp messaging agents will not receive or send messages.", fixHref: "/settings" });
+    issues.push({ id: "no-whatsapp", severity: "low", category: "configuration", title: "WhatsApp channel inactive", detail: "No WhatsApp Phone ID configured. WhatsApp messaging agents will not receive or send messages.", fixable: true, fixHref: "/settings" });
   }
 
   // Agent workflow issues
@@ -104,9 +112,9 @@ export async function getSystemMindIssuesServer(workspaceId: string): Promise<Sy
         const nc = Number(wf.node_count ?? 0);
         const ec = Number(wf.edge_count ?? 0);
         if (nc === 0) {
-          issues.push({ id: `wf-empty-${wf.agent_id}`, severity: "high", category: "agent", title: `Empty flow: "${wf.workflow_name}"`, detail: `Agent has no flow nodes. It cannot handle any conversation.`, fixHref: "/systemmind/workflows" });
+          issues.push({ id: `wf-empty-${wf.agent_id}`, severity: "high", category: "agent", title: `Empty flow: "${wf.workflow_name}"`, detail: `Agent has no flow nodes. It cannot handle any conversation.`, fixable: true, fixHref: "/systemmind/workflows" });
         } else if (nc > 1 && ec === 0) {
-          issues.push({ id: `wf-disconnected-${wf.agent_id}`, severity: "high", category: "agent", title: `Disconnected flow: "${wf.workflow_name}"`, detail: `Agent has ${nc} nodes but no edges connecting them. The flow will stall after the first node.`, fixHref: "/systemmind/workflows" });
+          issues.push({ id: `wf-disconnected-${wf.agent_id}`, severity: "high", category: "agent", title: `Disconnected flow: "${wf.workflow_name}"`, detail: `Agent has ${nc} nodes but no edges connecting them. The flow will stall after the first node.`, fixable: true, fixHref: "/systemmind/workflows" });
         }
       }
     }
@@ -118,9 +126,9 @@ export async function getSystemMindIssuesServer(workspaceId: string): Promise<Sy
     for (const row of usage) {
       const rate = row.requests > 0 ? (row.errors / row.requests) * 100 : 0;
       if (rate > 15) {
-        issues.push({ id: `err-rate-${row.provider_name}`, severity: "high", category: "reliability", title: `High error rate: ${row.provider_name} (${rate.toFixed(0)}%)`, detail: `${row.errors} errors across ${row.requests} requests in the ${row.provider_category} category.`, fixHref: "/systemmind/providers" });
+        issues.push({ id: `err-rate-${row.provider_name}`, severity: "high", category: "reliability", title: `High error rate: ${row.provider_name} (${rate.toFixed(0)}%)`, detail: `${row.errors} errors across ${row.requests} requests in the ${row.provider_category} category.`, fixable: false, fixHref: "/systemmind/providers" });
       } else if (rate > 5) {
-        issues.push({ id: `err-rate-warn-${row.provider_name}`, severity: "medium", category: "reliability", title: `Elevated error rate: ${row.provider_name} (${rate.toFixed(0)}%)`, detail: `${row.errors} errors across ${row.requests} requests.`, fixHref: "/systemmind/providers" });
+        issues.push({ id: `err-rate-warn-${row.provider_name}`, severity: "medium", category: "reliability", title: `Elevated error rate: ${row.provider_name} (${rate.toFixed(0)}%)`, detail: `${row.errors} errors across ${row.requests} requests.`, fixable: false, fixHref: "/systemmind/providers" });
       }
     }
   } catch { /* graceful */ }
@@ -132,7 +140,7 @@ export async function getSystemMindIssuesServer(workspaceId: string): Promise<Sy
       for (const kb of kbs) {
         const { count } = await sb.from("executive_documents").select("id", { count: "exact", head: true }).eq("kb_id", kb.id);
         if ((count ?? 0) === 0) {
-          issues.push({ id: `kb-empty-${kb.id}`, severity: "low", category: "knowledge", title: `Knowledge base "${kb.name}" is empty`, detail: `No documents uploaded. The AI executive backed by this KB has no grounded knowledge.`, fixHref: "/knowledge-centre" });
+          issues.push({ id: `kb-empty-${kb.id}`, severity: "low", category: "knowledge", title: `Knowledge base "${kb.name}" is empty`, detail: `No documents uploaded. The AI executive backed by this KB has no grounded knowledge.`, fixable: true, fixHref: "/knowledge-centre" });
         }
       }
     }
@@ -146,15 +154,20 @@ export async function getSystemMindIssuesServer(workspaceId: string): Promise<Sy
 const KNOWN_PROVIDERS: Array<{
   id: string; name: string; displayName: string;
   category: SystemMindProvider["category"]; configHint: string;
+  fallback: string | null;
   keyCheck: (s: any) => "connected" | "disconnected" | "partial";
 }> = [
-  { id: "openai",      name: "openai",      displayName: "OpenAI",         category: "ai",        configHint: "Settings → Integrations → OpenAI API Key",       keyCheck: (s) => (s.openai_api_key || process.env.OPENAI_API_KEY) ? "connected" : "disconnected" },
-  { id: "retell",      name: "retell",      displayName: "Retell AI",       category: "voice",     configHint: "Settings → Integrations → Retell",               keyCheck: (s) => (s.retell_workspace_id || process.env.RETELL_API_KEY) ? "connected" : "disconnected" },
-  { id: "elevenlabs",  name: "elevenlabs",  displayName: "ElevenLabs",      category: "voice",     configHint: "Settings → Integrations → ElevenLabs API Key",   keyCheck: (s) => s.elevenlabs_api_key ? "connected" : "disconnected" },
-  { id: "twilio",      name: "twilio",      displayName: "Twilio",          category: "telephony", configHint: "Settings → Integrations → Twilio",               keyCheck: (s) => (s.twilio_auth_token && s.twilio_account_sid) ? "connected" : (!s.twilio_auth_token && !s.twilio_account_sid ? "disconnected" : "partial") },
-  { id: "whatsapp",    name: "whatsapp",    displayName: "WhatsApp",        category: "messaging", configHint: "Settings → Integrations → WhatsApp",             keyCheck: (s) => s.whatsapp_phone_id ? "connected" : "disconnected" },
-  { id: "calcom",      name: "calcom",      displayName: "Cal.com",         category: "calendar",  configHint: "Settings → Integrations → Cal.com API Key",      keyCheck: (s) => s.calcom_api_key ? "connected" : "disconnected" },
-  { id: "resend",      name: "resend",      displayName: "Resend (email)",  category: "email",     configHint: "Env: RESEND_API_KEY",                             keyCheck: (_s) => process.env.RESEND_API_KEY ? "connected" : "disconnected" },
+  { id: "openai",     name: "openai",     displayName: "OpenAI",          category: "ai",        fallback: null,         configHint: "Settings → Integrations → OpenAI API Key",       keyCheck: (s) => (s.openai_api_key || process.env.OPENAI_API_KEY) ? "connected" : "disconnected" },
+  { id: "retell",     name: "retell",     displayName: "Retell AI",        category: "voice",     fallback: null,         configHint: "Settings → Integrations → Retell",               keyCheck: (s) => (s.retell_workspace_id || process.env.RETELL_API_KEY) ? "connected" : "disconnected" },
+  { id: "elevenlabs", name: "elevenlabs", displayName: "ElevenLabs",       category: "voice",     fallback: "Retell TTS", configHint: "Settings → Integrations → ElevenLabs API Key",   keyCheck: (s) => s.elevenlabs_api_key ? "connected" : "disconnected" },
+  { id: "twilio",     name: "twilio",     displayName: "Twilio",           category: "telephony", fallback: null,         configHint: "Settings → Integrations → Twilio",               keyCheck: (s) => (s.twilio_auth_token && s.twilio_account_sid) ? "connected" : (!s.twilio_auth_token && !s.twilio_account_sid ? "disconnected" : "partial") },
+  { id: "whatsapp",   name: "whatsapp",   displayName: "WhatsApp (Meta)",  category: "messaging", fallback: null,         configHint: "Settings → Integrations → WhatsApp",             keyCheck: (s) => s.whatsapp_phone_id ? "connected" : "disconnected" },
+  { id: "wati",       name: "wati",       displayName: "WATI (WhatsApp)",  category: "messaging", fallback: "WhatsApp",   configHint: "Settings → Integrations → WATI",                 keyCheck: (s) => s.wati_api_key ? "connected" : "disconnected" },
+  { id: "hubspot",    name: "hubspot",    displayName: "HubSpot CRM",      category: "crm",       fallback: null,         configHint: "Settings → Integrations → HubSpot",              keyCheck: (s) => s.hubspot_api_key ? "connected" : "disconnected" },
+  { id: "ghl",        name: "ghl",        displayName: "GoHighLevel",      category: "crm",       fallback: null,         configHint: "Settings → Integrations → GoHighLevel",          keyCheck: (s) => s.ghl_api_key ? "connected" : "disconnected" },
+  { id: "stripe",     name: "stripe",     displayName: "Stripe",           category: "payment",   fallback: null,         configHint: "Settings → Integrations → Stripe",               keyCheck: (s) => (s.stripe_secret_key || process.env.STRIPE_SECRET_KEY) ? "connected" : "disconnected" },
+  { id: "calcom",     name: "calcom",     displayName: "Cal.com",          category: "calendar",  fallback: null,         configHint: "Settings → Integrations → Cal.com API Key",      keyCheck: (s) => s.calcom_api_key ? "connected" : "disconnected" },
+  { id: "resend",     name: "resend",     displayName: "Resend (email)",   category: "email",     fallback: null,         configHint: "Env: RESEND_API_KEY",                             keyCheck: (_s) => process.env.RESEND_API_KEY ? "connected" : "disconnected" },
 ];
 
 export async function getSystemMindProvidersServer(workspaceId: string): Promise<SystemMindProvider[]> {
@@ -163,15 +176,20 @@ export async function getSystemMindProvidersServer(workspaceId: string): Promise
   const s = ws ?? {};
   const usage = await getProviderUsage(workspaceId);
   const usageMap = new Map(usage.map((r) => [r.provider_name.toLowerCase(), r]));
+  const checkedAt = new Date().toISOString();
 
   return KNOWN_PROVIDERS.map((p) => {
     const u = usageMap.get(p.name.toLowerCase());
     const requests = Number(u?.requests ?? 0);
     const errors = Number(u?.errors ?? 0);
+    const status = p.keyCheck(s);
     return {
       id: p.id, name: p.name, displayName: p.displayName, category: p.category,
-      status: p.keyCheck(s), cost: Number(Number(u?.total_cost_usd ?? 0).toFixed(2)),
-      requests, errors, errorRate: requests > 0 ? +((errors / requests) * 100).toFixed(1) : 0,
+      status, keyPresent: status !== "disconnected",
+      lastChecked: checkedAt, fallback: p.fallback,
+      cost: Number(Number(u?.total_cost_usd ?? 0).toFixed(2)),
+      requests, errors, errorCount: errors,
+      errorRate: requests > 0 ? +((errors / requests) * 100).toFixed(1) : 0,
       lastUsedAt: u?.last_used_at ?? null, configHint: p.configHint,
     };
   });
@@ -219,9 +237,9 @@ export async function generateSystemMindRecommendationsServer(workspaceId: strin
     workspace_id: workspaceId,
     category: String(r.category ?? "general").slice(0, 60),
     title: String(r.title ?? "").slice(0, 200),
-    detail: String(r.detail ?? "").slice(0, 800),
+    body: String(r.detail ?? "").slice(0, 800),
     priority: ["critical", "high", "medium", "low"].includes(r.priority) ? r.priority : "medium",
-    status: "open", source: "ai",
+    source: "ai",
   }));
   await sb.from("systemmind_recommendations").insert(rows);
   const { data } = await sb.from("systemmind_recommendations").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(50);
@@ -230,19 +248,19 @@ export async function generateSystemMindRecommendationsServer(workspaceId: strin
 
 export async function dismissSystemMindRecommendationServer(workspaceId: string, id: string) {
   const sb = supabaseAdmin as any;
-  await sb.from("systemmind_recommendations").update({ status: "dismissed", dismissed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id).eq("workspace_id", workspaceId);
+  await sb.from("systemmind_recommendations").update({ dismissed_at: new Date().toISOString() }).eq("id", id).eq("workspace_id", workspaceId);
 }
 
 // ── 4. Audits ─────────────────────────────────────────────────────────────────
 export async function listSystemMindAuditsServer(workspaceId: string) {
   const sb = supabaseAdmin as any;
-  const { data } = await sb.from("systemmind_audits").select("*").eq("workspace_id", workspaceId).order("run_at", { ascending: false }).limit(20);
+  const { data } = await sb.from("systemmind_audits").select("*").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(20);
   return data ?? [];
 }
 
 export async function runSystemMindAuditServer(workspaceId: string, apiKey: string): Promise<string> {
   const sb = supabaseAdmin as any;
-  const { data: auditRow } = await sb.from("systemmind_audits").insert({ workspace_id: workspaceId, status: "running" }).select("id").single();
+  const { data: auditRow } = await sb.from("systemmind_audits").insert({ workspace_id: workspaceId, status: "running", triggered_by: "manual" }).select("id").single();
   const auditId = auditRow?.id as string;
 
   try {
@@ -270,11 +288,17 @@ Open issues (${issues.length}): ${issues.slice(0, 10).map((i) => `[${i.severity}
 
     const score = typeof result?.score === "number" ? Math.min(100, Math.max(0, result.score)) : null;
     await sb.from("systemmind_audits").update({
-      status: "complete", score, summary: result?.summary ?? "", findings: result?.findings ?? [],
+      status: "complete", score,
+      summary: { text: result?.summary ?? "", score },
+      findings: result?.findings ?? [],
       completed_at: new Date().toISOString(),
     }).eq("id", auditId);
   } catch (err: any) {
-    await sb.from("systemmind_audits").update({ status: "failed", summary: err?.message ?? "Audit failed.", completed_at: new Date().toISOString() }).eq("id", auditId);
+    await sb.from("systemmind_audits").update({
+      status: "failed",
+      summary: { text: err?.message ?? "Audit failed." },
+      completed_at: new Date().toISOString(),
+    }).eq("id", auditId);
   }
   return auditId;
 }
@@ -327,13 +351,21 @@ export async function listSystemMindTasksServer(workspaceId: string) {
   return data ?? [];
 }
 
-export async function createSystemMindTaskServer(workspaceId: string, task: { title: string; description?: string; priority?: string; status?: string; due_date?: string | null; tags?: string[] }) {
+export async function createSystemMindTaskServer(workspaceId: string, task: { title: string; description?: string; priority?: string; status?: string; due_at?: string | null; tags?: string[] }) {
   const sb = supabaseAdmin as any;
-  const { data } = await sb.from("systemmind_tasks").insert({ workspace_id: workspaceId, title: task.title.slice(0, 200), description: task.description?.slice(0, 800) ?? null, priority: task.priority ?? "medium", status: task.status ?? "open", due_date: task.due_date ?? null, tags: task.tags ?? [] }).select("*").single();
+  const { data } = await sb.from("systemmind_tasks").insert({
+    workspace_id: workspaceId,
+    title: task.title.slice(0, 200),
+    description: task.description?.slice(0, 800) ?? null,
+    priority: task.priority ?? "medium",
+    status: task.status ?? "open",
+    due_at: task.due_at ?? null,
+    tags: task.tags ?? [],
+  }).select("*").single();
   return data;
 }
 
-export async function updateSystemMindTaskServer(workspaceId: string, id: string, patch: { title?: string; description?: string; priority?: string; status?: string; due_date?: string | null; tags?: string[] }) {
+export async function updateSystemMindTaskServer(workspaceId: string, id: string, patch: { title?: string; description?: string; priority?: string; status?: string; due_at?: string | null; tags?: string[] }) {
   const sb = supabaseAdmin as any;
   await sb.from("systemmind_tasks").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id).eq("workspace_id", workspaceId);
 }
@@ -346,7 +378,7 @@ export async function deleteSystemMindTaskServer(workspaceId: string, id: string
 // ── 7. Reports ────────────────────────────────────────────────────────────────
 export async function listSystemMindReportsServer(workspaceId: string) {
   const sb = supabaseAdmin as any;
-  const { data } = await sb.from("systemmind_reports").select("id, title, generated_at").eq("workspace_id", workspaceId).order("generated_at", { ascending: false }).limit(20);
+  const { data } = await sb.from("systemmind_reports").select("id, title, model, created_at").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(20);
   return data ?? [];
 }
 
@@ -365,7 +397,7 @@ export async function generateSystemMindReportServer(workspaceId: string, apiKey
     getSystemMindProvidersServer(workspaceId),
   ]);
   const { data: taskStats } = await sb.from("systemmind_tasks").select("status").eq("workspace_id", workspaceId);
-  const { data: recsOpen } = await sb.from("systemmind_recommendations").select("id", { count: "exact" }).eq("workspace_id", workspaceId).eq("status", "open");
+  const { count: openRecsCount } = await sb.from("systemmind_recommendations").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId).is("dismissed_at", null);
 
   const openTasks = (taskStats ?? []).filter((t: any) => t.status === "open").length;
   const inProgressTasks = (taskStats ?? []).filter((t: any) => t.status === "in_progress").length;
@@ -388,17 +420,19 @@ Providers:
 ${providers.map((p) => `- ${p.displayName}: ${p.status}, ${p.requests} requests, ${p.errorRate}% errors`).join("\n")}
 
 Task Board: ${openTasks} open, ${inProgressTasks} in-progress
-Open Recommendations: ${(recsOpen as any)?.length ?? 0}`;
+Open Recommendations: ${openRecsCount ?? 0}`;
 
   const title = `CTO Weekly Report — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-  const content = await gpt(
+  const body = await gpt(
     apiKey,
     "You are a CTO AI. Write clear, professional technical reports in Markdown.",
     `Write a complete CTO weekly technical report based on this data. Include: Executive Summary, Platform Health, Key Issues & Risks, Provider Status, Actions Required, and Upcoming Focus. Be specific with numbers.\n\n${context}`,
     2000,
   );
 
-  const { data } = await sb.from("systemmind_reports").insert({ workspace_id: workspaceId, title, content, data_snapshot: { issues: issues.length, providers: providers.length, cost: platformData.usage.totalCostUsd } }).select("*").single();
+  const { data } = await sb.from("systemmind_reports").insert({
+    workspace_id: workspaceId, title, body, model: "gpt-4o-mini",
+  }).select("*").single();
   return data;
 }
 
@@ -497,18 +531,28 @@ export async function getArchitectureLayersServer(workspaceId: string): Promise<
 }
 
 // ── 9. CTO Settings ───────────────────────────────────────────────────────────
+const DEFAULT_PROVIDERS_PRIORITY = ["openai", "retell", "elevenlabs", "twilio", "whatsapp", "wati", "hubspot", "ghl", "stripe", "calcom", "resend"];
+
 const DEFAULT_SETTINGS: SystemMindCTOSettings = {
   persona: "professional",
   morningBriefing: false,
   autoScanInterval: "off",
   errorRateThreshold: 5,
   costDailyThreshold: 50,
+  defaultAiModel: "gpt-4o-mini",
+  notificationsEnabled: true,
+  providerPriority: DEFAULT_PROVIDERS_PRIORITY,
 };
 
 export async function getSystemMindCTOSettingsServer(workspaceId: string): Promise<SystemMindCTOSettings> {
   const sb = supabaseAdmin as any;
   const { data } = await sb.from("workspace_settings").select("systemmind_cto_settings").eq("workspace_id", workspaceId).maybeSingle();
-  return { ...DEFAULT_SETTINGS, ...(data?.systemmind_cto_settings ?? {}) };
+  const saved = data?.systemmind_cto_settings ?? {};
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    providerPriority: saved.providerPriority?.length ? saved.providerPriority : DEFAULT_PROVIDERS_PRIORITY,
+  };
 }
 
 export async function saveSystemMindCTOSettingsServer(workspaceId: string, settings: Partial<SystemMindCTOSettings>) {

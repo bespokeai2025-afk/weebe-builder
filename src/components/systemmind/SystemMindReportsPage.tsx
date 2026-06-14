@@ -42,13 +42,20 @@ export function SystemMindReportsPage() {
               <ArrowLeft className="h-3.5 w-3.5" /> Back
             </Button>
             <h2 className="text-sm font-semibold truncate">{selected.title}</h2>
-            <span className="text-[11px] text-muted-foreground ml-auto shrink-0">
-              {new Date(selected.generated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-            </span>
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              {selected.model && (
+                <span className="text-[10px] text-muted-foreground/50 bg-white/[0.04] rounded px-1.5 py-0.5">
+                  {selected.model}
+                </span>
+              )}
+              <span className="text-[11px] text-muted-foreground">
+                {new Date(selected.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
           </div>
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
             <div className="prose prose-sm prose-invert max-w-none">
-              <pre className="whitespace-pre-wrap text-xs text-foreground leading-relaxed font-sans">{selected.content}</pre>
+              <pre className="whitespace-pre-wrap text-xs text-foreground leading-relaxed font-sans">{selected.body}</pre>
             </div>
           </div>
         </div>
@@ -111,10 +118,11 @@ export function SystemMindReportsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold truncate">{report.title}</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {new Date(report.generated_at).toLocaleDateString("en-US", {
+                    {new Date(report.created_at).toLocaleDateString("en-US", {
                       weekday: "short", month: "short", day: "numeric",
                       hour: "2-digit", minute: "2-digit",
                     })}
+                    {report.model && <span className="ml-2 opacity-50">· {report.model}</span>}
                   </p>
                 </div>
                 <span className="text-[10px] text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">View →</span>

@@ -20,6 +20,9 @@ const PRIORITY_BADGE: Record<string, string> = {
 
 const PRIORITY_ORDER = ["critical", "high", "medium", "low"];
 
+const CATEGORIES = ["all", "security", "performance", "cost", "reliability", "configuration", "general"] as const;
+type CategoryFilter = typeof CATEGORIES[number];
+
 export function SystemMindRecommendationsPage() {
   const listFn = useServerFn(listSystemMindRecommendations);
   const generateFn = useServerFn(generateSystemMindRecommendations);
@@ -27,7 +30,8 @@ export function SystemMindRecommendationsPage() {
   const qc = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [dismissing, setDismissing] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"open" | "dismissed" | "all">("open");
+  const [statusFilter, setStatusFilter] = useState<"open" | "dismissed" | "all">("open");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
   const { data: recs, isLoading } = useQuery({
     queryKey: ["systemmind-recommendations"],
@@ -54,17 +58,23 @@ export function SystemMindRecommendationsPage() {
     }
   }
 
-  const filtered = (recs ?? []).filter((r: any) =>
-    filter === "all" ? true : r.status === filter,
-  );
+  const allRecs = (recs ?? []) as any[];
+  const openCount = allRecs.filter((r) => !r.dismissed_at).length;
+
+  const filtered = allRecs.filter((r: any) => {
+    const statusMatch =
+      statusFilter === "all" ? true :
+      statusFilter === "open" ? !r.dismissed_at :
+      !!r.dismissed_at;
+    const categoryMatch = categoryFilter === "all" ? true : r.category === categoryFilter;
+    return statusMatch && categoryMatch;
+  });
 
   const sorted = [...filtered].sort((a: any, b: any) => {
     const pa = PRIORITY_ORDER.indexOf(a.priority);
     const pb = PRIORITY_ORDER.indexOf(b.priority);
     return pa - pb;
   });
-
-  const openCount = (recs ?? []).filter((r: any) => r.status === "open").length;
 
   return (
     <SystemMindShell>
@@ -85,15 +95,30 @@ export function SystemMindRecommendationsPage() {
           </Button>
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex gap-1.5 mb-5">
+        {/* Status filter tabs */}
+        <div className="flex gap-1.5 mb-3">
           {(["open", "dismissed", "all"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
+            <button key={f} onClick={() => setStatusFilter(f)}
               className={cn(
                 "rounded-full px-3 py-1 text-[11px] font-medium transition-colors capitalize",
-                filter === f ? "bg-sky-500/20 text-sky-300" : "bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08]",
+                statusFilter === f ? "bg-sky-500/20 text-sky-300" : "bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08]",
               )}>
-              {f === "open" ? `Open (${openCount})` : f === "all" ? `All (${(recs ?? []).length})` : "Dismissed"}
+              {f === "open" ? `Open (${openCount})` : f === "all" ? `All (${allRecs.length})` : "Dismissed"}
+            </button>
+          ))}
+        </div>
+
+        {/* Category filter pills */}
+        <div className="flex flex-wrap gap-1.5 mb-5">
+          {CATEGORIES.map((cat) => (
+            <button key={cat} onClick={() => setCategoryFilter(cat)}
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors capitalize",
+                categoryFilter === cat
+                  ? "bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/30"
+                  : "bg-white/[0.03] text-muted-foreground/70 hover:bg-white/[0.07] border border-white/[0.06]",
+              )}>
+              {cat}
             </button>
           ))}
         </div>
@@ -113,7 +138,7 @@ export function SystemMindRecommendationsPage() {
         ) : (
           <div className="space-y-3">
             {sorted.map((rec: any) => (
-              <div key={rec.id} className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] p-4", rec.status === "dismissed" && "opacity-50")}>
+              <div key={rec.id} className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] p-4", rec.dismissed_at && "opacity-50")}>
                 <div className="flex items-start gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
@@ -125,12 +150,12 @@ export function SystemMindRecommendationsPage() {
                       </span>
                     </div>
                     <p className="text-xs font-semibold leading-snug">{rec.title}</p>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{rec.detail}</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{rec.body}</p>
                     <p className="text-[10px] text-muted-foreground/40 mt-2">
                       {new Date(rec.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
-                  {rec.status === "open" && (
+                  {!rec.dismissed_at && (
                     <button
                       onClick={() => dismiss(rec.id)}
                       disabled={dismissing === rec.id}

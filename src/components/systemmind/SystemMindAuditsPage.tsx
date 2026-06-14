@@ -29,6 +29,7 @@ function AuditRow({ audit }: { audit: any }) {
   const findings: any[] = audit.findings ?? [];
   const critCount = findings.filter((f) => f.severity === "critical").length;
   const highCount = findings.filter((f) => f.severity === "high").length;
+  const summaryText: string = typeof audit.summary === "object" ? (audit.summary?.text ?? "") : (audit.summary ?? "");
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
@@ -45,13 +46,13 @@ function AuditRow({ audit }: { audit: any }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold">
-              {new Date(audit.run_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              {new Date(audit.created_at).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
             </span>
             <ScorePill score={audit.score ?? null} />
             {critCount > 0 && <span className="text-[10px] bg-red-500/15 text-red-400 px-1.5 py-0.5 rounded">{critCount} critical</span>}
             {highCount > 0 && <span className="text-[10px] bg-orange-500/15 text-orange-400 px-1.5 py-0.5 rounded">{highCount} high</span>}
           </div>
-          {audit.summary && <p className="text-xs text-muted-foreground mt-0.5 truncate">{audit.summary}</p>}
+          {summaryText && <p className="text-xs text-muted-foreground mt-0.5 truncate">{summaryText}</p>}
         </div>
         {findings.length > 0 && (
           open ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />

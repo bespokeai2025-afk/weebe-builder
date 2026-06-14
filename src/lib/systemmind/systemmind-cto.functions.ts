@@ -133,7 +133,14 @@ export const listSystemMindTasks = createServerFn({ method: "GET" })
 export const createSystemMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ title: z.string(), description: z.string().optional(), priority: z.string().optional(), status: z.string().optional(), due_date: z.string().nullable().optional(), tags: z.array(z.string()).optional() }).parse(input),
+    z.object({
+      title: z.string(),
+      description: z.string().optional(),
+      priority: z.string().optional(),
+      status: z.string().optional(),
+      due_at: z.string().nullable().optional(),
+      tags: z.array(z.string()).optional(),
+    }).parse(input),
   )
   .handler(async ({ context, data }) => {
     const { workspaceId } = context;
@@ -145,7 +152,15 @@ export const createSystemMindTask = createServerFn({ method: "POST" })
 export const updateSystemMindTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ id: z.string(), title: z.string().optional(), description: z.string().optional(), priority: z.string().optional(), status: z.string().optional(), due_date: z.string().nullable().optional(), tags: z.array(z.string()).optional() }).parse(input),
+    z.object({
+      id: z.string(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+      priority: z.string().optional(),
+      status: z.string().optional(),
+      due_at: z.string().nullable().optional(),
+      tags: z.array(z.string()).optional(),
+    }).parse(input),
   )
   .handler(async ({ context, data }) => {
     const { workspaceId } = context;
@@ -225,6 +240,9 @@ export const saveSystemMindCTOSettings = createServerFn({ method: "POST" })
       autoScanInterval: z.enum(["off", "daily", "weekly"]).optional(),
       errorRateThreshold: z.number().optional(),
       costDailyThreshold: z.number().optional(),
+      defaultAiModel: z.enum(["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"]).optional(),
+      notificationsEnabled: z.boolean().optional(),
+      providerPriority: z.array(z.string()).optional(),
     }).parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {

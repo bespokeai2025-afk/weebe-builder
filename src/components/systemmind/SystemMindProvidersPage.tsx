@@ -76,11 +76,24 @@ function ProviderCard({ provider }: { provider: SystemMindProvider }) {
         <p className="text-[11px] text-muted-foreground leading-relaxed">{provider.configHint}</p>
       )}
 
-      {provider.lastUsedAt && (
-        <p className="text-[10px] text-muted-foreground/40 mt-2">
-          Last used: {new Date(provider.lastUsedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-        </p>
-      )}
+      <div className="flex items-center gap-2 mt-2 flex-wrap">
+        <span className={cn(
+          "rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+          provider.keyPresent ? "bg-emerald-500/10 text-emerald-400/80" : "bg-red-500/10 text-red-400/80",
+        )}>
+          {provider.keyPresent ? "Key ✓" : "No key"}
+        </span>
+        {provider.fallback && (
+          <span className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[9px] text-muted-foreground/60">
+            Fallback → {provider.fallback}
+          </span>
+        )}
+        {provider.lastUsedAt && (
+          <span className="text-[9px] text-muted-foreground/30 ml-auto">
+            {new Date(provider.lastUsedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

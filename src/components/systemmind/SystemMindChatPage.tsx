@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { MessageSquare, Send, Loader2, Bot, User, RefreshCw } from "lucide-react";
+import { MessageSquare, Send, Loader2, Bot, User, RefreshCw, Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SystemMindShell } from "./SystemMindShell";
@@ -23,7 +23,11 @@ export function SystemMindChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [listening, setListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const voiceEnabledRef = useRef(false);
 
   const { data: platformData } = useQuery({
     queryKey: ["systemmind-data"],
@@ -33,6 +37,61 @@ export function SystemMindChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    voiceEnabledRef.current = voiceEnabled;
+    if (!voiceEnabled) {
+      recognitionRef.current?.stop();
+      setListening(false);
+    }
+  }, [voiceEnabled]);
+
+  function startListening() {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceEnabled(false);
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+
+    recognition.onstart = () => setListening(true);
+    recognition.onresult = (e: any) => {
+      const transcript: string = e.results[0][0].transcript;
+      setInput((prev) => (prev ? prev + " " + transcript : transcript));
+      setListening(false);
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => {
+      setListening(false);
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+  }
+
+  function toggleVoice() {
+    if (voiceEnabled) {
+      recognitionRef.current?.stop();
+      setVoiceEnabled(false);
+      setListening(false);
+    } else {
+      setVoiceEnabled(true);
+      setTimeout(startListening, 50);
+    }
+  }
+
+  function handleMicClick() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+    } else {
+      startListening();
+    }
+  }
 
   async function send(text?: string) {
     const content = (text ?? input).trim();
@@ -63,12 +122,36 @@ export function SystemMindChatPage() {
             <h1 className="text-sm font-semibold">CTO Chat</h1>
             <p className="text-[11px] text-muted-foreground">Technical advisor grounded in live platform telemetry</p>
           </div>
-          {messages.length > 0 && (
-            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setMessages([])}>
-              <RefreshCw className="h-3.5 w-3.5" /> Clear
-            </Button>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {/* Voice toggle */}
+            <button
+              onClick={toggleVoice}
+              title={voiceEnabled ? "Disable voice input" : "Enable voice input"}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                voiceEnabled
+                  ? "bg-sky-500/20 text-sky-300 ring-1 ring-sky-500/40"
+                  : "bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08]",
+              )}
+            >
+              {voiceEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{voiceEnabled ? "Voice on" : "Voice"}</span>
+            </button>
+            {messages.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setMessages([])}>
+                <RefreshCw className="h-3.5 w-3.5" /> Clear
+              </Button>
+            )}
+          </div>
         </div>
+
+        {/* Listening banner */}
+        {listening && (
+          <div className="border-b border-sky-500/20 bg-sky-500/[0.04] px-6 py-2 flex items-center gap-2 shrink-0">
+            <span className="h-2 w-2 rounded-full bg-sky-400 animate-pulse" />
+            <p className="text-[11px] text-sky-300">Listening… speak now</p>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-4">
@@ -130,11 +213,25 @@ export function SystemMindChatPage() {
         {/* Input bar */}
         <div className="border-t border-white/[0.06] px-4 md:px-8 py-4 shrink-0">
           <div className="flex gap-2 max-w-3xl mx-auto">
+            {voiceEnabled && (
+              <button
+                onClick={handleMicClick}
+                title={listening ? "Stop recording" : "Start recording"}
+                className={cn(
+                  "self-end rounded-xl border px-3 py-2.5 transition-colors shrink-0",
+                  listening
+                    ? "border-sky-500/50 bg-sky-500/20 text-sky-400 animate-pulse"
+                    : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-sky-400 hover:border-sky-500/30",
+                )}
+              >
+                {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+            )}
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Ask SystemMind anything about your platform…"
+              placeholder={voiceEnabled && listening ? "Listening…" : "Ask SystemMind anything about your platform…"}
               rows={1}
               className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50 min-h-[40px] max-h-32"
             />

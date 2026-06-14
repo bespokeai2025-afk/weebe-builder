@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Settings2, Loader2, CheckCircle2 } from "lucide-react";
+import { Settings2, Loader2, CheckCircle2, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SystemMindShell } from "./SystemMindShell";
@@ -16,6 +16,21 @@ type Settings = {
   autoScanInterval: "off" | "daily" | "weekly";
   errorRateThreshold: number;
   costDailyThreshold: number;
+  defaultAiModel: "gpt-4o-mini" | "gpt-4o" | "gpt-3.5-turbo";
+  notificationsEnabled: boolean;
+  providerPriority: string[];
+};
+
+const DEFAULT_PROVIDER_PRIORITY = [
+  "openai", "retell", "elevenlabs", "twilio", "whatsapp", "wati",
+  "hubspot", "ghl", "stripe", "calcom", "resend",
+];
+
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: "OpenAI", retell: "Retell AI", elevenlabs: "ElevenLabs",
+  twilio: "Twilio", whatsapp: "WhatsApp (Meta)", wati: "WATI (WhatsApp)",
+  hubspot: "HubSpot CRM", ghl: "GoHighLevel", stripe: "Stripe",
+  calcom: "Cal.com", resend: "Resend (email)",
 };
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -62,6 +77,47 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   );
 }
 
+function ProviderPriorityList({
+  priority, onChange,
+}: { priority: string[]; onChange: (p: string[]) => void }) {
+  function move(idx: number, dir: -1 | 1) {
+    const next = [...priority];
+    const swap = idx + dir;
+    if (swap < 0 || swap >= next.length) return;
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    onChange(next);
+  }
+
+  const list = priority.length ? priority : DEFAULT_PROVIDER_PRIORITY;
+
+  return (
+    <div className="space-y-1.5 max-w-sm">
+      {list.map((id, idx) => (
+        <div key={id} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+          <span className="text-[10px] text-muted-foreground/50 w-5 shrink-0 text-right">{idx + 1}</span>
+          <span className="flex-1 text-xs truncate">{PROVIDER_LABELS[id] ?? id}</span>
+          <div className="flex gap-0.5 shrink-0">
+            <button
+              onClick={() => move(idx, -1)}
+              disabled={idx === 0}
+              className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => move(idx, 1)}
+              disabled={idx === list.length - 1}
+              className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function SystemMindSettingsPage() {
   const getFn = useServerFn(getSystemMindCTOSettings);
   const saveFn = useServerFn(saveSystemMindCTOSettings);
@@ -72,6 +128,9 @@ export function SystemMindSettingsPage() {
     autoScanInterval: "off",
     errorRateThreshold: 5,
     costDailyThreshold: 50,
+    defaultAiModel: "gpt-4o-mini",
+    notificationsEnabled: true,
+    providerPriority: DEFAULT_PROVIDER_PRIORITY,
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -82,7 +141,7 @@ export function SystemMindSettingsPage() {
   });
 
   useEffect(() => {
-    if (settings) setForm(settings as Settings);
+    if (settings) setForm((f) => ({ ...f, ...(settings as Settings) }));
   }, [settings]);
 
   function set<K extends keyof Settings>(key: K, value: Settings[K]) {
@@ -125,8 +184,9 @@ export function SystemMindSettingsPage() {
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
         ) : (
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
-            <div>
+          <div className="space-y-4">
+            {/* AI Persona */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 pt-4 pb-2">AI Persona</p>
 
               <Row label="Chat style" hint="How SystemMind responds in the Chat view.">
@@ -140,9 +200,22 @@ export function SystemMindSettingsPage() {
                   ]}
                 />
               </Row>
+
+              <Row label="Default AI model" hint="Model used for CTO chat and report generation.">
+                <SelectField
+                  value={form.defaultAiModel}
+                  onChange={(v) => set("defaultAiModel", v as Settings["defaultAiModel"])}
+                  options={[
+                    { value: "gpt-4o-mini", label: "GPT-4o-mini — fast & economical (default)" },
+                    { value: "gpt-4o",      label: "GPT-4o — most capable" },
+                    { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo — legacy" },
+                  ]}
+                />
+              </Row>
             </div>
 
-            <div>
+            {/* Automation */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 pt-4 pb-2">Automation</p>
 
               <Row label="Morning briefing" hint="Generate a daily technical briefing on first login.">
@@ -160,16 +233,20 @@ export function SystemMindSettingsPage() {
                   ]}
                 />
               </Row>
+
+              <Row label="Notifications" hint="Show in-app alerts for critical issues and audit completions.">
+                <Toggle checked={form.notificationsEnabled} onChange={(v) => set("notificationsEnabled", v)} />
+              </Row>
             </div>
 
-            <div>
+            {/* Alert Thresholds */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 pt-4 pb-2">Alert Thresholds</p>
 
               <Row label="Error rate threshold" hint="Flag providers with an error rate above this percentage.">
                 <div className="flex items-center gap-2">
                   <input
-                    type="number"
-                    min={1} max={100}
+                    type="number" min={1} max={100}
                     value={form.errorRateThreshold}
                     onChange={(e) => set("errorRateThreshold", Number(e.target.value))}
                     className="w-20 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
@@ -182,8 +259,7 @@ export function SystemMindSettingsPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">$</span>
                   <input
-                    type="number"
-                    min={1}
+                    type="number" min={1}
                     value={form.costDailyThreshold}
                     onChange={(e) => set("costDailyThreshold", Number(e.target.value))}
                     className="w-24 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-sky-500/50"
@@ -191,6 +267,20 @@ export function SystemMindSettingsPage() {
                   <span className="text-xs text-muted-foreground">per day</span>
                 </div>
               </Row>
+            </div>
+
+            {/* Provider Priority */}
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-5">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 pt-4 pb-2">Provider Priority</p>
+              <div className="pb-4">
+                <p className="text-[11px] text-muted-foreground mb-3">
+                  Ordered list of providers for fallback resolution. Use the arrows to reorder.
+                </p>
+                <ProviderPriorityList
+                  priority={form.providerPriority}
+                  onChange={(p) => set("providerPriority", p)}
+                />
+              </div>
             </div>
           </div>
         )}
