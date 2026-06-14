@@ -8,7 +8,8 @@ import {
   Mic, Phone, RefreshCw, Share2, FileText, Archive, Eye,
   CalendarDays, Library, ChevronLeft, ChevronRight, Sparkles,
   Plus, MoreHorizontal, Edit2, ArrowLeft, BarChart3, ExternalLink,
-  Zap, SlidersHorizontal, Cpu, AlertCircle,
+  Zap, SlidersHorizontal, Cpu, AlertCircle, Facebook, Send,
+  Link, DollarSign, Settings2, ShieldCheck, Upload, Clapperboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -20,6 +21,9 @@ import {
   toggleFavourite, getContentStats,
   type ContentType, type ContentAsset, type SeoData,
 } from "@/lib/growthmind/growthmind.content";
+import {
+  getMetaAdsSettings, saveMetaAdsSettings, verifyMetaCredentials, publishToMeta,
+} from "@/lib/growthmind/growthmind.meta-publish";
 import {
   getSmartRoute, MODEL_META, PROVIDERS,
   type Provider, type ModelId,
@@ -330,6 +334,300 @@ function AssetCard({ asset, onView, onDelete, onToggleFav, onStatusChange }: {
   );
 }
 
+// ── Meta Connect Modal ────────────────────────────────────────────────────────
+
+function MetaConnectModal({ onClose, onSaved }: {
+  onClose:  () => void;
+  onSaved:  () => void;
+}) {
+  const getMetaFn    = useServerFn(getMetaAdsSettings);
+  const saveMetaFn   = useServerFn(saveMetaAdsSettings);
+  const verifyMetaFn = useServerFn(verifyMetaCredentials);
+
+  const [form, setForm]       = useState({ accessToken: "", adAccountId: "", pageId: "" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verified, setVerified]   = useState<{ userName: string; accountName: string } | null>(null);
+  const [error, setError]     = useState("");
+
+  useEffect(() => {
+    getMetaFn({}).then(s => {
+      setForm({ accessToken: s.accessToken, adAccountId: s.adAccountId, pageId: s.pageId });
+      setLoading(false);
+    });
+  }, []);
+
+  async function handleVerify() {
+    setVerifying(true); setError(""); setVerified(null);
+    try {
+      const r = await verifyMetaFn({ data: { accessToken: form.accessToken.trim(), adAccountId: form.adAccountId.trim() } });
+      if (r.ok) setVerified({ userName: r.userName!, accountName: r.accountName! });
+      else setError(r.error ?? "Verification failed");
+    } catch (e: any) { setError(e.message); }
+    setVerifying(false);
+  }
+
+  async function handleSave() {
+    setSaving(true); setError("");
+    try {
+      await saveMetaFn({ data: { accessToken: form.accessToken.trim(), adAccountId: form.adAccountId.trim(), pageId: form.pageId.trim() } });
+      onSaved();
+    } catch (e: any) { setError(e.message); }
+    setSaving(false);
+  }
+
+  const ready = form.accessToken.trim() && form.adAccountId.trim() && form.pageId.trim();
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/20">
+            <Facebook className="h-4.5 w-4.5 text-blue-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Connect Meta Ads</p>
+            <p className="text-xs text-muted-foreground">Enter your Meta Marketing API credentials</p>
+          </div>
+          <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Access Token</Label>
+              <Input
+                type="password"
+                value={form.accessToken}
+                onChange={e => setForm(f => ({ ...f, accessToken: e.target.value }))}
+                placeholder="EAAxxxxxxx…"
+                className="h-8 text-xs font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground/50">A user or system access token with <code className="text-xs">ads_management</code> permission.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Ad Account ID</Label>
+              <Input
+                value={form.adAccountId}
+                onChange={e => setForm(f => ({ ...f, adAccountId: e.target.value }))}
+                placeholder="act_123456789"
+                className="h-8 text-xs font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground/50">Found in Meta Business Suite → Accounts → Ad Accounts.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Facebook Page ID</Label>
+              <Input
+                value={form.pageId}
+                onChange={e => setForm(f => ({ ...f, pageId: e.target.value }))}
+                placeholder="123456789"
+                className="h-8 text-xs font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground/50">The Facebook Page the ads will be published from.</p>
+            </div>
+
+            {verified && (
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2.5 flex items-center gap-2 text-xs">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <span className="text-emerald-300">Verified — <strong>{verified.userName}</strong> · {verified.accountName}</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/[0.05] px-3 py-2 text-xs text-red-400">
+                {error}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={handleVerify} disabled={!form.accessToken.trim() || !form.adAccountId.trim() || verifying}>
+                {verifying ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />}
+                Verify
+              </Button>
+              <Button size="sm" className="ml-auto" onClick={handleSave} disabled={!ready || saving}>
+                {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1.5 h-3.5 w-3.5" />}
+                Save credentials
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Meta Publish Modal ────────────────────────────────────────────────────────
+
+function MetaPublishModal({ asset, onClose }: {
+  asset:   ContentAsset;
+  onClose: () => void;
+}) {
+  const publishFn    = useServerFn(publishToMeta);
+  const getMetaFn    = useServerFn(getMetaAdsSettings);
+  const [showConnect, setShowConnect] = useState(false);
+  const [connected, setConnected]     = useState<boolean | null>(null);
+  const [publishing, setPublishing]   = useState(false);
+  const [result, setResult]           = useState<{ campaignId: string; adSetId: string; message: string } | null>(null);
+  const [error, setError]             = useState("");
+  const [form, setForm] = useState({
+    campaignName:   asset.title,
+    destinationUrl: "",
+    dailyBudgetUsd: 5,
+    objective:      "OUTCOME_AWARENESS" as "OUTCOME_AWARENESS" | "OUTCOME_TRAFFIC" | "OUTCOME_LEADS",
+  });
+
+  useEffect(() => {
+    getMetaFn({}).then(s => setConnected(s.connected));
+  }, []);
+
+  async function handlePublish() {
+    setPublishing(true); setError("");
+    try {
+      const r = await publishFn({
+        data: {
+          adContent:      asset.content,
+          adTitle:        asset.title,
+          campaignName:   form.campaignName,
+          destinationUrl: form.destinationUrl,
+          dailyBudgetUsd: form.dailyBudgetUsd,
+          objective:      form.objective,
+        },
+      });
+      setResult({ campaignId: r.campaignId, adSetId: r.adSetId, message: r.message });
+    } catch (e: any) { setError(e.message); }
+    setPublishing(false);
+  }
+
+  if (showConnect) {
+    return (
+      <MetaConnectModal
+        onClose={() => setShowConnect(false)}
+        onSaved={() => { setShowConnect(false); setConnected(true); }}
+      />
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/70 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[hsl(var(--sidebar-background))] shadow-2xl p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/20">
+            <Upload className="h-4 w-4 text-blue-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Publish to Meta Ads</p>
+            <p className="text-xs text-muted-foreground">Create a paused draft campaign in your Meta account</p>
+          </div>
+          <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+
+        {connected === null ? (
+          <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : result ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                <p className="text-sm font-semibold text-emerald-300">Published as draft!</p>
+              </div>
+              <p className="text-xs text-muted-foreground">{result.message}</p>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground/50 mb-0.5">Campaign ID</p>
+                  <p className="text-xs font-mono text-muted-foreground truncate">{result.campaignId}</p>
+                </div>
+                <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2">
+                  <p className="text-[10px] text-muted-foreground/50 mb-0.5">Ad Set ID</p>
+                  <p className="text-xs font-mono text-muted-foreground truncate">{result.adSetId}</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">Go to Meta Ads Manager to review, edit targeting, and activate the campaign.</p>
+            <Button className="w-full" size="sm" onClick={onClose}>Done</Button>
+          </div>
+        ) : !connected ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-4 flex items-start gap-3">
+              <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-amber-300 mb-1">Meta Ads not connected</p>
+                <p className="text-xs text-muted-foreground">Connect your Meta account first to publish ads directly from here.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={onClose} className="flex-1">Cancel</Button>
+              <Button size="sm" onClick={() => setShowConnect(true)} className="flex-1">
+                <Settings2 className="mr-1.5 h-3.5 w-3.5" />Connect Meta
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Campaign Name</Label>
+              <Input value={form.campaignName} onChange={e => setForm(f => ({ ...f, campaignName: e.target.value }))} className="h-8 text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Destination URL</Label>
+              <Input value={form.destinationUrl} onChange={e => setForm(f => ({ ...f, destinationUrl: e.target.value }))} placeholder="https://yoursite.com/landing" className="h-8 text-xs" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Daily Budget (USD)</Label>
+                <Input
+                  type="number" min={1} max={10000}
+                  value={form.dailyBudgetUsd}
+                  onChange={e => setForm(f => ({ ...f, dailyBudgetUsd: Number(e.target.value) }))}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Objective</Label>
+                <select
+                  value={form.objective}
+                  onChange={e => setForm(f => ({ ...f, objective: e.target.value as typeof form.objective }))}
+                  className="w-full h-8 rounded-md border border-input bg-transparent px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="OUTCOME_AWARENESS">Awareness</option>
+                  <option value="OUTCOME_TRAFFIC">Traffic</option>
+                  <option value="OUTCOME_LEADS">Leads</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+              <p className="text-[10px] text-muted-foreground/50 mb-1.5">Ad Copy Preview</p>
+              <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{asset.content.slice(0, 200)}{asset.content.length > 200 ? "…" : ""}</p>
+            </div>
+
+            {error && (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/[0.05] px-3 py-2 text-xs text-red-400">{error}</div>
+            )}
+
+            <div className="flex items-center gap-2 pt-1">
+              <p className="text-[10px] text-muted-foreground/40 flex items-center gap-1">
+                <ShieldCheck className="h-3 w-3" /> Published as PAUSED draft
+              </p>
+              <div className="flex gap-2 ml-auto">
+                <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+                <Button size="sm" onClick={handlePublish} disabled={publishing || !form.destinationUrl.trim() || !form.campaignName.trim()}>
+                  {publishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />}
+                  Publish to Meta
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Asset Viewer Modal ────────────────────────────────────────────────────────
 
 function AssetViewer({ asset, onClose, onSave, onDelete }: {
@@ -338,14 +636,17 @@ function AssetViewer({ asset, onClose, onSave, onDelete }: {
   onSave:   (updated: ContentAsset) => void;
   onDelete: (id: string) => void;
 }) {
-  const [content, setContent]     = useState(asset.content);
-  const [title, setTitle]         = useState(asset.title);
-  const [status, setStatus]       = useState(asset.status);
-  const [dirty, setDirty]         = useState(false);
-  const [saved, setSaved]         = useState(false);
-  const [copied, copy]            = useCopyText();
-  const td                        = typeDef(asset.contentType);
-  const Icon                      = td.icon;
+  const [content, setContent]           = useState(asset.content);
+  const [title, setTitle]               = useState(asset.title);
+  const [status, setStatus]             = useState(asset.status);
+  const [dirty, setDirty]               = useState(false);
+  const [saved, setSaved]               = useState(false);
+  const [copied, copy]                  = useCopyText();
+  const [showPublish, setShowPublish]   = useState(false);
+  const [showConnect, setShowConnect]   = useState(false);
+  const td                              = typeDef(asset.contentType);
+  const Icon                            = td.icon;
+  const isAd = asset.contentType === "meta_ad" || asset.contentType === "google_ad";
 
   function handleSave() {
     onSave({ ...asset, title, content, status });
@@ -355,74 +656,110 @@ function AssetViewer({ asset, onClose, onSave, onDelete }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch bg-background/80 backdrop-blur-sm">
-      <div className="ml-auto flex w-full max-w-3xl flex-col border-l border-white/[0.08] bg-[hsl(var(--sidebar-background))] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.06] shrink-0">
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <Icon className={cn("h-4 w-4 shrink-0", td.color)} />
-          <input
-            value={title}
-            onChange={e => { setTitle(e.target.value); setDirty(true); }}
-            className="flex-1 bg-transparent text-sm font-semibold focus:outline-none min-w-0"
-          />
-          <div className="flex items-center gap-2 shrink-0">
-            <select
-              value={status}
-              onChange={e => { setStatus(e.target.value as ContentAsset["status"]); setDirty(true); }}
-              className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold bg-transparent focus:outline-none capitalize cursor-pointer", STATUS_STYLES[status])}
-            >
-              <option value="draft">draft</option>
-              <option value="published">published</option>
-              <option value="archived">archived</option>
-            </select>
-            <button onClick={() => copy(content)} className="p-1.5 rounded hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground" title="Copy content">
-              {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+    <>
+      <div className="fixed inset-0 z-50 flex items-stretch bg-background/80 backdrop-blur-sm">
+        <div className="ml-auto flex w-full max-w-3xl flex-col border-l border-white/[0.08] bg-[hsl(var(--sidebar-background))] overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.06] shrink-0">
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
+              <ArrowLeft className="h-4 w-4" />
             </button>
-            {dirty && (
-              <Button size="sm" onClick={handleSave} className="h-7 text-xs">
-                {saved ? <><Check className="mr-1 h-3 w-3" />Saved</> : "Save changes"}
-              </Button>
-            )}
-            <button
-              onClick={() => { if (confirm("Delete this content?")) { onDelete(asset.id); onClose(); } }}
-              className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            <Icon className={cn("h-4 w-4 shrink-0", td.color)} />
+            <input
+              value={title}
+              onChange={e => { setTitle(e.target.value); setDirty(true); }}
+              className="flex-1 bg-transparent text-sm font-semibold focus:outline-none min-w-0"
+            />
+            <div className="flex items-center gap-2 shrink-0">
+              <select
+                value={status}
+                onChange={e => { setStatus(e.target.value as ContentAsset["status"]); setDirty(true); }}
+                className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold bg-transparent focus:outline-none capitalize cursor-pointer", STATUS_STYLES[status])}
+              >
+                <option value="draft">draft</option>
+                <option value="published">published</option>
+                <option value="archived">archived</option>
+              </select>
+              <button onClick={() => copy(content)} className="p-1.5 rounded hover:bg-white/[0.04] transition-colors text-muted-foreground hover:text-foreground" title="Copy content">
+                {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+              {dirty && (
+                <Button size="sm" onClick={handleSave} className="h-7 text-xs">
+                  {saved ? <><Check className="mr-1 h-3 w-3" />Saved</> : "Save changes"}
+                </Button>
+              )}
+              <button
+                onClick={() => { if (confirm("Delete this content?")) { onDelete(asset.id); onClose(); } }}
+                className="p-1.5 rounded hover:bg-red-500/10 text-muted-foreground hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          <textarea
-            value={content}
-            onChange={e => { setContent(e.target.value); setDirty(true); }}
-            className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[400px] font-mono"
-            style={{ height: "auto" }}
-            onInput={e => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }}
-          />
-          {asset.seoData && Object.keys(asset.seoData).length > 0 && (
-            <SeoPanel seoData={asset.seoData} />
-          )}
-          {asset.brief && Object.keys(asset.brief).length > 0 && (
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Brief Used</p>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                {Object.entries(asset.brief).filter(([, v]) => v && String(v).length > 0 && !["contentType"].includes(String(v))).map(([k, v]) => (
-                  <div key={k}>
-                    <span className="text-[10px] text-muted-foreground/50 capitalize">{k.replace(/([A-Z])/g, " $1")}: </span>
-                    <span className="text-[10px] text-muted-foreground">{String(v)}</span>
-                  </div>
-                ))}
-              </div>
+          {/* Ad Actions Bar — shown for meta_ad / google_ad */}
+          {isAd && (
+            <div className="flex items-center gap-2 px-5 py-3 border-b border-white/[0.06] shrink-0 bg-white/[0.01]">
+              <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mr-1">Actions</span>
+              {asset.contentType === "meta_ad" && (
+                <Button
+                  size="sm" variant="outline"
+                  className="h-7 text-xs border-blue-500/30 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400/50"
+                  onClick={() => setShowPublish(true)}
+                >
+                  <Upload className="mr-1.5 h-3 w-3" />Publish to Meta
+                </Button>
+              )}
+              <Button
+                size="sm" variant="outline"
+                className="h-7 text-xs border-rose-500/30 text-rose-300 hover:bg-rose-500/10 hover:border-rose-400/50"
+                onClick={() => window.open("/__mockup/preview/AdVideoTemplate", "_blank")}
+              >
+                <Clapperboard className="mr-1.5 h-3 w-3" />Preview Video Ad
+              </Button>
+              {asset.contentType === "meta_ad" && (
+                <button
+                  onClick={() => setShowConnect(true)}
+                  className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                >
+                  <Settings2 className="h-3 w-3" />Meta settings
+                </button>
+              )}
             </div>
           )}
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <textarea
+              value={content}
+              onChange={e => { setContent(e.target.value); setDirty(true); }}
+              className="w-full rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-sm leading-relaxed text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none min-h-[400px] font-mono"
+              style={{ height: "auto" }}
+              onInput={e => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }}
+            />
+            {asset.seoData && Object.keys(asset.seoData).length > 0 && (
+              <SeoPanel seoData={asset.seoData} />
+            )}
+            {asset.brief && Object.keys(asset.brief).length > 0 && (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">Brief Used</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                  {Object.entries(asset.brief).filter(([, v]) => v && String(v).length > 0 && !["contentType"].includes(String(v))).map(([k, v]) => (
+                    <div key={k}>
+                      <span className="text-[10px] text-muted-foreground/50 capitalize">{k.replace(/([A-Z])/g, " $1")}: </span>
+                      <span className="text-[10px] text-muted-foreground">{String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {showPublish && <MetaPublishModal asset={asset} onClose={() => setShowPublish(false)} />}
+      {showConnect && <MetaConnectModal onClose={() => setShowConnect(false)} onSaved={() => setShowConnect(false)} />}
+    </>
   );
 }
 
@@ -536,6 +873,30 @@ function CalendarTab({ assets }: { assets: ContentAsset[] }) {
         <p className="text-sm text-muted-foreground text-center mt-6">No content created yet. Generate your first piece above.</p>
       )}
     </div>
+  );
+}
+
+// ── Inline Meta Publish button for output panel ───────────────────────────────
+
+function MetaPublishFromOutput({ content, title }: { content: string; title: string }) {
+  const [open, setOpen] = useState(false);
+  const fakeAsset: ContentAsset = {
+    id: "", folderId: null, title, contentType: "meta_ad",
+    content, brief: {}, seoData: {}, status: "draft",
+    isFavourite: false, scheduledAt: null,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  };
+  return (
+    <>
+      <Button
+        variant="outline" size="sm"
+        className="border-blue-500/30 text-blue-300 hover:bg-blue-500/10 hover:border-blue-400/50"
+        onClick={() => setOpen(true)}
+      >
+        <Upload className="mr-1.5 h-3.5 w-3.5" />Publish to Meta
+      </Button>
+      {open && <MetaPublishModal asset={fakeAsset} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -1033,13 +1394,25 @@ export function GrowthMindContentStudio() {
                         </div>
                       )}
                     </div>
-                    <div className="ml-auto flex items-center gap-2">
+                    <div className="ml-auto flex items-center gap-2 flex-wrap">
                       <Button
                         variant="outline" size="sm"
                         onClick={() => copy(output.content)}
                       >
                         {copied ? <><Check className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />Copied</> : <><Copy className="mr-1.5 h-3.5 w-3.5" />Copy</>}
                       </Button>
+                      {(selectedType === "meta_ad" || selectedType === "google_ad") && (
+                        <Button
+                          variant="outline" size="sm"
+                          className="border-rose-500/30 text-rose-300 hover:bg-rose-500/10 hover:border-rose-400/50"
+                          onClick={() => window.open("/__mockup/preview/AdVideoTemplate", "_blank")}
+                        >
+                          <Clapperboard className="mr-1.5 h-3.5 w-3.5" />Video Ad
+                        </Button>
+                      )}
+                      {selectedType === "meta_ad" && output.assetId && (
+                        <MetaPublishFromOutput content={output.content} title={output.title} />
+                      )}
                       <Button
                         variant="outline" size="sm"
                         onClick={() => { setOutput(null); }}
