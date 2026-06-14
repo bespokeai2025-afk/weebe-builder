@@ -13,6 +13,7 @@ import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindSh
 import { getExecutiveBriefing, type BiRecommendation, type BiRisk } from "@/lib/hivemind/hivemind.bi";
 import { proposeHiveMindAction } from "@/lib/hivemind/hivemind.actions";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export const Route = createFileRoute("/_authenticated/hivemind/briefing")({
   head: () => ({ meta: [{ title: "Executive Briefing — HiveMind" }] }),
@@ -163,7 +164,7 @@ function HiveMindBriefingPage() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">Executive Briefing</p>
           <p className="text-[11px] text-muted-foreground">
-            {now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            <RelativeTime date={now} short />
           </p>
         </div>
         <div className="flex items-center gap-2">
