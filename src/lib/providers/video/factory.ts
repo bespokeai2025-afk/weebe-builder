@@ -6,7 +6,7 @@ import { withProviderTracking } from "@/lib/providers/instrumentation";
 export type VideoProviderName = "google_veo" | "runway" | "sora" | "pika";
 
 export type VideoConfig =
-  | { provider: "google_veo"; apiKey: string }
+  | { provider: "google_veo"; gcpProject?: string; accessToken?: string }
   | { provider: "runway"; apiKey: string }
   | { provider: "sora"; apiKey: string }
   | { provider: "pika"; apiKey: string };
@@ -21,7 +21,7 @@ export function createVideoProvider(
   let inner: VideoProvider;
   switch (config.provider) {
     case "google_veo":
-      inner = new GoogleVeoAdapter(config.apiKey);
+      inner = new GoogleVeoAdapter({ gcpProject: config.gcpProject, accessToken: config.accessToken });
       break;
     case "runway":
       inner = new RunwayAdapter(config.apiKey);

@@ -7,7 +7,7 @@ export type ImageProviderName = "gpt_image" | "imagen" | "stable_diff" | "midjou
 
 export type ImageConfig =
   | { provider: "gpt_image"; apiKey: string }
-  | { provider: "imagen"; apiKey: string }
+  | { provider: "imagen"; gcpProject?: string; accessToken?: string }
   | { provider: "stable_diff"; apiKey: string }
   | { provider: "midjourney"; apiKey: string }
   | { provider: "flux"; apiKey: string };
@@ -25,7 +25,7 @@ export function createImageProvider(
       inner = new GPTImageAdapter(config.apiKey);
       break;
     case "imagen":
-      inner = new ImagenAdapter(config.apiKey);
+      inner = new ImagenAdapter({ gcpProject: config.gcpProject, accessToken: config.accessToken });
       break;
     case "stable_diff":
       throw new Error("Stable Diffusion image provider not yet implemented.");

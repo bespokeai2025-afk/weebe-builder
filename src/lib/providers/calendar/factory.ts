@@ -23,7 +23,7 @@ export function createCalendarProvider(
       inner = new CalComAdapter(config.apiKey);
       break;
     case "google":
-      inner = new GoogleCalendarAdapter(config.accessToken);
+      inner = new GoogleCalendarAdapter({ accessToken: config.accessToken });
       break;
     case "outlook":
       throw new Error("Outlook Calendar provider not yet implemented.");

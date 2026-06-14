@@ -46,11 +46,13 @@ export function createInstrumentedLLMProvider(
     name: inner.name,
     async generateText(params: LLMGenerateParams): Promise<LLMGenerateResult> {
       return withProviderTracking(
-        { workspaceId, category: "llm", providerName },
-        async () => {
-          const result = await inner.generateText(params);
-          return result;
+        {
+          workspaceId,
+          category: "llm",
+          providerName,
+          costExtractor: (r: LLMGenerateResult) => r.costUsd ?? 0,
         },
+        () => inner.generateText(params),
       );
     },
     async generateJson<T = unknown>(params: LLMGenerateParams): Promise<T> {

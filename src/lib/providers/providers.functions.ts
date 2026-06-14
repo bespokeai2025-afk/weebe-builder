@@ -265,6 +265,8 @@ export const testProviderConnection = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    await requireWorkspaceAdmin(context.supabase, context.userId, workspaceId);
+
     const { category, providerName } = data;
     return runProviderHealthCheck(workspaceId, category, providerName);
   });

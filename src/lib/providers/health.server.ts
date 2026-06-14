@@ -73,7 +73,7 @@ export async function runProviderHealthCheck(
   try {
     const { stored, ws } = await loadCredentials(workspaceId, category, providerName);
 
-    const ok = await dispatchHealthCheck(category, providerName, stored, ws);
+    const ok = await dispatchHealthCheck(workspaceId, category, providerName, stored, ws);
     const latencyMs = Date.now() - t0;
 
     // Persist status to DB
@@ -106,6 +106,7 @@ function str(v: unknown): string {
  * merging stored credentials with workspace_settings fallbacks.
  */
 async function dispatchHealthCheck(
+  workspaceId: string,
   category: string,
   providerName: string,
   stored: Record<string, string>,
