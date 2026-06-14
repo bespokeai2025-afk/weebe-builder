@@ -1,0 +1,321 @@
+FULL PLATFORM AUDIT REQUEST
+
+IMPORTANT
+
+Do not make any changes.
+
+Do not modify any files.
+
+Do not create new code.
+
+This is an audit only.
+
+OBJECTIVE
+
+Perform a complete architectural, functional and implementation audit of the entire WeeBee platform as it exists right now.
+
+Read the entire codebase.
+
+Inspect:
+
+Frontend
+Backend
+Database
+Routes
+Services
+Integrations
+Runtime layers
+AI systems
+GrowthMind
+HiveMind
+Telephony
+WhatsApp
+HexMail
+Builder
+Retell
+HyperStream
+VoxStream
+CRM
+Campaign Engine
+Cost Engine
+Admin Systems
+
+Return findings only.
+
+====================================================
+
+SECTION 1
+
+PLATFORM COMPLETION
+
+Provide:
+
+Overall Platform Completion %
+Overall Production Readiness %
+Overall Enterprise Readiness %
+
+====================================================
+
+SECTION 2
+
+MODULE AUDIT
+
+For every module provide:
+
+Status:
+Complete
+Partial
+Stub
+Not Started
+
+Completion %
+Stability %
+Technical Debt Score
+
+Modules:
+
+Authentication
+Multi-Tenancy
+Workspace Management
+Permissions
+Builder
+Voice Nodes
+WhatsApp Nodes
+Variables
+Logic Splits
+Function Calls
+PDF Import
+Knowledge Bases
+Retell
+HyperStream
+VoxStream
+CRM
+Leads
+Pipeline
+Contacts
+Bookings
+Calls
+Live Monitoring
+HexMail
+Follow-Up Centre
+WhatsApp Centre
+Telephony
+Twilio
+FreJun
+Cost Engine
+HiveMind
+GrowthMind
+Admin
+Stripe
+Calendar
+Campaign Engine
+
+====================================================
+
+SECTION 3
+
+GROWTHMIND AUDIT
+
+Show:
+
+Completed Pages
+Completed Services
+Completed Database Tables
+Completed AI Features
+Completed Integrations
+
+Show:
+
+Missing Features
+Partially Built Features
+Stub Features
+
+Show:
+
+Current GrowthMind Completion %
+
+====================================================
+
+SECTION 4
+
+HIVEMIND AUDIT
+
+Show:
+
+Current Capabilities
+Current Data Sources
+Current Knowledge Access
+Current Actions
+Current Tasks
+Current Reporting
+
+Show:
+
+Limitations
+
+Show:
+
+HiveMind Completion %
+
+====================================================
+
+SECTION 5
+
+EXECUTIVE AI AUDIT
+
+Show:
+
+HiveMind Status
+GrowthMind Status
+SystemMind Status
+
+Show:
+
+What exists
+What is missing
+What should be built next
+
+====================================================
+
+SECTION 6
+
+INTEGRATION AUDIT
+
+Show status for:
+
+OpenAI
+Gemini
+Claude
+Retell
+ElevenLabs
+Twilio
+FreJun
+Meta
+WATI
+Cal.com
+Stripe
+HubSpot
+GoHighLevel
+
+For each:
+
+Working
+Partial
+Not Implemented
+
+====================================================
+
+SECTION 7
+
+DATABASE AUDIT
+
+List:
+
+All major tables
+
+Identify:
+
+Missing indexes
+Potential scaling issues
+RLS gaps
+Multi-tenant risks
+
+====================================================
+
+SECTION 8
+
+TECHNICAL DEBT
+
+Rank:
+
+Critical
+High
+Medium
+Low
+
+Explain:
+
+Business impact
+Technical impact
+
+====================================================
+
+SECTION 9
+
+REVENUE FEATURES AUDIT
+
+Show readiness of:
+
+Receptionist Product
+Lead Generation Product
+Qualification Product
+WhatsApp Product
+GrowthMind
+HiveMind
+Cost Engine
+
+Score each:
+
+0-100
+
+====================================================
+
+SECTION 10
+
+COMPETITIVE ADVANTAGE AUDIT
+
+Identify:
+
+Unique Features
+Differentiators
+Features competitors do not have
+
+Compare conceptually against:
+
+Retell
+Vapi
+ElevenLabs
+Bland
+GoHighLevel
+
+====================================================
+
+SECTION 11
+
+NEXT DEVELOPMENT ROADMAP
+
+Provide:
+
+Top 20 highest ROI features remaining.
+
+For each:
+
+Business Value
+Complexity
+Revenue Impact
+Competitive Advantage
+
+====================================================
+
+SECTION 12
+
+EXECUTIVE SUMMARY
+
+Provide:
+
+Current platform maturity score
+Current valuation-enhancing features
+Biggest weaknesses
+Biggest opportunities
+
+If you were CTO of WeeBee:
+
+What would you build next in exact order?
+
+Return findings only.
+
+No code changes.
+
+No implementation.
+
+Audit report only.
