@@ -5,6 +5,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
+import { HiveMindOrb } from "@/components/hivemind/HiveMindOrb";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -66,6 +67,7 @@ function AuthenticatedLayout() {
         </SidebarInset>
       </div>
       <OnboardingTour />
+      <HiveMindOrb />
     </SidebarProvider>
   );
 }
