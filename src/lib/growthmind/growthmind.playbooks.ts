@@ -415,20 +415,41 @@ export const activatePlaybook = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    // Archive any current active playbook (schema CHECK: 'active' | 'archived')
+    // Archive any currently active playbook for this workspace
     await sb
       .from("growthmind_playbooks")
       .update({ status: "archived" })
       .eq("workspace_id", workspaceId)
       .eq("status", "active");
 
-    // Insert new active row
-    const { error } = await sb.from("growthmind_playbooks").insert({
-      workspace_id: workspaceId,
-      industry:     data.industry,
-      status:       "active",
-      activated_at: new Date().toISOString(),
-    });
+    // Upsert the selected playbook: insert or re-activate the existing row
+    // Conflict target: unique constraint uq_growthmind_playbooks_workspace_industry
+    const { error } = await sb.from("growthmind_playbooks").upsert(
+      {
+        workspace_id: workspaceId,
+        industry:     data.industry,
+        status:       "active",
+        activated_at: new Date().toISOString(),
+      },
+      { onConflict: "workspace_id,industry" },
+    );
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const deactivatePlaybook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { error } = await sb
+      .from("growthmind_playbooks")
+      .update({ status: "archived" })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active");
 
     if (error) throw new Error(error.message);
     return { ok: true };

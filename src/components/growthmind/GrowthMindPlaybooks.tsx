@@ -13,6 +13,7 @@ import {
   PLAYBOOKS,
   getActivePlaybook,
   activatePlaybook,
+  deactivatePlaybook,
   type Playbook,
 } from "@/lib/growthmind/growthmind.playbooks";
 
@@ -40,12 +41,14 @@ function channelIcon(channel: string) {
 // ── Playbook card ────────────────────────────────────────────────────────────
 
 function PlaybookCard({
-  playbook, isActive, onActivate, activating,
+  playbook, isActive, onActivate, onDeactivate, activating, deactivating,
 }: {
   playbook: Playbook;
   isActive: boolean;
   onActivate: (industry: string) => void;
+  onDeactivate?: () => void;
   activating: boolean;
+  deactivating?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -109,12 +112,26 @@ function PlaybookCard({
             {expanded ? "Hide tactics" : "View tactics"}
           </button>
 
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
             {isActive ? (
-              <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" />
-                Currently active
-              </span>
+              <>
+                <span className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Currently active
+                </span>
+                {onDeactivate && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={onDeactivate}
+                    disabled={deactivating}
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {deactivating ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
+                    Deactivate
+                  </Button>
+                )}
+              </>
             ) : (
               <Button
                 size="sm"
@@ -158,12 +175,14 @@ function PlaybookCard({
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function GrowthMindPlaybooks() {
-  const [activating, setActivating] = useState<string | null>(null);
-  const [msg, setMsg]               = useState<string | null>(null);
+  const [activating,   setActivating]   = useState<string | null>(null);
+  const [deactivating, setDeactivating] = useState(false);
+  const [msg, setMsg]                   = useState<string | null>(null);
 
-  const qc            = useQueryClient();
-  const getActiveFn   = useServerFn(getActivePlaybook);
-  const activateFn    = useServerFn(activatePlaybook);
+  const qc              = useQueryClient();
+  const getActiveFn     = useServerFn(getActivePlaybook);
+  const activateFn      = useServerFn(activatePlaybook);
+  const deactivateFn    = useServerFn(deactivatePlaybook);
 
   const { data, isLoading } = useQuery({
     queryKey: ["growthmind-active-playbook"],
@@ -185,6 +204,20 @@ export function GrowthMindPlaybooks() {
       setMsg("Error: " + e.message);
     } finally {
       setActivating(null);
+    }
+  }
+
+  async function handleDeactivate() {
+    setDeactivating(true);
+    try {
+      await deactivateFn();
+      setMsg("Playbook deactivated.");
+      setTimeout(() => setMsg(null), 3000);
+      qc.invalidateQueries({ queryKey: ["growthmind-active-playbook"] });
+    } catch (e: any) {
+      setMsg("Error: " + e.message);
+    } finally {
+      setDeactivating(false);
     }
   }
 
@@ -237,7 +270,9 @@ export function GrowthMindPlaybooks() {
                   playbook={activePlaybook}
                   isActive={true}
                   onActivate={handleActivate}
+                  onDeactivate={handleDeactivate}
                   activating={activating === activePlaybook.id}
+                  deactivating={deactivating}
                 />
               </div>
             )}
