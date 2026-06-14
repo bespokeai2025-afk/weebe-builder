@@ -20,29 +20,60 @@ export class OpenAIVoiceAdapter implements VoiceProvider {
 
     const voice = (params.additionalConfig?.voice as string | undefined) ?? "alloy";
 
-    const resp = await fetch("https://api.openai.com/v1/realtime/sessions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        voice,
-        instructions: params.compiledPrompt || undefined,
-      }),
+    // Use node:https directly to avoid Vinxi/undici fetch interceptors that can
+    // re-route absolute HTTPS URLs back through the app server.  This mirrors
+    // the proven transport used before the provider framework was introduced.
+    const payload = JSON.stringify({
+      model,
+      voice,
+      instructions: params.compiledPrompt || undefined,
+    });
+    const { request: httpsRequest } = await import("node:https");
+    const clientSecret = await new Promise<string>((resolve, reject) => {
+      const req = httpsRequest(
+        {
+          hostname: "api.openai.com",
+          port: 443,
+          path: "/v1/realtime/sessions",
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(payload),
+          },
+        },
+        (res) => {
+          let body = "";
+          res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+          res.on("end", () => {
+            try {
+              const parsed = JSON.parse(body) as {
+                id?: string;
+                client_secret?: { value?: string } | string;
+                error?: { message?: string };
+              };
+              if (!res.statusCode || res.statusCode >= 400) {
+                reject(new Error((parsed.error as any)?.message ?? body));
+              } else {
+                const secret =
+                  typeof parsed.client_secret === "object"
+                    ? parsed.client_secret?.value
+                    : parsed.client_secret;
+                if (!secret) reject(new Error(`Unexpected response: ${body}`));
+                else resolve(secret);
+              }
+            } catch {
+              reject(new Error(`Non-JSON response: ${body}`));
+            }
+          });
+        },
+      );
+      req.on("error", (e: Error) => reject(e));
+      req.write(payload);
+      req.end();
     });
 
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      throw new Error(`OpenAI Realtime session error ${resp.status}: ${text}`);
-    }
-
-    const data = await resp.json();
-    return {
-      clientSecret: data.client_secret?.value ?? data.client_secret,
-      sessionId: data.id,
-    };
+    return { clientSecret };
   }
 
   async healthCheck(): Promise<boolean> {

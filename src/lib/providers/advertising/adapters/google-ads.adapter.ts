@@ -100,11 +100,14 @@ export class GoogleAdsAdapter implements AdProvider {
 
   async healthCheck(): Promise<boolean> {
     const { developerToken, accessToken } = this.config;
-    if (!developerToken || !accessToken || !this.config.customerId) return false;
+    if (!developerToken || !accessToken) return false;
     try {
+      // listAccessibleCustomers is the canonical credentials liveness check:
+      // it doesn't require a valid customer ID and succeeds as long as the
+      // developer token + access token are accepted by the API.
       const resp = await fetch(
-        `https://googleads.googleapis.com/v17/customers/${this.cid}`,
-        { headers: this.headers },
+        "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers",
+        { method: "GET", headers: this.headers },
       );
       return resp.ok;
     } catch {

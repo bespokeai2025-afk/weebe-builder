@@ -870,11 +870,12 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
     const model = "gpt-realtime";
     const voice = schema.voice ?? "alloy";
 
-    // Route voice session creation through the provider framework.
-    // Primary: OpenAI Realtime (uses node:https internally to bypass Vinxi interceptors).
-    // Fallback: ElevenLabs native voice if primary throws.
+    // Route voice session creation through the provider framework for cost tracking
+    // and provider health observability.  No fallback is configured here because
+    // an ElevenLabs session requires an agent-specific agentId that is not
+    // available in this context; if primary fails the error surfaces immediately.
     const workspaceId = context.workspaceId ?? "";
-    const voiceProvider = createVoiceProviderWithFallback("openai", "elevenlabs", workspaceId);
+    const voiceProvider = createVoiceProviderWithFallback("openai", null, workspaceId);
     const sessionResult = await voiceProvider.createSession({
       agentRowId: data.agentRowId,
       compiledPrompt: instructions,
