@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search, Loader2, RefreshCw, Plus, Trash2, Save,
   Sparkles, ExternalLink, Check, X, Edit2, Globe,
+  Upload, FileText, AlertCircle, ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -52,6 +53,341 @@ function diffColor(d: number | null): string {
   if (d < 30) return "text-emerald-400";
   if (d < 60) return "text-amber-400";
   return "text-red-400";
+}
+
+// ── CSV import ───────────────────────────────────────────────────────────────
+
+type ParsedCsvRow = {
+  term:       string;
+  volume:     number | null;
+  difficulty: number | null;
+  rank:       number | null;
+};
+
+type ColMap = {
+  term:       number;
+  volume:     number;
+  difficulty: number;
+  rank:       number;
+};
+
+function detectDelimiter(raw: string): string {
+  const first = raw.split("\n")[0] ?? "";
+  const tabs   = (first.match(/\t/g)  ?? []).length;
+  const commas = (first.match(/,/g)   ?? []).length;
+  const semis  = (first.match(/;/g)   ?? []).length;
+  if (tabs >= commas && tabs >= semis) return "\t";
+  if (semis > commas) return ";";
+  return ",";
+}
+
+function parseRow(line: string, delim: string): string[] {
+  if (delim !== ",") return line.split(delim).map(c => c.trim());
+  const cells: string[] = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === "," && !inQ) {
+      cells.push(cur.trim()); cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  cells.push(cur.trim());
+  return cells;
+}
+
+const TERM_KEYS       = ["keyword", "query", "term", "kw", "key word", "search term", "top queries"];
+const VOLUME_KEYS     = ["volume", "vol", "search volume", "monthly volume", "avg monthly searches", "impressions"];
+const DIFFICULTY_KEYS = ["difficulty", "diff", "kd", "keyword difficulty", "seo difficulty", "competition"];
+const RANK_KEYS       = ["rank", "position", "pos", "ranking", "current rank", "serp position", "avg. position"];
+
+function matchCol(headers: string[], keys: string[]): number {
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i].toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
+    if (keys.some(k => h === k || h.includes(k) || k.includes(h))) return i;
+  }
+  return -1;
+}
+
+function parseCsv(raw: string): { rows: ParsedCsvRow[]; headers: string[]; colMap: ColMap; errors: string[] } {
+  const lines = raw.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return { rows: [], headers: [], colMap: { term: -1, volume: -1, difficulty: -1, rank: -1 }, errors: ["Need at least a header row and one data row."] };
+
+  const delim   = detectDelimiter(raw);
+  const headers = parseRow(lines[0], delim);
+
+  const colMap: ColMap = {
+    term:       matchCol(headers, TERM_KEYS),
+    volume:     matchCol(headers, VOLUME_KEYS),
+    difficulty: matchCol(headers, DIFFICULTY_KEYS),
+    rank:       matchCol(headers, RANK_KEYS),
+  };
+
+  if (colMap.term === -1) {
+    colMap.term = 0;
+  }
+
+  const errors: string[] = [];
+  const rows: ParsedCsvRow[] = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseRow(lines[i], delim);
+    const termRaw = colMap.term >= 0 ? (cells[colMap.term] ?? "") : "";
+    const term = termRaw.replace(/^["']|["']$/g, "").trim();
+    if (!term) continue;
+
+    const toNum = (idx: number, max?: number): number | null => {
+      if (idx < 0) return null;
+      const raw = (cells[idx] ?? "").replace(/[^0-9.-]/g, "");
+      if (!raw) return null;
+      const n = parseFloat(raw);
+      if (isNaN(n)) return null;
+      if (max !== undefined) return Math.min(max, Math.max(0, Math.round(n)));
+      return Math.round(n);
+    };
+
+    rows.push({
+      term,
+      volume:     toNum(colMap.volume),
+      difficulty: toNum(colMap.difficulty, 100),
+      rank:       toNum(colMap.rank),
+    });
+  }
+
+  return { rows, headers, colMap, errors };
+}
+
+function CsvImportModal({
+  onClose,
+  onImport,
+  existing,
+}: {
+  onClose:  () => void;
+  onImport: (rows: ParsedCsvRow[]) => void;
+  existing: string[];
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [raw,          setRaw]          = useState("");
+  const [parsed,       setParsed]       = useState<ParsedCsvRow[]>([]);
+  const [headers,      setHeaders]      = useState<string[]>([]);
+  const [colMap,       setColMap]       = useState<ColMap>({ term: -1, volume: -1, difficulty: -1, rank: -1 });
+  const [errors,       setErrors]       = useState<string[]>([]);
+  const [skipDupes,    setSkipDupes]    = useState(true);
+  const [dragging,     setDragging]     = useState(false);
+
+  const process = useCallback((text: string) => {
+    setRaw(text);
+    if (!text.trim()) { setParsed([]); setHeaders([]); setErrors([]); return; }
+    const result = parseCsv(text);
+    setParsed(result.rows);
+    setHeaders(result.headers);
+    setColMap(result.colMap);
+    setErrors(result.errors);
+  }, []);
+
+  function handleFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = e => process(e.target?.result as string ?? "");
+    reader.readAsText(file);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }
+
+  const toImport = skipDupes
+    ? parsed.filter(r => !existing.includes(r.term.toLowerCase()))
+    : parsed;
+
+  const duplicateCount = parsed.length - toImport.length;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center gap-2">
+            <Upload className="h-4 w-4 text-emerald-400" />
+            <p className="text-sm font-semibold">Import Keywords from CSV</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+          {/* Drop zone / file picker */}
+          <div
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            className={cn(
+              "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-6 transition-colors cursor-pointer text-center",
+              dragging ? "border-emerald-400/60 bg-emerald-400/[0.04]" : "border-white/[0.1] hover:border-white/[0.18]",
+            )}
+            onClick={() => fileRef.current?.click()}
+          >
+            <FileText className="h-7 w-7 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">
+              Drop a <span className="text-foreground font-medium">.csv</span> or <span className="text-foreground font-medium">.tsv</span> file here, or click to browse
+            </p>
+            <p className="text-[11px] text-muted-foreground/60">
+              Ahrefs, SEMrush, Google Search Console exports all work
+            </p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,.tsv,.txt"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            />
+          </div>
+
+          {/* Paste area */}
+          <div className="space-y-1.5">
+            <Label className="text-[10px] text-muted-foreground">Or paste CSV / TSV data</Label>
+            <textarea
+              rows={5}
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-mono resize-none focus:outline-none focus:border-emerald-500/40 placeholder:text-muted-foreground/40"
+              placeholder={"keyword,volume,difficulty,rank\nbuy solar panels,2400,35,14\nbest solar inverter,1200,42,\n…"}
+              value={raw}
+              onChange={e => process(e.target.value)}
+            />
+          </div>
+
+          {/* Column mapping hint */}
+          {headers.length > 0 && (
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-[11px] space-y-1">
+              <p className="font-semibold text-muted-foreground mb-1.5">Detected column mapping</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {(["term", "volume", "difficulty", "rank"] as (keyof ColMap)[]).map(field => {
+                  const idx = colMap[field];
+                  return (
+                    <div key={field} className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground/60 capitalize w-16">{field === "term" ? "keyword" : field}:</span>
+                      {idx >= 0
+                        ? <span className="text-emerald-400 font-medium truncate">{headers[idx]}</span>
+                        : <span className="text-amber-400/70 italic">not found</span>
+                      }
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Errors */}
+          {errors.length > 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.05] px-3 py-2.5">
+              <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-red-400 space-y-0.5">
+                {errors.map((e, i) => <p key={i}>{e}</p>)}
+              </div>
+            </div>
+          )}
+
+          {/* Preview table */}
+          {parsed.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold text-muted-foreground">
+                  Preview — {parsed.length} row{parsed.length !== 1 ? "s" : ""} parsed
+                  {duplicateCount > 0 && (
+                    <span className="ml-1 text-amber-400/70">
+                      ({duplicateCount} duplicate{duplicateCount !== 1 ? "s" : ""})
+                    </span>
+                  )}
+                </p>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-muted-foreground select-none">
+                  <input
+                    type="checkbox"
+                    checked={skipDupes}
+                    onChange={e => setSkipDupes(e.target.checked)}
+                    className="accent-emerald-500 h-3 w-3"
+                  />
+                  Skip already-tracked keywords
+                </label>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-white/[0.06] max-h-52">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-[#0f1117] z-10">
+                    <tr className="border-b border-white/[0.06]">
+                      {["Keyword", "Volume", "Difficulty", "Rank"].map(h => (
+                        <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/60">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {parsed.slice(0, 200).map((row, i) => {
+                      const isDupe = existing.includes(row.term.toLowerCase());
+                      return (
+                        <tr
+                          key={i}
+                          className={cn(
+                            "transition-colors",
+                            isDupe && skipDupes ? "opacity-40 line-through" : "hover:bg-white/[0.02]",
+                          )}
+                        >
+                          <td className="px-3 py-1.5 font-medium max-w-[200px] truncate">{row.term}</td>
+                          <td className="px-3 py-1.5 tabular-nums text-muted-foreground">
+                            {row.volume !== null ? row.volume.toLocaleString() : "—"}
+                          </td>
+                          <td className={cn("px-3 py-1.5 tabular-nums font-semibold", diffColor(row.difficulty))}>
+                            {row.difficulty !== null ? row.difficulty : "—"}
+                          </td>
+                          <td className="px-3 py-1.5 tabular-nums text-muted-foreground">
+                            {row.rank !== null ? `#${row.rank}` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {parsed.length > 200 && (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-2 text-center text-muted-foreground/60 text-[11px]">
+                          … and {parsed.length - 200} more rows
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-white/[0.06] shrink-0 bg-[#0f1117]">
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-xs h-8">
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => { if (toImport.length > 0) onImport(toImport); }}
+            disabled={toImport.length === 0}
+            className="h-8 text-xs"
+          >
+            <Upload className="mr-1.5 h-3.5 w-3.5" />
+            Import {toImport.length > 0 ? `${toImport.length} keyword${toImport.length !== 1 ? "s" : ""}` : "keywords"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Keyword row — view or edit ────────────────────────────────────────────────
@@ -290,6 +626,7 @@ export function GrowthMindSEO() {
   const [newIdea, setNewIdea]           = useState({ title: "", targetKeyword: "" });
   const [showKwForm, setShowKwForm]     = useState(false);
   const [showIdeaForm, setShowIdeaForm] = useState(false);
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   const { data: siteData, isLoading } = useQuery({
     queryKey: ["growthmind-seo-site"],
@@ -376,6 +713,21 @@ export function GrowthMindSEO() {
     persistAll(updated, contentIdeas);
   }
 
+  function handleCsvImport(rows: ParsedCsvRow[]) {
+    const newKws: SeoKeyword[] = rows.map(r => ({
+      id:         nanoid(),
+      term:       r.term,
+      volume:     r.volume,
+      difficulty: r.difficulty,
+      rank:       r.rank,
+    }));
+    const updated = [...keywords, ...newKws];
+    setKeywords(updated);
+    setShowCsvImport(false);
+    persistAll(updated, contentIdeas);
+    flashMsg(`Imported ${newKws.length} keyword${newKws.length !== 1 ? "s" : ""}`);
+  }
+
   // ── Content idea ops ───────────────────────────────────────────────────────
 
   function addIdea() {
@@ -445,6 +797,10 @@ export function GrowthMindSEO() {
       setAiLoading(false);
     }
   }
+
+  // ── Existing keyword terms (lowercased) for dupe detection ─────────────────
+
+  const existingTerms = keywords.map(k => k.term.toLowerCase());
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -551,14 +907,24 @@ export function GrowthMindSEO() {
                         Track target keywords — hover a row to edit or delete
                       </p>
                     </div>
-                    <Button
-                      size="sm" variant="outline"
-                      onClick={() => { setShowKwForm(v => !v); }}
-                      className="h-7 text-xs"
-                    >
-                      <Plus className="mr-1 h-3 w-3" />
-                      Add keyword
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={() => setShowCsvImport(true)}
+                        className="h-7 text-xs"
+                      >
+                        <Upload className="mr-1 h-3 w-3" />
+                        Import CSV
+                      </Button>
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={() => { setShowKwForm(v => !v); }}
+                        className="h-7 text-xs"
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Add keyword
+                      </Button>
+                    </div>
                   </div>
 
                   {showKwForm && (
@@ -613,10 +979,18 @@ export function GrowthMindSEO() {
                   )}
 
                   {keywords.length === 0 ? (
-                    <div className="px-4 py-8 text-center">
+                    <div className="px-4 py-8 text-center space-y-2">
                       <p className="text-sm text-muted-foreground">
-                        No keywords tracked yet. Add your first keyword above.
+                        No keywords tracked yet. Add your first keyword or import from CSV.
                       </p>
+                      <Button
+                        variant="outline" size="sm"
+                        onClick={() => setShowCsvImport(true)}
+                        className="text-xs h-7 mt-1"
+                      >
+                        <Upload className="mr-1.5 h-3 w-3" />
+                        Import from CSV
+                      </Button>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -759,6 +1133,15 @@ export function GrowthMindSEO() {
           </div>
         )}
       </div>
+
+      {/* CSV import modal */}
+      {showCsvImport && (
+        <CsvImportModal
+          onClose={() => setShowCsvImport(false)}
+          onImport={handleCsvImport}
+          existing={existingTerms}
+        />
+      )}
     </GrowthMindShell>
   );
 }
