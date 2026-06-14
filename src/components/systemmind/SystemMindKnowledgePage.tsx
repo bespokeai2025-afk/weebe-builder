@@ -78,13 +78,23 @@ export function SystemMindKnowledgePage() {
 
   // Seed repair playbooks + executive starter knowledge + Architecture/Workflow KB on first mount.
   // Each seeder is idempotent — already-indexed docs are skipped automatically.
+  // Architecture/Workflow KB seeder loops until remaining === 0 (16 topics, 4 per batch).
   useEffect(() => {
     (async () => {
       try { await seedPbFn({ data: {} }); } catch { /* graceful */ }
       try { await seedKbFn({ data: { limit: 4 } }); } catch { /* graceful */ }
-      // Seed Architecture KB + Workflow KB in two batches (8 docs total, 4 per call)
-      try { await seedArchWfFn({ data: { limit: 4 } }); } catch { /* graceful */ }
-      try { await seedArchWfFn({ data: { limit: 4 } }); } catch { /* graceful */ }
+      // Loop until all Architecture KB + Workflow KB docs are indexed (or error out)
+      let remaining = Infinity;
+      let guard = 0;
+      while (remaining > 0 && guard < 10) {
+        guard++;
+        try {
+          const result = await seedArchWfFn({ data: { limit: 4 } });
+          remaining = (result as any)?.remaining ?? 0;
+        } catch {
+          break;
+        }
+      }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
