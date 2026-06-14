@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -348,11 +349,7 @@ function CampaignRow({
       </div>
 
       <span className="w-24 text-right text-xs text-muted-foreground tabular-nums">
-        {new Date(campaign.created_at).toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })}
+        <RelativeTime date={campaign.created_at} />
       </span>
 
       <div onClick={(e) => e.stopPropagation()}>

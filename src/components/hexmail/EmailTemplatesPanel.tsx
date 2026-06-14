@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -149,7 +150,7 @@ export function EmailTemplatesPanel() {
                     {t.subject ?? <span className="text-muted-foreground/40">—</span>}
                   </td>
                   <td className="px-3 py-3 text-muted-foreground text-xs whitespace-nowrap">
-                    {new Date(t.updated_at).toLocaleDateString()}
+                    <RelativeTime date={t.updated_at} />
                   </td>
                   <td className="px-3 py-3 text-center text-muted-foreground">{t.usage_count}</td>
                   <td className="px-3 py-3">

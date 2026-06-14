@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -248,7 +249,7 @@ export function ContactDocumentsPanel({ contactId, contactName, uploadToken: tok
                       {doc.uploaded_by === "admin" ? "Admin" : "Client"}
                     </Badge>
                     <span className="text-[10px] text-muted-foreground">
-                      {new Date(doc.created_at).toLocaleDateString()}
+                      <RelativeTime date={doc.created_at} />
                     </span>
                   </div>
                 </div>

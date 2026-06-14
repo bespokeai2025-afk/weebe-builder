@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Pencil, FileText, Variable, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -200,7 +201,7 @@ export function WhatsAppTemplates() {
                 </div>
               )}
               <p className="text-[10px] text-muted-foreground mt-auto">
-                Created {new Date(t.created_at).toLocaleDateString()}
+                Created <RelativeTime date={t.created_at} />
               </p>
             </div>
           ))}
@@ -323,7 +324,7 @@ export function WhatsAppTemplates() {
                   <p className="text-[10px] text-muted-foreground">Language: {t.language}</p>
                 )}
                 <p className="text-[10px] text-muted-foreground mt-auto">
-                  Synced {new Date(t.synced_at).toLocaleDateString()}
+                  Synced <RelativeTime date={t.synced_at} />
                 </p>
               </div>
             ))}

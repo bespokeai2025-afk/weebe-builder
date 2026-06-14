@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 import {
   Loader2,
@@ -271,7 +272,7 @@ export function AgentCard({ agent, loading, onOpen, onDeploy, onDelete }: AgentC
                 {showCopied && <span className="text-emerald-400">copied</span>}
               </button>
             )}
-            <span>Updated {new Date(agent.updated_at).toLocaleDateString()}</span>
+            <span>Updated <RelativeTime date={agent.updated_at} /></span>
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Download, Upload, Search, Users, RefreshCw, Loader2, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -280,7 +281,7 @@ export function WhatsAppContacts() {
                     ) : "—"}
                   </td>
                   <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
-                    {new Date(c.created_at).toLocaleDateString()}
+                    <RelativeTime date={c.created_at} />
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1 justify-end">

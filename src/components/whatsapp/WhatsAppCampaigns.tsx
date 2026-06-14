@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, Megaphone, Clock, CheckCircle2, AlertCircle, PlayCircle, Rocket, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -181,7 +182,7 @@ export function WhatsAppCampaigns() {
                     <td className="px-4 py-2.5 text-xs tabular-nums">{stats.read ?? 0}</td>
                     <td className="px-4 py-2.5 text-xs tabular-nums">{stats.replied ?? 0}</td>
                     <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
-                      {new Date(c.created_at).toLocaleDateString()}
+                      <RelativeTime date={c.created_at} />
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1">
@@ -355,7 +356,7 @@ export function WhatsAppCampaigns() {
                       <td className="px-4 py-2.5 text-xs tabular-nums">{c.read_count ?? 0}</td>
                       <td className="px-4 py-2.5 text-xs tabular-nums">{c.failed ?? 0}</td>
                       <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
-                        {new Date(c.synced_at).toLocaleDateString()}
+                        <RelativeTime date={c.synced_at} />
                       </td>
                     </tr>
                   ))}
