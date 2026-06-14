@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { type GrowthRecommendation } from "./growthmind.recommendations";
 
 // ── Main marketing data aggregator ─────────────────────────────────────────────
+// NOTE: returns ONLY derived metrics — no raw credentials or sensitive settings.
 export const getGrowthMindData = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -13,13 +16,11 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const since7   = new Date(now); since7.setDate(now.getDate() - 7);
     const since14  = new Date(now); since14.setDate(now.getDate() - 14);
     const since30  = new Date(now); since30.setDate(now.getDate() - 30);
-    const since90  = new Date(now); since90.setDate(now.getDate() - 90);
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
 
     const s7    = since7.toISOString();
     const s14   = since14.toISOString();
     const s30   = since30.toISOString();
-    const s90   = since90.toISOString();
     const today = todayStart.toISOString();
 
     const [
@@ -47,6 +48,7 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .limit(1000),
 
+      // Only fetch existence/boolean fields — no API keys returned to client
       sb.from("workspace_settings")
         .select("calcom_api_key, retell_default_agent_id, retell_workspace_id, elevenlabs_api_key, openai_api_key, whatsapp_phone_id, twilio_auth_token, twilio_account_sid")
         .eq("workspace_id", workspaceId)
@@ -119,29 +121,33 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const conversionRate = totalLeads > 0 ? Math.round((saleLeads / totalLeads) * 100) : 0;
 
     // ── FOLLOW-UP COVERAGE ────────────────────────────────────────────────────
-    // Leads that have had at least one call vs total active leads
-    const calledLeadIds = new Set(calls.map(c => c.from_number).concat(calls.map(c => c.to_number)));
+    const calledPhones   = new Set([
+      ...calls.map(c => c.from_number).filter(Boolean),
+      ...calls.map(c => c.to_number).filter(Boolean),
+    ]);
     const activeLeadList = leads.filter(l =>
       l.status !== "sale_done" && l.status !== "do_not_call" && l.status !== "not_interested"
     );
     const followUpCoverage = activeLeadList.length > 0
-      ? Math.round((activeLeadList.filter(l => l.phone && calledLeadIds.has(l.phone)).length / activeLeadList.length) * 100)
+      ? Math.round((activeLeadList.filter(l => l.phone && calledPhones.has(l.phone)).length / activeLeadList.length) * 100)
       : 100;
 
+    // ── NEVER-CALLED LEADS (for opportunities) ────────────────────────────────
+    const neverCalled = activeLeadList.filter(l => l.phone && !calledPhones.has(l.phone));
+
     // ── LEAD RESPONSE TIME ────────────────────────────────────────────────────
-    // Avg hours from lead created to first call (rough proxy)
-    const firstCallByLead = new Map<string, number>();
+    const firstCallByPhone = new Map<string, number>();
     for (const c of calls) {
       const phone = c.to_number ?? c.from_number;
       if (!phone) continue;
       const t = new Date(c.started_at).getTime();
-      if (!firstCallByLead.has(phone) || firstCallByLead.get(phone)! > t) {
-        firstCallByLead.set(phone, t);
+      if (!firstCallByPhone.has(phone) || firstCallByPhone.get(phone)! > t) {
+        firstCallByPhone.set(phone, t);
       }
     }
     const responseTimes: number[] = [];
     for (const l of leads.filter(l => l.phone && l.created_at >= s30)) {
-      const firstCall = firstCallByLead.get(l.phone);
+      const firstCall = firstCallByPhone.get(l.phone);
       if (firstCall) {
         const hrs = (firstCall - new Date(l.created_at).getTime()) / 3_600_000;
         if (hrs >= 0 && hrs < 168) responseTimes.push(hrs);
@@ -156,6 +162,12 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const bookings7      = bookings.filter(b => b.created_at >= s7).length;
     const agentBookings  = bookings.filter(b => b.agent_id).length;
     const bookingRate    = totalLeads > 0 ? Math.round((totalBookings / totalLeads) * 100) : 0;
+    const noShowBookings = bookings.filter(b => b.status === "no_show" || b.status === "cancelled");
+    const noShowDetail   = noShowBookings.slice(0, 20).map(b => ({
+      id: b.id, title: b.title ?? "Appointment",
+      attendeeName: b.attendee_name ?? null,
+      createdAt: b.created_at, startAt: b.start_at,
+    }));
 
     // ── CAMPAIGNS ────────────────────────────────────────────────────────────
     const activeCampaigns  = campaigns.filter(c => c.status === "running" || c.status === "active").length;
@@ -204,7 +216,7 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       };
     }).sort((a, b) => b.callCount - a.callCount);
 
-    // ── SYSTEM HEALTH ─────────────────────────────────────────────────────────
+    // ── SYSTEM HEALTH — boolean flags only, no credentials ──────────────────
     const systemHealth = {
       retell:      !!(settings.retell_workspace_id || settings.retell_default_agent_id),
       calcom:      !!settings.calcom_api_key,
@@ -228,6 +240,51 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       email: l.email,
     }));
 
+    // ── NEVER-CALLED DETAIL ──────────────────────────────────────────────────
+    const neverCalledDetail = neverCalled.slice(0, 50).map(l => ({
+      id: l.id,
+      name: l.full_name ?? l.name ?? "Unknown",
+      status: l.status,
+      pipeline_stage: l.pipeline_stage,
+      daysSinceCreated: Math.floor((Date.now() - new Date(l.created_at).getTime()) / 86400000),
+      phone: l.phone,
+      email: l.email,
+      createdAt: l.created_at,
+    }));
+
+    // ── REPEAT-CONTACT DETAIL (called 3+ times, not converted) ───────────────
+    const callCountByPhone = new Map<string, number>();
+    for (const c of calls) {
+      const phone = c.to_number ?? c.from_number;
+      if (!phone) continue;
+      callCountByPhone.set(phone, (callCountByPhone.get(phone) ?? 0) + 1);
+    }
+    const repeatContacts = activeLeadList.filter(l =>
+      l.phone && (callCountByPhone.get(l.phone) ?? 0) >= 3
+    ).slice(0, 30).map(l => ({
+      id: l.id,
+      name: l.full_name ?? l.name ?? "Unknown",
+      status: l.status,
+      phone: l.phone,
+      email: l.email,
+      callCount: callCountByPhone.get(l.phone) ?? 0,
+    }));
+
+    // ── STALLED PIPELINE (in_progress / qualified 7+ days no update) ─────────
+    const stalledPipeline = leads.filter(l =>
+      (l.status === "in_progress" || l.status === "qualified" || l.status === "contacted") &&
+      l.updated_at < s7
+    ).slice(0, 30).map(l => ({
+      id: l.id,
+      name: l.full_name ?? l.name ?? "Unknown",
+      status: l.status,
+      pipeline_stage: l.pipeline_stage,
+      daysSinceUpdate: Math.floor((Date.now() - new Date(l.updated_at).getTime()) / 86400000),
+      phone: l.phone,
+      email: l.email,
+    }));
+
+    // ── RETURN — no credentials, no raw settings ──────────────────────────────
     return {
       agents, agentPerf,
       calls: {
@@ -238,12 +295,15 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       leads: {
         total: totalLeads, active: activeLeads, needCall: needCallLeads,
         staleCount: staleLeads.length, staleDetail: staleLeadDetail,
+        neverCalledCount: neverCalled.length, neverCalledDetail,
         sales: saleLeads, newLast7: newLeads7, newLast30: newLeads30,
         conversionRate, followUpCoverage, avgResponseHrs,
+        repeatContacts, stalledPipeline,
       },
       bookings: {
         total: totalBookings, last7: bookings7,
         agentBooked: agentBookings, bookingRate,
+        noShowCount: noShowBookings.length, noShowDetail,
       },
       campaigns: {
         total: campaigns.length, active: activeCampaigns, stats: campaignStats,
@@ -253,6 +313,95 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       telephony: { total: telephonyCalls.length },
       phoneNumbers,
       systemHealth,
-      settings,
+      // No `settings` key — credentials never leave the server
     };
+  });
+
+// ── Save recommendations to DB (called from client after generating) ───────────
+// Client generates recs from platform data, then calls this to persist them.
+export const saveGrowthMindRecommendations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      recommendations: z.array(z.object({
+        category:     z.string(),
+        priority:     z.string(),
+        problem:      z.string(),
+        impact:       z.string().optional(),
+        fix:          z.string(),
+        action_href:  z.string().nullable().optional(),
+        action_label: z.string().nullable().optional(),
+      })),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    try {
+      // Replace all existing recs for this workspace
+      await sb
+        .from("growthmind_recommendations")
+        .delete()
+        .eq("workspace_id", workspaceId);
+
+      if (data.recommendations.length > 0) {
+        const rows = data.recommendations.map(r => ({
+          workspace_id:  workspaceId,
+          category:      r.category,
+          priority:      r.priority,
+          problem:       r.problem,
+          impact:        r.impact ?? "",
+          fix:           r.fix,
+          action_href:   r.action_href ?? null,
+          action_label:  r.action_label ?? null,
+          is_dismissed:  false,
+          refreshed_at:  new Date().toISOString(),
+        }));
+        await sb.from("growthmind_recommendations").insert(rows);
+      }
+      return { ok: true };
+    } catch {
+      // DB may not be migrated yet — fail silently
+      return { ok: false };
+    }
+  });
+
+// ── Load recommendations from DB ───────────────────────────────────────────────
+export const getStoredGrowthMindRecommendations = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    try {
+      const { data } = await sb
+        .from("growthmind_recommendations")
+        .select("id, category, priority, problem, impact, fix, action_href, action_label, refreshed_at")
+        .eq("workspace_id", workspaceId)
+        .eq("is_dismissed", false)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      const rows: any[] = data ?? [];
+      const refreshedAt = rows[0]?.refreshed_at ?? null;
+      const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const isStale = rows.length === 0 || refreshedAt < staleThreshold;
+
+      const recommendations: GrowthRecommendation[] = rows.map(r => ({
+        id:       r.id,
+        category: r.category,
+        priority: r.priority,
+        problem:  r.problem,
+        impact:   r.impact,
+        fix:      r.fix,
+        action:   r.action_href ? { href: r.action_href, label: r.action_label ?? "View" } : undefined,
+      }));
+
+      return { recommendations, stale: isStale, refreshedAt };
+    } catch {
+      return { recommendations: [], stale: true, refreshedAt: null };
+    }
   });

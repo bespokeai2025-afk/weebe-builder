@@ -1,0 +1,154 @@
+BUILD GROWTHMIND PHASE 2
+
+IMPORTANT
+
+Do not modify HiveMind.
+
+Do not modify Builder.
+
+Do not modify Telephony.
+
+Do not modify HyperStream.
+
+Do not modify Retell.
+
+Extend the platform safely.
+
+OBJECTIVE
+
+Transform GrowthMind into a complete AI Chief Marketing Officer.
+
+NEW MODULES
+
+Create:
+
+/growthmind/ads
+/growthmind/funnels
+/growthmind/playbooks
+/growthmind/seo
+/growthmind/competitors
+/growthmind/forecast
+
+NEW DATABASE TABLES
+
+growthmind_ads_accounts
+growthmind_campaigns
+growthmind_playbooks
+growthmind_funnels
+growthmind_reports
+growthmind_forecasts
+growthmind_competitors
+growthmind_recommendations
+
+All tables must be workspace scoped.
+
+ADS MODULE
+
+Support:
+
+Google Ads
+Meta Ads
+LinkedIn Ads
+TikTok Ads
+
+Store:
+
+campaigns
+ad groups
+ads
+spend
+impressions
+clicks
+conversions
+cost per lead
+ROAS
+
+Create account connection screens.
+
+FUNNELS MODULE
+
+Create visual funnel builder.
+
+Stages:
+
+Traffic
+Lead
+Qualified Lead
+Appointment
+Proposal
+Sale
+
+Allow GrowthMind to analyse funnel performance.
+
+PLAYBOOKS MODULE
+
+Create industry playbook library.
+
+Initial industries:
+
+Real Estate
+Mortgage
+Recruitment
+Solar
+Insurance
+Dental
+SaaS
+Agencies
+
+Each playbook contains:
+
+calling campaigns
+email campaigns
+whatsapp campaigns
+follow up sequences
+advertising recommendations
+
+SEO MODULE
+
+Allow website URL connection.
+
+Store:
+
+keywords
+pages
+content opportunities
+seo recommendations
+
+COMPETITOR MODULE
+
+Store competitor records.
+
+Track:
+
+website
+services
+offers
+positioning
+marketing observations
+
+FORECAST MODULE
+
+Predict:
+
+lead volume
+appointments
+sales
+revenue
+
+using existing CRM and campaign data.
+
+RECOMMENDATIONS ENGINE
+
+Generate:
+
+budget recommendations
+campaign recommendations
+follow up recommendations
+advertising recommendations
+conversion optimisation recommendations
+
+Create architecture first.
+
+Generate implementation plan.
+
+Then implement safely in phases.
