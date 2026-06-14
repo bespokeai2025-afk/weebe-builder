@@ -1,0 +1,594 @@
+BUILD UNIVERSAL PROVIDER FRAMEWORK
+
+IMPORTANT
+
+Do not modify existing business functionality.
+
+Do not remove any integrations.
+
+Do not hardcode providers anywhere.
+
+Extend the platform using a universal provider architecture.
+
+This should become the standard pattern for all future integrations.
+
+====================================================
+
+OBJECTIVE
+
+Create a universal provider framework that supports:
+
+LLMs
+
+Voice Engines
+
+Video Generation
+
+Image Generation
+
+Telephony
+
+WhatsApp
+
+Email
+
+CRM
+
+Calendar
+
+Knowledge Bases
+
+Analytics
+
+Advertising Platforms
+
+Future Integrations
+
+====================================================
+
+TARGET ARCHITECTURE
+
+Feature
+↓
+Provider Factory
+↓
+Provider Adapter
+↓
+External Service
+
+====================================================
+
+CREATE
+
+src/lib/providers/
+
+====================================================
+
+CREATE STANDARD INTERFACE
+
+Every provider category must follow:
+
+Provider Factory
+
+Provider Interface
+
+Provider Adapters
+
+Provider Registry
+
+Provider Settings
+
+Provider Usage Tracking
+
+====================================================
+
+SUPPORTED CATEGORIES
+
+====================================================
+
+1. LLM PROVIDERS
+
+Category:
+
+llm
+
+Providers:
+
+OpenAI
+
+Gemini
+
+Claude
+
+OpenRouter
+
+Grok
+
+Mistral
+
+Llama
+
+Future Models
+
+Examples:
+
+generateText()
+
+generateJson()
+
+generateReport()
+
+generateStrategy()
+
+====================================================
+
+2. VOICE PROVIDERS
+
+Category:
+
+voice
+
+Providers:
+
+Retell
+
+HyperStream
+
+VoxStream
+
+Future Voice Engines
+
+Examples:
+
+startSession()
+
+endSession()
+
+transferCall()
+
+executeTool()
+
+====================================================
+
+3. TELEPHONY PROVIDERS
+
+Category:
+
+telephony
+
+Providers:
+
+Twilio
+
+FreJun
+
+Future Carriers
+
+Examples:
+
+createCall()
+
+hangupCall()
+
+assignNumber()
+
+purchaseNumber()
+
+====================================================
+
+4. WHATSAPP PROVIDERS
+
+Category:
+
+whatsapp
+
+Providers:
+
+Meta
+
+Twilio WhatsApp
+
+WATI
+
+Future Providers
+
+Examples:
+
+sendMessage()
+
+sendTemplate()
+
+sendMedia()
+
+sendBroadcast()
+
+====================================================
+
+5. EMAIL PROVIDERS
+
+Category:
+
+email
+
+Providers:
+
+Resend
+
+SendGrid
+
+Mailgun
+
+AWS SES
+
+Future Providers
+
+Examples:
+
+sendEmail()
+
+sendCampaign()
+
+getAnalytics()
+
+====================================================
+
+6. VIDEO PROVIDERS
+
+Category:
+
+video
+
+Providers:
+
+Google Veo
+
+Runway
+
+Kling
+
+Pika
+
+Future Providers
+
+Examples:
+
+generateVideo()
+
+generateStoryboard()
+
+estimateCost()
+
+====================================================
+
+7. IMAGE PROVIDERS
+
+Category:
+
+image
+
+Providers:
+
+GPT Image
+
+Imagen
+
+Flux
+
+Midjourney Adapter
+
+Future Providers
+
+Examples:
+
+generateImage()
+
+editImage()
+
+createAdCreative()
+
+====================================================
+
+8. CRM PROVIDERS
+
+Category:
+
+crm
+
+Providers:
+
+HubSpot
+
+GoHighLevel
+
+Microsoft Dynamics
+
+Salesforce
+
+Pipedrive
+
+Future CRMs
+
+Examples:
+
+createLead()
+
+updateLead()
+
+syncRecord()
+
+====================================================
+
+9. CALENDAR PROVIDERS
+
+Category:
+
+calendar
+
+Providers:
+
+Cal.com
+
+Calendly
+
+Google Calendar
+
+Outlook
+
+Future Providers
+
+Examples:
+
+checkAvailability()
+
+bookAppointment()
+
+cancelAppointment()
+
+====================================================
+
+10. KNOWLEDGE BASE PROVIDERS
+
+Category:
+
+knowledge
+
+Providers:
+
+Retell KB
+
+WeeBee KB
+
+Pinecone
+
+OpenAI Vector Store
+
+Future Providers
+
+Examples:
+
+searchKnowledge()
+
+storeDocument()
+
+deleteDocument()
+
+====================================================
+
+11. ANALYTICS PROVIDERS
+
+Category:
+
+analytics
+
+Providers:
+
+Google Analytics
+
+Google Search Console
+
+Meta Analytics
+
+LinkedIn Analytics
+
+Future Analytics
+
+Examples:
+
+fetchMetrics()
+
+fetchTraffic()
+
+fetchConversions()
+
+====================================================
+
+12. ADVERTISING PROVIDERS
+
+Category:
+
+advertising
+
+Providers:
+
+Google Ads
+
+Meta Ads
+
+LinkedIn Ads
+
+TikTok Ads
+
+Future Ad Platforms
+
+Examples:
+
+createCampaign()
+
+pauseCampaign()
+
+fetchPerformance()
+
+====================================================
+
+UNIVERSAL SETTINGS SYSTEM
+
+Create:
+
+provider_settings
+
+Store:
+
+workspace_id
+
+provider_category
+
+provider_name
+
+credentials
+
+status
+
+last_sync
+
+default_provider
+
+fallback_provider
+
+====================================================
+
+PROVIDER PRIORITY
+
+Allow:
+
+Primary
+
+Secondary
+
+Fallback
+
+Example:
+
+LLM
+
+Primary:
+Gemini
+
+Secondary:
+Claude
+
+Fallback:
+OpenAI
+
+====================================================
+
+USAGE TRACKING
+
+Track:
+
+Provider
+
+Workspace
+
+Usage
+
+Requests
+
+Costs
+
+Errors
+
+Duration
+
+====================================================
+
+COST ENGINE INTEGRATION
+
+Every provider category must report into:
+
+Cost Engine
+
+Track:
+
+Provider Cost
+
+Markup
+
+Profit
+
+Usage
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should know:
+
+Connected Providers
+
+Disconnected Providers
+
+Provider Costs
+
+Provider Usage
+
+Provider Errors
+
+====================================================
+
+GROWTHMIND INTEGRATION
+
+GrowthMind should know:
+
+Advertising Providers
+
+Analytics Providers
+
+Content Providers
+
+Video Providers
+
+Image Providers
+
+====================================================
+
+SYSTEMMIND FOUNDATION
+
+Future SystemMind should monitor:
+
+Provider Health
+
+Provider Costs
+
+Provider Errors
+
+Provider Performance
+
+====================================================
+
+SUCCESS CRITERIA
+
+Every major platform capability becomes provider-agnostic.
+
+Future providers can be added by creating a new adapter only.
+
+No core platform rewrites required.
+
+Generate implementation plan first.
+
+Identify:
+
+New services
+
+Database changes
+
+Factories
+
+Interfaces
+
+Registries
+
+Admin pages
+
+Settings pages
+
+Then implement safely in phases.
