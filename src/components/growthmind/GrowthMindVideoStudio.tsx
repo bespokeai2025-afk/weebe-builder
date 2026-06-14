@@ -291,8 +291,13 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
         <span className="ml-auto text-[10px] text-muted-foreground/50">{formatDate(asset.createdAt)}</span>
       </div>
 
-      {asset.audioUrl && asset.audioUrl.startsWith("data:") && (
-        <audio controls src={asset.audioUrl} className="w-full h-8 opacity-80" />
+      {asset.audioUrl && (
+        <div className="rounded-lg border border-sky-500/15 bg-sky-500/[0.04] px-3 py-2 space-y-1.5">
+          <p className="text-[10px] uppercase tracking-wider text-sky-400/70 font-semibold flex items-center gap-1.5">
+            <Volume2 className="h-3 w-3" />Voiceover
+          </p>
+          <audio controls src={asset.audioUrl} className="w-full h-8" />
+        </div>
       )}
 
       {/* Video states */}
@@ -932,7 +937,7 @@ export function GrowthMindVideoStudio() {
                 </div>
               )}
 
-              {lastResult.audioUrl && lastResult.audioUrl.startsWith("data:") && (
+              {lastResult.audioUrl && (
                 <div className="rounded-xl border border-sky-500/15 bg-sky-500/[0.04] p-4 space-y-2">
                   <p className="text-[10px] uppercase tracking-wider text-sky-400/70 font-semibold flex items-center gap-1.5">
                     <Volume2 className="h-3 w-3" />ElevenLabs Voiceover
