@@ -20,6 +20,7 @@ import {
   toggleProviderEnabled,
   saveProviderCredentials,
   testProviderConnection,
+  refreshAllProviderHealth,
 } from "@/lib/providers/providers.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/providers")({
@@ -103,6 +104,16 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
   "calendar:google": [
     { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
     { key: "calendarId", label: "Calendar ID (optional)", type: "text", required: false, placeholder: "primary" },
+  ],
+  "telephony:twilio": [
+    { key: "accountSid", label: "Account SID", type: "text", required: true, placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+    { key: "authToken", label: "Auth Token", type: "password", required: true },
+    { key: "from", label: "From Phone Number", type: "text", required: false, placeholder: "+15551234567" },
+  ],
+  "whatsapp:twilio": [
+    { key: "accountSid", label: "Account SID", type: "text", required: true, placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
+    { key: "authToken", label: "Auth Token", type: "password", required: true },
+    { key: "from", label: "WhatsApp From Number", type: "text", required: false, placeholder: "+15551234567" },
   ],
 };
 
@@ -464,9 +475,11 @@ function getSetupLink(category: string, providerName: string): string {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 function ProvidersSettingsPage() {
-  const getFn          = useServerFn(getProviderRegistryData);
-  const updatePriorityFn = useServerFn(updateProviderPriority);
-  const toggleEnabledFn  = useServerFn(toggleProviderEnabled);
+  const getFn              = useServerFn(getProviderRegistryData);
+  const updatePriorityFn   = useServerFn(updateProviderPriority);
+  const toggleEnabledFn    = useServerFn(toggleProviderEnabled);
+  const refreshHealthFn    = useServerFn(refreshAllProviderHealth);
+  const [sweeping, setSweeping] = useState(false);
   const qc = useQueryClient();
 
   const { data, isLoading, isFetching } = useQuery({
@@ -521,9 +534,29 @@ function ProvidersSettingsPage() {
               All third-party integrations across every platform capability. Set primary and fallback providers per category.
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["provider-registry"] })}>
-            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
-            Refresh
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={sweeping}
+            onClick={async () => {
+              setSweeping(true);
+              try {
+                const result = await refreshHealthFn();
+                if (result.checked > 0) {
+                  toast.success(`Health sweep: ${result.passed}/${result.checked} passed`);
+                } else {
+                  toast.info("No configured providers to sweep — save credentials first");
+                }
+              } catch {
+                toast.info("Refreshing registry from database");
+              } finally {
+                setSweeping(false);
+                qc.invalidateQueries({ queryKey: ["provider-registry"] });
+              }
+            }}
+          >
+            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", (isFetching || sweeping) && "animate-spin")} />
+            {sweeping ? "Checking…" : "Refresh"}
           </Button>
         </div>
 

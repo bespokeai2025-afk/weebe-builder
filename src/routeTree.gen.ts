@@ -55,6 +55,7 @@ import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webh
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
+import { Route as ApiPublicProviderHealthSweepRouteImport } from './routes/api/public/provider-health-sweep'
 import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
@@ -384,6 +385,12 @@ const ApiPublicRetellWebhookRoute = ApiPublicRetellWebhookRouteImport.update({
   path: '/api/public/retell-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicProviderHealthSweepRoute =
+  ApiPublicProviderHealthSweepRouteImport.update({
+    id: '/api/public/provider-health-sweep',
+    path: '/api/public/provider-health-sweep',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicElevenlabsWebhookRoute =
   ApiPublicElevenlabsWebhookRouteImport.update({
     id: '/api/public/elevenlabs-webhook',
@@ -993,6 +1000,7 @@ export interface FileRoutesByFullPath {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
+  '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -1124,6 +1132,7 @@ export interface FileRoutesByTo {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
+  '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -1262,6 +1271,7 @@ export interface FileRoutesById {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
+  '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -1400,6 +1410,7 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
+    | '/api/public/provider-health-sweep'
     | '/api/public/retell-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
@@ -1531,6 +1542,7 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
+    | '/api/public/provider-health-sweep'
     | '/api/public/retell-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
@@ -1668,6 +1680,7 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
+    | '/api/public/provider-health-sweep'
     | '/api/public/retell-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
@@ -1734,6 +1747,7 @@ export interface RootRouteChildren {
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
   ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRoute
+  ApiPublicProviderHealthSweepRoute: typeof ApiPublicProviderHealthSweepRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -2095,6 +2109,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/retell-webhook'
       fullPath: '/api/public/retell-webhook'
       preLoaderRoute: typeof ApiPublicRetellWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/provider-health-sweep': {
+      id: '/api/public/provider-health-sweep'
+      path: '/api/public/provider-health-sweep'
+      fullPath: '/api/public/provider-health-sweep'
+      preLoaderRoute: typeof ApiPublicProviderHealthSweepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/elevenlabs-webhook': {
@@ -3022,6 +3043,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
   ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRoute,
+  ApiPublicProviderHealthSweepRoute: ApiPublicProviderHealthSweepRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,

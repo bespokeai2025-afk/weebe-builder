@@ -19,6 +19,7 @@ import { GoogleCalendarAdapter } from "./calendar/adapters/google.adapter";
 import { GoogleAnalyticsAdapter } from "./analytics/adapters/google-analytics.adapter";
 import { GoogleAdsAdapter } from "./advertising/adapters/google-ads.adapter";
 import { MetaAdsAdapter } from "./advertising/adapters/meta-ads.adapter";
+import { TwilioWhatsAppAdapter } from "./whatsapp/adapters/twilio.adapter";
 import { upsertProviderSetting } from "./usage.server";
 
 export interface HealthCheckResult {
@@ -130,7 +131,8 @@ async function dispatchHealthCheck(
 
     // ── Voice ──────────────────────────────────────────────────────────────────
     case "voice:retell": {
-      const key = str(stored.apiKey) || str(ws.retell_workspace_id) || process.env.RETELL_API_KEY || "";
+      // retell_workspace_id is the workspace ID — the API key is in stored.apiKey or RETELL_API_KEY env var
+      const key = str(stored.apiKey) || process.env.RETELL_API_KEY || "";
       return new RetellVoiceAdapter(key).healthCheck!();
     }
     case "voice:openai": {
@@ -274,6 +276,13 @@ async function dispatchHealthCheck(
         .maybeSingle();
       return data?.status === "active";
     }
+    case "whatsapp:twilio": {
+      const sid   = str(stored.accountSid) || str(ws.twilio_account_sid);
+      const token = str(stored.authToken)  || str(ws.twilio_auth_token);
+      const from  = str(stored.from);
+      if (!sid || !token) return false;
+      return new TwilioWhatsAppAdapter({ accountSid: sid, authToken: token, from: from || "+10000000000" }).healthCheck!();
+    }
     case "whatsapp:meta": {
       const token = str(stored.accessToken);
       if (!token) return false;
@@ -286,4 +295,88 @@ async function dispatchHealthCheck(
     default:
       return false;
   }
+}
+
+// ── Bulk health sweep ─────────────────────────────────────────────────────────
+
+/**
+ * Run health checks for all non-coming_soon providers for a workspace.
+ * Persists results to provider_settings.status.
+ * Called by the Refresh button and the 15-min scheduled sweep.
+ */
+export async function runAllProviderHealthChecks(workspaceId: string): Promise<{
+  checked: number;
+  passed: number;
+  failed: number;
+}> {
+  const sb = supabaseAdmin as any;
+
+  // Load DB settings to know which providers are configured (not coming_soon)
+  let dbSettings: Array<{ provider_category: string; provider_name: string; status: string }> = [];
+  try {
+    const { data } = await sb
+      .from("provider_settings")
+      .select("provider_category, provider_name, status")
+      .eq("workspace_id", workspaceId)
+      .not("status", "eq", "coming_soon");
+    dbSettings = data ?? [];
+  } catch { /* table may not exist yet */ }
+
+  if (dbSettings.length === 0) return { checked: 0, passed: 0, failed: 0 };
+
+  let passed = 0;
+  let failed = 0;
+
+  await Promise.allSettled(
+    dbSettings.map(async ({ provider_category, provider_name }) => {
+      try {
+        const result = await runProviderHealthCheck(workspaceId, provider_category, provider_name);
+        if (result.ok) passed++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }),
+  );
+
+  return { checked: dbSettings.length, passed, failed };
+}
+
+/**
+ * Run health checks across ALL workspaces that have at least one provider_settings row.
+ * Called by the scheduled health sweep plugin and the pg_cron API route.
+ */
+export async function runAllWorkspacesHealthChecks(): Promise<{
+  workspaces: number;
+  checked: number;
+  passed: number;
+  failed: number;
+}> {
+  const sb = supabaseAdmin as any;
+
+  let workspaceIds: string[] = [];
+  try {
+    const { data: rows } = await sb
+      .from("provider_settings")
+      .select("workspace_id")
+      .not("status", "eq", "coming_soon");
+    workspaceIds = [...new Set<string>((rows ?? []).map((r: any) => r.workspace_id))];
+  } catch { return { workspaces: 0, checked: 0, passed: 0, failed: 0 }; }
+
+  if (workspaceIds.length === 0) return { workspaces: 0, checked: 0, passed: 0, failed: 0 };
+
+  let totalChecked = 0;
+  let totalPassed  = 0;
+  let totalFailed  = 0;
+
+  await Promise.allSettled(
+    workspaceIds.map(async (wsId) => {
+      const result = await runAllProviderHealthChecks(wsId);
+      totalChecked += result.checked;
+      totalPassed  += result.passed;
+      totalFailed  += result.failed;
+    }),
+  );
+
+  return { workspaces: workspaceIds.length, checked: totalChecked, passed: totalPassed, failed: totalFailed };
 }

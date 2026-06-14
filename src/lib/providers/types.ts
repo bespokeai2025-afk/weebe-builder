@@ -48,4 +48,8 @@ export interface TrackUsageParams {
   durationMs?: number;
   costUsd?: number;
   isError?: boolean;
+  /** Number of units consumed (emails, images, video seconds, API calls, etc.) */
+  unitsConsumed?: number;
+  /** Unit type key matching provider_cost_rates.unit_type ('email','image','video_seconds','whatsapp','api_call','sync') */
+  unitType?: string;
 }

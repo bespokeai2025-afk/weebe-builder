@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildScopedView } from "./registry";
 import { getProviderUsage, upsertProviderSetting } from "./usage.server";
-import { runProviderHealthCheck } from "./health.server";
+import { runProviderHealthCheck, runAllProviderHealthChecks } from "./health.server";
 import type { RegistryEntry } from "./registry";
 
 export type ProviderHealthSummary = {
@@ -269,6 +269,19 @@ export const testProviderConnection = createServerFn({ method: "POST" })
 
     const { category, providerName } = data;
     return runProviderHealthCheck(workspaceId, category, providerName);
+  });
+
+// ── Mutation: refresh all provider health statuses ────────────────────────────
+
+export const refreshAllProviderHealth = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ checked: number; passed: number; failed: number }> => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    await requireWorkspaceAdmin(context.supabase, context.userId, workspaceId);
+
+    return runAllProviderHealthChecks(workspaceId);
   });
 
 // ── Mutation: enable / disable a provider ─────────────────────────────────────
