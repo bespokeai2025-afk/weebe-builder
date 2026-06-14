@@ -127,11 +127,16 @@ function analyzeFlow(flowData: any) {
 }
 
 // ── 1. Scan + store agent workflows ───────────────────────────────────────────
-export async function scanAndStoreAgentWorkflows(
-  workspaceId: string,
-): Promise<{ scanned: number; stored: number }> {
+export async function scanAndStoreAgentWorkflows(workspaceId: string): Promise<{
+  scanned: number;
+  stored: number;
+  templates: number;
+  campaigns: number;
+}> {
   const sb = supabaseAdmin as any;
+  const now = new Date().toISOString();
 
+  // ── 1a. Scan agents → systemmind_workflow_library ──────────────────────────
   const { data: agents, error } = await sb
     .from("agents")
     .select("id, name, agent_type, voice_provider, flow_data, settings, variables")
@@ -139,14 +144,12 @@ export async function scanAndStoreAgentWorkflows(
     .order("name");
 
   if (error) throw new Error(`Failed to read agents: ${error.message}`);
-  if (!agents?.length) return { scanned: 0, stored: 0 };
 
   let stored = 0;
-  for (const agent of agents) {
+  for (const agent of agents ?? []) {
     try {
       const settings = agent.settings ?? {};
       const flow = analyzeFlow(agent.flow_data);
-
       const row = {
         workspace_id: workspaceId,
         agent_id: agent.id,
@@ -173,20 +176,55 @@ export async function scanAndStoreAgentWorkflows(
           })),
           edgeCount: flow.edgeCount,
         },
-        scanned_at: new Date().toISOString(),
+        scanned_at: now,
       };
-
       const { error: upsertError } = await sb
         .from("systemmind_workflow_library")
         .upsert(row, { onConflict: "workspace_id,agent_id" });
-
       if (!upsertError) stored++;
     } catch {
       // Skip agents with malformed flow data
     }
   }
 
-  return { scanned: agents.length, stored };
+  // ── 1b. Scan agent_templates (in-memory — no FK to agents table) ───────────
+  let templateCount = 0;
+  try {
+    const { data: templates } = await sb
+      .from("agent_templates")
+      .select("id, name, agent_type, flow_data, settings")
+      .or(`scope.eq.public,workspace_id.eq.${workspaceId}`)
+      .limit(100);
+
+    for (const tpl of templates ?? []) {
+      try {
+        analyzeFlow(tpl.flow_data); // validates parseable
+        templateCount++;
+      } catch { /* skip */ }
+    }
+  } catch { /* graceful — agent_templates may not exist */ }
+
+  // ── 1c. Scan campaigns (email + whatsapp + growth) in-memory ──────────────
+  let campaignCount = 0;
+  try {
+    const [{ data: emailCampaigns }, { data: watiCampaigns }, { data: growthCampaigns }] =
+      await Promise.all([
+        sb.from("hexmail_campaigns").select("id").eq("workspace_id", workspaceId).limit(200),
+        sb.from("wati_campaigns").select("id").eq("workspace_id", workspaceId).limit(200),
+        sb.from("growthmind_growth_campaigns").select("id").eq("workspace_id", workspaceId).limit(200),
+      ]).catch(() => [{ data: [] }, { data: [] }, { data: [] }]);
+    campaignCount =
+      (emailCampaigns?.length ?? 0) +
+      (watiCampaigns?.length ?? 0) +
+      (growthCampaigns?.length ?? 0);
+  } catch { /* graceful */ }
+
+  return {
+    scanned: (agents ?? []).length,
+    stored,
+    templates: templateCount,
+    campaigns: campaignCount,
+  };
 }
 
 // ── 2. Extract workflow patterns (AI) ─────────────────────────────────────────
@@ -319,15 +357,12 @@ export async function generateWorkflowDraft(
 
   let knowledgeContext = "";
   try {
-    const { getRetrievedKnowledgeBlock } = await import(
-      "@/lib/executives/executive-knowledge.server"
-    );
-    knowledgeContext = await getRetrievedKnowledgeBlock({
+    // Use full multi-source KB: Architecture KB + Workflow Patterns + Repair Playbooks
+    knowledgeContext = await querySystemMindKnowledgeContext(
       workspaceId,
-      mindType: "systemmind",
-      query: `${opts.category} workflow design best practices ${opts.description}`,
-      topK: 3,
-    });
+      `${opts.category} workflow design best practices ${opts.description}`,
+      apiKey,
+    );
   } catch { /* graceful */ }
 
   const patternContext = patterns?.length

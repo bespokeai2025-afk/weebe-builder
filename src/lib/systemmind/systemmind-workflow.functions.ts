@@ -276,6 +276,18 @@ export const generateFromExample = createServerFn({ method: "POST" })
     return generateFromExampleServer(workspaceId, data.exampleKey, data.customDesc ?? "", apiKey);
   });
 
+// ── Workflow success rates from calls table ────────────────────────────────────
+export const getWorkflowSuccessRates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { getWorkflowSuccessRatesServer } = await import(
+      "@/lib/systemmind/systemmind-workflow-intelligence.server"
+    );
+    return getWorkflowSuccessRatesServer(workspaceId);
+  });
+
 // ── Submit repair plan to HiveMind event log ──────────────────────────────────
 export const submitRepairPlanToHiveMind = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

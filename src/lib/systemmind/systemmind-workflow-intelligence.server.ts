@@ -3,6 +3,46 @@
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+// ── Success Rate ───────────────────────────────────────────────────────────────
+
+export type SuccessRateStats = {
+  total: number;
+  successful: number;
+  rate: number;
+};
+
+export async function getWorkflowSuccessRatesServer(
+  workspaceId: string,
+): Promise<Record<string, SuccessRateStats>> {
+  const sb = supabaseAdmin as any;
+  try {
+    const { data: calls } = await sb
+      .from("calls")
+      .select("agent_id, call_successful")
+      .eq("workspace_id", workspaceId)
+      .limit(5000);
+
+    const byAgent: Record<string, { total: number; successful: number }> = {};
+    for (const call of calls ?? []) {
+      if (!call.agent_id) continue;
+      if (!byAgent[call.agent_id]) byAgent[call.agent_id] = { total: 0, successful: 0 };
+      byAgent[call.agent_id].total++;
+      if (call.call_successful) byAgent[call.agent_id].successful++;
+    }
+
+    const result: Record<string, SuccessRateStats> = {};
+    for (const [agentId, stats] of Object.entries(byAgent)) {
+      result[agentId] = {
+        ...stats,
+        rate: stats.total > 0 ? Math.round((stats.successful / stats.total) * 100) : 0,
+      };
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 // ── Scoring ───────────────────────────────────────────────────────────────────
 
 export function computeWorkflowScore(row: any): number {
@@ -61,23 +101,31 @@ export type ScoredWorkflow = {
   score: number;
   complexity: { label: string; color: string };
   health: { label: string; color: string; badgeClass: string };
+  successRate: SuccessRateStats | null;
 };
 
 export async function getWorkflowIntelligenceServer(workspaceId: string): Promise<ScoredWorkflow[]> {
   const sb = supabaseAdmin as any;
-  const { data: rows, error } = await sb
-    .from("systemmind_workflow_library")
-    .select("*")
-    .eq("workspace_id", workspaceId)
-    .order("scanned_at", { ascending: false });
+  const [{ data: rows, error }, successRates] = await Promise.all([
+    sb
+      .from("systemmind_workflow_library")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("scanned_at", { ascending: false }),
+    getWorkflowSuccessRatesServer(workspaceId),
+  ]);
   if (error) throw new Error(error.message);
   return (rows ?? []).map((row: any) => {
     const score = computeWorkflowScore(row);
+    const sr = successRates[row.agent_id] ?? null;
+    // Boost score slightly if call success rate is high
+    const adjustedScore = sr && sr.total >= 5 && sr.rate >= 80 ? Math.min(100, score + 10) : score;
     return {
       ...row,
-      score,
+      score: adjustedScore,
       complexity: computeWorkflowComplexity(row),
-      health: computeWorkflowHealth(score),
+      health: computeWorkflowHealth(adjustedScore),
+      successRate: sr,
     };
   });
 }

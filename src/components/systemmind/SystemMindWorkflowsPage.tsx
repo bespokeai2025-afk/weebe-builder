@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useSearch } from "@tanstack/react-router";
@@ -36,6 +36,7 @@ import {
   cloneWorkflowToDraft,
   compareWorkflows,
   generateFromExample,
+  getWorkflowSuccessRates,
 } from "@/lib/systemmind/systemmind-workflow.functions";
 import type { RepairIssue } from "@/lib/systemmind/systemmind-workflow.server";
 
@@ -95,6 +96,20 @@ function ComplexityBadge({ label, color }: { label: string; color: string }) {
   return <span className={cn("text-[10px]", color)}>{label}</span>;
 }
 
+function SuccessRateBadge({ sr }: { sr: { total: number; successful: number; rate: number } | null }) {
+  if (!sr || sr.total === 0) return <span className="text-[10px] text-muted-foreground/40">—</span>;
+  const cls =
+    sr.rate >= 80 ? "text-emerald-400"
+    : sr.rate >= 60 ? "text-sky-400"
+    : sr.rate >= 40 ? "text-amber-400"
+    : "text-red-400";
+  return (
+    <span className={cn("text-[10px] font-medium", cls)} title={`${sr.successful}/${sr.total} calls succeeded`}>
+      {sr.rate}%
+    </span>
+  );
+}
+
 // ── Library tab ────────────────────────────────────────────────────────────────
 function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
   const [catFilter, setCatFilter] = useState("all");
@@ -137,7 +152,10 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
     setScanning(true);
     try {
       const res: any = await scanFn({ data: {} });
-      toast.success(`Scanned ${res.scanned} agents, stored ${res.stored}`);
+      const parts = [`${res.scanned} agent${res.scanned !== 1 ? "s" : ""}`, `${res.stored} stored`];
+      if (res.templates > 0) parts.push(`${res.templates} template${res.templates !== 1 ? "s" : ""}`);
+      if (res.campaigns > 0) parts.push(`${res.campaigns} campaign${res.campaigns !== 1 ? "s" : ""}`);
+      toast.success(`Scanned all sources — ${parts.join(" · ")}`);
       refetch();
       qc.invalidateQueries({ queryKey: ["sm-intel"] });
     } catch (e: any) { toast.error(e?.message ?? "Scan failed"); }
@@ -165,7 +183,7 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
       <div className="flex items-center gap-2 flex-wrap">
         <Button size="sm" onClick={handleScan} disabled={scanning} className="text-xs gap-1.5">
           {scanning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-          Scan Agents
+          Scan All Sources
         </Button>
         <Select value={catFilter} onValueChange={setCatFilter}>
           <SelectTrigger className="h-8 text-xs w-48">
@@ -238,6 +256,11 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
                     {intel && <ScoreBadge score={score} />}
                     {intel && <HealthBadge label={health.label} badgeClass={health.badgeClass} />}
                     {intel && <ComplexityBadge label={complexity.label} color={complexity.color} />}
+                    {intel?.successRate && intel.successRate.total > 0 && (
+                      <span className="text-[10px] text-muted-foreground/60" title="Call success rate">
+                        <SuccessRateBadge sr={intel.successRate} /> success
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-3 mt-1 flex-wrap">
                     <span className="text-[10px] text-muted-foreground">{row.node_count} nodes · {row.edge_count} edges</span>
@@ -293,7 +316,10 @@ function ScoreHealthTab() {
     setScanning(true);
     try {
       const res: any = await scanFn({ data: {} });
-      toast.success(`Scanned ${res.scanned} agents`);
+      const parts = [`${res.scanned} agent${res.scanned !== 1 ? "s" : ""}`, `${res.stored} stored`];
+      if (res.templates > 0) parts.push(`${res.templates} template${res.templates !== 1 ? "s" : ""}`);
+      if (res.campaigns > 0) parts.push(`${res.campaigns} campaign${res.campaigns !== 1 ? "s" : ""}`);
+      toast.success(`Scanned all sources — ${parts.join(" · ")}`);
       refetch();
       qc.invalidateQueries({ queryKey: ["sm-wl"] });
     } catch (e: any) { toast.error(e?.message ?? "Scan failed"); }
@@ -305,6 +331,12 @@ function ScoreHealthTab() {
   const attention = rows.filter((r) => r.score >= 40 && r.score < 60).length;
   const critical  = rows.filter((r) => r.score < 40).length;
   const avg       = rows.length ? Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length) : 0;
+
+  // Success rate aggregates
+  const rowsWithCalls = rows.filter((r) => r.successRate && r.successRate.total > 0);
+  const avgSuccessRate = rowsWithCalls.length
+    ? Math.round(rowsWithCalls.reduce((a, r) => a + r.successRate.rate, 0) / rowsWithCalls.length)
+    : null;
 
   const sorted = [...rows].sort((a, b) => b.score - a.score);
   const top5   = sorted.slice(0, 5);
@@ -333,13 +365,14 @@ function ScoreHealthTab() {
       {!isLoading && rows.length > 0 && (
         <>
           {/* Stats row */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
-              { label: "Avg Score",    value: avg,       unit: "/100", cls: "text-sky-400" },
-              { label: "Healthy",      value: healthy,   unit: "",     cls: "text-emerald-400" },
-              { label: "Good",         value: good,      unit: "",     cls: "text-sky-400" },
-              { label: "Needs Attn",   value: attention, unit: "",     cls: "text-amber-400" },
-              { label: "Critical",     value: critical,  unit: "",     cls: "text-red-400" },
+              { label: "Avg Score",      value: avg,                                          unit: "/100", cls: "text-sky-400" },
+              { label: "Avg Success",    value: avgSuccessRate !== null ? avgSuccessRate : "—", unit: avgSuccessRate !== null ? "%" : "", cls: avgSuccessRate !== null && avgSuccessRate >= 80 ? "text-emerald-400" : avgSuccessRate !== null && avgSuccessRate >= 60 ? "text-sky-400" : "text-amber-400" },
+              { label: "Healthy",        value: healthy,                                       unit: "",    cls: "text-emerald-400" },
+              { label: "Good",           value: good,                                          unit: "",    cls: "text-sky-400" },
+              { label: "Needs Attn",     value: attention,                                     unit: "",    cls: "text-amber-400" },
+              { label: "Critical",       value: critical,                                      unit: "",    cls: "text-red-400" },
             ].map((s) => (
               <div key={s.label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">
                 <p className={cn("text-xl font-bold", s.cls)}>{s.value}<span className="text-xs font-normal text-muted-foreground">{s.unit}</span></p>
@@ -405,11 +438,16 @@ function ScoreHealthTab() {
 
           {/* Full table */}
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-            <div className="grid grid-cols-[1fr_60px_80px_80px_70px] gap-2 px-4 py-2 border-b border-white/[0.05] text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">
-              <span>Workflow</span><span className="text-right">Score</span><span>Health</span><span>Complexity</span><span className="text-right">Nodes</span>
+            <div className="grid grid-cols-[1fr_60px_80px_70px_60px_60px] gap-2 px-4 py-2 border-b border-white/[0.05] text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">
+              <span>Workflow</span>
+              <span className="text-right">Score</span>
+              <span>Health</span>
+              <span>Complexity</span>
+              <span className="text-right">Nodes</span>
+              <span className="text-right" title="Call success rate from calls table">Success</span>
             </div>
             {sorted.map((r) => (
-              <div key={r.id} className="grid grid-cols-[1fr_60px_80px_80px_70px] gap-2 px-4 py-2.5 border-b border-white/[0.03] last:border-0 items-center">
+              <div key={r.id} className="grid grid-cols-[1fr_60px_80px_70px_60px_60px] gap-2 px-4 py-2.5 border-b border-white/[0.03] last:border-0 items-center">
                 <div className="min-w-0">
                   <p className="text-xs truncate">{r.workflow_name}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{r.category}</p>
@@ -418,6 +456,7 @@ function ScoreHealthTab() {
                 <HealthBadge label={r.health.label} badgeClass={r.health.badgeClass} />
                 <ComplexityBadge label={r.complexity.label} color={r.complexity.color} />
                 <span className="text-[10px] text-muted-foreground text-right">{r.node_count}</span>
+                <div className="flex justify-end"><SuccessRateBadge sr={r.successRate ?? null} /></div>
               </div>
             ))}
           </div>
@@ -484,7 +523,13 @@ const EXAMPLES = [
   },
 ];
 
-function GenerateTab() {
+function GenerateTab({
+  prefill,
+  onClearPrefill,
+}: {
+  prefill?: { description: string; category: string } | null;
+  onClearPrefill?: () => void;
+}) {
   const qc = useQueryClient();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [customDesc, setCustomDesc]   = useState("");
@@ -494,6 +539,17 @@ function GenerateTab() {
   const [creating, setCreating]       = useState(false);
   const [openDraftId, setOpenDraftId] = useState<string | null>(null);
   const [lastDraft, setLastDraft]     = useState<any>(null);
+
+  // Apply prefill when it arrives (from "Generate from Pattern")
+  useEffect(() => {
+    if (prefill) {
+      setMode("custom");
+      setDescription(prefill.description);
+      setCategory(prefill.category);
+      onClearPrefill?.();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill]);
 
   const fromExFn  = useServerFn(generateFromExample);
   const createFn  = useServerFn(createWorkflowDraft);
@@ -910,7 +966,7 @@ function CompareTab() {
 }
 
 // ── Patterns tab ──────────────────────────────────────────────────────────────
-function PatternsTab() {
+function PatternsTab({ onGenerateFromPattern }: { onGenerateFromPattern: (description: string, category: string) => void }) {
   const [extracting, setExtracting] = useState(false);
   const listFn    = useServerFn(getWorkflowPatterns);
   const extractFn = useServerFn(extractWorkflowPatterns);
@@ -976,6 +1032,20 @@ function PatternsTab() {
             {(p.common_tools ?? []).length > 0 && (
               <p className="text-[10px] text-muted-foreground">Tools: {(p.common_tools as string[]).join(", ")}</p>
             )}
+            <div className="pt-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[10px] gap-1 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 -ml-2"
+                onClick={() => onGenerateFromPattern(
+                  `${p.pattern_name}: ${p.description ?? p.pattern_name}. Node sequence: ${(p.node_sequence ?? []).join(" → ")}. Tools: ${(p.common_tools ?? []).join(", ") || "none"}.`,
+                  p.category,
+                )}
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                Create from this pattern
+              </Button>
+            </div>
           </div>
         ))}
       </div>
@@ -1124,13 +1194,19 @@ export function SystemMindWorkflowsPage() {
   const search = useSearch({ from: "/_authenticated/systemmind/workflows" });
   const initialTab = (TABS as readonly string[]).includes(search.tab) ? search.tab as Tab : "Library";
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const [generatePrefill, setGeneratePrefill] = useState<{ description: string; category: string } | null>(null);
+
+  function handleGenerateFromPattern(description: string, category: string) {
+    setGeneratePrefill({ description, category });
+    setActiveTab("Generate");
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
       <div>
         <h1 className="text-lg font-semibold">Workflow Intelligence</h1>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Score, analyse, clone, generate, and compare AI agent workflows. Grounded in Architecture KB, Workflow KB, and Repair KB.
+          Score, analyse, clone, and generate workflows across all agents, templates, and campaigns. Grounded in Architecture KB, Workflow KB, and Repair KB.
         </p>
       </div>
 
@@ -1154,9 +1230,14 @@ export function SystemMindWorkflowsPage() {
 
       {activeTab === "Library"          && <LibraryTab initialHealth={search.health} />}
       {activeTab === "Score & Health"   && <ScoreHealthTab />}
-      {activeTab === "Generate"         && <GenerateTab />}
+      {activeTab === "Generate"         && (
+        <GenerateTab
+          prefill={generatePrefill}
+          onClearPrefill={() => setGeneratePrefill(null)}
+        />
+      )}
       {activeTab === "Compare"          && <CompareTab />}
-      {activeTab === "Patterns"         && <PatternsTab />}
+      {activeTab === "Patterns"         && <PatternsTab onGenerateFromPattern={handleGenerateFromPattern} />}
       {activeTab === "Inspect & Repair" && <RepairTab />}
     </div>
   );
