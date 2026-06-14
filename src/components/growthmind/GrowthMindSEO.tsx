@@ -926,7 +926,7 @@ function GscConnectionPanel({
 
   async function saveProperty() {
     if (!selectedProp) return;
-    await savePropFn({ propertyUrl: selectedProp, autoMatched: false });
+    await savePropFn({ data: { propertyUrl: selectedProp, autoMatched: false } });
     qc.invalidateQueries({ queryKey: ["gsc-status"] });
     setShowPropertyPicker(false);
   }
@@ -1211,7 +1211,7 @@ export function GrowthMindSEO() {
 
     setGscConnecting(true);
 
-    connectFn({ code, redirectUri, state })
+    connectFn({ data: { code, redirectUri, state } })
       .then(async () => {
         // Try to auto-match the site URL against GSC properties
         try {
@@ -1220,7 +1220,7 @@ export function GrowthMindSEO() {
           if (savedUrl && propsRes.sites.length > 0) {
             const match = findBestGscMatch(savedUrl, propsRes.sites);
             if (match) {
-              await savePropFn({ propertyUrl: match, autoMatched: true });
+              await savePropFn({ data: { propertyUrl: match, autoMatched: true } });
               flashMsg("Google Search Console connected & property matched!");
             } else {
               flashMsg("Google Search Console connected!");
@@ -1255,7 +1255,7 @@ export function GrowthMindSEO() {
     if (!url.startsWith("http")) url = "https://" + url;
     setSaving(true);
     try {
-      await saveSiteFn({ id: siteId, url, keywords, contentIdeas });
+      await saveSiteFn({ data: { id: siteId, url, keywords, contentIdeas } });
       setSiteUrl(url);
       flashMsg("Site connected!");
       qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] });
@@ -1268,7 +1268,7 @@ export function GrowthMindSEO() {
 
   async function persistAll(kws: SeoKeyword[], ideas: ContentIdea[]) {
     try {
-      await saveSiteFn({ id: siteId, url: siteUrl, keywords: kws, contentIdeas: ideas });
+      await saveSiteFn({ data: { id: siteId, url: siteUrl, keywords: kws, contentIdeas: ideas } });
       qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] });
     } catch (e: any) {
       flashMsg("Failed to save changes: " + e.message, true);
@@ -1327,7 +1327,7 @@ export function GrowthMindSEO() {
     setGscConnecting(true);
     try {
       const redirectUri = `${window.location.origin}/growthmind/seo`;
-      const { url } = await getAuthUrlFn({ redirectUri });
+      const { url } = await getAuthUrlFn({ data: { redirectUri } });
       window.location.href = url;
     } catch (e: any) {
       flashMsg("Failed to start Google auth: " + e.message, true);
@@ -1349,7 +1349,7 @@ export function GrowthMindSEO() {
     if (!siteId) return;
     setGscSyncing(true);
     try {
-      const { matched, total } = await syncGscFn({ siteId, propertyUrl });
+      const { matched, total } = await syncGscFn({ data: { siteId, propertyUrl } });
       await qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] });
       const { site } = await getSiteFn();
       if (site) setKeywords(site.keywords);
@@ -1370,7 +1370,7 @@ export function GrowthMindSEO() {
     setGscFetchError(null);
     setGscQueries([]);
     try {
-      const { queries } = await fetchQueryFn({ propertyUrl, rowLimit: 100 });
+      const { queries } = await fetchQueryFn({ data: { propertyUrl, rowLimit: 100 } });
       setGscQueries(queries);
     } catch (e: any) {
       setGscFetchError(e.message);
@@ -1451,12 +1451,14 @@ export function GrowthMindSEO() {
         ).join("\n");
 
       const { reply } = await aiRespFn({
-        messages: [{
-          role: "user",
-          content: `Here are my tracked SEO keywords for ${siteUrl}:\n\n${kwSummary}\n\nBased on this data, do two things:\n\n1. In 3-4 sentences, identify the top priority keyword opportunities (high volume, lower difficulty, not yet ranking) and suggest the type of content that would best target them.\n\n2. Suggest 3-5 specific content ideas. Output them as a JSON block at the end of your reply using this exact format:\n\nCONTENT_IDEAS_JSON:\n[{"title":"...","targetKeyword":"..."},...]`,
-        }],
-        platformData,
-        personality: "professional",
+        data: {
+          messages: [{
+            role: "user",
+            content: `Here are my tracked SEO keywords for ${siteUrl}:\n\n${kwSummary}\n\nBased on this data, do two things:\n\n1. In 3-4 sentences, identify the top priority keyword opportunities (high volume, lower difficulty, not yet ranking) and suggest the type of content that would best target them.\n\n2. Suggest 3-5 specific content ideas. Output them as a JSON block at the end of your reply using this exact format:\n\nCONTENT_IDEAS_JSON:\n[{"title":"...","targetKeyword":"..."},...]`,
+          }],
+          platformData,
+          personality: "professional",
+        },
       });
 
       // Split out the JSON block from the text insight
@@ -1491,7 +1493,7 @@ export function GrowthMindSEO() {
       setAiSuggestedIdeas(parsedIdeas);
       if (siteId) {
         try {
-          await saveAiRecsFn({ id: siteId, text: textPart });
+          await saveAiRecsFn({ data: { id: siteId, text: textPart } });
         } catch {
           // non-critical — insight is already shown in UI
         }

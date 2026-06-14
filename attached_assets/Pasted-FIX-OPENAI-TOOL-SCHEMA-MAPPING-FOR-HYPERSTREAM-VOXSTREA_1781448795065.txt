@@ -1,0 +1,254 @@
+FIX OPENAI TOOL SCHEMA MAPPING FOR HYPERSTREAM / VOXSTREAM
+
+IMPORTANT
+
+Do not modify Retell deployment functionality.
+
+Do not modify Retell tool generation.
+
+Do not modify Builder UI unless absolutely required.
+
+Do not modify WhatsApp tools.
+
+Do not modify HexMail.
+
+This fix is specifically for OpenAI-native / HyperStream / VoxStream runtime tool calling.
+
+OBJECTIVE
+
+Fix the missing tool parameter schema mapping so OpenAI-native agents can reliably call tools using variables defined in the Builder.
+
+Current Problem:
+
+Builder variables exist.
+
+Function nodes exist.
+
+Tool definitions exist.
+
+But OpenAI tool schemas are not correctly derived from Builder variables and function node parameter mappings.
+
+This causes OpenAI Realtime / VoxStream tools to have weak or incomplete parameter schemas, meaning tool calls may fail, omit required fields, or not map responses back into runtime variables.
+
+====================================================
+
+AUDIT FIRST
+
+Audit the following files before making changes:
+
+src/lib/runtime/tool-executor.ts
+src/lib/runtime/schema.ts
+src/lib/runtime/export.ts
+src/lib/runtime/import.ts
+src/lib/builder/types.ts
+src/lib/builder/export-conversation-flow.ts
+src/lib/builder/compile-realtime-prompt.ts
+src/components/builder/NodeEditorDialog.tsx
+
+Identify:
+
+* Where Builder variables are defined
+* Where function nodes define tool parameters
+* Where OpenAI tools are generated
+* Where runtime variables are available
+* Where tool results are returned
+* Where tool result mapping should happen
+
+Produce a short implementation plan before coding.
+
+====================================================
+
+REQUIREMENTS
+
+1. VARIABLE TO TOOL PARAMETER MAPPING
+
+Tool schemas must be generated from:
+
+* Builder variables
+* Function node parameter definitions
+* Existing tool parameter schemas
+* Required fields
+* Variable types
+
+Supported variable types:
+
+string
+number
+boolean
+enum
+
+Map to OpenAI JSON Schema:
+
+string → string
+number → number
+boolean → boolean
+enum → string with enum values
+
+====================================================
+
+2. OPENAI TOOL SCHEMA GENERATION
+
+Update:
+
+buildOpenAIToolDefinitions()
+
+so every generated tool includes:
+
+name
+description
+parameters
+
+Parameters must follow OpenAI-compatible JSON Schema:
+
+{
+"type": "object",
+"properties": {},
+"required": [],
+"additionalProperties": false
+}
+
+Do not send unsupported fields to OpenAI.
+
+Strip Retell-only fields.
+
+Strip UI-only fields.
+
+Strip internal metadata.
+
+====================================================
+
+3. REQUIRED FIELD SUPPORT
+
+If a tool parameter is required in the Builder, it must appear in:
+
+required: []
+
+If not required, it must remain optional.
+
+====================================================
+
+4. ENUM SUPPORT
+
+If a Builder variable is enum type, generate:
+
+{
+"type": "string",
+"enum": ["option_1", "option_2"]
+}
+
+====================================================
+
+5. TOOL RESULT MAPPING
+
+Add support for mapping tool results back into runtime variables.
+
+Example:
+
+Tool Call:
+
+check_availability
+
+Returns:
+
+{
+"available": true,
+"slots": [...]
+}
+
+Mapping:
+
+available → {{availability_status}}
+slots → {{available_slots}}
+
+Store mapped outputs in runtime session variables.
+
+====================================================
+
+6. SESSION VARIABLE STORE
+
+Create or extend runtime variable storage.
+
+The OpenAI runtime must keep session-level variables during the conversation.
+
+Support:
+
+setVariable(name, value)
+getVariable(name)
+getAllVariables()
+
+Variables should be available for:
+
+* later prompts
+* logic splits
+* follow-up tool calls
+* final call summary
+
+====================================================
+
+7. TOOL EXECUTION RESULT FORMAT
+
+Tool execution must always return safe structured output.
+
+Format:
+
+{
+"success": true,
+"toolName": "",
+"output": {},
+"mappedVariables": {},
+"message": ""
+}
+
+On error:
+
+{
+"success": false,
+"toolName": "",
+"error": "",
+"message": ""
+}
+
+Never throw uncaught errors into the runtime.
+
+====================================================
+
+8. BACKWARDS COMPATIBILITY
+
+Existing tools without explicit schemas must continue working.
+
+Fallback schema:
+
+{
+"type": "object",
+"properties": {},
+"additionalProperties": true
+}
+
+Only use strict schema when enough mapping data exists.
+
+====================================================
+
+9. VALIDATION
+
+Add validation before sending tools to OpenAI.
+
+Check:
+
+* name exists
+* description exists
+* parameters is valid JSON Schema
+* required fields exist in properties
+* no unsupported fields
+
+Log invalid tools and skip them instead of crashing the session.
+
+====================================================
+
+10. TELEMETRY
+
+Add logs for:
+
+tool.schema.generated
+tool.schema.invalid
+tool.call.started
+tool.call.com...

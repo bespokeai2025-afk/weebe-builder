@@ -234,7 +234,7 @@ export const getGscStatus = createServerFn({ method: "GET" })
     };
   });
 
-export const getGscAuthUrl = createServerFn({ method: "GET" })
+export const getGscAuthUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({ redirectUri: z.string().url() }).parse(input)
