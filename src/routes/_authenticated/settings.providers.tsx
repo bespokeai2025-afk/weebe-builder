@@ -1,3 +1,4 @@
+import { useState, useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -5,15 +6,20 @@ import {
   ArrowLeft, RefreshCw, CheckCircle2, XCircle, Clock, Loader2,
   Cpu, Mic, Phone, MessageSquare, Mail, Database, CalendarCheck,
   BookOpen, Video, Image, BarChart3, Megaphone, AlertTriangle,
-  DollarSign, Zap, Link2, Star, ArrowDownToLine, PowerOff,
+  DollarSign, Zap, Star, ArrowDownToLine, PowerOff, ChevronDown,
+  ChevronUp, FlaskConical, Save, Eye, EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   getProviderRegistryData,
   updateProviderPriority,
   toggleProviderEnabled,
+  saveProviderCredentials,
+  testProviderConnection,
 } from "@/lib/providers/providers.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/providers")({
@@ -37,6 +43,70 @@ const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; co
 };
 
 const STATUS_ORDER = ["connected", "disconnected", "error", "coming_soon"];
+
+// ── Credential field definitions per category:provider ───────────────────────
+
+interface CredField {
+  key: string;
+  label: string;
+  type: "password" | "text";
+  required: boolean;
+  placeholder?: string;
+}
+
+const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
+  "llm:claude": [
+    { key: "apiKey", label: "Anthropic API Key", type: "password", required: true, placeholder: "sk-ant-api03-..." },
+  ],
+  "llm:gemini": [
+    { key: "apiKey", label: "Gemini API Key", type: "password", required: true, placeholder: "AIzaSy..." },
+  ],
+  "llm:openrouter": [
+    { key: "apiKey", label: "OpenRouter API Key", type: "password", required: true, placeholder: "sk-or-v1-..." },
+  ],
+  "email:resend": [
+    { key: "apiKey", label: "Resend API Key", type: "password", required: true, placeholder: "re_..." },
+    { key: "fromAddress", label: "Default From Address", type: "text", required: false, placeholder: "noreply@yourdomain.com" },
+  ],
+  "email:sendgrid": [
+    { key: "apiKey", label: "SendGrid API Key", type: "password", required: true, placeholder: "SG..." },
+  ],
+  "video:runway": [
+    { key: "apiKey", label: "Runway API Key", type: "password", required: true, placeholder: "key_..." },
+  ],
+  "video:google_veo": [
+    { key: "gcpProject", label: "GCP Project ID", type: "text", required: true },
+    { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
+  ],
+  "image:imagen": [
+    { key: "gcpProject", label: "GCP Project ID", type: "text", required: true },
+    { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
+  ],
+  "analytics:google_analytics": [
+    { key: "propertyId", label: "GA4 Property ID", type: "text", required: true, placeholder: "123456789" },
+    { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
+  ],
+  "advertising:google_ads": [
+    { key: "developerToken", label: "Developer Token", type: "password", required: true },
+    { key: "customerId", label: "Customer ID", type: "text", required: true, placeholder: "123-456-7890" },
+    { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
+  ],
+  "advertising:meta_ads": [
+    { key: "accessToken", label: "Access Token", type: "password", required: true },
+    { key: "adAccountId", label: "Ad Account ID", type: "text", required: true, placeholder: "act_123456789" },
+  ],
+  "knowledge:pinecone": [
+    { key: "apiKey", label: "Pinecone API Key", type: "password", required: true },
+    { key: "indexName", label: "Index Name", type: "text", required: true },
+    { key: "indexHost", label: "Index Host URL (optional)", type: "text", required: false, placeholder: "https://my-index.svc.pinecone.io" },
+  ],
+  "calendar:google": [
+    { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
+    { key: "calendarId", label: "Calendar ID (optional)", type: "text", required: false, placeholder: "primary" },
+  ],
+};
+
+// ── Status badge ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "connected") {
@@ -77,47 +147,197 @@ function PriorityBadge({ isDefault, isFallback }: { isDefault?: boolean; isFallb
   return null;
 }
 
-const CATEGORY_SETUP_LINKS: Record<string, string> = {
-  llm:         "/settings/integrations",
-  voice:       "/settings/integrations",
-  telephony:   "/telephony-settings",
-  whatsapp:    "/whatsapp",
-  email:       "/settings/integrations",
-  crm:         "/settings/crm",
-  calendar:    "/settings/calendar",
-  knowledge:   "/builder",
-  video:       "/growthmind/video-studio",
-  image:       "/growthmind/content-studio",
-  analytics:   "/growthmind",
-  advertising: "/growthmind/ads",
-};
+// ── Inline Credential Form ────────────────────────────────────────────────────
+
+function CredentialForm({
+  category,
+  providerName,
+  fields,
+  onSaved,
+  onClose,
+}: {
+  category: string;
+  providerName: string;
+  fields: CredField[];
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const saveFn   = useServerFn(saveProviderCredentials);
+  const testFn   = useServerFn(testProviderConnection);
+  const [values, setValues]       = useState<Record<string, string>>(() =>
+    Object.fromEntries(fields.map(f => [f.key, ""])),
+  );
+  const [shown, setShown]         = useState<Record<string, boolean>>({});
+  const [saving, setSaving]       = useState(false);
+  const [testing, setTesting]     = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; latencyMs: number; error?: string } | null>(null);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await saveFn({ data: { category, providerName, credentials: values } });
+      toast.success("Credentials saved");
+      onSaved();
+    } catch (e: any) {
+      toast.error("Save failed", { description: e?.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      // Save first so the health check can load the latest credentials
+      await saveFn({ data: { category, providerName, credentials: values } });
+      const result = await testFn({ data: { category, providerName } });
+      setTestResult(result);
+      if (result.ok) {
+        toast.success(`Connection verified in ${result.latencyMs}ms`);
+        onSaved();
+      } else {
+        toast.error("Connection failed", { description: result.error ?? "Check your credentials and try again." });
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, latencyMs: 0, error: e?.message });
+      toast.error("Test failed", { description: e?.message });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const requiredFilled = fields.filter(f => f.required).every(f => values[f.key]?.trim());
+
+  return (
+    <div className="mt-3 rounded-lg border border-white/[0.08] bg-black/20 p-3 space-y-2.5">
+      {fields.map((field) => (
+        <div key={field.key}>
+          <Label className="text-[10px] font-medium text-muted-foreground mb-1 block">
+            {field.label}{field.required && <span className="text-red-400 ml-0.5">*</span>}
+          </Label>
+          <div className="relative">
+            <Input
+              type={field.type === "password" && !shown[field.key] ? "password" : "text"}
+              placeholder={field.placeholder ?? ""}
+              value={values[field.key] ?? ""}
+              onChange={e => setValues(v => ({ ...v, [field.key]: e.target.value }))}
+              className="h-7 text-xs pr-8 font-mono bg-background/60"
+              autoComplete="off"
+              data-1p-ignore
+            />
+            {field.type === "password" && (
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShown(s => ({ ...s, [field.key]: !s[field.key] }))}
+              >
+                {shown[field.key] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {testResult && (
+        <div className={cn(
+          "rounded px-2.5 py-1.5 text-[10px] flex items-center gap-1.5",
+          testResult.ok
+            ? "bg-emerald-500/10 text-emerald-400"
+            : "bg-red-500/10 text-red-400",
+        )}>
+          {testResult.ok
+            ? <><CheckCircle2 className="h-3 w-3" /> Connected — {testResult.latencyMs}ms</>
+            : <><AlertTriangle className="h-3 w-3" /> {testResult.error ?? "Failed"}</>
+          }
+        </div>
+      )}
+
+      <div className="flex items-center gap-1.5 pt-0.5">
+        <Button
+          size="sm"
+          className="h-6 px-2 text-[10px] gap-1"
+          disabled={!requiredFilled || saving || testing}
+          onClick={handleTest}
+        >
+          {testing ? <Loader2 className="h-3 w-3 animate-spin" /> : <FlaskConical className="h-3 w-3" />}
+          Test Connection
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-6 px-2 text-[10px] gap-1"
+          disabled={!requiredFilled || saving || testing}
+          onClick={handleSave}
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          Save
+        </Button>
+        <button
+          type="button"
+          className="ml-auto text-[10px] text-muted-foreground hover:text-foreground"
+          onClick={onClose}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Provider Card ─────────────────────────────────────────────────────────────
 
 function ProviderCard({
   provider,
   category,
-  setupHref,
   onSetPrimary,
   onSetFallback,
   onDisable,
   isPending,
+  onCredentialSaved,
 }: {
   provider: any;
   category: string;
-  setupHref: string;
   onSetPrimary: () => void;
   onSetFallback: () => void;
   onDisable: () => void;
   isPending: boolean;
+  onCredentialSaved: () => void;
 }) {
-  const isConnected = provider.status === "connected";
+  const isConnected  = provider.status === "connected";
   const isComingSoon = provider.status === "coming_soon";
+  const credKey      = `${category}:${provider.name}`;
+  const credFields   = CREDENTIAL_FIELDS[credKey];
+  const [formOpen, setFormOpen] = useState(false);
+
+  // Test Connection button for already-connected providers
+  const testFn = useServerFn(testProviderConnection);
+  const [testing, setTesting] = useState(false);
+
+  async function handleTestExisting() {
+    setTesting(true);
+    try {
+      const result = await testFn({ data: { category, providerName: provider.name } });
+      if (result.ok) {
+        toast.success(`${provider.label} connected — ${result.latencyMs}ms`);
+      } else {
+        toast.error(`${provider.label} unreachable`, { description: result.error ?? "Check credentials." });
+      }
+      onCredentialSaved();
+    } catch (e: any) {
+      toast.error("Test failed", { description: e?.message });
+    } finally {
+      setTesting(false);
+    }
+  }
 
   return (
     <div
       className={cn(
         "rounded-xl border p-3.5 transition-colors",
-        isConnected ? "border-emerald-500/15 bg-emerald-500/[0.03]" :
+        isConnected  ? "border-emerald-500/15 bg-emerald-500/[0.03]" :
         isComingSoon ? "border-white/[0.04] bg-white/[0.01] opacity-60" :
+        formOpen     ? "border-violet-500/20 bg-violet-500/[0.02]" :
         "border-white/[0.05] bg-white/[0.02]",
       )}
     >
@@ -148,7 +368,6 @@ function ProviderCard({
             className="h-5 px-1.5 text-[10px] gap-1"
             disabled={isPending || provider.isDefault}
             onClick={onSetPrimary}
-            title="Set as primary provider for this category"
           >
             <Star className="h-2.5 w-2.5" />
             {provider.isDefault ? "Primary" : "Set Primary"}
@@ -159,18 +378,28 @@ function ProviderCard({
             className="h-5 px-1.5 text-[10px] gap-1"
             disabled={isPending || provider.isFallback}
             onClick={onSetFallback}
-            title="Set as fallback provider for this category"
           >
             <ArrowDownToLine className="h-2.5 w-2.5" />
             {provider.isFallback ? "Fallback" : "Set Fallback"}
           </Button>
+          {credFields && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-5 px-1.5 text-[10px] gap-1"
+              disabled={testing}
+              onClick={handleTestExisting}
+            >
+              {testing ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <FlaskConical className="h-2.5 w-2.5" />}
+              Test
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"
             className="h-5 px-1.5 text-[10px] gap-1 ml-auto text-red-400/70 hover:text-red-400"
             disabled={isPending}
             onClick={onDisable}
-            title="Disable this provider"
           >
             <PowerOff className="h-2.5 w-2.5" />
             Disable
@@ -178,22 +407,66 @@ function ProviderCard({
         </div>
       )}
 
-      {!isConnected && !isComingSoon && (
-        <Button asChild size="sm" variant="ghost" className="h-6 px-0 text-[11px] text-muted-foreground hover:text-foreground mt-0.5">
-          <Link to={setupHref as any}>
-            <Link2 className="mr-1 h-3 w-3" />
-            Configure →
-          </Link>
-        </Button>
+      {/* Configure button for any non-connected provider with a credential form */}
+      {!isConnected && credFields && (
+        <button
+          type="button"
+          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-0.5"
+          onClick={() => setFormOpen(o => !o)}
+        >
+          {formOpen
+            ? <><ChevronUp className="h-3 w-3" /> Close</>
+            : <><ChevronDown className="h-3 w-3" /> Configure credentials</>
+          }
+        </button>
+      )}
+
+      {/* Redirect link for providers without inline form */}
+      {!isConnected && !isComingSoon && !credFields && (
+        <Link
+          to={getSetupLink(category, provider.name)}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground mt-0.5"
+        >
+          <ChevronDown className="h-3 w-3" />
+          Configure →
+        </Link>
+      )}
+
+      {/* Inline credential form */}
+      {formOpen && credFields && (
+        <CredentialForm
+          category={category}
+          providerName={provider.name}
+          fields={credFields}
+          onSaved={() => { setFormOpen(false); onCredentialSaved(); }}
+          onClose={() => setFormOpen(false)}
+        />
       )}
     </div>
   );
 }
 
+function getSetupLink(category: string, providerName: string): string {
+  const overrides: Record<string, string> = {
+    "telephony:twilio":  "/telephony-settings",
+    "whatsapp:wati":     "/whatsapp",
+    "whatsapp:meta":     "/whatsapp",
+    "crm:hubspot":       "/settings/crm",
+    "crm:gohighlevel":   "/settings/crm",
+    "calendar:calcom":   "/settings/calendar",
+    "knowledge:retell_kb": "/builder",
+    "knowledge:weebee_kb": "/builder",
+  };
+  const key = `${category}:${providerName}`;
+  return overrides[key] ?? "/settings/integrations";
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
 function ProvidersSettingsPage() {
-  const getFn = useServerFn(getProviderRegistryData);
+  const getFn          = useServerFn(getProviderRegistryData);
   const updatePriorityFn = useServerFn(updateProviderPriority);
-  const toggleEnabledFn = useServerFn(toggleProviderEnabled);
+  const toggleEnabledFn  = useServerFn(toggleProviderEnabled);
   const qc = useQueryClient();
 
   const { data, isLoading, isFetching } = useQuery({
@@ -203,7 +476,11 @@ function ProvidersSettingsPage() {
   });
 
   const mutation = useMutation({
-    mutationFn: async (action: { type: "priority"; category: string; providerName: string; role: "primary" | "fallback" | "none" } | { type: "toggle"; category: string; providerName: string; enabled: boolean }) => {
+    mutationFn: async (
+      action:
+        | { type: "priority"; category: string; providerName: string; role: "primary" | "fallback" | "none" }
+        | { type: "toggle";   category: string; providerName: string; enabled: boolean },
+    ) => {
       if (action.type === "priority") {
         await updatePriorityFn({ data: { category: action.category, providerName: action.providerName, role: action.role } });
       } else {
@@ -221,10 +498,9 @@ function ProvidersSettingsPage() {
 
   const totalConnected = data?.totalConnected ?? 0;
   const totalProviders = data?.totalProviders ?? 0;
-  const totalSpend = data?.totalSpend ?? 0;
-  const recentErrors = data?.recentErrors ?? 0;
-
-  const categoryOrder = Object.keys(CATEGORY_META);
+  const totalSpend     = data?.totalSpend     ?? 0;
+  const recentErrors   = data?.recentErrors   ?? 0;
+  const categoryOrder  = Object.keys(CATEGORY_META);
 
   return (
     <main className="min-h-screen">
@@ -262,10 +538,10 @@ function ProvidersSettingsPage() {
             {/* Summary row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Providers",  value: `${totalConnected}/${totalProviders}`, sub: "connected", icon: Zap,           color: "text-violet-400" },
-                { label: "Categories", value: String(categoryOrder.length),          sub: "capability areas", icon: Database, color: "text-blue-400"   },
-                { label: "Total Spend",value: `$${totalSpend.toFixed(4)}`,           sub: "all time",    icon: DollarSign,    color: "text-emerald-400" },
-                { label: "Errors",     value: String(recentErrors),                  sub: "all time",    icon: AlertTriangle, color: recentErrors > 0 ? "text-red-400" : "text-muted-foreground" },
+                { label: "Providers",   value: `${totalConnected}/${totalProviders}`, sub: "connected",      icon: Zap,           color: "text-violet-400" },
+                { label: "Categories",  value: String(categoryOrder.length),          sub: "capability areas", icon: Database,     color: "text-blue-400"   },
+                { label: "Total Spend", value: `$${totalSpend.toFixed(4)}`,           sub: "all time",        icon: DollarSign,    color: "text-emerald-400" },
+                { label: "Errors",      value: String(recentErrors),                  sub: "all time",        icon: AlertTriangle, color: recentErrors > 0 ? "text-red-400" : "text-muted-foreground" },
               ].map((card) => (
                 <div key={card.label} className="rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3">
                   <div className="flex items-center gap-2 mb-1">
@@ -280,12 +556,12 @@ function ProvidersSettingsPage() {
 
             {/* Category sections */}
             {categoryOrder.map((cat) => {
-              const meta = CATEGORY_META[cat];
+              const meta    = CATEGORY_META[cat];
               const summary = data?.byCategory[cat];
               if (!summary) return null;
-              const Icon = meta.icon;
+              const Icon   = meta.icon;
               const sorted = [...summary.providers].sort(
-                (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
+                (a, b) => STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status),
               );
 
               return (
@@ -306,27 +582,24 @@ function ProvidersSettingsPage() {
                   </div>
 
                   <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {sorted.map((provider) => {
-                      const setupHref = CATEGORY_SETUP_LINKS[cat] ?? "/settings/integrations";
-                      return (
-                        <ProviderCard
-                          key={provider.name}
-                          provider={provider}
-                          category={cat}
-                          setupHref={setupHref}
-                          isPending={mutation.isPending}
-                          onSetPrimary={() =>
-                            mutation.mutate({ type: "priority", category: cat, providerName: provider.name, role: "primary" })
-                          }
-                          onSetFallback={() =>
-                            mutation.mutate({ type: "priority", category: cat, providerName: provider.name, role: "fallback" })
-                          }
-                          onDisable={() =>
-                            mutation.mutate({ type: "toggle", category: cat, providerName: provider.name, enabled: false })
-                          }
-                        />
-                      );
-                    })}
+                    {sorted.map((provider) => (
+                      <ProviderCard
+                        key={provider.name}
+                        provider={provider}
+                        category={cat}
+                        isPending={mutation.isPending}
+                        onCredentialSaved={() => qc.invalidateQueries({ queryKey: ["provider-registry"] })}
+                        onSetPrimary={() =>
+                          mutation.mutate({ type: "priority", category: cat, providerName: provider.name, role: "primary" })
+                        }
+                        onSetFallback={() =>
+                          mutation.mutate({ type: "priority", category: cat, providerName: provider.name, role: "fallback" })
+                        }
+                        onDisable={() =>
+                          mutation.mutate({ type: "toggle", category: cat, providerName: provider.name, enabled: false })
+                        }
+                      />
+                    ))}
                   </div>
                 </div>
               );
@@ -335,10 +608,15 @@ function ProvidersSettingsPage() {
             {/* Migration hint */}
             <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 text-xs text-muted-foreground">
               <p className="font-medium text-foreground mb-1">One-time database setup required</p>
-              <p>Run the migration below in your Supabase SQL editor to enable persistent provider settings and usage tracking:</p>
-              <code className="mt-2 block rounded bg-muted px-3 py-2 font-mono text-[10px] break-all">
-                supabase/migrations/20260705000000_provider_framework.sql
-              </code>
+              <p>Run both migrations below in your Supabase SQL editor to enable persistent provider settings, usage tracking, and cost rates:</p>
+              <div className="mt-2 space-y-1">
+                <code className="block rounded bg-muted px-3 py-2 font-mono text-[10px] break-all">
+                  supabase/migrations/20260705000000_provider_framework.sql
+                </code>
+                <code className="block rounded bg-muted px-3 py-2 font-mono text-[10px] break-all">
+                  supabase/migrations/20260720000000_provider_cost_extension.sql
+                </code>
+              </div>
             </div>
 
           </div>

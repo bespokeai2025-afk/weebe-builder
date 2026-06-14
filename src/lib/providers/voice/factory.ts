@@ -2,7 +2,7 @@ import type { VoiceProvider, VoiceSessionParams, VoiceSessionResult } from "./in
 import { RetellVoiceAdapter } from "./adapters/retell.adapter";
 import { OpenAIVoiceAdapter } from "./adapters/openai.adapter";
 import { ElevenLabsVoiceAdapter } from "./adapters/elevenlabs.adapter";
-import { trackProviderUsage } from "@/lib/providers/usage.server";
+import { withProviderTracking } from "@/lib/providers/instrumentation";
 
 export type VoiceProviderName = "retell" | "openai" | "elevenlabs" | "claude" | "gemini";
 
@@ -23,7 +23,7 @@ export function createVoiceProvider(name: VoiceProviderName): VoiceProvider {
 }
 
 /**
- * Returns a VoiceProvider instrumented with usage tracking.
+ * Returns a VoiceProvider instrumented with usage tracking via withProviderTracking.
  * Records each createSession attempt (duration, error status) to provider_usage.
  */
 export function createInstrumentedVoiceProvider(
@@ -32,23 +32,14 @@ export function createInstrumentedVoiceProvider(
 ): VoiceProvider {
   const inner = createVoiceProvider(name);
 
-  async function track(durationMs: number, isError: boolean) {
-    await trackProviderUsage({ workspaceId, category: "voice", providerName: name, durationMs, isError }).catch(() => {});
-  }
-
   return {
     name: inner.name,
     status: inner.status,
     async createSession(params: VoiceSessionParams): Promise<VoiceSessionResult> {
-      const t0 = Date.now();
-      try {
-        const result = await inner.createSession(params);
-        await track(Date.now() - t0, false);
-        return result;
-      } catch (err) {
-        await track(Date.now() - t0, true);
-        throw err;
-      }
+      return withProviderTracking(
+        { workspaceId, category: "voice", providerName: name },
+        () => inner.createSession(params),
+      );
     },
     async endSession(sessionId: string): Promise<void> {
       return inner.endSession?.(sessionId);

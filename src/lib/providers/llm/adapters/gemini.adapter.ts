@@ -25,4 +25,17 @@ export class GeminiLLMAdapter implements LLMProvider {
     });
     return JSON.parse(result.text) as T;
   }
+
+  async healthCheck(): Promise<boolean> {
+    const key = this.apiKey || process.env.GEMINI_API_KEY || "";
+    if (!key) return false;
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=1`,
+      );
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
 }

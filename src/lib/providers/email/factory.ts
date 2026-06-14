@@ -1,7 +1,7 @@
 import type { EmailProvider, EmailMessage, EmailSendResult, EmailCampaign } from "./interface";
 import { ResendEmailAdapter } from "./adapters/resend.adapter";
 import { SendGridEmailAdapter } from "./adapters/sendgrid.adapter";
-import { trackProviderUsage } from "@/lib/providers/usage.server";
+import { withProviderTracking } from "@/lib/providers/instrumentation";
 
 export type EmailProviderName = "resend" | "sendgrid" | "mailgun" | "ses";
 
@@ -26,7 +26,7 @@ export function createEmailProvider(config: EmailConfig): EmailProvider {
 }
 
 /**
- * Returns an EmailProvider instrumented with usage tracking.
+ * Returns an EmailProvider instrumented with usage tracking via withProviderTracking.
  * Records each sendEmail / sendCampaign attempt to provider_usage.
  */
 export function createInstrumentedEmailProvider(
@@ -35,35 +35,21 @@ export function createInstrumentedEmailProvider(
   const inner = createEmailProvider(config);
   const { workspaceId, provider: providerName } = config;
 
-  async function track(durationMs: number, isError: boolean) {
-    await trackProviderUsage({ workspaceId, category: "email", providerName, durationMs, isError }).catch(() => {});
-  }
-
   return {
     name: inner.name,
     async sendEmail(message: EmailMessage): Promise<EmailSendResult> {
-      const t0 = Date.now();
-      try {
-        const result = await inner.sendEmail(message);
-        await track(Date.now() - t0, false);
-        return result;
-      } catch (err) {
-        await track(Date.now() - t0, true);
-        throw err;
-      }
+      return withProviderTracking(
+        { workspaceId, category: "email", providerName },
+        () => inner.sendEmail(message),
+      );
     },
     ...(inner.sendCampaign
       ? {
           async sendCampaign(campaign: EmailCampaign): Promise<{ sent: number; failed: number }> {
-            const t0 = Date.now();
-            try {
-              const result = await inner.sendCampaign!(campaign);
-              await track(Date.now() - t0, false);
-              return result;
-            } catch (err) {
-              await track(Date.now() - t0, true);
-              throw err;
-            }
+            return withProviderTracking(
+              { workspaceId, category: "email", providerName },
+              () => inner.sendCampaign!(campaign),
+            );
           },
         }
       : {}),

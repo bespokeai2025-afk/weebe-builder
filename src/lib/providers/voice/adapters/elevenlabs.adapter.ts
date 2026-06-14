@@ -41,4 +41,17 @@ export class ElevenLabsVoiceAdapter implements VoiceProvider {
       wsUrl: data.signed_url,
     };
   }
+
+  async healthCheck(): Promise<boolean> {
+    const key = this.apiKey || process.env.ELEVENLABS_API_KEY || "";
+    if (!key) return false;
+    try {
+      const resp = await fetch("https://api.elevenlabs.io/v1/user", {
+        headers: { "xi-api-key": key },
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
 }

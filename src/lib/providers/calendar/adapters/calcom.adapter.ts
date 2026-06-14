@@ -93,4 +93,13 @@ export class CalComAdapter implements CalendarProvider {
       throw new Error(`Cal.com cancellation error ${resp.status}: ${text}`);
     }
   }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      const resp = await fetch(`${CALCOM_BASE}/event-types?apiKey=${this.apiKey}&take=1`);
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
 }

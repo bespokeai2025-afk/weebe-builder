@@ -3,7 +3,7 @@ import { OpenAILLMAdapter } from "./adapters/openai.adapter";
 import { GeminiLLMAdapter } from "./adapters/gemini.adapter";
 import { ClaudeLLMAdapter } from "./adapters/claude.adapter";
 import { OpenRouterLLMAdapter } from "./adapters/openrouter.adapter";
-import { trackProviderUsage } from "@/lib/providers/usage.server";
+import { withProviderTracking } from "@/lib/providers/instrumentation";
 
 export type LLMProviderName = "openai" | "gemini" | "claude" | "openrouter" | "grok" | "mistral" | "llama";
 
@@ -33,9 +33,8 @@ export function createLLMProvider(config: LLMConfig): LLMProvider {
 }
 
 /**
- * Returns an LLMProvider instrumented with usage tracking.
- * On every generateText / generateJson call it records request count,
- * cost (when available), duration, and errors to provider_usage.
+ * Returns an LLMProvider instrumented with usage tracking via withProviderTracking.
+ * LLM cost is result-dependent (token count), so generateText tracks cost post-call.
  */
 export function createInstrumentedLLMProvider(
   config: LLMConfig & { workspaceId: string },
@@ -43,33 +42,22 @@ export function createInstrumentedLLMProvider(
   const inner = createLLMProvider(config);
   const { workspaceId, provider: providerName } = config;
 
-  async function track(durationMs: number, costUsd: number, isError: boolean) {
-    await trackProviderUsage({ workspaceId, category: "llm", providerName, durationMs, costUsd, isError }).catch(() => {});
-  }
-
   return {
     name: inner.name,
     async generateText(params: LLMGenerateParams): Promise<LLMGenerateResult> {
-      const t0 = Date.now();
-      try {
-        const result = await inner.generateText(params);
-        await track(Date.now() - t0, result.costUsd ?? 0, false);
-        return result;
-      } catch (err) {
-        await track(Date.now() - t0, 0, true);
-        throw err;
-      }
+      return withProviderTracking(
+        { workspaceId, category: "llm", providerName },
+        async () => {
+          const result = await inner.generateText(params);
+          return result;
+        },
+      );
     },
     async generateJson<T = unknown>(params: LLMGenerateParams): Promise<T> {
-      const t0 = Date.now();
-      try {
-        const result = await inner.generateJson<T>(params);
-        await track(Date.now() - t0, 0, false);
-        return result;
-      } catch (err) {
-        await track(Date.now() - t0, 0, true);
-        throw err;
-      }
+      return withProviderTracking(
+        { workspaceId, category: "llm", providerName },
+        () => inner.generateJson<T>(params),
+      );
     },
   };
 }

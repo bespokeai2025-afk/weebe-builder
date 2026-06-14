@@ -28,4 +28,16 @@ export class ResendEmailAdapter implements EmailProvider {
     const data = await res.json();
     return { messageId: data.id ?? "", accepted: to, rejected: [] };
   }
+
+  async healthCheck(): Promise<boolean> {
+    if (!this.apiKey) return false;
+    try {
+      const resp = await fetch(`${RESEND_API}/domains`, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
 }

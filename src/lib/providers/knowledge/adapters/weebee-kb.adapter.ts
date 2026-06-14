@@ -40,4 +40,9 @@ export class WeebeeKBAdapter implements KnowledgeProvider {
       metadata: { ...c.metadata, documentId: c.documentId, knowledgeBaseId: c.kbId },
     }));
   }
+
+  async healthCheck(): Promise<boolean> {
+    // Weebee KB is always available as long as the workspace exists
+    return !!(this.workspaceId);
+  }
 }

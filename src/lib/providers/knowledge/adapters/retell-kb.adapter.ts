@@ -9,4 +9,9 @@ export class RetellKBAdapter implements KnowledgeProvider {
     // Retell KB queries are handled automatically by the Retell voice agent at runtime.
     throw new Error("Retell KB queries are executed automatically by the Retell agent during calls — no direct query API needed.");
   }
+
+  async healthCheck(): Promise<boolean> {
+    // Retell KB is always available as long as the Retell API key is configured.
+    return !!(process.env.RETELL_API_KEY);
+  }
 }

@@ -25,4 +25,20 @@ export class ClaudeLLMAdapter implements LLMProvider {
     });
     return JSON.parse(result.text) as T;
   }
+
+  async healthCheck(): Promise<boolean> {
+    const key = this.apiKey || process.env.ANTHROPIC_API_KEY || "";
+    if (!key) return false;
+    try {
+      const resp = await fetch("https://api.anthropic.com/v1/models", {
+        headers: {
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+        },
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
 }

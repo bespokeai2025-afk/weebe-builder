@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildScopedView } from "./registry";
 import { getProviderUsage, upsertProviderSetting } from "./usage.server";
+import { runProviderHealthCheck } from "./health.server";
 import type { RegistryEntry } from "./registry";
 
 export type ProviderHealthSummary = {
@@ -56,21 +57,41 @@ export const getProviderRegistryData = createServerFn({ method: "GET" })
       .maybeSingle()
       .then((r: any) => r.data);
 
+    // Build a set of providers the DB explicitly marks as connected
+    // (from saveProviderCredentials / testProviderConnection) so that
+    // per-workspace credential saves aren't overridden by missing env vars.
+    const dbConnectedSet = new Set(
+      dbSettings
+        .filter(r => r.status === "connected")
+        .map(r => `${r.provider_category}:${r.provider_name}`),
+    );
+
     const derivedConnected: Record<string, boolean> = {
-      "llm:openai":        !!(ws?.openai_api_key || process.env.OPENAI_API_KEY),
-      "llm:gemini":        !!(process.env.GEMINI_API_KEY),
-      "llm:claude":        !!(process.env.ANTHROPIC_API_KEY),
+      "llm:openai":        !!(ws?.openai_api_key || process.env.OPENAI_API_KEY)  || dbConnectedSet.has("llm:openai"),
+      "llm:gemini":        !!(process.env.GEMINI_API_KEY)                        || dbConnectedSet.has("llm:gemini"),
+      "llm:claude":        !!(process.env.ANTHROPIC_API_KEY)                     || dbConnectedSet.has("llm:claude"),
+      "llm:openrouter":    dbConnectedSet.has("llm:openrouter"),
       "voice:retell":      !!(ws?.retell_workspace_id || process.env.RETELL_API_KEY),
       "voice:openai":      !!(ws?.openai_api_key || process.env.OPENAI_API_KEY),
       "voice:elevenlabs":  !!(ws?.elevenlabs_api_key || process.env.ELEVENLABS_API_KEY),
       "telephony:twilio":  !!(ws?.twilio_account_sid && ws?.twilio_auth_token),
       "whatsapp:wati":     !!(watiConn?.status === "active"),
-      "email:resend":      !!(ws?.resend_api_key || process.env.RESEND_API_KEY),
+      "whatsapp:meta":     dbConnectedSet.has("whatsapp:meta"),
+      "email:resend":      !!(ws?.resend_api_key || process.env.RESEND_API_KEY)  || dbConnectedSet.has("email:resend"),
+      "email:sendgrid":    dbConnectedSet.has("email:sendgrid"),
       "crm:hubspot":       !!(ws?.hubspot_api_key),
       "crm:gohighlevel":   !!(ws?.ghl_api_key),
       "calendar:calcom":   !!(ws?.calcom_api_key),
+      "calendar:google":   dbConnectedSet.has("calendar:google"),
       "knowledge:retell_kb": !!(ws?.retell_workspace_id || process.env.RETELL_API_KEY),
+      "knowledge:pinecone":  dbConnectedSet.has("knowledge:pinecone"),
       "image:gpt_image":   !!(ws?.openai_api_key || process.env.OPENAI_API_KEY),
+      "image:imagen":      dbConnectedSet.has("image:imagen"),
+      "video:runway":      dbConnectedSet.has("video:runway"),
+      "video:google_veo":  dbConnectedSet.has("video:google_veo"),
+      "analytics:google_analytics": dbConnectedSet.has("analytics:google_analytics"),
+      "advertising:google_ads":     dbConnectedSet.has("advertising:google_ads"),
+      "advertising:meta_ads":       dbConnectedSet.has("advertising:meta_ads"),
     };
 
     // Build a per-request scoped view — never mutates the global REGISTRY
@@ -195,6 +216,57 @@ export const updateProviderPriority = createServerFn({ method: "POST" })
       isFallback: role === "fallback",
       priority: role === "primary" ? 1 : role === "fallback" ? 2 : 99,
     });
+  });
+
+// ── Mutation: save provider credentials ───────────────────────────────────────
+
+const SaveCredentialsInput = z.object({
+  category:     z.string().min(1),
+  providerName: z.string().min(1),
+  credentials:  z.record(z.string()),
+});
+
+export const saveProviderCredentials = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof SaveCredentialsInput>) => SaveCredentialsInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    await requireWorkspaceAdmin(context.supabase, context.userId, workspaceId);
+
+    const { category, providerName, credentials } = data;
+
+    // Determine connected status: at least one non-empty credential value
+    const hasCredentials = Object.values(credentials).some(v => v && v.trim().length > 0);
+
+    await upsertProviderSetting({
+      workspaceId,
+      category,
+      providerName,
+      status: hasCredentials ? "connected" : "disconnected",
+      credentials,
+    });
+
+    return { ok: true };
+  });
+
+// ── Query: test a provider connection live ────────────────────────────────────
+
+const TestConnectionInput = z.object({
+  category:     z.string().min(1),
+  providerName: z.string().min(1),
+});
+
+export const testProviderConnection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof TestConnectionInput>) => TestConnectionInput.parse(i))
+  .handler(async ({ data, context }): Promise<{ ok: boolean; latencyMs: number; error?: string }> => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { category, providerName } = data;
+    return runProviderHealthCheck(workspaceId, category, providerName);
   });
 
 // ── Mutation: enable / disable a provider ─────────────────────────────────────

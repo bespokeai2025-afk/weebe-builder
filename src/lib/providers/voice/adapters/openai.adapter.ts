@@ -44,4 +44,17 @@ export class OpenAIVoiceAdapter implements VoiceProvider {
       sessionId: data.id,
     };
   }
+
+  async healthCheck(): Promise<boolean> {
+    const key = this.apiKey || process.env.OPENAI_API_KEY || "";
+    if (!key) return false;
+    try {
+      const resp = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
 }
