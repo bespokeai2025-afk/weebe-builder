@@ -74,10 +74,12 @@ import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_au
 import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
 import { Route as AuthenticatedGrowthmindPlaybooksRouteImport } from './routes/_authenticated/growthmind.playbooks'
 import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
+import { Route as AuthenticatedGrowthmindGrowthSchedulerRouteImport } from './routes/_authenticated/growthmind.growth-scheduler'
 import { Route as AuthenticatedGrowthmindGoalsRouteImport } from './routes/_authenticated/growthmind.goals'
 import { Route as AuthenticatedGrowthmindFunnelsRouteImport } from './routes/_authenticated/growthmind.funnels'
 import { Route as AuthenticatedGrowthmindForecastRouteImport } from './routes/_authenticated/growthmind.forecast'
 import { Route as AuthenticatedGrowthmindContentStudioRouteImport } from './routes/_authenticated/growthmind.content-studio'
+import { Route as AuthenticatedGrowthmindContentCalendarRouteImport } from './routes/_authenticated/growthmind.content-calendar'
 import { Route as AuthenticatedGrowthmindCompetitorsRouteImport } from './routes/_authenticated/growthmind.competitors'
 import { Route as AuthenticatedGrowthmindChatRouteImport } from './routes/_authenticated/growthmind.chat'
 import { Route as AuthenticatedGrowthmindCampaignsRouteImport } from './routes/_authenticated/growthmind.campaigns'
@@ -473,6 +475,12 @@ const AuthenticatedGrowthmindLeadOpportunitiesRoute =
     path: '/lead-opportunities',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindGrowthSchedulerRoute =
+  AuthenticatedGrowthmindGrowthSchedulerRouteImport.update({
+    id: '/growth-scheduler',
+    path: '/growth-scheduler',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindGoalsRoute =
   AuthenticatedGrowthmindGoalsRouteImport.update({
     id: '/goals',
@@ -495,6 +503,12 @@ const AuthenticatedGrowthmindContentStudioRoute =
   AuthenticatedGrowthmindContentStudioRouteImport.update({
     id: '/content-studio',
     path: '/content-studio',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindContentCalendarRoute =
+  AuthenticatedGrowthmindContentCalendarRouteImport.update({
+    id: '/content-calendar',
+    path: '/content-calendar',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedGrowthmindCompetitorsRoute =
@@ -779,10 +793,12 @@ export interface FileRoutesByFullPath {
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
   '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
+  '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
+  '/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
@@ -888,10 +904,12 @@ export interface FileRoutesByTo {
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
   '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
+  '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
+  '/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
@@ -1002,10 +1020,12 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/_authenticated/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
   '/_authenticated/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
+  '/_authenticated/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/_authenticated/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/_authenticated/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/_authenticated/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/_authenticated/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
+  '/_authenticated/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
   '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/_authenticated/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
@@ -1116,10 +1136,12 @@ export interface FileRouteTypes {
     | '/growthmind/campaigns'
     | '/growthmind/chat'
     | '/growthmind/competitors'
+    | '/growthmind/content-calendar'
     | '/growthmind/content-studio'
     | '/growthmind/forecast'
     | '/growthmind/funnels'
     | '/growthmind/goals'
+    | '/growthmind/growth-scheduler'
     | '/growthmind/lead-opportunities'
     | '/growthmind/playbooks'
     | '/growthmind/recommendations'
@@ -1225,10 +1247,12 @@ export interface FileRouteTypes {
     | '/growthmind/campaigns'
     | '/growthmind/chat'
     | '/growthmind/competitors'
+    | '/growthmind/content-calendar'
     | '/growthmind/content-studio'
     | '/growthmind/forecast'
     | '/growthmind/funnels'
     | '/growthmind/goals'
+    | '/growthmind/growth-scheduler'
     | '/growthmind/lead-opportunities'
     | '/growthmind/playbooks'
     | '/growthmind/recommendations'
@@ -1338,10 +1362,12 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/campaigns'
     | '/_authenticated/growthmind/chat'
     | '/_authenticated/growthmind/competitors'
+    | '/_authenticated/growthmind/content-calendar'
     | '/_authenticated/growthmind/content-studio'
     | '/_authenticated/growthmind/forecast'
     | '/_authenticated/growthmind/funnels'
     | '/_authenticated/growthmind/goals'
+    | '/_authenticated/growthmind/growth-scheduler'
     | '/_authenticated/growthmind/lead-opportunities'
     | '/_authenticated/growthmind/playbooks'
     | '/_authenticated/growthmind/recommendations'
@@ -1922,6 +1948,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/growth-scheduler': {
+      id: '/_authenticated/growthmind/growth-scheduler'
+      path: '/growth-scheduler'
+      fullPath: '/growthmind/growth-scheduler'
+      preLoaderRoute: typeof AuthenticatedGrowthmindGrowthSchedulerRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/goals': {
       id: '/_authenticated/growthmind/goals'
       path: '/goals'
@@ -1948,6 +1981,13 @@ declare module '@tanstack/react-router' {
       path: '/content-studio'
       fullPath: '/growthmind/content-studio'
       preLoaderRoute: typeof AuthenticatedGrowthmindContentStudioRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/content-calendar': {
+      id: '/_authenticated/growthmind/content-calendar'
+      path: '/content-calendar'
+      fullPath: '/growthmind/content-calendar'
+      preLoaderRoute: typeof AuthenticatedGrowthmindContentCalendarRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/growthmind/competitors': {
@@ -2269,10 +2309,12 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindCampaignsRoute: typeof AuthenticatedGrowthmindCampaignsRoute
   AuthenticatedGrowthmindChatRoute: typeof AuthenticatedGrowthmindChatRoute
   AuthenticatedGrowthmindCompetitorsRoute: typeof AuthenticatedGrowthmindCompetitorsRoute
+  AuthenticatedGrowthmindContentCalendarRoute: typeof AuthenticatedGrowthmindContentCalendarRoute
   AuthenticatedGrowthmindContentStudioRoute: typeof AuthenticatedGrowthmindContentStudioRoute
   AuthenticatedGrowthmindForecastRoute: typeof AuthenticatedGrowthmindForecastRoute
   AuthenticatedGrowthmindFunnelsRoute: typeof AuthenticatedGrowthmindFunnelsRoute
   AuthenticatedGrowthmindGoalsRoute: typeof AuthenticatedGrowthmindGoalsRoute
+  AuthenticatedGrowthmindGrowthSchedulerRoute: typeof AuthenticatedGrowthmindGrowthSchedulerRoute
   AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   AuthenticatedGrowthmindPlaybooksRoute: typeof AuthenticatedGrowthmindPlaybooksRoute
   AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
@@ -2289,11 +2331,15 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindChatRoute: AuthenticatedGrowthmindChatRoute,
     AuthenticatedGrowthmindCompetitorsRoute:
       AuthenticatedGrowthmindCompetitorsRoute,
+    AuthenticatedGrowthmindContentCalendarRoute:
+      AuthenticatedGrowthmindContentCalendarRoute,
     AuthenticatedGrowthmindContentStudioRoute:
       AuthenticatedGrowthmindContentStudioRoute,
     AuthenticatedGrowthmindForecastRoute: AuthenticatedGrowthmindForecastRoute,
     AuthenticatedGrowthmindFunnelsRoute: AuthenticatedGrowthmindFunnelsRoute,
     AuthenticatedGrowthmindGoalsRoute: AuthenticatedGrowthmindGoalsRoute,
+    AuthenticatedGrowthmindGrowthSchedulerRoute:
+      AuthenticatedGrowthmindGrowthSchedulerRoute,
     AuthenticatedGrowthmindLeadOpportunitiesRoute:
       AuthenticatedGrowthmindLeadOpportunitiesRoute,
     AuthenticatedGrowthmindPlaybooksRoute:

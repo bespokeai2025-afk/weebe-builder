@@ -3,6 +3,7 @@ import {
   TrendingUp, BarChart3, Lightbulb, FileText,
   MessageSquareMore, Target, Megaphone,
   BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
+  CalendarDays, Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,8 @@ const CORE_NAV = [
   { label: "Goals",              href: "/growthmind/goals",                icon: Flag },
   { label: "Campaigns",          href: "/growthmind/campaigns",            icon: Megaphone },
   { label: "Reports",            href: "/growthmind/reports",              icon: FileText },
+  { label: "Content Calendar",   href: "/growthmind/content-calendar",     icon: CalendarDays },
+  { label: "Growth Scheduler",   href: "/growthmind/growth-scheduler",     icon: Rocket },
 ];
 
 const INTELLIGENCE_NAV = [

@@ -357,6 +357,110 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
     });
   }
 
+  // ── Content Calendar + Growth Scheduler findings ──────────────────────────
+  const next7   = new Date(now); next7.setDate(now.getDate() + 7);
+  const [calRes, overdueTasksRes, activePlansRes] = await Promise.all([
+    sb.from("growthmind_content_calendar")
+      .select("id, title, content_type, status, scheduled_date")
+      .eq("workspace_id", workspaceId)
+      .gte("scheduled_date", now.toISOString())
+      .lte("scheduled_date", next7.toISOString())
+      .order("scheduled_date", { ascending: true })
+      .limit(50),
+    sb.from("growthmind_marketing_tasks")
+      .select("id, title, due_date, priority")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "pending")
+      .lt("due_date", now.toISOString().split("T")[0])
+      .order("due_date", { ascending: true })
+      .limit(20),
+    sb.from("growthmind_growth_plans")
+      .select("id, name, plan_type, generated_at")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active")
+      .limit(5),
+  ]);
+
+  // 7. Upcoming content this week
+  const upcomingContent = calRes.data ?? [];
+  if (upcomingContent.length === 0) {
+    results.push({
+      trigger_type: "gm_no_content_this_week",
+      entity_type:  "growthmind",
+      entity_id:    "content-calendar",
+      entity_name:  "Content Calendar",
+      title:        "No content scheduled for the next 7 days",
+      description:  "Your Content Calendar has no pieces scheduled for the next 7 days. A consistent publishing cadence is key to SEO and lead generation — add content now.",
+      priority:     "medium",
+      severity:     "warning",
+    });
+  } else {
+    const publishedCount  = upcomingContent.filter((e: any) => e.status === "Published").length;
+    const scheduledCount  = upcomingContent.filter((e: any) => e.status === "Scheduled").length;
+    const draftCount      = upcomingContent.filter((e: any) => e.status === "Draft").length;
+    if (draftCount > 0) {
+      results.push({
+        trigger_type: "gm_content_drafts_pending",
+        entity_type:  "growthmind",
+        entity_id:    "content-calendar",
+        entity_name:  "Content Calendar",
+        title:        `${draftCount} content piece${draftCount > 1 ? "s" : ""} still in Draft this week`,
+        description:  `You have ${draftCount} draft item${draftCount > 1 ? "s" : ""} scheduled for the next 7 days that haven't been moved to Scheduled or Published. Review and progress them to avoid missed publishing windows.`,
+        priority:     draftCount >= 3 ? "high" : "medium",
+        severity:     "info",
+        metadata:     { draftCount, scheduledCount, publishedCount },
+      });
+    }
+  }
+
+  // 8. Overdue marketing tasks
+  const overdueTasks = overdueTasksRes.data ?? [];
+  if (overdueTasks.length > 0) {
+    const urgentOverdue  = overdueTasks.filter((t: any) => t.priority === "urgent" || t.priority === "high");
+    const oldest         = overdueTasks[0];
+    results.push({
+      trigger_type: "gm_overdue_tasks",
+      entity_type:  "growthmind",
+      entity_id:    oldest.id,
+      entity_name:  "Marketing Tasks",
+      title:        `${overdueTasks.length} marketing task${overdueTasks.length > 1 ? "s" : ""} overdue`,
+      description:  `${overdueTasks.length} marketing task${overdueTasks.length > 1 ? "s are" : " is"} past their due date${urgentOverdue.length > 0 ? `, including ${urgentOverdue.length} high-priority item${urgentOverdue.length > 1 ? "s" : ""}` : ""}. Overdue tasks slow your content pipeline and delay campaign launches.`,
+      priority:     urgentOverdue.length > 0 ? "high" : "medium",
+      severity:     urgentOverdue.length > 0 ? "warning" : "info",
+      metadata:     { total: overdueTasks.length, highPriority: urgentOverdue.length },
+    });
+  }
+
+  // 9. No active growth plan
+  const activePlans = activePlansRes.data ?? [];
+  if (activePlans.length === 0) {
+    results.push({
+      trigger_type: "gm_no_growth_plan",
+      entity_type:  "growthmind",
+      entity_id:    "growth-scheduler",
+      entity_name:  "Growth Scheduler",
+      title:        "No active growth plan in GrowthMind",
+      description:  "Create a 30/60/90-day growth plan in the Growth Scheduler to auto-generate a full content calendar and marketing task list tailored to your industry and goals.",
+      priority:     "low",
+      severity:     "info",
+    });
+  } else {
+    // Check if plan hasn't been generated
+    const notGenerated = activePlans.filter((p: any) => !p.generated_at);
+    if (notGenerated.length > 0) {
+      results.push({
+        trigger_type: "gm_plan_not_generated",
+        entity_type:  "growthmind",
+        entity_id:    notGenerated[0].id,
+        entity_name:  notGenerated[0].name,
+        title:        `Growth plan "${notGenerated[0].name}" hasn't been generated yet`,
+        description:  "You have an active growth plan that hasn't been generated. Click Generate in the Growth Scheduler to auto-create your content calendar and marketing tasks.",
+        priority:     "medium",
+        severity:     "info",
+      });
+    }
+  }
+
   return results;
 }
 

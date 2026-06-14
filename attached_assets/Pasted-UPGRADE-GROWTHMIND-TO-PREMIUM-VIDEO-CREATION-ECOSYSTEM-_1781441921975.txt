@@ -1,0 +1,381 @@
+UPGRADE GROWTHMIND TO PREMIUM VIDEO CREATION ECOSYSTEM
+
+IMPORTANT
+
+Do not replace existing Content Studio.
+
+Do not modify Retell.
+
+Do not modify HyperStream.
+
+Do not modify VoxStream.
+
+Do not modify HiveMind.
+
+Extend the existing GrowthMind architecture only.
+
+OBJECTIVE
+
+Add enterprise-grade AI video generation capabilities to GrowthMind.
+
+The system should automatically use the best AI models for:
+
+- Video strategy
+- Video scripting
+- Video storyboards
+- Marketing videos
+- Social videos
+- UGC ads
+- Product demos
+- Explainer videos
+- YouTube content
+- Meta video ads
+- LinkedIn video ads
+
+====================================================
+
+CREATE NEW MODULE
+
+GrowthMind Video Studio
+
+New Route:
+
+/growthmind/video-studio
+
+====================================================
+
+SUPPORTED VIDEO TYPES
+
+Meta Video Ads
+
+Instagram Reels
+
+TikTok Videos
+
+YouTube Shorts
+
+YouTube Ads
+
+LinkedIn Videos
+
+Explainer Videos
+
+Product Demonstrations
+
+Case Study Videos
+
+UGC Videos
+
+Customer Testimonial Videos
+
+AI Receptionist Demos
+
+AI Lead Generation Demos
+
+AI Qualification Demos
+
+Webinar Videos
+
+Podcast Clips
+
+====================================================
+
+AI MODEL STACK
+
+VIDEO STRATEGY
+
+Gemini 2.5 Pro
+
+Purpose:
+
+- Campaign planning
+- Creative direction
+- Marketing strategy
+- Story concepts
+
+====================================================
+
+VIDEO SCRIPT WRITING
+
+Claude Sonnet 4
+
+Purpose:
+
+- Storytelling
+- Hooks
+- CTAs
+- Persuasive scripts
+- UGC scripts
+
+====================================================
+
+VOICEOVER GENERATION
+
+ElevenLabs
+
+Purpose:
+
+- Human voiceovers
+- Character voices
+- Brand voices
+- Regional accents
+
+====================================================
+
+VIDEO GENERATION
+
+Primary:
+
+Google Veo 3
+
+Secondary:
+
+Runway Gen-4
+
+Future:
+
+Kling
+Pika
+
+====================================================
+
+SMART VIDEO ROUTING
+
+Meta Ads
+
+Claude
+→ Veo
+
+LinkedIn Videos
+
+Claude
+→ Veo
+
+TikTok Videos
+
+Claude
+→ Veo
+
+Explainers
+
+Claude
+→ Veo
+
+UGC Ads
+
+Claude
+→ Runway
+
+Product Demos
+
+Claude
+→ Veo
+
+====================================================
+
+VIDEO GENERATION WORKFLOW
+
+Business Data
+↓
+GrowthMind KB
+↓
+Website Data
+↓
+Keywords
+↓
+Competitors
+↓
+Playbooks
+↓
+Gemini Strategy
+↓
+Claude Script
+↓
+Storyboard Generator
+↓
+Video Generator
+↓
+ElevenLabs Voice
+↓
+Asset Library
+
+====================================================
+
+VIDEO STORYBOARDS
+
+Create storyboard engine.
+
+Output:
+
+Scene 1
+Scene 2
+Scene 3
+Scene 4
+
+Each scene:
+
+Visual Description
+
+Voiceover
+
+On Screen Text
+
+Duration
+
+CTA
+
+====================================================
+
+VIDEO ASSET LIBRARY
+
+Create:
+
+growthmind_video_assets
+
+Store:
+
+workspace_id
+
+title
+
+video_type
+
+provider
+
+script
+
+storyboard
+
+video_url
+
+voice_id
+
+created_at
+
+====================================================
+
+CONTENT CALENDAR INTEGRATION
+
+Allow videos to be scheduled into:
+
+Content Calendar
+
+Growth Scheduler
+
+Campaigns
+
+Social Plans
+
+====================================================
+
+GROWTHMIND KNOWLEDGE INTEGRATION
+
+Every video should automatically use:
+
+Company KB
+
+GrowthMind KB
+
+Industry Playbooks
+
+Competitor Intelligence
+
+SEO Keywords
+
+Marketing Strategy
+
+Business Goals
+
+Target Audience
+
+====================================================
+
+HIVEMIND REPORTING
+
+GrowthMind reports:
+
+Videos Created
+
+Video Campaigns
+
+Upcoming Video Schedule
+
+Missing Video Assets
+
+to HiveMind.
+
+HiveMind remains the only executive visible to users.
+
+====================================================
+
+COST ENGINE
+
+Track:
+
+Veo Usage
+
+Runway Usage
+
+ElevenLabs Usage
+
+Storage Usage
+
+Estimated Cost
+
+Estimated Profit
+
+Per Workspace
+
+====================================================
+
+VIDEO QUALITY MODES
+
+Fast
+
+Balanced
+
+Premium
+
+Fast:
+
+Script + Storyboard only
+
+Balanced:
+
+Script + Storyboard + Voice
+
+Premium:
+
+Full Video Generation
+
+====================================================
+
+SUCCESS CRITERIA
+
+User can:
+
+Generate video ideas
+
+Generate scripts
+
+Generate storyboards
+
+Generate voiceovers
+
+Generate AI videos
+
+Store videos
+
+Schedule videos
+
+Attach videos to campaigns
+
+Use company knowledge automatically
+
+Track costs
+
+Report activity to HiveMind
+
+Generate implementation plan first.
+
+Then implement safely without affecting existing systems.
