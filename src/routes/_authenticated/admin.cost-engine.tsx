@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ import {
   getClientEstimates, saveClientEstimate, deleteClientEstimate,
   calcHyperstreamCostPerMin, calcRetellCostPerMin, calcRetellFullCostPerMin,
   applyMarkup, calcInfraCostPerMin,
+  getProviderCostRates, saveProviderCostRate, deleteProviderCostRate,
 } from "@/lib/cost-engine/cost-engine.functions";
 import type {
   CostEngineData, CostAnalytics, LlmCost, VoiceCost, TelephonyCost,
@@ -154,6 +156,7 @@ function CostEnginePage() {
           <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="clients">Client Estimates</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="provider-rates">Provider Rates</TabsTrigger>
         </TabsList>
 
         {/* ── Overview ─────────────────────────────────────────────────────── */}
@@ -209,6 +212,11 @@ function CostEnginePage() {
         {/* ── Analytics ────────────────────────────────────────────────────── */}
         <TabsContent value="analytics" className="mt-4">
           {analytics && <AnalyticsTab analytics={analytics} />}
+        </TabsContent>
+
+        {/* ── Provider Rates ───────────────────────────────────────────────── */}
+        <TabsContent value="provider-rates" className="mt-4">
+          <ProviderRatesTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -1481,6 +1489,162 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Provider Rates Tab ─────────────────────────────────────────────────────────
+
+const UNIT_OPTIONS = [
+  "token", "minute", "session", "email", "image", "video_seconds",
+  "whatsapp", "sms", "api_call", "sync", "record",
+];
+
+function ProviderRatesTab() {
+  const getRatesFn  = useServerFn(getProviderCostRates);
+  const saveFn      = useServerFn(saveProviderCostRate);
+  const deleteFn    = useServerFn(deleteProviderCostRate);
+
+  const [rates,   setRates]   = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editId,  setEditId]  = useState<string | null>(null);
+  const [draft,   setDraft]   = useState<Record<string, any>>({});
+  const [adding,  setAdding]  = useState(false);
+  const [newRow,  setNewRow]  = useState({ provider_category: "", provider_name: "", unit_type: "token", cost_per_unit_usd: 0, notes: "" });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getRatesFn({ data: {} });
+      setRates((res as any).rates ?? []);
+    } catch { /* graceful */ }
+    setLoading(false);
+  }, [getRatesFn]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleSaveEdit(id: string) {
+    try {
+      const r = rates.find(r => r.id === id)!;
+      await saveFn({ data: { ...r, ...draft, cost_per_unit_usd: Number(draft.cost_per_unit_usd ?? r.cost_per_unit_usd) } });
+      toast.success("Rate updated");
+      setEditId(null);
+      load();
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      await deleteFn({ data: { id } });
+      toast.success("Rate deleted");
+      load();
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  async function handleAdd() {
+    try {
+      await saveFn({ data: { ...newRow, cost_per_unit_usd: Number(newRow.cost_per_unit_usd) } });
+      toast.success("Rate added");
+      setAdding(false);
+      setNewRow({ provider_category: "", provider_name: "", unit_type: "token", cost_per_unit_usd: 0, notes: "" });
+      load();
+    } catch (e: any) { toast.error(e.message); }
+  }
+
+  if (loading) return <div className="text-xs text-muted-foreground p-4">Loading…</div>;
+
+  return (
+    <div className="space-y-4">
+      <SectionHeader
+        icon={DollarSign}
+        title="Provider Cost Rates"
+        subtitle="Per-workspace cost-rate overrides for all non-LLM providers. Used for usage billing calculations."
+      />
+
+      <div className="rounded-lg border overflow-hidden">
+        <table className="w-full text-xs">
+          <thead className="bg-muted/50">
+            <tr>
+              {["Category", "Provider", "Unit", "Cost / Unit", "Notes", ""].map(h => (
+                <th key={h} className="px-3 py-2 text-left font-medium text-muted-foreground">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rates.map(r => (
+              <tr key={r.id} className="hover:bg-muted/30">
+                <td className="px-3 py-2 font-mono">{r.provider_category}</td>
+                <td className="px-3 py-2 font-mono">{r.provider_name}</td>
+                <td className="px-3 py-2">
+                  {editId === r.id
+                    ? <select value={draft.unit_type ?? r.unit_type} onChange={e => setDraft(d => ({ ...d, unit_type: e.target.value }))} className="h-6 rounded border bg-background px-1 text-xs">
+                        {UNIT_OPTIONS.map(u => <option key={u}>{u}</option>)}
+                      </select>
+                    : r.unit_type}
+                </td>
+                <td className="px-3 py-2">
+                  {editId === r.id
+                    ? <Input type="number" step="0.000001" value={draft.cost_per_unit_usd ?? r.cost_per_unit_usd} onChange={e => setDraft(d => ({ ...d, cost_per_unit_usd: e.target.value }))} className="h-6 w-28 text-xs" />
+                    : `$${Number(r.cost_per_unit_usd).toFixed(6)}`}
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {editId === r.id
+                    ? <Input value={draft.notes ?? r.notes ?? ""} onChange={e => setDraft(d => ({ ...d, notes: e.target.value }))} className="h-6 text-xs" placeholder="optional note" />
+                    : r.notes ?? "—"}
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex gap-1">
+                    {editId === r.id
+                      ? <>
+                          <Button size="sm" variant="default" className="h-5 px-2 text-[10px]" onClick={() => handleSaveEdit(r.id)}>Save</Button>
+                          <Button size="sm" variant="ghost" className="h-5 px-1 text-[10px]" onClick={() => setEditId(null)}><X className="h-3 w-3" /></Button>
+                        </>
+                      : <>
+                          <Button size="sm" variant="ghost" className="h-5 px-1" onClick={() => { setEditId(r.id); setDraft({}); }}><Pencil className="h-3 w-3" /></Button>
+                          <Button size="sm" variant="ghost" className="h-5 px-1 text-red-400/70 hover:text-red-400" onClick={() => handleDelete(r.id)}><Trash2 className="h-3 w-3" /></Button>
+                        </>
+                    }
+                  </div>
+                </td>
+              </tr>
+            ))}
+
+            {adding && (
+              <tr className="bg-muted/20">
+                <td className="px-3 py-2">
+                  <Input value={newRow.provider_category} onChange={e => setNewRow(r => ({ ...r, provider_category: e.target.value }))} className="h-6 text-xs" placeholder="email" />
+                </td>
+                <td className="px-3 py-2">
+                  <Input value={newRow.provider_name} onChange={e => setNewRow(r => ({ ...r, provider_name: e.target.value }))} className="h-6 text-xs" placeholder="resend" />
+                </td>
+                <td className="px-3 py-2">
+                  <select value={newRow.unit_type} onChange={e => setNewRow(r => ({ ...r, unit_type: e.target.value }))} className="h-6 rounded border bg-background px-1 text-xs">
+                    {UNIT_OPTIONS.map(u => <option key={u}>{u}</option>)}
+                  </select>
+                </td>
+                <td className="px-3 py-2">
+                  <Input type="number" step="0.000001" value={newRow.cost_per_unit_usd} onChange={e => setNewRow(r => ({ ...r, cost_per_unit_usd: Number(e.target.value) }))} className="h-6 w-28 text-xs" />
+                </td>
+                <td className="px-3 py-2">
+                  <Input value={newRow.notes} onChange={e => setNewRow(r => ({ ...r, notes: e.target.value }))} className="h-6 text-xs" placeholder="note" />
+                </td>
+                <td className="px-3 py-2">
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="default" className="h-5 px-2 text-[10px]" onClick={handleAdd}>Add</Button>
+                    <Button size="sm" variant="ghost" className="h-5 px-1 text-[10px]" onClick={() => setAdding(false)}><X className="h-3 w-3" /></Button>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {!adding && (
+        <Button size="sm" variant="outline" className="gap-1 text-xs" onClick={() => setAdding(true)}>
+          <Plus className="h-3 w-3" /> Add Rate Override
+        </Button>
+      )}
     </div>
   );
 }

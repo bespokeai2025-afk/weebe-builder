@@ -3,21 +3,51 @@ import type { ProviderCategory } from "./types";
 
 /**
  * Wraps a provider operation with automatic primary→fallback logic.
- * Calls `primaryFn()` first; on any thrown error it logs a warning and calls
- * `fallbackFn()` if one is provided (otherwise re-throws).
+ *
+ * Two fallback triggers (both honored):
+ *  1. Pre-flight health check: if `context.primaryHealthCheck` is provided and
+ *     returns false, the fallback is used immediately without attempting the
+ *     primary call. This proactively avoids sending traffic to an unhealthy
+ *     provider without waiting for a runtime error.
+ *  2. Runtime error: if primaryFn() throws, the fallback is invoked.
  *
  * Usage:
  *   return withProviderFallback(
  *     () => primary.createSession(params),
  *     fallback ? () => fallback.createSession(params) : null,
- *     { category: "voice", primaryName: "retell", fallbackName: "openai" },
+ *     {
+ *       category: "voice",
+ *       primaryName: "retell",
+ *       fallbackName: "openai",
+ *       primaryHealthCheck: () => primary.healthCheck(),
+ *     },
  *   );
  */
 export async function withProviderFallback<T>(
   primaryFn: () => Promise<T>,
   fallbackFn: (() => Promise<T>) | null,
-  context: { category: string; primaryName: string; fallbackName?: string },
+  context: {
+    category: string;
+    primaryName: string;
+    fallbackName?: string;
+    /** Optional: called before primaryFn. If returns false, skip primary and use fallback. */
+    primaryHealthCheck?: () => Promise<boolean>;
+  },
 ): Promise<T> {
+  // Pre-flight health check — skip primary if known unhealthy
+  if (context.primaryHealthCheck && fallbackFn) {
+    let healthy = true;
+    try { healthy = await context.primaryHealthCheck(); } catch { healthy = false; }
+    if (!healthy) {
+      console.warn(
+        `[provider-fallback] ${context.category}:${context.primaryName} healthCheck=false — ` +
+        `using ${context.fallbackName ?? "fallback"} proactively`,
+      );
+      return await fallbackFn();
+    }
+  }
+
+  // Runtime fallback on thrown error
   try {
     return await primaryFn();
   } catch (primaryErr: any) {

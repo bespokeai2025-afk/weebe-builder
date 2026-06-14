@@ -144,6 +144,7 @@ import { Route as ApiPublicFrejunFlowRouteImport } from './routes/api/public/fre
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
+import { Route as AuthenticatedSettingsProvidersCategoryRouteImport } from './routes/_authenticated/settings.providers.$category'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
@@ -905,6 +906,12 @@ const ApiInternalAgentToolsIdRoute = ApiInternalAgentToolsIdRouteImport.update({
   path: '/api/internal/agent-tools/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSettingsProvidersCategoryRoute =
+  AuthenticatedSettingsProvidersCategoryRouteImport.update({
+    id: '/$category',
+    path: '/$category',
+    getParentRoute: () => AuthenticatedSettingsProvidersRoute,
+  } as any)
 const ApiRuntimeAgentIdExportRoute = ApiRuntimeAgentIdExportRouteImport.update({
   id: '/export',
   path: '/export',
@@ -978,7 +985,7 @@ export interface FileRoutesByFullPath {
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
-  '/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
@@ -1012,6 +1019,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/systemmind/': typeof AuthenticatedSystemmindIndexRoute
+  '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -1110,7 +1118,7 @@ export interface FileRoutesByTo {
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
-  '/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
@@ -1144,6 +1152,7 @@ export interface FileRoutesByTo {
   '/hivemind': typeof AuthenticatedHivemindIndexRoute
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/systemmind': typeof AuthenticatedSystemmindIndexRoute
+  '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -1249,7 +1258,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
-  '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/_authenticated/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
@@ -1283,6 +1292,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/_authenticated/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/_authenticated/systemmind/': typeof AuthenticatedSystemmindIndexRoute
+  '/_authenticated/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -1422,6 +1432,7 @@ export interface FileRouteTypes {
     | '/hivemind/'
     | '/knowledge-centre/'
     | '/systemmind/'
+    | '/settings/providers/$category'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -1554,6 +1565,7 @@ export interface FileRouteTypes {
     | '/hivemind'
     | '/knowledge-centre'
     | '/systemmind'
+    | '/settings/providers/$category'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -1692,6 +1704,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/'
     | '/_authenticated/knowledge-centre/'
     | '/_authenticated/systemmind/'
+    | '/_authenticated/settings/providers/$category'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -2734,6 +2747,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalAgentToolsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/settings/providers/$category': {
+      id: '/_authenticated/settings/providers/$category'
+      path: '/$category'
+      fullPath: '/settings/providers/$category'
+      preLoaderRoute: typeof AuthenticatedSettingsProvidersCategoryRouteImport
+      parentRoute: typeof AuthenticatedSettingsProvidersRoute
+    }
     '/api/runtime/agent/$id/export': {
       id: '/api/runtime/agent/$id/export'
       path: '/export'
@@ -2911,6 +2931,21 @@ const AuthenticatedSystemmindRouteWithChildren =
     AuthenticatedSystemmindRouteChildren,
   )
 
+interface AuthenticatedSettingsProvidersRouteChildren {
+  AuthenticatedSettingsProvidersCategoryRoute: typeof AuthenticatedSettingsProvidersCategoryRoute
+}
+
+const AuthenticatedSettingsProvidersRouteChildren: AuthenticatedSettingsProvidersRouteChildren =
+  {
+    AuthenticatedSettingsProvidersCategoryRoute:
+      AuthenticatedSettingsProvidersCategoryRoute,
+  }
+
+const AuthenticatedSettingsProvidersRouteWithChildren =
+  AuthenticatedSettingsProvidersRoute._addFileChildren(
+    AuthenticatedSettingsProvidersRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
@@ -2942,7 +2977,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
   AuthenticatedSettingsCrmRoute: typeof AuthenticatedSettingsCrmRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
-  AuthenticatedSettingsProvidersRoute: typeof AuthenticatedSettingsProvidersRoute
+  AuthenticatedSettingsProvidersRoute: typeof AuthenticatedSettingsProvidersRouteWithChildren
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -2978,7 +3013,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsCrmRoute: AuthenticatedSettingsCrmRoute,
   AuthenticatedSettingsIntegrationsRoute:
     AuthenticatedSettingsIntegrationsRoute,
-  AuthenticatedSettingsProvidersRoute: AuthenticatedSettingsProvidersRoute,
+  AuthenticatedSettingsProvidersRoute:
+    AuthenticatedSettingsProvidersRouteWithChildren,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

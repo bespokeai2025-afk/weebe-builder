@@ -148,6 +148,11 @@ export const getProviderRegistryData = createServerFn({ method: "GET" })
       };
     }
 
+    // Fire-and-forget background health refresh so subsequent loads of the
+    // registry page reflect live adapter healthCheck() results persisted to
+    // provider_settings.status. Does NOT block the response.
+    runAllProviderHealthChecks(workspaceId).catch(() => {});
+
     return { byCategory: result, totalSpend, totalConnected, totalProviders, recentErrors };
   });
 
