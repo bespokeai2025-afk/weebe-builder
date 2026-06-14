@@ -32,6 +32,8 @@
  *   replaced with values accumulated in session.workflow_variables.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { createWhatsAppProviderWithFallback } from "@/lib/providers/whatsapp/factory";
+import type { WhatsAppConfig } from "@/lib/providers/whatsapp/factory";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -545,38 +547,44 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
       .eq("contact_phone", contactPhone);
   }
 
-  // Helper: send message via active provider and persist it
+  // Helper: send message via active provider (with automatic fallback) and persist it
   async function sendAndPersist(body: string, mediaUrl?: string): Promise<void> {
     const msg = interpolate(body, variables);
-    let sid: string | null = null;
 
-    if (provider === "meta") {
-      sid = await sendMeta(
-        contactPhone,
-        msg,
-        ws.meta_phone_number_id as string,
-        ws.meta_access_token as string,
-      );
-    } else {
-      const accountSid = (ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID) as string;
-      const authToken = (ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN) as string;
-      const fromPhone = ws?.whatsapp_phone_id as string;
-      sid = await sendTwilio(contactPhone, fromPhone, msg, accountSid, authToken, mediaUrl);
-    }
+    // Build primary config from workspace settings
+    const primaryConfig: WhatsAppConfig & { workspaceId: string } =
+      provider === "meta"
+        ? { provider: "meta", accessToken: ws.meta_access_token as string, phoneNumberId: ws.meta_phone_number_id as string, workspaceId }
+        : { provider: "twilio", accountSid: (ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID) as string, authToken: (ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN) as string, from: ws?.whatsapp_phone_id as string, workspaceId };
 
-    if (sid) {
-      await sb.from("whatsapp_messages").insert({
-        workspace_id: workspaceId,
-        external_id: sid,
-        contact_phone: contactPhone,
-        contact_name: contactName,
-        direction: "outbound",
-        body: msg,
-        media_url: mediaUrl ?? null,
-        status: "sent",
-        sent_at: new Date().toISOString(),
-      });
-    }
+    // Read optional WATI fallback from provider_settings
+    const { data: fallbackRow } = await (supabaseAdmin as any)
+      .from("provider_settings")
+      .select("credentials")
+      .eq("workspace_id", workspaceId)
+      .eq("category", "whatsapp")
+      .eq("provider_name", "wati")
+      .eq("status", "connected")
+      .maybeSingle();
+    const fallbackConfig: WhatsAppConfig | null =
+      fallbackRow?.credentials?.apiEndpoint && fallbackRow?.credentials?.apiKey
+        ? { provider: "wati" as const, apiEndpoint: fallbackRow.credentials.apiEndpoint as string, apiKey: fallbackRow.credentials.apiKey as string }
+        : null;
+
+    const waProvider = createWhatsAppProviderWithFallback(primaryConfig, fallbackConfig);
+    const { messageId } = await waProvider.sendMessage({ to: contactPhone, body: msg, mediaUrl });
+
+    await sb.from("whatsapp_messages").insert({
+      workspace_id: workspaceId,
+      external_id: messageId,
+      contact_phone: contactPhone,
+      contact_name: contactName,
+      direction: "outbound",
+      body: msg,
+      media_url: mediaUrl ?? null,
+      status: "sent",
+      sent_at: new Date().toISOString(),
+    });
   }
 
   // Helper: tag contact

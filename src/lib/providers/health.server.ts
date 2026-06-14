@@ -168,8 +168,7 @@ async function dispatchHealthCheck(
       return new GPTImageAdapter(key).healthCheck!();
     }
     case "image:imagen": {
-      const key = str(stored.apiKey) || str(ws.openai_api_key) || "";
-      return new ImagenAdapter({ gcpProject: str(stored.gcpProject), accessToken: str(stored.accessToken) || key }).healthCheck!();
+      return new ImagenAdapter({ gcpProject: str(stored.gcpProject), accessToken: str(stored.accessToken) }).healthCheck!();
     }
 
     // ── Video ──────────────────────────────────────────────────────────────────

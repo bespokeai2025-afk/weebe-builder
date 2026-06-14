@@ -48,8 +48,9 @@ export function createCRMProvider(config: CRMConfig & { workspaceId?: string }):
 
   return {
     name: inner.name,
-    upsertContact: (contact: CrmContactInput) => track(() => inner.upsertContact(contact)),
-    logCallActivity: (activity: CrmCallActivityInput) => track(() => inner.logCallActivity(activity)),
+    upsertContact:    (contact:  CrmContactInput)      => track(() => inner.upsertContact(contact)),
+    logCallActivity:  (activity: CrmCallActivityInput) => track(() => inner.logCallActivity(activity)),
+    healthCheck:      ()                               => inner.healthCheck(),
   };
 }
 

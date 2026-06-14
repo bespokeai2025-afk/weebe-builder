@@ -14,4 +14,15 @@ export class SalesforceAdapter implements CrmAdapter {
   async logCallActivity(_activity: CrmCallActivityInput): Promise<void> {
     throw new Error("Salesforce CRM adapter not yet implemented.");
   }
+
+  async healthCheck(): Promise<boolean> {
+    const { instanceUrl, accessToken } = this._config;
+    if (!instanceUrl || !accessToken) return false;
+    try {
+      const resp = await fetch(`${instanceUrl}/services/data/v59.0`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      return resp.ok;
+    } catch { return false; }
+  }
 }

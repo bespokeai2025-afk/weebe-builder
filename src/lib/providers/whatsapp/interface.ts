@@ -2,6 +2,7 @@ export interface WhatsAppMessage {
   to: string;
   body: string;
   from?: string;
+  mediaUrl?: string;
 }
 
 export interface WhatsAppTemplate {

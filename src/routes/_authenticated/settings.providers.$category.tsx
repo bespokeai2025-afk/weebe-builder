@@ -148,7 +148,11 @@ function ProviderPanel({
   async function handleTest() {
     setTesting(true);
     try {
-      const res = await testFn({ data: { category, providerName: provider.name, credentials: creds } }) as any;
+      // Persist credentials first so the server-side health check reads the latest values
+      if (Object.keys(creds).length > 0) {
+        await saveFn({ data: { category, providerName: provider.name, credentials: creds } });
+      }
+      const res = await testFn({ data: { category, providerName: provider.name } }) as any;
       if (res.ok) { toast.success("Connection successful"); onRefresh(); }
       else         toast.error(res.error ?? "Connection failed");
     } catch (e: any) { toast.error(e.message); }
@@ -264,7 +268,7 @@ function CategoryProvidersPage() {
   async function load() {
     setLoading(true);
     try {
-      const res  = await getDataFn({ data: {} }) as any;
+      const res  = await getDataFn() as any;
       const list = res.byCategory?.[category]?.providers ?? [];
       setProviders(list);
     } catch { /* graceful */ }

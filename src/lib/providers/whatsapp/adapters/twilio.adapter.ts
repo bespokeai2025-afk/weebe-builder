@@ -20,11 +20,13 @@ export class TwilioWhatsAppAdapter implements WhatsAppProvider {
     const { accountSid, from } = this.config;
     if (!accountSid) throw new Error("Twilio credentials not configured");
 
-    const body = new URLSearchParams({
+    const params: Record<string, string> = {
       To: `whatsapp:${msg.to}`,
       From: `whatsapp:${from}`,
       Body: msg.body,
-    });
+    };
+    if (msg.mediaUrl) params.MediaUrl0 = msg.mediaUrl;
+    const body = new URLSearchParams(params);
 
     const resp = await fetch(`${TWILIO_BASE}/Accounts/${accountSid}/Messages.json`, {
       method: "POST",

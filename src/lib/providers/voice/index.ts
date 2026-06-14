@@ -1,5 +1,5 @@
 export type { VoiceProvider, VoiceSessionParams, VoiceSessionResult } from "./interface";
-export { createVoiceProvider, type VoiceProviderName } from "./factory";
+export { createVoiceProvider, createVoiceProviderWithFallback, type VoiceProviderName } from "./factory";
 
 // Re-export existing runtime adapter — existing call sites unchanged
 export { resolveDeploymentMode, resolveRuntimeConfig, isRetellMode, isOpenAINativeMode, isElevenLabsNativeMode } from "@/lib/runtime/adapter";

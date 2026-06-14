@@ -1,37 +1,33 @@
 ---
-name: Provider healthCheck pattern
-description: How healthCheck() is wired in the provider framework — adapter classes, dispatch, and derivedConnected fix
+name: Provider health check architecture
+description: Durable rules for the provider framework's health check pattern, fallback wiring, and credential model decisions
 ---
 
-## The pattern
+## Health check pattern
 
-`healthCheck()` is NOT in the `LLMProvider`/`VoiceProvider`/etc. interfaces. It is added directly to each adapter class as an extra method.  
-The health service (`src/lib/providers/health.server.ts`) imports adapters directly and calls `adapter.healthCheck!()` using the non-null assertion.
+`healthCheck()` is an optional method added to each adapter class (not part of the core interface).
+`health.server.ts` imports adapters directly and calls `adapter.healthCheck!()` using the non-null assertion.
+Dispatch key is `${category}:${providerName}` — each case loads stored credentials then constructs the adapter.
 
-## Dispatch
+**Why:** Keeping healthCheck out of the interface means coming-soon adapters don't need stubs, and the health service can safely opt-in per adapter.
 
-`runProviderHealthCheck(workspaceId, category, providerName)` in `health.server.ts`:
-1. Loads `provider_settings.credentials` + `workspace_settings` columns via Supabase
-2. Dispatches on `${category}:${providerName}` string key
-3. Instantiates the correct adapter with merged credentials
-4. Calls `healthCheck()`
-5. Persists result to `provider_settings.status` via `upsertProviderSetting`
+## Credential model rules
 
-## derivedConnected bug and fix
+- Providers that use OAuth tokens (GCP Imagen, Google Veo) must source their `accessToken` from `stored.accessToken` only — never fall back to an unrelated key like `openai_api_key`.
+- Providers that read workspace_settings columns use `ws.<column>` directly; providers that use per-workspace creds use `provider_settings.credentials` JSONB.
 
-**Bug**: `buildScopedView` downgrade logic fires when `derivedConnected[key] === false` AND `entry.status === "connected"`. For providers like `llm:claude`, `derivedConnected` is `!!(process.env.ANTHROPIC_API_KEY)` — if the env var is absent but a user saved a per-workspace key, the DB status "connected" gets overridden back to "disconnected".
+**Why:** Mixing credential sources produces misleading health results (false positives when env key happens to be valid for a different service).
 
-**Fix** in `providers.functions.ts`: extend `derivedConnected` to `OR` with `dbConnectedSet.has(key)` for all credential-saved providers. `dbConnectedSet` is built from `dbSettings` (status === "connected") before building `derivedConnected`.
+## Fallback factory wiring
 
-**Why**: `buildScopedView` was designed for workspace_settings columns (env-var-style connections), not for per-workspace JSONB credentials. The `dbConnectedSet` OR ensures credential-saved providers are treated as "connected" in the derivedConnected map.
+WithFallback variants (`createVoice/Email/WhatsApp/CalendarProviderWithFallback`) must be exported from their category `index.ts` and consumed in at least one real runtime call path.
 
-## Server functions
+WhatsApp runtime (`src/lib/whatsapp/runtime.ts`) is the canonical wiring point: `sendAndPersist` builds the primary config from workspace_settings, reads an optional WATI fallback from `provider_settings`, then calls `createWhatsAppProviderWithFallback`.
 
-- `saveProviderCredentials` — upserts `provider_settings.credentials` JSONB + sets `status: "connected"` when any field is non-empty
-- `testProviderConnection` — calls `runProviderHealthCheck`, returns `{ok, latencyMs, error?}`
+**How to apply:** Any new provider category that adds a WithFallback factory must also export it from its index and wire it into a runtime send/call helper (not just health.server.ts).
 
-Both require workspace owner/admin role.
+## Test Connection flow
 
-## Settings UI
+The per-category settings route (`settings.providers.$category.tsx`) must save credentials before testing: `handleTest()` calls `saveFn` first, then `testFn`. This ensures `runProviderHealthCheck` reads the latest credential values from `provider_settings`.
 
-`CREDENTIAL_FIELDS` map in `settings.providers.tsx` — keyed by `"${category}:${providerName}"`. Forms expand inline in ProviderCard for any non-connected provider (including "coming_soon" if fields are defined, allowing credentials to upgrade the status).
+**Why:** `testProviderConnection` server fn only reads persisted credentials; it does not accept a credentials payload. Save-then-test is the only way to test unsaved values.

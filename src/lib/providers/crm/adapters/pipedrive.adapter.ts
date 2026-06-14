@@ -14,4 +14,12 @@ export class PipedriveAdapter implements CrmAdapter {
   async logCallActivity(_activity: CrmCallActivityInput): Promise<void> {
     throw new Error("Pipedrive CRM adapter not yet implemented.");
   }
+
+  async healthCheck(): Promise<boolean> {
+    if (!this._apiToken) return false;
+    try {
+      const resp = await fetch(`https://api.pipedrive.com/v1/users/me?api_token=${this._apiToken}`);
+      return resp.ok;
+    } catch { return false; }
+  }
 }
