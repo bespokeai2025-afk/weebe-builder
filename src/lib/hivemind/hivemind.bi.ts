@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { type GrowthMindExecutiveSummary } from "@/lib/executives/executive-council";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export interface BIPeriod {
@@ -40,6 +41,7 @@ export interface ExecutiveBriefing {
   followUpGaps:    number;
   risks:           BiRisk[];
   recommendations: BiRecommendation[];
+  growthMind:      GrowthMindExecutiveSummary | null;
 }
 
 const PIPELINE_LABELS: Record<string, string> = {
@@ -287,10 +289,19 @@ export const getExecutiveBriefing = createServerFn({ method: "GET" })
       });
     }
 
+    // ── GrowthMind (CMO) advisory summary ─────────────────────────────────────
+    let growthMind: GrowthMindExecutiveSummary | null = null;
+    try {
+      const { buildGrowthMindExecutiveSummary } = await import("@/lib/executives/executive-bridge.server");
+      growthMind = await buildGrowthMindExecutiveSummary(sb, workspaceId);
+    } catch (e) {
+      console.error("[HiveMind] growthMind summary failed:", (e as Error)?.message);
+    }
+
     return {
       greeting, month, prevMonth, week, today,
       leadVelocity, conversionRate, costs: { totalMinutes: Math.round(totalMinutes), totalDollars, costPerLead, costPerBooking },
       topAgent, topCampaign, agentRankings, pipelineHealth, followUpGaps,
-      risks, recommendations,
+      risks, recommendations, growthMind,
     } as ExecutiveBriefing;
   });

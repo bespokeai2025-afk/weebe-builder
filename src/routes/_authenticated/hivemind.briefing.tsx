@@ -10,6 +10,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindShell";
+import { MarketingExecutiveSummary } from "@/components/hivemind/MarketingExecutiveSummary";
 import { getExecutiveBriefing, type BiRecommendation, type BiRisk } from "@/lib/hivemind/hivemind.bi";
 import { proposeHiveMindAction } from "@/lib/hivemind/hivemind.actions";
 import { Button } from "@/components/ui/button";
@@ -311,6 +312,9 @@ function HiveMindBriefingPage() {
               </div>
             </div>
           )}
+
+          {/* Marketing — CMO advisory */}
+          <MarketingExecutiveSummary summary={d.growthMind} />
 
           {/* Risks */}
           {d.risks.length > 0 && (

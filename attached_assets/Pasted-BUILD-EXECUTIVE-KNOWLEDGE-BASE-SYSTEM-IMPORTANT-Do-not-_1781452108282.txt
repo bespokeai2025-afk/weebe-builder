@@ -1,0 +1,257 @@
+BUILD EXECUTIVE KNOWLEDGE BASE SYSTEM
+
+IMPORTANT
+
+Do not modify existing Builder functionality.
+
+Do not modify existing Agent Knowledge Base functionality.
+
+Do not modify Retell Knowledge Base functionality.
+
+Do not modify HyperStream Knowledge Base functionality.
+
+Extend the architecture safely.
+
+OBJECTIVE
+
+Create a dedicated Executive Knowledge System for HiveMind, GrowthMind and SystemMind.
+
+This knowledge system is separate from customer-facing agent knowledge bases.
+
+Customer agent knowledge bases are used during calls.
+
+Executive knowledge bases are used by the AI executives to make decisions, generate recommendations and create reports.
+
+ARCHITECTURE
+
+Create:
+
+Executive Knowledge Layer
+
+Executive Minds:
+
+HiveMind (CEO)
+GrowthMind (CMO)
+SystemMind (CTO)
+
+All executives should have their own knowledge stores.
+
+DATABASE TABLES
+
+executive_knowledge_bases
+
+Fields:
+
+id
+workspace_id
+mind_type
+name
+description
+created_at
+updated_at
+
+mind_type values:
+
+hivemind
+growthmind
+systemmind
+shared
+
+Create:
+
+executive_documents
+
+Fields:
+
+id
+workspace_id
+knowledge_base_id
+file_name
+file_type
+storage_path
+content_text
+embedding_status
+created_at
+
+Create:
+
+executive_document_chunks
+
+Fields:
+
+id
+document_id
+chunk_text
+embedding_vector
+chunk_index
+
+Create:
+
+executive_knowledge_queries
+
+Fields:
+
+id
+workspace_id
+mind_type
+query
+documents_used
+created_at
+
+KNOWLEDGE CENTRE
+
+Create:
+
+/knowledge-centre
+
+Subpages:
+
+/knowledge-centre/hivemind
+/knowledge-centre/growthmind
+/knowledge-centre/systemmind
+/knowledge-centre/shared
+
+UPLOADS
+
+Allow:
+
+PDF
+DOCX
+TXT
+CSV
+XLSX
+Markdown
+
+PROCESSING
+
+Upload file
+Extract text
+Chunk content
+Generate embeddings
+Store vectors
+
+Use existing OpenAI infrastructure if available.
+
+KNOWLEDGE ACCESS RULES
+
+HiveMind can access:
+
+HiveMind KB
+Shared KB
+GrowthMind summaries
+SystemMind summaries
+
+GrowthMind can access:
+
+GrowthMind KB
+Shared KB
+
+SystemMind can access:
+
+SystemMind KB
+Shared KB
+
+GrowthMind and SystemMind must not directly communicate with each other.
+
+All communication flows through HiveMind.
+
+REPORTING FLOW
+
+GrowthMind
+→ Executive Summary
+
+SystemMind
+→ Executive Summary
+
+HiveMind
+→ Consolidated Briefing
+
+EXECUTIVE KNOWLEDGE STARTERS
+
+Automatically create default knowledge bases:
+
+HiveMind Knowledge Base
+GrowthMind Knowledge Base
+SystemMind Knowledge Base
+Shared Executive Knowledge Base
+
+PRELOAD KNOWLEDGE
+
+GrowthMind Starter Knowledge:
+
+AIDA
+PAS
+Russell Brunson Funnels
+Hormozi Offers
+SEO Fundamentals
+Google Ads Fundamentals
+Meta Ads Fundamentals
+Lead Nurturing
+Email Marketing
+Conversion Optimisation
+CRM Best Practices
+
+SystemMind Starter Knowledge:
+
+Monitoring
+Observability
+Security
+Error Tracking
+Infrastructure
+API Reliability
+Telephony Reliability
+Database Operations
+AI Runtime Monitoring
+Cost Optimisation
+
+HiveMind Starter Knowledge:
+
+Business Operations
+Executive Reporting
+Task Management
+KPIs
+Revenue Forecasting
+Decision Making
+Business Scaling
+CRM Operations
+Team Productivity
+
+DASHBOARD
+
+Create Executive Knowledge Dashboard.
+
+Display:
+
+Total Documents
+Knowledge Bases
+Indexed Files
+Last Upload
+Executive Usage Statistics
+
+RAG SYSTEM
+
+Create:
+
+queryExecutiveKnowledge()
+
+Each executive should retrieve relevant knowledge before generating:
+
+reports
+recommendations
+tasks
+strategies
+
+FUTURE READY
+
+The architecture must support future executives:
+
+SalesMind
+FinanceMind
+SupportMind
+ComplianceMind
+
+Generate implementation plan first.
+
+Identify all required files, services, routes, database changes and UI pages.
+
+Then implement safely in phases.

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
+import { MarketingExecutiveSummary } from "@/components/hivemind/MarketingExecutiveSummary";
 import { getHiveMindPlatformData } from "@/lib/hivemind/hivemind.functions";
 import { generateRecommendations } from "@/lib/hivemind/recommendations";
 import { Button } from "@/components/ui/button";
@@ -277,6 +278,9 @@ function HiveMindReports() {
                 <span className="font-medium tabular-nums">{data?.leads.sales ?? 0}</span>
               </div>
             </div>
+
+            {/* Marketing — CMO advisory */}
+            <MarketingExecutiveSummary />
 
             {/* Report sections preview */}
             <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { EXECUTIVE_TASK_TYPES } from "@/lib/executives/executive-council";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 export type TaskStatus   = "suggested" | "approved" | "in_progress" | "completed";
@@ -253,6 +254,7 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
       description:  "Add your website to GrowthMind SEO to start tracking keyword rankings and generating AI-powered content ideas.",
       priority:     "medium",
       severity:     "info",
+      metadata:     { executive_task_type: EXECUTIVE_TASK_TYPES.SEO_CAMPAIGN },
     });
   } else if (keywords.length === 0) {
     results.push({
@@ -264,6 +266,7 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
       description:  "Your SEO site is connected but no keywords are being tracked. Add keywords to monitor rankings and uncover content opportunities.",
       priority:     "medium",
       severity:     "info",
+      metadata:     { executive_task_type: EXECUTIVE_TASK_TYPES.SEO_CAMPAIGN },
     });
   }
 
@@ -304,7 +307,7 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
         description:  `${highDrop.dropPct}% of prospects drop off at the "${highDrop.label}" stage — above the 65% alert threshold. This is your biggest conversion bottleneck; address it to unlock pipeline growth.`,
         priority:     "high",
         severity:     "warning",
-        metadata:     { stage: highDrop.label, dropPct: highDrop.dropPct },
+        metadata:     { stage: highDrop.label, dropPct: highDrop.dropPct, executive_task_type: EXECUTIVE_TASK_TYPES.LEAD_NURTURE },
       });
     }
   }
@@ -321,6 +324,7 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
       description:  "Add your main competitors to GrowthMind to track positioning, offers, and emerging threats — then use AI analysis to find your edge.",
       priority:     "low",
       severity:     "info",
+      metadata:     { executive_task_type: EXECUTIVE_TASK_TYPES.COMPETITOR_REVIEW },
     });
   }
 
@@ -353,13 +357,13 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
       description:  `You received ${recentLeads} leads in the past 14 days vs ${prevLeads} in the preceding period — a ${dropPct}% decline. Review your top-of-funnel channels in GrowthMind Forecast.`,
       priority:     dropPct > 40 ? "high" : "medium",
       severity:     dropPct > 40 ? "warning" : "info",
-      metadata:     { recentLeads, prevLeads, dropPct },
+      metadata:     { recentLeads, prevLeads, dropPct, executive_task_type: EXECUTIVE_TASK_TYPES.LEAD_NURTURE },
     });
   }
 
   // ── Content Calendar + Growth Scheduler findings ──────────────────────────
   const next7   = new Date(now); next7.setDate(now.getDate() + 7);
-  const [calRes, overdueTasksRes, activePlansRes] = await Promise.all([
+  const [calRes, overdueTasksRes, activePlansRes, bookingsRes] = await Promise.all([
     sb.from("growthmind_content_calendar")
       .select("id, title, content_type, status, scheduled_date")
       .eq("workspace_id", workspaceId)
@@ -379,6 +383,10 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
       .eq("workspace_id", workspaceId)
       .eq("status", "active")
       .limit(5),
+    sb.from("calendar_bookings")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .limit(500),
   ]);
 
   // 7. Upcoming content this week
@@ -393,6 +401,7 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
       description:  "Your Content Calendar has no pieces scheduled for the next 7 days. A consistent publishing cadence is key to SEO and lead generation — add content now.",
       priority:     "medium",
       severity:     "warning",
+      metadata:     { executive_task_type: EXECUTIVE_TASK_TYPES.CONTENT_PLAN },
     });
   } else {
     const publishedCount  = upcomingContent.filter((e: any) => e.status === "Published").length;
@@ -408,7 +417,7 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
         description:  `You have ${draftCount} draft item${draftCount > 1 ? "s" : ""} scheduled for the next 7 days that haven't been moved to Scheduled or Published. Review and progress them to avoid missed publishing windows.`,
         priority:     draftCount >= 3 ? "high" : "medium",
         severity:     "info",
-        metadata:     { draftCount, scheduledCount, publishedCount },
+        metadata:     { draftCount, scheduledCount, publishedCount, executive_task_type: EXECUTIVE_TASK_TYPES.CONTENT_PLAN },
       });
     }
   }
@@ -459,6 +468,25 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
         severity:     "info",
       });
     }
+  }
+
+  // 10. Referral engine opportunity — happy customers but no referral campaign.
+  // Only escalate when there is no active campaign that looks like a referral push,
+  // so we don't nag when one is already running.
+  const bookingCount = (bookingsRes.data ?? []).length;
+  const hasReferralCampaign = activeCampaigns.some((c: any) => /referr/i.test(String(c.name ?? "")));
+  if (bookingCount >= 3 && !hasReferralCampaign) {
+    results.push({
+      trigger_type: "gm_no_referral",
+      entity_type:  "growthmind",
+      entity_id:    "referrals",
+      entity_name:  "Referral Engine",
+      title:        `${bookingCount} booked customer${bookingCount > 1 ? "s" : ""} — no referral campaign running`,
+      description:  `You have ${bookingCount} booked customer${bookingCount > 1 ? "s" : ""} but no referral campaign in motion. Referrals are your cheapest, highest-trust lead source — launch a referral ask to turn happy customers into new pipeline.`,
+      priority:     "medium",
+      severity:     "info",
+      metadata:     { bookingCount, executive_task_type: EXECUTIVE_TASK_TYPES.REFERRAL_CAMPAIGN },
+    });
   }
 
   return results;

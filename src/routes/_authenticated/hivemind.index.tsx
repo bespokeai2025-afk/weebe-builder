@@ -13,6 +13,7 @@ import { HiveMindProviderHealth } from "@/components/hivemind/HiveMindProviderHe
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindShell";
+import { MarketingExecutiveSummary } from "@/components/hivemind/MarketingExecutiveSummary";
 import { getHiveMindBriefing, getHiveMindPlatformData } from "@/lib/hivemind/hivemind.functions";
 import { generateRecommendations } from "@/lib/hivemind/recommendations";
 import { Button } from "@/components/ui/button";
@@ -451,6 +452,9 @@ function HiveMindOverview() {
             <ArrowRight className="h-3 w-3" />
           </div>
         </Link>
+
+        {/* MARKETING — CMO ADVISORY */}
+        <MarketingExecutiveSummary />
 
         {/* CONFIGURE PANEL */}
         <div className="rounded-xl border border-white/[0.07] bg-card/50 overflow-hidden">
