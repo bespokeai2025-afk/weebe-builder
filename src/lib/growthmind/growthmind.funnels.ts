@@ -98,7 +98,7 @@ export function computeFunnelStages(data: FunnelLiveData): FunnelStage[] {
     const dropPct      = prev > 0 ? Math.round(((prev - stage.count) / prev) * 100) : 0;
     const dropColor: FunnelStage["dropColor"] =
       dropPct < 20  ? "green" :
-      dropPct < 50  ? "amber" : "red";
+      dropPct <= 50 ? "amber" : "red";
     return { ...stage, convFromPrev, dropPct, dropColor };
   });
 }

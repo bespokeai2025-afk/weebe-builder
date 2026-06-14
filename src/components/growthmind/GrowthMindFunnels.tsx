@@ -10,6 +10,7 @@ import { GrowthMindShell } from "./GrowthMindShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getGrowthMindAIResponse } from "@/lib/growthmind/growthmind.ai";
+import { getGrowthMindData } from "@/lib/growthmind/growthmind.functions";
 import {
   computeFunnelStages,
   getFunnelLiveData,
@@ -145,6 +146,7 @@ export function GrowthMindFunnels() {
 
   const qc           = useQueryClient();
   const getLiveFn    = useServerFn(getFunnelLiveData);
+  const getDataFn    = useServerFn(getGrowthMindData);
   const getSnapsFn   = useServerFn(getFunnelSnapshots);
   const saveSnapFn   = useServerFn(saveFunnelSnapshot);
   const deleteSnapFn = useServerFn(deleteFunnelSnapshot);
@@ -154,6 +156,12 @@ export function GrowthMindFunnels() {
     queryKey: ["growthmind-funnel-live"],
     queryFn:  () => getLiveFn(),
     staleTime: 60_000,
+  });
+
+  const { data: platformData } = useQuery({
+    queryKey: ["growthmind-data"],
+    queryFn:  () => getDataFn(),
+    staleTime: 120_000,
   });
 
   const { data: snapsData, isLoading: snapsLoading } = useQuery({
@@ -190,7 +198,7 @@ export function GrowthMindFunnels() {
   }
 
   async function handleAIDiagnosis() {
-    if (!biggestDrop || !liveData) return;
+    if (!biggestDrop || !platformData) return;
     setAiLoading(true);
     setAiDiagnosis(null);
     try {
@@ -203,7 +211,7 @@ export function GrowthMindFunnels() {
           role: "user",
           content: `Here is my current 6-stage marketing funnel:\n\n${funnelSummary}\n\nThe biggest drop-off is at "${biggestDrop.label}" (${biggestDrop.dropPct}% drop). In 2-3 sentences, diagnose why this might be happening and give one specific fix.`,
         }],
-        platformData: liveData as any,
+        platformData,
         personality: "professional",
       });
       setAiDiagnosis(reply);
@@ -286,7 +294,7 @@ export function GrowthMindFunnels() {
             </div>
 
             {/* AI Diagnosis */}
-            {biggestDrop && (
+            {biggestDrop && platformData && (
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-5">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
