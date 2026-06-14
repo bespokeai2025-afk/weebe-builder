@@ -107,8 +107,10 @@ export function computeWeeklyBuckets(rawData: any): WeekBucket[] {
   const since90   = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString();
 
   const leads    = (rawData.__rawLeads    ?? []) as any[];
+  // __rawSales contains sale_done leads queried by updated_at (captures
+  // conversions from leads created before the 90-day window).
+  const sales    = (rawData.__rawSales    ?? []) as any[];
   const bookings = (rawData.__rawBookings ?? []) as any[];
-  const sales    = leads.filter((l: any) => l.status === "sale_done");
 
   const NUM_WEEKS = 13;
   const buckets: WeekBucket[] = [];
@@ -124,6 +126,7 @@ export function computeWeeklyBuckets(rawData: any): WeekBucket[] {
       weekStart: s,
       leads:     leads.filter((l: any)    => l.created_at  >= s && l.created_at  < e).length,
       bookings:  bookings.filter((b: any) => b.created_at  >= s && b.created_at  < e).length,
+      // Sales bucketed by updated_at (conversion date), not created_at
       sales:     sales.filter((l: any)    => l.updated_at  >= s && l.updated_at  < e).length,
     });
   }
@@ -200,14 +203,23 @@ export const getForecastData = createServerFn({ method: "GET" })
 
     const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [leadsRes, bookingsRes, settingsRes] = await Promise.all([
+    // Leads by created_at for the new-lead metric.
+    // Sales fetched separately by updated_at so conversions from pre-window
+    // leads are captured correctly.
+    const [leadsRes, salesRes, bookingsRes, settingsRes] = await Promise.all([
       sb.from("leads")
-        .select("id, status, created_at, updated_at")
+        .select("id, created_at")
         .eq("workspace_id", workspaceId)
         .gte("created_at", since90)
         .limit(5000),
+      sb.from("leads")
+        .select("id, updated_at")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "sale_done")
+        .gte("updated_at", since90)
+        .limit(5000),
       sb.from("calendar_bookings")
-        .select("id, status, created_at")
+        .select("id, created_at")
         .eq("workspace_id", workspaceId)
         .gte("created_at", since90)
         .limit(1000),
@@ -218,14 +230,16 @@ export const getForecastData = createServerFn({ method: "GET" })
     ]);
 
     const rawLeads    = leadsRes.data    ?? [];
+    const rawSales    = salesRes.data    ?? [];
     const rawBookings = bookingsRes.data ?? [];
     const gmSettings  = (settingsRes.data?.growthmind_settings ?? {}) as Record<string, any>;
 
     return {
       __rawLeads:    rawLeads,
+      __rawSales:    rawSales,
       __rawBookings: rawBookings,
       dealValue:     Number(gmSettings.dealValue  ?? 0),
-      currency:      String(gmSettings.currency   ?? "GBP"),
+      currency:      String(gmSettings.currency   ?? "£"),
     };
   });
 

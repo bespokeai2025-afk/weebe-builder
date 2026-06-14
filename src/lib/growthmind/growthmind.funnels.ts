@@ -39,39 +39,38 @@ export const getFunnelLiveData = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    const [leadsRes, bookingsRes] = await Promise.all([
-      sb.from("leads")
-        .select("id, status")
-        .eq("workspace_id", workspaceId)
-        .limit(5000),
-      sb.from("calendar_bookings")
-        .select("id, status")
-        .eq("workspace_id", workspaceId)
-        .limit(1000),
-    ]);
+    const leadsRes = await sb
+      .from("leads")
+      .select("id, status")
+      .eq("workspace_id", workspaceId)
+      .limit(5000);
 
-    const allLeads    = leadsRes.data    ?? [];
-    const allBookings = bookingsRes.data ?? [];
+    const allLeads = leadsRes.data ?? [];
 
-    // Stage 1 & 2: Traffic / Lead — total leads entering the CRM
+    // Use cumulative "has reached AT LEAST this stage" status sets.
+    // Each set is a strict superset of the next, guaranteeing monotonic counts
+    // without any post-processing.
+
+    // Stage 1 & 2: Traffic / Lead — all leads in the CRM
     const totalLeads = allLeads.length;
 
-    // Stage 3: Qualified Lead — explicitly screened and progressed
+    // Stage 3: Qualified Lead — reached or passed the qualification stage
     const qualifiedStatuses = new Set([
       "qualified", "in_progress", "contacted",
       "callback_requested", "calling", "interested",
+      "appointment_scheduled", "sale_done",
     ]);
     const qualifiedLeads = allLeads.filter((l: any) => qualifiedStatuses.has(l.status)).length;
 
-    // Stage 4: Appointment — all bookings scheduled
-    const appointments = allBookings.length;
+    // Stage 4: Appointment — has a confirmed appointment or converted to sale
+    const appointmentStatuses = new Set(["appointment_scheduled", "sale_done"]);
+    const appointments = allLeads.filter((l: any) => appointmentStatuses.has(l.status)).length;
 
-    // Stage 5: Proposal — confirmed bookings (appointment kept; not no_show/cancelled)
-    const proposals = allBookings.filter(
-      (b: any) => b.status !== "no_show" && b.status !== "cancelled",
-    ).length;
+    // Stage 5: Proposal — reached close stage (sale_done is the only terminal
+    // status past appointment in this CRM; mirrors "proposal accepted" leads)
+    const proposals = allLeads.filter((l: any) => l.status === "sale_done").length;
 
-    // Stage 6: Sale
+    // Stage 6: Sale — confirmed closed
     const sales = allLeads.filter((l: any) => l.status === "sale_done").length;
 
     return { traffic: totalLeads, leads: totalLeads, qualifiedLeads, appointments, proposals, sales };
@@ -89,17 +88,13 @@ export function computeFunnelStages(data: FunnelLiveData): FunnelStage[] {
     { key: "sale",        label: "Sale",                  count: data.sales },
   ];
 
-  // Clamp so each stage never exceeds the one before it (monotonic funnel)
-  // Use a reduce so we always read from the already-built accumulator, not TDZ.
-  const clamped = rawStages.reduce<typeof rawStages>((acc, stage, i) => {
-    if (i === 0) { acc.push(stage); return acc; }
-    const prevCount = acc[i - 1].count;
-    acc.push({ ...stage, count: Math.min(stage.count, prevCount) });
-    return acc;
-  }, []);
+  // No artificial clamping — display real CRM-mapped counts.
+  // Stages use cumulative "has reached at least this stage" status sets to
+  // remain naturally monotonic; if data inconsistency causes a later stage
+  // to exceed an earlier one, that reflects real CRM data worth surfacing.
 
-  return clamped.map((stage, i) => {
-    const prev = i === 0 ? null : clamped[i - 1].count;
+  return rawStages.map((stage, i) => {
+    const prev = i === 0 ? null : rawStages[i - 1].count;
     if (prev === null) {
       return { ...stage, convFromPrev: null, dropPct: null, dropColor: "none" as const };
     }
