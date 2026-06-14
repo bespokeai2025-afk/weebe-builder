@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -6,7 +6,7 @@ import {
   Sparkles, CheckCircle2, Circle, DollarSign, Volume2,
   Film, Zap, Star, Clock, ChevronDown, ChevronUp,
   BarChart3, AlertCircle, Music2, Tv2, Radio, RefreshCw,
-  ExternalLink,
+  ExternalLink, Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -19,9 +19,32 @@ import {
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
   type VideoType, type QualityMode, type VideoAsset, type StoryboardScene,
 } from "@/lib/growthmind/growthmind.video-studio";
+import { listGrowthMindVoices } from "@/lib/growthmind/growthmind.ai";
 import {
   isJobPending, isJobError, parseErrorMessage, isRealVideoUrl, parseJobSentinel,
 } from "@/lib/growthmind/video-job-poller";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const LS_VOICE_KEY = "gm_video_voice_id";
+const LS_VOICE_NAME_KEY = "gm_video_voice_name";
+const DEFAULT_VOICE_ID   = "21m00Tcm4TlvDq8ikWAM";
+const DEFAULT_VOICE_NAME = "Rachel";
+
+function loadStoredVoice(): { id: string; name: string } {
+  try {
+    const id   = localStorage.getItem(LS_VOICE_KEY)   ?? DEFAULT_VOICE_ID;
+    const name = localStorage.getItem(LS_VOICE_NAME_KEY) ?? DEFAULT_VOICE_NAME;
+    return { id, name };
+  } catch { return { id: DEFAULT_VOICE_ID, name: DEFAULT_VOICE_NAME }; }
+}
+
+function saveStoredVoice(id: string, name: string) {
+  try {
+    localStorage.setItem(LS_VOICE_KEY, id);
+    localStorage.setItem(LS_VOICE_NAME_KEY, name);
+  } catch {}
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -521,10 +544,11 @@ function ScheduleModal({ asset, onClose, onScheduled }: {
 export function GrowthMindVideoStudio() {
   const qc = useQueryClient();
 
-  const generateFn   = useServerFn(generateVideo);
-  const getAssetsFn  = useServerFn(getVideoAssets);
+  const generateFn    = useServerFn(generateVideo);
+  const getAssetsFn   = useServerFn(getVideoAssets);
   const deleteAssetFn = useServerFn(deleteVideoAsset);
-  const retryFn      = useServerFn(retryVideoJob);
+  const retryFn       = useServerFn(retryVideoJob);
+  const voicesFn      = useServerFn(listGrowthMindVoices);
 
   const [videoType, setVideoType]     = useState<VideoType>("explainer_video");
   const [qualityMode, setQualityMode] = useState<QualityMode>("fast");
@@ -533,8 +557,32 @@ export function GrowthMindVideoStudio() {
   const [tone, setTone]               = useState("professional");
   const [cta, setCta]                 = useState("");
 
+  const [voiceId, setVoiceId]     = useState(DEFAULT_VOICE_ID);
+  const [voiceName, setVoiceName] = useState(DEFAULT_VOICE_NAME);
+  const [voices, setVoices]       = useState<{ id: string; name: string; category: string }[]>([]);
+
   const [step, setStep]   = useState<GenerationStep>("idle");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const stored = loadStoredVoice();
+    setVoiceId(stored.id);
+    setVoiceName(stored.name);
+    voicesFn().then(r => {
+      if (r.voices?.length) {
+        setVoices(r.voices);
+        setVoiceId(prev => {
+          if (prev === DEFAULT_VOICE_ID) {
+            const first = r.voices[0];
+            setVoiceName(first.name);
+            saveStoredVoice(first.id, first.name);
+            return first.id;
+          }
+          return prev;
+        });
+      }
+    }).catch(() => {});
+  }, []);
 
   const [lastResult, setLastResult] = useState<{
     title:         string;
@@ -572,7 +620,7 @@ export function GrowthMindVideoStudio() {
         offer,
         tone,
         cta,
-        voiceId: "21m00Tcm4TlvDq8ikWAM",
+        voiceId,
       }});
       setStep("saving");
       setLastResult({
@@ -660,6 +708,46 @@ export function GrowthMindVideoStudio() {
                 })}
               </div>
             </div>
+
+            {/* Voice picker — shown for balanced / premium modes */}
+            {qualityMode !== "fast" && (
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold flex items-center gap-1.5">
+                  <Mic className="h-3 w-3 text-sky-400" />
+                  Voiceover Voice
+                  {voiceName && (
+                    <span className="ml-auto text-[10px] text-sky-400 font-medium normal-case tracking-normal">{voiceName}</span>
+                  )}
+                </p>
+                {voices.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground/60 italic">
+                    Add an ElevenLabs API key in Settings → Integrations to unlock voice selection
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                    {voices.map(v => (
+                      <button
+                        key={v.id}
+                        onClick={() => {
+                          setVoiceId(v.id);
+                          setVoiceName(v.name);
+                          saveStoredVoice(v.id, v.name);
+                        }}
+                        className={cn(
+                          "text-left px-2.5 py-1.5 rounded-lg border text-xs transition-all",
+                          voiceId === v.id
+                            ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
+                            : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.12]",
+                        )}
+                      >
+                        <p className="font-medium truncate">{v.name}</p>
+                        <p className="text-[10px] opacity-60 capitalize">{v.category}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Video type picker */}
             <div className="space-y-2">
