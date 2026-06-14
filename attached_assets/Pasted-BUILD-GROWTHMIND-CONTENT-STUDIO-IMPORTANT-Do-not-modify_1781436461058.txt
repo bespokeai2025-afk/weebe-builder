@@ -1,0 +1,390 @@
+BUILD GROWTHMIND CONTENT STUDIO
+
+IMPORTANT
+
+Do not modify Builder.
+
+Do not modify HiveMind.
+
+Do not modify HyperStream.
+
+Do not modify Retell.
+
+Do not modify CRM.
+
+Do not modify WhatsApp Centre.
+
+Do not modify HexMail.
+
+Extend the platform safely.
+
+OBJECTIVE
+
+Create a world-class AI Content Studio inside GrowthMind.
+
+This is not a simple AI writer.
+
+This is a complete marketing content creation centre that uses:
+
+* GrowthMind Knowledge Base
+* Company Information
+* Website Information
+* Services
+* Target Audience
+* Competitor Data
+* SEO Keywords
+* Marketing Strategy
+
+to create highly relevant marketing content.
+
+====================================================
+
+CREATE NEW ROUTE
+
+/growthmind/content-studio
+
+====================================================
+
+CREATE DATABASE TABLES
+
+growthmind_content_assets
+
+growthmind_content_folders
+
+growthmind_content_templates
+
+growthmind_content_generations
+
+growthmind_content_campaign_links
+
+All workspace scoped.
+
+====================================================
+
+CONTENT TYPES
+
+Support:
+
+Blog Article
+
+Landing Page
+
+Google Ad
+
+Meta Ad
+
+LinkedIn Post
+
+Facebook Post
+
+Instagram Caption
+
+X Post
+
+Email Campaign
+
+WhatsApp Campaign
+
+Lead Magnet
+
+Case Study
+
+Video Script
+
+VSL Script
+
+Podcast Script
+
+AI Call Script
+
+Follow-Up Sequence
+
+Review Request Campaign
+
+Referral Campaign
+
+Sales Letter
+
+====================================================
+
+CONTENT GENERATION PANEL
+
+Inputs:
+
+Business Type
+
+Target Audience
+
+Offer
+
+Goal
+
+Keyword
+
+Location
+
+Platform
+
+Tone Of Voice
+
+Call To Action
+
+Campaign Type
+
+Length
+
+GrowthMind should automatically use:
+
+Company Knowledge Base
+
+GrowthMind Knowledge Base
+
+Target Keywords
+
+Website Information
+
+Competitor Information
+
+Marketing Strategy
+
+====================================================
+
+AI CONTENT WORKFLOWS
+
+Examples:
+
+Generate Blog
+
+Generate Landing Page
+
+Generate Email Sequence
+
+Generate WhatsApp Sequence
+
+Generate Social Campaign
+
+Generate Google Ad Campaign
+
+Generate Meta Ad Campaign
+
+Generate Lead Magnet
+
+Generate AI Calling Script
+
+====================================================
+
+SEO INTEGRATION
+
+When generating content:
+
+GrowthMind should recommend:
+
+Primary Keyword
+
+Secondary Keywords
+
+Suggested Meta Title
+
+Suggested Meta Description
+
+Suggested Headings
+
+Suggested Internal Links
+
+SEO Score
+
+====================================================
+
+CONTENT LIBRARY
+
+Create folders:
+
+Blogs
+
+Ads
+
+Emails
+
+WhatsApp
+
+Landing Pages
+
+Social
+
+Videos
+
+Scripts
+
+Lead Magnets
+
+Allow:
+
+Save
+
+Duplicate
+
+Archive
+
+Delete
+
+Favourite
+
+====================================================
+
+CAMPAIGN LINKING
+
+Allow generated content to be linked directly into:
+
+HexMail Campaigns
+
+WhatsApp Campaigns
+
+Follow-Up Campaigns
+
+AI Calling Campaigns
+
+Future Ad Campaigns
+
+====================================================
+
+CONTENT CALENDAR
+
+Create content scheduling view.
+
+Display:
+
+Day
+
+Week
+
+Month
+
+Scheduled Content
+
+Content Type
+
+Target Platform
+
+Status
+
+====================================================
+
+GROWTHMIND RECOMMENDATIONS
+
+After content generation:
+
+GrowthMind should suggest:
+
+Related Blog Posts
+
+Related Ads
+
+Related Emails
+
+Related WhatsApp Sequences
+
+Related Follow-Up Campaigns
+
+====================================================
+
+PLAYBOOK INTEGRATION
+
+If industry playbooks exist:
+
+GrowthMind should automatically use them.
+
+Example:
+
+Real Estate
+
+Mortgage
+
+Recruitment
+
+Solar
+
+Insurance
+
+Dental
+
+Legal
+
+SaaS
+
+Agency
+
+====================================================
+
+REPORTING
+
+Track:
+
+Content Created
+
+Content Type
+
+Content Usage
+
+Campaign Usage
+
+Conversion Attribution
+
+====================================================
+
+FUTURE READY
+
+Design architecture for future:
+
+Google Ads Publishing
+
+Meta Publishing
+
+LinkedIn Publishing
+
+Social Scheduling
+
+SEO Auditing
+
+Content Performance Tracking
+
+====================================================
+
+SUCCESS CRITERIA
+
+GrowthMind Content Studio becomes a complete AI marketing content engine.
+
+A user should be able to generate:
+
+Blogs
+
+Ads
+
+Emails
+
+WhatsApp Campaigns
+
+Landing Pages
+
+Sales Content
+
+Video Scripts
+
+AI Calling Scripts
+
+from one central location using company knowledge, keywords, competitors and strategy data.
+
+Generate implementation plan first.
+
+Identify:
+
+Routes
+
+Components
+
+Database changes
+
+Services
+
+AI generation flows
+
+Then implement safely.

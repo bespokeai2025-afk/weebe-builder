@@ -883,7 +883,7 @@ function GscConnectionPanel({
   connecting,
   siteUrl,
 }: {
-  gscStatus:    { configured: boolean; connected: boolean; propertyUrl: string | null } | undefined;
+  gscStatus:    { configured: boolean; connected: boolean; propertyUrl: string | null; autoMatched?: boolean } | undefined;
   gscLoading:   boolean;
   onConnect:    () => void;
   onDisconnect: () => void;
@@ -924,7 +924,7 @@ function GscConnectionPanel({
 
   async function saveProperty() {
     if (!selectedProp) return;
-    await savePropFn({ propertyUrl: selectedProp });
+    await savePropFn({ propertyUrl: selectedProp, autoMatched: false });
     qc.invalidateQueries({ queryKey: ["gsc-status"] });
     setShowPropertyPicker(false);
   }
@@ -973,6 +973,15 @@ function GscConnectionPanel({
         <div className="flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/[0.05] px-2.5 py-1.5">
           <BarChart2 className="h-3 w-3 text-blue-400 shrink-0" />
           <span className="text-xs text-blue-300 font-medium max-w-[200px] truncate">{gscStatus.propertyUrl}</span>
+          {gscStatus.autoMatched && (
+            <span
+              title="This property was matched automatically from your site URL. Click the edit icon to change it."
+              className="flex items-center gap-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400 select-none"
+            >
+              <Check className="h-2.5 w-2.5" />
+              Auto-matched
+            </span>
+          )}
           <button
             onClick={openPropertyPicker}
             className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
@@ -1227,7 +1236,7 @@ export function GrowthMindSEO() {
           if (savedUrl && propsRes.sites.length > 0) {
             const match = findBestGscMatch(savedUrl, propsRes.sites);
             if (match) {
-              await savePropFn({ propertyUrl: match });
+              await savePropFn({ propertyUrl: match, autoMatched: true });
               flashMsg("Google Search Console connected & property matched!");
             } else {
               flashMsg("Google Search Console connected!");

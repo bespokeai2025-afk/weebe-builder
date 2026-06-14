@@ -218,7 +218,7 @@ export const getGscStatus = createServerFn({ method: "GET" })
 
     const { data } = await sb
       .from("workspace_settings")
-      .select("gsc_access_token, gsc_property_url, gsc_token_expiry")
+      .select("gsc_access_token, gsc_property_url, gsc_token_expiry, gsc_auto_matched")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
@@ -228,7 +228,8 @@ export const getGscStatus = createServerFn({ method: "GET" })
     return {
       configured,
       connected,
-      propertyUrl: (data?.gsc_property_url as string | null) ?? null,
+      propertyUrl:  (data?.gsc_property_url  as string  | null)  ?? null,
+      autoMatched:  (data?.gsc_auto_matched   as boolean | null)  ?? false,
     };
   });
 
@@ -335,7 +336,10 @@ export const disconnectGsc = createServerFn({ method: "POST" })
 export const saveGscProperty = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ propertyUrl: z.string() }).parse(input)
+    z.object({
+      propertyUrl:  z.string(),
+      autoMatched:  z.boolean().default(false),
+    }).parse(input)
   )
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
@@ -347,6 +351,7 @@ export const saveGscProperty = createServerFn({ method: "POST" })
       .upsert({
         workspace_id:     workspaceId,
         gsc_property_url: data.propertyUrl,
+        gsc_auto_matched: data.autoMatched,
       }, { onConflict: "workspace_id" });
 
     if (error) throw new Error(error.message);
