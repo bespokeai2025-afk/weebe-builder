@@ -6,14 +6,23 @@ import { withProviderTracking, withProviderFallback } from "@/lib/providers/inst
 
 export type VoiceProviderName = "retell" | "openai" | "elevenlabs" | "claude" | "gemini";
 
-export function createVoiceProvider(name: VoiceProviderName): VoiceProvider {
+/**
+ * Per-provider credential overrides. When supplied, the adapter uses these
+ * instead of falling back to process.env, enabling workspace-level credential
+ * isolation from provider_settings.
+ */
+export interface VoiceCreds {
+  apiKey?: string;
+}
+
+export function createVoiceProvider(name: VoiceProviderName, creds?: VoiceCreds): VoiceProvider {
   switch (name) {
     case "retell":
-      return new RetellVoiceAdapter();
+      return new RetellVoiceAdapter(creds?.apiKey);
     case "openai":
-      return new OpenAIVoiceAdapter();
+      return new OpenAIVoiceAdapter(creds?.apiKey);
     case "elevenlabs":
-      return new ElevenLabsVoiceAdapter();
+      return new ElevenLabsVoiceAdapter(creds?.apiKey);
     case "claude":
     case "gemini":
       throw new Error(`Voice provider "${name}" is coming soon. Watch the HiveMind System Health page for availability.`);
@@ -25,12 +34,14 @@ export function createVoiceProvider(name: VoiceProviderName): VoiceProvider {
 /**
  * Returns a VoiceProvider instrumented with usage tracking via withProviderTracking.
  * Records each createSession attempt (duration, error status) to provider_usage.
+ * Pass `creds` to inject workspace-specific API keys from provider_settings.
  */
 export function createInstrumentedVoiceProvider(
   name: VoiceProviderName,
   workspaceId: string,
+  creds?: VoiceCreds,
 ): VoiceProvider {
-  const inner = createVoiceProvider(name);
+  const inner = createVoiceProvider(name, creds);
 
   return {
     name: inner.name,
@@ -51,14 +62,17 @@ export function createInstrumentedVoiceProvider(
  * Creates a VoiceProvider that automatically falls back to `fallbackName`
  * if the primary provider's `createSession` call throws.
  * Both primary and fallback are independently instrumented for usage tracking.
+ * Pass `primaryCreds` / `fallbackCreds` to supply workspace-specific keys.
  */
 export function createVoiceProviderWithFallback(
   primaryName: VoiceProviderName,
   fallbackName: VoiceProviderName | null,
   workspaceId: string,
+  primaryCreds?: VoiceCreds,
+  fallbackCreds?: VoiceCreds,
 ): VoiceProvider {
-  const primary  = createInstrumentedVoiceProvider(primaryName, workspaceId);
-  const fallback = fallbackName ? createInstrumentedVoiceProvider(fallbackName, workspaceId) : null;
+  const primary  = createInstrumentedVoiceProvider(primaryName, workspaceId, primaryCreds);
+  const fallback = fallbackName ? createInstrumentedVoiceProvider(fallbackName, workspaceId, fallbackCreds) : null;
 
   return {
     name: primary.name,

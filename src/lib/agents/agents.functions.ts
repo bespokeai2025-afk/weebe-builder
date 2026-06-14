@@ -831,8 +831,30 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase } = context;
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY is not configured on this server");
+    // Resolve the workspace ID first so we can look up per-workspace credentials.
+    const workspaceId = context.workspaceId ?? "";
+
+    // Prefer a workspace-specific OpenAI key from provider_settings (enables
+    // per-client credential isolation so the connection test and runtime call
+    // always use the same key).  Fall back to the platform OPENAI_API_KEY for
+    // workspaces that haven't configured a custom key yet.
+    const { data: voiceSetting } = await (supabase as any)
+      .from("provider_settings")
+      .select("credentials")
+      .eq("workspace_id", workspaceId)
+      .eq("provider_category", "voice")
+      .eq("provider_name", "openai")
+      .eq("status", "connected")
+      .maybeSingle();
+    const wsApiKey: string | undefined =
+      (voiceSetting as any)?.credentials?.apiKey || undefined;
+    const platformKey = process.env.OPENAI_API_KEY;
+    if (!wsApiKey && !platformKey) {
+      throw new Error(
+        "OpenAI API key not configured. Set OPENAI_API_KEY on the server or add a workspace key in Settings → Providers.",
+      );
+    }
+    const resolvedApiKey = wsApiKey || platformKey!;
 
     // Load the agent row to get the compiled openaiSchema and flow.
     const { data: agent, error } = await supabase
@@ -870,12 +892,15 @@ export const createOpenAIRealtimeSession = createServerFn({ method: "POST" })
     const model = "gpt-realtime";
     const voice = schema.voice ?? "alloy";
 
-    // Route voice session creation through the provider framework for cost tracking
-    // and provider health observability.  No fallback is configured here because
-    // an ElevenLabs session requires an agent-specific agentId that is not
-    // available in this context; if primary fails the error surfaces immediately.
-    const workspaceId = context.workspaceId ?? "";
-    const voiceProvider = createVoiceProviderWithFallback("openai", null, workspaceId);
+    // Route voice session creation through the provider framework.
+    // Injects the resolved API key so the adapter uses the same credential that
+    // was validated during the "Test Connection" flow in Settings → Providers.
+    const voiceProvider = createVoiceProviderWithFallback(
+      "openai",
+      null,
+      workspaceId,
+      { apiKey: resolvedApiKey },
+    );
     const sessionResult = await voiceProvider.createSession({
       agentRowId: data.agentRowId,
       compiledPrompt: instructions,
