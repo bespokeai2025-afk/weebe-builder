@@ -20,6 +20,8 @@ import { GoogleAnalyticsAdapter } from "./analytics/adapters/google-analytics.ad
 import { GoogleAdsAdapter } from "./advertising/adapters/google-ads.adapter";
 import { MetaAdsAdapter } from "./advertising/adapters/meta-ads.adapter";
 import { TwilioWhatsAppAdapter } from "./whatsapp/adapters/twilio.adapter";
+import { HubSpotAdapter } from "@/lib/crm/hubspot.adapter";
+import { GoHighLevelAdapter } from "@/lib/crm/gohighlevel.adapter";
 import { upsertProviderSetting } from "./usage.server";
 
 export interface HealthCheckResult {
@@ -234,22 +236,13 @@ async function dispatchHealthCheck(
     case "crm:hubspot": {
       const key = str(stored.apiKey) || str(ws.hubspot_api_key);
       if (!key) return false;
-      try {
-        const resp = await fetch("https://api.hubapi.com/crm/v3/objects/contacts?limit=1", {
-          headers: { Authorization: `Bearer ${key}` },
-        });
-        return resp.ok;
-      } catch { return false; }
+      return new HubSpotAdapter(key).healthCheck();
     }
     case "crm:gohighlevel": {
-      const key = str(stored.apiKey) || str(ws.ghl_api_key);
+      const key        = str(stored.apiKey)    || str(ws.ghl_api_key);
+      const locationId = str(stored.locationId) || "";
       if (!key) return false;
-      try {
-        const resp = await fetch("https://services.leadconnectorhq.com/locations/", {
-          headers: { Authorization: `Bearer ${key}`, Version: "2021-07-28" },
-        });
-        return resp.ok;
-      } catch { return false; }
+      return new GoHighLevelAdapter(key, locationId).healthCheck();
     }
 
     // ── Telephony ──────────────────────────────────────────────────────────────
@@ -311,7 +304,13 @@ async function dispatchHealthCheck(
 // ── Bulk health sweep ─────────────────────────────────────────────────────────
 
 /**
- * Run health checks for all non-coming_soon providers for a workspace.
+ * Run health checks for all configured providers for a workspace.
+ * Covers both providers with explicit `provider_settings` rows AND providers
+ * configured only via legacy `workspace_settings` columns (e.g. voice:retell,
+ * email:resend, crm:hubspot). This guarantees the sweep never silently skips
+ * a connected provider just because the `provider_settings` migration hasn't
+ * been applied or the credential was saved via the old settings path.
+ *
  * Persists results to provider_settings.status.
  * Called by the Refresh button and the 15-min scheduled sweep.
  */
@@ -322,8 +321,8 @@ export async function runAllProviderHealthChecks(workspaceId: string): Promise<{
 }> {
   const sb = supabaseAdmin as any;
 
-  // Load DB settings to know which providers are configured (not coming_soon)
-  let dbSettings: Array<{ provider_category: string; provider_name: string; status: string }> = [];
+  // 1. Explicit provider_settings rows
+  let dbSettings: Array<{ provider_category: string; provider_name: string }> = [];
   try {
     const { data } = await sb
       .from("provider_settings")
@@ -333,22 +332,53 @@ export async function runAllProviderHealthChecks(workspaceId: string): Promise<{
     dbSettings = data ?? [];
   } catch { /* table may not exist yet */ }
 
+  // 2. Legacy workspace_settings — providers configured via old single-column path
+  const dbSet = new Set(dbSettings.map(r => `${r.provider_category}:${r.provider_name}`));
+  try {
+    const { data: ws } = await sb
+      .from("workspace_settings")
+      .select("retell_workspace_id, elevenlabs_api_key, openai_api_key, calcom_api_key, twilio_account_sid, twilio_auth_token, hubspot_api_key, ghl_api_key, resend_api_key")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (ws) {
+      // Map legacy columns to provider keys; add only if not already in dbSettings
+      const legacyCandidates: Array<[string, string, boolean]> = [
+        ["voice",     "retell",      !!(ws.retell_workspace_id)],
+        ["voice",     "elevenlabs",  !!(ws.elevenlabs_api_key)],
+        ["voice",     "openai",      !!(ws.openai_api_key)],
+        ["email",     "resend",      !!(ws.resend_api_key)],
+        ["calendar",  "calcom",      !!(ws.calcom_api_key)],
+        ["telephony", "twilio",      !!(ws.twilio_account_sid && ws.twilio_auth_token)],
+        ["whatsapp",  "twilio",      !!(ws.twilio_account_sid && ws.twilio_auth_token)],
+        ["crm",       "hubspot",     !!(ws.hubspot_api_key)],
+        ["crm",       "gohighlevel", !!(ws.ghl_api_key)],
+        ["image",     "gpt_image",   !!(ws.openai_api_key)],
+        ["llm",       "openai",      !!(ws.openai_api_key)],
+      ];
+      for (const [cat, name, isConfigured] of legacyCandidates) {
+        if (isConfigured && !dbSet.has(`${cat}:${name}`)) {
+          dbSettings.push({ provider_category: cat, provider_name: name });
+          dbSet.add(`${cat}:${name}`);
+        }
+      }
+    }
+  } catch { /* workspace_settings may not exist */ }
+
   if (dbSettings.length === 0) return { checked: 0, passed: 0, failed: 0 };
 
   let passed = 0;
   let failed = 0;
 
-  await Promise.allSettled(
-    dbSettings.map(async ({ provider_category, provider_name }) => {
-      try {
-        const result = await runProviderHealthCheck(workspaceId, provider_category, provider_name);
-        if (result.ok) passed++;
-        else failed++;
-      } catch {
-        failed++;
-      }
-    }),
+  const results = await Promise.allSettled(
+    dbSettings.map(({ provider_category, provider_name }) =>
+      runProviderHealthCheck(workspaceId, provider_category, provider_name),
+    ),
   );
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value.ok) passed++;
+    else failed++;
+  }
 
   return { checked: dbSettings.length, passed, failed };
 }
@@ -365,15 +395,27 @@ export async function runAllWorkspacesHealthChecks(): Promise<{
 }> {
   const sb = supabaseAdmin as any;
 
-  let workspaceIds: string[] = [];
+  // Discover workspaces from BOTH provider_settings rows AND from legacy
+  // workspace_settings columns so no configured workspace is silently skipped.
+  const wsIdSet = new Set<string>();
   try {
-    const { data: rows } = await sb
+    const { data: psRows } = await sb
       .from("provider_settings")
       .select("workspace_id")
       .not("status", "eq", "coming_soon");
-    workspaceIds = [...new Set<string>((rows ?? []).map((r: any) => r.workspace_id))];
-  } catch { return { workspaces: 0, checked: 0, passed: 0, failed: 0 }; }
+    for (const r of psRows ?? []) wsIdSet.add(r.workspace_id);
+  } catch { /* table may not exist */ }
 
+  try {
+    // Include workspaces that have at least one legacy credential column set
+    const { data: wsRows } = await sb
+      .from("workspace_settings")
+      .select("workspace_id, retell_workspace_id, elevenlabs_api_key, openai_api_key, calcom_api_key, twilio_account_sid, hubspot_api_key, ghl_api_key, resend_api_key")
+      .or("retell_workspace_id.not.is.null,elevenlabs_api_key.not.is.null,openai_api_key.not.is.null,calcom_api_key.not.is.null,twilio_account_sid.not.is.null,hubspot_api_key.not.is.null,ghl_api_key.not.is.null,resend_api_key.not.is.null");
+    for (const r of wsRows ?? []) wsIdSet.add(r.workspace_id);
+  } catch { /* workspace_settings may not exist */ }
+
+  const workspaceIds = [...wsIdSet];
   if (workspaceIds.length === 0) return { workspaces: 0, checked: 0, passed: 0, failed: 0 };
 
   let totalChecked = 0;

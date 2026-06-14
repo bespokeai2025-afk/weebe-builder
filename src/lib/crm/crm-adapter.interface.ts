@@ -19,4 +19,5 @@ export interface CrmAdapter {
   name: string;
   upsertContact(contact: CrmContactInput): Promise<void>;
   logCallActivity(activity: CrmCallActivityInput): Promise<void>;
+  healthCheck(): Promise<boolean>;
 }

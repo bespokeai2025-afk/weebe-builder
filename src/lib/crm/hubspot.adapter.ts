@@ -117,6 +117,10 @@ export class HubSpotAdapter implements CrmAdapter {
     });
     await this.checkResponse(callRes, "call activity create");
   }
+
+  async healthCheck(): Promise<boolean> {
+    return validateHubSpotKey(this.apiKey);
+  }
 }
 
 export async function validateHubSpotKey(apiKey: string): Promise<boolean> {

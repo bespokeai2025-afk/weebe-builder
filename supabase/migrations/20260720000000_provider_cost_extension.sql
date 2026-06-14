@@ -35,9 +35,9 @@ SELECT
   r.notes
 FROM workspaces w
 CROSS JOIN (VALUES
-  -- Email
-  ('email',       'resend',             'email',          0.0000008,   'Resend: $0.80 per 1K emails'),
-  ('email',       'sendgrid',           'email',          0.0000006,   'SendGrid Essentials: $0.60 per 1K emails'),
+  -- Email ($0.0008 per email = $0.80 per 1K; $0.0006 per email = $0.60 per 1K)
+  ('email',       'resend',             'email',          0.0008,      'Resend: $0.80 per 1K emails'),
+  ('email',       'sendgrid',           'email',          0.0006,      'SendGrid Essentials: $0.60 per 1K emails'),
   -- Image
   ('image',       'gpt_image',          'image',          0.04,        'DALL-E 3 standard 1024x1024'),
   ('image',       'imagen',             'image',          0.02,        'Imagen 3 est. $0.02/image'),

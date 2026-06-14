@@ -97,6 +97,10 @@ export class GoHighLevelAdapter implements CrmAdapter {
     });
     await this.checkResponse(noteRes, "call note create");
   }
+
+  async healthCheck(): Promise<boolean> {
+    return validateGhlKey(this.apiKey, this.locationId);
+  }
 }
 
 export async function validateGhlKey(apiKey: string, locationId: string): Promise<boolean> {
