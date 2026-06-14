@@ -298,35 +298,81 @@ export function HiveMindOrb() {
 
       {/* The orb button */}
       <div className="relative flex items-center justify-center">
-        <OrbRings speaking={speaking} />
+
+        {/* ── Starburst layers — only visible when speaking ── */}
+        {speaking && (
+          <>
+            {/* Fast spinning rays */}
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                width: 140, height: 140,
+                background: "repeating-conic-gradient(from 0deg, rgba(0,190,255,0.55) 0deg 2deg, transparent 2deg 12deg)",
+                animation: "hm-ray-spin 2.4s linear infinite",
+                maskImage: "radial-gradient(circle, transparent 28%, black 50%, transparent 100%)",
+                WebkitMaskImage: "radial-gradient(circle, transparent 28%, black 50%, transparent 100%)",
+              }}
+            />
+            {/* Slower counter-rotating rays — offset for depth */}
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                width: 160, height: 160,
+                background: "repeating-conic-gradient(from 6deg, rgba(0,140,255,0.35) 0deg 1.5deg, transparent 1.5deg 14deg)",
+                animation: "hm-ray-spin-slow 3.8s linear infinite",
+                maskImage: "radial-gradient(circle, transparent 30%, black 52%, transparent 100%)",
+                WebkitMaskImage: "radial-gradient(circle, transparent 30%, black 52%, transparent 100%)",
+              }}
+            />
+            {/* Soft core glow */}
+            <div
+              className="absolute rounded-full pointer-events-none"
+              style={{
+                width: 90, height: 90,
+                background: "radial-gradient(circle, rgba(100,210,255,0.35) 0%, rgba(0,120,255,0.15) 50%, transparent 100%)",
+                animation: "hm-glow-pulse 1.1s ease-in-out infinite",
+              }}
+            />
+          </>
+        )}
 
         <button
           onClick={() => setOpen(o => !o)}
           aria-label="Open HiveMind assistant"
           className={cn(
-            "relative flex h-14 w-14 items-center justify-center rounded-full transition-all duration-300",
-            "bg-gradient-to-br from-violet-600 via-violet-500 to-indigo-600",
-            "shadow-[0_4px_24px_rgba(139,92,246,0.5)]",
-            "hover:shadow-[0_4px_32px_rgba(139,92,246,0.7)] hover:scale-105",
-            open && "scale-105 shadow-[0_4px_32px_rgba(139,92,246,0.7)]",
+            "relative flex h-14 w-14 items-center justify-center rounded-full transition-all duration-500",
+            "hover:scale-105",
           )}
+          style={{
+            background: "radial-gradient(circle at 35% 35%, #0a1a4a, #020b2a)",
+            animation: speaking ? "hm-orb-breathe 1.2s ease-in-out infinite" : undefined,
+            boxShadow: speaking
+              ? undefined
+              : open
+                ? "0 0 24px 8px rgba(0,140,255,0.45), 0 0 50px 16px rgba(0,80,200,0.2)"
+                : "0 0 14px 4px rgba(0,120,255,0.3), 0 2px 16px rgba(0,0,0,0.5)",
+          }}
         >
-          {/* Inner hexagonal backdrop */}
-          <div className="absolute inset-2 rounded-full bg-gradient-to-br from-white/20 to-transparent" />
-          {/* Subtle inner ring */}
-          <div className="absolute inset-1 rounded-full ring-1 ring-white/20" />
-          {/* Icon */}
-          <HoneycombIcon className={cn(
-            "relative h-6 w-6 text-white transition-all duration-300",
-            speaking && "scale-110",
-          )} />
+          {/* Outer ring */}
+          <div className="absolute inset-0 rounded-full ring-1 ring-cyan-400/30" />
+          {/* Inner glow ring */}
+          <div className="absolute inset-[3px] rounded-full ring-1 ring-white/10" />
+          {/* Logo image */}
+          <img
+            src="/hivemind-logo.png"
+            alt="HiveMind"
+            className={cn(
+              "relative h-10 w-10 object-contain transition-all duration-300",
+              speaking ? "scale-105 brightness-125" : "brightness-100",
+            )}
+          />
           {/* Speaking dot indicator */}
           {speaking && (
-            <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-[hsl(var(--card))]" />
+            <span className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-cyan-400 ring-2 ring-[hsl(var(--card))] animate-pulse" />
           )}
         </button>
 
-        {/* "Go full screen" hint label — appears beside orb when chat is open */}
+        {/* "Go full screen" hint label */}
         {open && (
           <a
             href="/hivemind/chat"

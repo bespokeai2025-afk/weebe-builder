@@ -608,3 +608,21 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
 }
+
+/* ── HiveMind Orb animations ─────────────────────────────────────────────── */
+@keyframes hm-ray-spin {
+  from { transform: rotate(0deg);   opacity: 0.85; }
+  to   { transform: rotate(360deg); opacity: 0.55; }
+}
+@keyframes hm-ray-spin-slow {
+  from { transform: rotate(0deg);   opacity: 0.5; }
+  to   { transform: rotate(-360deg); opacity: 0.3; }
+}
+@keyframes hm-glow-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1);    }
+  50%       { opacity: 1;   transform: scale(1.08); }
+}
+@keyframes hm-orb-breathe {
+  0%, 100% { box-shadow: 0 0 18px 6px rgba(0,170,255,0.45), 0 0 40px 12px rgba(0,100,220,0.2); }
+  50%       { box-shadow: 0 0 32px 14px rgba(0,200,255,0.75), 0 0 70px 24px rgba(0,120,255,0.35); }
+}
