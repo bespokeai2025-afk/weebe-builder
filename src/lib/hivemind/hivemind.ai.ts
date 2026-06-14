@@ -14,7 +14,7 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-  const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs] = await Promise.all([
+  const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs] = await Promise.all([
     sb.from("agents").select("id,name,retell_agent_id,inbound_phone_number,settings").eq("workspace_id", workspaceId),
     sb.from("calls").select("id,agent_id,call_successful,duration_seconds,call_type,started_at").eq("workspace_id", workspaceId).gte("started_at", s60.toISOString()).limit(1000),
     sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(3000),
@@ -29,6 +29,7 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
     Promise.resolve(sb.from("hivemind_tasks").select("status,title,priority").eq("workspace_id", workspaceId).neq("status","completed").limit(50)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("hivemind_actions").select("status,title,action_type,created_at").eq("workspace_id", workspaceId).eq("status","pending").limit(20)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("knowledge_bases").select("id,name").eq("workspace_id", workspaceId).limit(20)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_recommendations").select("category,priority,problem,fix").eq("workspace_id", workspaceId).eq("is_dismissed", false).order("created_at", { ascending: false }).limit(5)).catch(() => ({ data: [] })),
   ]);
 
   if (le.error)   console.error("[HiveMind] leads query error:",   le.error.message);
@@ -50,7 +51,8 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const docsArr  = docs.data  ?? [];
   const tasksArr = tasks.data ?? [];
   const actionsArr = actions.data ?? [];
-  const kbsArr   = kbs.data   ?? [];
+  const kbsArr     = kbs.data   ?? [];
+  const gmRecsArr  = gmRecs.data ?? [];
 
   const todayStr     = todayStart.toISOString();
   const weekStr      = weekStart.toISOString();
@@ -199,6 +201,50 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
       items: actionsArr.slice(0, 6).map((a: any) => ({ title: a.title, type: a.action_type })),
     },
     systemHealth,
+    growthMind: (() => {
+      const gmLeads        = le.data ?? [];
+      const gmCalls        = ca.data ?? [];
+      const gmBookings     = bo.data ?? [];
+      const gmCamps        = cp.data ?? [];
+      const totalLeads     = gmLeads.length;
+      const saleLeads      = gmLeads.filter((l: any) => l.status === "sale_done").length;
+      const activeLeads    = gmLeads.filter((l: any) => !["sale_done","do_not_call","not_interested"].includes(l.status)).length;
+      const conversionRate = totalLeads > 0 ? Math.round((saleLeads / totalLeads) * 100) : 0;
+      const succCalls2     = gmCalls.filter((c: any) => c.call_successful).length;
+      const callSuccessRate= gmCalls.length > 0 ? Math.round((succCalls2 / gmCalls.length) * 100) : 0;
+      const totalBookings  = gmBookings.length;
+      const bookingRate    = totalLeads > 0 ? Math.round((totalBookings / totalLeads) * 100) : 0;
+      const activeCampaigns= gmCamps.filter((c: any) => ["running","active"].includes(c.status ?? "")).length;
+      let sc = 0;
+      if (totalLeads > 0)        sc += 15;
+      if (conversionRate >= 5)   sc += 20;
+      if (callSuccessRate >= 40) sc += 15;
+      if (bookingRate >= 5)      sc += 15;
+      if (activeCampaigns >= 1)  sc += 15;
+      if (totalBookings > 0)     sc += 10;
+      if (activeLeads > 0)       sc += 10;
+      const qualEst = Math.round(activeLeads * 0.4);
+      const funnelDropBiggest =
+        totalLeads > 0 && qualEst / Math.max(1, totalLeads) < 0.3
+          ? "Traffic → Qualified (most leads not progressing)"
+          : totalBookings < saleLeads * 2
+            ? "Qualified → Appointment (low booking rate)"
+            : "Appointment → Sale";
+      return {
+        marketingReadinessScore: Math.min(100, sc),
+        callSuccessRate,
+        conversionRate,
+        bookingRate,
+        activeCampaigns,
+        totalLeads,
+        activeLeads,
+        saleLeads,
+        funnelDropBiggest,
+        topRecommendations: gmRecsArr.map((r: any) => ({
+          priority: r.priority, problem: r.problem, fix: r.fix,
+        })),
+      };
+    })(),
   };
 }
 
@@ -298,6 +344,21 @@ function buildPlatformContext(d: any): string {
   const connected = Object.entries(health).filter(([, v]) => v).map(([k]) => k);
   const missing   = Object.entries(health).filter(([, v]) => !v).map(([k]) => k);
   lines.push(`\nSYSTEM: Connected — ${connected.join(", ") || "nothing"}${missing.length ? ` | NOT connected — ${missing.join(", ")}` : ""}`);
+
+  // GROWTHMIND EXECUTIVE SUMMARY (injected from marketing intelligence engine)
+  if (d.growthMind) {
+    const gm = d.growthMind;
+    lines.push(`\nGROWTHMIND MARKETING INTELLIGENCE:`);
+    lines.push(`  Marketing Readiness Score: ${gm.marketingReadinessScore}/100 | Conversion: ${gm.conversionRate}% | Call success: ${gm.callSuccessRate}% | Booking rate: ${gm.bookingRate}%`);
+    lines.push(`  Funnel: ${gm.totalLeads} leads → ${gm.activeLeads} active → ${gm.saleLeads} sales | Active campaigns: ${gm.activeCampaigns}`);
+    lines.push(`  Biggest funnel drop-off: ${gm.funnelDropBiggest}`);
+    if (gm.topRecommendations?.length > 0) {
+      lines.push(`  Top marketing recommendations:`);
+      for (const r of gm.topRecommendations.slice(0, 5)) {
+        lines.push(`    • [${r.priority.toUpperCase()}] ${r.problem} → ${r.fix?.slice(0, 80)}`);
+      }
+    }
+  }
 
   return lines.join("\n");
 }

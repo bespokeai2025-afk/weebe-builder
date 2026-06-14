@@ -493,6 +493,119 @@ export const saveGrowthMindRecommendations = createServerFn({ method: "POST" })
     }
   });
 
+// ── Executive Summary — called by HiveMind ─────────────────────────────────────
+// Returns a lightweight marketing intelligence snapshot for injection into HiveMind context.
+export const getGrowthMindExecutiveSummary = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    try {
+      const now   = new Date();
+      const s30   = new Date(now); s30.setDate(now.getDate() - 30);
+      const s90   = new Date(now); s90.setDate(now.getDate() - 90);
+
+      const [leadsRes, callsRes, bookingsRes, campaignsRes, recsRes] = await Promise.all([
+        sb.from("leads")
+          .select("id, status, created_at, updated_at")
+          .eq("workspace_id", workspaceId)
+          .limit(3000),
+        sb.from("calls")
+          .select("id, call_successful, started_at")
+          .eq("workspace_id", workspaceId)
+          .gte("started_at", s30.toISOString())
+          .limit(2000),
+        sb.from("calendar_bookings")
+          .select("id, status, created_at")
+          .eq("workspace_id", workspaceId)
+          .limit(500),
+        sb.from("call_campaigns")
+          .select("id, status")
+          .eq("workspace_id", workspaceId)
+          .limit(50),
+        sb.from("growthmind_recommendations")
+          .select("category, priority, problem, fix")
+          .eq("workspace_id", workspaceId)
+          .eq("is_dismissed", false)
+          .order("created_at", { ascending: false })
+          .limit(5),
+      ]);
+
+      const leads    = leadsRes.data    ?? [];
+      const calls    = callsRes.data    ?? [];
+      const bookings = bookingsRes.data ?? [];
+      const camps    = campaignsRes.data ?? [];
+      const recs     = recsRes.data     ?? [];
+
+      const totalLeads      = leads.length;
+      const saleLeads       = leads.filter((l: any) => l.status === "sale_done").length;
+      const activeLeads     = leads.filter((l: any) =>
+        !["sale_done","do_not_call","not_interested"].includes(l.status)
+      ).length;
+      const conversionRate  = totalLeads > 0 ? Math.round((saleLeads / totalLeads) * 100) : 0;
+      const totalCalls      = calls.length;
+      const successCalls    = calls.filter((c: any) => c.call_successful).length;
+      const callSuccessRate = totalCalls > 0 ? Math.round((successCalls / totalCalls) * 100) : 0;
+      const totalBookings   = bookings.length;
+      const bookingRate     = totalLeads > 0 ? Math.round((totalBookings / totalLeads) * 100) : 0;
+      const activeCampaigns = camps.filter((c: any) =>
+        ["running","active"].includes(c.status ?? "")
+      ).length;
+
+      // Compute simple marketing readiness score (0-100)
+      let score = 0;
+      if (totalLeads > 0)       score += 15;
+      if (conversionRate >= 5)  score += 20;
+      if (callSuccessRate >= 40) score += 15;
+      if (bookingRate >= 5)     score += 15;
+      if (activeCampaigns >= 1) score += 15;
+      if (totalBookings > 0)    score += 10;
+      if (activeLeads > 0)      score += 10;
+      const marketingReadinessScore = Math.min(100, score);
+
+      // Funnel conversion estimate
+      const qualifiedEstimate = Math.round(activeLeads * 0.4);
+      const funnelDropBiggest =
+        totalLeads > 0 && qualifiedEstimate / totalLeads < 0.3
+          ? "Traffic → Qualified (most leads not progressing)"
+          : totalBookings < saleLeads * 2
+            ? "Qualified → Appointment (low booking rate)"
+            : "Appointment → Sale";
+
+      return {
+        marketingReadinessScore,
+        callSuccessRate,
+        conversionRate,
+        bookingRate,
+        activeCampaigns,
+        totalLeads,
+        activeLeads,
+        saleLeads,
+        funnelDropBiggest,
+        topRecommendations: recs.map((r: any) => ({
+          priority: r.priority,
+          problem:  r.problem,
+          fix:      r.fix,
+        })),
+      };
+    } catch {
+      return {
+        marketingReadinessScore: 0,
+        callSuccessRate: 0,
+        conversionRate: 0,
+        bookingRate: 0,
+        activeCampaigns: 0,
+        totalLeads: 0,
+        activeLeads: 0,
+        saleLeads: 0,
+        funnelDropBiggest: "Unknown",
+        topRecommendations: [],
+      };
+    }
+  });
+
 // ── Load recommendations from DB ───────────────────────────────────────────────
 export const getStoredGrowthMindRecommendations = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
