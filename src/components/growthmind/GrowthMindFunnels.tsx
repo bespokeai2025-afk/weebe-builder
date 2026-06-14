@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Filter, Loader2, RefreshCw, Save, Trash2, ChevronDown, Sparkles,
@@ -9,10 +9,10 @@ import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getGrowthMindData } from "@/lib/growthmind/growthmind.functions";
 import { getGrowthMindAIResponse } from "@/lib/growthmind/growthmind.ai";
 import {
   computeFunnelStages,
+  getFunnelLiveData,
   saveFunnelSnapshot,
   getFunnelSnapshots,
   deleteFunnelSnapshot,
@@ -44,20 +44,19 @@ function dropBadge(color: FunnelStage["dropColor"], pct: number | null) {
 
 // ── Funnel bar ─────────────────────────────────────────────────────────────────
 
-function FunnelBar({ stage, maxCount, index, total }: {
-  stage: FunnelStage;
+function FunnelBar({ stage, maxCount, index }: {
+  stage:    FunnelStage;
   maxCount: number;
-  index: number;
-  total: number;
+  index:    number;
 }) {
-  const widthPct  = maxCount > 0 ? Math.max(20, Math.round((stage.count / maxCount) * 100)) : 20;
-  const bgColor   =
+  const widthPct = maxCount > 0 ? Math.max(18, Math.round((stage.count / maxCount) * 100)) : 18;
+  const bgColor  =
     stage.dropColor === "green" ? "bg-emerald-500/70" :
     stage.dropColor === "amber" ? "bg-amber-500/70"   :
     stage.dropColor === "red"   ? "bg-red-500/70"     : "bg-emerald-500/70";
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
+    <div className="flex flex-col items-center gap-1.5 w-full">
       {index > 0 && (
         <div className="flex items-center gap-2 py-1">
           <TrendingDown className="h-3.5 w-3.5 text-muted-foreground/50" />
@@ -77,11 +76,9 @@ function FunnelBar({ stage, maxCount, index, total }: {
           "flex items-center justify-between gap-4 rounded-xl px-5 py-3.5 transition-all",
           bgColor,
         )}
-        style={{ width: `${widthPct}%`, minWidth: 220 }}
+        style={{ width: `${widthPct}%`, minWidth: 240 }}
       >
-        <div>
-          <p className="text-xs font-semibold text-white/90">{stage.label}</p>
-        </div>
+        <p className="text-xs font-semibold text-white/90">{stage.label}</p>
         <p className="text-xl font-bold tabular-nums text-white">{stage.count.toLocaleString()}</p>
       </div>
     </div>
@@ -95,7 +92,9 @@ function SnapshotRow({ snap, onDelete }: { snap: any; onDelete: (id: string) => 
   const date = new Date(snap.snapshotAt).toLocaleDateString("en-GB", {
     day: "2-digit", month: "short", year: "numeric",
   });
-  const topStage = (snap.stages as FunnelStage[]).find(s => s.dropColor === "red" || s.dropColor === "amber");
+  const topStage = (snap.stages as FunnelStage[])
+    .filter(s => s.dropPct !== null)
+    .sort((a, b) => (b.dropPct ?? 0) - (a.dropPct ?? 0))[0];
 
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden">
@@ -144,16 +143,16 @@ export function GrowthMindFunnels() {
   const [aiLoading, setAiLoading]       = useState(false);
   const [saveMsg, setSaveMsg]           = useState<string | null>(null);
 
-  const qc         = useQueryClient();
-  const getDataFn  = useServerFn(getGrowthMindData);
-  const getSnapsFn = useServerFn(getFunnelSnapshots);
-  const saveSnapFn = useServerFn(saveFunnelSnapshot);
+  const qc           = useQueryClient();
+  const getLiveFn    = useServerFn(getFunnelLiveData);
+  const getSnapsFn   = useServerFn(getFunnelSnapshots);
+  const saveSnapFn   = useServerFn(saveFunnelSnapshot);
   const deleteSnapFn = useServerFn(deleteFunnelSnapshot);
   const aiResponseFn = useServerFn(getGrowthMindAIResponse);
 
-  const { data: rawData, isLoading, isFetching } = useQuery({
-    queryKey: ["growthmind-data"],
-    queryFn:  () => getDataFn(),
+  const { data: liveData, isLoading, isFetching } = useQuery({
+    queryKey: ["growthmind-funnel-live"],
+    queryFn:  () => getLiveFn(),
     staleTime: 60_000,
   });
 
@@ -162,7 +161,7 @@ export function GrowthMindFunnels() {
     queryFn:  () => getSnapsFn(),
   });
 
-  const stages = computeFunnelStages(rawData);
+  const stages   = liveData ? computeFunnelStages(liveData) : [];
   const maxCount = stages.length > 0 ? stages[0].count : 0;
 
   const biggestDrop = [...stages]
@@ -191,20 +190,20 @@ export function GrowthMindFunnels() {
   }
 
   async function handleAIDiagnosis() {
-    if (!biggestDrop || !rawData) return;
+    if (!biggestDrop || !liveData) return;
     setAiLoading(true);
     setAiDiagnosis(null);
     try {
       const funnelSummary = stages.map(s =>
-        `${s.label}: ${s.count} leads${s.dropPct !== null ? ` (${s.dropPct}% drop-off from previous stage)` : ""}`
+        `${s.label}: ${s.count}${s.dropPct !== null ? ` (${s.dropPct}% drop-off from previous stage)` : ""}`
       ).join("\n");
 
       const { reply } = await aiResponseFn({
         messages: [{
           role: "user",
-          content: `Here is my current marketing funnel:\n\n${funnelSummary}\n\nThe biggest drop-off is at the "${biggestDrop.label}" stage (${biggestDrop.dropPct}% drop). In 2-3 sentences, diagnose why this might be happening and give one specific recommended fix.`,
+          content: `Here is my current 6-stage marketing funnel:\n\n${funnelSummary}\n\nThe biggest drop-off is at "${biggestDrop.label}" (${biggestDrop.dropPct}% drop). In 2-3 sentences, diagnose why this might be happening and give one specific fix.`,
         }],
-        platformData: rawData,
+        platformData: liveData as any,
         personality: "professional",
       });
       setAiDiagnosis(reply);
@@ -226,11 +225,13 @@ export function GrowthMindFunnels() {
               <Filter className="h-5 w-5 text-emerald-400" />
               Marketing Funnel
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Live funnel driven by CRM data — see where leads drop off</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Traffic → Lead → Qualified → Appointment → Proposal → Sale · live CRM data
+            </p>
           </div>
           <Button
             variant="outline" size="sm"
-            onClick={() => qc.invalidateQueries({ queryKey: ["growthmind-data"] })}
+            onClick={() => qc.invalidateQueries({ queryKey: ["growthmind-funnel-live"] })}
           >
             <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
             Refresh
@@ -248,7 +249,7 @@ export function GrowthMindFunnels() {
             {/* Live funnel */}
             <div className="rounded-xl border border-white/[0.06] bg-card/60 p-6">
               <p className="text-sm font-semibold mb-5">Live Funnel</p>
-              {stages.length === 0 ? (
+              {stages.length === 0 || maxCount === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No lead data yet.</p>
               ) : (
                 <div className="flex flex-col items-center gap-0.5">
@@ -258,7 +259,6 @@ export function GrowthMindFunnels() {
                       stage={stage}
                       maxCount={maxCount}
                       index={i}
-                      total={stages.length}
                     />
                   ))}
                 </div>
@@ -272,7 +272,7 @@ export function GrowthMindFunnels() {
                   onChange={e => setSnapshotName(e.target.value)}
                   className="h-8 text-xs max-w-[220px]"
                 />
-                <Button size="sm" onClick={handleSaveSnapshot} disabled={stages.length === 0}>
+                <Button size="sm" onClick={handleSaveSnapshot} disabled={stages.length === 0 || maxCount === 0}>
                   <Save className="mr-1.5 h-3.5 w-3.5" />
                   Save snapshot
                 </Button>
@@ -308,8 +308,8 @@ export function GrowthMindFunnels() {
 
                 {!aiDiagnosis && !aiLoading && (
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Biggest drop-off identified at <span className="font-semibold text-foreground">{biggestDrop.label}</span> ({biggestDrop.dropPct}% drop).
-                    Click <em>Diagnose funnel</em> to get an AI-powered fix recommendation.
+                    Biggest drop-off at <span className="font-semibold text-foreground">{biggestDrop.label}</span> ({biggestDrop.dropPct}% drop).
+                    Click <em>Diagnose funnel</em> for an AI-powered fix recommendation.
                   </p>
                 )}
                 {aiLoading && (

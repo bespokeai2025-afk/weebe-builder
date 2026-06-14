@@ -165,7 +165,7 @@ export function GrowthMindForecast() {
   const [scenario, setScenario]     = useState<Scenario>("base");
   const [metric, setMetric]         = useState<MetricKey>("leads");
   const [dealValue, setDealValue]   = useState<string>("");
-  const [currency, setCurrency]     = useState<string>("GBP");
+  const [currency, setCurrency]     = useState<string>("£");
   const [showConfig, setShowConfig] = useState(false);
   const [saveMsg, setSaveMsg]       = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -182,7 +182,7 @@ export function GrowthMindForecast() {
     staleTime: 120_000,
     onSuccess: (d: any) => {
       if (d.dealValue && !dealValue) setDealValue(String(d.dealValue));
-      if (d.currency && d.currency !== "GBP") setCurrency(d.currency);
+      if (d.currency)                setCurrency(d.currency);
     },
   } as any);
 
@@ -367,6 +367,32 @@ export function GrowthMindForecast() {
                 ))}
               </div>
 
+              {/* Scenario toggle */}
+              <div className="flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+                {([
+                  { key: "conservative", label: "Conservative", color: SCENARIO_COLORS.conservative },
+                  { key: "base",         label: "Base",         color: SCENARIO_COLORS.base },
+                  { key: "optimistic",   label: "Optimistic",   color: SCENARIO_COLORS.optimistic },
+                ] as { key: Scenario; label: string; color: string }[]).map(s => (
+                  <button
+                    key={s.key}
+                    onClick={() => setScenario(s.key)}
+                    className={cn(
+                      "px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5",
+                      scenario === s.key
+                        ? "bg-white/[0.08] text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span
+                      className="inline-block h-2 w-2 rounded-full shrink-0"
+                      style={{ background: s.color, opacity: scenario === s.key ? 1 : 0.4 }}
+                    />
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
@@ -374,7 +400,7 @@ export function GrowthMindForecast() {
                   disabled={!result}
                 >
                   <Save className="mr-1.5 h-3.5 w-3.5" />
-                  Save forecast
+                  Save {scenario}
                 </Button>
                 {saveMsg && !showConfig && (
                   <span className={cn("text-xs font-medium", saveMsg.startsWith("Error") ? "text-red-400" : "text-emerald-400")}>
@@ -432,17 +458,23 @@ export function GrowthMindForecast() {
                     />
                     <Line
                       type="monotone" dataKey="conserv" name="Conservative"
-                      stroke={SCENARIO_COLORS.conservative} strokeWidth={1.5}
+                      stroke={SCENARIO_COLORS.conservative}
+                      strokeWidth={scenario === "conservative" ? 2.5 : 1}
+                      strokeOpacity={scenario === "conservative" ? 1 : 0.35}
                       strokeDasharray="5 3" dot={false} connectNulls={false}
                     />
                     <Line
                       type="monotone" dataKey="base" name="Base"
-                      stroke={SCENARIO_COLORS.base} strokeWidth={1.5}
+                      stroke={SCENARIO_COLORS.base}
+                      strokeWidth={scenario === "base" ? 2.5 : 1}
+                      strokeOpacity={scenario === "base" ? 1 : 0.35}
                       strokeDasharray="5 3" dot={false} connectNulls={false}
                     />
                     <Line
                       type="monotone" dataKey="opt" name="Optimistic"
-                      stroke={SCENARIO_COLORS.optimistic} strokeWidth={1.5}
+                      stroke={SCENARIO_COLORS.optimistic}
+                      strokeWidth={scenario === "optimistic" ? 2.5 : 1}
+                      strokeOpacity={scenario === "optimistic" ? 1 : 0.35}
                       strokeDasharray="5 3" dot={false} connectNulls={false}
                     />
                   </LineChart>
