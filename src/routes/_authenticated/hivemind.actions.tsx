@@ -15,6 +15,7 @@ import {
   type HiveMindAction, type ActionType,
 } from "@/lib/hivemind/hivemind.actions";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export const Route = createFileRoute("/_authenticated/hivemind/actions")({
   head: () => ({ meta: [{ title: "Action Centre — HiveMind" }] }),
@@ -33,10 +34,6 @@ const ACTION_STYLES: Record<string, { label: string; color: string; bg: string; 
 
 function getActionStyle(type: string) {
   return ACTION_STYLES[type] ?? { label: type, color: "text-muted-foreground", bg: "bg-white/[0.04] border-white/[0.08]", icon: Zap };
-}
-
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function PayloadSummary({ type, payload }: { type: string; payload: Record<string, unknown> }) {
@@ -155,9 +152,9 @@ function ActionCard({
       {open && (
         <div className="border-t border-white/[0.06] px-4 py-3 space-y-3">
           <div className="text-[11px] text-muted-foreground space-y-1">
-            <p>Proposed by <span className="text-foreground font-medium">{action.proposed_by}</span> · {fmtTime(action.created_at)}</p>
+            <p>Proposed by <span className="text-foreground font-medium">{action.proposed_by}</span> · <RelativeTime date={action.created_at} short /></p>
             {action.approved_by && <p>Approved by <span className="text-foreground font-medium">{action.approved_by}</span></p>}
-            {action.executed_at && <p>Executed {fmtTime(action.executed_at)}</p>}
+            {action.executed_at && <p>Executed <RelativeTime date={action.executed_at} short /></p>}
           </div>
 
           {/* Full payload */}

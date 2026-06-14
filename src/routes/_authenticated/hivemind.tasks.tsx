@@ -16,6 +16,7 @@ import {
   type HiveMindTask, type HiveMindEvent, type TaskStatus, type TaskPriority,
 } from "@/lib/hivemind/hivemind.tasks";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export const Route = createFileRoute("/_authenticated/hivemind/tasks")({
   head: () => ({ meta: [{ title: "HiveMind Tasks — Webee" }] }),
@@ -53,11 +54,8 @@ const TRIGGER_LABELS: Record<string, string> = {
   manual:                 "Manual",
 };
 
-function fmtDate(iso: string) {
+function fmtDueDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
@@ -94,7 +92,7 @@ function EventStrip({ events, onMarkRead }: { events: HiveMindEvent[]; onMarkRea
                 <p className="text-xs font-medium">{ev.title}</p>
                 {ev.description && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{ev.description}</p>}
               </div>
-              <span className="text-[10px] text-muted-foreground/60 shrink-0 mt-0.5">{fmtTime(ev.created_at)}</span>
+              <span className="text-[10px] text-muted-foreground/60 shrink-0 mt-0.5"><RelativeTime date={ev.created_at} short /></span>
             </div>
           );
         })}
@@ -212,7 +210,7 @@ function TaskCard({
             )}
             {task.due_date && (
               <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
-                <CalendarDays className="h-2.5 w-2.5" />{fmtDate(task.due_date)}
+                <CalendarDays className="h-2.5 w-2.5" />{fmtDueDate(task.due_date)}
               </span>
             )}
             {task.comments.length > 0 && (
@@ -304,7 +302,7 @@ function TaskCard({
               ) : (
                 <button onClick={() => setEditDue(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
                   <CalendarDays className="h-3 w-3" />
-                  {task.due_date ? fmtDate(task.due_date) : <span className="italic opacity-50">No due date</span>}
+                  {task.due_date ? fmtDueDate(task.due_date) : <span className="italic opacity-50">No due date</span>}
                 </button>
               )}
             </div>
@@ -364,7 +362,7 @@ function TaskCard({
                   <div key={c.id} className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2">
                     <div className="flex items-center justify-between mb-0.5">
                       <span className="text-[11px] font-medium">{c.author}</span>
-                      <span className="text-[10px] text-muted-foreground/50">{fmtTime(c.ts)}</span>
+                      <span className="text-[10px] text-muted-foreground/50"><RelativeTime date={c.ts} short /></span>
                     </div>
                     <p className="text-xs text-muted-foreground">{c.text}</p>
                   </div>
