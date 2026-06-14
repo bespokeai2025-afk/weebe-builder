@@ -30,6 +30,8 @@ import {
   FileText,
   Brain,
   TrendingUp,
+  Server,
+  BookOpen,
 } from "lucide-react";
 import {
   DndContext,
@@ -89,6 +91,8 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard",   url: "/dashboard",   icon: LayoutDashboard },
   { title: "HiveMind",    url: "/hivemind",    icon: Brain },
   { title: "GrowthMind",  url: "/growthmind",  icon: TrendingUp },
+  { title: "SystemMind",  url: "/systemmind",  icon: Server },
+  { title: "Knowledge Centre", url: "/knowledge-centre", icon: BookOpen },
   { title: "Analytics",   url: "/analytics",   icon: BarChart3 },
   { title: "Agents",    url: "/my-agents", icon: LayoutGrid,    tourId: "nav-agents" },
   { title: "Builder",   url: "/builder",   icon: Workflow },
@@ -107,7 +111,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Billing",   url: "/billing",   icon: CreditCard },
 ];
 
-const STORAGE_KEY = "sidebar-nav-order-v3";
+const STORAGE_KEY = "sidebar-nav-order-v4";
 
 function loadOrder(): NavItem[] {
   if (typeof window === "undefined") return DEFAULT_NAV_ITEMS;

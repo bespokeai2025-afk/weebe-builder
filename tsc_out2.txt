@@ -1,0 +1,1011 @@
+el-voice-relay.plugin.ts(85,33): error TS2322: Type 'Buffer<ArrayBufferLike>' is not assignable to type 'BlobPart'.
+  Type 'Buffer<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is not assignable to type 'ArrayBuffer'.
+          Types of property '[Symbol.toStringTag]' are incompatible.
+            Type '"SharedArrayBuffer"' is not assignable to type '"ArrayBuffer"'.
+frejun-stream.plugin.ts(168,6): error TS2339: Property 'catch' does not exist on type 'PostgrestBuilder<any, { agent_id: any; workspace_id: any; }, false>'.
+frejun-stream.plugin.ts(183,8): error TS2339: Property 'catch' does not exist on type 'PostgrestBuilder<any, { name: any; flow_data: any; settings: any; }, false>'.
+frejun-stream.plugin.ts(196,11): error TS2345: Argument of type '{}' is not assignable to parameter of type 'FlowNode[]'.
+  Type '{}' is missing the following properties from type 'FlowNode[]': length, pop, push, concat, and 29 more.
+frejun-stream.plugin.ts(229,60): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type 'ArrayBufferView<ArrayBufferLike>' is not assignable to parameter of type 'WithImplicitCoercion<string | ArrayLike<number>>'.
+src/components/agents/DeployAgentDialog.tsx(1222,21): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/components/app-sidebar.tsx(590,26): error TS2345: Argument of type '{ to: "/builder"; }' is not assignable to parameter of type 'NavigateOptions<RouterCore<Route<Register, any, "/", "/", string, "__root__", undefined, {}, { queryClient: QueryClient; }, AnyContext, AnyContext, ... 6 more ..., undefined>, "never", false, RouterHistory, Record<...>>, string, "/builder", string, "">'.
+  Property 'search' is missing in type '{ to: "/builder"; }' but required in type 'MakeRequiredSearchParams<RouterCore<Route<Register, any, "/", "/", string, "__root__", undefined, {}, { queryClient: QueryClient; }, AnyContext, AnyContext, ... 6 more ..., undefined>, "never", false, RouterHistory, Record<...>>, string, "/builder">'.
+src/components/builder/Builder.tsx(621,31): error TS2339: Property 'variables' does not exist on type 'BuilderSettings'.
+src/components/builder/RetellDeployDialog.tsx(660,45): error TS2353: Object literal may only specify known properties, and 'enableUpdate' does not exist in type 'StartCallConfig'.
+src/components/builder/TranscriptionSettingsSection.tsx(61,66): error TS2322: Type '{ className: string; title: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/components/dashboard/HiveMindVoiceWidget.tsx(108,45): error TS2353: Object literal may only specify known properties, and 'enableUpdate' does not exist in type 'StartCallConfig'.
+src/components/growthmind/GrowthMindContentCalendar.tsx(576,42): error TS2353: Object literal may only specify known properties, and 'startDate' does not exist in type 'OptionalFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/components/growthmind/GrowthMindContentStudio.tsx(940,57): error TS2353: Object literal may only specify known properties, and 'favourites' does not exist in type 'OptionalFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/components/growthmind/GrowthMindForecast.tsx(276,46): error TS2322: Type '{}' is not assignable to type 'undefined'.
+src/components/growthmind/GrowthMindGrowthScheduler.tsx(390,41): error TS2353: Object literal may only specify known properties, and 'planId' does not exist in type 'OptionalFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/components/growthmind/GrowthMindPlaybooks.tsx(231,46): error TS2322: Type '{}' is not assignable to type 'undefined'.
+src/components/growthmind/GrowthMindVideoStudio.tsx(644,35): error TS2353: Object literal may only specify known properties, and 'videoType' does not exist in type 'OptionalFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/components/growthmind/HiveMindReportBanner.tsx(36,22): error TS2322: Type '{}' is not assignable to type 'undefined'.
+src/components/hexmail/CampaignBuilder.tsx(111,32): error TS2339: Property 'name' does not exist on type '{}'.
+src/components/hexmail/CampaignBuilder.tsx(112,45): error TS2339: Property 'steps' does not exist on type '{}'.
+src/components/hexmail/CampaignBuilder.tsx(112,63): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/components/hexmail/CampaignBuilder.tsx(115,33): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/components/hexmail/CampaignBuilderPage.tsx(272,32): error TS2339: Property 'name' does not exist on type '{}'.
+src/components/hexmail/CampaignBuilderPage.tsx(274,43): error TS2339: Property 'steps' does not exist on type '{}'.
+src/components/hexmail/CampaignCalendar.tsx(272,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[]>'.
+      Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+        Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+          Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'unique symbol | QueryFunction<HexmailCampaign[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[], never>'.
+        Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+          Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+            Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+  Overload 3 of 3, '(options: UseQueryOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'unique symbol | QueryFunction<HexmailCampaign[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[], never>'.
+        Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+          Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+            Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+src/components/hexmail/CampaignCalendar.tsx(290,19): error TS2488: Type 'never[] | NonNullable<TQueryFnData>' must have a '[Symbol.iterator]()' method that returns an iterator.
+src/components/hexmail/CampaignCalendar.tsx(435,20): error TS2339: Property 'length' does not exist on type 'never[] | NonNullable<TQueryFnData>'.
+  Property 'length' does not exist on type 'NonNullable<TQueryFnData>'.
+src/components/hexmail/CampaignCalendar.tsx(440,24): error TS2339: Property 'slice' does not exist on type 'never[] | NonNullable<TQueryFnData>'.
+  Property 'slice' does not exist on type 'NonNullable<TQueryFnData>'.
+src/components/hexmail/CampaignCalendar.tsx(440,41): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/CampaignCalendar.tsx(455,24): error TS2339: Property 'length' does not exist on type 'never[] | NonNullable<TQueryFnData>'.
+  Property 'length' does not exist on type 'NonNullable<TQueryFnData>'.
+src/components/hexmail/CampaignCalendar.tsx(456,81): error TS2339: Property 'length' does not exist on type 'never[] | NonNullable<TQueryFnData>'.
+  Property 'length' does not exist on type 'NonNullable<TQueryFnData>'.
+src/components/hexmail/CampaignCalendar.tsx(471,45): error TS2339: Property 'length' does not exist on type 'never[] | NonNullable<TQueryFnData>'.
+  Property 'length' does not exist on type 'NonNullable<TQueryFnData>'.
+src/components/hexmail/CampaignPickerDialog.tsx(138,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[]>'.
+      Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+        Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+          Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'unique symbol | QueryFunction<HexmailCampaign[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[], never>'.
+        Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+          Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+            Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+  Overload 3 of 3, '(options: UseQueryOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'unique symbol | QueryFunction<HexmailCampaign[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[], never>'.
+        Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+          Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+            Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+src/components/hexmail/CampaignPickerDialog.tsx(146,27): error TS2339: Property 'find' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'find' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/CampaignPickerDialog.tsx(146,33): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/CampaignPickerDialog.tsx(165,37): error TS2339: Property 'filter' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'filter' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/CampaignPickerDialog.tsx(165,45): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/CampaignPickerDialog.tsx(196,34): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/CampaignTimeline.tsx(383,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[]>'.
+      Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+        Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+          Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'unique symbol | QueryFunction<HexmailCampaign[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[], never>'.
+        Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+          Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+            Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+  Overload 3 of 3, '(options: UseQueryOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'unique symbol | QueryFunction<HexmailCampaign[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[], never>'.
+        Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+          Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+            Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+src/components/hexmail/CampaignTimeline.tsx(398,25): error TS2339: Property 'steps' does not exist on type '{}'.
+src/components/hexmail/CampaignTimeline.tsx(400,41): error TS2339: Property 'steps' does not exist on type '{}'.
+src/components/hexmail/CampaignTimeline.tsx(419,24): error TS2339: Property 'id' does not exist on type '{}'.
+src/components/hexmail/CampaignTimeline.tsx(420,26): error TS2339: Property 'name' does not exist on type '{}'.
+src/components/hexmail/CampaignTimeline.tsx(421,33): error TS2339: Property 'description' does not exist on type '{}'.
+src/components/hexmail/CampaignTimeline.tsx(422,28): error TS2339: Property 'status' does not exist on type '{}'.
+src/components/hexmail/CampaignTimeline.tsx(488,26): error TS2339: Property 'length' does not exist on type 'never[] | NonNullable<TQueryFnData>'.
+  Property 'length' does not exist on type 'NonNullable<TQueryFnData>'.
+src/components/hexmail/CampaignTimeline.tsx(491,26): error TS2339: Property 'map' does not exist on type 'never[] | NonNullable<TQueryFnData>'.
+  Property 'map' does not exist on type 'NonNullable<TQueryFnData>'.
+src/components/hexmail/CampaignTimeline.tsx(491,31): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/EmailAnalytics.tsx(104,48): error TS2339: Property 'length' does not exist on type '{}'.
+src/components/hexmail/FollowUpCentre.tsx(99,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): DefinedUseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[]>'.
+      Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+        Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+          Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'unique symbol | QueryFunction<HexmailCampaign[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[], never>'.
+        Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+          Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+            Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+  Overload 3 of 3, '(options: UseQueryOptions<HexmailCampaign[], Error, HexmailCampaign[], readonly unknown[]>, queryClient?: QueryClient | undefined): UseQueryResult<...>', gave the following error.
+    Type '() => Promise<unknown>' is not assignable to type 'unique symbol | QueryFunction<HexmailCampaign[], readonly unknown[], never> | undefined'.
+      Type '() => Promise<unknown>' is not assignable to type 'QueryFunction<HexmailCampaign[], readonly unknown[], never>'.
+        Type 'Promise<unknown>' is not assignable to type 'HexmailCampaign[] | Promise<HexmailCampaign[]>'.
+          Type 'Promise<unknown>' is not assignable to type 'Promise<HexmailCampaign[]>'.
+            Type 'unknown' is not assignable to type 'HexmailCampaign[]'.
+src/components/hexmail/FollowUpCentre.tsx(126,17): error TS2339: Property 'filter' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'filter' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(127,10): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/FollowUpCentre.tsx(134,25): error TS2339: Property 'filter' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'filter' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(134,33): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/FollowUpCentre.tsx(135,25): error TS2339: Property 'filter' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'filter' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(135,33): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/FollowUpCentre.tsx(136,25): error TS2339: Property 'filter' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'filter' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(136,33): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/FollowUpCentre.tsx(145,24): error TS2339: Property 'length' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'length' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(145,51): error TS2339: Property 'length' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'length' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(147,22): error TS2339: Property 'length' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'length' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(171,22): error TS2339: Property 'length' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'length' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(224,21): error TS2339: Property 'length' does not exist on type 'never[] | NoInfer<TQueryFnData>'.
+  Property 'length' does not exist on type 'NoInfer<TQueryFnData>'.
+src/components/hexmail/FollowUpCentre.tsx(266,27): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/hexmail/FollowUpCentre.tsx(266,30): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/components/hivemind/HiveMindShell.tsx(54,19): error TS2339: Property 'badge' does not exist on type '{}'.
+src/components/hivemind/HiveMindShell.tsx(66,19): error TS2339: Property 'pending' does not exist on type '{}'.
+src/components/onboarding/OnboardingTour.tsx(750,32): error TS18047: 'el' is possibly 'null'.
+src/components/whatsapp/WhatsAppCampaigns.tsx(250,14): error TS2367: This comparison appears to be unintentional because the types '"broadcast"' and '"scheduled"' have no overlap.
+src/lib/agents/agents.functions.ts(275,17): error TS2345: Argument of type '{ cost_seconds?: number | undefined; user_id: string; workspace_id: string; retell_agent_id: string | null; name: string; flow_data: Json; settings: Record<string, unknown>; variables: Json; }' is not assignable to parameter of type 'RejectExcessProperties<{ agent_type?: "lead_gen" | "receptionist" | undefined; cost_seconds?: number | undefined; created_at?: string | undefined; flow_data?: Json | undefined; id?: string | undefined; ... 9 more ...; workspace_id?: string | ... 1 more ... | undefined; }, { ...; }>'.
+  Type '{ cost_seconds?: number | undefined; user_id: string; workspace_id: string; retell_agent_id: string | null; name: string; flow_data: Json; settings: Record<string, unknown>; variables: Json; }' is not assignable to type '{ agent_type?: "lead_gen" | "receptionist" | undefined; cost_seconds?: number | undefined; created_at?: string | undefined; flow_data?: Json | undefined; id?: string | undefined; ... 9 more ...; workspace_id?: string | ... 1 more ... | undefined; }'.
+    Types of property 'settings' are incompatible.
+      Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.
+        Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.
+src/lib/agents/agents.functions.ts(297,19): error TS2345: Argument of type '{ cost_seconds?: number | undefined; user_id: string; workspace_id: string; retell_agent_id: string | null; name: string; flow_data: Json; settings: Record<string, unknown>; variables: Json; }' is not assignable to parameter of type 'RejectExcessProperties<{ agent_type?: "lead_gen" | "receptionist" | undefined; cost_seconds?: number | undefined; created_at?: string | undefined; flow_data?: Json | undefined; id?: string | undefined; ... 9 more ...; workspace_id?: string | ... 1 more ... | undefined; }, { ...; }>'.
+  Type '{ cost_seconds?: number | undefined; user_id: string; workspace_id: string; retell_agent_id: string | null; name: string; flow_data: Json; settings: Record<string, unknown>; variables: Json; }' is not assignable to type '{ agent_type?: "lead_gen" | "receptionist" | undefined; cost_seconds?: number | undefined; created_at?: string | undefined; flow_data?: Json | undefined; id?: string | undefined; ... 9 more ...; workspace_id?: string | ... 1 more ... | undefined; }'.
+    Types of property 'settings' are incompatible.
+      Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.
+        Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.
+src/lib/agents/agents.functions.ts(306,19): error TS2345: Argument of type '{ cost_seconds?: number | undefined; user_id: string; workspace_id: string; retell_agent_id: string | null; name: string; flow_data: Json; settings: Record<string, unknown>; variables: Json; }' is not assignable to parameter of type 'RejectExcessProperties<{ agent_type?: "lead_gen" | "receptionist" | undefined; cost_seconds?: number | undefined; created_at?: string | undefined; flow_data?: Json | undefined; id?: string | undefined; ... 9 more ...; workspace_id?: string | ... 1 more ... | undefined; }, { ...; }> | RejectExcessProperties<...>[]'.
+  Type '{ cost_seconds?: number | undefined; user_id: string; workspace_id: string; retell_agent_id: string | null; name: string; flow_data: Json; settings: Record<string, unknown>; variables: Json; }' is not assignable to type 'RejectExcessProperties<{ agent_type?: "lead_gen" | "receptionist" | undefined; cost_seconds?: number | undefined; created_at?: string | undefined; flow_data?: Json | undefined; id?: string | undefined; ... 9 more ...; workspace_id?: string | ... 1 more ... | undefined; }, { ...; }>'.
+    Type '{ cost_seconds?: number | undefined; user_id: string; workspace_id: string; retell_agent_id: string | null; name: string; flow_data: Json; settings: Record<string, unknown>; variables: Json; }' is not assignable to type '{ agent_type?: "lead_gen" | "receptionist" | undefined; cost_seconds?: number | undefined; created_at?: string | undefined; flow_data?: Json | undefined; id?: string | undefined; ... 9 more ...; workspace_id?: string | ... 1 more ... | undefined; }'.
+      Types of property 'settings' are incompatible.
+        Type 'Record<string, unknown>' is not assignable to type 'Json | undefined'.
+          Type 'Record<string, unknown>' is missing the following properties from type 'Json[]': length, pop, push, concat, and 29 more.
+src/lib/agents/agents.functions.ts(393,19): error TS2345: Argument of type 'Record<string, unknown>' is not assignable to parameter of type 'RejectExcessProperties<{ buffer_minutes?: number | undefined; business_hours?: Json | undefined; business_name?: string | null | undefined; calcom_api_key?: string | null | undefined; calcom_api_token?: string | ... 1 more ... | undefined; ... 21 more ...; workspace_id: string; }, { ...; }> | RejectExcessProperties<...'.
+  Type 'Record<string, unknown>' is missing the following properties from type 'RejectExcessProperties<{ buffer_minutes?: number | undefined; business_hours?: Json | undefined; business_name?: string | null | undefined; calcom_api_key?: string | null | undefined; calcom_api_token?: string | ... 1 more ... | undefined; ... 21 more ...; workspace_id: string; }, { ...; }>[]': length, pop, push, concat, and 29 more.
+src/lib/agents/templates.functions.ts(47,12): error TS2345: Argument of type '({ context }: ServerFnCtx<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; ...' is not assignable to parameter of type 'ServerFn<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [....'.
+  Type 'Promise<{ id: string; scope: TemplateScope; owner_user_id: string | null; name: string; description: string; settings: Record<string, unknown> | null; updated_at: string; created_at: string; }[]>' is not assignable to type 'Promise<ValidateSerializableMapped<{ id: string; scope: TemplateScope; owner_user_id: string | null; name: string; description: string; settings: Record<string, unknown> | null; updated_at: string; created_at: string; }, RegisteredSerializableInput<...>>[]>'.
+    Type '{ id: string; scope: TemplateScope; owner_user_id: string | null; name: string; description: string; settings: Record<string, unknown> | null; updated_at: string; created_at: string; }[]' is not assignable to type 'ValidateSerializableMapped<{ id: string; scope: TemplateScope; owner_user_id: string | null; name: string; description: string; settings: Record<string, unknown> | null; updated_at: string; created_at: string; }, RegisteredSerializableInput<...>>[]'.
+      Type '{ id: string; scope: TemplateScope; owner_user_id: string | null; name: string; description: string; settings: Record<string, unknown> | null; updated_at: string; created_at: string; }' is not assignable to type 'ValidateSerializableMapped<{ id: string; scope: TemplateScope; owner_user_id: string | null; name: string; description: string; settings: Record<string, unknown> | null; updated_at: string; created_at: string; }, RegisteredSerializableInput<...>>'.
+        Types of property 'settings' are incompatible.
+          Type 'Record<string, unknown> | null' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>> | null'.
+            Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+              'string' index signatures are incompatible.
+                Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/builder/knowledge-base.functions.ts(95,12): error TS2345: Argument of type '({ context }: ServerFnCtx<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; ...' is not assignable to parameter of type 'ServerFn<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [....'.
+  Type 'Promise<{ knowledge_base_id: string; knowledge_base_name: string; status?: string | undefined; sources?: unknown[] | undefined; }[]>' is not assignable to type 'Promise<ValidateSerializableMapped<{ knowledge_base_id: string; knowledge_base_name: string; status?: string | undefined; sources?: unknown[] | undefined; }, RegisteredSerializableInput<Register>>[]>'.
+    Type '{ knowledge_base_id: string; knowledge_base_name: string; status?: string | undefined; sources?: unknown[] | undefined; }[]' is not assignable to type 'ValidateSerializableMapped<{ knowledge_base_id: string; knowledge_base_name: string; status?: string | undefined; sources?: unknown[] | undefined; }, RegisteredSerializableInput<Register>>[]'.
+      Type '{ knowledge_base_id: string; knowledge_base_name: string; status?: string | undefined; sources?: unknown[] | undefined; }' is not assignable to type 'ValidateSerializableMapped<{ knowledge_base_id: string; knowledge_base_name: string; status?: string | undefined; sources?: unknown[] | undefined; }, RegisteredSerializableInput<Register>>'.
+        Types of property 'sources' are incompatible.
+          Type 'unknown[] | undefined' is not assignable to type 'SerializationError<"Type may not be serializable">[] | undefined'.
+            Type 'unknown[]' is not assignable to type 'SerializationError<"Type may not be serializable">[]'.
+              Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/builder/knowledge-base.functions.ts(131,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<Record<string, unknown>>' is not assignable to type 'Promise<ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>>'.
+    Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+      'string' index signatures are incompatible.
+        Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/builder/knowledge-base.functions.ts(143,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<Record<string, unknown>>' is not assignable to type 'Promise<ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>>'.
+    Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+      'string' index signatures are incompatible.
+        Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/builder/knowledge-base.functions.ts(160,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<Record<string, unknown>>' is not assignable to type 'Promise<ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>>'.
+    Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+      'string' index signatures are incompatible.
+        Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/builder/store.ts(115,7): error TS2739: Type '{ conversation: string; function: string; call_transfer: string; press_digit: string; logic_split: string; agent_transfer: string; sms: string; extract_variable: string; code: string; ending: string; ... 9 more ...; wa_template: string; }' is missing the following properties from type 'Record<NodeKind, string>': check_documents, send_upload_link
+src/lib/cost-engine/cost-engine.functions.ts(212,12): error TS2352: Conversion of type '(SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">)[]' to type 'LlmCost[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">' is not comparable to type 'LlmCost'.
+    Type '{ error: true; } & String' is missing the following properties from type 'LlmCost': id, provider, model, input_token_cost, and 7 more.
+src/lib/cost-engine/cost-engine.functions.ts(213,14): error TS2352: Conversion of type '(SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">)[]' to type 'VoiceCost[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">' is not comparable to type 'VoiceCost'.
+    Type '{ error: true; } & String' is missing the following properties from type 'VoiceCost': id, provider, voice_id, voice_name, and 6 more.
+src/lib/cost-engine/cost-engine.functions.ts(214,18): error TS2352: Conversion of type '(SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">)[]' to type 'TelephonyCost[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">' is not comparable to type 'TelephonyCost'.
+    Type '{ error: true; } & String' is missing the following properties from type 'TelephonyCost': id, provider, country, inbound_cost_per_min, and 6 more.
+src/lib/cost-engine/cost-engine.functions.ts(220,14): error TS2352: Conversion of type '(SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">)[]' to type 'CustomerPlan[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">' is not comparable to type 'CustomerPlan'.
+    Type '{ error: true; } & String' is missing the following properties from type 'CustomerPlan': id, plan_name, description, included_minutes, and 4 more.
+src/lib/cost-engine/cost-engine.functions.ts(221,18): error TS2352: Conversion of type '(SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">)[]' to type 'DevRole[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">' is not comparable to type 'DevRole'.
+    Type '{ error: true; } & String' is missing the following properties from type 'DevRole': id, role_name, rate_per_hour, hours_per_week, and 3 more.
+src/lib/cost-engine/cost-engine.functions.ts(236,67): error TS2339: Property 'duration_seconds' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'duration_seconds' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(237,60): error TS2339: Property 'total_cost_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'total_cost_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(238,63): error TS2339: Property 'selling_price_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'selling_price_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(239,62): error TS2339: Property 'profit_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'profit_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(246,19): error TS2339: Property 'provider' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'provider' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(249,28): error TS2339: Property 'total_cost_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'total_cost_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(250,31): error TS2339: Property 'selling_price_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'selling_price_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(251,30): error TS2339: Property 'profit_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'profit_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(254,13): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(255,32): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(257,30): error TS2339: Property 'total_cost_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'total_cost_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(258,33): error TS2339: Property 'selling_price_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'selling_price_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(259,32): error TS2339: Property 'profit_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'profit_cents' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(260,21): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(621,12): error TS2352: Conversion of type '(SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">)[]' to type 'ClientEstimate[]' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">' is not comparable to type 'ClientEstimate'.
+    Type '{ error: true; } & String' is missing the following properties from type 'ClientEstimate': id, client_name, client_email, plan_id, and 6 more.
+src/lib/cost-engine/cost-engine.functions.ts(796,26): error TS2339: Property 'provider_category' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'provider_category' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(796,49): error TS2339: Property 'provider_name' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'provider_name' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(798,32): error TS2339: Property 'provider_category' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'provider_category' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(799,28): error TS2339: Property 'provider_name' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'provider_name' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(806,40): error TS2339: Property 'requests' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'requests' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(807,38): error TS2551: Property 'errors' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'. Did you mean 'error'?
+  Property 'errors' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(808,40): error TS2339: Property 'total_cost_usd' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'total_cost_usd' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(809,43): error TS2339: Property 'total_duration_ms' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'total_duration_ms' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(812,15): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/cost-engine/cost-engine.functions.ts(814,37): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type"> | SelectQueryError<"Invalid RelationName cannot infer result type">'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"Invalid Relationships cannot infer result type">'.
+src/lib/dashboard/whatsapp.functions.ts(760,14): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(callback?: ((error: Error | null, items: LocalInstance[]) => any) | undefined): Promise<LocalInstance[]>', gave the following error.
+    Object literal may only specify known properties, and 'pageSize' does not exist in type '(error: Error | null, items: LocalInstance[]) => any'.
+  Overload 2 of 2, '(params: LocalListInstanceOptions, callback?: ((error: Error | null, items: LocalInstance[]) => any) | undefined): Promise<LocalInstance[]>', gave the following error.
+    Argument of type '{ pageSize: number; areaCode?: string | undefined; smsEnabled: true; }' is not assignable to parameter of type 'LocalListInstanceOptions'.
+      Types of property 'areaCode' are incompatible.
+        Type 'string | undefined' is not assignable to type 'number | undefined'.
+          Type 'string' is not assignable to type 'number'.
+src/lib/executives/executive-document-processing.server.ts(34,18): error TS2341: Property 'load' is private and only accessible within class 'PDFParse'.
+src/lib/executives/executive-knowledge-seed.server.ts(144,37): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/executives/executive-knowledge.functions.ts(191,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<{ chunks: RetrievedChunk[]; kbSlugs: string[]; }>' is not assignable to type 'Promise<ValidateSerializableMapped<{ chunks: RetrievedChunk[]; kbSlugs: string[]; }, RegisteredSerializableInput<Register>>>'.
+    Type '{ chunks: RetrievedChunk[]; kbSlugs: string[]; }' is not assignable to type 'ValidateSerializableMapped<{ chunks: RetrievedChunk[]; kbSlugs: string[]; }, RegisteredSerializableInput<Register>>'.
+      Types of property 'chunks' are incompatible.
+        Type 'RetrievedChunk[]' is not assignable to type 'ValidateSerializableMapped<RetrievedChunk, RegisteredSerializableInput<Register>>[]'.
+          Type 'RetrievedChunk' is not assignable to type 'ValidateSerializableMapped<RetrievedChunk, RegisteredSerializableInput<Register>>'.
+            Types of property 'metadata' are incompatible.
+              Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+                'string' index signatures are incompatible.
+                  Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/hexmail/ai-edit.functions.ts(99,52): error TS2339: Property 'default' does not exist on type 'typeof import("/home/runner/workspace/node_modules/pdf-parse/dist/pdf-parse/esm/index")'.
+src/lib/hexmail/campaigns.functions.ts(75,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<HexmailCampaign[]>' is not assignable to type 'Promise<ValidateSerializableMapped<HexmailCampaign, RegisteredSerializableInput<Register>>[]>'.
+    Type 'HexmailCampaign[]' is not assignable to type 'ValidateSerializableMapped<HexmailCampaign, RegisteredSerializableInput<Register>>[]'.
+      Type 'HexmailCampaign' is not assignable to type 'ValidateSerializableMapped<HexmailCampaign, RegisteredSerializableInput<Register>>'.
+        Types of property 'steps' are incompatible.
+          Type 'CampaignStep[] | undefined' is not assignable to type 'ValidateSerializableMapped<CampaignStep, RegisteredSerializableInput<Register>>[] | undefined'.
+            Type 'CampaignStep[]' is not assignable to type 'ValidateSerializableMapped<CampaignStep, RegisteredSerializableInput<Register>>[]'.
+              Type 'CampaignStep' is not assignable to type 'ValidateSerializableMapped<CampaignStep, RegisteredSerializableInput<Register>>'.
+                Types of property 'actions' are incompatible.
+                  Type 'CampaignAction[]' is not assignable to type 'ValidateSerializableMapped<CampaignAction, RegisteredSerializableInput<Register>>[]'.
+                    Type 'CampaignAction' is not assignable to type 'ValidateSerializableMapped<CampaignAction, RegisteredSerializableInput<Register>>'.
+                      Types of property 'config' are incompatible.
+                        Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+                          'string' index signatures are incompatible.
+                            Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/hexmail/campaigns.functions.ts(111,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<HexmailCampaign>' is not assignable to type 'Promise<ValidateSerializableMapped<HexmailCampaign, RegisteredSerializableInput<Register>>>'.
+    Type 'HexmailCampaign' is not assignable to type 'ValidateSerializableMapped<HexmailCampaign, RegisteredSerializableInput<Register>>'.
+      Types of property 'steps' are incompatible.
+        Type 'CampaignStep[] | undefined' is not assignable to type 'ValidateSerializableMapped<CampaignStep, RegisteredSerializableInput<Register>>[] | undefined'.
+          Type 'CampaignStep[]' is not assignable to type 'ValidateSerializableMapped<CampaignStep, RegisteredSerializableInput<Register>>[]'.
+            Type 'CampaignStep' is not assignable to type 'ValidateSerializableMapped<CampaignStep, RegisteredSerializableInput<Register>>'.
+              Types of property 'actions' are incompatible.
+                Type 'CampaignAction[]' is not assignable to type 'ValidateSerializableMapped<CampaignAction, RegisteredSerializableInput<Register>>[]'.
+                  Type 'CampaignAction' is not assignable to type 'ValidateSerializableMapped<CampaignAction, RegisteredSerializableInput<Register>>'.
+                    Types of property 'config' are incompatible.
+                      Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+                        'string' index signatures are incompatible.
+                          Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/hivemind/hivemind.actions.ts(157,12): error TS2345: Argument of type '({ context }: ServerFnCtx<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; ...' is not assignable to parameter of type 'ServerFn<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [....'.
+  Type 'Promise<{ actions: HiveMindAction[]; pending: number; badge: number; }>' is not assignable to type 'Promise<ValidateSerializableMapped<{ actions: HiveMindAction[]; pending: number; badge: number; }, RegisteredSerializableInput<Register>>>'.
+    Type '{ actions: HiveMindAction[]; pending: number; badge: number; }' is not assignable to type 'ValidateSerializableMapped<{ actions: HiveMindAction[]; pending: number; badge: number; }, RegisteredSerializableInput<Register>>'.
+      Types of property 'actions' are incompatible.
+        Type 'HiveMindAction[]' is not assignable to type 'ValidateSerializableMapped<HiveMindAction, RegisteredSerializableInput<Register>>[]'.
+          Type 'HiveMindAction' is not assignable to type 'ValidateSerializableMapped<HiveMindAction, RegisteredSerializableInput<Register>>'.
+            Types of property 'action_payload' are incompatible.
+              Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+                'string' index signatures are incompatible.
+                  Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/hivemind/hivemind.actions.ts(182,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<{ action: HiveMindAction; }>' is not assignable to type 'Promise<ValidateSerializableMapped<{ action: HiveMindAction; }, RegisteredSerializableInput<Register>>>'.
+    Type '{ action: HiveMindAction; }' is not assignable to type 'ValidateSerializableMapped<{ action: HiveMindAction; }, RegisteredSerializableInput<Register>>'.
+      The types of 'action.action_payload' are incompatible between these types.
+        Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+          'string' index signatures are incompatible.
+            Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/hivemind/hivemind.actions.ts(200,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<{ ok: true; result: Record<string, unknown>; }>' is not assignable to type 'Promise<ValidateSerializableMapped<{ ok: true; result: Record<string, unknown>; }, RegisteredSerializableInput<Register>>>'.
+    Type '{ ok: true; result: Record<string, unknown>; }' is not assignable to type 'ValidateSerializableMapped<{ ok: true; result: Record<string, unknown>; }, RegisteredSerializableInput<Register>>'.
+      Types of property 'result' are incompatible.
+        Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+          'string' index signatures are incompatible.
+            Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/hivemind/hivemind.actions.ts(211,46): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/lib/hivemind/hivemind.bi.ts(63,12): error TS2345: Argument of type '({ context }: ServerFnCtx<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; ...' is not assignable to parameter of type 'ServerFn<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [....'.
+  Type 'Promise<ExecutiveBriefing>' is not assignable to type 'Promise<ValidateSerializableMapped<ExecutiveBriefing, RegisteredSerializableInput<Register>>>'.
+    Type 'ExecutiveBriefing' is not assignable to type 'ValidateSerializableMapped<ExecutiveBriefing, RegisteredSerializableInput<Register>>'.
+      Types of property 'recommendations' are incompatible.
+        Type 'BiRecommendation[]' is not assignable to type 'ValidateSerializableMapped<BiRecommendation, RegisteredSerializableInput<Register>>[]'.
+          Type 'BiRecommendation' is not assignable to type 'ValidateSerializableMapped<BiRecommendation, RegisteredSerializableInput<Register>>'.
+            Types of property 'action_payload' are incompatible.
+              Type 'Record<string, unknown> | undefined' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>> | undefined'.
+                Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+                  'string' index signatures are incompatible.
+                    Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/hivemind/hivemind.tasks.ts(574,12): error TS2345: Argument of type '({ context }: ServerFnCtx<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; ...' is not assignable to parameter of type 'ServerFn<Register, "GET", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [....'.
+  Type 'Promise<{ tasks: HiveMindTask[]; events: HiveMindEvent[]; unread: number; badge: number; }>' is not assignable to type 'Promise<ValidateSerializableMapped<{ tasks: HiveMindTask[]; events: HiveMindEvent[]; unread: number; badge: number; }, RegisteredSerializableInput<Register>>>'.
+    Type '{ tasks: HiveMindTask[]; events: HiveMindEvent[]; unread: number; badge: number; }' is not assignable to type 'ValidateSerializableMapped<{ tasks: HiveMindTask[]; events: HiveMindEvent[]; unread: number; badge: number; }, RegisteredSerializableInput<Register>>'.
+      Types of property 'tasks' are incompatible.
+        Type 'HiveMindTask[]' is not assignable to type 'ValidateSerializableMapped<HiveMindTask, RegisteredSerializableInput<Register>>[]'.
+          Type 'HiveMindTask' is not assignable to type 'ValidateSerializableMapped<HiveMindTask, RegisteredSerializableInput<Register>>'.
+            Types of property 'metadata' are incompatible.
+              Type 'Record<string, unknown> | null' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>> | null'.
+                Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+                  'string' index signatures are incompatible.
+                    Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/hivemind/hivemind.tasks.ts(637,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<{ task: HiveMindTask; }>' is not assignable to type 'Promise<ValidateSerializableMapped<{ task: HiveMindTask; }, RegisteredSerializableInput<Register>>>'.
+    Type '{ task: HiveMindTask; }' is not assignable to type 'ValidateSerializableMapped<{ task: HiveMindTask; }, RegisteredSerializableInput<Register>>'.
+      The types of 'task.metadata' are incompatible between these types.
+        Type 'Record<string, unknown> | null' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>> | null'.
+          Type 'Record<string, unknown>' is not assignable to type 'ValidateSerializableMapped<Record<string, unknown>, RegisteredSerializableInput<Register>>'.
+            'string' index signatures are incompatible.
+              Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/retell/retell-webhook.processor.ts(685,17): error TS2322: Type '"no_answer"' is not assignable to type '"completed" | "calling" | "do_not_call" | "need_to_call" | "interested" | "not_interested" | "not_connected" | "qualified" | undefined'.
+src/lib/runtime/export.ts(225,24): error TS2352: Conversion of type 'BuilderSettings' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Index signature for type 'string' is missing in type 'BuilderSettings'.
+src/lib/runtime/export.ts(226,12): error TS2352: Conversion of type 'BuilderSettings' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Index signature for type 'string' is missing in type 'BuilderSettings'.
+src/lib/runtime/export.ts(255,12): error TS2345: Argument of type '({ context, data }: ServerFnCtx<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ....' is not assignable to parameter of type 'ServerFn<Register, "POST", readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; ... 4 more ...; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...'.
+  Type 'Promise<{ variables: { description: string; name: string; defaultValue: string; type?: "string" | "number" | "boolean" | "enum" | "system-presets" | undefined; examples?: string[] | undefined; }[]; ... 15 more ...; voiceOutputId?: string | undefined; }>' is not assignable to type 'Promise<ValidateSerializableMapped<{ variables: { description: string; name: string; defaultValue: string; type?: "string" | "number" | "boolean" | "enum" | "system-presets" | undefined; examples?: string[] | undefined; }[]; ... 15 more ...; voiceOutputId?: string | undefined; }, RegisteredSerializableInput<...>>>'.
+    Type '{ variables: { description: string; name: string; defaultValue: string; type?: "string" | "number" | "boolean" | "enum" | "system-presets" | undefined; examples?: string[] | undefined; }[]; ... 15 more ...; voiceOutputId?: string | undefined; }' is not assignable to type 'ValidateSerializableMapped<{ variables: { description: string; name: string; defaultValue: string; type?: "string" | "number" | "boolean" | "enum" | "system-presets" | undefined; examples?: string[] | undefined; }[]; ... 15 more ...; voiceOutputId?: string | undefined; }, RegisteredSerializableInput<...>>'.
+      The types of 'workflow.edges' are incompatible between these types.
+        Type 'objectOutputType<{ id: ZodString; source: ZodString; target: ZodString; sourceHandle: ZodOptional<ZodNullable<ZodString>>; targetHandle: ZodOptional<...>; }, ZodTypeAny, "passthrough">[]' is not assignable to type 'ValidateSerializableMapped<objectOutputType<{ id: ZodString; source: ZodString; target: ZodString; sourceHandle: ZodOptional<ZodNullable<ZodString>>; targetHandle: ZodOptional<...>; }, ZodTypeAny, "passthrough">, RegisteredSerializableInput<...>>[]'.
+          Type 'objectOutputType<{ id: ZodString; source: ZodString; target: ZodString; sourceHandle: ZodOptional<ZodNullable<ZodString>>; targetHandle: ZodOptional<...>; }, ZodTypeAny, "passthrough">' is not assignable to type 'ValidateSerializableMapped<objectOutputType<{ id: ZodString; source: ZodString; target: ZodString; sourceHandle: ZodOptional<ZodNullable<ZodString>>; targetHandle: ZodOptional<...>; }, ZodTypeAny, "passthrough">, RegisteredSerializableInput<...>>'.
+            'string' index signatures are incompatible.
+              Type 'unknown' is not assignable to type 'SerializationError<"Type may not be serializable">'.
+src/lib/telephony/telephony.functions.ts(32,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(34,11): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(40,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(41,19): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(41,46): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(41,66): error TS2322: Type 'true' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(43,10): error TS2339: Property 'catch' does not exist on type 'PromiseLike<void>'.
+src/lib/telephony/telephony.functions.ts(47,23): error TS2339: Property 'provider' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'provider' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(48,24): error TS2339: Property 'is_active' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'is_active' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(71,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(73,11): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(83,19): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(85,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(86,17): error TS2345: Argument of type '{ workspace_id: string; provider: "twilio" | "frejun" | "telnyx" | "plivo" | "vonage"; is_active: boolean; updated_at: string; }' is not assignable to parameter of type 'RejectExcessProperties<{ agent_id?: string | undefined; created_at?: string | undefined; id?: string | undefined; production_api_key?: string | undefined; production_api_key_masked?: string | undefined; updated_at?: string | undefined; user_id?: string | undefined; } | ... 26 more ... | { ...; }, { ...; }>'.
+  Type '{ workspace_id: string; provider: "twilio" | "frejun" | "telnyx" | "plivo" | "vonage"; is_active: boolean; updated_at: string; }' is not assignable to type '{ workspace_id: never; updated_at: never; provider: never; is_active: never; }'.
+    Types of property 'workspace_id' are incompatible.
+      Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(87,13): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(87,28): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(91,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(92,17): error TS2345: Argument of type '{ workspace_id: string; provider: "twilio" | "frejun" | "telnyx" | "plivo" | "vonage"; is_active: boolean; updated_at: string; }' is not assignable to parameter of type 'RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; id?: string | undefined; production_api_key: string; production_api_key_masked: string; updated_at?: string | undefined; user_id: string; } | ... 26 more ... | { ...; }, { ...; }> | RejectExcessProperties<...>[]'.
+  Type '{ workspace_id: string; provider: "twilio" | "frejun" | "telnyx" | "plivo" | "vonage"; is_active: boolean; updated_at: string; }' is not assignable to type 'RejectExcessProperties<{ agent_id: string; created_at?: string | undefined; id?: string | undefined; production_api_key: string; production_api_key_masked: string; updated_at?: string | undefined; user_id: string; } | ... 26 more ... | { ...; }, { ...; }>'.
+    Type '{ workspace_id: string; provider: "twilio" | "frejun" | "telnyx" | "plivo" | "vonage"; is_active: boolean; updated_at: string; }' is not assignable to type '{ workspace_id: never; updated_at: never; provider: never; is_active: never; }'.
+      Types of property 'workspace_id' are incompatible.
+        Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(107,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(109,11): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(137,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(139,11): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(144,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(146,11): error TS2322: Type 'string | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(147,11): error TS2322: Type 'string | null | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(148,11): error TS2322: Type '{ sms: boolean; voice: boolean; }' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(149,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(151,13): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(152,13): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(156,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(158,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(159,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(159,45): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(160,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(161,11): error TS2322: Type 'string | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(162,11): error TS2322: Type '"twilio" | "frejun" | "telnyx" | "plivo" | "vonage"' is not assignable to type 'never'.
+  Type '"twilio"' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(163,11): error TS2322: Type 'string | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(164,11): error TS2322: Type 'string | null | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(165,11): error TS2322: Type '{ sms: boolean; voice: boolean; }' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(180,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(182,11): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(183,11): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(240,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(242,13): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(243,13): error TS2345: Argument of type '"is_active"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(246,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(248,13): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(249,13): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(257,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(259,9): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(260,9): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(261,9): error TS2322: Type 'any' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(261,48): error TS2339: Property 'agent_id' does not exist on type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; } | ... 26 more ... | { ...; }'.
+  Property 'agent_id' does not exist on type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; }'.
+src/lib/telephony/telephony.functions.ts(262,9): error TS2322: Type 'string | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(263,9): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(264,9): error TS2322: Type 'any' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(264,34): error TS2339: Property 'phone_number' does not exist on type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; } | ... 26 more ... | { ...; }'.
+  Property 'phone_number' does not exist on type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; }'.
+src/lib/telephony/telephony.functions.ts(265,9): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(266,9): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(267,9): error TS2322: Type 'any' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(267,34): error TS2339: Property 'provider' does not exist on type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; } | ... 26 more ... | { ...; }'.
+  Property 'provider' does not exist on type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; }'.
+src/lib/telephony/telephony.functions.ts(278,46): error TS2352: Conversion of type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; } | ... 26 more ... | { ...; }' to type 'TelephonyConfig' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ created_at: string; id: string; name: string; owner_id: string; slug: string; updated_at: string; }' is missing the following properties from type 'TelephonyConfig': workspace_id, provider, is_active
+src/lib/telephony/telephony.functions.ts(282,25): error TS2339: Property 'phone_number' does not exist on type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; } | ... 26 more ... | { ...; }'.
+  Property 'phone_number' does not exist on type '{ agent_type: "lead_gen" | "receptionist"; cost_seconds: number; created_at: string; flow_data: Json; id: string; inbound_phone_number: string | null; name: string; retell_agent_id: string | null; ... 6 more ...; workspace_id: string | null; }'.
+src/lib/telephony/telephony.functions.ts(284,78): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(288,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(289,17): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(289,47): error TS2322: Type 'CallState' is not assignable to type 'never'.
+  Type '"completed"' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(290,11): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(290,25): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(292,30): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(293,7): error TS2322: Type 'any' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(293,24): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(294,7): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(295,7): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(296,7): error TS2322: Type '{ from: string; to: CallState; }' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(299,30): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(344,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"campaigns"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"campaigns"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(346,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(347,11): error TS2322: Type 'string | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(348,11): error TS2322: Type 'string | null | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(349,11): error TS2322: Type 'string | null | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(350,11): error TS2322: Type '{ phone: string; name?: string | undefined; }[]' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(351,11): error TS2322: Type 'Record<string, unknown>' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(352,11): error TS2322: Type '{ max_attempts: number; retry_delay_minutes: number; }' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(353,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(355,13): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(356,13): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(360,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"campaigns"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"campaigns"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(362,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(363,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(364,11): error TS2322: Type 'string | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(365,11): error TS2322: Type 'string | null | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(366,11): error TS2322: Type 'string | null | undefined' is not assignable to type 'never'.
+  Type 'undefined' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(367,11): error TS2322: Type '{ phone: string; name?: string | undefined; }[]' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(368,11): error TS2322: Type 'Record<string, unknown>' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(369,11): error TS2322: Type '{ max_attempts: number; retry_delay_minutes: number; }' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(370,11): error TS2322: Type '{ total: number; called: number; answered: number; booked: number; failed: number; }' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(392,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"campaigns"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"campaigns"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(393,17): error TS2322: Type '"completed" | "cancelled" | "active" | "paused" | "draft"' is not assignable to type 'never'.
+  Type '"completed"' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(393,38): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(394,11): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(395,11): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(407,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"campaigns"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"campaigns"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(409,11): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(410,11): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(441,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(443,11): error TS2345: Argument of type '"workspace_id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(444,11): error TS2345: Argument of type '"provider"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(445,11): error TS2345: Argument of type '"is_active"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(459,17): error TS2339: Property 'provider_sid' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'provider_sid' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(461,49): error TS2339: Property 'provider_sid' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'provider_sid' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(471,30): error TS2339: Property 'phone_number' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'phone_number' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(475,40): error TS2339: Property 'phone_number' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'phone_number' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(486,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(487,23): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(487,50): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/telephony/telephony.functions.ts(488,17): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/lib/telephony/telephony.functions.ts(488,27): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(490,36): error TS2339: Property 'phone_number' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'phone_number' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/telephony/telephony.functions.ts(492,36): error TS2339: Property 'phone_number' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'phone_number' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/lib/workspace/resolve-workspace.server.ts(123,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_configs"' is not assignable to parameter of type 'never'.
+src/lib/workspace/resolve-workspace.server.ts(124,17): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/workspace/resolve-workspace.server.ts(124,38): error TS2322: Type 'string' is not assignable to type 'never'.
+src/lib/workspace/resolve-workspace.server.ts(124,58): error TS2322: Type 'true' is not assignable to type 'never'.
+src/lib/workspace/resolve-workspace.server.ts(126,8): error TS2339: Property 'catch' does not exist on type 'PromiseLike<void>'.
+src/routes/_authenticated/admin.cost-engine.tsx(309,33): error TS2353: Object literal may only specify known properties, and 'id' does not exist in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(401,35): error TS2353: Object literal may only specify known properties, and 'id' does not exist in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(472,39): error TS2353: Object literal may only specify known properties, and 'id' does not exist in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(553,115): error TS2345: Argument of type '{ embedding_cost_per_1k: number; vector_storage_per_gb_month: number; retrieval_cost_per_query: number; storage_per_gb_month: number; notes: string; }' is not assignable to parameter of type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+  Property 'data' is missing in type '{ embedding_cost_per_1k: number; vector_storage_per_gb_month: number; retrieval_cost_per_query: number; storage_per_gb_month: number; notes: string; }' but required in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(566,111): error TS2345: Argument of type '{ webhook_cost_per_call: number; api_cost_per_call: number; crm_cost_per_month: number; calendar_cost_per_month: number; notes: string; }' is not assignable to parameter of type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+  Property 'data' is missing in type '{ webhook_cost_per_call: number; api_cost_per_call: number; crm_cost_per_month: number; calendar_cost_per_month: number; notes: string; }' but required in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(588,120): error TS2345: Argument of type '{ server_cost: number; database_cost: number; storage_cost: number; bandwidth_cost: number; allocation_type: "monthly" | "per_minute"; estimated_monthly_minutes: number; notes: string; }' is not assignable to parameter of type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+  Property 'data' is missing in type '{ server_cost: number; database_cost: number; storage_cost: number; bandwidth_cost: number; allocation_type: "monthly" | "per_minute"; estimated_monthly_minutes: number; notes: string; }' but required in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(603,112): error TS2345: Argument of type '{ subscription_cost_monthly: number; minute_cost: number; number_cost_monthly: number; voice_cost_per_min: number; transfer_cost_per_min: number; notes: string; }' is not assignable to parameter of type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+  Property 'data' is missing in type '{ subscription_cost_monthly: number; minute_cost: number; number_cost_monthly: number; voice_cost_per_min: number; transfer_cost_per_min: number; notes: string; }' but required in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(939,28): error TS2345: Argument of type '{ markup_type: "fixed" | "percentage"; markup_value: number; label: string; }' is not assignable to parameter of type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+  Property 'data' is missing in type '{ markup_type: "fixed" | "percentage"; markup_value: number; label: string; }' but required in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(945,22): error TS2345: Argument of type '{ plan_name: string; description: string; included_minutes: number; price_per_month: number; price_per_minute: number; sort_order: number; id?: string | undefined; }' is not assignable to parameter of type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+  Property 'data' is missing in type '{ plan_name: string; description: string; included_minutes: number; price_per_month: number; price_per_minute: number; sort_order: number; id?: string | undefined; }' but required in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(1024,232): error TS2353: Object literal may only specify known properties, and 'id' does not exist in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(1131,82): error TS2353: Object literal may only specify known properties, and 'notes' does not exist in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(1139,33): error TS2353: Object literal may only specify known properties, and 'id' does not exist in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(1264,9): error TS2353: Object literal may only specify known properties, and 'client_name' does not exist in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/admin.cost-engine.tsx(1279,40): error TS2353: Object literal may only specify known properties, and 'id' does not exist in type 'RequiredFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/analytics.tsx(401,91): error TS2322: Type '{ label: string; tone: "primary"; value: number; icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; }' is not assignable to type 'IntrinsicAttributes & { label: string; value: string | number; hint?: string | undefined; tone?: "info" | "warning" | "success" | "primary" | "danger" | undefined; }'.
+  Property 'icon' does not exist on type 'IntrinsicAttributes & { label: string; value: string | number; hint?: string | undefined; tone?: "info" | "warning" | "success" | "primary" | "danger" | undefined; }'.
+src/routes/_authenticated/analytics.tsx(402,91): error TS2322: Type '{ label: string; tone: "info"; value: number; icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; }' is not assignable to type 'IntrinsicAttributes & { label: string; value: string | number; hint?: string | undefined; tone?: "info" | "warning" | "success" | "primary" | "danger" | undefined; }'.
+  Property 'icon' does not exist on type 'IntrinsicAttributes & { label: string; value: string | number; hint?: string | undefined; tone?: "info" | "warning" | "success" | "primary" | "danger" | undefined; }'.
+src/routes/_authenticated/analytics.tsx(403,91): error TS2322: Type '{ label: string; tone: "success"; value: string; icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; }' is not assignable to type 'IntrinsicAttributes & { label: string; value: string | number; hint?: string | undefined; tone?: "info" | "warning" | "success" | "primary" | "danger" | undefined; }'.
+  Property 'icon' does not exist on type 'IntrinsicAttributes & { label: string; value: string | number; hint?: string | undefined; tone?: "info" | "warning" | "success" | "primary" | "danger" | undefined; }'.
+src/routes/_authenticated/analytics.tsx(404,91): error TS2322: Type '{ label: string; tone: "warning"; value: string; icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; }' is not assignable to type 'IntrinsicAttributes & { label: string; value: string | number; hint?: string | undefined; tone?: "info" | "warning" | "success" | "primary" | "danger" | undefined; }'.
+  Property 'icon' does not exist on type 'IntrinsicAttributes & { label: string; value: string | number; hint?: string | undefined; tone?: "info" | "warning" | "success" | "primary" | "danger" | undefined; }'.
+src/routes/_authenticated/hivemind.actions.tsx(294,25): error TS2339: Property 'actions' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.actions.tsx(296,30): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.actions.tsx(297,30): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.actions.tsx(298,30): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.actions.tsx(302,41): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.actions.tsx(303,20): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.actions.tsx(320,66): error TS2339: Property 'data' does not exist on type 'OptionalFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/hivemind.actions.tsx(430,26): error TS7006: Parameter 'action' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.briefing.tsx(195,75): error TS2339: Property 'greeting' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(205,57): error TS2339: Property 'month' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(205,81): error TS2339: Property 'prevMonth' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(206,57): error TS2339: Property 'month' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(206,81): error TS2339: Property 'prevMonth' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(207,57): error TS2339: Property 'month' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(207,81): error TS2339: Property 'prevMonth' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(208,57): error TS2339: Property 'month' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(208,81): error TS2339: Property 'prevMonth' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(213,15): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(213,31): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(213,50): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(217,20): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(217,112): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(218,20): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(218,113): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(219,20): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(219,111): error TS2339: Property 'today' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(229,18): error TS2339: Property 'topAgent' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(233,70): error TS2339: Property 'topAgent' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(236,24): error TS2339: Property 'topAgent' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(236,55): error TS2339: Property 'topAgent' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(245,65): error TS2339: Property 'conversionRate' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(252,75): error TS2339: Property 'costs' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(254,31): error TS2339: Property 'costs' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(254,68): error TS2339: Property 'costs' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(260,15): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(260,47): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(265,21): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(266,21): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(267,22): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(268,22): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(269,22): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(269,68): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(269,112): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(275,55): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(279,77): error TS2339: Property 'leadVelocity' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(281,20): error TS2339: Property 'followUpGaps' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(284,72): error TS2339: Property 'followUpGaps' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(292,14): error TS2339: Property 'agentRankings' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(298,20): error TS2339: Property 'agentRankings' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(298,51): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.briefing.tsx(298,54): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.briefing.tsx(317,49): error TS2339: Property 'growthMind' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(320,14): error TS2339: Property 'risks' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(324,20): error TS2339: Property 'risks' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(324,31): error TS7006: Parameter 'risk' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.briefing.tsx(324,37): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.briefing.tsx(330,14): error TS2339: Property 'recommendations' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(341,20): error TS2339: Property 'recommendations' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(341,41): error TS7006: Parameter 'rec' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.briefing.tsx(341,46): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.briefing.tsx(348,14): error TS2339: Property 'risks' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.briefing.tsx(348,38): error TS2339: Property 'recommendations' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.chat.tsx(123,27): error TS2554: Expected 1 arguments, but got 0.
+src/routes/_authenticated/hivemind.index.tsx(429,23): error TS2339: Property 'events' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.index.tsx(429,45): error TS2339: Property 'events' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.index.tsx(431,33): error TS2339: Property 'events' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.settings.tsx(182,36): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.settings.tsx(289,44): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.system-health.tsx(224,24): error TS18048: 'data' is possibly 'undefined'.
+src/routes/_authenticated/hivemind.system-health.tsx(235,34): error TS18048: 'data' is possibly 'undefined'.
+src/routes/_authenticated/hivemind.tasks.tsx(508,24): error TS2339: Property 'tasks' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.tasks.tsx(509,24): error TS2339: Property 'events' does not exist on type '{}'.
+src/routes/_authenticated/hivemind.tasks.tsx(512,29): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.tasks.tsx(516,37): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/routes/_authenticated/hivemind.tasks.tsx(668,31): error TS7006: Parameter 'task' implicitly has an 'any' type.
+src/routes/_authenticated/my-agents.tsx(175,38): error TS2339: Property 'icon' does not exist on type '{ readonly value: "ALL"; readonly label: "All"; } | { readonly value: "RETELL"; readonly label: "OmniVoice"; readonly icon: Element; } | { readonly value: "OPENAI_REALTIME"; readonly label: "HyperStream"; readonly icon: Element; }'.
+src/routes/_authenticated/phone-numbers.tsx(59,50): error TS2339: Property 'data' does not exist on type 'OptionalFetcherDataOptions<readonly [FunctionMiddlewareAfterServer<{}, unknown, undefined, { supabase: SupabaseClient<Database, "public", "public", { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: s...'.
+src/routes/_authenticated/phone-numbers.tsx(90,21): error TS2590: Expression produces a union type that is too complex to represent.
+src/routes/_authenticated/pipeline.tsx(265,64): error TS2322: Type '{ className: string; title: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/routes/_authenticated/pipeline.tsx(268,67): error TS2322: Type '{ className: string; title: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/routes/_authenticated/pipeline.tsx(271,65): error TS2322: Type '{ className: string; title: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/routes/_authenticated/pipeline.tsx(273,63): error TS2322: Type '{ className: string; title: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/routes/_authenticated/templates.tsx(151,24): error TS2339: Property 'voiceProvider' does not exist on type '{ agentId: undefined; conversationFlowId: undefined; deployedRetellAgentId: undefined; deployedConversationFlowId: undefined; phoneNumber: undefined; productionRetellApiKey: undefined; productionRetellApiKeyMasked: undefined; productionRetellApiKeySavedAt: undefined; webhookUrl: undefined; agentName: string; }'.
+src/routes/_authenticated/templates.tsx(159,26): error TS2339: Property 'openaiVoice' does not exist on type '{ agentId: undefined; conversationFlowId: undefined; deployedRetellAgentId: undefined; deployedConversationFlowId: undefined; phoneNumber: undefined; productionRetellApiKey: undefined; productionRetellApiKeyMasked: undefined; productionRetellApiKeySavedAt: undefined; webhookUrl: undefined; agentName: string; }'.
+src/routes/_authenticated/templates.tsx(161,26): error TS2339: Property 'openaiReasoningEffort' does not exist on type '{ agentId: undefined; conversationFlowId: undefined; deployedRetellAgentId: undefined; deployedConversationFlowId: undefined; phoneNumber: undefined; productionRetellApiKey: undefined; productionRetellApiKeyMasked: undefined; productionRetellApiKeySavedAt: undefined; webhookUrl: undefined; agentName: string; }'.
+src/routes/_authenticated/templates.tsx(269,23): error TS2339: Property 'filter' does not exist on type '{}'.
+src/routes/_authenticated/templates.tsx(269,31): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/routes/_authenticated/templates.tsx(270,25): error TS2339: Property 'filter' does not exist on type '{}'.
+src/routes/_authenticated/templates.tsx(270,33): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/routes/api/builder/import-pdf.ts(491,9): error TS2367: This comparison appears to be unintentional because the types '"flow" | "global_prompt"' and '"discard"' have no overlap.
+src/routes/api/builder/import-pdf.ts(1031,26): error TS2341: Property 'load' is private and only accessible within class 'PDFParse'.
+src/routes/api/builder/scan-pdf.ts(107,26): error TS2341: Property 'load' is private and only accessible within class 'PDFParse'.
+src/routes/api/builder/script-template.ts(311,29): error TS2345: Argument of type 'Buffer<ArrayBufferLike>' is not assignable to parameter of type 'BodyInit | null | undefined'.
+  Type 'Buffer<ArrayBufferLike>' is missing the following properties from type 'URLSearchParams': size, append, delete, get, and 2 more.
+src/routes/api/public/frejun/flow.ts(55,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(57,17): error TS2345: Argument of type '"call_sid"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(60,25): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/flow.ts(61,34): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/flow.ts(63,21): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(64,25): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(64,45): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(64,84): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(65,19): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(71,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(73,17): error TS2345: Argument of type '"phone_number"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(74,17): error TS2345: Argument of type '"is_active"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(83,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(85,15): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(85,39): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/flow.ts(86,15): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(86,42): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/flow.ts(87,15): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(87,35): error TS2339: Property 'agent_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'agent_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/flow.ts(88,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(89,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(90,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(91,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(92,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(93,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(103,32): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/flow.ts(105,36): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/flow.ts(106,13): error TS2322: Type 'string | null' is not assignable to type 'never'.
+  Type 'null' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(107,13): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(107,37): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/flow.ts(108,13): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/flow.ts(109,13): error TS2322: Type '{ from: string; to: string; frejunCallId: string; }' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(62,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/status.ts(64,15): error TS2345: Argument of type '"call_sid"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/status.ts(87,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/status.ts(88,19): error TS2345: Argument of type 'Record<string, unknown>' is not assignable to parameter of type 'RejectExcessProperties<{ agent_id?: string | undefined; created_at?: string | undefined; id?: string | undefined; production_api_key?: string | undefined; production_api_key_masked?: string | undefined; updated_at?: string | undefined; user_id?: string | undefined; } | ... 26 more ... | { ...; }, Record<...>>'.
+  Type 'Record<string, unknown>' is not assignable to type '{ [x: string]: never; }'.
+    'string' index signatures are incompatible.
+      Type 'unknown' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(89,15): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/status.ts(89,29): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/status.ts(95,34): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/status.ts(96,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(96,28): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/status.ts(97,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(97,33): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/status.ts(98,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(99,11): error TS2322: Type '{ from: any; to: CallState; frejunState: string; frejunCallId: string; duration: number | null; }' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(100,27): error TS2339: Property 'status' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'status' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/status.ts(110,19): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/status.ts(112,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(113,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(114,15): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/frejun/status.ts(116,17): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/routes/api/public/frejun/status.ts(116,31): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/frejun/status.ts(119,65): error TS2339: Property 'status' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'status' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/inbound.ts(51,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"phone_numbers"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/inbound.ts(53,15): error TS2345: Argument of type '"phone_number"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/inbound.ts(54,15): error TS2345: Argument of type '"is_active"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/inbound.ts(64,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/inbound.ts(66,13): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(66,37): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/inbound.ts(67,13): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(67,40): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/inbound.ts(68,13): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(68,33): error TS2339: Property 'agent_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'agent_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/inbound.ts(69,13): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(70,13): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(71,13): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(72,13): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(73,13): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(74,13): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(84,34): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/inbound.ts(85,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(85,28): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/inbound.ts(86,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(86,35): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/inbound.ts(87,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(88,11): error TS2322: Type '{ from: string; to: string; callSid: string; }' is not assignable to type 'never'.
+src/routes/api/public/telephony/inbound.ts(93,73): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/inbound.ts(103,78): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/recording.ts(37,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/recording.ts(39,15): error TS2345: Argument of type '"call_sid"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/recording.ts(62,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/recording.ts(63,19): error TS2345: Argument of type 'Record<string, unknown>' is not assignable to parameter of type 'RejectExcessProperties<{ agent_id?: string | undefined; created_at?: string | undefined; id?: string | undefined; production_api_key?: string | undefined; production_api_key_masked?: string | undefined; updated_at?: string | undefined; user_id?: string | undefined; } | ... 26 more ... | { ...; }, Record<...>>'.
+  Type 'Record<string, unknown>' is not assignable to type '{ [x: string]: never; }'.
+    'string' index signatures are incompatible.
+      Type 'unknown' is not assignable to type 'never'.
+src/routes/api/public/telephony/recording.ts(64,15): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/recording.ts(64,29): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/recording.ts(70,34): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/recording.ts(71,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/recording.ts(71,28): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/recording.ts(72,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/recording.ts(72,33): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/recording.ts(73,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/recording.ts(75,11): error TS2322: Type '{ recordingSid: string; recordingUrl: string; recordingStatus: string; }' is not assignable to type 'never'.
+src/routes/api/public/telephony/status.ts(56,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/status.ts(58,15): error TS2345: Argument of type '"call_sid"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/status.ts(81,17): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"telephony_calls"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/status.ts(82,19): error TS2345: Argument of type 'Record<string, unknown>' is not assignable to parameter of type 'RejectExcessProperties<{ agent_id?: string | undefined; created_at?: string | undefined; id?: string | undefined; production_api_key?: string | undefined; production_api_key_masked?: string | undefined; updated_at?: string | undefined; user_id?: string | undefined; } | ... 26 more ... | { ...; }, Record<...>>'.
+  Type 'Record<string, unknown>' is not assignable to type '{ [x: string]: never; }'.
+    'string' index signatures are incompatible.
+      Type 'unknown' is not assignable to type 'never'.
+src/routes/api/public/telephony/status.ts(83,15): error TS2345: Argument of type '"id"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/status.ts(83,29): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/status.ts(89,34): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(relation: "agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"): PostgrestQueryBuilder<...>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type '"agents" | "workspaces" | "leads" | "agent_retell_secrets" | "agent_templates" | "booking_summaries" | "bookings" | "calcom_event_types" | "calendar_bookings" | "calendar_connections" | ... 17 more ... | "workspace_settings"'.
+  Overload 2 of 2, '(relation: never): PostgrestQueryBuilder<{ PostgrestVersion: "14.5"; }, { Tables: { agent_retell_secrets: { Row: { agent_id: string; created_at: string; id: string; production_api_key: string; production_api_key_masked: string; updated_at: string; user_id: string; }; Insert: { ...; }; Update: { ...; }; Relationships: [...]; }; ... 26 more ...; workspaces: { ...; }; }; Views: {}; Functions: { ...; }; Enums: { ...; }; CompositeTypes: {}; }, never, never, never>', gave the following error.
+    Argument of type '"call_events"' is not assignable to parameter of type 'never'.
+src/routes/api/public/telephony/status.ts(90,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/status.ts(90,28): error TS2339: Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/status.ts(91,11): error TS2322: Type 'any' is not assignable to type 'never'.
+src/routes/api/public/telephony/status.ts(91,33): error TS2339: Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'workspace_id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/status.ts(92,11): error TS2322: Type 'string' is not assignable to type 'never'.
+src/routes/api/public/telephony/status.ts(93,11): error TS2322: Type '{ from: any; to: CallState; twilioStatus: string; callSid: string; duration: string | null; }' is not assignable to type 'never'.
+src/routes/api/public/telephony/status.ts(94,27): error TS2339: Property 'status' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'status' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/public/telephony/status.ts(102,63): error TS2339: Property 'status' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'."> | SelectQueryError<"column 'id' does not exist on 'workspaces'."> | ... 25 more ... | SelectQueryError<...>'.
+  Property 'status' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'agents'.">'.
+src/routes/api/voice-copilot.ts(434,43): error TS2322: Type 'Buffer<ArrayBufferLike>' is not assignable to type 'BlobPart'.
+  Type 'Buffer<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is not assignable to type 'ArrayBuffer'.
+          Types of property '[Symbol.toStringTag]' are incompatible.
+            Type '"SharedArrayBuffer"' is not assignable to type '"ArrayBuffer"'.
+src/routes/api/voice-copilot.ts(504,24): error TS2554: Expected 3 arguments, but got 1.
+telephony-stream.plugin.ts(244,6): error TS2339: Property 'catch' does not exist on type 'PostgrestBuilder<any, { agent_id: any; workspace_id: any; }, false>'.
+telephony-stream.plugin.ts(259,8): error TS2339: Property 'catch' does not exist on type 'PostgrestBuilder<any, { name: any; flow_data: any; settings: any; }, false>'.

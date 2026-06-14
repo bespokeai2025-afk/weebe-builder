@@ -6,7 +6,7 @@
 // advisory CMO that reports up to HiveMind. Future executives are declared as
 // "planned" placeholders so the bridge + UI can grow without a redesign.
 
-export type ExecSource = "hivemind" | "growthmind";
+export type ExecSource = "hivemind" | "growthmind" | "systemmind";
 
 export type ExecutiveStatus = "active" | "planned";
 
@@ -59,9 +59,9 @@ export const EXECUTIVE_COUNCIL: ExecutiveMember[] = [
     name: "SystemMind",
     role: "CTO",
     title: "Chief Technology Officer",
-    status: "planned",
+    status: "active",
     domain: "Systems",
-    blurb: "Will monitor platform infrastructure, integrations health and reliability.",
+    blurb: "Monitors platform infrastructure, integrations health, reliability, security and runtime cost. Advises HiveMind on technical risk — never executes.",
     reportsTo: "hivemind",
     accent: "sky",
   },
@@ -186,6 +186,21 @@ export type GrowthMindExecutiveSummary = {
   recommendedActions:     ExecRecommendedAction[];
   recentMarketingReports: ExecMarketingReport[];
   headline:               string;   // one-line spoken/printed summary
+};
+
+export type SystemMindExecutiveSummary = {
+  source:           "systemmind";
+  role:             "CTO";
+  generatedAt:      string;
+  reliabilityScore: number;   // 0-100
+  grade:            string;
+  label:            string;
+  integrations:     { connected: number; total: number };
+  systemHealth:     Record<string, boolean>;
+  cost:             { totalDollars: number; requests: number; errors: number };
+  topRisks:         ExecRisk[];
+  recommendedActions: ExecRecommendedAction[];
+  headline:         string;
 };
 
 export type HiveMindExecutiveSummary = {

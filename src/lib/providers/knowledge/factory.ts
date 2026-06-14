@@ -1,13 +1,14 @@
 import type { KnowledgeProvider, KnowledgeQueryParams, KnowledgeDocument } from "./interface";
 import { RetellKBAdapter } from "./adapters/retell-kb.adapter";
 import { PineconeAdapter } from "./adapters/pinecone.adapter";
+import { WeebeeKBAdapter } from "./adapters/weebee-kb.adapter";
 import { withProviderTracking } from "@/lib/providers/instrumentation";
 
 export type KnowledgeProviderName = "retell_kb" | "weebee_kb" | "pinecone" | "openai_vs";
 
 export type KnowledgeConfig =
   | { provider: "retell_kb" }
-  | { provider: "weebee_kb" }
+  | { provider: "weebee_kb"; workspaceId: string; mindType: string }
   | { provider: "pinecone"; apiKey: string; indexName: string }
   | { provider: "openai_vs"; apiKey: string; vectorStoreId: string };
 
@@ -24,7 +25,7 @@ export function createKnowledgeProvider(
       inner = new RetellKBAdapter();
       break;
     case "weebee_kb":
-      inner = new RetellKBAdapter();
+      inner = new WeebeeKBAdapter({ workspaceId: config.workspaceId, mindType: config.mindType });
       break;
     case "pinecone":
       inner = new PineconeAdapter({ apiKey: config.apiKey, indexName: config.indexName });

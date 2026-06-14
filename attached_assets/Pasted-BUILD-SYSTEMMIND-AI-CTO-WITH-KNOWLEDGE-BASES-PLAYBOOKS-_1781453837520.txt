@@ -1,0 +1,606 @@
+BUILD SYSTEMMIND AI CTO WITH KNOWLEDGE BASES, PLAYBOOKS, WORKFLOW INTELLIGENCE AND SELF-HEALING
+
+IMPORTANT
+
+Do not modify HiveMind.
+
+Do not modify GrowthMind.
+
+Do not modify Builder functionality.
+
+Do not modify Retell.
+
+Do not modify HyperStream.
+
+Do not modify VoxStream.
+
+Extend the Executive AI architecture.
+
+HiveMind remains the only executive visible to users.
+
+OBJECTIVE
+
+Create SystemMind.
+
+SystemMind acts as the AI CTO of the WeeBee ecosystem.
+
+SystemMind is responsible for:
+
+Platform Monitoring
+
+Technical Audits
+
+Integration Health
+
+Workflow Intelligence
+
+Workflow Generation
+
+Provider Management
+
+System Repair
+
+Architecture Recommendations
+
+Deployment Reviews
+
+Self-Healing Recommendations
+
+SystemMind reports to HiveMind.
+
+HiveMind presents all findings to users.
+
+====================================================
+
+EXECUTIVE STRUCTURE
+
+HiveMind
+(COO)
+
+Receives reports from:
+
+GrowthMind
+(CMO)
+
+SystemMind
+(CTO)
+
+Future:
+
+SalesMind
+(CRO)
+
+FinanceMind
+(CFO)
+
+ComplianceMind
+
+SupportMind
+
+HiveMind remains the only speaking executive.
+
+====================================================
+
+CREATE ROUTES
+
+/systemmind
+
+/systemmind/overview
+
+/systemmind/issues
+
+/systemmind/workflows
+
+/systemmind/playbooks
+
+/systemmind/providers
+
+/systemmind/knowledge
+
+/systemmind/architecture
+
+/systemmind/fix-plans
+
+/systemmind/reports
+
+/systemmind/audit-centre
+
+====================================================
+
+CREATE KNOWLEDGE BASE FRAMEWORK
+
+SystemMind must use multiple knowledge bases.
+
+====================================================
+
+1. ARCHITECTURE KNOWLEDGE BASE
+
+Purpose:
+
+Understand entire WeeBee architecture.
+
+Store:
+
+Platform Audit
+
+Architecture Specifications
+
+Database Design
+
+Provider Framework
+
+Runtime Architecture
+
+Builder Architecture
+
+HiveMind Architecture
+
+GrowthMind Architecture
+
+Cost Engine Architecture
+
+CRM Architecture
+
+Telephony Architecture
+
+WhatsApp Architecture
+
+Deployment Architecture
+
+SystemMind should be able to answer:
+
+How does this platform work?
+
+What service controls this feature?
+
+What table stores this data?
+
+What provider powers this workflow?
+
+What dependency is missing?
+
+====================================================
+
+2. WORKFLOW KNOWLEDGE BASE
+
+Purpose:
+
+Understand how workflows are built.
+
+Store:
+
+Receptionist Templates
+
+Lead Generation Templates
+
+Qualification Templates
+
+Booking Templates
+
+WhatsApp Templates
+
+Follow-Up Templates
+
+Document Collection Templates
+
+CRM Sync Templates
+
+Transfer Workflows
+
+Campaign Workflows
+
+SystemMind should understand:
+
+Node patterns
+
+Logic patterns
+
+Variable mappings
+
+Tool mappings
+
+Function call patterns
+
+====================================================
+
+3. REPAIR KNOWLEDGE BASE
+
+Purpose:
+
+Understand how problems are fixed.
+
+Store:
+
+Known Bugs
+
+Previous Fixes
+
+Provider Issues
+
+Webhook Repairs
+
+Tool Schema Repairs
+
+Deployment Issues
+
+Retell Issues
+
+OpenAI Issues
+
+Cal.com Issues
+
+WhatsApp Issues
+
+Twilio Issues
+
+FreJun Issues
+
+ElevenLabs Issues
+
+GrowthMind Issues
+
+SystemMind should recommend fixes based on previous successful solutions.
+
+====================================================
+
+4. PROVIDER KNOWLEDGE BASE
+
+Store:
+
+OpenAI
+
+Gemini
+
+Claude
+
+Retell
+
+ElevenLabs
+
+Twilio
+
+FreJun
+
+Meta
+
+WATI
+
+Cal.com
+
+Stripe
+
+Resend
+
+HubSpot
+
+GoHighLevel
+
+Google Ads
+
+Google Analytics
+
+Search Console
+
+Veo
+
+Runway
+
+Kling
+
+Pika
+
+For every provider store:
+
+Required Keys
+
+Health Checks
+
+Required Settings
+
+Required Tables
+
+Required Services
+
+Provider Costs
+
+Provider Dependencies
+
+====================================================
+
+WORKFLOW INTELLIGENCE ENGINE
+
+SystemMind should analyse Builder workflows.
+
+Detect:
+
+Broken Nodes
+
+Disconnected Nodes
+
+Missing Start Nodes
+
+Missing End Nodes
+
+Invalid Logic
+
+Missing Variables
+
+Missing Tool Parameters
+
+Missing Webhooks
+
+Schema Mismatches
+
+Provider Mismatches
+
+For every issue generate:
+
+Problem
+
+Cause
+
+Impact
+
+Fix
+
+Confidence Score
+
+====================================================
+
+WORKFLOW GENERATION ENGINE
+
+SystemMind should be able to create new workflows.
+
+Examples:
+
+Receptionist Agent
+
+Lead Generation Agent
+
+Client Qualification Agent
+
+Legal Intake Agent
+
+Property Qualification Agent
+
+Document Collection Agent
+
+Customer Service Agent
+
+WhatsApp Automation
+
+Follow-Up Campaign
+
+Booking Workflow
+
+CRM Integration Workflow
+
+Output:
+
+Builder Nodes
+
+Connections
+
+Variables
+
+Webhooks
+
+Tools
+
+Campaigns
+
+====================================================
+
+SELF-HEALING ENGINE
+
+SystemMind can:
+
+Detect Issues
+
+Generate Fix Plan
+
+Generate Code Diff
+
+Generate Migration
+
+Generate Workflow Fix
+
+Generate Provider Fix
+
+Generate Webhook Fix
+
+Generate Tool Mapping Fix
+
+But cannot execute without approval.
+
+====================================================
+
+APPROVAL WORKFLOW
+
+SystemMind
+↓
+Creates Fix Plan
+↓
+HiveMind Reviews
+↓
+User Approves
+↓
+SystemMind Executes
+↓
+Audit Log Created
+↓
+Rollback Point Created
+
+====================================================
+
+CREATE PLAYBOOK LIBRARY
+
+Store:
+
+Retell Deployment Playbook
+
+HyperStream Deployment Playbook
+
+VoxStream Deployment Playbook
+
+Twilio Playbook
+
+FreJun Playbook
+
+Meta Playbook
+
+WATI Playbook
+
+Cal.com Playbook
+
+OpenAI Playbook
+
+GrowthMind Playbook
+
+HiveMind Playbook
+
+CRM Playbooks
+
+Booking Playbooks
+
+Document Collection Playbooks
+
+====================================================
+
+AUDIT ENGINE
+
+SystemMind should perform platform audits.
+
+Audit:
+
+Architecture
+
+Providers
+
+Workflows
+
+API Keys
+
+Connections
+
+Database
+
+Campaigns
+
+Agents
+
+Costs
+
+Performance
+
+Output:
+
+Executive Technical Audit
+
+Risk Score
+
+Health Score
+
+Recommended Actions
+
+====================================================
+
+PROVIDER HEALTH ENGINE
+
+Monitor:
+
+Connected Providers
+
+Disconnected Providers
+
+Invalid Keys
+
+Expired Keys
+
+Missing Credentials
+
+Incorrect Configurations
+
+False Connection States
+
+Provider Errors
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+SystemMind sends:
+
+Issues
+
+Fix Plans
+
+Architecture Reviews
+
+Provider Health
+
+Workflow Reports
+
+Technical Risks
+
+to HiveMind.
+
+HiveMind includes SystemMind findings in:
+
+Executive Briefing
+
+Reports
+
+Voice Briefing
+
+Recommendations
+
+Tasks
+
+====================================================
+
+VOICE CTO MODE
+
+Allow HiveMind to query SystemMind.
+
+Examples:
+
+"Why is Retell disconnected?"
+
+"Which workflow is broken?"
+
+"Which provider is failing?"
+
+"What is the biggest technical risk?"
+
+"Create a booking workflow."
+
+SystemMind responds internally.
+
+HiveMind presents answer.
+
+====================================================
+
+SUCCESS CRITERIA
+
+SystemMind becomes a true AI CTO.
+
+SystemMind understands the entire WeeBee architecture.
+
+SystemMind learns from previous fixes.
+
+SystemMind understands workflows.
+
+SystemMind can generate workflows.
+
+SystemMind can propose repairs.
+
+SystemMind can generate technical audits.
+
+SystemMind can create implementation plans.
+
+HiveMind remains the single executive interface.
+
+Generate implementation plan first.
+
+Then implement safely in phases.

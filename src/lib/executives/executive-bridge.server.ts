@@ -11,6 +11,8 @@ import { computeGrowthScore } from "@/lib/growthmind/growthmind.score";
 import { generateGrowthRecommendations, type GrowthRecommendation } from "@/lib/growthmind/growthmind.recommendations";
 import { detectLeadOpportunities, getOpportunitySummary, type LeadOpportunity } from "@/lib/growthmind/growthmind.opportunities";
 import { fetchFullPlatformData } from "@/lib/hivemind/hivemind.ai";
+import { computeSystemMindData } from "@/lib/systemmind/systemmind.functions";
+import { buildSystemMindSummary } from "@/lib/systemmind/systemmind.ai";
 import {
   EXECUTIVE_COUNCIL,
   EXECUTIVE_TASK_TYPES,
@@ -24,6 +26,7 @@ import {
   type RevenueOpportunity,
   type GrowthMindExecutiveSummary,
   type HiveMindExecutiveSummary,
+  type SystemMindExecutiveSummary,
   type ExecutiveCouncilSummary,
   type ExecutiveEvent,
   type ExecSource,
@@ -266,6 +269,17 @@ export async function buildHiveMindExecutiveSummary(
     systemHealth: d.systemHealth ?? {},
     headline,
   };
+}
+
+// ── SystemMind (CTO) executive summary ─────────────────────────────────────────
+// Reuses the SystemMind telemetry aggregator + deterministic summary builder — no
+// secrets are forwarded, only the boolean health flags and derived counts.
+export async function buildSystemMindExecutiveSummary(
+  _sb: any,
+  workspaceId: string,
+): Promise<SystemMindExecutiveSummary> {
+  const data = await computeSystemMindData(workspaceId);
+  return buildSystemMindSummary(data);
 }
 
 // ── Council master summary ─────────────────────────────────────────────────────

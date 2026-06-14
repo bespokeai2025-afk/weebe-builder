@@ -89,11 +89,18 @@ export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
     const settings = (context as any).settings ?? {};
     const apiKey = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
     if (!apiKey) throw new Error("OpenAI API key not configured. Add it in Settings → Integrations.");
 
-    const systemPrompt = compileSystemPrompt(data.platformData, data.personality);
+    const lastUser = [...data.messages].reverse().find((m) => m.role === "user")?.content ?? "marketing growth strategy";
+    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
+    const knowledgeBlock = workspaceId
+      ? await getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: lastUser, topK: 5 })
+      : "";
+
+    const systemPrompt = compileSystemPrompt(data.platformData, data.personality) + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -124,6 +131,7 @@ export const getGrowthMindBriefing = createServerFn({ method: "POST" })
     z.object({ platformData: z.any().optional() }).parse(input)
   )
   .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
     const settings = (context as any).settings ?? {};
     const apiKey = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
 
@@ -140,7 +148,11 @@ export const getGrowthMindBriefing = createServerFn({ method: "POST" })
       return { briefing: fallback };
     }
 
-    const systemPrompt = compileSystemPrompt(data.platformData, "professional");
+    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
+    const knowledgeBlock = workspaceId
+      ? await getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: "marketing growth priorities and risks", topK: 5 })
+      : "";
+    const systemPrompt = compileSystemPrompt(data.platformData, "professional") + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
     const prompt = `Generate a concise morning marketing briefing (3-5 sentences) that:
 1. Highlights the most important metric or opportunity
 2. Flags the biggest risk in the current pipeline

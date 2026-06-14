@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { type GrowthMindExecutiveSummary } from "@/lib/executives/executive-council";
+import { type GrowthMindExecutiveSummary, type SystemMindExecutiveSummary } from "@/lib/executives/executive-council";
 
 // ── Shared platform data fetcher ──────────────────────────────────────────────
 // Exported for reuse by the Executive Bridge. NOTE: the returned object includes a
@@ -492,6 +492,42 @@ function buildMarketingCouncilContext(gm: GrowthMindExecutiveSummary | null): st
   return lines.join("\n");
 }
 
+// ── System council (CTO advisory) helpers ─────────────────────────────────────
+// Builds the SystemMind executive summary via the server-only bridge. Returns null
+// on any failure so chat/voice never breaks if telemetry is unavailable.
+async function buildSystemCouncilSummarySafe(
+  sb: any,
+  workspaceId: string,
+): Promise<SystemMindExecutiveSummary | null> {
+  try {
+    const { buildSystemMindExecutiveSummary } = await import("@/lib/executives/executive-bridge.server");
+    return await buildSystemMindExecutiveSummary(sb, workspaceId);
+  } catch (e) {
+    console.error("[HiveMind] system council summary failed:", (e as Error)?.message);
+    return null;
+  }
+}
+
+// Formats the CTO advisory into a prompt section. HiveMind (COO) consumes this as
+// technical risk to weigh — SystemMind never executes.
+function buildSystemCouncilContext(sm: SystemMindExecutiveSummary | null): string {
+  if (!sm) return "";
+  const lines: string[] = [];
+  lines.push(`\n--- CTO ADVISORY (SystemMind → reports up to you, the COO) ---`);
+  lines.push(`Reliability: ${sm.reliabilityScore}/100 (${sm.label}, grade ${sm.grade})`);
+  lines.push(`Integrations: ${sm.integrations.connected}/${sm.integrations.total} connected.`);
+  lines.push(`Runtime: ${sm.cost.requests} provider request(s), ${sm.cost.errors} error(s), $${sm.cost.totalDollars.toFixed(2)} spend.`);
+  if (sm.topRisks?.length) {
+    lines.push(`Top technical risks:`);
+    for (const r of sm.topRisks.slice(0, 4)) lines.push(`  • [${r.severity.toUpperCase()}] ${r.title} — ${r.detail}`);
+  }
+  if (sm.recommendedActions?.length) {
+    lines.push(`CTO recommended actions (advisory — you decide what to execute):`);
+    for (const a of sm.recommendedActions.slice(0, 4)) lines.push(`  • [${a.priority.toUpperCase()}] ${a.label}: ${a.problem} → ${(a.fix ?? "").slice(0, 90)}`);
+  }
+  return lines.join("\n");
+}
+
 function buildSystemPrompt(context: string, personality = "friendly", userName?: string): string {
   const nameClause = userName?.trim()
     ? `The user's name is ${userName.trim()}. Use their name occasionally — once or twice per conversation feels natural, not every message.`
@@ -519,6 +555,7 @@ How to handle things:
 - When suggesting actions, be specific — name the agent, campaign, or lead group
 - Actions in Operator mode need the user's approval first — point them to /hivemind/actions if relevant
 - GrowthMind is your advisory CMO — it analyses marketing and recommends, but never executes. You are the COO and the only executive the user speaks to. Treat the "CMO ADVISORY" section as recommendations to weigh, and present marketing guidance as your own executive judgement
+- SystemMind is your advisory CTO — it monitors platform reliability, integrations, security and runtime cost, and recommends, but never executes. Treat the "CTO ADVISORY" section as technical risk to weigh, and present it as your own executive judgement
 - For monthly summaries: /hivemind/briefing | For tasks: /hivemind/tasks
 
 --- LIVE PLATFORM DATA ---
@@ -527,7 +564,7 @@ ${context}
 }
 
 // ── Morning briefing builder ───────────────────────────────────────────────────
-function buildMorningBriefing(d: any, gm?: GrowthMindExecutiveSummary | null): string {
+function buildMorningBriefing(d: any, gm?: GrowthMindExecutiveSummary | null, sm?: SystemMindExecutiveSummary | null, knowledgeNote?: string): string {
   if (!d) return "Good morning. I'm scanning your platform now — please ask me anything.";
 
   const hour = new Date().getHours();
@@ -574,6 +611,16 @@ function buildMorningBriefing(d: any, gm?: GrowthMindExecutiveSummary | null): s
     if (topAction) lines.push(`• Recommended: ${topAction.label} — ${topAction.problem}`);
   }
 
+  // ── Systems (CTO advisory) ─────────────────────────────────────────────────
+  if (sm) {
+    lines.push(`\n**Systems (CTO advisory)** — reliability ${sm.reliabilityScore}/100 (${sm.label}), ${sm.integrations.connected}/${sm.integrations.total} integrations connected`);
+    const topTechRisk = sm.topRisks?.[0];
+    if (topTechRisk) lines.push(`• Top technical risk: ${topTechRisk.title} — ${topTechRisk.detail}`);
+  }
+
+  // ── Grounded insight from HiveMind's private knowledge (own KB + Shared) ─────
+  if (knowledgeNote) lines.push(`\n**Playbook insight** — ${knowledgeNote}`);
+
   lines.push("\nWhat would you like to know more about?");
   return lines.join("\n");
 }
@@ -615,14 +662,21 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    const [platformData, apiKey, marketingCouncil] = await Promise.all([
+    const [platformData, apiKey, marketingCouncil, systemCouncil] = await Promise.all([
       fetchFullPlatformData(sb, workspaceId),
       getOpenAIKey(sb, workspaceId),
       buildMarketingCouncilSummarySafe(sb, workspaceId),
+      buildSystemCouncilSummarySafe(sb, workspaceId),
     ]);
 
-    const ctx          = buildPlatformContext(platformData) + buildMarketingCouncilContext(marketingCouncil);
-    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName);
+    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
+    const knowledgeBlock = await getRetrievedKnowledgeBlock({ sb, workspaceId, mindType: "hivemind", query: data.query, topK: 5 });
+
+    const ctx          = buildPlatformContext(platformData)
+      + buildMarketingCouncilContext(marketingCouncil)
+      + buildSystemCouncilContext(systemCouncil);
+    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName)
+      + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -651,11 +705,28 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
-    const [d, gm] = await Promise.all([
+    const [d, gm, sm] = await Promise.all([
       fetchFullPlatformData(sb, workspaceId),
       buildMarketingCouncilSummarySafe(sb, workspaceId),
+      buildSystemCouncilSummarySafe(sb, workspaceId),
     ]);
-    const briefing = buildMorningBriefing(d, gm);
+
+    // Ground the briefing in HiveMind's own private knowledge (own KB + Shared).
+    let knowledgeNote = "";
+    try {
+      const { retrieveExecutiveKnowledge } = await import("@/lib/executives/executive-knowledge.server");
+      const ragQuery = `Business operations priorities and next actions given ${d?.today?.leads ?? 0} new leads today and ${d?.month?.sales ?? 0} sales this month; key risks and decisions.`;
+      const { chunks } = await retrieveExecutiveKnowledge({ sb, workspaceId, mindType: "hivemind", query: ragQuery, topK: 3 });
+      const top = chunks.filter((c) => c.similarity >= 0.2)[0];
+      if (top) {
+        const title = (top.metadata?.title as string | undefined) ?? "Reference";
+        knowledgeNote = `${title}: ${top.content.trim().replace(/\s+/g, " ").slice(0, 240)}`;
+      }
+    } catch (e) {
+      console.error("[HiveMind] briefing RAG failed:", (e as Error)?.message);
+    }
+
+    const briefing = buildMorningBriefing(d, gm, sm, knowledgeNote);
 
     // Record the briefing as a shared executive event (deduped within 6h).
     try {
@@ -689,18 +760,28 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
-    const [platformData, cfgRow, marketingCouncil] = await Promise.all([
+    const [platformData, cfgRow, marketingCouncil, systemCouncil] = await Promise.all([
       fetchFullPlatformData(sb, workspaceId),
       sb.from("workspace_settings").select("elevenlabs_api_key,openai_api_key").eq("workspace_id", workspaceId).maybeSingle(),
       buildMarketingCouncilSummarySafe(sb, workspaceId),
+      buildSystemCouncilSummarySafe(sb, workspaceId),
     ]);
 
     const cfg    = cfgRow.data ?? {};
     const hasEL  = !!(process.env.ELEVENLABS_API_KEY || cfg.elevenlabs_api_key);
     const hasOAI = !!(process.env.OPENAI_API_KEY || cfg.openai_api_key);
 
-    const ctx          = buildPlatformContext(platformData) + buildMarketingCouncilContext(marketingCouncil);
-    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName);
+    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
+    const knowledgeBlock = await getRetrievedKnowledgeBlock({
+      sb, workspaceId, mindType: "hivemind",
+      query: "business operations priorities, risks and decisions", topK: 5,
+    });
+
+    const ctx          = buildPlatformContext(platformData)
+      + buildMarketingCouncilContext(marketingCouncil)
+      + buildSystemCouncilContext(systemCouncil);
+    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName)
+      + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
 
     const hour     = new Date().getHours();
     const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";

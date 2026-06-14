@@ -23,11 +23,13 @@ import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedTemplateStudioRouteImport } from './routes/_authenticated/template-studio'
 import { Route as AuthenticatedTelephonySettingsRouteImport } from './routes/_authenticated/telephony-settings'
 import { Route as AuthenticatedTelephonyCallsRouteImport } from './routes/_authenticated/telephony-calls'
+import { Route as AuthenticatedSystemmindRouteImport } from './routes/_authenticated/systemmind'
 import { Route as AuthenticatedQualifiedRouteImport } from './routes/_authenticated/qualified'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
 import { Route as AuthenticatedMyAgentsRouteImport } from './routes/_authenticated/my-agents'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
+import { Route as AuthenticatedKnowledgeCentreRouteImport } from './routes/_authenticated/knowledge-centre'
 import { Route as AuthenticatedHivemindRouteImport } from './routes/_authenticated/hivemind'
 import { Route as AuthenticatedHexmailRouteImport } from './routes/_authenticated/hexmail'
 import { Route as AuthenticatedGrowthmindRouteImport } from './routes/_authenticated/growthmind'
@@ -42,6 +44,8 @@ import { Route as AuthenticatedBuilderRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedSystemmindIndexRouteImport } from './routes/_authenticated/systemmind.index'
+import { Route as AuthenticatedKnowledgeCentreIndexRouteImport } from './routes/_authenticated/knowledge-centre.index'
 import { Route as AuthenticatedHivemindIndexRouteImport } from './routes/_authenticated/hivemind.index'
 import { Route as AuthenticatedGrowthmindIndexRouteImport } from './routes/_authenticated/growthmind.index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
@@ -63,6 +67,7 @@ import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_au
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
+import { Route as AuthenticatedKnowledgeCentreSlugRouteImport } from './routes/_authenticated/knowledge-centre.$slug'
 import { Route as AuthenticatedHivemindTasksRouteImport } from './routes/_authenticated/hivemind.tasks'
 import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/_authenticated/hivemind.system-health'
 import { Route as AuthenticatedHivemindSettingsRouteImport } from './routes/_authenticated/hivemind.settings'
@@ -198,6 +203,11 @@ const AuthenticatedTelephonyCallsRoute =
     path: '/telephony-calls',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSystemmindRoute = AuthenticatedSystemmindRouteImport.update({
+  id: '/systemmind',
+  path: '/systemmind',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedQualifiedRoute = AuthenticatedQualifiedRouteImport.update({
   id: '/qualified',
   path: '/qualified',
@@ -224,6 +234,12 @@ const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
   path: '/leads',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedKnowledgeCentreRoute =
+  AuthenticatedKnowledgeCentreRouteImport.update({
+    id: '/knowledge-centre',
+    path: '/knowledge-centre',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedHivemindRoute = AuthenticatedHivemindRouteImport.update({
   id: '/hivemind',
   path: '/hivemind',
@@ -294,6 +310,18 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSystemmindIndexRoute =
+  AuthenticatedSystemmindIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedKnowledgeCentreIndexRoute =
+  AuthenticatedKnowledgeCentreIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedKnowledgeCentreRoute,
+  } as any)
 const AuthenticatedHivemindIndexRoute =
   AuthenticatedHivemindIndexRouteImport.update({
     id: '/',
@@ -410,6 +438,12 @@ const AuthenticatedSettingsCalendarRoute =
     id: '/settings/calendar',
     path: '/settings/calendar',
     getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedKnowledgeCentreSlugRoute =
+  AuthenticatedKnowledgeCentreSlugRouteImport.update({
+    id: '/$slug',
+    path: '/$slug',
+    getParentRoute: () => AuthenticatedKnowledgeCentreRoute,
   } as any)
 const AuthenticatedHivemindTasksRoute =
   AuthenticatedHivemindTasksRouteImport.update({
@@ -791,11 +825,13 @@ export interface FileRoutesByFullPath {
   '/growthmind': typeof AuthenticatedGrowthmindRouteWithChildren
   '/hexmail': typeof AuthenticatedHexmailRoute
   '/hivemind': typeof AuthenticatedHivemindRouteWithChildren
+  '/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/qualified': typeof AuthenticatedQualifiedRoute
+  '/systemmind': typeof AuthenticatedSystemmindRouteWithChildren
   '/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
@@ -833,6 +869,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -854,6 +891,8 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/growthmind/': typeof AuthenticatedGrowthmindIndexRoute
   '/hivemind/': typeof AuthenticatedHivemindIndexRoute
+  '/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
+  '/systemmind/': typeof AuthenticatedSystemmindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -947,6 +986,7 @@ export interface FileRoutesByTo {
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -968,6 +1008,8 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/growthmind': typeof AuthenticatedGrowthmindIndexRoute
   '/hivemind': typeof AuthenticatedHivemindIndexRoute
+  '/knowledge-centre': typeof AuthenticatedKnowledgeCentreIndexRoute
+  '/systemmind': typeof AuthenticatedSystemmindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -1024,11 +1066,13 @@ export interface FileRoutesById {
   '/_authenticated/growthmind': typeof AuthenticatedGrowthmindRouteWithChildren
   '/_authenticated/hexmail': typeof AuthenticatedHexmailRoute
   '/_authenticated/hivemind': typeof AuthenticatedHivemindRouteWithChildren
+  '/_authenticated/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/my-agents': typeof AuthenticatedMyAgentsRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/qualified': typeof AuthenticatedQualifiedRoute
+  '/_authenticated/systemmind': typeof AuthenticatedSystemmindRouteWithChildren
   '/_authenticated/telephony-calls': typeof AuthenticatedTelephonyCallsRoute
   '/_authenticated/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/_authenticated/template-studio': typeof AuthenticatedTemplateStudioRoute
@@ -1066,6 +1110,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/_authenticated/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/_authenticated/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -1087,6 +1132,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/growthmind/': typeof AuthenticatedGrowthmindIndexRoute
   '/_authenticated/hivemind/': typeof AuthenticatedHivemindIndexRoute
+  '/_authenticated/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
+  '/_authenticated/systemmind/': typeof AuthenticatedSystemmindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -1143,11 +1190,13 @@ export interface FileRouteTypes {
     | '/growthmind'
     | '/hexmail'
     | '/hivemind'
+    | '/knowledge-centre'
     | '/leads'
     | '/my-agents'
     | '/phone-numbers'
     | '/pipeline'
     | '/qualified'
+    | '/systemmind'
     | '/telephony-calls'
     | '/telephony-settings'
     | '/template-studio'
@@ -1185,6 +1234,7 @@ export interface FileRouteTypes {
     | '/hivemind/settings'
     | '/hivemind/system-health'
     | '/hivemind/tasks'
+    | '/knowledge-centre/$slug'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
@@ -1206,6 +1256,8 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/growthmind/'
     | '/hivemind/'
+    | '/knowledge-centre/'
+    | '/systemmind/'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -1299,6 +1351,7 @@ export interface FileRouteTypes {
     | '/hivemind/settings'
     | '/hivemind/system-health'
     | '/hivemind/tasks'
+    | '/knowledge-centre/$slug'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
@@ -1320,6 +1373,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/growthmind'
     | '/hivemind'
+    | '/knowledge-centre'
+    | '/systemmind'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -1375,11 +1430,13 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind'
     | '/_authenticated/hexmail'
     | '/_authenticated/hivemind'
+    | '/_authenticated/knowledge-centre'
     | '/_authenticated/leads'
     | '/_authenticated/my-agents'
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
     | '/_authenticated/qualified'
+    | '/_authenticated/systemmind'
     | '/_authenticated/telephony-calls'
     | '/_authenticated/telephony-settings'
     | '/_authenticated/template-studio'
@@ -1417,6 +1474,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/settings'
     | '/_authenticated/hivemind/system-health'
     | '/_authenticated/hivemind/tasks'
+    | '/_authenticated/knowledge-centre/$slug'
     | '/_authenticated/settings/calendar'
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/integrations'
@@ -1438,6 +1496,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/'
     | '/_authenticated/growthmind/'
     | '/_authenticated/hivemind/'
+    | '/_authenticated/knowledge-centre/'
+    | '/_authenticated/systemmind/'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -1630,6 +1690,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTelephonyCallsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/systemmind': {
+      id: '/_authenticated/systemmind'
+      path: '/systemmind'
+      fullPath: '/systemmind'
+      preLoaderRoute: typeof AuthenticatedSystemmindRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/qualified': {
       id: '/_authenticated/qualified'
       path: '/qualified'
@@ -1663,6 +1730,13 @@ declare module '@tanstack/react-router' {
       path: '/leads'
       fullPath: '/leads'
       preLoaderRoute: typeof AuthenticatedLeadsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/knowledge-centre': {
+      id: '/_authenticated/knowledge-centre'
+      path: '/knowledge-centre'
+      fullPath: '/knowledge-centre'
+      preLoaderRoute: typeof AuthenticatedKnowledgeCentreRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/hivemind': {
@@ -1762,6 +1836,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin'
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/systemmind/': {
+      id: '/_authenticated/systemmind/'
+      path: '/'
+      fullPath: '/systemmind/'
+      preLoaderRoute: typeof AuthenticatedSystemmindIndexRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/knowledge-centre/': {
+      id: '/_authenticated/knowledge-centre/'
+      path: '/'
+      fullPath: '/knowledge-centre/'
+      preLoaderRoute: typeof AuthenticatedKnowledgeCentreIndexRouteImport
+      parentRoute: typeof AuthenticatedKnowledgeCentreRoute
     }
     '/_authenticated/hivemind/': {
       id: '/_authenticated/hivemind/'
@@ -1909,6 +1997,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/calendar'
       preLoaderRoute: typeof AuthenticatedSettingsCalendarRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/knowledge-centre/$slug': {
+      id: '/_authenticated/knowledge-centre/$slug'
+      path: '/$slug'
+      fullPath: '/knowledge-centre/$slug'
+      preLoaderRoute: typeof AuthenticatedKnowledgeCentreSlugRouteImport
+      parentRoute: typeof AuthenticatedKnowledgeCentreRoute
     }
     '/_authenticated/hivemind/tasks': {
       id: '/_authenticated/hivemind/tasks'
@@ -2450,6 +2545,38 @@ const AuthenticatedHivemindRouteWithChildren =
     AuthenticatedHivemindRouteChildren,
   )
 
+interface AuthenticatedKnowledgeCentreRouteChildren {
+  AuthenticatedKnowledgeCentreSlugRoute: typeof AuthenticatedKnowledgeCentreSlugRoute
+  AuthenticatedKnowledgeCentreIndexRoute: typeof AuthenticatedKnowledgeCentreIndexRoute
+}
+
+const AuthenticatedKnowledgeCentreRouteChildren: AuthenticatedKnowledgeCentreRouteChildren =
+  {
+    AuthenticatedKnowledgeCentreSlugRoute:
+      AuthenticatedKnowledgeCentreSlugRoute,
+    AuthenticatedKnowledgeCentreIndexRoute:
+      AuthenticatedKnowledgeCentreIndexRoute,
+  }
+
+const AuthenticatedKnowledgeCentreRouteWithChildren =
+  AuthenticatedKnowledgeCentreRoute._addFileChildren(
+    AuthenticatedKnowledgeCentreRouteChildren,
+  )
+
+interface AuthenticatedSystemmindRouteChildren {
+  AuthenticatedSystemmindIndexRoute: typeof AuthenticatedSystemmindIndexRoute
+}
+
+const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren =
+  {
+    AuthenticatedSystemmindIndexRoute: AuthenticatedSystemmindIndexRoute,
+  }
+
+const AuthenticatedSystemmindRouteWithChildren =
+  AuthenticatedSystemmindRoute._addFileChildren(
+    AuthenticatedSystemmindRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
@@ -2465,11 +2592,13 @@ interface AuthenticatedRouteChildren {
   AuthenticatedGrowthmindRoute: typeof AuthenticatedGrowthmindRouteWithChildren
   AuthenticatedHexmailRoute: typeof AuthenticatedHexmailRoute
   AuthenticatedHivemindRoute: typeof AuthenticatedHivemindRouteWithChildren
+  AuthenticatedKnowledgeCentreRoute: typeof AuthenticatedKnowledgeCentreRouteWithChildren
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedMyAgentsRoute: typeof AuthenticatedMyAgentsRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedQualifiedRoute: typeof AuthenticatedQualifiedRoute
+  AuthenticatedSystemmindRoute: typeof AuthenticatedSystemmindRouteWithChildren
   AuthenticatedTelephonyCallsRoute: typeof AuthenticatedTelephonyCallsRoute
   AuthenticatedTelephonySettingsRoute: typeof AuthenticatedTelephonySettingsRoute
   AuthenticatedTemplateStudioRoute: typeof AuthenticatedTemplateStudioRoute
@@ -2497,11 +2626,14 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedGrowthmindRoute: AuthenticatedGrowthmindRouteWithChildren,
   AuthenticatedHexmailRoute: AuthenticatedHexmailRoute,
   AuthenticatedHivemindRoute: AuthenticatedHivemindRouteWithChildren,
+  AuthenticatedKnowledgeCentreRoute:
+    AuthenticatedKnowledgeCentreRouteWithChildren,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedMyAgentsRoute: AuthenticatedMyAgentsRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedQualifiedRoute: AuthenticatedQualifiedRoute,
+  AuthenticatedSystemmindRoute: AuthenticatedSystemmindRouteWithChildren,
   AuthenticatedTelephonyCallsRoute: AuthenticatedTelephonyCallsRoute,
   AuthenticatedTelephonySettingsRoute: AuthenticatedTelephonySettingsRoute,
   AuthenticatedTemplateStudioRoute: AuthenticatedTemplateStudioRoute,

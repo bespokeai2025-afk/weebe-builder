@@ -19,4 +19,5 @@
 - [TanStack Start useServerFn data wrapping](tanstack-serverfn-data-wrap.md) — useServerFn calls MUST use `{ data: input }` wrapping; bare `fn(input)` sends undefined to inputValidator.
 - [GrowthMind Content Calendar + Growth Scheduler](growthmind-calendar-scheduler.md) — 6-table schema; generateGrowthPlan bulk-inserts to growthmind_content_calendar + growthmind_marketing_tasks; HiveMind scanner extended with 4 new findings.
 - [Universal Provider Framework registry isolation](provider-registry-isolation.md) — REGISTRY is global/immutable seed; buildScopedView() clones + overlays per request — never call mergeDbSettings or mutate entries directly.
+- [Executive Knowledge System](executive-knowledge-system.md) — private exec RAG (pgvector weebee_kb), separate from agent KBs; SECURITY DEFINER match RPC must be service_role-only + admin-client; access rules in one config; idempotent seed_key seeding.
 - [Executive bridge (HiveMind COO ↔ GrowthMind CMO)](executive-bridge-arch.md) — GrowthMind is advisory-only (never executes); .server builders only via dynamic import; whitelist HiveMind summary (no cfg); executive_events migration manual.
