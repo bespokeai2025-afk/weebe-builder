@@ -33,6 +33,7 @@ function MiniChat({ onClose, speaking, setSpeaking }: {
   const [thinking, setThinking]   = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [micError, setMicError]   = useState<string | null>(null);
 
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const bottomRef  = useRef<HTMLDivElement>(null);
@@ -77,38 +78,72 @@ function MiniChat({ onClose, speaking, setSpeaking }: {
     setInput("");
     setThinking(true);
     try {
-      const r = await aiFn({ data: { query: text.trim(), history: historyRef.current.slice(-8), personality: prefs.current.personality, userName: userName.current } });
+      const r = await aiFn({ data: { query: text.trim(), history: historyRef.current.slice(-6), personality: prefs.current.personality, userName: userName.current } });
       historyRef.current.push({ role: "assistant", content: r.response });
       const reply: Msg = { ...placeholder, content: r.response };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? reply : m));
-      await playTTS(r.response);
-    } catch {
-      setMessages(prev => prev.map(m => m.id === placeholder.id ? { ...m, content: "Sorry — something went wrong. Try again?" } : m));
+      playTTS(r.response);
+    } catch (err: any) {
+      const msg = err?.message ?? String(err ?? "Unknown error");
+      console.error("[HiveMind send error]", msg);
+      setMessages(prev => prev.map(m => m.id === placeholder.id
+        ? { ...m, content: `Error: ${msg.slice(0, 200)}` }
+        : m
+      ));
     } finally { setThinking(false); }
   }
 
   function toggleMic() {
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-    if (!SR) { alert("Speech recognition is not supported in this browser. Try Chrome or Edge."); return; }
-    if (recording) { recognRef.current?.stop(); setRecording(false); return; }
+    if (!SR) {
+      setMicError("Not supported — use Chrome or Edge");
+      setTimeout(() => setMicError(null), 4000);
+      return;
+    }
+    if (recording) {
+      recognRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+    setMicError(null);
     const r = new SR();
     recognRef.current = r;
-    r.continuous      = false;
-    r.interimResults  = false;
-    r.lang            = "en-US";
+    r.continuous     = false;
+    r.interimResults = false;
+    r.lang           = "en-US";
+    r.maxAlternatives = 1;
     r.onstart  = () => setRecording(true);
     r.onend    = () => setRecording(false);
     r.onerror  = (e: any) => {
       setRecording(false);
-      if (e.error === "not-allowed") {
-        alert("Microphone access was denied. Please allow microphone permissions and try again.");
-      }
+      const labels: Record<string, string> = {
+        "not-allowed":    "Mic blocked — allow microphone in your browser settings",
+        "no-speech":      "No speech heard — try again",
+        "audio-capture":  "No mic found — check your device",
+        "network":        "Network error — speech service unavailable",
+        "aborted":        "",
+      };
+      const label = labels[e.error] ?? `Mic error: ${e.error}`;
+      if (label) { setMicError(label); setTimeout(() => setMicError(null), 4000); }
     };
     r.onresult = (e: any) => {
-      const t = e.results[0]?.[0]?.transcript as string | undefined;
-      if (t?.trim()) setTimeout(() => send(t.trim()), 50);
+      const t = (e.results[0]?.[0]?.transcript as string | undefined)?.trim();
+      if (t) {
+        // Put transcript in input box — visible + editable, auto-sends if idle
+        setInput(t);
+        setTimeout(() => {
+          setInput(prev => {
+            if (prev === t) { send(t); return ""; }
+            return prev;
+          });
+        }, 800);
+      }
     };
-    try { r.start(); } catch { setRecording(false); }
+    try { r.start(); } catch (err: any) {
+      setRecording(false);
+      setMicError(`Could not start mic: ${err?.message ?? "unknown"}`);
+      setTimeout(() => setMicError(null), 4000);
+    }
   }
 
   return (
@@ -166,10 +201,16 @@ function MiniChat({ onClose, speaking, setSpeaking }: {
             <div ref={bottomRef} />
           </div>
 
+          {micError && (
+            <div className="mx-3 mb-1 rounded-lg bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 text-[10px] text-red-400">
+              {micError}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 px-3 py-2.5 border-t border-white/[0.06]">
             <button onClick={toggleMic} className={cn(
               "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition-all",
-              recording ? "border-red-500/40 bg-red-500/15 text-red-400" : "border-white/[0.08] text-muted-foreground hover:text-foreground",
+              recording ? "border-red-500/40 bg-red-500/15 text-red-400 animate-pulse" : "border-white/[0.08] text-muted-foreground hover:text-foreground",
             )}>
               {recording ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
             </button>
@@ -177,7 +218,7 @@ function MiniChat({ onClose, speaking, setSpeaking }: {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send(input))}
-              placeholder="Ask HiveMind…"
+              placeholder={recording ? "Listening…" : "Ask HiveMind…"}
               className="flex-1 bg-transparent text-xs placeholder:text-muted-foreground/40 focus:outline-none min-w-0"
             />
             <button onClick={() => send(input)} disabled={!input.trim() || thinking}
