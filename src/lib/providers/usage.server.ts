@@ -54,7 +54,7 @@ export async function trackProviderUsage(params: TrackUsageParams): Promise<void
 
     const { data: existing } = await sb
       .from("provider_usage")
-      .select("id, requests, errors, total_cost_usd, total_duration_ms")
+      .select("id, requests, errors, total_cost_usd, total_duration_ms, units_consumed")
       .eq("workspace_id", workspaceId)
       .eq("provider_category", category)
       .eq("provider_name", providerName)

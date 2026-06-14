@@ -1516,7 +1516,7 @@ function ProviderRatesTab() {
     setLoading(true);
     try {
       const res = await getRatesFn({ data: {} });
-      setRates((res as any).rates ?? []);
+      setRates(Array.isArray(res) ? res : []);
     } catch { /* graceful */ }
     setLoading(false);
   }, [getRatesFn]);

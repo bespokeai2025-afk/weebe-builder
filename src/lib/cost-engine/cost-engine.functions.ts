@@ -874,6 +874,19 @@ const ProviderCostRateInput = z.object({
   notes:             z.string().optional(),
 });
 
+/** Inline admin guard reused by cost-rate mutations. */
+async function requireCostRateAdmin(context: any): Promise<void> {
+  const { data } = await (context.supabase as any)
+    .from("workspace_members")
+    .select("role")
+    .eq("workspace_id", context.workspaceId)
+    .eq("user_id", context.userId)
+    .maybeSingle();
+  if (data?.role !== "owner" && data?.role !== "admin") {
+    throw new Error("Forbidden: only workspace owners and admins can manage provider cost rates.");
+  }
+}
+
 /**
  * Upsert a single provider cost-rate override for the calling workspace.
  * Uniqueness is on (workspace_id, provider_category, provider_name, unit_type).
@@ -884,6 +897,7 @@ export const saveProviderCostRate = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const workspaceId: string = (context as any).workspaceId;
     if (!workspaceId) throw new Error("Workspace not found");
+    await requireCostRateAdmin(context);
     const sb = supabaseAdmin as any;
     const { error } = await sb.from("provider_cost_rates").upsert(
       {
@@ -911,6 +925,7 @@ export const deleteProviderCostRate = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const workspaceId: string = (context as any).workspaceId;
     if (!workspaceId) throw new Error("Workspace not found");
+    await requireCostRateAdmin(context);
     const sb = supabaseAdmin as any;
     // Delete ONLY if the row belongs to this workspace — prevents cross-workspace deletion.
     const { error } = await sb
