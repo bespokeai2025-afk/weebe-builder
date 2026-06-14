@@ -1,0 +1,158 @@
+GROWTHMIND PHASE 1 – MARKETING EXECUTIVE FOUNDATION
+
+IMPORTANT
+
+Do not modify existing HiveMind functionality.
+
+Do not modify existing CRM functionality.
+
+Do not modify existing HexMail functionality.
+
+Do not modify existing WhatsApp functionality.
+
+Build GrowthMind as a completely separate AI Executive that follows the same architecture pattern as HiveMind.
+
+OBJECTIVE
+
+Create GrowthMind.
+
+GrowthMind is the AI Chief Marketing Officer for WeeBee.
+
+Its purpose is to continuously analyse:
+
+- Leads
+- Pipeline
+- Calls
+- Campaigns
+- WhatsApp
+- HexMail
+- Conversions
+- Bookings
+
+and identify opportunities to generate more revenue.
+
+PHASE 1 FEATURES
+
+Create new section:
+
+/growthmind
+
+Create pages:
+
+/growthmind
+/growthmind/chat
+/growthmind/recommendations
+/growthmind/campaigns
+/growthmind/lead-opportunities
+/growthmind/reports
+
+DATABASE
+
+Create:
+
+growthmind_events
+growthmind_tasks
+growthmind_recommendations
+
+tables.
+
+RECOMMENDATION ENGINE
+
+Build daily analysis engine.
+
+Scan:
+
+- stale leads
+- qualified leads with no follow-up
+- campaigns with low engagement
+- agents with low conversion
+- inactive contacts
+- abandoned bookings
+
+Generate recommendations such as:
+
+"147 leads have not been contacted in 14 days."
+
+"32 qualified leads have no follow-up campaign."
+
+"Agent X converts 42% better than Agent Y."
+
+"WhatsApp response rates are outperforming email."
+
+Store all recommendations.
+
+GROWTH SCORE
+
+Generate workspace Growth Score:
+
+0–100
+
+Based on:
+
+- lead response time
+- follow-up coverage
+- conversion rate
+- booking rate
+- campaign activity
+- agent performance
+
+Display score prominently.
+
+CHAT ASSISTANT
+
+Create GrowthMind Chat.
+
+Allow questions such as:
+
+- Where are we losing leads?
+- Which campaign performs best?
+- What should we improve this week?
+- Which leads should we contact first?
+- Which agent converts best?
+
+Use live platform data.
+
+LEAD OPPORTUNITY DETECTOR
+
+Identify:
+
+- hot leads
+- forgotten leads
+- repeat contacts
+- stalled opportunities
+- no-show bookings
+
+Display action suggestions.
+
+REPORTING
+
+Create executive marketing report.
+
+Include:
+
+- lead volume
+- conversion rate
+- campaign performance
+- booking rate
+- sales velocity
+- follow-up effectiveness
+
+UI
+
+Use same visual language as HiveMind.
+
+Same card system.
+
+Same sidebar pattern.
+
+Same executive style.
+
+SUCCESS CRITERIA
+
+GrowthMind should function as a dedicated AI CMO.
+
+It should continuously analyse platform data and tell users exactly where revenue opportunities exist without changing any data automatically.
+
+Generate implementation plan first.
+
+Then implement safely in phases.
