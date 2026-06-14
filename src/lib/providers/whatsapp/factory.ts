@@ -41,12 +41,12 @@ export function createWhatsAppProvider(
     name: inner.name,
     sendMessage: (msg: WhatsAppMessage) =>
       withProviderTracking(
-        { workspaceId, category: "whatsapp", providerName, unitsConsumed: 1, unitType: "message" },
+        { workspaceId, category: "whatsapp", providerName, unitsConsumed: 1, unitType: "whatsapp" },
         () => inner.sendMessage(msg),
       ),
     sendTemplate: (msg: WhatsAppTemplate) =>
       withProviderTracking(
-        { workspaceId, category: "whatsapp", providerName, unitsConsumed: 1, unitType: "message" },
+        { workspaceId, category: "whatsapp", providerName, unitsConsumed: 1, unitType: "whatsapp" },
         () => inner.sendTemplate(msg),
       ),
     sendBroadcast: (b: WhatsAppBroadcast) =>
@@ -55,7 +55,7 @@ export function createWhatsAppProvider(
           workspaceId,
           category: "whatsapp",
           providerName,
-          unitType: "message",
+          unitType: "whatsapp",
           unitsExtractor: (r: { sent: number; failed: number }) => r.sent,
         },
         () => inner.sendBroadcast(b),

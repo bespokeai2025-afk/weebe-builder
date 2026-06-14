@@ -37,7 +37,7 @@ export function createAdProvider(
 
   const { workspaceId, provider: providerName } = config;
   const track = <T>(fn: () => Promise<T>) =>
-    withProviderTracking({ workspaceId, category: "advertising", providerName, unitsConsumed: 1, unitType: "api_call" }, fn);
+    withProviderTracking({ workspaceId, category: "advertising", providerName, unitsConsumed: 1, unitType: "sync" }, fn);
 
   return {
     name: inner.name,

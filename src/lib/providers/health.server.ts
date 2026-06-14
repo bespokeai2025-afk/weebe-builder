@@ -19,6 +19,7 @@ import { GoogleCalendarAdapter } from "./calendar/adapters/google.adapter";
 import { GoogleAnalyticsAdapter } from "./analytics/adapters/google-analytics.adapter";
 import { GoogleAdsAdapter } from "./advertising/adapters/google-ads.adapter";
 import { MetaAdsAdapter } from "./advertising/adapters/meta-ads.adapter";
+import { WATIWhatsAppAdapter } from "./whatsapp/adapters/wati.adapter";
 import { TwilioWhatsAppAdapter } from "./whatsapp/adapters/twilio.adapter";
 import { HubSpotAdapter } from "@/lib/crm/hubspot.adapter";
 import { GoHighLevelAdapter } from "@/lib/crm/gohighlevel.adapter";
@@ -270,14 +271,18 @@ async function dispatchHealthCheck(
 
     // ── WhatsApp ───────────────────────────────────────────────────────────────
     case "whatsapp:wati": {
-      // WATI connection state is in wati_connections table — just check DB
+      // Load WATI credentials and perform a live API ping.
       const sb = supabaseAdmin as any;
-      const { data } = await sb
+      const { data: watiConn } = await sb
         .from("wati_connections")
-        .select("status")
+        .select("api_endpoint, api_key")
         .eq("workspace_id", workspaceId)
         .maybeSingle();
-      return data?.status === "active";
+      if (!watiConn?.api_endpoint || !watiConn?.api_key) return false;
+      return new WATIWhatsAppAdapter({
+        apiEndpoint: watiConn.api_endpoint,
+        apiKey: watiConn.api_key,
+      }).healthCheck!();
     }
     case "whatsapp:twilio": {
       const sid   = str(stored.accountSid) || str(ws.twilio_account_sid);

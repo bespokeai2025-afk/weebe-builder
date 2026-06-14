@@ -42,7 +42,7 @@ export function createVideoProvider(
     name: inner.name,
     generate: (params: VideoGenerateParams): Promise<VideoGenerateResult> =>
       withProviderTracking(
-        { workspaceId, category: "video", providerName, unitsConsumed: 1, unitType: "video" },
+        { workspaceId, category: "video", providerName, unitsConsumed: params.durationSeconds ?? 1, unitType: "video_seconds" },
         () => inner.generate(params),
       ),
     pollStatus: (jobId: string): Promise<VideoGenerateResult> =>

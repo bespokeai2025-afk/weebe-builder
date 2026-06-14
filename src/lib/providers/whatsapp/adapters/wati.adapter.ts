@@ -57,4 +57,19 @@ export class WATIWhatsAppAdapter implements WhatsAppProvider {
     );
     return { sent, failed };
   }
+
+  async healthCheck(): Promise<boolean> {
+    const { apiEndpoint, apiKey } = this.config;
+    if (!apiEndpoint || !apiKey) return false;
+    try {
+      // GET getContacts is a lightweight read-only WATI endpoint;
+      // a 200 response confirms the endpoint + Bearer token are valid.
+      const res = await fetch(`${apiEndpoint}/api/v1/getContacts?pageSize=1`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
 }
