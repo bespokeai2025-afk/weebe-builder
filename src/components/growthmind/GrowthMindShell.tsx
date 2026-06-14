@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   TrendingUp, BarChart3, Lightbulb, FileText,
   MessageSquareMore, Target, Megaphone,
-  BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag,
+  BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,12 +17,13 @@ const CORE_NAV = [
 ];
 
 const INTELLIGENCE_NAV = [
-  { label: "Ads",         href: "/growthmind/ads",         icon: BarChart2 },
-  { label: "Funnels",     href: "/growthmind/funnels",     icon: Filter },
-  { label: "Forecast",    href: "/growthmind/forecast",    icon: LineChart },
-  { label: "Playbooks",   href: "/growthmind/playbooks",   icon: BookOpen },
-  { label: "SEO",         href: "/growthmind/seo",         icon: Search },
-  { label: "Competitors", href: "/growthmind/competitors", icon: Swords },
+  { label: "Content Studio",  href: "/growthmind/content-studio", icon: Wand2,     highlight: true },
+  { label: "Ads",             href: "/growthmind/ads",            icon: BarChart2 },
+  { label: "Funnels",         href: "/growthmind/funnels",        icon: Filter },
+  { label: "Forecast",        href: "/growthmind/forecast",       icon: LineChart },
+  { label: "Playbooks",       href: "/growthmind/playbooks",      icon: BookOpen },
+  { label: "SEO",             href: "/growthmind/seo",            icon: Search },
+  { label: "Competitors",     href: "/growthmind/competitors",    icon: Swords },
 ];
 
 const ALL_NAV = [...CORE_NAV, ...INTELLIGENCE_NAV];

@@ -1,0 +1,297 @@
+ADD MULTI-LLM SMART ROUTING TO GROWTHMIND
+
+IMPORTANT
+
+Do not modify Retell.
+Do not modify HyperStream voice.
+Do not modify HiveMind voice.
+Do not replace OpenAI globally.
+Do not break existing GrowthMind Content Studio.
+Extend GrowthMind only.
+
+OBJECTIVE
+
+Add multi-LLM support to GrowthMind so different marketing tasks can use the best model automatically.
+
+Supported providers:
+
+1. OpenAI
+2. Gemini
+3. Claude
+
+Supported models:
+
+OpenAI:
+- GPT-4.1
+- GPT-4.1 Mini
+
+Gemini:
+- Gemini 2.5 Flash
+- Gemini 2.5 Pro
+
+Claude:
+- Claude Sonnet 4
+
+ENVIRONMENT VARIABLES
+
+Support server-side only:
+
+OPENAI_API_KEY
+GEMINI_API_KEY
+ANTHROPIC_API_KEY
+
+Never expose keys to frontend.
+
+CREATE GROWTHMIND MODEL ROUTER
+
+Create:
+
+src/lib/growthmind/model-router.server.ts
+
+Responsibilities:
+
+- Select provider
+- Select model
+- Route generation requests
+- Support fallback model
+- Track usage
+- Track cost
+- Return structured outputs
+
+CREATE PROVIDER SERVICES
+
+Create:
+
+src/lib/growthmind/providers/openai-growth.server.ts
+src/lib/growthmind/providers/gemini-growth.server.ts
+src/lib/growthmind/providers/claude-growth.server.ts
+
+Each provider must expose:
+
+generateText()
+generateJson()
+generateContentAsset()
+generateStrategy()
+generateReport()
+
+SMART ROUTING RULES
+
+Default routing:
+
+Blog Articles:
+Gemini 2.5 Pro
+
+SEO Content Briefs:
+Gemini 2.5 Pro
+
+30/60/90 Day Strategies:
+Gemini 2.5 Pro
+
+Competitor Analysis:
+Gemini 2.5 Pro
+
+Landing Pages:
+Claude Sonnet 4
+
+Email Campaigns:
+Claude Sonnet 4
+
+Meta Ads:
+Claude Sonnet 4
+
+Video Scripts:
+Claude Sonnet 4
+
+Google Ads:
+Gemini 2.5 Flash
+
+Social Posts:
+Gemini 2.5 Flash
+
+WhatsApp Campaigns:
+GPT-4.1 Mini or Gemini 2.5 Flash
+
+AI Call Scripts:
+GPT-4.1
+
+Executive Reports:
+Gemini 2.5 Pro
+
+UI REQUIREMENTS
+
+In GrowthMind Content Studio add:
+
+AI Mode:
+
+- Smart Routing
+- Manual Model Selection
+
+If Smart Routing selected:
+
+Show selected model after content type is chosen.
+
+If Manual selected:
+
+Allow:
+
+Provider dropdown:
+OpenAI
+Gemini
+Claude
+
+Model dropdown:
+GPT-4.1
+GPT-4.1 Mini
+Gemini 2.5 Flash
+Gemini 2.5 Pro
+Claude Sonnet 4
+
+Show:
+
+Best For
+Estimated Speed
+Estimated Cost
+Quality Tier
+
+DATABASE
+
+Create or extend:
+
+growthmind_model_settings
+growthmind_generation_logs
+
+Store:
+
+workspace_id
+mode
+provider
+model
+task_type
+input_tokens
+output_tokens
+estimated_cost
+status
+created_at
+
+COST ENGINE INTEGRATION
+
+Add GrowthMind model costs to Cost Engine.
+
+Track:
+
+provider
+model
+input token cost
+output token cost
+request count
+total estimated cost
+
+Every generation must create a usage_events record.
+
+FALLBACK LOGIC
+
+If selected model fails:
+
+1. Retry once.
+2. If still failing, use fallback model.
+3. Log failure.
+4. Show friendly message.
+
+Default fallback:
+
+Gemini 2.5 Pro → GPT-4.1
+Claude Sonnet 4 → GPT-4.1
+Gemini 2.5 Flash → GPT-4.1 Mini
+GPT-4.1 → Gemini 2.5 Pro
+
+STRUCTURED OUTPUTS
+
+All strategy, report and campaign generation must support JSON output.
+
+Examples:
+
+Content Asset:
+
+{
+  "title": "",
+  "platform": "",
+  "content": "",
+  "cta": "",
+  "keywords": [],
+  "follow_up_recommendation": ""
+}
+
+Strategy:
+
+{
+  "summary": "",
+  "goals": [],
+  "channels": [],
+  "weekly_plan": [],
+  "content_ideas": [],
+  "campaigns": [],
+  "kpis": []
+}
+
+Report:
+
+{
+  "summary": "",
+  "findings": [],
+  "risks": [],
+  "opportunities": [],
+  "recommended_actions": []
+}
+
+HIVEMIND INTEGRATION
+
+GrowthMind should report model usage summaries to HiveMind.
+
+HiveMind remains the only speaking assistant.
+
+HiveMind should be able to say:
+
+"GrowthMind generated 12 content assets this week using Gemini and Claude, with an estimated AI cost of £X."
+
+SECURITY
+
+All provider calls must be server-side.
+
+No API keys in browser.
+
+All errors must be safely handled.
+
+SUCCESS CRITERIA
+
+User can open GrowthMind Content Studio and choose:
+
+Smart Routing
+
+or
+
+Manual Model Selection
+
+GrowthMind can generate:
+
+Blogs
+Landing Pages
+Google Ads
+Meta Ads
+Emails
+WhatsApp Campaigns
+Video Scripts
+AI Call Scripts
+Strategies
+Reports
+
+using the most suitable LLM for each task.
+
+All usage is logged.
+
+All costs are tracked.
+
+HiveMind receives GrowthMind model usage summaries.
+
+Generate implementation plan first.
+
+Then implement safely.

@@ -1,0 +1,208 @@
+ADD GEMINI TO GROWTHMIND CONTENT STUDIO
+
+IMPORTANT
+
+Do not modify Retell.
+
+Do not modify HyperStream voice calls.
+
+Do not modify HiveMind voice mode.
+
+Do not replace OpenAI globally.
+
+Add Gemini only as an optional model provider for GrowthMind content, strategy and marketing reports.
+
+OBJECTIVE
+
+Allow GrowthMind Content Studio to use Gemini as the AI generation engine.
+
+Use cases:
+
+* Blog generation
+* SEO content
+* Landing page copy
+* Google Ads copy
+* Meta Ads copy
+* LinkedIn posts
+* WhatsApp campaign copy
+* Email campaign copy
+* 30/60/90 day marketing strategies
+* Competitor positioning reports
+* GrowthMind reports
+
+====================================================
+
+MODEL PROVIDER OPTIONS
+
+Add GrowthMind AI Model selector:
+
+OpenAI
+Gemini
+
+Default:
+
+OpenAI
+
+Optional:
+
+Gemini
+
+====================================================
+
+ENVIRONMENT VARIABLES
+
+Add support for:
+
+GEMINI_API_KEY
+
+Never expose this key to the frontend.
+
+====================================================
+
+GEMINI SERVICE
+
+Create:
+
+src/lib/growthmind/gemini.server.ts
+
+Responsibilities:
+
+* Generate text content
+* Generate structured JSON output
+* Generate marketing strategies
+* Generate SEO recommendations
+* Generate content calendars
+
+====================================================
+
+MODEL SUPPORT
+
+Use Gemini API via server-side calls.
+
+Preferred models:
+
+* gemini-2.5-flash for fast, low-cost marketing generation
+* future model list should be configurable from admin settings
+
+Do not hardcode the system so it cannot be updated later.
+
+Google’s Gemini API supports standard, streaming and real-time APIs, and Gemini 2.5 Flash is positioned for low-latency, high-volume and agentic use cases.
+
+====================================================
+
+CONTENT GENERATION FLOW
+
+GrowthMind Context
+→ Company Info
+→ Website Info
+→ Keywords
+→ Competitors
+→ Strategy
+→ Prompt Builder
+→ Selected Model Provider
+→ Generated Content
+→ Save To Content Studio
+
+====================================================
+
+STRUCTURED OUTPUTS
+
+When generating plans, force JSON structure.
+
+Examples:
+
+30 Day Strategy:
+
+{
+"summary": "",
+"goals": [],
+"channels": [],
+"weekly_plan": [],
+"content_ideas": [],
+"campaigns": [],
+"kpis": []
+}
+
+Content Asset:
+
+{
+"title": "",
+"platform": "",
+"content": "",
+"cta": "",
+"keywords": [],
+"follow_up_recommendation": ""
+}
+
+====================================================
+
+UI REQUIREMENTS
+
+In GrowthMind Content Studio add:
+
+AI Provider:
+[OpenAI ▼]
+[Gemini ▼]
+
+Model:
+[Model Dropdown]
+
+Show:
+
+Estimated Cost
+Best For
+Speed
+
+====================================================
+
+ADMIN SETTINGS
+
+Add Gemini model costs to Cost Engine.
+
+Track:
+
+input tokens
+output tokens
+request count
+estimated cost
+
+====================================================
+
+USAGE TRACKING
+
+Log every Gemini generation to:
+
+usage_events
+
+Store:
+
+workspace_id
+provider = gemini
+model
+feature = growthmind_content
+input_tokens
+output_tokens
+cost_estimate
+created_at
+
+====================================================
+
+ERROR HANDLING
+
+If Gemini fails:
+
+Show friendly error.
+
+Do not crash Content Studio.
+
+Allow fallback to OpenAI.
+
+====================================================
+
+SUCCESS CRITERIA
+
+User can open GrowthMind Content Studio, select Gemini, generate marketing content, save it, and use it inside content calendar, HexMail, WhatsApp campaigns and GrowthMind strategy reports.
+
+Generate implementation plan first.
+
+Then implement safely.
