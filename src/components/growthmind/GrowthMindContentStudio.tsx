@@ -619,7 +619,7 @@ export function GrowthMindContentStudio() {
     setGenError(null);
     setOutput(null);
     try {
-      const result = await generateFn({
+      const result = await generateFn({ data: {
         contentType:    selectedType,
         businessType:   brief.businessType   ?? "",
         targetAudience: brief.targetAudience ?? "",
@@ -635,7 +635,7 @@ export function GrowthMindContentStudio() {
         aiMode,
         provider:       aiMode === "manual" ? manualProvider : undefined,
         model:          aiMode === "manual" ? manualModel    : undefined,
-      });
+      }});
       setOutput(result);
       qc.invalidateQueries({ queryKey: ["growthmind-content-assets"] });
       qc.invalidateQueries({ queryKey: ["growthmind-content-stats"] });
