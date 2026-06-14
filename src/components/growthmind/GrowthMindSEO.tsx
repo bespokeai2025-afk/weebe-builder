@@ -1026,6 +1026,21 @@ function GscConnectionPanel({
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatRelativeTime(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1)  return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24)   return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30)    return `${days} day${days === 1 ? "" : "s"} ago`;
+  const months = Math.floor(days / 30);
+  return `${months} month${months === 1 ? "" : "s"} ago`;
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function GrowthMindSEO() {
@@ -1046,6 +1061,7 @@ export function GrowthMindSEO() {
   const [saving, setSaving]             = useState(false);
   const [saveMsg, setSaveMsg]           = useState<{ text: string; isError: boolean } | null>(null);
   const [aiInsight, setAiInsight]       = useState<string | null>(null);
+  const [aiRecAt, setAiRecAt]           = useState<string | null>(null);
   const [aiLoading, setAiLoading]       = useState(false);
 
   const [siteId, setSiteId]             = useState<string | undefined>();
@@ -1092,6 +1108,7 @@ export function GrowthMindSEO() {
     setKeywords(site.keywords);
     setContentIdeas(site.contentIdeas);
     if (site.aiRecs) setAiInsight(site.aiRecs);
+    if (site.aiRecAt) setAiRecAt(site.aiRecAt);
   }, [siteData]);
 
   // ── Handle GSC OAuth callback (?code= in URL) ─────────────────────────────
@@ -1317,7 +1334,9 @@ export function GrowthMindSEO() {
         platformData,
         personality: "professional",
       });
+      const now = new Date().toISOString();
       setAiInsight(reply);
+      setAiRecAt(now);
       if (siteId) {
         try {
           await saveAiRecsFn({ id: siteId, text: reply });
@@ -1615,17 +1634,26 @@ export function GrowthMindSEO() {
                         <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
                         <p className="text-sm font-semibold">AI SEO Recommendations</p>
                       </div>
-                      <Button
-                        variant="outline" size="sm"
-                        onClick={handleAIRecommendations}
-                        disabled={aiLoading}
-                        className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
-                      >
-                        {aiLoading
-                          ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Analysing…</>
-                          : <><Sparkles className="mr-1.5 h-3.5 w-3.5" />Generate recommendations</>
-                        }
-                      </Button>
+                      <div className="flex items-center gap-3">
+                        {aiRecAt && !aiLoading && (
+                          <span className="text-[11px] text-muted-foreground">
+                            Last generated: {formatRelativeTime(aiRecAt)}
+                          </span>
+                        )}
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={handleAIRecommendations}
+                          disabled={aiLoading}
+                          className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                        >
+                          {aiLoading
+                            ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Analysing…</>
+                            : aiInsight
+                              ? <><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Refresh recommendations</>
+                              : <><Sparkles className="mr-1.5 h-3.5 w-3.5" />Generate recommendations</>
+                          }
+                        </Button>
+                      </div>
                     </div>
                     {!aiInsight && !aiLoading && (
                       <p className="mt-3 text-sm text-muted-foreground">
@@ -1638,7 +1666,7 @@ export function GrowthMindSEO() {
                       </p>
                     )}
                     {aiInsight && !aiLoading && (
-                      <p className="mt-3 text-sm leading-relaxed whitespace-pre-line">{aiInsight}</p>
+                      <p className="mt-3 text-sm leading-relaxed whitespace-pre-line text-muted-foreground">{aiInsight}</p>
                     )}
                   </div>
                 )}
