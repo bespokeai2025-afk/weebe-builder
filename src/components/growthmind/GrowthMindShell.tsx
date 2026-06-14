@@ -1,30 +1,70 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   TrendingUp, BarChart3, Lightbulb, FileText,
-  MessageSquareMore, Target, Megaphone, Users,
+  MessageSquareMore, Target, Megaphone,
+  BarChart2, Filter, BookOpen, Search, Swords, LineChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ALL_NAV = [
-  { label: "Overview",         href: "/growthmind",                        icon: BarChart3 },
-  { label: "AI Assistant",     href: "/growthmind/chat",                   icon: MessageSquareMore, highlight: true },
-  { label: "Recommendations",  href: "/growthmind/recommendations",        icon: Lightbulb },
+const CORE_NAV = [
+  { label: "Overview",           href: "/growthmind",                      icon: BarChart3 },
+  { label: "AI Assistant",       href: "/growthmind/chat",                 icon: MessageSquareMore, highlight: true },
+  { label: "Recommendations",    href: "/growthmind/recommendations",      icon: Lightbulb },
   { label: "Lead Opportunities", href: "/growthmind/lead-opportunities",   icon: Target },
-  { label: "Campaigns",        href: "/growthmind/campaigns",              icon: Megaphone },
-  { label: "Reports",          href: "/growthmind/reports",                icon: FileText },
+  { label: "Campaigns",          href: "/growthmind/campaigns",            icon: Megaphone },
+  { label: "Reports",            href: "/growthmind/reports",              icon: FileText },
 ];
+
+const INTELLIGENCE_NAV = [
+  { label: "Ads",         href: "/growthmind/ads",         icon: BarChart2 },
+  { label: "Funnels",     href: "/growthmind/funnels",     icon: Filter },
+  { label: "Forecast",    href: "/growthmind/forecast",    icon: LineChart },
+  { label: "Playbooks",   href: "/growthmind/playbooks",   icon: BookOpen },
+  { label: "SEO",         href: "/growthmind/seo",         icon: Search },
+  { label: "Competitors", href: "/growthmind/competitors", icon: Swords },
+];
+
+const ALL_NAV = [...CORE_NAV, ...INTELLIGENCE_NAV];
+
+function NavItem({ label, href, icon: Icon, highlight, active }: {
+  label: string; href: string; icon: React.ElementType; highlight?: boolean; active: boolean;
+}) {
+  return (
+    <Link
+      to={href}
+      className={cn(
+        "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+        active
+          ? "bg-emerald-500/15 text-emerald-300"
+          : highlight
+            ? "text-emerald-400/80 hover:bg-emerald-500/[0.08] hover:text-emerald-300"
+            : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+      )}
+    >
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", (active || highlight) && "text-emerald-400")} />
+      {label}
+      {highlight && !active && (
+        <span className="ml-auto rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400 leading-none">AI</span>
+      )}
+    </Link>
+  );
+}
 
 export function GrowthMindShell({ children }: { children: React.ReactNode }) {
   const router = useRouterState();
   const path   = router.location.pathname;
 
+  function isActive(href: string) {
+    return href === "/growthmind" ? path === "/growthmind" : path.startsWith(href);
+  }
+
   return (
     <div className="flex h-full min-h-0 w-full">
       {/* Left sidebar */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[hsl(var(--sidebar-background))] py-4">
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
         {/* Brand */}
         <div className="px-4 mb-5">
-          <div className="flex items-center gap-2.5 mb-2">
+          <div className="flex items-center gap-2.5">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-500/20 ring-1 ring-emerald-500/30">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
             </div>
@@ -35,35 +75,25 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Nav items */}
+        {/* Core nav */}
+        <nav className="flex flex-col gap-0.5 px-2">
+          {CORE_NAV.map(item => (
+            <NavItem key={item.href} {...item} active={isActive(item.href)} />
+          ))}
+        </nav>
+
+        {/* Intelligence nav */}
+        <div className="mt-4 px-4 mb-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50">Intelligence</p>
+        </div>
         <nav className="flex flex-col gap-0.5 px-2 flex-1">
-          {ALL_NAV.map(({ label, href, icon: Icon, highlight }) => {
-            const active = href === "/growthmind" ? path === "/growthmind" : path.startsWith(href);
-            return (
-              <Link
-                key={href}
-                to={href}
-                className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
-                  active
-                    ? "bg-emerald-500/15 text-emerald-300"
-                    : highlight
-                      ? "text-emerald-400/80 hover:bg-emerald-500/[0.08] hover:text-emerald-300"
-                      : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
-                )}
-              >
-                <Icon className={cn("h-3.5 w-3.5 shrink-0", (active || highlight) && "text-emerald-400")} />
-                {label}
-                {highlight && !active && (
-                  <span className="ml-auto rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400 leading-none">AI</span>
-                )}
-              </Link>
-            );
-          })}
+          {INTELLIGENCE_NAV.map(item => (
+            <NavItem key={item.href} {...item} active={isActive(item.href)} />
+          ))}
         </nav>
 
         {/* Footer CTA */}
-        <div className="px-3 mt-3">
+        <div className="px-3 mt-4">
           <Link
             to="/growthmind/chat"
             className={cn(
@@ -82,14 +112,14 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Mobile nav */}
-      <div className="flex md:hidden border-b border-white/[0.06] overflow-x-auto shrink-0">
+      {/* Mobile nav — scrollable horizontal tabs */}
+      <div className="flex md:hidden border-b border-white/[0.06] overflow-x-auto shrink-0 w-full">
         {ALL_NAV.map(({ label, href, icon: Icon }) => {
-          const active = href === "/growthmind" ? path === "/growthmind" : path.startsWith(href);
+          const active = isActive(href);
           return (
             <Link key={href} to={href}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
+                "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors shrink-0",
                 active ? "border-emerald-400 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
               )}>
               <Icon className="h-3 w-3" />

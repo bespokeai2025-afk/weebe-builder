@@ -69,11 +69,17 @@ import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './rout
 import { Route as AuthenticatedHivemindChatRouteImport } from './routes/_authenticated/hivemind.chat'
 import { Route as AuthenticatedHivemindBriefingRouteImport } from './routes/_authenticated/hivemind.briefing'
 import { Route as AuthenticatedHivemindActionsRouteImport } from './routes/_authenticated/hivemind.actions'
+import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
 import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
 import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
+import { Route as AuthenticatedGrowthmindPlaybooksRouteImport } from './routes/_authenticated/growthmind.playbooks'
 import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
+import { Route as AuthenticatedGrowthmindFunnelsRouteImport } from './routes/_authenticated/growthmind.funnels'
+import { Route as AuthenticatedGrowthmindForecastRouteImport } from './routes/_authenticated/growthmind.forecast'
+import { Route as AuthenticatedGrowthmindCompetitorsRouteImport } from './routes/_authenticated/growthmind.competitors'
 import { Route as AuthenticatedGrowthmindChatRouteImport } from './routes/_authenticated/growthmind.chat'
 import { Route as AuthenticatedGrowthmindCampaignsRouteImport } from './routes/_authenticated/growthmind.campaigns'
+import { Route as AuthenticatedGrowthmindAdsRouteImport } from './routes/_authenticated/growthmind.ads'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
@@ -435,6 +441,12 @@ const AuthenticatedHivemindActionsRoute =
     path: '/actions',
     getParentRoute: () => AuthenticatedHivemindRoute,
   } as any)
+const AuthenticatedGrowthmindSeoRoute =
+  AuthenticatedGrowthmindSeoRouteImport.update({
+    id: '/seo',
+    path: '/seo',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindReportsRoute =
   AuthenticatedGrowthmindReportsRouteImport.update({
     id: '/reports',
@@ -447,10 +459,34 @@ const AuthenticatedGrowthmindRecommendationsRoute =
     path: '/recommendations',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindPlaybooksRoute =
+  AuthenticatedGrowthmindPlaybooksRouteImport.update({
+    id: '/playbooks',
+    path: '/playbooks',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindLeadOpportunitiesRoute =
   AuthenticatedGrowthmindLeadOpportunitiesRouteImport.update({
     id: '/lead-opportunities',
     path: '/lead-opportunities',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindFunnelsRoute =
+  AuthenticatedGrowthmindFunnelsRouteImport.update({
+    id: '/funnels',
+    path: '/funnels',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindForecastRoute =
+  AuthenticatedGrowthmindForecastRouteImport.update({
+    id: '/forecast',
+    path: '/forecast',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindCompetitorsRoute =
+  AuthenticatedGrowthmindCompetitorsRouteImport.update({
+    id: '/competitors',
+    path: '/competitors',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedGrowthmindChatRoute =
@@ -463,6 +499,12 @@ const AuthenticatedGrowthmindCampaignsRoute =
   AuthenticatedGrowthmindCampaignsRouteImport.update({
     id: '/campaigns',
     path: '/campaigns',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindAdsRoute =
+  AuthenticatedGrowthmindAdsRouteImport.update({
+    id: '/ads',
+    path: '/ads',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedAgentsNewRoute = AuthenticatedAgentsNewRouteImport.update({
@@ -719,11 +761,17 @@ export interface FileRoutesByFullPath {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
+  '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
+  '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -820,11 +868,17 @@ export interface FileRoutesByTo {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
+  '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
+  '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -926,11 +980,17 @@ export interface FileRoutesById {
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/_authenticated/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/_authenticated/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
   '/_authenticated/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/_authenticated/growthmind/competitors': typeof AuthenticatedGrowthmindCompetitorsRoute
+  '/_authenticated/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
+  '/_authenticated/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/_authenticated/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
+  '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/_authenticated/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/_authenticated/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/_authenticated/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -1032,11 +1092,17 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
+    | '/growthmind/ads'
     | '/growthmind/campaigns'
     | '/growthmind/chat'
+    | '/growthmind/competitors'
+    | '/growthmind/forecast'
+    | '/growthmind/funnels'
     | '/growthmind/lead-opportunities'
+    | '/growthmind/playbooks'
     | '/growthmind/recommendations'
     | '/growthmind/reports'
+    | '/growthmind/seo'
     | '/hivemind/actions'
     | '/hivemind/briefing'
     | '/hivemind/chat'
@@ -1133,11 +1199,17 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
+    | '/growthmind/ads'
     | '/growthmind/campaigns'
     | '/growthmind/chat'
+    | '/growthmind/competitors'
+    | '/growthmind/forecast'
+    | '/growthmind/funnels'
     | '/growthmind/lead-opportunities'
+    | '/growthmind/playbooks'
     | '/growthmind/recommendations'
     | '/growthmind/reports'
+    | '/growthmind/seo'
     | '/hivemind/actions'
     | '/hivemind/briefing'
     | '/hivemind/chat'
@@ -1238,11 +1310,17 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
+    | '/_authenticated/growthmind/ads'
     | '/_authenticated/growthmind/campaigns'
     | '/_authenticated/growthmind/chat'
+    | '/_authenticated/growthmind/competitors'
+    | '/_authenticated/growthmind/forecast'
+    | '/_authenticated/growthmind/funnels'
     | '/_authenticated/growthmind/lead-opportunities'
+    | '/_authenticated/growthmind/playbooks'
     | '/_authenticated/growthmind/recommendations'
     | '/_authenticated/growthmind/reports'
+    | '/_authenticated/growthmind/seo'
     | '/_authenticated/hivemind/actions'
     | '/_authenticated/hivemind/briefing'
     | '/_authenticated/hivemind/chat'
@@ -1783,6 +1861,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHivemindActionsRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
     }
+    '/_authenticated/growthmind/seo': {
+      id: '/_authenticated/growthmind/seo'
+      path: '/seo'
+      fullPath: '/growthmind/seo'
+      preLoaderRoute: typeof AuthenticatedGrowthmindSeoRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/reports': {
       id: '/_authenticated/growthmind/reports'
       path: '/reports'
@@ -1797,11 +1882,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindRecommendationsRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/playbooks': {
+      id: '/_authenticated/growthmind/playbooks'
+      path: '/playbooks'
+      fullPath: '/growthmind/playbooks'
+      preLoaderRoute: typeof AuthenticatedGrowthmindPlaybooksRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/lead-opportunities': {
       id: '/_authenticated/growthmind/lead-opportunities'
       path: '/lead-opportunities'
       fullPath: '/growthmind/lead-opportunities'
       preLoaderRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/funnels': {
+      id: '/_authenticated/growthmind/funnels'
+      path: '/funnels'
+      fullPath: '/growthmind/funnels'
+      preLoaderRoute: typeof AuthenticatedGrowthmindFunnelsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/forecast': {
+      id: '/_authenticated/growthmind/forecast'
+      path: '/forecast'
+      fullPath: '/growthmind/forecast'
+      preLoaderRoute: typeof AuthenticatedGrowthmindForecastRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/competitors': {
+      id: '/_authenticated/growthmind/competitors'
+      path: '/competitors'
+      fullPath: '/growthmind/competitors'
+      preLoaderRoute: typeof AuthenticatedGrowthmindCompetitorsRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/growthmind/chat': {
@@ -1816,6 +1929,13 @@ declare module '@tanstack/react-router' {
       path: '/campaigns'
       fullPath: '/growthmind/campaigns'
       preLoaderRoute: typeof AuthenticatedGrowthmindCampaignsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/ads': {
+      id: '/_authenticated/growthmind/ads'
+      path: '/ads'
+      fullPath: '/growthmind/ads'
+      preLoaderRoute: typeof AuthenticatedGrowthmindAdsRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/agents/new': {
@@ -2105,24 +2225,38 @@ const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
 interface AuthenticatedGrowthmindRouteChildren {
+  AuthenticatedGrowthmindAdsRoute: typeof AuthenticatedGrowthmindAdsRoute
   AuthenticatedGrowthmindCampaignsRoute: typeof AuthenticatedGrowthmindCampaignsRoute
   AuthenticatedGrowthmindChatRoute: typeof AuthenticatedGrowthmindChatRoute
+  AuthenticatedGrowthmindCompetitorsRoute: typeof AuthenticatedGrowthmindCompetitorsRoute
+  AuthenticatedGrowthmindForecastRoute: typeof AuthenticatedGrowthmindForecastRoute
+  AuthenticatedGrowthmindFunnelsRoute: typeof AuthenticatedGrowthmindFunnelsRoute
   AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  AuthenticatedGrowthmindPlaybooksRoute: typeof AuthenticatedGrowthmindPlaybooksRoute
   AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
   AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
+  AuthenticatedGrowthmindSeoRoute: typeof AuthenticatedGrowthmindSeoRoute
   AuthenticatedGrowthmindIndexRoute: typeof AuthenticatedGrowthmindIndexRoute
 }
 
 const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren =
   {
+    AuthenticatedGrowthmindAdsRoute: AuthenticatedGrowthmindAdsRoute,
     AuthenticatedGrowthmindCampaignsRoute:
       AuthenticatedGrowthmindCampaignsRoute,
     AuthenticatedGrowthmindChatRoute: AuthenticatedGrowthmindChatRoute,
+    AuthenticatedGrowthmindCompetitorsRoute:
+      AuthenticatedGrowthmindCompetitorsRoute,
+    AuthenticatedGrowthmindForecastRoute: AuthenticatedGrowthmindForecastRoute,
+    AuthenticatedGrowthmindFunnelsRoute: AuthenticatedGrowthmindFunnelsRoute,
     AuthenticatedGrowthmindLeadOpportunitiesRoute:
       AuthenticatedGrowthmindLeadOpportunitiesRoute,
+    AuthenticatedGrowthmindPlaybooksRoute:
+      AuthenticatedGrowthmindPlaybooksRoute,
     AuthenticatedGrowthmindRecommendationsRoute:
       AuthenticatedGrowthmindRecommendationsRoute,
     AuthenticatedGrowthmindReportsRoute: AuthenticatedGrowthmindReportsRoute,
+    AuthenticatedGrowthmindSeoRoute: AuthenticatedGrowthmindSeoRoute,
     AuthenticatedGrowthmindIndexRoute: AuthenticatedGrowthmindIndexRoute,
   }
 
