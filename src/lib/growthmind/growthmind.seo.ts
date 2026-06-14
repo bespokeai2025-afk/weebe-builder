@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { buildGscEncodedSiteUrl } from "./gsc-utils";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -462,8 +463,7 @@ export const fetchGscQueries = createServerFn({ method: "POST" })
 
     const fmtDate = (d: Date) => d.toISOString().split("T")[0];
 
-    const siteUrl    = data.propertyUrl;
-    const encodedUrl = encodeURIComponent(siteUrl);
+    const encodedUrl = buildGscEncodedSiteUrl(data.propertyUrl);
 
     const res = await fetch(
       `https://www.googleapis.com/webmasters/v3/sites/${encodedUrl}/searchAnalytics/query`,
@@ -556,7 +556,7 @@ export const syncGscToKeywords = createServerFn({ method: "POST" })
     startDate.setDate(startDate.getDate() - 90);
     const fmtDate = (d: Date) => d.toISOString().split("T")[0];
 
-    const encodedUrl = encodeURIComponent(data.propertyUrl);
+    const encodedUrl = buildGscEncodedSiteUrl(data.propertyUrl);
     const res = await fetch(
       `https://www.googleapis.com/webmasters/v3/sites/${encodedUrl}/searchAnalytics/query`,
       {
