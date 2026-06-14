@@ -1,0 +1,293 @@
+SYSTEMMIND KNOWLEDGE INGESTION + WORKFLOW LIBRARY
+
+IMPORTANT
+
+Do not modify existing Builder functionality.
+
+Do not modify Retell.
+
+Do not modify HyperStream.
+
+Do not modify VoxStream.
+
+Do not modify HiveMind.
+
+Do not modify GrowthMind.
+
+Extend SystemMind only.
+
+OBJECTIVE
+
+Give SystemMind persistent knowledge of the WeeBee platform, existing workflows, previous build decisions, workflow patterns, repair playbooks, and provider architecture.
+
+SystemMind must not rely only on live LLM memory.
+
+It must have structured internal knowledge it can query before auditing, repairing, or creating workflows.
+
+====================================================
+
+PART 1 — SYSTEMMIND KNOWLEDGE INGESTION
+
+Create a SystemMind Knowledge Ingestion service.
+
+It should ingest:
+
+1. Platform audits
+2. Architecture specifications
+3. Existing workflow JSON
+4. Agent templates
+5. Builder node examples
+6. Retell deployment examples
+7. HyperStream runtime examples
+8. WhatsApp workflow examples
+9. HexMail campaign examples
+10. Follow-up campaign examples
+11. Provider setup guides
+12. Known bug reports
+13. Previous fix plans
+
+Create route:
+
+/systemmind/knowledge
+
+Allow admin/user to upload:
+
+PDF
+DOCX
+TXT
+JSON
+Markdown
+
+====================================================
+
+PART 2 — WORKFLOW LIBRARY
+
+Create a dedicated SystemMind Workflow Library.
+
+Route:
+
+/systemmind/workflows
+
+SystemMind should automatically scan existing agents and extract workflow patterns.
+
+For each workflow store:
+
+workflow_name
+agent_type
+channel
+provider
+nodes
+edges
+variables
+tools
+knowledge_base_links
+webhooks
+deployment_mode
+success_score
+last_used_at
+
+Supported workflow categories:
+
+Receptionist
+Lead Generation
+Client Qualification
+Legal Intake
+Real Estate Qualification
+Appointment Booking
+Document Collection
+WhatsApp Automation
+Follow-Up Campaign
+CRM Sync
+Call Transfer
+Knowledge Base Agent
+
+====================================================
+
+PART 3 — WORKFLOW PATTERN EXTRACTION
+
+SystemMind should analyse existing workflows and identify:
+
+Common node sequences
+Successful paths
+Failed paths
+Variable usage
+Tool usage
+Webhook usage
+Logic split patterns
+Booking patterns
+Transfer patterns
+Document collection patterns
+
+Store as:
+
+systemmind_workflow_patterns
+
+====================================================
+
+PART 4 — REPAIR PLAYBOOKS
+
+Create repair playbooks.
+
+Examples:
+
+Broken Webhook
+Missing Variable Mapping
+Disconnected Node
+Missing Start Node
+Missing End Node
+OpenAI Tool Schema Mismatch
+Retell Shows Disconnected
+Cal.com Booking Fails
+WhatsApp Webhook Fails
+Knowledge Base Not Attached
+HyperStream Call Not Logged
+VoxStream Tool Call Fails
+
+For each playbook store:
+
+problem
+symptoms
+checks
+fix_steps
+affected_files
+risk_level
+rollback_plan
+
+====================================================
+
+PART 5 — WORKFLOW CREATION ENGINE
+
+SystemMind should be able to generate new workflow drafts from the Workflow Library.
+
+Examples:
+
+"Create a real estate qualification workflow"
+
+SystemMind should produce:
+
+Builder nodes
+Edges
+Variables
+Tool definitions
+Webhook suggestions
+Knowledge base suggestions
+Follow-up campaign suggestions
+
+Do not auto-deploy.
+
+Save as draft workflow only.
+
+====================================================
+
+PART 6 — WORKFLOW REPAIR ENGINE
+
+SystemMind should be able to inspect a workflow and generate a repair plan.
+
+Detect:
+
+Disconnected nodes
+Missing start node
+Missing end node
+Broken handles
+Invalid node type
+Missing variables
+Missing webhook URL
+Invalid tool schema
+Missing response mapping
+Provider mismatch
+
+Output:
+
+Problem
+Impact
+Suggested Fix
+Confidence
+Before/After Preview
+Rollback Plan
+
+Any actual changes must go through HiveMind Action Approval Centre.
+
+====================================================
+
+PART 7 — KNOWLEDGE QUERY SYSTEM
+
+Create:
+
+querySystemMindKnowledge()
+
+SystemMind should query this before:
+
+Creating workflows
+Repairing workflows
+Generating audits
+Building fix plans
+Answering architecture questions
+
+Search sources:
+
+Architecture KB
+Workflow Library
+Workflow Patterns
+Repair Playbooks
+Provider Playbooks
+
+====================================================
+
+PART 8 — HIVE MIND INTEGRATION
+
+SystemMind reports to HiveMind.
+
+HiveMind remains the only speaking assistant.
+
+HiveMind should be able to say:
+
+"SystemMind found 4 reusable receptionist workflow patterns and 2 repair playbooks relevant to this issue."
+
+====================================================
+
+PART 9 — DEFAULT STARTER KNOWLEDGE
+
+Auto-create starter categories:
+
+Architecture
+Workflows
+Repair Playbooks
+Provider Playbooks
+Deployment Guides
+Known Issues
+Best Practices
+
+Seed initial playbooks for:
+
+Retell
+HyperStream
+VoxStream
+OpenAI Tool Calling
+Cal.com
+WhatsApp
+Twilio
+FreJun
+GrowthMind
+HiveMind
+
+====================================================
+
+SUCCESS CRITERIA
+
+SystemMind can:
+
+Ingest platform knowledge
+Store existing workflows
+Extract reusable workflow patterns
+Create workflow drafts from examples
+Detect broken workflows
+Suggest workflow repairs
+Use repair playbooks
+Use provider playbooks
+Report findings to HiveMind
+
+SystemMind becomes a real AI CTO with persistent platform memory, not just a chatbot.
+
+Generate implementation plan first.
+
+Then implement safely.
