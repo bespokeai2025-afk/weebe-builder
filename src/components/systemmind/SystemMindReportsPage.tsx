@@ -9,7 +9,6 @@ import {
   listSystemMindReports,
   generateSystemMindReport,
 } from "@/lib/systemmind/systemmind-cto.functions";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export function SystemMindReportsPage() {
   const listFn = useServerFn(listSystemMindReports);
