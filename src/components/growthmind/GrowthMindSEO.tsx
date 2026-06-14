@@ -17,7 +17,6 @@ import {
   saveSeoSite,
   type SeoKeyword,
   type ContentIdea,
-  type SeoSite,
 } from "@/lib/growthmind/growthmind.seo";
 
 function nanoid(): string {
@@ -34,11 +33,11 @@ const STATUS_STYLES: Record<ContentIdea["status"], string> = {
 
 function StatusBadge({ status, onChange }: { status: ContentIdea["status"]; onChange: (s: ContentIdea["status"]) => void }) {
   const statuses: ContentIdea["status"][] = ["idea", "in-progress", "published"];
-  const idx = statuses.indexOf(status);
-  const next = statuses[(idx + 1) % statuses.length];
+  const next = statuses[(statuses.indexOf(status) + 1) % statuses.length];
   return (
     <button
       onClick={() => onChange(next)}
+      title="Click to advance status"
       className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize transition-colors", STATUS_STYLES[status])}
     >
       {status}
@@ -55,31 +54,240 @@ function diffColor(d: number | null): string {
   return "text-red-400";
 }
 
+// ── Keyword row — view or edit ────────────────────────────────────────────────
+
+function KeywordRow({
+  kw, onSave, onDelete,
+}: {
+  kw: SeoKeyword;
+  onSave: (updated: SeoKeyword) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState({
+    term:       kw.term,
+    volume:     kw.volume     !== null ? String(kw.volume)     : "",
+    difficulty: kw.difficulty !== null ? String(kw.difficulty) : "",
+    rank:       kw.rank       !== null ? String(kw.rank)       : "",
+  });
+
+  function commit() {
+    if (!draft.term.trim()) return;
+    const diff = draft.difficulty ? Math.min(100, Math.max(1, parseInt(draft.difficulty))) : null;
+    onSave({
+      ...kw,
+      term:       draft.term.trim(),
+      volume:     draft.volume     ? parseInt(draft.volume)     : null,
+      difficulty: diff,
+      rank:       draft.rank       ? parseInt(draft.rank)       : null,
+    });
+    setEditing(false);
+  }
+
+  function cancel() {
+    setDraft({
+      term:       kw.term,
+      volume:     kw.volume     !== null ? String(kw.volume)     : "",
+      difficulty: kw.difficulty !== null ? String(kw.difficulty) : "",
+      rank:       kw.rank       !== null ? String(kw.rank)       : "",
+    });
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <tr className="bg-white/[0.02]">
+        <td className="px-3 py-2">
+          <Input
+            autoFocus
+            value={draft.term}
+            onChange={e => setDraft(v => ({ ...v, term: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+            className="h-6 text-xs w-full min-w-[120px]"
+          />
+        </td>
+        <td className="px-3 py-2">
+          <Input
+            type="number" min={0}
+            value={draft.volume}
+            onChange={e => setDraft(v => ({ ...v, volume: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+            className="h-6 text-xs w-20 tabular-nums"
+          />
+        </td>
+        <td className="px-3 py-2">
+          <Input
+            type="number" min={1} max={100}
+            value={draft.difficulty}
+            onChange={e => setDraft(v => ({ ...v, difficulty: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+            className="h-6 text-xs w-20 tabular-nums"
+          />
+        </td>
+        <td className="px-3 py-2">
+          <Input
+            type="number" min={1}
+            value={draft.rank}
+            onChange={e => setDraft(v => ({ ...v, rank: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+            className="h-6 text-xs w-20 tabular-nums"
+          />
+        </td>
+        <td className="px-3 py-2">
+          <div className="flex items-center gap-1">
+            <button onClick={commit} className="text-emerald-400 hover:text-emerald-300 transition-colors" title="Save">
+              <Check className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={cancel} className="text-muted-foreground hover:text-foreground transition-colors" title="Cancel">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr className="hover:bg-white/[0.02] transition-colors group">
+      <td className="px-4 py-2.5 font-medium">{kw.term}</td>
+      <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
+        {kw.volume !== null ? kw.volume.toLocaleString() : "—"}
+      </td>
+      <td className={cn("px-4 py-2.5 tabular-nums font-semibold", diffColor(kw.difficulty))}>
+        {kw.difficulty !== null ? kw.difficulty : "—"}
+      </td>
+      <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
+        {kw.rank !== null ? `#${kw.rank}` : <span className="text-amber-400/80">Not ranking</span>}
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => setEditing(true)}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            title="Edit"
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onDelete(kw.id)}
+            className="text-muted-foreground hover:text-red-400 transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ── Content idea row — view or edit ──────────────────────────────────────────
+
+function ContentIdeaRow({
+  idea, onSave, onDelete, onStatusChange,
+}: {
+  idea: ContentIdea;
+  onSave: (updated: ContentIdea) => void;
+  onDelete: (id: string) => void;
+  onStatusChange: (id: string, status: ContentIdea["status"]) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState({ title: idea.title, targetKeyword: idea.targetKeyword });
+
+  function commit() {
+    if (!draft.title.trim()) return;
+    onSave({ ...idea, title: draft.title.trim(), targetKeyword: draft.targetKeyword.trim() });
+    setEditing(false);
+  }
+
+  function cancel() {
+    setDraft({ title: idea.title, targetKeyword: idea.targetKeyword });
+    setEditing(false);
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-white/[0.03] border-b border-white/[0.06]">
+        <div className="flex-1 flex flex-wrap gap-2 items-center">
+          <Input
+            autoFocus
+            value={draft.title}
+            onChange={e => setDraft(v => ({ ...v, title: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+            placeholder="Content title"
+            className="h-6 text-xs flex-1 min-w-[180px]"
+          />
+          <Input
+            value={draft.targetKeyword}
+            onChange={e => setDraft(v => ({ ...v, targetKeyword: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+            placeholder="Target keyword"
+            className="h-6 text-xs w-44"
+          />
+        </div>
+        <button onClick={commit} className="text-emerald-400 hover:text-emerald-300 transition-colors shrink-0" title="Save">
+          <Check className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={cancel} className="text-muted-foreground hover:text-foreground transition-colors shrink-0" title="Cancel">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors group">
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium truncate">{idea.title}</p>
+        {idea.targetKeyword && (
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Target: <span className="text-emerald-400/80">{idea.targetKeyword}</span>
+          </p>
+        )}
+      </div>
+      <StatusBadge status={idea.status} onChange={s => onStatusChange(idea.id, s)} />
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <button
+          onClick={() => setEditing(true)}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          title="Edit"
+        >
+          <Edit2 className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => onDelete(idea.id)}
+          className="text-muted-foreground hover:text-red-400 transition-colors"
+          title="Delete"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function GrowthMindSEO() {
-  const qc          = useQueryClient();
-  const getSiteFn   = useServerFn(getSeoSite);
-  const saveSiteFn  = useServerFn(saveSeoSite);
-  const aiRespFn    = useServerFn(getGrowthMindAIResponse);
-  const getDataFn   = useServerFn(getGrowthMindData);
+  const qc         = useQueryClient();
+  const getSiteFn  = useServerFn(getSeoSite);
+  const saveSiteFn = useServerFn(saveSeoSite);
+  const aiRespFn   = useServerFn(getGrowthMindAIResponse);
+  const getDataFn  = useServerFn(getGrowthMindData);
 
   const [urlInput, setUrlInput]         = useState("");
   const [saving, setSaving]             = useState(false);
-  const [saveMsg, setSaveMsg]           = useState<string | null>(null);
+  const [saveMsg, setSaveMsg]           = useState<{ text: string; isError: boolean } | null>(null);
   const [aiInsight, setAiInsight]       = useState<string | null>(null);
   const [aiLoading, setAiLoading]       = useState(false);
 
-  // Local mutable state derived from DB
   const [siteId, setSiteId]             = useState<string | undefined>();
   const [siteUrl, setSiteUrl]           = useState("");
   const [keywords, setKeywords]         = useState<SeoKeyword[]>([]);
   const [contentIdeas, setContentIdeas] = useState<ContentIdea[]>([]);
 
-  // New keyword form state
-  const [newKw, setNewKw] = useState({ term: "", volume: "", difficulty: "", rank: "" });
-  // New content idea form state
-  const [newIdea, setNewIdea] = useState({ title: "", targetKeyword: "" });
+  const [newKw, setNewKw]               = useState({ term: "", volume: "", difficulty: "", rank: "" });
+  const [newIdea, setNewIdea]           = useState({ title: "", targetKeyword: "" });
   const [showKwForm, setShowKwForm]     = useState(false);
   const [showIdeaForm, setShowIdeaForm] = useState(false);
 
@@ -95,7 +303,6 @@ export function GrowthMindSEO() {
     staleTime: 120_000,
   });
 
-  // Hydrate local state from DB
   useEffect(() => {
     const site = siteData?.site;
     if (!site) return;
@@ -107,6 +314,11 @@ export function GrowthMindSEO() {
 
   const connected = !!siteUrl;
 
+  function flashMsg(text: string, isError = false) {
+    setSaveMsg({ text, isError });
+    setTimeout(() => setSaveMsg(null), 3000);
+  }
+
   async function handleConnect() {
     if (!urlInput.trim()) return;
     let url = urlInput.trim();
@@ -115,11 +327,10 @@ export function GrowthMindSEO() {
     try {
       await saveSiteFn({ id: siteId, url, keywords, contentIdeas });
       setSiteUrl(url);
-      setSaveMsg("Site connected!");
-      setTimeout(() => setSaveMsg(null), 3000);
+      flashMsg("Site connected!");
       qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] });
     } catch (e: any) {
-      setSaveMsg("Error: " + e.message);
+      flashMsg("Failed to save: " + e.message, true);
     } finally {
       setSaving(false);
     }
@@ -129,17 +340,22 @@ export function GrowthMindSEO() {
     try {
       await saveSiteFn({ id: siteId, url: siteUrl, keywords: kws, contentIdeas: ideas });
       qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] });
-    } catch {}
+    } catch (e: any) {
+      flashMsg("Failed to save changes: " + e.message, true);
+    }
   }
+
+  // ── Keyword ops ────────────────────────────────────────────────────────────
 
   function addKeyword() {
     if (!newKw.term.trim()) return;
+    const diff = newKw.difficulty ? Math.min(100, Math.max(1, parseInt(newKw.difficulty))) : null;
     const kw: SeoKeyword = {
       id:         nanoid(),
       term:       newKw.term.trim(),
-      volume:     newKw.volume     ? parseInt(newKw.volume)     : null,
-      difficulty: newKw.difficulty ? parseInt(newKw.difficulty) : null,
-      rank:       newKw.rank       ? parseInt(newKw.rank)       : null,
+      volume:     newKw.volume ? parseInt(newKw.volume) : null,
+      difficulty: diff,
+      rank:       newKw.rank   ? parseInt(newKw.rank)   : null,
     };
     const updated = [...keywords, kw];
     setKeywords(updated);
@@ -148,11 +364,19 @@ export function GrowthMindSEO() {
     persistAll(updated, contentIdeas);
   }
 
+  function saveKeyword(updated: SeoKeyword) {
+    const next = keywords.map(k => k.id === updated.id ? updated : k);
+    setKeywords(next);
+    persistAll(next, contentIdeas);
+  }
+
   function removeKeyword(id: string) {
     const updated = keywords.filter(k => k.id !== id);
     setKeywords(updated);
     persistAll(updated, contentIdeas);
   }
+
+  // ── Content idea ops ───────────────────────────────────────────────────────
 
   function addIdea() {
     if (!newIdea.title.trim()) return;
@@ -169,6 +393,12 @@ export function GrowthMindSEO() {
     persistAll(keywords, updated);
   }
 
+  function saveIdea(updated: ContentIdea) {
+    const next = contentIdeas.map(i => i.id === updated.id ? updated : i);
+    setContentIdeas(next);
+    persistAll(keywords, next);
+  }
+
   function removeIdea(id: string) {
     const updated = contentIdeas.filter(i => i.id !== id);
     setContentIdeas(updated);
@@ -181,12 +411,15 @@ export function GrowthMindSEO() {
     persistAll(keywords, updated);
   }
 
+  // ── AI recommendations ─────────────────────────────────────────────────────
+
   async function handleAIRecommendations() {
     if (keywords.length === 0) return;
     setAiLoading(true);
     setAiInsight(null);
     try {
       const kwSummary = keywords
+        .slice()
         .sort((a, b) => {
           const scoreA = (a.volume ?? 0) / Math.max(1, a.difficulty ?? 50);
           const scoreB = (b.volume ?? 0) / Math.max(1, b.difficulty ?? 50);
@@ -213,6 +446,8 @@ export function GrowthMindSEO() {
     }
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <GrowthMindShell>
       <div className="px-6 py-5 max-w-4xl">
@@ -228,13 +463,20 @@ export function GrowthMindSEO() {
               Track keyword opportunities and content ideas for organic growth
             </p>
           </div>
-          <Button
-            variant="outline" size="sm"
-            onClick={() => qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] })}
-          >
-            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isLoading && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            {saveMsg && (
+              <span className={cn("text-xs font-medium", saveMsg.isError ? "text-red-400" : "text-emerald-400")}>
+                {saveMsg.text}
+              </span>
+            )}
+            <Button
+              variant="outline" size="sm"
+              onClick={() => qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] })}
+            >
+              <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isLoading && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -245,13 +487,12 @@ export function GrowthMindSEO() {
         ) : (
           <div className="space-y-5">
 
-            {/* Site connection card */}
+            {/* Site connection */}
             <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
               <p className="text-sm font-semibold flex items-center gap-2 mb-4">
                 <Globe className="h-4 w-4 text-emerald-400" />
                 Site Connection
               </p>
-
               {connected ? (
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2 flex-1">
@@ -295,11 +536,6 @@ export function GrowthMindSEO() {
                     {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                     Connect site
                   </Button>
-                  {saveMsg && (
-                    <span className={cn("text-xs font-medium", saveMsg.startsWith("Error") ? "text-red-400" : "text-emerald-400")}>
-                      {saveMsg}
-                    </span>
-                  )}
                 </div>
               )}
             </div>
@@ -312,12 +548,12 @@ export function GrowthMindSEO() {
                     <div>
                       <p className="text-sm font-semibold">Keyword Opportunities</p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Track target keywords, search volume, difficulty, and ranking
+                        Track target keywords — hover a row to edit or delete
                       </p>
                     </div>
                     <Button
                       size="sm" variant="outline"
-                      onClick={() => setShowKwForm(v => !v)}
+                      onClick={() => { setShowKwForm(v => !v); }}
                       className="h-7 text-xs"
                     >
                       <Plus className="mr-1 h-3 w-3" />
@@ -331,16 +567,18 @@ export function GrowthMindSEO() {
                         <div className="space-y-1 flex-1 min-w-[150px]">
                           <Label className="text-[10px]">Keyword</Label>
                           <Input
+                            autoFocus
                             placeholder="e.g. buy solar panels uk"
                             value={newKw.term}
                             onChange={e => setNewKw(v => ({ ...v, term: e.target.value }))}
+                            onKeyDown={e => { if (e.key === "Enter") addKeyword(); if (e.key === "Escape") setShowKwForm(false); }}
                             className="h-7 text-xs"
                           />
                         </div>
                         <div className="space-y-1 w-24">
-                          <Label className="text-[10px]">Monthly Volume</Label>
+                          <Label className="text-[10px]">Volume / mo</Label>
                           <Input
-                            type="number" min={0} placeholder="e.g. 2400"
+                            type="number" min={0} placeholder="2400"
                             value={newKw.volume}
                             onChange={e => setNewKw(v => ({ ...v, volume: e.target.value }))}
                             className="h-7 text-xs"
@@ -349,7 +587,7 @@ export function GrowthMindSEO() {
                         <div className="space-y-1 w-24">
                           <Label className="text-[10px]">Difficulty (1–100)</Label>
                           <Input
-                            type="number" min={1} max={100} placeholder="e.g. 35"
+                            type="number" min={1} max={100} placeholder="35"
                             value={newKw.difficulty}
                             onChange={e => setNewKw(v => ({ ...v, difficulty: e.target.value }))}
                             className="h-7 text-xs"
@@ -358,7 +596,7 @@ export function GrowthMindSEO() {
                         <div className="space-y-1 w-24">
                           <Label className="text-[10px]">Current Rank</Label>
                           <Input
-                            type="number" min={1} placeholder="e.g. 14"
+                            type="number" min={1} placeholder="14"
                             value={newKw.rank}
                             onChange={e => setNewKw(v => ({ ...v, rank: e.target.value }))}
                             className="h-7 text-xs"
@@ -377,7 +615,7 @@ export function GrowthMindSEO() {
                   {keywords.length === 0 ? (
                     <div className="px-4 py-8 text-center">
                       <p className="text-sm text-muted-foreground">
-                        No keywords tracked yet. Add keywords to identify SEO opportunities.
+                        No keywords tracked yet. Add your first keyword above.
                       </p>
                     </div>
                   ) : (
@@ -394,26 +632,12 @@ export function GrowthMindSEO() {
                         </thead>
                         <tbody className="divide-y divide-white/[0.04]">
                           {keywords.map(kw => (
-                            <tr key={kw.id} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="px-4 py-2.5 font-medium">{kw.term}</td>
-                              <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
-                                {kw.volume !== null ? kw.volume.toLocaleString() : "—"}
-                              </td>
-                              <td className={cn("px-4 py-2.5 tabular-nums font-semibold", diffColor(kw.difficulty))}>
-                                {kw.difficulty !== null ? kw.difficulty : "—"}
-                              </td>
-                              <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
-                                {kw.rank !== null ? `#${kw.rank}` : <span className="text-amber-400/80">Not ranking</span>}
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <button
-                                  onClick={() => removeKeyword(kw.id)}
-                                  className="text-muted-foreground hover:text-red-400 transition-colors"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </td>
-                            </tr>
+                            <KeywordRow
+                              key={kw.id}
+                              kw={kw}
+                              onSave={saveKeyword}
+                              onDelete={removeKeyword}
+                            />
                           ))}
                         </tbody>
                       </table>
@@ -463,7 +687,7 @@ export function GrowthMindSEO() {
                     <div>
                       <p className="text-sm font-semibold">Content Opportunities</p>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Track blog posts, guides, and landing pages in your content pipeline
+                        Track blog posts, guides, and landing pages — hover a row to edit
                       </p>
                     </div>
                     <Button
@@ -482,9 +706,11 @@ export function GrowthMindSEO() {
                         <div className="space-y-1 flex-1 min-w-[200px]">
                           <Label className="text-[10px]">Content Title</Label>
                           <Input
+                            autoFocus
                             placeholder="e.g. Complete guide to solar panel installation"
                             value={newIdea.title}
                             onChange={e => setNewIdea(v => ({ ...v, title: e.target.value }))}
+                            onKeyDown={e => { if (e.key === "Enter") addIdea(); if (e.key === "Escape") setShowIdeaForm(false); }}
                             className="h-7 text-xs"
                           />
                         </div>
@@ -494,6 +720,7 @@ export function GrowthMindSEO() {
                             placeholder="e.g. solar panel installation"
                             value={newIdea.targetKeyword}
                             onChange={e => setNewIdea(v => ({ ...v, targetKeyword: e.target.value }))}
+                            onKeyDown={e => { if (e.key === "Enter") addIdea(); if (e.key === "Escape") setShowIdeaForm(false); }}
                             className="h-7 text-xs"
                           />
                         </div>
@@ -516,26 +743,13 @@ export function GrowthMindSEO() {
                   ) : (
                     <div className="divide-y divide-white/[0.04]">
                       {contentIdeas.map(idea => (
-                        <div key={idea.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{idea.title}</p>
-                            {idea.targetKeyword && (
-                              <p className="text-[11px] text-muted-foreground mt-0.5">
-                                Target: <span className="text-emerald-400/80">{idea.targetKeyword}</span>
-                              </p>
-                            )}
-                          </div>
-                          <StatusBadge
-                            status={idea.status}
-                            onChange={s => updateIdeaStatus(idea.id, s)}
-                          />
-                          <button
-                            onClick={() => removeIdea(idea.id)}
-                            className="text-muted-foreground hover:text-red-400 transition-colors shrink-0"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        <ContentIdeaRow
+                          key={idea.id}
+                          idea={idea}
+                          onSave={saveIdea}
+                          onDelete={removeIdea}
+                          onStatusChange={updateIdeaStatus}
+                        />
                       ))}
                     </div>
                   )}
