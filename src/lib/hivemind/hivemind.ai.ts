@@ -296,25 +296,33 @@ function buildPlatformContext(d: any): string {
   return lines.join("\n");
 }
 
-function buildSystemPrompt(context: string, personality = "professional"): string {
-  const styles: Record<string, string> = {
-    professional: "Respond in a precise, executive style. Use bullet points for multi-item answers. Lead with the most important number or insight.",
-    friendly:     "Respond conversationally and warmly. Use plain language. Be encouraging and direct.",
-    concise:      "3 sentences maximum. Give the key number or fact first. No preamble.",
-  };
-  const style = styles[personality] ?? styles.professional;
+function buildSystemPrompt(context: string, personality = "friendly", userName?: string): string {
+  const nameClause = userName?.trim()
+    ? `The user's name is ${userName.trim()}. Use their name occasionally — once or twice per conversation feels natural, not every message.`
+    : "";
 
-  return `You are HiveMind, the AI Operations Director built into the Webee voice AI platform. You have full visibility into all platform data in real-time: agents, leads, calls, bookings, campaigns, follow-up email campaigns, WhatsApp, costs, documents, knowledge bases, pending actions, and system health.
+  const styles: Record<string, string> = {
+    professional: "Keep answers precise and structured. Use bullet points for lists. Lead with the most important number or insight.",
+    friendly:     "Be warm, conversational and natural — like a smart colleague, not a corporate report. Use plain language.",
+    concise:      "Maximum 3 sentences. Lead with the key number or fact. Cut everything else.",
+  };
+  const style = styles[personality] ?? styles.friendly;
+
+  return `You are HiveMind — ${userName?.trim() ? `${userName.trim()}'s` : "the user's"} personal AI operations assistant, built into their Webee voice AI platform. You have full real-time visibility into everything happening in their business: agents, leads, calls, bookings, campaigns, email follow-ups, WhatsApp, costs, documents, knowledge bases, pending actions, and system health.
+
+Sound human. Talk like a trusted, smart assistant who knows the business inside out — not like a chatbot or a corporate dashboard. Avoid robotic openers like "Certainly!", "Absolutely!", "Great question!", or "As an AI...". Don't pad your answers. Just get to the point naturally.
+
+${nameClause}
 
 ${style}
 
-Rules:
-- Always answer from the platform data below — reference specific names, numbers, and statuses
-- If asked about something not in the data, say so clearly — never fabricate metrics
-- When spotting issues (idle leads, stalled campaigns, undeployed agents), proactively mention them
-- When recommending actions, be specific: name the agent, campaign, or lead segment
-- Pending actions require user approval before executing — remind users of this if relevant
-- You can tell users to go to /hivemind/actions to approve pending actions, /hivemind/briefing for their monthly summary, or /hivemind/tasks for the task board
+How to handle things:
+- Always draw from the real platform data below — cite specific names, numbers, and statuses
+- If something isn't in the data, say so honestly — never invent metrics
+- Proactively flag problems you spot: idle leads, stalled campaigns, undeployed agents
+- When suggesting actions, be specific — name the agent, campaign, or lead group
+- Actions in Operator mode need the user's approval first — point them to /hivemind/actions if relevant
+- For monthly summaries: /hivemind/briefing | For tasks: /hivemind/tasks
 
 --- LIVE PLATFORM DATA ---
 ${context}
@@ -391,6 +399,7 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
       query:       z.string().min(1).max(2000),
       history:     z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
       personality: z.string().optional(),
+      userName:    z.string().optional(),
     }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -404,7 +413,7 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
     ]);
 
     const ctx          = buildPlatformContext(platformData);
-    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "professional");
+    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName);
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -442,7 +451,11 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
 export const getHiveMindSystemContext = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({ personality: z.string().optional(), voiceId: z.string().optional() }).parse(input)
+    z.object({
+      personality: z.string().optional(),
+      voiceId:     z.string().optional(),
+      userName:    z.string().optional(),
+    }).parse(input)
   )
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
@@ -459,12 +472,18 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const hasOAI = !!(process.env.OPENAI_API_KEY || cfg.openai_api_key);
 
     const ctx          = buildPlatformContext(platformData);
-    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "professional");
+    const systemPrompt = buildSystemPrompt(ctx, data.personality ?? "friendly", data.userName);
 
-    const briefing    = buildMorningBriefing(platformData);
-    const hour        = new Date().getHours();
-    const greeting    = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-    const beginMessage = `${greeting}. I'm HiveMind, your AI Operations Director. ${platformData.today.leads > 0 ? `You have ${platformData.today.leads} new lead${platformData.today.leads !== 1 ? "s" : ""} today.` : ""} ${platformData.pendingActions?.count > 0 ? `${platformData.pendingActions.count} action${platformData.pendingActions.count !== 1 ? "s" : ""} awaiting your approval.` : ""} How can I help?`.replace(/\s+/g, " ").trim();
+    const hour     = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    const namePart = data.userName?.trim() ? `, ${data.userName.trim()}` : "";
+    const leadPart = platformData.today.leads > 0
+      ? `You've got ${platformData.today.leads} new lead${platformData.today.leads !== 1 ? "s" : ""} today.`
+      : "";
+    const actionPart = platformData.pendingActions?.count > 0
+      ? `${platformData.pendingActions.count} action${platformData.pendingActions.count !== 1 ? "s" : ""} waiting for your approval.`
+      : "";
+    const beginMessage = `${greeting}${namePart}! ${leadPart} ${actionPart} What can I help you with?`.replace(/\s+/g, " ").trim();
 
     return { systemPrompt, beginMessage, hasEL, hasOAI };
   });

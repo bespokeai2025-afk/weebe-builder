@@ -465,6 +465,11 @@ function HiveMindChat() {
 
   const relay = useElRelay(handleLiveTranscript, voiceSettings);
 
+  const [userName, setUserName] = useState("");
+  useEffect(() => {
+    try { setUserName(localStorage.getItem("hivemind-user-name") ?? ""); } catch {}
+  }, []);
+
   // Load prefs + voices on mount
   useEffect(() => {
     setVoiceSettings(loadVoiceSettings());
@@ -528,7 +533,7 @@ function HiveMindChat() {
     setInput("");
     setIsThinking(true);
     try {
-      const r = await aiFn({ data: { query: query.trim(), history: historyRef.current.slice(-10), personality: voiceSettings.personality } });
+      const r = await aiFn({ data: { query: query.trim(), history: historyRef.current.slice(-10), personality: voiceSettings.personality, userName } });
       historyRef.current.push({ role: "assistant", content: r.response });
       const finalMsg: ChatMessage = { ...placeholder, content: r.response, ts: new Date() };
       setMessages(prev => prev.map(m => m.id === placeholder.id ? finalMsg : m));
@@ -563,7 +568,7 @@ function HiveMindChat() {
     if (mode === "live") { relay.stop(); setMode("chat"); setLiveError(null); return; }
     setMode("live"); setLiveError(null);
     try {
-      const ctx = await contextFn({ data: { personality: voiceSettings.personality, voiceId: voiceSettings.voiceId } });
+      const ctx = await contextFn({ data: { personality: voiceSettings.personality, voiceId: voiceSettings.voiceId, userName } });
       if (!ctx.hasEL) {
         setLiveError("ElevenLabs key required for live voice — add it in Settings → Integrations.");
         setMode("chat"); return;

@@ -61,6 +61,7 @@ import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
 import { Route as AuthenticatedHivemindTasksRouteImport } from './routes/_authenticated/hivemind.tasks'
 import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/_authenticated/hivemind.system-health'
+import { Route as AuthenticatedHivemindSettingsRouteImport } from './routes/_authenticated/hivemind.settings'
 import { Route as AuthenticatedHivemindReportsRouteImport } from './routes/_authenticated/hivemind.reports'
 import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './routes/_authenticated/hivemind.recommendations'
 import { Route as AuthenticatedHivemindChatRouteImport } from './routes/_authenticated/hivemind.chat'
@@ -380,6 +381,12 @@ const AuthenticatedHivemindSystemHealthRoute =
     path: '/system-health',
     getParentRoute: () => AuthenticatedHivemindRoute,
   } as any)
+const AuthenticatedHivemindSettingsRoute =
+  AuthenticatedHivemindSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
 const AuthenticatedHivemindReportsRoute =
   AuthenticatedHivemindReportsRouteImport.update({
     id: '/reports',
@@ -668,6 +675,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
   '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
+  '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
@@ -762,6 +770,7 @@ export interface FileRoutesByTo {
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
   '/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
+  '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
@@ -860,6 +869,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/chat': typeof AuthenticatedHivemindChatRoute
   '/_authenticated/hivemind/recommendations': typeof AuthenticatedHivemindRecommendationsRoute
   '/_authenticated/hivemind/reports': typeof AuthenticatedHivemindReportsRoute
+  '/_authenticated/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/_authenticated/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
@@ -958,6 +968,7 @@ export interface FileRouteTypes {
     | '/hivemind/chat'
     | '/hivemind/recommendations'
     | '/hivemind/reports'
+    | '/hivemind/settings'
     | '/hivemind/system-health'
     | '/hivemind/tasks'
     | '/settings/calendar'
@@ -1052,6 +1063,7 @@ export interface FileRouteTypes {
     | '/hivemind/chat'
     | '/hivemind/recommendations'
     | '/hivemind/reports'
+    | '/hivemind/settings'
     | '/hivemind/system-health'
     | '/hivemind/tasks'
     | '/settings/calendar'
@@ -1149,6 +1161,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/chat'
     | '/_authenticated/hivemind/recommendations'
     | '/_authenticated/hivemind/reports'
+    | '/_authenticated/hivemind/settings'
     | '/_authenticated/hivemind/system-health'
     | '/_authenticated/hivemind/tasks'
     | '/_authenticated/settings/calendar'
@@ -1626,6 +1639,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHivemindSystemHealthRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
     }
+    '/_authenticated/hivemind/settings': {
+      id: '/_authenticated/hivemind/settings'
+      path: '/settings'
+      fullPath: '/hivemind/settings'
+      preLoaderRoute: typeof AuthenticatedHivemindSettingsRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
     '/_authenticated/hivemind/reports': {
       id: '/_authenticated/hivemind/reports'
       path: '/reports'
@@ -1953,6 +1973,7 @@ interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindChatRoute: typeof AuthenticatedHivemindChatRoute
   AuthenticatedHivemindRecommendationsRoute: typeof AuthenticatedHivemindRecommendationsRoute
   AuthenticatedHivemindReportsRoute: typeof AuthenticatedHivemindReportsRoute
+  AuthenticatedHivemindSettingsRoute: typeof AuthenticatedHivemindSettingsRoute
   AuthenticatedHivemindSystemHealthRoute: typeof AuthenticatedHivemindSystemHealthRoute
   AuthenticatedHivemindTasksRoute: typeof AuthenticatedHivemindTasksRoute
   AuthenticatedHivemindIndexRoute: typeof AuthenticatedHivemindIndexRoute
@@ -1965,6 +1986,7 @@ const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
   AuthenticatedHivemindRecommendationsRoute:
     AuthenticatedHivemindRecommendationsRoute,
   AuthenticatedHivemindReportsRoute: AuthenticatedHivemindReportsRoute,
+  AuthenticatedHivemindSettingsRoute: AuthenticatedHivemindSettingsRoute,
   AuthenticatedHivemindSystemHealthRoute:
     AuthenticatedHivemindSystemHealthRoute,
   AuthenticatedHivemindTasksRoute: AuthenticatedHivemindTasksRoute,
