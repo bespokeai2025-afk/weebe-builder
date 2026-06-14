@@ -35,7 +35,7 @@ export const recordExecutiveEvent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     z.object({
-      source:     z.enum(["hivemind", "growthmind"]),
+      source:     z.enum(["hivemind", "growthmind", "systemmind"]),
       event_type: z.string().min(1).max(120),
       summary:    z.string().min(1).max(2000),
       severity:   z.enum(["info", "warning", "critical"]).optional(),
