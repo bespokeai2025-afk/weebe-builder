@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { EXECUTIVE_BUCKET } from "@/lib/executives/executive-document-processing.server";
 
 // ── Knowledge bases ───────────────────────────────────────────────────────────
 
@@ -41,7 +40,7 @@ export const getExecutiveUploadUrl = createServerFn({ method: "POST" })
     const storagePath = `${workspaceId}/${kb.id}/${Date.now()}_${safeFile}`;
 
     const { data: signed, error } = await supabaseAdmin.storage
-      .from(EXECUTIVE_BUCKET)
+      .from("executive-documents")
       .createSignedUploadUrl(storagePath);
     if (error || !signed) throw new Error("Could not create upload URL.");
 
@@ -145,7 +144,7 @@ export const deleteExecutiveDocument = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .maybeSingle();
     if (doc?.storage_path) {
-      await supabaseAdmin.storage.from(EXECUTIVE_BUCKET).remove([doc.storage_path]);
+      await supabaseAdmin.storage.from("executive-documents").remove([doc.storage_path]);
     }
     const { error } = await sb
       .from("executive_documents")
