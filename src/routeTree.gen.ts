@@ -64,8 +64,18 @@ import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
 import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admin/test-retell-webhook'
 import { Route as AuthenticatedSystemmindWorkflowsRouteImport } from './routes/_authenticated/systemmind.workflows'
+import { Route as AuthenticatedSystemmindTasksRouteImport } from './routes/_authenticated/systemmind.tasks'
+import { Route as AuthenticatedSystemmindSettingsRouteImport } from './routes/_authenticated/systemmind.settings'
+import { Route as AuthenticatedSystemmindReportsRouteImport } from './routes/_authenticated/systemmind.reports'
+import { Route as AuthenticatedSystemmindRecommendationsRouteImport } from './routes/_authenticated/systemmind.recommendations'
+import { Route as AuthenticatedSystemmindProvidersRouteImport } from './routes/_authenticated/systemmind.providers'
 import { Route as AuthenticatedSystemmindPlaybooksRouteImport } from './routes/_authenticated/systemmind.playbooks'
 import { Route as AuthenticatedSystemmindKnowledgeRouteImport } from './routes/_authenticated/systemmind.knowledge'
+import { Route as AuthenticatedSystemmindIssuesRouteImport } from './routes/_authenticated/systemmind.issues'
+import { Route as AuthenticatedSystemmindFixPlansRouteImport } from './routes/_authenticated/systemmind.fix-plans'
+import { Route as AuthenticatedSystemmindChatRouteImport } from './routes/_authenticated/systemmind.chat'
+import { Route as AuthenticatedSystemmindAuditsRouteImport } from './routes/_authenticated/systemmind.audits'
+import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './routes/_authenticated/systemmind.architecture'
 import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_authenticated/settings.providers'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
@@ -424,6 +434,36 @@ const AuthenticatedSystemmindWorkflowsRoute =
     path: '/workflows',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
+const AuthenticatedSystemmindTasksRoute =
+  AuthenticatedSystemmindTasksRouteImport.update({
+    id: '/tasks',
+    path: '/tasks',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindSettingsRoute =
+  AuthenticatedSystemmindSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindReportsRoute =
+  AuthenticatedSystemmindReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindRecommendationsRoute =
+  AuthenticatedSystemmindRecommendationsRouteImport.update({
+    id: '/recommendations',
+    path: '/recommendations',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindProvidersRoute =
+  AuthenticatedSystemmindProvidersRouteImport.update({
+    id: '/providers',
+    path: '/providers',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
 const AuthenticatedSystemmindPlaybooksRoute =
   AuthenticatedSystemmindPlaybooksRouteImport.update({
     id: '/playbooks',
@@ -434,6 +474,36 @@ const AuthenticatedSystemmindKnowledgeRoute =
   AuthenticatedSystemmindKnowledgeRouteImport.update({
     id: '/knowledge',
     path: '/knowledge',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindIssuesRoute =
+  AuthenticatedSystemmindIssuesRouteImport.update({
+    id: '/issues',
+    path: '/issues',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindFixPlansRoute =
+  AuthenticatedSystemmindFixPlansRouteImport.update({
+    id: '/fix-plans',
+    path: '/fix-plans',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindChatRoute =
+  AuthenticatedSystemmindChatRouteImport.update({
+    id: '/chat',
+    path: '/chat',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindAuditsRoute =
+  AuthenticatedSystemmindAuditsRouteImport.update({
+    id: '/audits',
+    path: '/audits',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindArchitectureRoute =
+  AuthenticatedSystemmindArchitectureRouteImport.update({
+    id: '/architecture',
+    path: '/architecture',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSettingsProvidersRoute =
@@ -895,8 +965,18 @@ export interface FileRoutesByFullPath {
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
+  '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
+  '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
+  '/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
+  '/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
   '/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
+  '/systemmind/providers': typeof AuthenticatedSystemmindProvidersRoute
+  '/systemmind/recommendations': typeof AuthenticatedSystemmindRecommendationsRoute
+  '/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
+  '/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
+  '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -1015,8 +1095,18 @@ export interface FileRoutesByTo {
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
+  '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
+  '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
+  '/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
+  '/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
   '/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
+  '/systemmind/providers': typeof AuthenticatedSystemmindProvidersRoute
+  '/systemmind/recommendations': typeof AuthenticatedSystemmindRecommendationsRoute
+  '/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
+  '/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
+  '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -1142,8 +1232,18 @@ export interface FileRoutesById {
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
+  '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
+  '/_authenticated/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
+  '/_authenticated/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
+  '/_authenticated/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/_authenticated/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
   '/_authenticated/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
+  '/_authenticated/systemmind/providers': typeof AuthenticatedSystemmindProvidersRoute
+  '/_authenticated/systemmind/recommendations': typeof AuthenticatedSystemmindRecommendationsRoute
+  '/_authenticated/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
+  '/_authenticated/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
+  '/_authenticated/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/_authenticated/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -1269,8 +1369,18 @@ export interface FileRouteTypes {
     | '/settings/crm'
     | '/settings/integrations'
     | '/settings/providers'
+    | '/systemmind/architecture'
+    | '/systemmind/audits'
+    | '/systemmind/chat'
+    | '/systemmind/fix-plans'
+    | '/systemmind/issues'
     | '/systemmind/knowledge'
     | '/systemmind/playbooks'
+    | '/systemmind/providers'
+    | '/systemmind/recommendations'
+    | '/systemmind/reports'
+    | '/systemmind/settings'
+    | '/systemmind/tasks'
     | '/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -1389,8 +1499,18 @@ export interface FileRouteTypes {
     | '/settings/crm'
     | '/settings/integrations'
     | '/settings/providers'
+    | '/systemmind/architecture'
+    | '/systemmind/audits'
+    | '/systemmind/chat'
+    | '/systemmind/fix-plans'
+    | '/systemmind/issues'
     | '/systemmind/knowledge'
     | '/systemmind/playbooks'
+    | '/systemmind/providers'
+    | '/systemmind/recommendations'
+    | '/systemmind/reports'
+    | '/systemmind/settings'
+    | '/systemmind/tasks'
     | '/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -1515,8 +1635,18 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/providers'
+    | '/_authenticated/systemmind/architecture'
+    | '/_authenticated/systemmind/audits'
+    | '/_authenticated/systemmind/chat'
+    | '/_authenticated/systemmind/fix-plans'
+    | '/_authenticated/systemmind/issues'
     | '/_authenticated/systemmind/knowledge'
     | '/_authenticated/systemmind/playbooks'
+    | '/_authenticated/systemmind/providers'
+    | '/_authenticated/systemmind/recommendations'
+    | '/_authenticated/systemmind/reports'
+    | '/_authenticated/systemmind/settings'
+    | '/_authenticated/systemmind/tasks'
     | '/_authenticated/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -2016,6 +2146,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemmindWorkflowsRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
+    '/_authenticated/systemmind/tasks': {
+      id: '/_authenticated/systemmind/tasks'
+      path: '/tasks'
+      fullPath: '/systemmind/tasks'
+      preLoaderRoute: typeof AuthenticatedSystemmindTasksRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/settings': {
+      id: '/_authenticated/systemmind/settings'
+      path: '/settings'
+      fullPath: '/systemmind/settings'
+      preLoaderRoute: typeof AuthenticatedSystemmindSettingsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/reports': {
+      id: '/_authenticated/systemmind/reports'
+      path: '/reports'
+      fullPath: '/systemmind/reports'
+      preLoaderRoute: typeof AuthenticatedSystemmindReportsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/recommendations': {
+      id: '/_authenticated/systemmind/recommendations'
+      path: '/recommendations'
+      fullPath: '/systemmind/recommendations'
+      preLoaderRoute: typeof AuthenticatedSystemmindRecommendationsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/providers': {
+      id: '/_authenticated/systemmind/providers'
+      path: '/providers'
+      fullPath: '/systemmind/providers'
+      preLoaderRoute: typeof AuthenticatedSystemmindProvidersRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
     '/_authenticated/systemmind/playbooks': {
       id: '/_authenticated/systemmind/playbooks'
       path: '/playbooks'
@@ -2028,6 +2193,41 @@ declare module '@tanstack/react-router' {
       path: '/knowledge'
       fullPath: '/systemmind/knowledge'
       preLoaderRoute: typeof AuthenticatedSystemmindKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/issues': {
+      id: '/_authenticated/systemmind/issues'
+      path: '/issues'
+      fullPath: '/systemmind/issues'
+      preLoaderRoute: typeof AuthenticatedSystemmindIssuesRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/fix-plans': {
+      id: '/_authenticated/systemmind/fix-plans'
+      path: '/fix-plans'
+      fullPath: '/systemmind/fix-plans'
+      preLoaderRoute: typeof AuthenticatedSystemmindFixPlansRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/chat': {
+      id: '/_authenticated/systemmind/chat'
+      path: '/chat'
+      fullPath: '/systemmind/chat'
+      preLoaderRoute: typeof AuthenticatedSystemmindChatRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/audits': {
+      id: '/_authenticated/systemmind/audits'
+      path: '/audits'
+      fullPath: '/systemmind/audits'
+      preLoaderRoute: typeof AuthenticatedSystemmindAuditsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/architecture': {
+      id: '/_authenticated/systemmind/architecture'
+      path: '/architecture'
+      fullPath: '/systemmind/architecture'
+      preLoaderRoute: typeof AuthenticatedSystemmindArchitectureRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/settings/providers': {
@@ -2624,18 +2824,41 @@ const AuthenticatedKnowledgeCentreRouteWithChildren =
   )
 
 interface AuthenticatedSystemmindRouteChildren {
+  AuthenticatedSystemmindArchitectureRoute: typeof AuthenticatedSystemmindArchitectureRoute
+  AuthenticatedSystemmindAuditsRoute: typeof AuthenticatedSystemmindAuditsRoute
+  AuthenticatedSystemmindChatRoute: typeof AuthenticatedSystemmindChatRoute
+  AuthenticatedSystemmindFixPlansRoute: typeof AuthenticatedSystemmindFixPlansRoute
+  AuthenticatedSystemmindIssuesRoute: typeof AuthenticatedSystemmindIssuesRoute
   AuthenticatedSystemmindKnowledgeRoute: typeof AuthenticatedSystemmindKnowledgeRoute
   AuthenticatedSystemmindPlaybooksRoute: typeof AuthenticatedSystemmindPlaybooksRoute
+  AuthenticatedSystemmindProvidersRoute: typeof AuthenticatedSystemmindProvidersRoute
+  AuthenticatedSystemmindRecommendationsRoute: typeof AuthenticatedSystemmindRecommendationsRoute
+  AuthenticatedSystemmindReportsRoute: typeof AuthenticatedSystemmindReportsRoute
+  AuthenticatedSystemmindSettingsRoute: typeof AuthenticatedSystemmindSettingsRoute
+  AuthenticatedSystemmindTasksRoute: typeof AuthenticatedSystemmindTasksRoute
   AuthenticatedSystemmindWorkflowsRoute: typeof AuthenticatedSystemmindWorkflowsRoute
   AuthenticatedSystemmindIndexRoute: typeof AuthenticatedSystemmindIndexRoute
 }
 
 const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren =
   {
+    AuthenticatedSystemmindArchitectureRoute:
+      AuthenticatedSystemmindArchitectureRoute,
+    AuthenticatedSystemmindAuditsRoute: AuthenticatedSystemmindAuditsRoute,
+    AuthenticatedSystemmindChatRoute: AuthenticatedSystemmindChatRoute,
+    AuthenticatedSystemmindFixPlansRoute: AuthenticatedSystemmindFixPlansRoute,
+    AuthenticatedSystemmindIssuesRoute: AuthenticatedSystemmindIssuesRoute,
     AuthenticatedSystemmindKnowledgeRoute:
       AuthenticatedSystemmindKnowledgeRoute,
     AuthenticatedSystemmindPlaybooksRoute:
       AuthenticatedSystemmindPlaybooksRoute,
+    AuthenticatedSystemmindProvidersRoute:
+      AuthenticatedSystemmindProvidersRoute,
+    AuthenticatedSystemmindRecommendationsRoute:
+      AuthenticatedSystemmindRecommendationsRoute,
+    AuthenticatedSystemmindReportsRoute: AuthenticatedSystemmindReportsRoute,
+    AuthenticatedSystemmindSettingsRoute: AuthenticatedSystemmindSettingsRoute,
+    AuthenticatedSystemmindTasksRoute: AuthenticatedSystemmindTasksRoute,
     AuthenticatedSystemmindWorkflowsRoute:
       AuthenticatedSystemmindWorkflowsRoute,
     AuthenticatedSystemmindIndexRoute: AuthenticatedSystemmindIndexRoute,

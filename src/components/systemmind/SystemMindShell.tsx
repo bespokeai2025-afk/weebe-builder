@@ -1,17 +1,62 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield } from "lucide-react";
+import {
+  Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield,
+  AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
+  CheckSquare, FileText, Layers, MessageSquare, Settings2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { label: "Overview",  href: "/systemmind",            icon: BarChart3  },
-  { label: "Knowledge", href: "/systemmind/knowledge",  icon: BookOpen   },
-  { label: "Workflows", href: "/systemmind/workflows",  icon: GitBranch  },
-  { label: "Playbooks", href: "/systemmind/playbooks",  icon: Shield     },
+type NavItem = { label: string; href: string; icon: React.ElementType };
+
+const NAV_GROUPS: Array<{ title?: string; items: NavItem[] }> = [
+  {
+    items: [
+      { label: "Overview",        href: "/systemmind",                  icon: BarChart3     },
+    ],
+  },
+  {
+    title: "Diagnose",
+    items: [
+      { label: "Issues",          href: "/systemmind/issues",           icon: AlertTriangle },
+      { label: "Providers",       href: "/systemmind/providers",        icon: PlugZap       },
+      { label: "Audits",          href: "/systemmind/audits",           icon: ClipboardList },
+    ],
+  },
+  {
+    title: "Improve",
+    items: [
+      { label: "Recommendations", href: "/systemmind/recommendations",  icon: Lightbulb     },
+      { label: "Fix Plans",       href: "/systemmind/fix-plans",        icon: Wrench        },
+      { label: "Workflows",       href: "/systemmind/workflows",        icon: GitBranch     },
+      { label: "Playbooks",       href: "/systemmind/playbooks",        icon: Shield        },
+    ],
+  },
+  {
+    title: "Plan",
+    items: [
+      { label: "Tasks",           href: "/systemmind/tasks",            icon: CheckSquare   },
+      { label: "Reports",         href: "/systemmind/reports",          icon: FileText      },
+      { label: "Architecture",    href: "/systemmind/architecture",     icon: Layers        },
+    ],
+  },
+  {
+    title: "Converse",
+    items: [
+      { label: "Chat",            href: "/systemmind/chat",             icon: MessageSquare },
+    ],
+  },
+  {
+    title: "Configure",
+    items: [
+      { label: "Settings",        href: "/systemmind/settings",         icon: Settings2     },
+      { label: "Knowledge",       href: "/systemmind/knowledge",        icon: BookOpen      },
+    ],
+  },
 ];
 
-function NavItem({ label, href, icon: Icon, active }: {
-  label: string; href: string; icon: React.ElementType; active: boolean;
-}) {
+const ALL_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+
+function NavLink({ label, href, icon: Icon, active }: NavItem & { active: boolean }) {
   return (
     <Link
       to={href}
@@ -52,9 +97,20 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="flex flex-col gap-0.5 px-2 flex-1">
-          {NAV.map((item) => (
-            <NavItem key={item.href} {...item} active={isActive(item.href)} />
+        <nav className="flex flex-col gap-0 px-2 flex-1">
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={gi} className={gi > 0 ? "mt-3" : ""}>
+              {group.title && (
+                <p className="px-2.5 mb-1 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                  {group.title}
+                </p>
+              )}
+              <div className="flex flex-col gap-0.5">
+                {group.items.map((item) => (
+                  <NavLink key={item.href} {...item} active={isActive(item.href)} />
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
@@ -71,7 +127,7 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile nav */}
       <div className="flex md:hidden border-b border-white/[0.06] overflow-x-auto shrink-0 w-full">
-        {NAV.map(({ label, href, icon: Icon }) => {
+        {ALL_ITEMS.map(({ label, href, icon: Icon }) => {
           const active = isActive(href);
           return (
             <Link key={href} to={href}
