@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useSearch } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   GitBranch, RefreshCw, Loader2, Sparkles, Wrench, Trash2,
@@ -49,9 +50,21 @@ const RISK_COLORS: Record<string, string> = {
   low:      "text-emerald-400 border-emerald-500/30 bg-emerald-500/[0.08]",
 };
 
+// Helper: mirrors the same heuristic used in computeSystemMindData
+function workflowNeedsRepair(row: any): boolean {
+  const nc = Number(row.node_count ?? 0);
+  const ec = Number(row.edge_count ?? 0);
+  return nc === 0 || (nc > 1 && ec === 0);
+}
+
+type HealthFilter = "all" | "healthy" | "needs-repair";
+
 // ── Library tab ───────────────────────────────────────────────────────────────
-function LibraryTab() {
+function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
   const [catFilter, setCatFilter] = useState("all");
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>(
+    (initialHealth === "healthy" || initialHealth === "needs-repair") ? initialHealth as HealthFilter : "all",
+  );
   const [scanning, setScanning]   = useState(false);
   const listFn = useServerFn(getWorkflowLibrary);
   const scanFn = useServerFn(scanAgentWorkflows);
@@ -59,7 +72,12 @@ function LibraryTab() {
     queryKey: ["sm-wl", catFilter],
     queryFn: () => listFn({ data: { category: catFilter !== "all" ? catFilter : undefined } }),
   });
-  const rows: any[] = (data as any[]) ?? [];
+  const allRows: any[] = (data as any[]) ?? [];
+  const rows = healthFilter === "healthy"
+    ? allRows.filter((r) => !workflowNeedsRepair(r))
+    : healthFilter === "needs-repair"
+    ? allRows.filter(workflowNeedsRepair)
+    : allRows;
 
   async function handleScan() {
     setScanning(true);
@@ -73,6 +91,12 @@ function LibraryTab() {
       setScanning(false);
     }
   }
+
+  const HEALTH_FILTERS: { value: HealthFilter; label: string }[] = [
+    { value: "all",          label: `All (${allRows.length})` },
+    { value: "healthy",      label: `Healthy (${allRows.filter((r) => !workflowNeedsRepair(r)).length})` },
+    { value: "needs-repair", label: `Need repair (${allRows.filter(workflowNeedsRepair).length})` },
+  ];
 
   return (
     <div className="space-y-4">
@@ -92,6 +116,30 @@ function LibraryTab() {
         </Select>
         <span className="text-xs text-muted-foreground ml-auto">{rows.length} workflow{rows.length !== 1 ? "s" : ""}</span>
       </div>
+
+      {/* Health filter pills */}
+      {allRows.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap">
+          {HEALTH_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setHealthFilter(f.value)}
+              className={cn(
+                "rounded-full px-3 py-0.5 text-[11px] font-medium border transition-colors",
+                healthFilter === f.value
+                  ? f.value === "needs-repair"
+                    ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                    : f.value === "healthy"
+                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                    : "bg-sky-500/20 border-sky-500/40 text-sky-300"
+                  : "bg-white/[0.02] border-white/[0.08] text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {isLoading && <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
 
@@ -555,7 +603,9 @@ function RepairTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export function SystemMindWorkflowsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("Library");
+  const search = useSearch({ from: "/_authenticated/systemmind/workflows" });
+  const initialTab = (TABS as readonly string[]).includes(search.tab) ? search.tab as Tab : "Library";
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-5">
@@ -584,9 +634,9 @@ export function SystemMindWorkflowsPage() {
         ))}
       </div>
 
-      {activeTab === "Library"        && <LibraryTab />}
-      {activeTab === "Patterns"       && <PatternsTab />}
-      {activeTab === "Create Draft"   && <CreateDraftTab />}
+      {activeTab === "Library"          && <LibraryTab initialHealth={search.health} />}
+      {activeTab === "Patterns"         && <PatternsTab />}
+      {activeTab === "Create Draft"     && <CreateDraftTab />}
       {activeTab === "Inspect & Repair" && <RepairTab />}
     </div>
   );

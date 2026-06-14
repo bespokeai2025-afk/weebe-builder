@@ -3,6 +3,14 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getProviderUsage } from "@/lib/providers/usage.server";
 
+export type WorkflowHealthSummary = {
+  total: number;
+  healthy: number;
+  needsRepair: number;
+  pctHealthy: number;
+  topRiskCategories: string[];
+};
+
 export type SystemMindData = {
   generatedAt: string;
   systemHealth: Record<string, boolean>;
@@ -17,6 +25,7 @@ export type SystemMindData = {
     lastUsedAt: string | null;
   };
   topProviders: Array<{ name: string; category: string; cost: number; requests: number; errors: number }>;
+  workflowHealth?: WorkflowHealthSummary;
 };
 
 // Shared server-side aggregator — reused by the server fn and (later) HiveMind's
@@ -63,6 +72,43 @@ export async function computeSystemMindData(workspaceId: string): Promise<System
   const total = Object.keys(systemHealth).length;
   const errorRate = agg.requests > 0 ? +((agg.errors / agg.requests) * 100).toFixed(1) : 0;
 
+  // Workflow health — graceful; table may not exist in all workspaces
+  let workflowHealth: WorkflowHealthSummary | undefined;
+  try {
+    const { data: wfRows } = await sb
+      .from("systemmind_workflow_library")
+      .select("node_count, edge_count, category")
+      .eq("workspace_id", workspaceId);
+
+    if (wfRows && wfRows.length > 0) {
+      const riskCategoryCount = new Map<string, number>();
+      let needsRepair = 0;
+
+      for (const wf of wfRows) {
+        const nc = Number(wf.node_count ?? 0);
+        const ec = Number(wf.edge_count ?? 0);
+        // Heuristic: empty flow OR multi-node flow with no edges is broken
+        const broken = nc === 0 || (nc > 1 && ec === 0);
+        if (broken) {
+          needsRepair++;
+          const cat = wf.category ?? "General";
+          riskCategoryCount.set(cat, (riskCategoryCount.get(cat) ?? 0) + 1);
+        }
+      }
+
+      const total = wfRows.length;
+      const healthy = total - needsRepair;
+      const pctHealthy = total > 0 ? Math.round((healthy / total) * 100) : 100;
+
+      const topRiskCategories = [...riskCategoryCount.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([cat]) => cat);
+
+      workflowHealth = { total, healthy, needsRepair, pctHealthy, topRiskCategories };
+    }
+  } catch { /* graceful — table not yet migrated */ }
+
   return {
     generatedAt: new Date().toISOString(),
     systemHealth,
@@ -83,6 +129,7 @@ export async function computeSystemMindData(workspaceId: string): Promise<System
       requests: r.requests,
       errors: r.errors,
     })),
+    workflowHealth,
   };
 }
 

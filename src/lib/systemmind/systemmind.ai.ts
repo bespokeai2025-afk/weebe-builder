@@ -88,10 +88,35 @@ export function buildSystemMindSummary(data: any): SystemMindExecutiveSummary {
     });
   }
 
+  // Workflow health risks
+  const wfHealth = data?.workflowHealth;
+  if (wfHealth && wfHealth.needsRepair > 0) {
+    topRisks.push({
+      id: "workflow-repair",
+      title: `${wfHealth.needsRepair} workflow${wfHealth.needsRepair > 1 ? "s" : ""} need${wfHealth.needsRepair === 1 ? "s" : ""} repair`,
+      detail: `${wfHealth.needsRepair} of ${wfHealth.total} scanned workflows have structural issues (empty or disconnected flows).${wfHealth.topRiskCategories.length > 0 ? ` Affected categories: ${wfHealth.topRiskCategories.join(", ")}.` : ""}`,
+      severity: wfHealth.needsRepair >= Math.ceil(wfHealth.total / 2) ? "high" : "medium",
+    });
+    recommendedActions.push({
+      id: "repair-workflows",
+      label: "Inspect & repair broken workflows",
+      taskType: null,
+      priority: wfHealth.needsRepair >= Math.ceil(wfHealth.total / 2) ? "high" : "medium",
+      problem: `${wfHealth.needsRepair} workflow${wfHealth.needsRepair > 1 ? "s" : ""} failed structural checks.`,
+      fix: "Use the Workflows → Inspect & Repair tab to diagnose and fix each affected agent.",
+      actionHref: "/systemmind/workflows",
+    });
+  }
+
+  const wfSuffix = wfHealth
+    ? ` Workflows: ${wfHealth.total} scanned, ${wfHealth.pctHealthy}% healthy, ${wfHealth.needsRepair} need repair.`
+    : "";
+
   const headline =
     `SystemMind: reliability ${reliabilityScore}/100 (${label}). ` +
     `${integrations.connected}/${integrations.total} integrations connected, ` +
-    `${usage.errorRate ?? 0}% error rate, $${Number(usage.totalCostUsd ?? 0).toFixed(2)} runtime spend.`;
+    `${usage.errorRate ?? 0}% error rate, $${Number(usage.totalCostUsd ?? 0).toFixed(2)} runtime spend.` +
+    wfSuffix;
 
   return {
     source: "systemmind",
@@ -127,6 +152,16 @@ function compileSystemPrompt(data: any, personality: string, knowledgeBlock: str
     .map(([k, v]) => `- ${HEALTH_LABELS[k] ?? k}: ${v ? "✅ connected" : "❌ not connected"}`)
     .join("\n");
 
+  const wfHealth = data?.workflowHealth;
+  const wfBlock = wfHealth
+    ? `\n### Workflow Health (${wfHealth.total} scanned)\n` +
+      `- Healthy: ${wfHealth.healthy} (${wfHealth.pctHealthy}%)\n` +
+      `- Needing repair: ${wfHealth.needsRepair}\n` +
+      (wfHealth.topRiskCategories.length > 0
+        ? `- Top risk categories: ${wfHealth.topRiskCategories.join(", ")}\n`
+        : "")
+    : "";
+
   const base = `You are SystemMind, an AI Chief Technology Officer (CTO) built into the Webee platform.
 
 Your communication style is ${tone}.
@@ -143,14 +178,15 @@ ${healthLines}
 - Errors: ${usage.errors ?? 0} | Error rate: ${usage.errorRate ?? 0}%
 - Runtime spend: $${Number(usage.totalCostUsd ?? 0).toFixed(2)}
 - Agents deployed: ${data?.agents?.total ?? 0}
-
+${wfBlock}
 ## Your Role as CTO
 You are the user's technical advisor. You:
 1. Surface the highest-impact reliability, security and infrastructure risks in the telemetry above
 2. Recommend specific technical actions with clear operational impact
 3. Flag cost-efficiency and error-rate problems before they escalate
 4. Advise on monitoring, observability and resilience best practice
-5. Report up to HiveMind (the COO) — you advise, you never execute
+5. Surface workflow health issues and guide repair when workflows have structural problems
+6. Report up to HiveMind (the COO) — you advise, you never execute
 
 Always cite specific numbers. Keep responses concise and actionable — every recommendation must have a clear next step.`;
 
@@ -242,8 +278,13 @@ export const getSystemMindBriefing = createServerFn({ method: "POST" })
     }
 
     const systemPrompt = compileSystemPrompt(data.platformData, "professional", knowledgeBlock);
+    const wfHealthData = (data.platformData as any)?.workflowHealth;
+    const wfBulletInstruction = wfHealthData
+      ? ` Include one bullet on workflow health: ${wfHealthData.total} scanned, ${wfHealthData.pctHealthy}% healthy, ${wfHealthData.needsRepair} need repair${wfHealthData.topRiskCategories?.length > 0 ? ` (top categories: ${wfHealthData.topRiskCategories.join(", ")})` : ""}.`
+      : "";
+
     const briefing = await chat(apiKey, systemPrompt, [
-      { role: "user", content: "Give me a short morning technical briefing (4-6 bullet points) covering reliability, integration health, error rate and cost. Be specific with the numbers above." },
+      { role: "user", content: `Give me a short morning technical briefing (4-6 bullet points) covering: reliability score, integration health, error rate, runtime cost, and workflow health.${wfBulletInstruction} Be specific with the numbers above.` },
     ], 500);
     return { briefing };
   });

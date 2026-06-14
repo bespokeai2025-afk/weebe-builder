@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import {
   Server, Loader2, RefreshCw, ShieldCheck, ShieldAlert, AlertTriangle,
   CheckCircle2, XCircle, DollarSign, Activity, Sparkles, ArrowRight,
+  GitBranch, Wrench, ShieldCheck as HealthIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,19 +40,36 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-function StatCard({ label, value, sub, icon: Icon }: {
+function StatCard({ label, value, sub, icon: Icon, accent, href }: {
   label: string; value: string | number; sub?: string; icon: React.ElementType;
+  accent?: string; href?: string;
 }) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+  const inner = (
+    <div className={cn(
+      "rounded-xl border p-4 transition-colors",
+      href ? "cursor-pointer hover:bg-white/[0.04]" : "",
+      accent === "amber"   ? "border-amber-500/20 bg-amber-500/[0.03]"
+      : accent === "emerald" ? "border-emerald-500/20 bg-emerald-500/[0.03]"
+      : accent === "red"     ? "border-red-500/20 bg-red-500/[0.03]"
+      : "border-white/[0.06] bg-white/[0.02]",
+    )}>
       <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className={cn(
+          "h-3.5 w-3.5",
+          accent === "amber" ? "text-amber-400"
+          : accent === "emerald" ? "text-emerald-400"
+          : accent === "red" ? "text-red-400"
+          : "",
+        )} />
         <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
+        {href && <ArrowRight className="ml-auto h-3 w-3 opacity-40" />}
       </div>
       <p className="mt-2 text-2xl font-bold">{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
     </div>
   );
+  if (href) return <Link to={href}>{inner}</Link>;
+  return inner;
 }
 
 export function SystemMindOverview() {
@@ -143,6 +161,69 @@ export function SystemMindOverview() {
               <StatCard label="Requests" value={summary.cost.requests} sub={`${summary.cost.errors} errors`} icon={Activity} />
               <StatCard label="Agents" value={data?.agents?.total ?? 0} sub="deployed" icon={Server} />
             </div>
+
+            {/* Workflow Health */}
+            {data?.workflowHealth ? (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold flex items-center gap-2">
+                    <GitBranch className="h-4 w-4 text-sky-400" /> Workflow Health
+                  </h2>
+                  <Link
+                    to="/systemmind/workflows"
+                    className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1"
+                  >
+                    View all <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <StatCard
+                    label="Scanned"
+                    value={data.workflowHealth.total}
+                    sub="workflows in library"
+                    icon={GitBranch}
+                    href="/systemmind/workflows?tab=Library&health=all"
+                  />
+                  <StatCard
+                    label="Passing"
+                    value={`${data.workflowHealth.pctHealthy}%`}
+                    sub={`${data.workflowHealth.healthy} healthy`}
+                    icon={HealthIcon}
+                    accent={data.workflowHealth.pctHealthy >= 80 ? "emerald" : data.workflowHealth.pctHealthy >= 50 ? "amber" : "red"}
+                    href="/systemmind/workflows?tab=Library&health=healthy"
+                  />
+                  <StatCard
+                    label="Need repair"
+                    value={data.workflowHealth.needsRepair}
+                    sub={
+                      data.workflowHealth.needsRepair === 0
+                        ? "all checks passing"
+                        : data.workflowHealth.topRiskCategories.length > 0
+                        ? data.workflowHealth.topRiskCategories.slice(0, 2).join(", ")
+                        : "structural issues"
+                    }
+                    icon={Wrench}
+                    accent={data.workflowHealth.needsRepair > 0 ? (data.workflowHealth.needsRepair >= Math.ceil(data.workflowHealth.total / 2) ? "red" : "amber") : "emerald"}
+                    href="/systemmind/workflows?tab=Library&health=needs-repair"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold flex items-center gap-2">
+                    <GitBranch className="h-4 w-4 text-sky-400" /> Workflow Health
+                  </h2>
+                </div>
+                <p className="text-[12px] text-muted-foreground">
+                  No workflows scanned yet.{" "}
+                  <Link to="/systemmind/workflows" className="text-sky-400 hover:text-sky-300 underline underline-offset-2">
+                    Go to Workflows → Library
+                  </Link>{" "}
+                  and run a scan to see health scores here.
+                </p>
+              </div>
+            )}
 
             {/* Integration health grid */}
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
