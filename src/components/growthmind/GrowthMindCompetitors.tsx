@@ -240,7 +240,7 @@ export function GrowthMindCompetitors() {
   async function handleSave(form: typeof EMPTY & { id?: string }) {
     setSaving(true);
     try {
-      await saveCompFn(form);
+      await saveCompFn({ data: form });
       setShowForm(false);
       setEditingComp(null);
       setMsg("Saved!");

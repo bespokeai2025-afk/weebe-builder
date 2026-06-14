@@ -521,7 +521,7 @@ function SeriesPanel({ onClose }: { onClose: () => void }) {
                   <p className="text-[11px] text-muted-foreground">{s.contentType} · {s.cadence}</p>
                 </div>
                 <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", s.isActive ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-500/20 text-zinc-400")}>{s.isActive ? "Active" : "Paused"}</span>
-                <button onClick={() => deleteSeriesFn({ id: s.id }).then(() => qc.invalidateQueries({ queryKey: ["growthmind-series"] }))}
+                <button onClick={() => deleteSeriesFn({ data: { id: s.id } }).then(() => qc.invalidateQueries({ queryKey: ["growthmind-series"] }))}
                   className="text-muted-foreground hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
             ))}
