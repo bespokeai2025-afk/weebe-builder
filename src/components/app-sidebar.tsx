@@ -29,6 +29,7 @@ import {
   Zap,
   FileText,
   Brain,
+  TrendingUp,
 } from "lucide-react";
 import {
   DndContext,
@@ -85,9 +86,10 @@ type NavItem = {
 };
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "HiveMind",  url: "/hivemind",  icon: Brain },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  { title: "Dashboard",   url: "/dashboard",   icon: LayoutDashboard },
+  { title: "HiveMind",    url: "/hivemind",    icon: Brain },
+  { title: "GrowthMind",  url: "/growthmind",  icon: TrendingUp },
+  { title: "Analytics",   url: "/analytics",   icon: BarChart3 },
   { title: "Agents",    url: "/my-agents", icon: LayoutGrid,    tourId: "nav-agents" },
   { title: "Builder",   url: "/builder",   icon: Workflow },
   { title: "Templates", url: "/templates", icon: LayoutTemplate, tourId: "nav-templates" },

@@ -30,6 +30,7 @@ import { Route as AuthenticatedMyAgentsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedHivemindRouteImport } from './routes/_authenticated/hivemind'
 import { Route as AuthenticatedHexmailRouteImport } from './routes/_authenticated/hexmail'
+import { Route as AuthenticatedGrowthmindRouteImport } from './routes/_authenticated/growthmind'
 import { Route as AuthenticatedFollowUpRouteImport } from './routes/_authenticated/follow-up'
 import { Route as AuthenticatedDataRouteImport } from './routes/_authenticated/data'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -42,6 +43,7 @@ import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedHivemindIndexRouteImport } from './routes/_authenticated/hivemind.index'
+import { Route as AuthenticatedGrowthmindIndexRouteImport } from './routes/_authenticated/growthmind.index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
@@ -67,6 +69,11 @@ import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './rout
 import { Route as AuthenticatedHivemindChatRouteImport } from './routes/_authenticated/hivemind.chat'
 import { Route as AuthenticatedHivemindBriefingRouteImport } from './routes/_authenticated/hivemind.briefing'
 import { Route as AuthenticatedHivemindActionsRouteImport } from './routes/_authenticated/hivemind.actions'
+import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
+import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
+import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
+import { Route as AuthenticatedGrowthmindChatRouteImport } from './routes/_authenticated/growthmind.chat'
+import { Route as AuthenticatedGrowthmindCampaignsRouteImport } from './routes/_authenticated/growthmind.campaigns'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
@@ -214,6 +221,11 @@ const AuthenticatedHexmailRoute = AuthenticatedHexmailRouteImport.update({
   path: '/hexmail',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedGrowthmindRoute = AuthenticatedGrowthmindRouteImport.update({
+  id: '/growthmind',
+  path: '/growthmind',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedFollowUpRoute = AuthenticatedFollowUpRouteImport.update({
   id: '/follow-up',
   path: '/follow-up',
@@ -274,6 +286,12 @@ const AuthenticatedHivemindIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
+const AuthenticatedGrowthmindIndexRoute =
+  AuthenticatedGrowthmindIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
@@ -416,6 +434,36 @@ const AuthenticatedHivemindActionsRoute =
     id: '/actions',
     path: '/actions',
     getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
+const AuthenticatedGrowthmindReportsRoute =
+  AuthenticatedGrowthmindReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindRecommendationsRoute =
+  AuthenticatedGrowthmindRecommendationsRouteImport.update({
+    id: '/recommendations',
+    path: '/recommendations',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindLeadOpportunitiesRoute =
+  AuthenticatedGrowthmindLeadOpportunitiesRouteImport.update({
+    id: '/lead-opportunities',
+    path: '/lead-opportunities',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindChatRoute =
+  AuthenticatedGrowthmindChatRouteImport.update({
+    id: '/chat',
+    path: '/chat',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindCampaignsRoute =
+  AuthenticatedGrowthmindCampaignsRouteImport.update({
+    id: '/campaigns',
+    path: '/campaigns',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedAgentsNewRoute = AuthenticatedAgentsNewRouteImport.update({
   id: '/agents/new',
@@ -650,6 +698,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
+  '/growthmind': typeof AuthenticatedGrowthmindRouteWithChildren
   '/hexmail': typeof AuthenticatedHexmailRoute
   '/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRoute
@@ -670,6 +719,11 @@ export interface FileRoutesByFullPath {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
+  '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
+  '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -695,6 +749,7 @@ export interface FileRoutesByFullPath {
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/growthmind/': typeof AuthenticatedGrowthmindIndexRoute
   '/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -765,6 +820,11 @@ export interface FileRoutesByTo {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
+  '/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
+  '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -790,6 +850,7 @@ export interface FileRoutesByTo {
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/growthmind': typeof AuthenticatedGrowthmindIndexRoute
   '/hivemind': typeof AuthenticatedHivemindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -844,6 +905,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/data': typeof AuthenticatedDataRoute
   '/_authenticated/follow-up': typeof AuthenticatedFollowUpRoute
+  '/_authenticated/growthmind': typeof AuthenticatedGrowthmindRouteWithChildren
   '/_authenticated/hexmail': typeof AuthenticatedHexmailRoute
   '/_authenticated/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
@@ -864,6 +926,11 @@ export interface FileRoutesById {
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/_authenticated/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
+  '/_authenticated/growthmind/chat': typeof AuthenticatedGrowthmindChatRoute
+  '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
+  '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/_authenticated/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/_authenticated/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/_authenticated/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -889,6 +956,7 @@ export interface FileRoutesById {
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/growthmind/': typeof AuthenticatedGrowthmindIndexRoute
   '/_authenticated/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -943,6 +1011,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/data'
     | '/follow-up'
+    | '/growthmind'
     | '/hexmail'
     | '/hivemind'
     | '/leads'
@@ -963,6 +1032,11 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
+    | '/growthmind/campaigns'
+    | '/growthmind/chat'
+    | '/growthmind/lead-opportunities'
+    | '/growthmind/recommendations'
+    | '/growthmind/reports'
     | '/hivemind/actions'
     | '/hivemind/briefing'
     | '/hivemind/chat'
@@ -988,6 +1062,7 @@ export interface FileRouteTypes {
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/admin/'
+    | '/growthmind/'
     | '/hivemind/'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
@@ -1058,6 +1133,11 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
+    | '/growthmind/campaigns'
+    | '/growthmind/chat'
+    | '/growthmind/lead-opportunities'
+    | '/growthmind/recommendations'
+    | '/growthmind/reports'
     | '/hivemind/actions'
     | '/hivemind/briefing'
     | '/hivemind/chat'
@@ -1083,6 +1163,7 @@ export interface FileRouteTypes {
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/admin'
+    | '/growthmind'
     | '/hivemind'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
@@ -1136,6 +1217,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/data'
     | '/_authenticated/follow-up'
+    | '/_authenticated/growthmind'
     | '/_authenticated/hexmail'
     | '/_authenticated/hivemind'
     | '/_authenticated/leads'
@@ -1156,6 +1238,11 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
+    | '/_authenticated/growthmind/campaigns'
+    | '/_authenticated/growthmind/chat'
+    | '/_authenticated/growthmind/lead-opportunities'
+    | '/_authenticated/growthmind/recommendations'
+    | '/_authenticated/growthmind/reports'
     | '/_authenticated/hivemind/actions'
     | '/_authenticated/hivemind/briefing'
     | '/_authenticated/hivemind/chat'
@@ -1181,6 +1268,7 @@ export interface FileRouteTypes {
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
+    | '/_authenticated/growthmind/'
     | '/_authenticated/hivemind/'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
@@ -1422,6 +1510,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHexmailRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/growthmind': {
+      id: '/_authenticated/growthmind'
+      path: '/growthmind'
+      fullPath: '/growthmind'
+      preLoaderRoute: typeof AuthenticatedGrowthmindRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/follow-up': {
       id: '/_authenticated/follow-up'
       path: '/follow-up'
@@ -1505,6 +1600,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/hivemind/'
       preLoaderRoute: typeof AuthenticatedHivemindIndexRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
+    }
+    '/_authenticated/growthmind/': {
+      id: '/_authenticated/growthmind/'
+      path: '/'
+      fullPath: '/growthmind/'
+      preLoaderRoute: typeof AuthenticatedGrowthmindIndexRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
@@ -1680,6 +1782,41 @@ declare module '@tanstack/react-router' {
       fullPath: '/hivemind/actions'
       preLoaderRoute: typeof AuthenticatedHivemindActionsRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
+    }
+    '/_authenticated/growthmind/reports': {
+      id: '/_authenticated/growthmind/reports'
+      path: '/reports'
+      fullPath: '/growthmind/reports'
+      preLoaderRoute: typeof AuthenticatedGrowthmindReportsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/recommendations': {
+      id: '/_authenticated/growthmind/recommendations'
+      path: '/recommendations'
+      fullPath: '/growthmind/recommendations'
+      preLoaderRoute: typeof AuthenticatedGrowthmindRecommendationsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/lead-opportunities': {
+      id: '/_authenticated/growthmind/lead-opportunities'
+      path: '/lead-opportunities'
+      fullPath: '/growthmind/lead-opportunities'
+      preLoaderRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/chat': {
+      id: '/_authenticated/growthmind/chat'
+      path: '/chat'
+      fullPath: '/growthmind/chat'
+      preLoaderRoute: typeof AuthenticatedGrowthmindChatRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/campaigns': {
+      id: '/_authenticated/growthmind/campaigns'
+      path: '/campaigns'
+      fullPath: '/growthmind/campaigns'
+      preLoaderRoute: typeof AuthenticatedGrowthmindCampaignsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/agents/new': {
       id: '/_authenticated/agents/new'
@@ -1967,6 +2104,33 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
+interface AuthenticatedGrowthmindRouteChildren {
+  AuthenticatedGrowthmindCampaignsRoute: typeof AuthenticatedGrowthmindCampaignsRoute
+  AuthenticatedGrowthmindChatRoute: typeof AuthenticatedGrowthmindChatRoute
+  AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
+  AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
+  AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
+  AuthenticatedGrowthmindIndexRoute: typeof AuthenticatedGrowthmindIndexRoute
+}
+
+const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren =
+  {
+    AuthenticatedGrowthmindCampaignsRoute:
+      AuthenticatedGrowthmindCampaignsRoute,
+    AuthenticatedGrowthmindChatRoute: AuthenticatedGrowthmindChatRoute,
+    AuthenticatedGrowthmindLeadOpportunitiesRoute:
+      AuthenticatedGrowthmindLeadOpportunitiesRoute,
+    AuthenticatedGrowthmindRecommendationsRoute:
+      AuthenticatedGrowthmindRecommendationsRoute,
+    AuthenticatedGrowthmindReportsRoute: AuthenticatedGrowthmindReportsRoute,
+    AuthenticatedGrowthmindIndexRoute: AuthenticatedGrowthmindIndexRoute,
+  }
+
+const AuthenticatedGrowthmindRouteWithChildren =
+  AuthenticatedGrowthmindRoute._addFileChildren(
+    AuthenticatedGrowthmindRouteChildren,
+  )
+
 interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindActionsRoute: typeof AuthenticatedHivemindActionsRoute
   AuthenticatedHivemindBriefingRoute: typeof AuthenticatedHivemindBriefingRoute
@@ -2010,6 +2174,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDataRoute: typeof AuthenticatedDataRoute
   AuthenticatedFollowUpRoute: typeof AuthenticatedFollowUpRoute
+  AuthenticatedGrowthmindRoute: typeof AuthenticatedGrowthmindRouteWithChildren
   AuthenticatedHexmailRoute: typeof AuthenticatedHexmailRoute
   AuthenticatedHivemindRoute: typeof AuthenticatedHivemindRouteWithChildren
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
@@ -2040,6 +2205,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDataRoute: AuthenticatedDataRoute,
   AuthenticatedFollowUpRoute: AuthenticatedFollowUpRoute,
+  AuthenticatedGrowthmindRoute: AuthenticatedGrowthmindRouteWithChildren,
   AuthenticatedHexmailRoute: AuthenticatedHexmailRoute,
   AuthenticatedHivemindRoute: AuthenticatedHivemindRouteWithChildren,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
