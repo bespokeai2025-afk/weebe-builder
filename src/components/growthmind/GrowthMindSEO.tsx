@@ -846,6 +846,7 @@ function GscConnectionPanel({
   onDisconnect,
   onSuggest,
   connecting,
+  siteUrl,
 }: {
   gscStatus:    { configured: boolean; connected: boolean; propertyUrl: string | null } | undefined;
   gscLoading:   boolean;
@@ -853,6 +854,7 @@ function GscConnectionPanel({
   onDisconnect: () => void;
   onSuggest:    (propertyUrl: string) => void;
   connecting:   boolean;
+  siteUrl:      string;
 }) {
   const [showPropertyPicker, setShowPropertyPicker] = useState(false);
   const [properties, setProperties]                 = useState<string[]>([]);
@@ -872,7 +874,12 @@ function GscConnectionPanel({
       const res = await listPropsFn();
       setProperties(res.sites);
       const current = gscStatus?.propertyUrl ?? "";
-      setSelectedProp(current || res.sites[0] || "");
+      if (current) {
+        setSelectedProp(current);
+      } else {
+        const autoMatch = siteUrl ? findBestGscMatch(siteUrl, res.sites) : null;
+        setSelectedProp(autoMatch || res.sites[0] || "");
+      }
     } catch (e: any) {
       setPropsError(e.message);
     } finally {
@@ -1041,6 +1048,44 @@ function formatRelativeTime(isoString: string): string {
   return `${months} month${months === 1 ? "" : "s"} ago`;
 }
 
+// ── GSC property URL matcher ──────────────────────────────────────────────────
+
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url.trim());
+    return u.hostname.replace(/^www\./, "") + u.pathname.replace(/\/+$/, "");
+  } catch {
+    return url.trim().toLowerCase().replace(/^www\./, "").replace(/\/+$/, "");
+  }
+}
+
+function findBestGscMatch(siteUrl: string, properties: string[]): string | null {
+  if (!siteUrl || properties.length === 0) return null;
+
+  const normalizedSite = normalizeUrl(siteUrl);
+
+  let hostname = normalizedSite.split("/")[0];
+
+  for (const prop of properties) {
+    if (prop.toLowerCase() === siteUrl.toLowerCase()) return prop;
+    const trimProp = prop.replace(/\/+$/, "");
+    if (trimProp.toLowerCase() === siteUrl.toLowerCase().replace(/\/+$/, "")) return prop;
+  }
+
+  for (const prop of properties) {
+    if (normalizeUrl(prop) === normalizedSite) return prop;
+  }
+
+  for (const prop of properties) {
+    if (prop.startsWith("sc-domain:")) {
+      const domain = prop.slice("sc-domain:".length).replace(/^www\./, "");
+      if (domain === hostname || hostname.endsWith("." + domain)) return prop;
+    }
+  }
+
+  return null;
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function GrowthMindSEO() {
@@ -1055,6 +1100,8 @@ export function GrowthMindSEO() {
   const connectFn     = useServerFn(connectGscToken);
   const disconnectFn  = useServerFn(disconnectGsc);
   const fetchQueryFn  = useServerFn(fetchGscQueries);
+  const listPropsFn   = useServerFn(listGscProperties);
+  const savePropFn    = useServerFn(saveGscProperty);
   const navigate      = useNavigate();
 
   const [urlInput, setUrlInput]         = useState("");
@@ -1128,9 +1175,26 @@ export function GrowthMindSEO() {
     setGscConnecting(true);
 
     connectFn({ code, redirectUri, state })
-      .then(() => {
+      .then(async () => {
+        // Try to auto-match the site URL against GSC properties
+        try {
+          const [siteRes, propsRes] = await Promise.all([getSiteFn(), listPropsFn()]);
+          const savedUrl = siteRes?.site?.url ?? "";
+          if (savedUrl && propsRes.sites.length > 0) {
+            const match = findBestGscMatch(savedUrl, propsRes.sites);
+            if (match) {
+              await savePropFn({ propertyUrl: match });
+              flashMsg("Google Search Console connected & property matched!");
+            } else {
+              flashMsg("Google Search Console connected!");
+            }
+          } else {
+            flashMsg("Google Search Console connected!");
+          }
+        } catch {
+          flashMsg("Google Search Console connected!");
+        }
         qc.invalidateQueries({ queryKey: ["gsc-status"] });
-        flashMsg("Google Search Console connected!");
       })
       .catch((e: any) => {
         flashMsg("Failed to connect Search Console: " + e.message, true);
@@ -1520,6 +1584,7 @@ export function GrowthMindSEO() {
                   onDisconnect={handleGscDisconnect}
                   onSuggest={handleGscSuggest}
                   connecting={gscConnecting}
+                  siteUrl={siteUrl}
                 />
               </div>
             </div>
