@@ -2,16 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// ── 60-second server-side cache for platform data (avoids 14 DB queries per message) ──
-const platformDataCache = new Map<string, { data: any; expiresAt: number }>();
+// ── Shared platform data fetcher ──────────────────────────────────────────────
 async function fetchFullPlatformData(sb: any, workspaceId: string) {
-  const cached = platformDataCache.get(workspaceId);
-  if (cached && cached.expiresAt > Date.now()) return cached.data;
-  const data = await _fetchFullPlatformData(sb, workspaceId);
-  platformDataCache.set(workspaceId, { data, expiresAt: Date.now() + 60_000 });
-  return data;
-}
-async function _fetchFullPlatformData(sb: any, workspaceId: string) {
   const now        = new Date();
   const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
   const weekStart  = new Date(now); weekStart.setDate(now.getDate() - 7);
@@ -38,6 +30,12 @@ async function _fetchFullPlatformData(sb: any, workspaceId: string) {
     Promise.resolve(sb.from("hivemind_actions").select("status,title,action_type,created_at").eq("workspace_id", workspaceId).eq("status","pending").limit(20)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("knowledge_bases").select("id,name").eq("workspace_id", workspaceId).limit(20)).catch(() => ({ data: [] })),
   ]);
+
+  if (le.error)   console.error("[HiveMind] leads query error:",   le.error.message);
+  if (ag.error)   console.error("[HiveMind] agents query error:",  ag.error.message);
+  if (ca.error)   console.error("[HiveMind] calls query error:",   ca.error.message);
+  if (bo.error)   console.error("[HiveMind] bookings query error:",bo.error.message);
+  if (se.error)   console.error("[HiveMind] settings query error:",se.error.message);
 
   const agents   = ag.data    ?? [];
   const calls    = ca.data    ?? [];
