@@ -162,6 +162,21 @@ export const seedSystemMindPlaybooks = createServerFn({ method: "POST" })
     return seedRepairPlaybooks(workspaceId);
   });
 
+// ── Seed Architecture KB + Workflow KB starter documents ──────────────────────
+export const seedSystemMindKbs = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ limit: z.number().int().min(1).max(10).optional() }).parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { seedSystemMindKnowledgeBases } = await import(
+      "@/lib/systemmind/systemmind-kb-seed.server"
+    );
+    return seedSystemMindKnowledgeBases(workspaceId, data.limit ?? 4);
+  });
+
 // ── List/search repair playbooks ──────────────────────────────────────────────
 export const getRepairPlaybooks = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

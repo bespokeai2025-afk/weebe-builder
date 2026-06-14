@@ -17,7 +17,7 @@ import {
   reindexExecutiveDocument,
   seedExecutiveStarterKnowledge,
 } from "@/lib/executives/executive-knowledge.functions";
-import { seedSystemMindPlaybooks } from "@/lib/systemmind/systemmind-workflow.functions";
+import { seedSystemMindPlaybooks, seedSystemMindKbs } from "@/lib/systemmind/systemmind-workflow.functions";
 
 const SLUG = "systemmind";
 const ACCEPTED = ".pdf,.docx,.xlsx,.txt,.md,.csv";
@@ -63,8 +63,9 @@ export function SystemMindKnowledgePage() {
   const listFn      = useServerFn(listExecutiveDocuments);
   const deleteFn    = useServerFn(deleteExecutiveDocument);
   const reindexFn   = useServerFn(reindexExecutiveDocument);
-  const seedKbFn    = useServerFn(seedExecutiveStarterKnowledge);
-  const seedPbFn    = useServerFn(seedSystemMindPlaybooks);
+  const seedKbFn       = useServerFn(seedExecutiveStarterKnowledge);
+  const seedPbFn       = useServerFn(seedSystemMindPlaybooks);
+  const seedArchWfFn   = useServerFn(seedSystemMindKbs);
 
   const { data: docs, isLoading, refetch } = useQuery({
     queryKey: ["sm-knowledge", SLUG],
@@ -75,11 +76,15 @@ export function SystemMindKnowledgePage() {
         : false,
   });
 
-  // Seed KB starter knowledge + repair playbooks on first mount
+  // Seed repair playbooks + executive starter knowledge + Architecture/Workflow KB on first mount.
+  // Each seeder is idempotent — already-indexed docs are skipped automatically.
   useEffect(() => {
     (async () => {
       try { await seedPbFn({ data: {} }); } catch { /* graceful */ }
       try { await seedKbFn({ data: { limit: 4 } }); } catch { /* graceful */ }
+      // Seed Architecture KB + Workflow KB in two batches (8 docs total, 4 per call)
+      try { await seedArchWfFn({ data: { limit: 4 } }); } catch { /* graceful */ }
+      try { await seedArchWfFn({ data: { limit: 4 } }); } catch { /* graceful */ }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
