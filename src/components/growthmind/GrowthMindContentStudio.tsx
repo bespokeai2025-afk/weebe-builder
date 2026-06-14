@@ -8,6 +8,7 @@ import {
   Mic, Phone, RefreshCw, Share2, FileText, Archive, Eye,
   CalendarDays, Library, ChevronLeft, ChevronRight, Sparkles,
   Plus, MoreHorizontal, Edit2, ArrowLeft, BarChart3, ExternalLink,
+  Zap, SlidersHorizontal, Cpu, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -19,6 +20,10 @@ import {
   toggleFavourite, getContentStats,
   type ContentType, type ContentAsset, type SeoData,
 } from "@/lib/growthmind/growthmind.content";
+import {
+  getSmartRoute, MODEL_META, PROVIDERS,
+  type Provider, type ModelId,
+} from "@/lib/growthmind/model-router.shared";
 
 // ── Content type definitions ──────────────────────────────────────────────────
 
@@ -554,7 +559,13 @@ export function GrowthMindContentStudio() {
   });
   const [generating, setGenerating]               = useState(false);
   const [genError, setGenError]                   = useState<string | null>(null);
-  const [output, setOutput]                       = useState<{ content: string; seoData: Partial<SeoData>; assetId: string; title: string } | null>(null);
+  const [output, setOutput]                       = useState<{
+    content: string; seoData: Partial<SeoData>; assetId: string; title: string;
+    provider?: string; model?: string; usedFallback?: boolean; fallbackFrom?: string | null;
+  } | null>(null);
+  const [aiMode, setAiMode]                       = useState<"smart" | "manual">("smart");
+  const [manualProvider, setManualProvider]       = useState<Provider>("gemini");
+  const [manualModel, setManualModel]             = useState<ModelId>("gemini-2.5-pro");
   const [copied, copy]                            = useCopyText();
 
   const [libraryFilter, setLibraryFilter]         = useState("all");
@@ -621,6 +632,9 @@ export function GrowthMindContentStudio() {
         cta:            brief.cta            ?? "",
         campaignType:   brief.campaignType   ?? "",
         length:         brief.length         ?? "medium",
+        aiMode,
+        provider:       aiMode === "manual" ? manualProvider : undefined,
+        model:          aiMode === "manual" ? manualModel    : undefined,
       });
       setOutput(result);
       qc.invalidateQueries({ queryKey: ["growthmind-content-assets"] });
@@ -774,10 +788,138 @@ export function GrowthMindContentStudio() {
                     </div>
                   </div>
 
-                  {/* Step 2: Brief form */}
+                  {/* Step 2: AI Mode */}
+                  {selectedType && (() => {
+                    const smartRoute = getSmartRoute(selectedType);
+                    const smartMeta  = MODEL_META[smartRoute.model];
+                    const providerModels = PROVIDERS.find(p => p.id === manualProvider)?.models ?? [];
+                    const manualMeta     = MODEL_META[manualModel];
+                    return (
+                      <div>
+                        <p className="text-sm font-semibold mb-3">2. AI Mode</p>
+                        <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-3">
+                          {/* Toggle */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setAiMode("smart")}
+                              className={cn(
+                                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all border",
+                                aiMode === "smart"
+                                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                                  : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:text-foreground",
+                              )}
+                            >
+                              <Zap className="h-3 w-3" />
+                              Smart Routing
+                            </button>
+                            <button
+                              onClick={() => setAiMode("manual")}
+                              className={cn(
+                                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all border",
+                                aiMode === "manual"
+                                  ? "bg-blue-500/15 border-blue-500/40 text-blue-300"
+                                  : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:text-foreground",
+                              )}
+                            >
+                              <SlidersHorizontal className="h-3 w-3" />
+                              Manual
+                            </button>
+                          </div>
+
+                          {/* Smart routing — show selected model */}
+                          {aiMode === "smart" && (
+                            <div className="flex items-center gap-2 text-xs">
+                              <Cpu className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                              <span className="text-muted-foreground">Best model for this content:</span>
+                              <span className="font-medium text-foreground">{smartMeta.label}</span>
+                              <span className="text-muted-foreground/60">·</span>
+                              <span className="text-muted-foreground">{smartMeta.bestFor}</span>
+                              <span className={cn(
+                                "ml-auto rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide",
+                                smartMeta.tier === "premium" ? "bg-amber-500/15 text-amber-300" : "bg-white/[0.06] text-muted-foreground",
+                              )}>{smartMeta.tier}</span>
+                            </div>
+                          )}
+
+                          {/* Manual — provider + model dropdowns */}
+                          {aiMode === "manual" && (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Provider</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {PROVIDERS.map(p => (
+                                      <button
+                                        key={p.id}
+                                        onClick={() => {
+                                          setManualProvider(p.id);
+                                          setManualModel(p.models[0]);
+                                        }}
+                                        className={cn(
+                                          "rounded px-2.5 py-1 text-xs font-medium border transition-all",
+                                          manualProvider === p.id
+                                            ? "bg-blue-500/15 border-blue-500/40 text-blue-300"
+                                            : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:text-foreground",
+                                        )}
+                                      >
+                                        {p.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Model</p>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {providerModels.map(m => (
+                                      <button
+                                        key={m}
+                                        onClick={() => setManualModel(m)}
+                                        className={cn(
+                                          "rounded px-2.5 py-1 text-xs font-medium border transition-all",
+                                          manualModel === m
+                                            ? "bg-blue-500/15 border-blue-500/40 text-blue-300"
+                                            : "bg-white/[0.02] border-white/[0.06] text-muted-foreground hover:text-foreground",
+                                        )}
+                                      >
+                                        {MODEL_META[m].label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              {manualMeta && (
+                                <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] px-3 py-2 grid grid-cols-4 gap-2 text-xs">
+                                  <div>
+                                    <p className="text-[9px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">Best For</p>
+                                    <p className="text-muted-foreground leading-tight">{manualMeta.bestFor}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">Speed</p>
+                                    <p className="text-foreground">{manualMeta.speed}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">Cost</p>
+                                    <p className="text-foreground">{manualMeta.cost}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[9px] text-muted-foreground/50 uppercase tracking-wide mb-0.5">Quality</p>
+                                    <p className={manualMeta.tier === "premium" ? "text-amber-300" : "text-muted-foreground"}>
+                                      {manualMeta.tier === "premium" ? "Premium" : "Good"}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Step 3: Brief form */}
                   {selectedType && (
                     <div>
-                      <p className="text-sm font-semibold mb-3">2. Fill your brief</p>
+                      <p className="text-sm font-semibold mb-3">3. Fill your brief</p>
                       <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <TextField
@@ -879,6 +1021,17 @@ export function GrowthMindContentStudio() {
                         {typeDef(selectedType!).label} · Saved to Library automatically
                         <Check className="inline ml-1 h-3 w-3 text-emerald-400" />
                       </p>
+                      {output.model && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <Cpu className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                          <span className="text-[10px] text-muted-foreground/60">
+                            Generated with <span className="text-muted-foreground font-medium">{MODEL_META[output.model as ModelId]?.label ?? output.model}</span>
+                            {output.usedFallback && output.fallbackFrom && (
+                              <span className="text-amber-400/70"> · Fallback from {output.fallbackFrom.split("/")[1]}</span>
+                            )}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="ml-auto flex items-center gap-2">
                       <Button

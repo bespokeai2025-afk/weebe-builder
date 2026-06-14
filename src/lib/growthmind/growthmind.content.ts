@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { routeGenerate } from "./model-router.server";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -348,6 +349,9 @@ const briefSchema = z.object({
   cta:            z.string().default(""),
   campaignType:   z.string().default(""),
   length:         z.string().default("medium"),
+  aiMode:         z.enum(["smart", "manual"]).default("smart"),
+  provider:       z.string().optional(),
+  model:          z.string().optional(),
 });
 
 export const generateContent = createServerFn({ method: "POST" })
@@ -358,9 +362,6 @@ export const generateContent = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     const settings    = (context as any).settings ?? {};
     if (!workspaceId) throw new Error("No workspace");
-
-    const apiKey = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
-    if (!apiKey) throw new Error("OpenAI API key not configured. Add it in Settings → Integrations.");
 
     // ── Pull context in parallel ─────────────────────────────────────────────
     const [wsRes, seoRes, compRes, playbookRes] = await Promise.all([
@@ -408,25 +409,21 @@ export const generateContent = createServerFn({ method: "POST" })
 
     const maxTokens = maxTokensForType(data.contentType as ContentType, data.length);
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model:       "gpt-4o",
-        messages:    [{ role: "system", content: system }, { role: "user", content: user }],
-        max_tokens:  maxTokens,
-        temperature: 0.75,
-      }),
+    const routeResult = await routeGenerate({
+      system,
+      user,
+      contentType: data.contentType,
+      maxTokens,
+      mode:     (data.aiMode ?? "smart") as "smart" | "manual",
+      provider: data.provider as any,
+      model:    data.model    as any,
+      settings,
+      workspaceId,
+      sb,
     });
 
-    if (!res.ok) {
-      const err = await res.text().catch(() => res.statusText);
-      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
-    }
-
-    const json = await res.json() as any;
-    const rawText: string = json.choices?.[0]?.message?.content ?? "";
-    const tokensUsed: number = json.usage?.total_tokens ?? 0;
+    const rawText:    string = routeResult.text;
+    const tokensUsed: number = routeResult.inputTokens + routeResult.outputTokens;
 
     // ── Parse SEO block if present ────────────────────────────────────────────
     let mainContent = rawText;
@@ -485,11 +482,104 @@ export const generateContent = createServerFn({ method: "POST" })
     });
 
     return {
-      assetId:  inserted.id as string,
+      assetId:      inserted.id as string,
       title,
-      content:  mainContent,
+      content:      mainContent,
       seoData,
       tokensUsed,
+      provider:     routeResult.provider,
+      model:        routeResult.model,
+      costUsd:      routeResult.costUsd,
+      usedFallback: routeResult.usedFallback,
+      fallbackFrom: routeResult.fallbackFrom ?? null,
+    };
+  });
+
+// ── Model settings ─────────────────────────────────────────────────────────────
+
+export const getModelSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data } = await sb
+      .from("growthmind_model_settings")
+      .select("mode, provider, model")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    return {
+      mode:     (data?.mode     ?? "smart") as "smart" | "manual",
+      provider: (data?.provider ?? "gemini") as string,
+      model:    (data?.model    ?? "gemini-2.5-pro") as string,
+    };
+  });
+
+export const saveModelSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      mode:     z.enum(["smart", "manual"]),
+      provider: z.string().optional(),
+      model:    z.string().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { error } = await sb
+      .from("growthmind_model_settings")
+      .upsert({
+        workspace_id: workspaceId,
+        mode:         data.mode,
+        provider:     data.provider ?? null,
+        model:        data.model    ?? null,
+        updated_at:   new Date().toISOString(),
+      }, { onConflict: "workspace_id" });
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const getGenerationStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const s30 = new Date(); s30.setDate(s30.getDate() - 30);
+
+    const { data: rows } = await sb
+      .from("growthmind_generation_logs")
+      .select("provider, model, estimated_cost_usd, status, created_at")
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", s30.toISOString())
+      .limit(5000);
+
+    const all = rows ?? [];
+    const byProvider: Record<string, number>   = {};
+    const byModel:    Record<string, number>   = {};
+    let   totalCost  = 0;
+    let   fallbacks  = 0;
+
+    for (const r of all) {
+      byProvider[r.provider] = (byProvider[r.provider] ?? 0) + 1;
+      byModel[r.model]       = (byModel[r.model]       ?? 0) + 1;
+      totalCost += r.estimated_cost_usd ?? 0;
+      if (r.status === "fallback") fallbacks++;
+    }
+
+    return {
+      totalGenerations: all.length,
+      byProvider,
+      byModel,
+      estimatedCostUsd: Math.round(totalCost * 10000) / 10000,
+      fallbacks,
     };
   });
 

@@ -14,7 +14,7 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-  const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs] = await Promise.all([
+  const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes] = await Promise.all([
     sb.from("agents").select("id,name,retell_agent_id,inbound_phone_number,settings").eq("workspace_id", workspaceId),
     sb.from("calls").select("id,agent_id,call_successful,duration_seconds,call_type,started_at").eq("workspace_id", workspaceId).gte("started_at", s60.toISOString()).limit(1000),
     sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(3000),
@@ -30,6 +30,7 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
     Promise.resolve(sb.from("hivemind_actions").select("status,title,action_type,created_at").eq("workspace_id", workspaceId).eq("status","pending").limit(20)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("knowledge_bases").select("id,name").eq("workspace_id", workspaceId).limit(20)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_recommendations").select("category,priority,problem,fix").eq("workspace_id", workspaceId).eq("is_dismissed", false).order("created_at", { ascending: false }).limit(5)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_generation_logs").select("provider,model,estimated_cost_usd,status,created_at").eq("workspace_id", workspaceId).gte("created_at", weekStart.toISOString()).limit(1000)).catch(() => ({ data: [] })),
   ]);
 
   if (le.error)   console.error("[HiveMind] leads query error:",   le.error.message);
@@ -52,7 +53,8 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const tasksArr = tasks.data ?? [];
   const actionsArr = actions.data ?? [];
   const kbsArr     = kbs.data   ?? [];
-  const gmRecsArr  = gmRecs.data ?? [];
+  const gmRecsArr      = gmRecs.data     ?? [];
+  const gmGenLogsArr   = gmGenLogsRes.data ?? [];
 
   const todayStr     = todayStart.toISOString();
   const weekStr      = weekStart.toISOString();
@@ -245,6 +247,28 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
         })),
       };
     })(),
+    contentStudio: (() => {
+      if (!gmGenLogsArr.length) return null;
+      const byProvider: Record<string, number> = {};
+      const byModel:    Record<string, number> = {};
+      let totalCost    = 0;
+      let fallbacks    = 0;
+      for (const r of gmGenLogsArr) {
+        byProvider[r.provider] = (byProvider[r.provider] ?? 0) + 1;
+        byModel[r.model]       = (byModel[r.model]       ?? 0) + 1;
+        totalCost += r.estimated_cost_usd ?? 0;
+        if (r.status === "fallback") fallbacks++;
+      }
+      const topProvider = Object.entries(byProvider).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+      return {
+        totalGenerations: gmGenLogsArr.length,
+        byProvider,
+        byModel,
+        estimatedCostUsd: Math.round(totalCost * 10000) / 10000,
+        fallbacks,
+        topProvider,
+      };
+    })(),
   };
 }
 
@@ -358,6 +382,25 @@ function buildPlatformContext(d: any): string {
         lines.push(`    • [${r.priority.toUpperCase()}] ${r.problem} → ${r.fix?.slice(0, 80)}`);
       }
     }
+  }
+
+  // GROWTHMIND CONTENT STUDIO AI USAGE (this week)
+  if (d.contentStudio) {
+    const cs = d.contentStudio;
+    const providerList = Object.entries(cs.byProvider as Record<string, number>)
+      .sort((a, b) => b[1] - a[1])
+      .map(([p, n]) => `${p}: ${n}`)
+      .join(", ");
+    const modelList = Object.entries(cs.byModel as Record<string, number>)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([m, n]) => `${m}: ${n}`)
+      .join(", ");
+    const costGbp = (cs.estimatedCostUsd * 0.79).toFixed(4);
+    lines.push(`\nGROWTHMIND CONTENT STUDIO (this week):`);
+    lines.push(`  ${cs.totalGenerations} content assets generated | Est. AI cost: $${cs.estimatedCostUsd.toFixed(4)} (~£${costGbp})`);
+    lines.push(`  Providers used: ${providerList || "none"}`);
+    lines.push(`  Top models: ${modelList || "none"}${cs.fallbacks > 0 ? ` | ${cs.fallbacks} fallback(s) used` : ""}`);
   }
 
   return lines.join("\n");
