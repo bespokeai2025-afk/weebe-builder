@@ -1,0 +1,226 @@
+GROWTHMIND PHASE 2 – REAL DATA ACQUISITION LAYER
+
+IMPORTANT
+
+GrowthMind is already under construction.
+
+Do NOT recreate GrowthMind routes.
+
+Do NOT recreate GrowthMind database tables.
+
+Do NOT recreate GrowthMind layouts.
+
+Do NOT recreate GrowthMind navigation.
+
+Read existing GrowthMind implementation first.
+
+Extend only.
+
+OBJECTIVE
+
+GrowthMind currently stores marketing information.
+
+Now build the data acquisition layer that allows GrowthMind to gather real-world marketing intelligence.
+
+====================================================
+
+STEP 1
+
+CREATE CONNECTION FRAMEWORK
+
+Build a provider-based connection architecture.
+
+Providers:
+
+Google Analytics
+Google Search Console
+Google Ads
+Google Business Profile
+Meta Ads
+Facebook Pages
+Instagram Business
+LinkedIn Company
+LinkedIn Ads
+TikTok Business
+
+Store provider metadata.
+
+Create service layer only.
+
+Do not fully implement every provider yet.
+
+====================================================
+
+STEP 2
+
+WEBSITE INTELLIGENCE ENGINE
+
+Extend existing website functionality.
+
+GrowthMind should analyse:
+
+Primary Website
+Landing Pages
+Funnels
+
+Store:
+
+Page Type
+Purpose
+Target Audience
+Offer
+Call To Action
+
+Generate:
+
+Website Readiness Score
+
+====================================================
+
+STEP 3
+
+SEO INTELLIGENCE ENGINE
+
+Extend existing keyword system.
+
+Calculate:
+
+Keyword Count
+Keyword Coverage
+Location Coverage
+Opportunity Score
+
+Create:
+
+SEO Readiness Score
+
+====================================================
+
+STEP 4
+
+MARKETING READINESS ENGINE
+
+Create a unified score.
+
+Inputs:
+
+Website
+Keywords
+Funnels
+Competitors
+Content
+Campaigns
+
+Output:
+
+Marketing Readiness Score
+0-100
+
+Example:
+
+Website configured
+Keywords configured
+No competitors
+No content
+
+Result:
+
+62/100
+
+====================================================
+
+STEP 5
+
+CONTENT INTELLIGENCE
+
+Extend Content Studio.
+
+Track:
+
+Blogs
+Ads
+Emails
+WhatsApp
+Landing Pages
+Social Content
+
+Generate:
+
+Content Coverage Score
+
+====================================================
+
+STEP 6
+
+COMPETITOR INTELLIGENCE
+
+Extend competitor records.
+
+Calculate:
+
+Competitor Count
+Market Coverage
+Service Coverage
+
+Generate:
+
+Competitive Readiness Score
+
+====================================================
+
+STEP 7
+
+HIVEMIND REPORTING
+
+Create:
+
+getGrowthMindExecutiveSummary()
+
+Return:
+
+Marketing Readiness Score
+SEO Readiness Score
+Website Readiness Score
+Content Coverage Score
+Competitor Coverage Score
+
+Top 5 Recommendations
+
+Inject into HiveMind.
+
+HiveMind remains the only speaking executive.
+
+====================================================
+
+STEP 8
+
+FOUNDATION FOR FUTURE CONNECTORS
+
+Design architecture so future integrations can be added:
+
+Google Analytics
+Google Ads
+Search Console
+Meta Ads
+
+without redesigning GrowthMind.
+
+====================================================
+
+SUCCESS CRITERIA
+
+GrowthMind becomes a true marketing intelligence engine.
+
+It understands:
+
+Website
+SEO
+Content
+Competitors
+Funnels
+
+before advertising integrations are added.
+
+Generate implementation plan first.
+
+Then implement safely.
