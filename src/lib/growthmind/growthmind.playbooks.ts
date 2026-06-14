@@ -454,3 +454,66 @@ export const deactivatePlaybook = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ── AI executive briefing for Playbooks ──────────────────────────────────────
+export const getPlaybookBriefing = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const settings = (context as any).settings ?? {};
+    const apiKey   = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
+
+    const { data: playbookRow } = await sb
+      .from("growthmind_playbooks")
+      .select("id, industry, activated_at")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle();
+
+    if (!playbookRow) {
+      return {
+        briefing:       "No marketing playbook is currently active. Activate an industry-specific playbook to get structured calling, email, and WhatsApp tactics proven for your sector.",
+        score:          20,
+        activeIndustry: null as string | null,
+      };
+    }
+
+    const template  = PLAYBOOKS.find(p => p.id === playbookRow.industry);
+    const daysSince = Math.floor((Date.now() - new Date(playbookRow.activated_at).getTime()) / 86400000);
+    const score     = Math.min(90, 50 + Math.min(40, daysSince * 2));
+    const topTactic = template?.sections[0]?.tactics[0] ?? "follow the calling and email sequences";
+    const fallback  = `The ${playbookRow.industry} playbook has been active for ${daysSince} day${daysSince !== 1 ? "s" : ""}. Your highest-impact next action: ${topTactic}.`;
+
+    if (!apiKey || !template) {
+      return { briefing: fallback, score, activeIndustry: playbookRow.industry as string };
+    }
+
+    const allTactics = template.sections.flatMap(s => s.tactics.slice(0, 2)).slice(0, 6).join("; ");
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model:    "gpt-4o-mini",
+          messages: [{
+            role:    "user",
+            content: `You are GrowthMind, an AI CMO. A business has activated the ${playbookRow.industry} playbook ${daysSince} days ago. Key tactics available: ${allTactics}.\n\nWrite a 2-sentence executive briefing telling them: (1) their single highest-impact tactic to execute RIGHT NOW, and (2) one specific metric to track this week to measure success. Return ONLY the 2-sentence briefing.`,
+          }],
+          max_tokens:  120,
+          temperature: 0.4,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json() as any;
+        const text = (json.choices?.[0]?.message?.content as string ?? "").trim();
+        if (text) return { briefing: text, score, activeIndustry: playbookRow.industry as string };
+      }
+    } catch {}
+
+    return { briefing: fallback, score, activeIndustry: playbookRow.industry as string };
+  });

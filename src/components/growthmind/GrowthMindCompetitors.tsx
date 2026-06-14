@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
+import { HiveMindReportBanner } from "./HiveMindReportBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -311,6 +312,8 @@ export function GrowthMindCompetitors() {
             </Button>
           </div>
         </div>
+
+        <HiveMindReportBanner domain="Competitors" briefing={aiAnalysis} />
 
         {isLoading ? (
           <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">

@@ -1,0 +1,362 @@
+BUILD GROWTHMIND CONTENT CALENDAR + GROWTH SCHEDULER
+
+IMPORTANT
+
+Do not modify HexMail.
+
+Do not modify Follow-Up Centre.
+
+Do not modify Campaign Engine.
+
+Do not merge this with HexMail.
+
+This is a separate GrowthMind acquisition system.
+
+OBJECTIVE
+
+Create a Content Calendar and Growth Scheduler for acquiring new leads.
+
+HexMail remains responsible for nurturing existing leads.
+
+GrowthMind remains responsible for generating new opportunities.
+
+====================================================
+
+CREATE NEW ROUTES
+
+/growthmind/content-calendar
+
+/growthmind/growth-scheduler
+
+====================================================
+
+CREATE DATABASE TABLES
+
+growthmind_content_calendar
+
+growthmind_growth_campaigns
+
+growthmind_scheduled_content
+
+growthmind_marketing_tasks
+
+growthmind_content_series
+
+All workspace scoped.
+
+====================================================
+
+CONTENT CALENDAR
+
+Create views:
+
+Day
+
+Week
+
+Month
+
+Quarter
+
+90 Day Plan
+
+Display:
+
+Content Title
+
+Content Type
+
+Channel
+
+Status
+
+Campaign
+
+Owner
+
+Scheduled Date
+
+====================================================
+
+SUPPORTED CONTENT TYPES
+
+Blog
+
+LinkedIn Post
+
+Facebook Post
+
+Instagram Post
+
+TikTok Post
+
+X Post
+
+Video Script
+
+Lead Magnet
+
+Case Study
+
+Landing Page
+
+Google Ad
+
+Meta Ad
+
+Referral Campaign
+
+PR Campaign
+
+Podcast Episode
+
+Newsletter
+
+====================================================
+
+CONTENT STATUS
+
+Draft
+
+Planned
+
+Scheduled
+
+Published
+
+Archived
+
+Cancelled
+
+====================================================
+
+GROWTH SCHEDULER
+
+Purpose:
+
+Allow GrowthMind to create marketing plans.
+
+Examples:
+
+30 Day Growth Plan
+
+60 Day Growth Plan
+
+90 Day Growth Plan
+
+Annual Growth Plan
+
+====================================================
+
+INPUTS
+
+Business Type
+
+Industry
+
+Target Audience
+
+Offer
+
+Monthly Marketing Budget
+
+Target Markets
+
+Keywords
+
+Growth Goals
+
+Target Leads Per Month
+
+====================================================
+
+OUTPUTS
+
+Content Schedule
+
+SEO Tasks
+
+Campaign Tasks
+
+Ad Tasks
+
+Website Tasks
+
+Referral Tasks
+
+Review Tasks
+
+====================================================
+
+AUTOMATIC CONTENT PLANNING
+
+GrowthMind should be able to create:
+
+30-day calendar
+
+60-day calendar
+
+90-day calendar
+
+Example:
+
+Week 1
+
+Blog Post
+LinkedIn Post
+Meta Ad
+Lead Magnet
+
+Week 2
+
+Case Study
+WhatsApp Campaign
+Landing Page
+Referral Campaign
+
+Week 3
+
+Video Script
+Google Ad
+Blog Post
+Newsletter
+
+====================================================
+
+CAMPAIGN GROUPING
+
+Allow content to belong to:
+
+SEO Campaign
+
+Meta Campaign
+
+Google Campaign
+
+Brand Awareness Campaign
+
+Referral Campaign
+
+Launch Campaign
+
+Product Campaign
+
+====================================================
+
+CONTENT SERIES
+
+Allow recurring series.
+
+Examples:
+
+Weekly CEO Insights
+
+Monday Marketing Tips
+
+Case Study Fridays
+
+Monthly Newsletter
+
+GrowthMind should manage recurring schedules.
+
+====================================================
+
+MARKETING TASK ENGINE
+
+Create marketing tasks.
+
+Examples:
+
+Publish Blog
+
+Create Landing Page
+
+Record Video
+
+Launch Campaign
+
+Review Keywords
+
+Create Lead Magnet
+
+Tasks should be visible in:
+
+Growth Scheduler
+
+HiveMind
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+GrowthMind sends:
+
+Upcoming Content
+
+Upcoming Campaigns
+
+Missing Content
+
+Overdue Marketing Tasks
+
+Marketing Risks
+
+to HiveMind.
+
+HiveMind remains the only executive visible to users.
+
+====================================================
+
+MARKETING READINESS
+
+Display:
+
+Content Coverage Score
+
+Campaign Coverage Score
+
+SEO Coverage Score
+
+Marketing Readiness Score
+
+====================================================
+
+FUTURE READY
+
+Prepare architecture for:
+
+Google Ads Publishing
+
+Meta Ads Publishing
+
+LinkedIn Publishing
+
+TikTok Publishing
+
+Social Scheduling
+
+AI Campaign Automation
+
+====================================================
+
+SUCCESS CRITERIA
+
+GrowthMind can:
+
+Generate content plans
+
+Generate growth plans
+
+Create marketing calendars
+
+Create recurring content schedules
+
+Create marketing tasks
+
+Report everything to HiveMind
+
+without relying on HexMail.
+
+Generate implementation plan first.
+
+Then implement safely.

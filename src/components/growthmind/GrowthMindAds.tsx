@@ -22,6 +22,7 @@ import {
 } from "@/lib/growthmind/growthmind.ads";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { HiveMindReportBanner } from "./HiveMindReportBanner";
 
 // ── Platform config ─────────────────────────────────────────────────────────────
 
@@ -710,6 +711,8 @@ export function GrowthMindAds() {
             </Button>
           </div>
         </div>
+
+        <HiveMindReportBanner domain="Ads" />
 
         {isLoading ? (
           <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">

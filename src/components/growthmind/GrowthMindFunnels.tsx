@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
+import { HiveMindReportBanner } from "./HiveMindReportBanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getGrowthMindAIResponse } from "@/lib/growthmind/growthmind.ai";
@@ -245,6 +246,8 @@ export function GrowthMindFunnels() {
             Refresh
           </Button>
         </div>
+
+        <HiveMindReportBanner domain="Funnel" briefing={aiDiagnosis} />
 
         {isLoading ? (
           <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">

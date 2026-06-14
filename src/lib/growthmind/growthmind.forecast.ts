@@ -333,3 +333,75 @@ export const saveForecastSettings = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+// ── AI executive briefing for Forecast ───────────────────────────────────────
+export const generateForecastBriefing = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const settings = (context as any).settings ?? {};
+    const apiKey   = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
+
+    const s14 = new Date(Date.now() - 14 * 86400000).toISOString();
+    const s28 = new Date(Date.now() - 28 * 86400000).toISOString();
+    const s42 = new Date(Date.now() - 42 * 86400000).toISOString();
+
+    const [recentLeadsRes, prevLeadsRes, salesRes, latestFcRes] = await Promise.all([
+      sb.from("leads").select("id").eq("workspace_id", workspaceId).gte("created_at", s14).limit(2000),
+      sb.from("leads").select("id").eq("workspace_id", workspaceId).gte("created_at", s28).lt("created_at", s14).limit(2000),
+      sb.from("leads").select("id").eq("workspace_id", workspaceId).eq("status", "sale_done").gte("updated_at", s42).limit(1000),
+      sb.from("growthmind_forecasts").select("scenario, summary").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+
+    const recentLeads = (recentLeadsRes.data ?? []).length;
+    const prevLeads   = (prevLeadsRes.data ?? []).length;
+    const totalSales  = (salesRes.data ?? []).length;
+    const latestFc    = latestFcRes.data;
+
+    const trend    = recentLeads > prevLeads * 1.1 ? "up" : recentLeads < prevLeads * 0.9 ? "down" : "flat";
+    const trendPct = prevLeads > 0 ? Math.abs(Math.round(((recentLeads - prevLeads) / prevLeads) * 100)) : 0;
+    const allLeads = recentLeads + prevLeads;
+    const convRate = allLeads > 0 ? totalSales / allLeads : 0;
+
+    const score = Math.min(100, Math.max(10, Math.round(
+      50 +
+      (trend === "up" ? 20 : trend === "down" ? -15 : 0) +
+      (convRate >= 0.1 ? 15 : convRate >= 0.05 ? 8 : 0) +
+      (allLeads >= 50 ? 15 : allLeads >= 20 ? 8 : 0)
+    )));
+
+    const dir      = trend === "up" ? `up ${trendPct}%` : trend === "down" ? `down ${trendPct}%` : "steady";
+    const fallback = `Lead volume is ${dir} vs the previous 14-day period (${recentLeads} vs ${prevLeads} leads). ${totalSales} sales recorded over 6 weeks at a ${(convRate * 100).toFixed(1)}% conversion rate.`;
+
+    if (!apiKey) return { briefing: fallback, trend, score };
+
+    const fcNote = latestFc?.summary
+      ? `Saved forecast (${latestFc.scenario}): ${latestFc.summary.leadsBase ?? "N/A"} base leads and ${latestFc.summary.salesBase ?? "N/A"} base sales projected over 12 weeks.`
+      : "No forecast snapshot saved yet.";
+
+    try {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model:    "gpt-4o-mini",
+          messages: [{
+            role:    "user",
+            content: `You are GrowthMind, an AI Chief Marketing Officer. Write a 2-sentence executive briefing about this business's lead & sales forecast. Be specific with numbers and provide one concrete next action.\n\nData:\n- Last 14 days: ${recentLeads} leads\n- Previous 14 days: ${prevLeads} leads\n- Trend: ${trend} (${trendPct}%)\n- Sales (6-week): ${totalSales}\n- Conversion rate: ${(convRate * 100).toFixed(1)}%\n- ${fcNote}\n\nReturn ONLY the 2-sentence briefing — no preamble, no labels.`,
+          }],
+          max_tokens:  120,
+          temperature: 0.4,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json() as any;
+        const text = (json.choices?.[0]?.message?.content as string ?? "").trim();
+        if (text) return { briefing: text, trend, score };
+      }
+    } catch {}
+
+    return { briefing: fallback, trend, score };
+  });

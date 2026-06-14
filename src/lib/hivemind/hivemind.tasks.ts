@@ -184,6 +184,179 @@ async function scanPlatform(sb: any, workspaceId: string): Promise<ScanFinding[]
     });
   }
 
+  // GrowthMind intelligence scan
+  try {
+    const gmFindings = await scanGrowthMind(sb, workspaceId);
+    results.push(...gmFindings);
+  } catch {}
+
+  return results;
+}
+
+// ── GrowthMind intelligence scanner ──────────────────────────────────────────
+async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding[]> {
+  const results: ScanFinding[] = [];
+  const now   = new Date();
+  const s14   = new Date(now); s14.setDate(now.getDate() - 14);
+  const s28   = new Date(now); s28.setDate(now.getDate() - 28);
+
+  const [seoRes, adsRes, funnelRes, compRes, playbookRes, leadsRecentRes, leadsPreRes] = await Promise.all([
+    sb.from("growthmind_seo_sites")
+      .select("id, keywords")
+      .eq("workspace_id", workspaceId)
+      .limit(1)
+      .maybeSingle(),
+    sb.from("growthmind_campaigns")
+      .select("id, name, spend, roas")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active")
+      .limit(50),
+    sb.from("growthmind_funnels")
+      .select("id, stages")
+      .eq("workspace_id", workspaceId)
+      .order("snapshot_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    sb.from("growthmind_competitors")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .limit(1),
+    sb.from("growthmind_playbooks")
+      .select("id, industry")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle(),
+    sb.from("leads")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", s14.toISOString())
+      .limit(2000),
+    sb.from("leads")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", s28.toISOString())
+      .lt("created_at", s14.toISOString())
+      .limit(2000),
+  ]);
+
+  // 1. SEO health
+  const seoSite = seoRes.data;
+  const keywords = (seoSite?.keywords ?? []) as any[];
+  if (!seoSite) {
+    results.push({
+      trigger_type: "gm_no_seo_site",
+      entity_type:  "growthmind",
+      entity_id:    "seo",
+      entity_name:  "SEO",
+      title:        "No SEO site configured in GrowthMind",
+      description:  "Add your website to GrowthMind SEO to start tracking keyword rankings and generating AI-powered content ideas.",
+      priority:     "medium",
+      severity:     "info",
+    });
+  } else if (keywords.length === 0) {
+    results.push({
+      trigger_type: "gm_no_seo_keywords",
+      entity_type:  "growthmind",
+      entity_id:    "seo",
+      entity_name:  "SEO Keywords",
+      title:        "No keywords tracked in GrowthMind SEO",
+      description:  "Your SEO site is connected but no keywords are being tracked. Add keywords to monitor rankings and uncover content opportunities.",
+      priority:     "medium",
+      severity:     "info",
+    });
+  }
+
+  // 2. Ads poor ROAS
+  const activeCampaigns = adsRes.data ?? [];
+  const poorRoas = activeCampaigns.filter(
+    (c: any) => Number(c.roas ?? 0) > 0 && Number(c.roas) < 1.5 && Number(c.spend ?? 0) > 50
+  );
+  if (poorRoas.length > 0) {
+    const worst = poorRoas[0];
+    results.push({
+      trigger_type: "gm_ads_low_roas",
+      entity_type:  "growthmind",
+      entity_id:    worst.id,
+      entity_name:  worst.name,
+      title:        `"${worst.name}" has a ROAS below 1.5×`,
+      description:  `Campaign "${worst.name}" is returning less than £1.50 per £1.00 spent (ROAS ${Number(worst.roas).toFixed(2)}×). Review targeting and ad creative to improve return on ad spend.`,
+      priority:     "high",
+      severity:     "warning",
+      metadata:     { roas: worst.roas, spend: worst.spend },
+    });
+  }
+
+  // 3. Funnel high drop-off
+  const funnelSnap = funnelRes.data;
+  if (funnelSnap) {
+    const stages: Array<{ label: string; dropPct: number | null }> = funnelSnap.stages ?? [];
+    const highDrop = [...stages]
+      .filter(s => (s.dropPct ?? 0) > 65)
+      .sort((a, b) => (b.dropPct ?? 0) - (a.dropPct ?? 0))[0];
+    if (highDrop) {
+      results.push({
+        trigger_type: "gm_funnel_high_drop",
+        entity_type:  "growthmind",
+        entity_id:    funnelSnap.id,
+        entity_name:  highDrop.label,
+        title:        `High funnel drop-off at "${highDrop.label}" stage`,
+        description:  `${highDrop.dropPct}% of prospects drop off at the "${highDrop.label}" stage — above the 65% alert threshold. This is your biggest conversion bottleneck; address it to unlock pipeline growth.`,
+        priority:     "high",
+        severity:     "warning",
+        metadata:     { stage: highDrop.label, dropPct: highDrop.dropPct },
+      });
+    }
+  }
+
+  // 4. No competitors tracked
+  const compCount = (compRes.data ?? []).length;
+  if (compCount === 0) {
+    results.push({
+      trigger_type: "gm_no_competitors",
+      entity_type:  "growthmind",
+      entity_id:    "competitors",
+      entity_name:  "Competitor Intelligence",
+      title:        "No competitors tracked in GrowthMind",
+      description:  "Add your main competitors to GrowthMind to track positioning, offers, and emerging threats — then use AI analysis to find your edge.",
+      priority:     "low",
+      severity:     "info",
+    });
+  }
+
+  // 5. No active playbook
+  const playbook = playbookRes.data;
+  if (!playbook) {
+    results.push({
+      trigger_type: "gm_no_playbook",
+      entity_type:  "growthmind",
+      entity_id:    "playbooks",
+      entity_name:  "Playbooks",
+      title:        "No marketing playbook activated",
+      description:  "Activate an industry-specific playbook in GrowthMind to get structured calling, email, and WhatsApp tactics proven for your sector.",
+      priority:     "medium",
+      severity:     "info",
+    });
+  }
+
+  // 6. Declining lead volume
+  const recentLeads = (leadsRecentRes.data ?? []).length;
+  const prevLeads   = (leadsPreRes.data ?? []).length;
+  if (prevLeads > 10 && recentLeads < prevLeads * 0.7) {
+    const dropPct = Math.round(((prevLeads - recentLeads) / prevLeads) * 100);
+    results.push({
+      trigger_type: "gm_leads_declining",
+      entity_type:  "growthmind",
+      entity_id:    "forecast",
+      entity_name:  "Lead Volume",
+      title:        `Lead volume down ${dropPct}% in the last 14 days`,
+      description:  `You received ${recentLeads} leads in the past 14 days vs ${prevLeads} in the preceding period — a ${dropPct}% decline. Review your top-of-funnel channels in GrowthMind Forecast.`,
+      priority:     dropPct > 40 ? "high" : "medium",
+      severity:     dropPct > 40 ? "warning" : "info",
+      metadata:     { recentLeads, prevLeads, dropPct },
+    });
+  }
+
   return results;
 }
 

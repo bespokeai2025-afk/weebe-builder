@@ -21,8 +21,10 @@ import {
   saveForecastSettings,
   computeWeeklyBuckets,
   linearForecast,
+  generateForecastBriefing,
   type ForecastSummary,
 } from "@/lib/growthmind/growthmind.forecast";
+import { HiveMindReportBanner } from "./HiveMindReportBanner";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -169,12 +171,15 @@ export function GrowthMindForecast() {
   const [showConfig, setShowConfig] = useState(false);
   const [saveMsg, setSaveMsg]       = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [briefingData, setBriefingData]     = useState<{ briefing: string; trend: "up" | "down" | "flat"; score: number } | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
 
   const qc           = useQueryClient();
   const getDataFn    = useServerFn(getForecastData);
   const getHistFn    = useServerFn(getForecasts);
   const saveFcFn     = useServerFn(saveForecast);
   const saveSetFn    = useServerFn(saveForecastSettings);
+  const briefingFn   = useServerFn(generateForecastBriefing);
 
   const { data: rawData, isLoading } = useQuery({
     queryKey: ["growthmind-forecast-raw"],
@@ -266,6 +271,11 @@ export function GrowthMindForecast() {
     }
   }
 
+  async function handleGenerateBriefing() {
+    setBriefingLoading(true);
+    try { setBriefingData(await briefingFn({})); } catch {} finally { setBriefingLoading(false); }
+  }
+
   return (
     <GrowthMindShell>
       <div className="px-6 py-5 max-w-5xl">
@@ -298,6 +308,15 @@ export function GrowthMindForecast() {
             </Button>
           </div>
         </div>
+
+        <HiveMindReportBanner
+          domain="Forecast"
+          briefing={briefingData?.briefing ?? null}
+          score={briefingData?.score ?? null}
+          trend={briefingData?.trend ?? null}
+          isLoadingBriefing={briefingLoading}
+          onGenerateBriefing={handleGenerateBriefing}
+        />
 
         {/* Config panel */}
         {showConfig && (

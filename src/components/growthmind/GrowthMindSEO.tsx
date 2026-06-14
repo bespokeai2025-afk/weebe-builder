@@ -32,6 +32,7 @@ import {
   type ContentIdea,
   type GscQuery,
 } from "@/lib/growthmind/growthmind.seo";
+import { HiveMindReportBanner } from "./HiveMindReportBanner";
 
 function nanoid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -1555,6 +1556,8 @@ export function GrowthMindSEO() {
             </Button>
           </div>
         </div>
+
+        <HiveMindReportBanner domain="SEO" briefing={aiInsight} />
 
         {isLoading ? (
           <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">

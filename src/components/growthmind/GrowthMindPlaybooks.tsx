@@ -14,8 +14,10 @@ import {
   getActivePlaybook,
   activatePlaybook,
   deactivatePlaybook,
+  getPlaybookBriefing,
   type Playbook,
 } from "@/lib/growthmind/growthmind.playbooks";
+import { HiveMindReportBanner } from "./HiveMindReportBanner";
 
 // ── Icon map ────────────────────────────────────────────────────────────────
 
@@ -178,11 +180,14 @@ export function GrowthMindPlaybooks() {
   const [activating,   setActivating]   = useState<string | null>(null);
   const [deactivating, setDeactivating] = useState(false);
   const [msg, setMsg]                   = useState<string | null>(null);
+  const [briefingData, setBriefingData] = useState<{ briefing: string; score: number; activeIndustry: string | null } | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
 
   const qc              = useQueryClient();
   const getActiveFn     = useServerFn(getActivePlaybook);
   const activateFn      = useServerFn(activatePlaybook);
   const deactivateFn    = useServerFn(deactivatePlaybook);
+  const briefingFn      = useServerFn(getPlaybookBriefing);
 
   const { data, isLoading } = useQuery({
     queryKey: ["growthmind-active-playbook"],
@@ -221,6 +226,11 @@ export function GrowthMindPlaybooks() {
     }
   }
 
+  async function handleGenerateBriefing() {
+    setBriefingLoading(true);
+    try { setBriefingData(await briefingFn({})); } catch {} finally { setBriefingLoading(false); }
+  }
+
   return (
     <GrowthMindShell>
       <div className="px-6 py-5 max-w-5xl">
@@ -251,6 +261,14 @@ export function GrowthMindPlaybooks() {
             </Button>
           </div>
         </div>
+
+        <HiveMindReportBanner
+          domain="Playbooks"
+          briefing={briefingData?.briefing ?? null}
+          score={briefingData?.score ?? null}
+          isLoadingBriefing={briefingLoading}
+          onGenerateBriefing={handleGenerateBriefing}
+        />
 
         {isLoading ? (
           <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
