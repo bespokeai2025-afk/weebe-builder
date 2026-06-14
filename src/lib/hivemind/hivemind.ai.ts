@@ -525,6 +525,12 @@ function buildSystemCouncilContext(sm: SystemMindExecutiveSummary | null): strin
     lines.push(`CTO recommended actions (advisory — you decide what to execute):`);
     for (const a of sm.recommendedActions.slice(0, 4)) lines.push(`  • [${a.priority.toUpperCase()}] ${a.label}: ${a.problem} → ${(a.fix ?? "").slice(0, 90)}`);
   }
+  if (sm.workflowLibraryCount != null) {
+    const wlc = sm.workflowLibraryCount;
+    const wpc = sm.workflowPatternsCount ?? 0;
+    const pbc = sm.playbooksCount ?? 0;
+    lines.push(`Workflow intelligence: ${wlc} workflow${wlc !== 1 ? "s" : ""} in library, ${wpc} extracted pattern${wpc !== 1 ? "s" : ""}, ${pbc} repair playbook${pbc !== 1 ? "s" : ""}.`);
+  }
   return lines.join("\n");
 }
 

@@ -6,6 +6,7 @@
 // They REUSE the existing GrowthMind engines and HiveMind aggregator — no new
 // marketing analytics are computed here.
 
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildGrowthMindData } from "@/lib/growthmind/growthmind.functions";
 import { computeGrowthScore } from "@/lib/growthmind/growthmind.score";
 import { generateGrowthRecommendations, type GrowthRecommendation } from "@/lib/growthmind/growthmind.recommendations";
@@ -279,7 +280,31 @@ export async function buildSystemMindExecutiveSummary(
   workspaceId: string,
 ): Promise<SystemMindExecutiveSummary> {
   const data = await computeSystemMindData(workspaceId);
-  return buildSystemMindSummary(data);
+  const summary = buildSystemMindSummary(data);
+
+  // Enrich with workflow-intelligence counts (graceful — tables may not yet exist)
+  try {
+    const sb = supabaseAdmin as any;
+    const [libResult, patResult, pbResult] = await Promise.all([
+      sb
+        .from("systemmind_workflow_library")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId),
+      sb
+        .from("systemmind_workflow_patterns")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId),
+      sb
+        .from("systemmind_repair_playbooks")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId),
+    ]);
+    summary.workflowLibraryCount  = libResult.count ?? 0;
+    summary.workflowPatternsCount = patResult.count ?? 0;
+    summary.playbooksCount        = pbResult.count  ?? 0;
+  } catch { /* graceful — tables not yet migrated */ }
+
+  return summary;
 }
 
 // ── Council master summary ─────────────────────────────────────────────────────

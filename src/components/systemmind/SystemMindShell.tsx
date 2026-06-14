@@ -1,10 +1,12 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Server, BarChart3, ShieldCheck, BookOpen } from "lucide-react";
+import { Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { label: "Overview",  href: "/systemmind",                   icon: BarChart3 },
-  { label: "Knowledge", href: "/knowledge-centre/systemmind",  icon: BookOpen },
+  { label: "Overview",  href: "/systemmind",            icon: BarChart3  },
+  { label: "Knowledge", href: "/systemmind/knowledge",  icon: BookOpen   },
+  { label: "Workflows", href: "/systemmind/workflows",  icon: GitBranch  },
+  { label: "Playbooks", href: "/systemmind/playbooks",  icon: Shield     },
 ];
 
 function NavItem({ label, href, icon: Icon, active }: {

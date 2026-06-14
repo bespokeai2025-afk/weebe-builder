@@ -21,3 +21,4 @@
 - [Universal Provider Framework registry isolation](provider-registry-isolation.md) — REGISTRY is global/immutable seed; buildScopedView() clones + overlays per request — never call mergeDbSettings or mutate entries directly.
 - [Executive Knowledge System](executive-knowledge-system.md) — private exec RAG (pgvector weebee_kb), separate from agent KBs; SECURITY DEFINER match RPC must be service_role-only + admin-client; access rules in one config; idempotent seed_key seeding.
 - [Executive bridge (HiveMind COO ↔ GrowthMind CMO)](executive-bridge-arch.md) — GrowthMind is advisory-only (never executes); .server builders only via dynamic import; whitelist HiveMind summary (no cfg); executive_events migration manual.
+- [SystemMind Workflow Library](systemmind-workflow-library.md) — 4 tables (migration 20260708000000, manual); repair engine: 7 deterministic checks + AI; querySystemMindKnowledgeContext = KB RAG + playbooks + patterns; 22 playbooks seeded idempotently.

@@ -201,6 +201,11 @@ export type SystemMindExecutiveSummary = {
   topRisks:         ExecRisk[];
   recommendedActions: ExecRecommendedAction[];
   headline:         string;
+  // Workflow intelligence — optional; populated when the workflow library is active
+  workflowLibraryCount?:  number;
+  workflowPatternsCount?: number;
+  playbooksCount?:        number;
+  relevantPlaybooks?:     Array<{ problem: string; risk_level: string }>;
 };
 
 export type HiveMindExecutiveSummary = {

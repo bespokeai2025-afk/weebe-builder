@@ -193,10 +193,16 @@ export const getSystemMindAIResponse = createServerFn({ method: "POST" })
     if (!apiKey) throw new Error("OpenAI API key not configured. Add it in Settings → Integrations.");
 
     const lastUser = [...data.messages].reverse().find((m) => m.role === "user")?.content ?? "platform reliability";
-    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
-    const knowledgeBlock = workspaceId
-      ? await getRetrievedKnowledgeBlock({ workspaceId, mindType: "systemmind", query: lastUser, topK: 5 })
-      : "";
+    let knowledgeBlock = "";
+    if (workspaceId) {
+      try {
+        const { querySystemMindKnowledgeContext } = await import("@/lib/systemmind/systemmind-workflow.server");
+        knowledgeBlock = await querySystemMindKnowledgeContext(workspaceId, lastUser, apiKey);
+      } catch {
+        const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
+        knowledgeBlock = await getRetrievedKnowledgeBlock({ workspaceId, mindType: "systemmind", query: lastUser, topK: 5 });
+      }
+    }
 
     const systemPrompt = compileSystemPrompt(data.platformData, data.personality, knowledgeBlock);
     const reply = await chat(apiKey, systemPrompt, data.messages);
@@ -217,13 +223,23 @@ export const getSystemMindBriefing = createServerFn({ method: "POST" })
       return { briefing: summary.headline };
     }
 
-    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
-    const knowledgeBlock = workspaceId
-      ? await getRetrievedKnowledgeBlock({
+    let knowledgeBlock = "";
+    if (workspaceId) {
+      try {
+        const { querySystemMindKnowledgeContext } = await import("@/lib/systemmind/systemmind-workflow.server");
+        knowledgeBlock = await querySystemMindKnowledgeContext(
+          workspaceId,
+          "platform reliability monitoring infrastructure security cost best practices",
+          apiKey,
+        );
+      } catch {
+        const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
+        knowledgeBlock = await getRetrievedKnowledgeBlock({
           workspaceId, mindType: "systemmind",
           query: "platform reliability monitoring infrastructure security cost best practices", topK: 5,
-        })
-      : "";
+        });
+      }
+    }
 
     const systemPrompt = compileSystemPrompt(data.platformData, "professional", knowledgeBlock);
     const briefing = await chat(apiKey, systemPrompt, [

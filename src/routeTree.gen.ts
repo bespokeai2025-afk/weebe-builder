@@ -63,6 +63,9 @@ import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/build
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
 import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admin/test-retell-webhook'
+import { Route as AuthenticatedSystemmindWorkflowsRouteImport } from './routes/_authenticated/systemmind.workflows'
+import { Route as AuthenticatedSystemmindPlaybooksRouteImport } from './routes/_authenticated/systemmind.playbooks'
+import { Route as AuthenticatedSystemmindKnowledgeRouteImport } from './routes/_authenticated/systemmind.knowledge'
 import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_authenticated/settings.providers'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
@@ -414,6 +417,24 @@ const ApiAdminTestRetellWebhookRoute =
     id: '/api/admin/test-retell-webhook',
     path: '/api/admin/test-retell-webhook',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedSystemmindWorkflowsRoute =
+  AuthenticatedSystemmindWorkflowsRouteImport.update({
+    id: '/workflows',
+    path: '/workflows',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindPlaybooksRoute =
+  AuthenticatedSystemmindPlaybooksRouteImport.update({
+    id: '/playbooks',
+    path: '/playbooks',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindKnowledgeRoute =
+  AuthenticatedSystemmindKnowledgeRouteImport.update({
+    id: '/knowledge',
+    path: '/knowledge',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSettingsProvidersRoute =
   AuthenticatedSettingsProvidersRouteImport.update({
@@ -874,6 +895,9 @@ export interface FileRoutesByFullPath {
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
+  '/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
+  '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -991,6 +1015,9 @@ export interface FileRoutesByTo {
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
+  '/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
+  '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -1115,6 +1142,9 @@ export interface FileRoutesById {
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRoute
+  '/_authenticated/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
+  '/_authenticated/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
+  '/_authenticated/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -1239,6 +1269,9 @@ export interface FileRouteTypes {
     | '/settings/crm'
     | '/settings/integrations'
     | '/settings/providers'
+    | '/systemmind/knowledge'
+    | '/systemmind/playbooks'
+    | '/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -1356,6 +1389,9 @@ export interface FileRouteTypes {
     | '/settings/crm'
     | '/settings/integrations'
     | '/settings/providers'
+    | '/systemmind/knowledge'
+    | '/systemmind/playbooks'
+    | '/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -1479,6 +1515,9 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/providers'
+    | '/_authenticated/systemmind/knowledge'
+    | '/_authenticated/systemmind/playbooks'
+    | '/_authenticated/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -1969,6 +2008,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/admin/test-retell-webhook'
       preLoaderRoute: typeof ApiAdminTestRetellWebhookRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/systemmind/workflows': {
+      id: '/_authenticated/systemmind/workflows'
+      path: '/workflows'
+      fullPath: '/systemmind/workflows'
+      preLoaderRoute: typeof AuthenticatedSystemmindWorkflowsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/playbooks': {
+      id: '/_authenticated/systemmind/playbooks'
+      path: '/playbooks'
+      fullPath: '/systemmind/playbooks'
+      preLoaderRoute: typeof AuthenticatedSystemmindPlaybooksRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/knowledge': {
+      id: '/_authenticated/systemmind/knowledge'
+      path: '/knowledge'
+      fullPath: '/systemmind/knowledge'
+      preLoaderRoute: typeof AuthenticatedSystemmindKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/settings/providers': {
       id: '/_authenticated/settings/providers'
@@ -2564,11 +2624,20 @@ const AuthenticatedKnowledgeCentreRouteWithChildren =
   )
 
 interface AuthenticatedSystemmindRouteChildren {
+  AuthenticatedSystemmindKnowledgeRoute: typeof AuthenticatedSystemmindKnowledgeRoute
+  AuthenticatedSystemmindPlaybooksRoute: typeof AuthenticatedSystemmindPlaybooksRoute
+  AuthenticatedSystemmindWorkflowsRoute: typeof AuthenticatedSystemmindWorkflowsRoute
   AuthenticatedSystemmindIndexRoute: typeof AuthenticatedSystemmindIndexRoute
 }
 
 const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren =
   {
+    AuthenticatedSystemmindKnowledgeRoute:
+      AuthenticatedSystemmindKnowledgeRoute,
+    AuthenticatedSystemmindPlaybooksRoute:
+      AuthenticatedSystemmindPlaybooksRoute,
+    AuthenticatedSystemmindWorkflowsRoute:
+      AuthenticatedSystemmindWorkflowsRoute,
     AuthenticatedSystemmindIndexRoute: AuthenticatedSystemmindIndexRoute,
   }
 
