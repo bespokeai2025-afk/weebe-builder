@@ -124,9 +124,9 @@ function matchCol(headers: string[], keys: string[]): number {
   return -1;
 }
 
-function parseCsv(raw: string): { rows: ParsedCsvRow[]; headers: string[]; colMap: ColMap; errors: string[] } {
+function parseCsv(raw: string): { rawRows: string[][]; headers: string[]; colMap: ColMap; errors: string[] } {
   const lines = raw.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return { rows: [], headers: [], colMap: { term: -1, volume: -1, difficulty: -1, rank: -1 }, errors: ["Need at least a header row and one data row."] };
+  if (lines.length < 2) return { rawRows: [], headers: [], colMap: { term: -1, volume: -1, difficulty: -1, rank: -1 }, errors: ["Need at least a header row and one data row."] };
 
   const delim   = detectDelimiter(raw);
   const headers = parseRow(lines[0], delim);
@@ -143,10 +143,18 @@ function parseCsv(raw: string): { rows: ParsedCsvRow[]; headers: string[]; colMa
   }
 
   const errors: string[] = [];
-  const rows: ParsedCsvRow[] = [];
+  const rawRows: string[][] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const cells = parseRow(lines[i], delim);
+    rawRows.push(parseRow(lines[i], delim));
+  }
+
+  return { rawRows, headers, colMap, errors };
+}
+
+function applyColMap(rawRows: string[][], colMap: ColMap): ParsedCsvRow[] {
+  const rows: ParsedCsvRow[] = [];
+  for (const cells of rawRows) {
     const termRaw = colMap.term >= 0 ? (cells[colMap.term] ?? "") : "";
     const term = termRaw.replace(/^["']|["']$/g, "").trim();
     if (!term) continue;
@@ -168,8 +176,7 @@ function parseCsv(raw: string): { rows: ParsedCsvRow[]; headers: string[]; colMa
       rank:       toNum(colMap.rank),
     });
   }
-
-  return { rows, headers, colMap, errors };
+  return rows;
 }
 
 function CsvImportModal({
@@ -183,6 +190,7 @@ function CsvImportModal({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [raw,          setRaw]          = useState("");
+  const [rawRows,      setRawRows]      = useState<string[][]>([]);
   const [parsed,       setParsed]       = useState<ParsedCsvRow[]>([]);
   const [headers,      setHeaders]      = useState<string[]>([]);
   const [colMap,       setColMap]       = useState<ColMap>({ term: -1, volume: -1, difficulty: -1, rank: -1 });
@@ -192,13 +200,22 @@ function CsvImportModal({
 
   const process = useCallback((text: string) => {
     setRaw(text);
-    if (!text.trim()) { setParsed([]); setHeaders([]); setErrors([]); return; }
+    if (!text.trim()) { setRawRows([]); setParsed([]); setHeaders([]); setErrors([]); return; }
     const result = parseCsv(text);
-    setParsed(result.rows);
+    setRawRows(result.rawRows);
     setHeaders(result.headers);
     setColMap(result.colMap);
+    setParsed(applyColMap(result.rawRows, result.colMap));
     setErrors(result.errors);
   }, []);
+
+  function updateColMap(field: keyof ColMap, idx: number) {
+    setColMap(prev => {
+      const next = { ...prev, [field]: idx };
+      setParsed(applyColMap(rawRows, next));
+      return next;
+    });
+  }
 
   function handleFile(file: File) {
     const reader = new FileReader();
@@ -279,20 +296,35 @@ function CsvImportModal({
             />
           </div>
 
-          {/* Column mapping hint */}
+          {/* Column mapping — editable dropdowns */}
           {headers.length > 0 && (
-            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-[11px] space-y-1">
-              <p className="font-semibold text-muted-foreground mb-1.5">Detected column mapping</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold text-muted-foreground">Column mapping</p>
+                <p className="text-[10px] text-muted-foreground/50">Override any auto-detected column below</p>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 {(["term", "volume", "difficulty", "rank"] as (keyof ColMap)[]).map(field => {
-                  const idx = colMap[field];
+                  const label = field === "term" ? "Keyword" : field.charAt(0).toUpperCase() + field.slice(1);
+                  const isRequired = field === "term";
                   return (
-                    <div key={field} className="flex items-center gap-1.5">
-                      <span className="text-muted-foreground/60 capitalize w-16">{field === "term" ? "keyword" : field}:</span>
-                      {idx >= 0
-                        ? <span className="text-emerald-400 font-medium truncate">{headers[idx]}</span>
-                        : <span className="text-amber-400/70 italic">not found</span>
-                      }
+                    <div key={field} className="flex flex-col gap-1">
+                      <label className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+                        {label}
+                        {isRequired && <span className="text-red-400/70">*</span>}
+                      </label>
+                      <select
+                        value={colMap[field]}
+                        onChange={e => updateColMap(field, Number(e.target.value))}
+                        className="w-full rounded-md border border-white/[0.08] bg-[#0f1117] px-2 py-1 text-[11px] text-foreground focus:outline-none focus:border-emerald-500/40 appearance-none cursor-pointer"
+                      >
+                        {!isRequired && (
+                          <option value={-1} className="bg-[#0f1117] text-muted-foreground">— not mapped —</option>
+                        )}
+                        {headers.map((h, i) => (
+                          <option key={i} value={i} className="bg-[#0f1117]">{h || `Column ${i + 1}`}</option>
+                        ))}
+                      </select>
                     </div>
                   );
                 })}
