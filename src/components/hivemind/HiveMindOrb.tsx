@@ -34,7 +34,8 @@ function HiveEmblem({
     { pts: hex(23.6, 52, 11), isCenter: false }, // lower-left
   ];
 
-  const strokeColor  = speaking ? "#5de8ff" : "#00cfff";
+  // Violet palette — matches app UI (violet-400 / violet-500)
+  const strokeColor  = speaking ? "#c4b5fd" : "#8b5cf6";
   const strokeWidth  = speaking ? 1.5 : 1.1;
   const filterId     = speaking ? "hm-glow-speak" : "hm-glow";
 
@@ -45,7 +46,7 @@ function HiveEmblem({
       height={size}
       fill="none"
       aria-hidden
-      style={{ filter: speaking ? "drop-shadow(0 0 8px rgba(0,210,255,0.6))" : "drop-shadow(0 0 4px rgba(0,180,255,0.3))" }}
+      style={{ filter: speaking ? "drop-shadow(0 0 10px rgba(139,92,246,0.7))" : "drop-shadow(0 0 5px rgba(139,92,246,0.3))" }}
     >
       <defs>
         {/* Subtle edge glow — rest state */}
@@ -62,14 +63,14 @@ function HiveEmblem({
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        {/* Radial gradient fills */}
+        {/* Dark fills matching the app's card/background colours */}
         <radialGradient id="hm-fill-center" cx="40%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#0d1f52" />
-          <stop offset="100%" stopColor="#040d24" />
+          <stop offset="0%" stopColor="#1a1130" />
+          <stop offset="100%" stopColor="#0a0814" />
         </radialGradient>
         <radialGradient id="hm-fill-outer" cx="40%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#0a1840" />
-          <stop offset="100%" stopColor="#03091a" />
+          <stop offset="0%" stopColor="#130e25" />
+          <stop offset="100%" stopColor="#07050f" />
         </radialGradient>
       </defs>
 
@@ -353,34 +354,37 @@ export function HiveMindOrb() {
       <div className="relative flex items-center justify-center">
         {speaking && (
           <>
+            {/* Bright thin rays — violet, fast spin */}
             <div
               className="absolute pointer-events-none"
               style={{
-                width: 160, height: 160,
-                background: "repeating-conic-gradient(from 0deg, rgba(0,200,255,0.5) 0deg 1.5deg, transparent 1.5deg 12deg)",
+                width: 170, height: 170,
+                background: "repeating-conic-gradient(from 0deg, rgba(167,139,250,0.55) 0deg 1.5deg, transparent 1.5deg 11deg)",
                 animation: "hm-ray-spin 2.2s linear infinite",
-                maskImage: "radial-gradient(circle, transparent 25%, black 45%, transparent 100%)",
-                WebkitMaskImage: "radial-gradient(circle, transparent 25%, black 45%, transparent 100%)",
+                maskImage: "radial-gradient(circle, transparent 22%, black 42%, transparent 100%)",
+                WebkitMaskImage: "radial-gradient(circle, transparent 22%, black 42%, transparent 100%)",
                 borderRadius: "50%",
               }}
             />
+            {/* Wider dimmer rays — violet-600, counter-spin */}
             <div
               className="absolute pointer-events-none"
               style={{
-                width: 180, height: 180,
-                background: "repeating-conic-gradient(from 8deg, rgba(0,140,255,0.3) 0deg 1deg, transparent 1deg 14deg)",
+                width: 200, height: 200,
+                background: "repeating-conic-gradient(from 5deg, rgba(124,58,237,0.35) 0deg 1deg, transparent 1deg 13deg)",
                 animation: "hm-ray-spin-slow 3.5s linear infinite",
-                maskImage: "radial-gradient(circle, transparent 28%, black 46%, transparent 100%)",
-                WebkitMaskImage: "radial-gradient(circle, transparent 28%, black 46%, transparent 100%)",
+                maskImage: "radial-gradient(circle, transparent 26%, black 44%, transparent 100%)",
+                WebkitMaskImage: "radial-gradient(circle, transparent 26%, black 44%, transparent 100%)",
                 borderRadius: "50%",
               }}
             />
+            {/* White-hot core — matches starburst centre */}
             <div
               className="absolute pointer-events-none"
               style={{
-                width: 100, height: 100,
+                width: 90, height: 90,
                 borderRadius: "50%",
-                background: "radial-gradient(circle, rgba(80,220,255,0.25) 0%, rgba(0,130,255,0.1) 50%, transparent 100%)",
+                background: "radial-gradient(circle, rgba(255,255,255,0.18) 0%, rgba(167,139,250,0.22) 40%, transparent 100%)",
                 animation: "hm-glow-pulse 1s ease-in-out infinite",
               }}
             />

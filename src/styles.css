@@ -623,6 +623,6 @@
   50%       { opacity: 1;   transform: scale(1.08); }
 }
 @keyframes hm-orb-breathe {
-  0%, 100% { box-shadow: 0 0 18px 6px rgba(0,170,255,0.45), 0 0 40px 12px rgba(0,100,220,0.2); }
-  50%       { box-shadow: 0 0 32px 14px rgba(0,200,255,0.75), 0 0 70px 24px rgba(0,120,255,0.35); }
+  0%, 100% { box-shadow: 0 0 18px 6px rgba(139,92,246,0.45), 0 0 40px 12px rgba(109,40,217,0.2); }
+  50%       { box-shadow: 0 0 32px 14px rgba(167,139,250,0.75), 0 0 70px 24px rgba(139,92,246,0.35); }
 }
