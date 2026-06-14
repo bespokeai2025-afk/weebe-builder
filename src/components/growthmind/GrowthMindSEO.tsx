@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useNavigate } from "@tanstack/react-router";
 import {
-  Search, Loader2, RefreshCw, Plus, Trash2, Save,
+  Search, Loader2, RefreshCw, Plus, Trash2,
   Sparkles, ExternalLink, Check, X, Edit2, Globe,
-  Upload, FileText, AlertCircle, ChevronDown,
+  Upload, FileText, AlertCircle,
+  Link2, Link2Off, BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -17,8 +19,16 @@ import {
   getSeoSite,
   saveSeoSite,
   saveAiRecs,
+  getGscStatus,
+  getGscAuthUrl,
+  connectGscToken,
+  disconnectGsc,
+  listGscProperties,
+  saveGscProperty,
+  fetchGscQueries,
   type SeoKeyword,
   type ContentIdea,
+  type GscQuery,
 } from "@/lib/growthmind/growthmind.seo";
 
 function nanoid(): string {
@@ -391,6 +401,198 @@ function CsvImportModal({
   );
 }
 
+// ── GSC Suggest Modal ─────────────────────────────────────────────────────────
+
+function GscSuggestModal({
+  queries,
+  loading,
+  error,
+  existing,
+  onClose,
+  onImport,
+}: {
+  queries:  GscQuery[];
+  loading:  boolean;
+  error:    string | null;
+  existing: string[];
+  onClose:  () => void;
+  onImport: (selected: GscQuery[]) => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [skipDupes, setSkipDupes] = useState(true);
+
+  const visible = skipDupes
+    ? queries.filter(q => !existing.includes(q.term.toLowerCase()))
+    : queries;
+
+  const dupeCount = queries.length - visible.length;
+
+  function toggleAll() {
+    if (selected.size === visible.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(visible.map(q => q.term)));
+    }
+  }
+
+  function toggle(term: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(term)) next.delete(term);
+      else next.add(term);
+      return next;
+    });
+  }
+
+  const toImport = visible.filter(q => selected.has(q.term));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] shrink-0">
+          <div className="flex items-center gap-2">
+            <BarChart2 className="h-4 w-4 text-blue-400" />
+            <p className="text-sm font-semibold">Auto-suggest from Search Console</p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+              <p className="text-sm">Fetching your top queries from Search Console…</p>
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.05] px-3 py-3">
+              <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-red-400">Failed to fetch queries</p>
+                <p className="text-xs text-red-400/80">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && queries.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-muted-foreground">
+              <Search className="h-6 w-6" />
+              <p className="text-sm">No search queries found for this property in the last 90 days.</p>
+            </div>
+          )}
+
+          {!loading && !error && queries.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold text-muted-foreground">
+                  Top {queries.length} queries by impressions (last 90 days)
+                  {dupeCount > 0 && (
+                    <span className="ml-1 text-amber-400/70">
+                      · {dupeCount} already tracked
+                    </span>
+                  )}
+                </p>
+                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-muted-foreground select-none">
+                  <input
+                    type="checkbox"
+                    checked={skipDupes}
+                    onChange={e => setSkipDupes(e.target.checked)}
+                    className="accent-blue-500 h-3 w-3"
+                  />
+                  Hide already-tracked
+                </label>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-white/[0.06]">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-[#0f1117] z-10">
+                    <tr className="border-b border-white/[0.06]">
+                      <th className="px-3 py-2 w-8">
+                        <input
+                          type="checkbox"
+                          checked={selected.size === visible.length && visible.length > 0}
+                          onChange={toggleAll}
+                          className="accent-blue-500 h-3 w-3"
+                        />
+                      </th>
+                      {["Query", "Clicks", "Impressions", "Avg Position"].map(h => (
+                        <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/60">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {visible.map((q, i) => {
+                      const isDupe = existing.includes(q.term.toLowerCase());
+                      const checked = selected.has(q.term);
+                      return (
+                        <tr
+                          key={i}
+                          onClick={() => toggle(q.term)}
+                          className={cn(
+                            "cursor-pointer transition-colors",
+                            checked ? "bg-blue-500/[0.06]" : "hover:bg-white/[0.02]",
+                            isDupe && skipDupes ? "opacity-40" : "",
+                          )}
+                        >
+                          <td className="px-3 py-2" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggle(q.term)}
+                              className="accent-blue-500 h-3 w-3"
+                            />
+                          </td>
+                          <td className="px-3 py-2 font-medium max-w-[220px] truncate">{q.term}</td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">{q.clicks.toLocaleString()}</td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">{q.impressions.toLocaleString()}</td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                            {q.position !== null ? `#${q.position}` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground/60">
+                Imported queries use GSC clicks as volume and avg position as rank. Keyword difficulty is not available from Search Console — you can fill that in manually after import.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-white/[0.06] shrink-0 bg-[#0f1117]">
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-xs h-8">
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => { if (toImport.length > 0) onImport(toImport); }}
+            disabled={toImport.length === 0 || loading}
+            className="h-8 text-xs bg-blue-600 hover:bg-blue-500 text-white"
+          >
+            <BarChart2 className="mr-1.5 h-3.5 w-3.5" />
+            Add {toImport.length > 0 ? `${toImport.length} query${toImport.length !== 1 ? "s" : ""}` : "queries"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Keyword row — view or edit ────────────────────────────────────────────────
 
 function KeywordRow({
@@ -573,7 +775,7 @@ function ContentIdeaRow({
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors group">
+    <div className="flex items-center gap-3 px-4 py-3 group hover:bg-white/[0.02] transition-colors border-b border-white/[0.04] last:border-0">
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate">{idea.title}</p>
         {idea.targetKeyword && (
@@ -603,6 +805,195 @@ function ContentIdeaRow({
   );
 }
 
+// ── GSC Connection Panel ──────────────────────────────────────────────────────
+
+function GscConnectionPanel({
+  gscStatus,
+  gscLoading,
+  onConnect,
+  onDisconnect,
+  onSuggest,
+  connecting,
+}: {
+  gscStatus:    { configured: boolean; connected: boolean; propertyUrl: string | null } | undefined;
+  gscLoading:   boolean;
+  onConnect:    () => void;
+  onDisconnect: () => void;
+  onSuggest:    (propertyUrl: string) => void;
+  connecting:   boolean;
+}) {
+  const [showPropertyPicker, setShowPropertyPicker] = useState(false);
+  const [properties, setProperties]                 = useState<string[]>([]);
+  const [propsLoading, setPropsLoading]             = useState(false);
+  const [propsError, setPropsError]                 = useState<string | null>(null);
+  const [selectedProp, setSelectedProp]             = useState<string>("");
+
+  const listPropsFn    = useServerFn(listGscProperties);
+  const savePropFn     = useServerFn(saveGscProperty);
+  const qc             = useQueryClient();
+
+  async function openPropertyPicker() {
+    setShowPropertyPicker(true);
+    setPropsLoading(true);
+    setPropsError(null);
+    try {
+      const res = await listPropsFn();
+      setProperties(res.sites);
+      const current = gscStatus?.propertyUrl ?? "";
+      setSelectedProp(current || res.sites[0] || "");
+    } catch (e: any) {
+      setPropsError(e.message);
+    } finally {
+      setPropsLoading(false);
+    }
+  }
+
+  async function saveProperty() {
+    if (!selectedProp) return;
+    await savePropFn({ propertyUrl: selectedProp });
+    qc.invalidateQueries({ queryKey: ["gsc-status"] });
+    setShowPropertyPicker(false);
+  }
+
+  if (gscLoading) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground text-xs py-1">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Checking Search Console…
+      </div>
+    );
+  }
+
+  if (!gscStatus?.configured) {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.05] px-3 py-2.5 text-xs text-amber-400/90">
+        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        <span>
+          Google OAuth credentials are not configured. Add <code className="font-mono text-amber-300">GOOGLE_CLIENT_ID</code> and <code className="font-mono text-amber-300">GOOGLE_CLIENT_SECRET</code> to your Replit secrets.
+        </span>
+      </div>
+    );
+  }
+
+  if (!gscStatus.connected) {
+    return (
+      <Button
+        size="sm" variant="outline"
+        onClick={onConnect}
+        disabled={connecting}
+        className="h-7 text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+      >
+        {connecting
+          ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+          : <Link2 className="mr-1.5 h-3 w-3" />
+        }
+        Connect Search Console
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Property selector */}
+      {gscStatus.propertyUrl ? (
+        <div className="flex items-center gap-1.5 rounded-md border border-blue-500/20 bg-blue-500/[0.05] px-2.5 py-1.5">
+          <BarChart2 className="h-3 w-3 text-blue-400 shrink-0" />
+          <span className="text-xs text-blue-300 font-medium max-w-[200px] truncate">{gscStatus.propertyUrl}</span>
+          <button
+            onClick={openPropertyPicker}
+            className="ml-1 text-muted-foreground hover:text-foreground transition-colors"
+            title="Change property"
+          >
+            <Edit2 className="h-3 w-3" />
+          </button>
+        </div>
+      ) : (
+        <Button
+          size="sm" variant="outline"
+          onClick={openPropertyPicker}
+          className="h-7 text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+        >
+          <BarChart2 className="mr-1.5 h-3 w-3" />
+          Pick property
+        </Button>
+      )}
+
+      <Button
+        size="sm"
+        onClick={() => gscStatus.propertyUrl && onSuggest(gscStatus.propertyUrl)}
+        disabled={!gscStatus.propertyUrl}
+        className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white"
+        title={gscStatus.propertyUrl ? undefined : "Pick a Search Console property first"}
+      >
+        <Sparkles className="mr-1.5 h-3 w-3" />
+        Auto-suggest
+      </Button>
+
+      <Button
+        size="sm" variant="ghost"
+        onClick={onDisconnect}
+        className="h-7 text-xs text-muted-foreground hover:text-red-400"
+        title="Disconnect Search Console"
+      >
+        <Link2Off className="h-3 w-3" />
+      </Button>
+
+      {/* Property picker dropdown */}
+      {showPropertyPicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setShowPropertyPicker(false); }}
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-white/[0.08] bg-[#0f1117] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <p className="text-sm font-semibold">Select Search Console property</p>
+              <button onClick={() => setShowPropertyPicker(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              {propsLoading && (
+                <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                  <span className="text-xs">Loading properties…</span>
+                </div>
+              )}
+              {propsError && (
+                <div className="text-xs text-red-400 py-2">{propsError}</div>
+              )}
+              {!propsLoading && !propsError && properties.length === 0 && (
+                <p className="text-xs text-muted-foreground py-4 text-center">No properties found in this account.</p>
+              )}
+              {!propsLoading && !propsError && properties.map(p => (
+                <label key={p} className="flex items-center gap-2.5 cursor-pointer group">
+                  <input
+                    type="radio"
+                    name="gsc-property"
+                    value={p}
+                    checked={selectedProp === p}
+                    onChange={() => setSelectedProp(p)}
+                    className="accent-blue-500 h-3.5 w-3.5"
+                  />
+                  <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors truncate">{p}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex items-center justify-between px-5 py-4 border-t border-white/[0.06]">
+              <Button variant="ghost" size="sm" onClick={() => setShowPropertyPicker(false)} className="text-xs h-7">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={saveProperty} disabled={!selectedProp} className="text-xs h-7">
+                <Check className="mr-1.5 h-3 w-3" />
+                Select
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function GrowthMindSEO() {
@@ -612,6 +1003,12 @@ export function GrowthMindSEO() {
   const saveAiRecsFn  = useServerFn(saveAiRecs);
   const aiRespFn      = useServerFn(getGrowthMindAIResponse);
   const getDataFn     = useServerFn(getGrowthMindData);
+  const getStatusFn   = useServerFn(getGscStatus);
+  const getAuthUrlFn  = useServerFn(getGscAuthUrl);
+  const connectFn     = useServerFn(connectGscToken);
+  const disconnectFn  = useServerFn(disconnectGsc);
+  const fetchQueryFn  = useServerFn(fetchGscQueries);
+  const navigate      = useNavigate();
 
   const [urlInput, setUrlInput]         = useState("");
   const [saving, setSaving]             = useState(false);
@@ -630,6 +1027,13 @@ export function GrowthMindSEO() {
   const [showIdeaForm, setShowIdeaForm] = useState(false);
   const [showCsvImport, setShowCsvImport] = useState(false);
 
+  // GSC state
+  const [gscConnecting, setGscConnecting]   = useState(false);
+  const [showGscSuggest, setShowGscSuggest] = useState(false);
+  const [gscQueries, setGscQueries]         = useState<GscQuery[]>([]);
+  const [gscFetchLoading, setGscFetchLoading] = useState(false);
+  const [gscFetchError, setGscFetchError]   = useState<string | null>(null);
+
   const { data: siteData, isLoading } = useQuery({
     queryKey: ["growthmind-seo-site"],
     queryFn:  () => getSiteFn(),
@@ -642,6 +1046,12 @@ export function GrowthMindSEO() {
     staleTime: 120_000,
   });
 
+  const { data: gscStatus, isLoading: gscStatusLoading } = useQuery({
+    queryKey: ["gsc-status"],
+    queryFn:  () => getStatusFn(),
+    staleTime: 30_000,
+  });
+
   useEffect(() => {
     const site = siteData?.site;
     if (!site) return;
@@ -652,11 +1062,39 @@ export function GrowthMindSEO() {
     if (site.aiRecs) setAiInsight(site.aiRecs);
   }, [siteData]);
 
+  // ── Handle GSC OAuth callback (?code= in URL) ─────────────────────────────
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code   = params.get("code");
+    const scope  = params.get("scope");
+    const state  = params.get("state");
+
+    if (!code || !scope?.includes("webmasters") || !state) return;
+
+    const redirectUri = `${window.location.origin}/growthmind/seo`;
+
+    setGscConnecting(true);
+
+    connectFn({ code, redirectUri, state })
+      .then(() => {
+        qc.invalidateQueries({ queryKey: ["gsc-status"] });
+        flashMsg("Google Search Console connected!");
+      })
+      .catch((e: any) => {
+        flashMsg("Failed to connect Search Console: " + e.message, true);
+      })
+      .finally(() => {
+        setGscConnecting(false);
+        navigate({ to: "/growthmind/seo", replace: true });
+      });
+  }, []);
+
   const connected = !!siteUrl;
 
   function flashMsg(text: string, isError = false) {
     setSaveMsg({ text, isError });
-    setTimeout(() => setSaveMsg(null), 3000);
+    setTimeout(() => setSaveMsg(null), 4000);
   }
 
   async function handleConnect() {
@@ -716,7 +1154,7 @@ export function GrowthMindSEO() {
     persistAll(updated, contentIdeas);
   }
 
-  function handleCsvImport(rows: ParsedCsvRow[]) {
+  function handleCsvImport(rows: { term: string; volume: number | null; difficulty: number | null; rank: number | null }[]) {
     const newKws: SeoKeyword[] = rows.map(r => ({
       id:         nanoid(),
       term:       r.term,
@@ -729,6 +1167,60 @@ export function GrowthMindSEO() {
     setShowCsvImport(false);
     persistAll(updated, contentIdeas);
     flashMsg(`Imported ${newKws.length} keyword${newKws.length !== 1 ? "s" : ""}`);
+  }
+
+  // ── GSC ops ────────────────────────────────────────────────────────────────
+
+  async function handleGscConnect() {
+    setGscConnecting(true);
+    try {
+      const redirectUri = `${window.location.origin}/growthmind/seo`;
+      const { url } = await getAuthUrlFn({ redirectUri });
+      window.location.href = url;
+    } catch (e: any) {
+      flashMsg("Failed to start Google auth: " + e.message, true);
+      setGscConnecting(false);
+    }
+  }
+
+  async function handleGscDisconnect() {
+    try {
+      await disconnectFn();
+      qc.invalidateQueries({ queryKey: ["gsc-status"] });
+      flashMsg("Search Console disconnected");
+    } catch (e: any) {
+      flashMsg("Disconnect failed: " + e.message, true);
+    }
+  }
+
+  async function handleGscSuggest(propertyUrl: string) {
+    setShowGscSuggest(true);
+    setGscFetchLoading(true);
+    setGscFetchError(null);
+    setGscQueries([]);
+    try {
+      const { queries } = await fetchQueryFn({ propertyUrl, rowLimit: 100 });
+      setGscQueries(queries);
+    } catch (e: any) {
+      setGscFetchError(e.message);
+    } finally {
+      setGscFetchLoading(false);
+    }
+  }
+
+  function handleGscImport(selected: GscQuery[]) {
+    const newKws: SeoKeyword[] = selected.map(q => ({
+      id:         nanoid(),
+      term:       q.term,
+      volume:     q.clicks > 0 ? q.clicks : null,
+      difficulty: null,
+      rank:       q.position,
+    }));
+    const updated = [...keywords, ...newKws];
+    setKeywords(updated);
+    setShowGscSuggest(false);
+    persistAll(updated, contentIdeas);
+    flashMsg(`Added ${newKws.length} keyword${newKws.length !== 1 ? "s" : ""} from Search Console`);
   }
 
   // ── Content idea ops ───────────────────────────────────────────────────────
@@ -835,6 +1327,12 @@ export function GrowthMindSEO() {
                 {saveMsg.text}
               </span>
             )}
+            {gscConnecting && (
+              <span className="text-xs text-blue-400 flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Connecting…
+              </span>
+            )}
             <Button
               variant="outline" size="sm"
               onClick={() => qc.invalidateQueries({ queryKey: ["growthmind-seo-site"] })}
@@ -906,6 +1404,32 @@ export function GrowthMindSEO() {
               )}
             </div>
 
+            {/* Google Search Console integration */}
+            <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <BarChart2 className="h-4 w-4 text-blue-400" />
+                    Google Search Console
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {gscStatus?.connected
+                      ? "Connected — click Auto-suggest to pull your top search queries"
+                      : "Connect to auto-suggest keywords from your real search data"
+                    }
+                  </p>
+                </div>
+                <GscConnectionPanel
+                  gscStatus={gscStatus}
+                  gscLoading={gscStatusLoading}
+                  onConnect={handleGscConnect}
+                  onDisconnect={handleGscDisconnect}
+                  onSuggest={handleGscSuggest}
+                  connecting={gscConnecting}
+                />
+              </div>
+            </div>
+
             {connected && (
               <>
                 {/* Keyword opportunities */}
@@ -917,7 +1441,17 @@ export function GrowthMindSEO() {
                         Track target keywords — hover a row to edit or delete
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {gscStatus?.connected && gscStatus?.propertyUrl && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleGscSuggest(gscStatus.propertyUrl!)}
+                          className="h-7 text-xs bg-blue-600 hover:bg-blue-500 text-white"
+                        >
+                          <Sparkles className="mr-1 h-3 w-3" />
+                          Auto-suggest from Search Console
+                        </Button>
+                      )}
                       <Button
                         size="sm" variant="outline"
                         onClick={() => setShowCsvImport(true)}
@@ -989,18 +1523,30 @@ export function GrowthMindSEO() {
                   )}
 
                   {keywords.length === 0 ? (
-                    <div className="px-4 py-8 text-center space-y-2">
+                    <div className="px-4 py-8 text-center space-y-3">
                       <p className="text-sm text-muted-foreground">
-                        No keywords tracked yet. Add your first keyword or import from CSV.
+                        No keywords tracked yet. Add your first keyword, import from CSV, or pull from Search Console.
                       </p>
-                      <Button
-                        variant="outline" size="sm"
-                        onClick={() => setShowCsvImport(true)}
-                        className="text-xs h-7 mt-1"
-                      >
-                        <Upload className="mr-1.5 h-3 w-3" />
-                        Import from CSV
-                      </Button>
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        {gscStatus?.connected && gscStatus?.propertyUrl && (
+                          <Button
+                            variant="outline" size="sm"
+                            onClick={() => handleGscSuggest(gscStatus.propertyUrl!)}
+                            className="text-xs h-7 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                          >
+                            <Sparkles className="mr-1 h-3 w-3" />
+                            Auto-suggest from Search Console
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline" size="sm"
+                          onClick={() => setShowCsvImport(true)}
+                          className="text-xs h-7"
+                        >
+                          <Upload className="mr-1 h-3 w-3" />
+                          Import from CSV
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -1150,6 +1696,18 @@ export function GrowthMindSEO() {
           onClose={() => setShowCsvImport(false)}
           onImport={handleCsvImport}
           existing={existingTerms}
+        />
+      )}
+
+      {/* GSC suggest modal */}
+      {showGscSuggest && (
+        <GscSuggestModal
+          queries={gscQueries}
+          loading={gscFetchLoading}
+          error={gscFetchError}
+          existing={existingTerms}
+          onClose={() => setShowGscSuggest(false)}
+          onImport={handleGscImport}
         />
       )}
     </GrowthMindShell>
