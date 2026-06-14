@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -119,7 +120,6 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
   const [expanded, setExpanded] = useState(false);
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const label = c.agent_name ?? c.agent_id ?? "Builder test";
-  const when = c.started_at ? new Date(c.started_at).toLocaleString() : "—";
   const sessionId = c.retell_call_id ?? "—";
   const shortSessionId = sessionId !== "—" && sessionId.length > 24
     ? sessionId.slice(0, 24) + "…"
@@ -209,7 +209,9 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
             <span className="text-[11px] text-muted-foreground">—</span>
           )}
         </td>
-        <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{when}</td>
+        <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">
+          <RelativeTime date={c.started_at} fallback="—" />
+        </td>
       </tr>
       {expanded && c.transcript && (
         <tr className="border-b border-white/[0.04]">
@@ -423,7 +425,7 @@ function CallsPage() {
                             )}
                           </td>
                           <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
-                            {c.started_at ? new Date(c.started_at).toLocaleString() : "—"}
+                            <RelativeTime date={c.started_at} fallback="—" />
                           </td>
                           <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                             <div className="relative group/notes flex justify-center">

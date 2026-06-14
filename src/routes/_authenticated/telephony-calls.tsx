@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Phone,
   PhoneIncoming,
@@ -26,10 +27,6 @@ function fmtDuration(s?: number | null) {
   return `${m}m ${r}s`;
 }
 
-function fmtDate(d?: string | null) {
-  if (!d) return "—";
-  return new Date(d).toLocaleString();
-}
 
 function statusBadge(s: string) {
   const map: Record<string, string> = {
@@ -229,7 +226,9 @@ function TelephonyCallsPage() {
                   <td className="px-4 py-3">{statusBadge(c.status)}</td>
                   <td className="px-4 py-3">{outcomeBadge(c.outcome) ?? "—"}</td>
                   <td className="px-4 py-3">{fmtDuration(c.duration_seconds)}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{fmtDate(c.started_at)}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <RelativeTime date={c.started_at} fallback="—" />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5">
                       {c.recording_url && (
