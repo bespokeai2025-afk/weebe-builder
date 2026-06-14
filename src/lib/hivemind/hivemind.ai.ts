@@ -14,7 +14,7 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-  const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes] = await Promise.all([
+  const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes, videoAssetsRes, videoScheduledRes] = await Promise.all([
     sb.from("agents").select("id,name,retell_agent_id,inbound_phone_number,settings").eq("workspace_id", workspaceId),
     sb.from("calls").select("id,agent_id,call_successful,duration_seconds,call_type,started_at").eq("workspace_id", workspaceId).gte("started_at", s60.toISOString()).limit(1000),
     sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(3000),
@@ -31,6 +31,8 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
     Promise.resolve(sb.from("knowledge_bases").select("id,name").eq("workspace_id", workspaceId).limit(20)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_recommendations").select("category,priority,problem,fix").eq("workspace_id", workspaceId).eq("is_dismissed", false).order("created_at", { ascending: false }).limit(5)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_generation_logs").select("provider,model,estimated_cost_usd,status,created_at").eq("workspace_id", workspaceId).gte("created_at", weekStart.toISOString()).limit(1000)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_video_assets").select("video_type,created_at").eq("workspace_id", workspaceId).gte("created_at", monthStart.toISOString()).limit(200)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_content_calendar").select("id").eq("workspace_id", workspaceId).eq("content_type", "Video Script").gte("scheduled_date", new Date().toISOString().slice(0, 10)).limit(20)).catch(() => ({ data: [] })),
   ]);
 
   if (le.error)   console.error("[HiveMind] leads query error:",   le.error.message);
@@ -55,6 +57,8 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const kbsArr     = kbs.data   ?? [];
   const gmRecsArr      = gmRecs.data     ?? [];
   const gmGenLogsArr   = gmGenLogsRes.data ?? [];
+  const videoAssetsArr = videoAssetsRes.data   ?? [];
+  const videoScheduledArr = videoScheduledRes.data ?? [];
 
   const todayStr     = todayStart.toISOString();
   const weekStr      = weekStart.toISOString();
@@ -269,6 +273,22 @@ async function fetchFullPlatformData(sb: any, workspaceId: string) {
         topProvider,
       };
     })(),
+    videoSummary: (() => {
+      if (!videoAssetsArr.length && !videoScheduledArr.length) return null;
+      const ALL_KEY_TYPES = ["meta_video_ad", "explainer_video", "ugc_ad", "product_demo", "testimonial_video"];
+      const byType: Record<string, number> = {};
+      for (const a of videoAssetsArr) {
+        byType[a.video_type] = (byType[a.video_type] ?? 0) + 1;
+      }
+      const coveredTypes = new Set(videoAssetsArr.map((a: any) => a.video_type as string));
+      const missingTypes = ALL_KEY_TYPES.filter(t => !coveredTypes.has(t));
+      return {
+        totalThisMonth:    videoAssetsArr.length,
+        upcomingScheduled: videoScheduledArr.length,
+        byType,
+        missingTypes,
+      };
+    })(),
   };
 }
 
@@ -401,6 +421,18 @@ function buildPlatformContext(d: any): string {
     lines.push(`  ${cs.totalGenerations} content assets generated | Est. AI cost: $${cs.estimatedCostUsd.toFixed(4)} (~£${costGbp})`);
     lines.push(`  Providers used: ${providerList || "none"}`);
     lines.push(`  Top models: ${modelList || "none"}${cs.fallbacks > 0 ? ` | ${cs.fallbacks} fallback(s) used` : ""}`);
+  }
+
+  // GROWTHMIND VIDEO STUDIO (this month)
+  if (d.videoSummary) {
+    const vs = d.videoSummary;
+    const typeBreakdown = Object.entries(vs.byType as Record<string, number>)
+      .map(([t, n]) => `${t.replace(/_/g, " ")}: ${n}`)
+      .join(", ");
+    lines.push(`\nGROWTHMIND VIDEO STUDIO (this month):`);
+    lines.push(`  ${vs.totalThisMonth} video asset(s) created | ${vs.upcomingScheduled} scheduled upcoming`);
+    if (typeBreakdown) lines.push(`  Types: ${typeBreakdown}`);
+    if (vs.missingTypes?.length > 0) lines.push(`  Missing asset types: ${vs.missingTypes.join(", ")}`);
   }
 
   return lines.join("\n");

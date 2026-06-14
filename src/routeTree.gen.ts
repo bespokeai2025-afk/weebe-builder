@@ -69,6 +69,7 @@ import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './rout
 import { Route as AuthenticatedHivemindChatRouteImport } from './routes/_authenticated/hivemind.chat'
 import { Route as AuthenticatedHivemindBriefingRouteImport } from './routes/_authenticated/hivemind.briefing'
 import { Route as AuthenticatedHivemindActionsRouteImport } from './routes/_authenticated/hivemind.actions'
+import { Route as AuthenticatedGrowthmindVideoStudioRouteImport } from './routes/_authenticated/growthmind.video-studio'
 import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
 import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
 import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
@@ -445,6 +446,12 @@ const AuthenticatedHivemindActionsRoute =
     path: '/actions',
     getParentRoute: () => AuthenticatedHivemindRoute,
   } as any)
+const AuthenticatedGrowthmindVideoStudioRoute =
+  AuthenticatedGrowthmindVideoStudioRouteImport.update({
+    id: '/video-studio',
+    path: '/video-studio',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindSeoRoute =
   AuthenticatedGrowthmindSeoRouteImport.update({
     id: '/seo',
@@ -804,6 +811,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
   '/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -915,6 +923,7 @@ export interface FileRoutesByTo {
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
   '/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -1031,6 +1040,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
+  '/_authenticated/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
   '/_authenticated/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/_authenticated/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/_authenticated/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -1147,6 +1157,7 @@ export interface FileRouteTypes {
     | '/growthmind/recommendations'
     | '/growthmind/reports'
     | '/growthmind/seo'
+    | '/growthmind/video-studio'
     | '/hivemind/actions'
     | '/hivemind/briefing'
     | '/hivemind/chat'
@@ -1258,6 +1269,7 @@ export interface FileRouteTypes {
     | '/growthmind/recommendations'
     | '/growthmind/reports'
     | '/growthmind/seo'
+    | '/growthmind/video-studio'
     | '/hivemind/actions'
     | '/hivemind/briefing'
     | '/hivemind/chat'
@@ -1373,6 +1385,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/recommendations'
     | '/_authenticated/growthmind/reports'
     | '/_authenticated/growthmind/seo'
+    | '/_authenticated/growthmind/video-studio'
     | '/_authenticated/hivemind/actions'
     | '/_authenticated/hivemind/briefing'
     | '/_authenticated/hivemind/chat'
@@ -1913,6 +1926,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHivemindActionsRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
     }
+    '/_authenticated/growthmind/video-studio': {
+      id: '/_authenticated/growthmind/video-studio'
+      path: '/video-studio'
+      fullPath: '/growthmind/video-studio'
+      preLoaderRoute: typeof AuthenticatedGrowthmindVideoStudioRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/seo': {
       id: '/_authenticated/growthmind/seo'
       path: '/seo'
@@ -2320,6 +2340,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
   AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
   AuthenticatedGrowthmindSeoRoute: typeof AuthenticatedGrowthmindSeoRoute
+  AuthenticatedGrowthmindVideoStudioRoute: typeof AuthenticatedGrowthmindVideoStudioRoute
   AuthenticatedGrowthmindIndexRoute: typeof AuthenticatedGrowthmindIndexRoute
 }
 
@@ -2348,6 +2369,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindRecommendationsRoute,
     AuthenticatedGrowthmindReportsRoute: AuthenticatedGrowthmindReportsRoute,
     AuthenticatedGrowthmindSeoRoute: AuthenticatedGrowthmindSeoRoute,
+    AuthenticatedGrowthmindVideoStudioRoute:
+      AuthenticatedGrowthmindVideoStudioRoute,
     AuthenticatedGrowthmindIndexRoute: AuthenticatedGrowthmindIndexRoute,
   }
 

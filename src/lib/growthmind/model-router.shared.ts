@@ -75,6 +75,21 @@ export const PROVIDERS: { id: Provider; label: string; models: ModelId[] }[] = [
 
 // Smart routing: content type → optimal provider + model
 export const SMART_ROUTING: Record<string, { provider: Provider; model: ModelId }> = {
+  // Video types — strategy step uses Gemini 2.5 Pro; script step always uses Claude Sonnet 4
+  meta_video_ad:           { provider: "gemini",  model: "gemini-2.5-pro"    },
+  linkedin_video:          { provider: "gemini",  model: "gemini-2.5-pro"    },
+  tiktok_video:            { provider: "gemini",  model: "gemini-2.5-pro"    },
+  explainer_video:         { provider: "gemini",  model: "gemini-2.5-pro"    },
+  ugc_ad:                  { provider: "gemini",  model: "gemini-2.5-pro"    },
+  product_demo:            { provider: "gemini",  model: "gemini-2.5-pro"    },
+  youtube_short:           { provider: "gemini",  model: "gemini-2.5-pro"    },
+  youtube_ad:              { provider: "gemini",  model: "gemini-2.5-pro"    },
+  case_study_video:        { provider: "gemini",  model: "gemini-2.5-pro"    },
+  testimonial_video:       { provider: "gemini",  model: "gemini-2.5-pro"    },
+  webinar_clip:            { provider: "gemini",  model: "gemini-2.5-pro"    },
+  podcast_clip:            { provider: "gemini",  model: "gemini-2.5-pro"    },
+  receptionist_demo:       { provider: "gemini",  model: "gemini-2.5-pro"    },
+  // Text content types
   blog_article:            { provider: "gemini",  model: "gemini-2.5-pro"    },
   landing_page:            { provider: "claude",  model: "claude-sonnet-4-5" },
   google_ad:               { provider: "gemini",  model: "gemini-2.5-flash"  },
