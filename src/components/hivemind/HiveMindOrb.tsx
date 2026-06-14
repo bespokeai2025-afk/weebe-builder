@@ -89,16 +89,26 @@ function MiniChat({ onClose, speaking, setSpeaking }: {
 
   function toggleMic() {
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-    if (!SR) { alert("Speech recognition not supported in this browser."); return; }
-    if (recording) { recognRef.current?.abort(); setRecording(false); return; }
+    if (!SR) { alert("Speech recognition is not supported in this browser. Try Chrome or Edge."); return; }
+    if (recording) { recognRef.current?.stop(); setRecording(false); return; }
     const r = new SR();
     recognRef.current = r;
-    r.continuous = false; r.interimResults = false; r.lang = "en-US";
+    r.continuous      = false;
+    r.interimResults  = false;
+    r.lang            = "en-US";
     r.onstart  = () => setRecording(true);
     r.onend    = () => setRecording(false);
-    r.onerror  = () => setRecording(false);
-    r.onresult = (e: any) => { const t = e.results[0][0].transcript as string; setTimeout(() => send(t), 100); };
-    r.start();
+    r.onerror  = (e: any) => {
+      setRecording(false);
+      if (e.error === "not-allowed") {
+        alert("Microphone access was denied. Please allow microphone permissions and try again.");
+      }
+    };
+    r.onresult = (e: any) => {
+      const t = e.results[0]?.[0]?.transcript as string | undefined;
+      if (t?.trim()) setTimeout(() => send(t.trim()), 50);
+    };
+    try { r.start(); } catch { setRecording(false); }
   }
 
   return (

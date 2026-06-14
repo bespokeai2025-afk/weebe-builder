@@ -2,8 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// ── Shared platform data fetcher ──────────────────────────────────────────────
+// ── 60-second server-side cache for platform data (avoids 14 DB queries per message) ──
+const platformDataCache = new Map<string, { data: any; expiresAt: number }>();
 async function fetchFullPlatformData(sb: any, workspaceId: string) {
+  const cached = platformDataCache.get(workspaceId);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+  const data = await _fetchFullPlatformData(sb, workspaceId);
+  platformDataCache.set(workspaceId, { data, expiresAt: Date.now() + 60_000 });
+  return data;
+}
+async function _fetchFullPlatformData(sb: any, workspaceId: string) {
   const now        = new Date();
   const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
   const weekStart  = new Date(now); weekStart.setDate(now.getDate() - 7);
@@ -417,14 +425,14 @@ export const getHiveMindAIResponse = createServerFn({ method: "POST" })
 
     const messages = [
       { role: "system", content: systemPrompt },
-      ...(data.history ?? []).slice(-12),
+      ...(data.history ?? []).slice(-6),
       { role: "user", content: data.query },
     ];
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: "gpt-4o-mini", messages, max_tokens: 700, temperature: 0.4 }),
+      body: JSON.stringify({ model: "gpt-4o-mini", messages, max_tokens: 350, temperature: 0.4 }),
     });
     if (!res.ok) {
       const err = await res.text();
