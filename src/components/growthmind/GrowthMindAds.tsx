@@ -1,10 +1,10 @@
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
   BarChart2, Plus, Loader2, RefreshCw, Trash2, Edit2,
   X, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2,
-  Eye, EyeOff, ExternalLink, Lightbulb, TrendingUp,
+  Eye, EyeOff, Lightbulb, TrendingUp, Link as LinkIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -25,26 +25,34 @@ import { toast } from "sonner";
 
 // ── Platform config ─────────────────────────────────────────────────────────────
 
-const PLATFORMS: { id: AdsPlatform; label: string; color: string; bg: string; border: string; desc: string }[] = [
+const PLATFORMS: {
+  id: AdsPlatform; label: string;
+  color: string; bg: string; border: string;
+  activeBorder: string; desc: string;
+}[] = [
   {
     id: "google", label: "Google Ads",
     color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20",
-    desc: "Search, Display & YouTube campaigns",
+    activeBorder: "border-blue-500/40",
+    desc: "Search, Display & YouTube",
   },
   {
     id: "meta", label: "Meta Ads",
     color: "text-indigo-400", bg: "bg-indigo-500/10", border: "border-indigo-500/20",
-    desc: "Facebook & Instagram campaigns",
+    activeBorder: "border-indigo-500/40",
+    desc: "Facebook & Instagram",
   },
   {
     id: "linkedin", label: "LinkedIn Ads",
     color: "text-sky-400", bg: "bg-sky-500/10", border: "border-sky-500/20",
-    desc: "B2B lead generation & brand awareness",
+    activeBorder: "border-sky-500/40",
+    desc: "B2B lead generation",
   },
   {
     id: "tiktok", label: "TikTok Ads",
     color: "text-pink-400", bg: "bg-pink-500/10", border: "border-pink-500/20",
-    desc: "Short-form video & branded content",
+    activeBorder: "border-pink-500/40",
+    desc: "Short-form video & content",
   },
 ];
 
@@ -52,26 +60,22 @@ function getPlatform(id: AdsPlatform) {
   return PLATFORMS.find(p => p.id === id) ?? PLATFORMS[0];
 }
 
-function fmt(n: number | null | undefined, prefix = "", suffix = "", decimals = 0) {
-  if (n == null) return "—";
-  return prefix + n.toFixed(decimals) + suffix;
-}
-
-// ── Account Connect Modal ───────────────────────────────────────────────────────
+// ── Account Connect / Edit Modal ────────────────────────────────────────────────
 
 interface AccountModalProps {
-  initial?: AdsAccount | null;
-  onClose: () => void;
-  onSave:  (vals: { id?: string; platform: AdsPlatform; label: string; account_id: string; token?: string }) => Promise<void>;
-  saving:  boolean;
+  initial?:          AdsAccount | null;
+  defaultPlatform?:  AdsPlatform;
+  onClose:           () => void;
+  onSave:            (vals: { id?: string; platform: AdsPlatform; label: string; account_id: string; token?: string }) => Promise<void>;
+  saving:            boolean;
 }
 
-function AccountModal({ initial, onClose, onSave, saving }: AccountModalProps) {
-  const [platform,   setPlatform]   = useState<AdsPlatform>(initial?.platform ?? "google");
-  const [label,      setLabel]      = useState(initial?.label ?? "");
-  const [accountId,  setAccountId]  = useState(initial?.account_id ?? "");
-  const [token,      setToken]      = useState("");
-  const [showToken,  setShowToken]  = useState(false);
+function AccountModal({ initial, defaultPlatform = "google", onClose, onSave, saving }: AccountModalProps) {
+  const [platform,  setPlatform]  = useState<AdsPlatform>(initial?.platform ?? defaultPlatform);
+  const [label,     setLabel]     = useState(initial?.label ?? "");
+  const [accountId, setAccountId] = useState(initial?.account_id ?? "");
+  const [token,     setToken]     = useState("");
+  const [showToken, setShowToken] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,6 +84,7 @@ function AccountModal({ initial, onClose, onSave, saving }: AccountModalProps) {
   }
 
   const isEdit = !!initial?.id;
+  const p = getPlatform(platform);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -95,20 +100,18 @@ function AccountModal({ initial, onClose, onSave, saving }: AccountModalProps) {
           <div>
             <label className="block text-xs text-muted-foreground mb-1.5">Platform</label>
             <div className="grid grid-cols-2 gap-2">
-              {PLATFORMS.map(p => (
+              {PLATFORMS.map(pl => (
                 <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPlatform(p.id)}
+                  key={pl.id} type="button" onClick={() => setPlatform(pl.id)}
                   className={cn(
                     "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all text-left",
-                    platform === p.id
-                      ? `${p.bg} ${p.border} ${p.color}`
+                    platform === pl.id
+                      ? `${pl.bg} ${pl.activeBorder} ${pl.color}`
                       : "border-white/[0.08] text-muted-foreground hover:text-foreground hover:border-white/20",
                   )}
                 >
-                  <span className={cn("h-2 w-2 rounded-full shrink-0", p.bg, "ring-1", p.border)} />
-                  {p.label}
+                  <span className={cn("h-2 w-2 rounded-full shrink-0", pl.bg, "ring-1", pl.border)} />
+                  {pl.label}
                 </button>
               ))}
             </div>
@@ -116,54 +119,39 @@ function AccountModal({ initial, onClose, onSave, saving }: AccountModalProps) {
 
           <div>
             <label className="block text-xs text-muted-foreground mb-1.5">Account Label</label>
-            <input
-              type="text"
-              value={label}
-              onChange={e => setLabel(e.target.value)}
-              placeholder="e.g. Main Google Account"
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30"
-              required
-            />
+            <input type="text" value={label} onChange={e => setLabel(e.target.value)}
+              placeholder={`e.g. Main ${p.label} Account`}
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" required />
           </div>
 
           <div>
             <label className="block text-xs text-muted-foreground mb-1.5">Account ID / Customer ID</label>
-            <input
-              type="text"
-              value={accountId}
-              onChange={e => setAccountId(e.target.value)}
+            <input type="text" value={accountId} onChange={e => setAccountId(e.target.value)}
               placeholder="e.g. 123-456-7890"
-              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30"
-              required
-            />
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" required />
           </div>
 
           <div>
             <label className="block text-xs text-muted-foreground mb-1.5">
-              API Token / Access Token {isEdit && initial?.has_token && <span className="text-emerald-400/60">(leave blank to keep existing)</span>}
+              API Token / Access Token{" "}
+              {isEdit && initial?.has_token && <span className="text-emerald-400/60">(leave blank to keep existing)</span>}
             </label>
             <div className="relative">
-              <input
-                type={showToken ? "text" : "password"}
-                value={token}
-                onChange={e => setToken(e.target.value)}
-                placeholder={isEdit && initial?.has_token ? "••••••••••••" : "Enter API token (stored server-side)"}
-                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 pr-9 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30"
-              />
-              <button
-                type="button"
-                onClick={() => setShowToken(s => !s)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground"
-              >
+              <input type={showToken ? "text" : "password"} value={token} onChange={e => setToken(e.target.value)}
+                placeholder={isEdit && initial?.has_token ? "••••••••••••" : "Enter API token (encrypted at rest)"}
+                className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 pr-9 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-emerald-500/30" />
+              <button type="button" onClick={() => setShowToken(s => !s)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-muted-foreground">
                 {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
               </button>
             </div>
-            <p className="text-[10px] text-muted-foreground/50 mt-1">Stored server-side only — never displayed again after saving</p>
+            <p className="text-[10px] text-muted-foreground/50 mt-1">Encrypted with AES-256-GCM before storage — never returned to the browser</p>
           </div>
 
           <div className="flex gap-2 pt-1">
             <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={saving}>Cancel</Button>
-            <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5" disabled={saving || !label.trim() || !accountId.trim()}>
+            <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
+              disabled={saving || !label.trim() || !accountId.trim()}>
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isEdit ? "Save Changes" : "Connect Account"}
             </Button>
@@ -215,6 +203,11 @@ function CampaignModal({ account, initial, onClose, onSave, saving }: CampaignMo
       period_end:     periodEnd || null,
     });
   }
+
+  const spendNum = parseFloat(spend) || 0;
+  const convNum  = parseInt(conversions) || 0;
+  const impNum   = parseInt(impressions) || 0;
+  const clkNum   = parseInt(clicks) || 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -290,13 +283,13 @@ function CampaignModal({ account, initial, onClose, onSave, saving }: CampaignMo
             </div>
           </div>
 
-          {/* Live CPL preview */}
-          {(parseFloat(spend) > 0 && parseInt(conversions) > 0) && (
+          {/* Live CPL / CTR preview */}
+          {(spendNum > 0 && convNum > 0) && (
             <div className="rounded-lg bg-emerald-500/[0.06] border border-emerald-500/15 px-3 py-2 flex items-center gap-2">
               <TrendingUp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
               <span className="text-xs text-emerald-300">
-                Calculated CPL: <strong>£{(parseFloat(spend) / parseInt(conversions)).toFixed(2)}</strong>
-                {parseInt(clicks) > 0 && ` · CTR: ${((parseInt(clicks) / (parseInt(impressions) || 1)) * 100).toFixed(2)}%`}
+                CPL: <strong>£{(spendNum / convNum).toFixed(2)}</strong>
+                {impNum > 0 && clkNum > 0 && ` · CTR: ${((clkNum / impNum) * 100).toFixed(2)}%`}
               </span>
             </div>
           )}
@@ -314,38 +307,33 @@ function CampaignModal({ account, initial, onClose, onSave, saving }: CampaignMo
   );
 }
 
-// ── Account Card with Campaigns ─────────────────────────────────────────────────
+// ── Inline account detail (campaigns table + AI analysis) ──────────────────────
 
-function AccountCard({ account, onEdit, onDelete }: {
+function AccountDetail({ account, onEdit, onDelete }: {
   account:  AdsAccount;
   onEdit:   (a: AdsAccount) => void;
   onDelete: (id: string) => void;
 }) {
-  const campaignsFn      = useServerFn(getAdsCampaigns);
-  const saveAdsCampaignFn = useServerFn(saveAdsCampaign);
+  const campaignsFn         = useServerFn(getAdsCampaigns);
+  const saveAdsCampaignFn   = useServerFn(saveAdsCampaign);
   const deleteAdsCampaignFn = useServerFn(deleteAdsCampaign);
-  const getRecosFn       = useServerFn(getAdsRecommendations);
-  const qc               = useQueryClient();
+  const getRecosFn          = useServerFn(getAdsRecommendations);
 
-  const [expanded,        setExpanded]        = useState(false);
-  const [campaignModal,   setCampaignModal]   = useState<{ open: boolean; editing: AdsCampaign | null }>({ open: false, editing: null });
-  const [savingCampaign,  setSavingCampaign]  = useState(false);
-  const [showRecos,       setShowRecos]       = useState(false);
-  const [recos,           setRecos]           = useState<{ priority: string; title: string; detail: string }[]>([]);
-  const [recosLoading,    setRecosLoading]    = useState(false);
+  const [campaignModal,  setCampaignModal]  = useState<{ open: boolean; editing: AdsCampaign | null }>({ open: false, editing: null });
+  const [savingCampaign, setSavingCampaign] = useState(false);
+  const [showRecos,      setShowRecos]      = useState(false);
+  const [recos,          setRecos]          = useState<{ priority: string; title: string; detail: string }[]>([]);
+  const [recosLoading,   setRecosLoading]   = useState(false);
 
   const p = getPlatform(account.platform);
 
   const { data: campaignsData, isLoading: campaignsLoading, refetch: refetchCampaigns } = useQuery({
     queryKey: ["ads-campaigns", account.id],
     queryFn:  () => campaignsFn({ data: { accountId: account.id } }),
-    enabled:  expanded,
     staleTime: 30_000,
   });
 
   const campaigns = campaignsData?.campaigns ?? [];
-
-  // Aggregate metrics
   const totalSpend       = campaigns.reduce((s, c) => s + Number(c.spend ?? 0), 0);
   const totalConversions = campaigns.reduce((s, c) => s + Number(c.conversions ?? 0), 0);
   const totalClicks      = campaigns.reduce((s, c) => s + Number(c.clicks ?? 0), 0);
@@ -353,8 +341,7 @@ function AccountCard({ account, onEdit, onDelete }: {
   const blendedCPL       = totalConversions > 0 ? totalSpend / totalConversions : null;
   const avgROAS          = (() => {
     const withRoas = campaigns.filter(c => c.roas != null);
-    if (withRoas.length === 0) return null;
-    return withRoas.reduce((s, c) => s + Number(c.roas), 0) / withRoas.length;
+    return withRoas.length ? withRoas.reduce((s, c) => s + Number(c.roas), 0) / withRoas.length : null;
   })();
 
   async function handleSaveCampaign(vals: any) {
@@ -396,51 +383,13 @@ function AccountCard({ account, onEdit, onDelete }: {
   }
 
   return (
-    <div className={cn("rounded-xl border overflow-hidden", p.border, "bg-card/60")}>
-      {/* Account header */}
-      <div className="px-4 py-3.5 flex items-center gap-3">
-        <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg shrink-0", p.bg)}>
-          <BarChart2 className={cn("h-4 w-4", p.color)} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-semibold">{account.label}</p>
-            <span className={cn("text-[10px] font-medium uppercase tracking-wide rounded-full px-1.5 py-0.5", p.bg, p.color)}>
-              {getPlatform(account.platform).label}
-            </span>
-            <span className={cn(
-              "text-[10px] rounded-full px-1.5 py-0.5 font-medium",
-              account.status === "active" ? "bg-emerald-500/10 text-emerald-400" :
-              account.status === "paused" ? "bg-amber-500/10 text-amber-400" :
-                                            "bg-slate-500/10 text-slate-400",
-            )}>{account.status}</span>
-            {account.has_token && (
-              <span className="text-[10px] text-emerald-400/60 flex items-center gap-0.5">
-                <CheckCircle2 className="h-2.5 w-2.5" /> token stored
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">ID: {account.account_id}</p>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => onEdit(account)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors">
-            <Edit2 className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={() => onDelete(account.id)} className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/[0.08] transition-colors">
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-          <button onClick={() => setExpanded(e => !e)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors">
-            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Summary metrics (always visible if any campaigns exist) */}
+    <div className="border-t border-white/[0.06]">
+      {/* Metrics bar */}
       {totalSpend > 0 && (
-        <div className="border-t border-white/[0.05] px-4 py-2.5 grid grid-cols-3 sm:grid-cols-6 gap-3">
+        <div className="px-4 py-3 grid grid-cols-3 sm:grid-cols-6 gap-3 bg-white/[0.01]">
           {[
             { label: "Spend",       value: `£${totalSpend.toFixed(2)}` },
-            { label: "Impressions", value: totalImpressions >= 1000 ? `${(totalImpressions/1000).toFixed(1)}k` : totalImpressions.toString() },
+            { label: "Impressions", value: totalImpressions >= 1000 ? `${(totalImpressions / 1000).toFixed(1)}k` : totalImpressions.toString() },
             { label: "Clicks",      value: totalClicks.toString() },
             { label: "Conversions", value: totalConversions.toString() },
             { label: "CPL",         value: blendedCPL != null ? `£${blendedCPL.toFixed(2)}` : "—" },
@@ -454,122 +403,120 @@ function AccountCard({ account, onEdit, onDelete }: {
         </div>
       )}
 
-      {/* Expanded campaign table */}
-      {expanded && (
-        <div className="border-t border-white/[0.07]">
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.08em]">Campaigns ({campaigns.length})</p>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" className="h-6 text-[11px] gap-1" onClick={loadRecos} disabled={recosLoading}>
-                <Lightbulb className="h-3 w-3" />
-                AI Analysis
-              </Button>
-              <Button size="sm" className="h-6 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-500 text-white"
-                onClick={() => setCampaignModal({ open: true, editing: null })}>
-                <Plus className="h-3 w-3" />
-                Log Campaign
-              </Button>
-            </div>
-          </div>
+      {/* Campaign table header */}
+      <div className="px-4 py-2.5 flex items-center justify-between border-t border-white/[0.05]">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.08em]">
+          Campaigns ({campaigns.length})
+        </p>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="h-6 text-[11px] gap-1" onClick={loadRecos} disabled={recosLoading}>
+            <Lightbulb className="h-3 w-3" />
+            {showRecos ? "Hide Analysis" : "AI Analysis"}
+          </Button>
+          <Button size="sm" className="h-6 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-500 text-white"
+            onClick={() => setCampaignModal({ open: true, editing: null })}>
+            <Plus className="h-3 w-3" />
+            Log Campaign
+          </Button>
+        </div>
+      </div>
 
-          {campaignsLoading ? (
-            <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-              <span className="text-xs">Loading campaigns…</span>
-            </div>
-          ) : campaigns.length === 0 ? (
-            <div className="px-4 py-8 text-center">
-              <p className="text-sm text-muted-foreground mb-2">No campaigns logged yet</p>
-              <p className="text-xs text-muted-foreground/60 mb-3">Add your first campaign to start tracking performance</p>
-              <Button size="sm" variant="outline" onClick={() => setCampaignModal({ open: true, editing: null })} className="gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                Log First Campaign
-              </Button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px] text-xs">
-                <thead>
-                  <tr className="border-y border-white/[0.05] bg-white/[0.02]">
-                    {["Campaign", "Status", "Spend", "Impr.", "Clicks", "Conv.", "CPL", "ROAS", ""].map(h => (
-                      <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] first:pl-4 last:pr-4">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04]">
-                  {campaigns.map(c => {
-                    const cpl = c.cpl ?? (c.conversions > 0 ? c.spend / c.conversions : null);
-                    return (
-                      <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="px-4 py-2.5 font-medium max-w-[160px] truncate">{c.name}</td>
-                        <td className="px-3 py-2.5">
-                          <span className={cn(
-                            "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase",
-                            c.status === "active"  ? "bg-emerald-500/10 text-emerald-400" :
-                            c.status === "paused"  ? "bg-amber-500/10 text-amber-400" :
-                                                     "bg-slate-500/10 text-slate-400",
-                          )}>{c.status}</span>
-                        </td>
-                        <td className="px-3 py-2.5 tabular-nums">£{Number(c.spend ?? 0).toFixed(2)}</td>
-                        <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
-                          {Number(c.impressions) >= 1000 ? `${(Number(c.impressions)/1000).toFixed(1)}k` : c.impressions}
-                        </td>
-                        <td className="px-3 py-2.5 tabular-nums">{c.clicks}</td>
-                        <td className="px-3 py-2.5 tabular-nums font-medium">{c.conversions}</td>
-                        <td className="px-3 py-2.5 tabular-nums">{cpl != null ? `£${cpl.toFixed(2)}` : "—"}</td>
-                        <td className="px-3 py-2.5 tabular-nums">{c.roas != null ? `${Number(c.roas).toFixed(2)}×` : "—"}</td>
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => setCampaignModal({ open: true, editing: c })} className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors">
-                              <Edit2 className="h-3 w-3" />
-                            </button>
-                            <button onClick={() => handleDeleteCampaign(c.id)} className="p-1 rounded text-muted-foreground hover:text-red-400 transition-colors">
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* AI recommendations panel */}
-          {showRecos && (
-            <div className="border-t border-white/[0.06] px-4 py-4">
-              <p className="text-xs font-semibold mb-3 flex items-center gap-1.5">
-                <Lightbulb className="h-3.5 w-3.5 text-emerald-400" />
-                GrowthMind Analysis
-                {recosLoading && <Loader2 className="h-3 w-3 animate-spin text-emerald-400 ml-1" />}
-              </p>
-              {recosLoading ? (
-                <p className="text-xs text-muted-foreground">Analysing campaign data…</p>
-              ) : recos.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No recommendations available. Try adding campaign data first.</p>
-              ) : (
-                <div className="space-y-2">
-                  {recos.map((r, i) => (
-                    <div key={i} className={cn(
-                      "rounded-lg border px-3 py-2.5 flex items-start gap-2.5",
-                      r.priority === "high"   ? "border-orange-500/20 bg-orange-500/[0.05]" :
-                      r.priority === "medium" ? "border-amber-500/15 bg-amber-500/[0.04]" :
-                                               "border-white/[0.06] bg-white/[0.02]",
-                    )}>
-                      <AlertTriangle className={cn(
-                        "h-3.5 w-3.5 shrink-0 mt-0.5",
-                        r.priority === "high"   ? "text-orange-400" :
-                        r.priority === "medium" ? "text-amber-400" : "text-slate-400",
-                      )} />
-                      <div>
-                        <p className="text-xs font-semibold leading-snug">{r.title}</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{r.detail}</p>
+      {/* Campaigns */}
+      {campaignsLoading ? (
+        <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+          <span className="text-xs">Loading campaigns…</span>
+        </div>
+      ) : campaigns.length === 0 ? (
+        <div className="px-4 pb-6 pt-2 text-center">
+          <p className="text-xs text-muted-foreground mb-3">No campaigns logged yet — manually log spend & performance data to start tracking</p>
+          <Button size="sm" variant="outline" onClick={() => setCampaignModal({ open: true, editing: null })} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Log First Campaign
+          </Button>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px] text-xs">
+            <thead>
+              <tr className="border-y border-white/[0.04] bg-white/[0.02]">
+                {["Campaign", "Status", "Spend", "Impr.", "Clicks", "Conv.", "CPL", "ROAS", ""].map(h => (
+                  <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.08em] first:pl-4 last:pr-4">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.03]">
+              {campaigns.map(c => {
+                const cpl = c.cpl ?? (Number(c.conversions) > 0 ? Number(c.spend) / Number(c.conversions) : null);
+                return (
+                  <tr key={c.id} className="hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-2.5 font-medium max-w-[160px] truncate">{c.name}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                        c.status === "active"  ? "bg-emerald-500/10 text-emerald-400" :
+                        c.status === "paused"  ? "bg-amber-500/10 text-amber-400" :
+                                                 "bg-slate-500/10 text-slate-400",
+                      )}>{c.status}</span>
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums">£{Number(c.spend ?? 0).toFixed(2)}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {Number(c.impressions) >= 1000 ? `${(Number(c.impressions) / 1000).toFixed(1)}k` : c.impressions}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums">{c.clicks}</td>
+                    <td className="px-3 py-2.5 tabular-nums font-medium">{c.conversions}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{cpl != null ? `£${cpl.toFixed(2)}` : "—"}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{c.roas != null ? `${Number(c.roas).toFixed(2)}×` : "—"}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setCampaignModal({ open: true, editing: c })} className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors">
+                          <Edit2 className="h-3 w-3" />
+                        </button>
+                        <button onClick={() => handleDeleteCampaign(c.id)} className="p-1 rounded text-muted-foreground hover:text-red-400 transition-colors">
+                          <Trash2 className="h-3 w-3" />
+                        </button>
                       </div>
-                    </div>
-                  ))}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* AI recommendations */}
+      {showRecos && (
+        <div className="border-t border-white/[0.06] px-4 py-4">
+          <p className="text-xs font-semibold mb-3 flex items-center gap-1.5">
+            <Lightbulb className="h-3.5 w-3.5 text-emerald-400" />
+            GrowthMind Analysis
+            {recosLoading && <Loader2 className="h-3 w-3 animate-spin text-emerald-400 ml-1" />}
+          </p>
+          {recosLoading ? (
+            <p className="text-xs text-muted-foreground">Analysing campaign data…</p>
+          ) : recos.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No recommendations yet. Log some campaign data first.</p>
+          ) : (
+            <div className="space-y-2">
+              {recos.map((r, i) => (
+                <div key={i} className={cn(
+                  "rounded-lg border px-3 py-2.5 flex items-start gap-2.5",
+                  r.priority === "high"   ? "border-orange-500/20 bg-orange-500/[0.05]" :
+                  r.priority === "medium" ? "border-amber-500/15 bg-amber-500/[0.04]" :
+                                           "border-white/[0.06] bg-white/[0.02]",
+                )}>
+                  <AlertTriangle className={cn(
+                    "h-3.5 w-3.5 shrink-0 mt-0.5",
+                    r.priority === "high"   ? "text-orange-400" :
+                    r.priority === "medium" ? "text-amber-400" : "text-slate-400",
+                  )} />
+                  <div>
+                    <p className="text-xs font-semibold leading-snug">{r.title}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{r.detail}</p>
+                  </div>
                 </div>
-              )}
+              ))}
             </div>
           )}
         </div>
@@ -589,22 +536,97 @@ function AccountCard({ account, onEdit, onDelete }: {
   );
 }
 
-// ── Platform overview card (for unconnected platforms) ──────────────────────────
+// ── Platform Card — always shown for all 4 platforms ───────────────────────────
 
-function PlatformCard({ platform, onConnect }: { platform: typeof PLATFORMS[0]; onConnect: () => void }) {
+function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete }: {
+  platform:  typeof PLATFORMS[0];
+  accounts:  AdsAccount[];
+  onConnect: (platformId: AdsPlatform) => void;
+  onEdit:    (a: AdsAccount) => void;
+  onDelete:  (id: string) => void;
+}) {
+  const connected = accounts.length > 0;
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div className={cn("rounded-xl border p-4 flex items-center gap-3", platform.border, "bg-card/40")}>
-      <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg shrink-0", platform.bg)}>
-        <BarChart2 className={cn("h-4.5 w-4.5", platform.color)} />
+    <div className={cn(
+      "rounded-xl border overflow-hidden bg-card/60 transition-colors",
+      connected ? platform.activeBorder : platform.border,
+    )}>
+      {/* Platform header */}
+      <div className="px-4 py-3.5 flex items-center gap-3">
+        <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg shrink-0", platform.bg)}>
+          <BarChart2 className={cn("h-4.5 w-4.5", platform.color)} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold">{platform.label}</p>
+            {connected ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
+                <CheckCircle2 className="h-2.5 w-2.5" />
+                {accounts.length} account{accounts.length !== 1 ? "s" : ""}
+              </span>
+            ) : (
+              <span className="rounded-full bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-muted-foreground/60">
+                Not connected
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{platform.desc}</p>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => onConnect(platform.id)}>
+            <Plus className="h-3 w-3" />
+            {connected ? "Add" : "Connect"}
+          </Button>
+          {connected && (
+            <button onClick={() => setExpanded(e => !e)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors">
+              {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold">{platform.label}</p>
-        <p className="text-[11px] text-muted-foreground">{platform.desc}</p>
-      </div>
-      <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={onConnect}>
-        <Plus className="h-3.5 w-3.5" />
-        Connect
-      </Button>
+
+      {/* Expanded: list of accounts with campaign detail */}
+      {expanded && connected && (
+        <div className="border-t border-white/[0.06] divide-y divide-white/[0.04]">
+          {accounts.map(acct => (
+            <div key={acct.id}>
+              {/* Account sub-header */}
+              <div className="px-4 py-2.5 flex items-center gap-2 bg-white/[0.015]">
+                <LinkIcon className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-medium">{acct.label}</span>
+                  <span className="text-[10px] text-muted-foreground ml-2">ID: {acct.account_id}</span>
+                  {acct.has_token && (
+                    <span className="text-[10px] text-emerald-400/60 ml-2 inline-flex items-center gap-0.5">
+                      <CheckCircle2 className="h-2.5 w-2.5" /> token
+                    </span>
+                  )}
+                </div>
+                <span className={cn(
+                  "text-[10px] rounded-full px-1.5 py-0.5 font-medium",
+                  acct.status === "active"       ? "bg-emerald-500/10 text-emerald-400" :
+                  acct.status === "paused"       ? "bg-amber-500/10 text-amber-400" :
+                                                   "bg-slate-500/10 text-slate-400",
+                )}>{acct.status}</span>
+                <button onClick={() => onEdit(acct)} className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors">
+                  <Edit2 className="h-3 w-3" />
+                </button>
+                <button onClick={() => onDelete(acct.id)} className="p-1 rounded text-muted-foreground hover:text-red-400 transition-colors">
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+
+              {/* Campaigns & AI for this account */}
+              <AccountDetail account={acct} onEdit={onEdit} onDelete={onDelete} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -615,9 +637,8 @@ export function GrowthMindAds() {
   const accountsFn    = useServerFn(getAdsAccounts);
   const saveAccountFn = useServerFn(saveAdsAccount);
   const deleteAcctFn  = useServerFn(deleteAdsAccount);
-  const qc            = useQueryClient();
 
-  const [accountModal, setAccountModal] = useState<{ open: boolean; editing: AdsAccount | null }>({ open: false, editing: null });
+  const [accountModal,  setAccountModal]  = useState<{ open: boolean; editing: AdsAccount | null; defaultPlatform?: AdsPlatform }>({ open: false, editing: null });
   const [savingAccount, setSavingAccount] = useState(false);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
@@ -627,7 +648,6 @@ export function GrowthMindAds() {
   });
 
   const accounts = data?.accounts ?? [];
-  const connectedPlatforms = new Set(accounts.map(a => a.platform));
 
   async function handleSaveAccount(vals: any) {
     setSavingAccount(true);
@@ -653,7 +673,13 @@ export function GrowthMindAds() {
     }
   }
 
-  const unconnectedPlatforms = PLATFORMS.filter(p => !connectedPlatforms.has(p.id));
+  // Group accounts by platform
+  const accountsByPlatform = PLATFORMS.reduce<Record<AdsPlatform, AdsAccount[]>>((acc, p) => {
+    acc[p.id] = accounts.filter(a => a.platform === p.id);
+    return acc;
+  }, { google: [], meta: [], linkedin: [], tiktok: [] });
+
+  const totalConnected = accounts.length;
 
   return (
     <GrowthMindShell>
@@ -667,7 +693,9 @@ export function GrowthMindAds() {
               Ads Intelligence
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Track paid ad performance across Google, Meta, LinkedIn, and TikTok
+              {totalConnected > 0
+                ? `${totalConnected} account${totalConnected !== 1 ? "s" : ""} connected · Track spend, CPL & ROAS across all platforms`
+                : "Track paid ad performance across Google, Meta, LinkedIn, and TikTok"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -689,66 +717,25 @@ export function GrowthMindAds() {
             <span className="text-sm">Loading ad accounts…</span>
           </div>
         ) : (
-          <div className="space-y-6">
-
-            {/* Connected accounts */}
-            {accounts.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.08em]">
-                  Connected Accounts ({accounts.length})
-                </p>
-                {accounts.map(account => (
-                  <AccountCard
-                    key={account.id}
-                    account={account}
-                    onEdit={a => setAccountModal({ open: true, editing: a })}
-                    onDelete={handleDeleteAccount}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Unconnected platforms */}
-            {unconnectedPlatforms.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.08em]">
-                  {accounts.length > 0 ? "Add More Platforms" : "Connect Your Ad Accounts"}
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {unconnectedPlatforms.map(p => (
-                    <PlatformCard
-                      key={p.id}
-                      platform={p}
-                      onConnect={() => setAccountModal({ open: true, editing: null })}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Empty state */}
-            {accounts.length === 0 && (
-              <div className="rounded-xl border border-dashed border-white/[0.1] p-10 text-center">
-                <BarChart2 className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm font-semibold mb-1">No ad accounts connected</p>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto leading-relaxed mb-4">
-                  Connect your Google, Meta, LinkedIn, or TikTok ad account to start tracking spend, ROAS, and CPL — and get AI-powered budget recommendations.
-                </p>
-                <Button className="bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
-                  onClick={() => setAccountModal({ open: true, editing: null })}>
-                  <Plus className="h-4 w-4" />
-                  Connect First Account
-                </Button>
-              </div>
-            )}
+          <div className="space-y-3">
+            {/* Always show all 4 platform cards */}
+            {PLATFORMS.map(p => (
+              <PlatformCard
+                key={p.id}
+                platform={p}
+                accounts={accountsByPlatform[p.id]}
+                onConnect={platformId => setAccountModal({ open: true, editing: null, defaultPlatform: platformId })}
+                onEdit={a => setAccountModal({ open: true, editing: a })}
+                onDelete={handleDeleteAccount}
+              />
+            ))}
 
             {/* Info note */}
-            <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-4">
+            <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-4 mt-2">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                <span className="text-emerald-400 font-medium">Note:</span> Live API syncing is coming soon. For now, log campaign stats manually or enter credentials to enable future automated sync. API tokens are stored securely server-side and never returned to the browser after saving.
+                <span className="text-emerald-400 font-medium">Note:</span> Live API syncing is coming soon. Log campaign stats manually to track CPL and ROAS now. Tokens are encrypted with AES-256-GCM before storage and never returned to the browser.
               </p>
             </div>
-
           </div>
         )}
 
@@ -756,6 +743,7 @@ export function GrowthMindAds() {
         {accountModal.open && (
           <AccountModal
             initial={accountModal.editing}
+            defaultPlatform={accountModal.defaultPlatform}
             onClose={() => setAccountModal({ open: false, editing: null })}
             onSave={handleSaveAccount}
             saving={savingAccount}

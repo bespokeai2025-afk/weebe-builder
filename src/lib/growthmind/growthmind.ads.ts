@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-// ── Platform type ───────────────────────────────────────────────────────────────
+// ── Platform types ───────────────────────────────────────────────────────────────
 export type AdsPlatform = "google" | "meta" | "linkedin" | "tiktok";
 export type AdsAccountStatus = "active" | "paused" | "disconnected";
 export type CampaignStatus = "active" | "paused" | "ended";
@@ -15,8 +15,7 @@ export interface AdsAccount {
   status:     AdsAccountStatus;
   created_at: string;
   updated_at: string;
-  // token_enc is NEVER returned to the client
-  has_token:  boolean;
+  has_token:  boolean;   // token_enc is NEVER returned to the client
 }
 
 export interface AdsCampaign {
@@ -35,6 +34,46 @@ export interface AdsCampaign {
   period_end:     string | null;
   created_at:     string;
   updated_at:     string;
+}
+
+// ── Encryption helpers ─────────────────────────────────────────────────────────
+// AES-256-GCM with a 32-byte key derived from TOKEN_ENCRYPTION_KEY env var.
+// Falls back to hashing SUPABASE_SERVICE_ROLE_KEY if TOKEN_ENCRYPTION_KEY is absent.
+// Format stored in DB: <iv_hex>:<authTag_hex>:<ciphertext_hex>
+// Uses dynamic import so the Node crypto module is never bundled into the client.
+
+async function getEncryptionKey(): Promise<Buffer> {
+  const { createHash } = await import("crypto");
+  const raw =
+    process.env.TOKEN_ENCRYPTION_KEY ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    "growthmind-fallback-key-not-for-production";
+  return createHash("sha256").update(raw).digest(); // always 32 bytes
+}
+
+async function encryptToken(plaintext: string): Promise<string> {
+  const { createCipheriv, randomBytes } = await import("crypto");
+  const key = await getEncryptionKey();
+  const iv  = randomBytes(12); // 96-bit IV for GCM
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${iv.toString("hex")}:${tag.toString("hex")}:${encrypted.toString("hex")}`;
+}
+
+// Server-side only — never called from any client path
+export async function decryptToken(stored: string): Promise<string> {
+  const { createDecipheriv } = await import("crypto");
+  const parts = stored.split(":");
+  if (parts.length !== 3) throw new Error("Invalid token format");
+  const [ivHex, tagHex, ctHex] = parts;
+  const key      = await getEncryptionKey();
+  const iv       = Buffer.from(ivHex,  "hex");
+  const tag      = Buffer.from(tagHex, "hex");
+  const ct       = Buffer.from(ctHex,  "hex");
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
 }
 
 // ── Get all ad accounts for the workspace ──────────────────────────────────────
@@ -77,7 +116,7 @@ export const saveAdsAccount = createServerFn({ method: "POST" })
       platform:   z.enum(["google", "meta", "linkedin", "tiktok"]),
       label:      z.string().min(1).max(120),
       account_id: z.string().min(1).max(200),
-      token:      z.string().optional(),       // raw token — stored server-side only
+      token:      z.string().optional(),       // raw token — encrypted before storage
       status:     z.enum(["active", "paused", "disconnected"]).default("active"),
     }).parse(input)
   )
@@ -96,9 +135,9 @@ export const saveAdsAccount = createServerFn({ method: "POST" })
       updated_at:   now,
     };
 
-    // Only set token_enc when a new token is provided
+    // Encrypt token before storing — only updated when a new token is supplied
     if (data.token && data.token.trim()) {
-      row.token_enc = data.token.trim();
+      row.token_enc = await encryptToken(data.token.trim());
     }
 
     let result: any;
@@ -126,7 +165,7 @@ export const saveAdsAccount = createServerFn({ method: "POST" })
     return { ok: true, id: result.id };
   });
 
-// ── Delete an ad account (and cascade deletes its campaigns) ───────────────────
+// ── Delete an ad account (campaigns cascade-deleted by FK) ────────────────────
 export const deleteAdsAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -147,7 +186,7 @@ export const deleteAdsAccount = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ── Get campaigns for an account (or all for the workspace) ────────────────────
+// ── Get campaigns for an account (or all for the workspace) ───────────────────
 export const getAdsCampaigns = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -173,7 +212,7 @@ export const getAdsCampaigns = createServerFn({ method: "POST" })
     return { campaigns: (rows ?? []) as AdsCampaign[] };
   });
 
-// ── Save a campaign row (create or update) ─────────────────────────────────────
+// ── Save a campaign row (create or update) ────────────────────────────────────
 export const saveAdsCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -207,6 +246,7 @@ export const saveAdsCampaign = createServerFn({ method: "POST" })
     if (!acct) throw new Error("Account not found or not in workspace");
 
     const now = new Date().toISOString();
+    // Note: cpl is a generated/computed column — do NOT include it in insert/update
     const row: Record<string, any> = {
       workspace_id:   workspaceId,
       ads_account_id: data.ads_account_id,
@@ -248,7 +288,7 @@ export const saveAdsCampaign = createServerFn({ method: "POST" })
     return { ok: true, id: result.id };
   });
 
-// ── Delete a campaign ──────────────────────────────────────────────────────────
+// ── Delete a campaign ─────────────────────────────────────────────────────────
 export const deleteAdsCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -269,7 +309,7 @@ export const deleteAdsCampaign = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ── Generate AI recommendations from campaign data ─────────────────────────────
+// ── Generate AI ad recommendations and persist to growthmind_recommendations ──
 export const getAdsRecommendations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -279,37 +319,41 @@ export const getAdsRecommendations = createServerFn({ method: "POST" })
     }).parse(input)
   )
   .handler(async ({ context, data }) => {
+    const sb = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
     const settings = (context as any).settings ?? {};
     const apiKey = process.env.OPENAI_API_KEY ?? settings.openai_api_key;
-    if (!apiKey) return { recommendations: [] };
 
     const { accounts, campaigns } = data;
-    if (campaigns.length === 0) {
-      return { recommendations: [
-        {
-          priority: "medium",
-          title:    "No ad campaign data logged yet",
-          detail:   "Connect an ad account and log your first campaign to unlock AI-powered budget recommendations.",
-        },
-      ]};
+
+    if (!apiKey || campaigns.length === 0) {
+      const fallback = [{
+        priority: "medium",
+        title:    "No ad campaign data logged yet",
+        detail:   "Connect an ad account and log your first campaign to unlock AI-powered budget recommendations.",
+      }];
+      return { recommendations: fallback };
     }
 
     // Aggregate by platform
-    const byPlatform: Record<string, { spend: number; conversions: number; clicks: number; roas?: number; campaigns: any[] }> = {};
+    const byPlatform: Record<string, { spend: number; conversions: number; clicks: number; impressions: number; roas?: number; campaigns: any[] }> = {};
     for (const c of campaigns) {
-      if (!byPlatform[c.platform]) byPlatform[c.platform] = { spend: 0, conversions: 0, clicks: 0, campaigns: [] };
+      if (!byPlatform[c.platform]) byPlatform[c.platform] = { spend: 0, conversions: 0, clicks: 0, impressions: 0, campaigns: [] };
       byPlatform[c.platform].spend       += Number(c.spend ?? 0);
       byPlatform[c.platform].conversions += Number(c.conversions ?? 0);
       byPlatform[c.platform].clicks      += Number(c.clicks ?? 0);
-      if (c.roas) byPlatform[c.platform].roas = c.roas;
+      byPlatform[c.platform].impressions += Number(c.impressions ?? 0);
+      if (c.roas) byPlatform[c.platform].roas = Number(c.roas);
       byPlatform[c.platform].campaigns.push(c);
     }
 
-    const totalSpend = campaigns.reduce((s, c) => s + Number(c.spend ?? 0), 0);
-    const totalConversions = campaigns.reduce((s, c) => s + Number(c.conversions ?? 0), 0);
-    const avgCPL = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : "N/A";
+    const totalSpend       = campaigns.reduce((s: number, c: any) => s + Number(c.spend ?? 0), 0);
+    const totalConversions = campaigns.reduce((s: number, c: any) => s + Number(c.conversions ?? 0), 0);
+    const avgCPL           = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : "N/A";
 
-    const prompt = `You are GrowthMind, an AI Chief Marketing Officer. Analyse this paid advertising data and give 3-5 specific, actionable recommendations.
+    const prompt = `You are GrowthMind, an AI Chief Marketing Officer. Analyse this paid advertising data and return 3-5 specific, actionable recommendations.
 
 AD ACCOUNT SUMMARY:
 Connected platforms: ${accounts.map((a: any) => a.platform).join(", ") || "none"}
@@ -321,19 +365,19 @@ Blended CPL: £${avgCPL}
 BY PLATFORM:
 ${Object.entries(byPlatform).map(([platform, stats]) => {
   const cpl = stats.conversions > 0 ? (stats.spend / stats.conversions).toFixed(2) : "N/A";
-  return `${platform.toUpperCase()}: spend=£${stats.spend.toFixed(2)}, conversions=${stats.conversions}, CPL=£${cpl}, ROAS=${stats.roas ?? "not set"}, campaigns=${stats.campaigns.length}`;
+  const ctr = stats.impressions > 0 ? ((stats.clicks / stats.impressions) * 100).toFixed(2) : "N/A";
+  return `${platform.toUpperCase()}: spend=£${stats.spend.toFixed(2)}, conversions=${stats.conversions}, CPL=£${cpl}, CTR=${ctr}%, ROAS=${stats.roas ?? "not set"}, campaigns=${stats.campaigns.length}`;
 }).join("\n")}
 
-TOP CAMPAIGNS (by spend):
-${campaigns
+TOP CAMPAIGNS BY SPEND:
+${[...campaigns]
   .sort((a: any, b: any) => Number(b.spend) - Number(a.spend))
   .slice(0, 5)
-  .map((c: any) => `  - ${c.name} (${c.platform}): spend=£${Number(c.spend).toFixed(2)}, conversions=${c.conversions}, ROAS=${c.roas ?? "?"}, status=${c.status}`)
+  .map((c: any) => `  - "${c.name}" (${c.platform}): spend=£${Number(c.spend).toFixed(2)}, conversions=${c.conversions}, ROAS=${c.roas ?? "?"}, status=${c.status}`)
   .join("\n")}
 
-Provide exactly 3-5 recommendations as a JSON array with this shape:
-[{"priority":"high|medium|low","title":"short title","detail":"specific action with numbers"}]
-Respond ONLY with the JSON array, no other text.`;
+Respond ONLY with a JSON array — no other text:
+[{"priority":"high|medium|low","title":"short title (max 10 words)","detail":"specific action with numbers (max 40 words)"}]`;
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -346,11 +390,44 @@ Respond ONLY with the JSON array, no other text.`;
           temperature: 0.5,
         }),
       });
+
       if (!res.ok) return { recommendations: [] };
+
       const json = await res.json() as any;
-      const content = json.choices?.[0]?.message?.content ?? "[]";
-      const recs = JSON.parse(content.trim());
-      return { recommendations: Array.isArray(recs) ? recs : [] };
+      const content = (json.choices?.[0]?.message?.content as string ?? "[]").trim();
+      const recs: Array<{ priority: string; title: string; detail: string }> = JSON.parse(content);
+      if (!Array.isArray(recs)) return { recommendations: [] };
+
+      // ── Persist to growthmind_recommendations ────────────────────────────────
+      // Upsert ads-category recs so GrowthMind overview can surface them
+      try {
+        await sb
+          .from("growthmind_recommendations")
+          .delete()
+          .eq("workspace_id", workspaceId)
+          .eq("category", "Advertising");
+
+        if (recs.length > 0) {
+          const now = new Date().toISOString();
+          const rows = recs.map(r => ({
+            workspace_id:  workspaceId,
+            category:      "Advertising",
+            priority:      r.priority,
+            problem:       r.title,
+            impact:        r.detail,
+            fix:           r.detail,
+            action_href:   "/growthmind/ads",
+            action_label:  "View Ads",
+            is_dismissed:  false,
+            refreshed_at:  now,
+          }));
+          await sb.from("growthmind_recommendations").insert(rows);
+        }
+      } catch {
+        // Persist failure is non-fatal — still return recs to the UI
+      }
+
+      return { recommendations: recs };
     } catch {
       return { recommendations: [] };
     }
