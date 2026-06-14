@@ -1146,6 +1146,13 @@ export function GrowthMindSEO() {
   const [aiInsight, setAiInsight]       = useState<string | null>(null);
   const [aiRecAt, setAiRecAt]           = useState<string | null>(null);
   const [aiLoading, setAiLoading]       = useState(false);
+  const [, setTimeTick]                 = useState(0);
+
+  useEffect(() => {
+    if (!aiRecAt) return;
+    const id = setInterval(() => setTimeTick(n => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [aiRecAt]);
   const [aiSuggestedIdeas, setAiSuggestedIdeas] = useState<ContentIdea[]>([]);
   const [dismissedAiIdeaIds, setDismissedAiIdeaIds] = useState<Set<string>>(new Set());
 
