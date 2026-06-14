@@ -1,7 +1,7 @@
 import type { CalendarProvider, CalendarSlot, CalendarBooking, CalendarBookingResult } from "./interface";
 import { CalComAdapter } from "./adapters/calcom.adapter";
 import { GoogleCalendarAdapter } from "./adapters/google.adapter";
-import { withProviderTracking } from "@/lib/providers/instrumentation";
+import { withProviderTracking, withProviderFallback } from "@/lib/providers/instrumentation";
 
 export type CalendarProviderName = "calcom" | "google" | "outlook";
 
@@ -52,3 +52,40 @@ export function createCalendarProvider(
 export const createInstrumentedCalendarProvider = (
   config: CalendarConfig & { workspaceId: string },
 ): CalendarProvider => createCalendarProvider(config);
+
+/**
+ * Creates a CalendarProvider that automatically falls back to `fallbackConfig`
+ * if any primary operation throws. Both are independently tracked.
+ */
+export function createCalendarProviderWithFallback(
+  primaryConfig: CalendarConfig & { workspaceId: string },
+  fallbackConfig: CalendarConfig | null,
+): CalendarProvider {
+  const primary  = createCalendarProvider(primaryConfig);
+  const fallback = fallbackConfig
+    ? createCalendarProvider({ ...fallbackConfig, workspaceId: primaryConfig.workspaceId })
+    : null;
+  const ctx = { category: "calendar", primaryName: primaryConfig.provider, fallbackName: fallbackConfig?.provider };
+
+  return {
+    name: primary.name,
+    getAvailability: (eventTypeId, dateFrom, dateTo) =>
+      withProviderFallback(
+        () => primary.getAvailability(eventTypeId, dateFrom, dateTo),
+        fallback ? () => fallback.getAvailability(eventTypeId, dateFrom, dateTo) : null,
+        ctx,
+      ),
+    createBooking: (booking) =>
+      withProviderFallback(
+        () => primary.createBooking(booking),
+        fallback ? () => fallback.createBooking(booking) : null,
+        ctx,
+      ),
+    cancelBooking: (bookingId, reason) =>
+      withProviderFallback(
+        () => primary.cancelBooking(bookingId, reason),
+        fallback ? () => fallback.cancelBooking(bookingId, reason) : null,
+        ctx,
+      ),
+  };
+}

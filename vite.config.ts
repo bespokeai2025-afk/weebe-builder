@@ -12,6 +12,7 @@ import { telephonyStreamPlugin } from "./telephony-stream.plugin";
 import { frejunStreamPlugin } from "./frejun-stream.plugin";
 import { campaignSchedulerPlugin } from "./campaign-scheduler.plugin";
 import { videoJobPollerPlugin } from "./video-job-poller.plugin";
+import { providerHealthSweepPlugin } from "./provider-health-sweep.plugin";
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
@@ -33,7 +34,7 @@ export default defineConfig({
         },
       },
     },
-    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin(), frejunStreamPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin()],
+    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin(), frejunStreamPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin()],
     resolve: {
       alias: {
         "entities/lib/decode.js": path.resolve(

@@ -1,6 +1,35 @@
 import { trackProviderUsage } from "./usage.server";
 import type { ProviderCategory } from "./types";
 
+/**
+ * Wraps a provider operation with automatic primary→fallback logic.
+ * Calls `primaryFn()` first; on any thrown error it logs a warning and calls
+ * `fallbackFn()` if one is provided (otherwise re-throws).
+ *
+ * Usage:
+ *   return withProviderFallback(
+ *     () => primary.createSession(params),
+ *     fallback ? () => fallback.createSession(params) : null,
+ *     { category: "voice", primaryName: "retell", fallbackName: "openai" },
+ *   );
+ */
+export async function withProviderFallback<T>(
+  primaryFn: () => Promise<T>,
+  fallbackFn: (() => Promise<T>) | null,
+  context: { category: string; primaryName: string; fallbackName?: string },
+): Promise<T> {
+  try {
+    return await primaryFn();
+  } catch (primaryErr: any) {
+    if (!fallbackFn) throw primaryErr;
+    console.warn(
+      `[provider-fallback] ${context.category}:${context.primaryName} failed — ` +
+      `switching to ${context.fallbackName ?? "fallback"}: ${primaryErr?.message ?? primaryErr}`,
+    );
+    return await fallbackFn();
+  }
+}
+
 export interface TrackParams<T = unknown> {
   workspaceId: string;
   category: ProviderCategory;

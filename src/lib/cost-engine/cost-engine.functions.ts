@@ -828,3 +828,87 @@ export const getProviderSpendRollup = createServerFn({ method: "GET" })
       return { rows: [], grandTotalUsd: 0, grandTotalRequests: 0 };
     }
   });
+
+// ── Provider Cost Rate Overrides ───────────────────────────────────────────────
+//
+// These functions manage per-workspace cost-rate overrides stored in the
+// `provider_cost_rates` table (migration 20260720000000_provider_cost_extension).
+// They allow workspace admins to enter the actual unit cost they pay a provider
+// so that the cost engine can calculate per-call profitability accurately.
+
+export interface ProviderCostRate {
+  id: string;
+  workspace_id: string;
+  provider_category: string;
+  provider_name: string;
+  unit_type: string;
+  cost_per_unit_usd: number;
+  notes: string | null;
+  created_at: string;
+}
+
+/**
+ * Fetch all provider cost-rate overrides for the calling workspace.
+ */
+export const getProviderCostRates = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const workspaceId: string = (context as any).workspaceId;
+    if (!workspaceId) throw new Error("Workspace not found");
+    const sb = supabaseAdmin as any;
+    const { data, error } = await sb
+      .from("provider_cost_rates")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("provider_category")
+      .order("provider_name");
+    if (error) throw new Error(error.message);
+    return (data ?? []) as ProviderCostRate[];
+  });
+
+const ProviderCostRateInput = z.object({
+  provider_category: z.string().min(1),
+  provider_name:     z.string().min(1),
+  unit_type:         z.string().min(1),
+  cost_per_unit_usd: z.number().min(0),
+  notes:             z.string().optional(),
+});
+
+/**
+ * Upsert a single provider cost-rate override for the calling workspace.
+ * Uniqueness is on (workspace_id, provider_category, provider_name, unit_type).
+ */
+export const saveProviderCostRate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: z.infer<typeof ProviderCostRateInput>) => ProviderCostRateInput.parse(i))
+  .handler(async ({ data, context }) => {
+    const workspaceId: string = (context as any).workspaceId;
+    if (!workspaceId) throw new Error("Workspace not found");
+    const sb = supabaseAdmin as any;
+    const { error } = await sb.from("provider_cost_rates").upsert(
+      {
+        workspace_id:      workspaceId,
+        provider_category: data.provider_category,
+        provider_name:     data.provider_name,
+        unit_type:         data.unit_type,
+        cost_per_unit_usd: data.cost_per_unit_usd,
+        notes:             data.notes ?? null,
+      },
+      { onConflict: "workspace_id,provider_category,provider_name,unit_type" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/**
+ * Delete a provider cost-rate override by its row ID.
+ */
+export const deleteProviderCostRate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: { id: string }) => i)
+  .handler(async ({ data }) => {
+    const sb = supabaseAdmin as any;
+    const { error } = await sb.from("provider_cost_rates").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });

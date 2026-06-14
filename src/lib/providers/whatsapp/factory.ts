@@ -2,7 +2,7 @@ import type { WhatsAppProvider, WhatsAppMessage, WhatsAppTemplate, WhatsAppBroad
 import { WATIWhatsAppAdapter } from "./adapters/wati.adapter";
 import { TwilioWhatsAppAdapter } from "./adapters/twilio.adapter";
 import { MetaWhatsAppAdapter } from "./adapters/meta.adapter";
-import { withProviderTracking } from "@/lib/providers/instrumentation";
+import { withProviderTracking, withProviderFallback } from "@/lib/providers/instrumentation";
 
 export type WhatsAppProviderName = "wati" | "twilio" | "meta";
 
@@ -51,3 +51,25 @@ export function createWhatsAppProvider(
 export const createInstrumentedWhatsAppProvider = (
   config: WhatsAppConfig & { workspaceId: string },
 ): WhatsAppProvider => createWhatsAppProvider(config);
+
+/**
+ * Creates a WhatsAppProvider that automatically falls back to `fallbackConfig`
+ * if any primary operation throws. Both providers are independently tracked.
+ */
+export function createWhatsAppProviderWithFallback(
+  primaryConfig: WhatsAppConfig & { workspaceId: string },
+  fallbackConfig: WhatsAppConfig | null,
+): WhatsAppProvider {
+  const primary  = createWhatsAppProvider(primaryConfig);
+  const fallback = fallbackConfig
+    ? createWhatsAppProvider({ ...fallbackConfig, workspaceId: primaryConfig.workspaceId })
+    : null;
+  const ctx = { category: "whatsapp", primaryName: primaryConfig.provider, fallbackName: fallbackConfig?.provider };
+
+  return {
+    name: primary.name,
+    sendMessage:   (msg: WhatsAppMessage)  => withProviderFallback(() => primary.sendMessage(msg),   fallback ? () => fallback.sendMessage(msg)   : null, ctx),
+    sendTemplate:  (msg: WhatsAppTemplate) => withProviderFallback(() => primary.sendTemplate(msg),  fallback ? () => fallback.sendTemplate(msg)  : null, ctx),
+    sendBroadcast: (b:   WhatsAppBroadcast)=> withProviderFallback(() => primary.sendBroadcast(b),   fallback ? () => fallback.sendBroadcast(b)   : null, ctx),
+  };
+}

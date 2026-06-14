@@ -2,7 +2,7 @@ import type { VoiceProvider, VoiceSessionParams, VoiceSessionResult } from "./in
 import { RetellVoiceAdapter } from "./adapters/retell.adapter";
 import { OpenAIVoiceAdapter } from "./adapters/openai.adapter";
 import { ElevenLabsVoiceAdapter } from "./adapters/elevenlabs.adapter";
-import { withProviderTracking } from "@/lib/providers/instrumentation";
+import { withProviderTracking, withProviderFallback } from "@/lib/providers/instrumentation";
 
 export type VoiceProviderName = "retell" | "openai" | "elevenlabs" | "claude" | "gemini";
 
@@ -43,6 +43,35 @@ export function createInstrumentedVoiceProvider(
     },
     async endSession(sessionId: string): Promise<void> {
       return inner.endSession?.(sessionId);
+    },
+  };
+}
+
+/**
+ * Creates a VoiceProvider that automatically falls back to `fallbackName`
+ * if the primary provider's `createSession` call throws.
+ * Both primary and fallback are independently instrumented for usage tracking.
+ */
+export function createVoiceProviderWithFallback(
+  primaryName: VoiceProviderName,
+  fallbackName: VoiceProviderName | null,
+  workspaceId: string,
+): VoiceProvider {
+  const primary  = createInstrumentedVoiceProvider(primaryName, workspaceId);
+  const fallback = fallbackName ? createInstrumentedVoiceProvider(fallbackName, workspaceId) : null;
+
+  return {
+    name: primary.name,
+    status: primary.status,
+    async createSession(params: VoiceSessionParams): Promise<VoiceSessionResult> {
+      return withProviderFallback(
+        () => primary.createSession(params),
+        fallback ? () => fallback.createSession(params) : null,
+        { category: "voice", primaryName, fallbackName: fallbackName ?? undefined },
+      );
+    },
+    async endSession(sessionId: string): Promise<void> {
+      return primary.endSession?.(sessionId);
     },
   };
 }

@@ -22,6 +22,9 @@ import {
   testProviderConnection,
   refreshAllProviderHealth,
 } from "@/lib/providers/providers.functions";
+import {
+  saveProviderCostRate,
+} from "@/lib/cost-engine/cost-engine.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/providers")({
   head: () => ({ meta: [{ title: "Provider Settings — Webee" }] }),
@@ -105,6 +108,18 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
     { key: "calendarId", label: "Calendar ID (optional)", type: "text", required: false, placeholder: "primary" },
   ],
+  "voice:retell": [
+    { key: "apiKey", label: "Retell API Key", type: "password", required: false, placeholder: "Leave blank to use platform key" },
+  ],
+  "voice:openai": [
+    { key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." },
+  ],
+  "voice:elevenlabs": [
+    { key: "apiKey", label: "ElevenLabs API Key", type: "password", required: true, placeholder: "sk_..." },
+  ],
+  "telephony:frejun": [
+    { key: "apiKey", label: "FreJun API Key", type: "password", required: true, placeholder: "Token …" },
+  ],
   "telephony:twilio": [
     { key: "accountSid", label: "Account SID", type: "text", required: true, placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
     { key: "authToken", label: "Auth Token", type: "password", required: true },
@@ -114,6 +129,12 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "accountSid", label: "Account SID", type: "text", required: true, placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" },
     { key: "authToken", label: "Auth Token", type: "password", required: true },
     { key: "from", label: "WhatsApp From Number", type: "text", required: false, placeholder: "+15551234567" },
+  ],
+  "image:gpt_image": [
+    { key: "apiKey", label: "OpenAI API Key", type: "password", required: false, placeholder: "Leave blank to use LLM OpenAI key" },
+  ],
+  "crm:hubspot": [
+    { key: "apiKey", label: "HubSpot Private App Token", type: "password", required: true, placeholder: "pat-na1-..." },
   ],
 };
 
@@ -319,7 +340,8 @@ function ProviderCard({
   const isComingSoon = provider.status === "coming_soon";
   const credKey      = `${category}:${provider.name}`;
   const credFields   = CREDENTIAL_FIELDS[credKey];
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen,      setFormOpen]      = useState(false);
+  const [costRateOpen,  setCostRateOpen]  = useState(false);
 
   // Test Connection button for already-connected providers
   const testFn = useServerFn(testProviderConnection);
@@ -407,6 +429,15 @@ function ProviderCard({
           )}
           <Button
             size="sm"
+            variant={costRateOpen ? "secondary" : "ghost"}
+            className="h-5 px-1.5 text-[10px] gap-1"
+            onClick={() => setCostRateOpen(o => !o)}
+          >
+            <DollarSign className="h-2.5 w-2.5" />
+            Cost Rate
+          </Button>
+          <Button
+            size="sm"
             variant="ghost"
             className="h-5 px-1.5 text-[10px] gap-1 ml-auto text-red-400/70 hover:text-red-400"
             disabled={isPending}
@@ -416,6 +447,13 @@ function ProviderCard({
             Disable
           </Button>
         </div>
+      )}
+      {isConnected && costRateOpen && (
+        <CostRateInline
+          category={category}
+          providerName={provider.name}
+          onClose={() => setCostRateOpen(false)}
+        />
       )}
 
       {/* Configure button for any non-connected provider with a credential form */}
@@ -453,6 +491,104 @@ function ProviderCard({
           onClose={() => setFormOpen(false)}
         />
       )}
+    </div>
+  );
+}
+
+// ── Cost Rate Inline Form ──────────────────────────────────────────────────────
+
+const UNIT_TYPE_OPTIONS = [
+  { value: "email",         label: "per email" },
+  { value: "image",         label: "per image" },
+  { value: "video_seconds", label: "per video second" },
+  { value: "whatsapp",      label: "per WhatsApp msg" },
+  { value: "api_call",      label: "per API call" },
+  { value: "sync",          label: "per sync" },
+  { value: "minute",        label: "per minute" },
+  { value: "token_1k",      label: "per 1k tokens" },
+];
+
+function CostRateInline({
+  category,
+  providerName,
+  onClose,
+}: {
+  category: string;
+  providerName: string;
+  onClose: () => void;
+}) {
+  const saveFn = useServerFn(saveProviderCostRate);
+  const [unitType, setUnitType]   = useState("api_call");
+  const [costUsd, setCostUsd]     = useState("");
+  const [notes,   setNotes]       = useState("");
+  const [saving,  setSaving]      = useState(false);
+
+  async function handleSave() {
+    const cost = parseFloat(costUsd);
+    if (isNaN(cost) || cost < 0) { toast.error("Enter a valid cost ≥ 0"); return; }
+    setSaving(true);
+    try {
+      await saveFn({ data: {
+        provider_category: category,
+        provider_name:     providerName,
+        unit_type:         unitType,
+        cost_per_unit_usd: cost,
+        notes:             notes || undefined,
+      }});
+      toast.success("Cost rate saved");
+      onClose();
+    } catch (e: any) {
+      toast.error("Save failed", { description: e?.message });
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-white/[0.08] bg-black/20 p-3 space-y-2">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Cost Rate Override</p>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <Label className="text-[10px] text-muted-foreground mb-1 block">Unit Type</Label>
+          <select
+            value={unitType}
+            onChange={e => setUnitType(e.target.value)}
+            className="w-full h-7 rounded-md border border-input bg-background/60 px-2 text-xs text-foreground"
+          >
+            {UNIT_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div className="w-28">
+          <Label className="text-[10px] text-muted-foreground mb-1 block">Cost (USD)</Label>
+          <Input
+            type="number" min="0" step="0.000001"
+            value={costUsd}
+            onChange={e => setCostUsd(e.target.value)}
+            placeholder="0.0001"
+            className="h-7 text-xs bg-background/60"
+          />
+        </div>
+      </div>
+      <div>
+        <Label className="text-[10px] text-muted-foreground mb-1 block">Notes (optional)</Label>
+        <Input
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder="e.g. Tier 2 plan rate"
+          className="h-7 text-xs bg-background/60"
+        />
+      </div>
+      <div className="flex items-center gap-1.5 pt-0.5">
+        <Button
+          size="sm" className="h-6 px-2 text-[10px] gap-1"
+          disabled={!costUsd || saving}
+          onClick={handleSave}
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          Save Rate
+        </Button>
+        <button type="button" className="ml-auto text-[10px] text-muted-foreground hover:text-foreground" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

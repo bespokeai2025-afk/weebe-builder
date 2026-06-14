@@ -265,6 +265,17 @@ async function dispatchHealthCheck(
       } catch { return false; }
     }
 
+    case "telephony:frejun": {
+      const key = str(stored.apiKey) || str((ws as any).frejun_api_key) || process.env.FREJUN_API_KEY || "";
+      if (!key) return false;
+      try {
+        const resp = await fetch("https://api.frejun.com/v1/numbers/", {
+          headers: { Authorization: `Token ${key}` },
+        });
+        return resp.ok;
+      } catch { return false; }
+    }
+
     // ── WhatsApp ───────────────────────────────────────────────────────────────
     case "whatsapp:wati": {
       // WATI connection state is in wati_connections table — just check DB
@@ -369,14 +380,16 @@ export async function runAllWorkspacesHealthChecks(): Promise<{
   let totalPassed  = 0;
   let totalFailed  = 0;
 
-  await Promise.allSettled(
-    workspaceIds.map(async (wsId) => {
-      const result = await runAllProviderHealthChecks(wsId);
-      totalChecked += result.checked;
-      totalPassed  += result.passed;
-      totalFailed  += result.failed;
-    }),
+  const settled = await Promise.allSettled(
+    workspaceIds.map((wsId) => runAllProviderHealthChecks(wsId)),
   );
+  for (const r of settled) {
+    if (r.status === "fulfilled") {
+      totalChecked += r.value.checked;
+      totalPassed  += r.value.passed;
+      totalFailed  += r.value.failed;
+    }
+  }
 
   return { workspaces: workspaceIds.length, checked: totalChecked, passed: totalPassed, failed: totalFailed };
 }

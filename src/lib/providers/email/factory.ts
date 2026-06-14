@@ -1,7 +1,7 @@
 import type { EmailProvider, EmailMessage, EmailSendResult, EmailCampaign } from "./interface";
 import { ResendEmailAdapter } from "./adapters/resend.adapter";
 import { SendGridEmailAdapter } from "./adapters/sendgrid.adapter";
-import { withProviderTracking } from "@/lib/providers/instrumentation";
+import { withProviderTracking, withProviderFallback } from "@/lib/providers/instrumentation";
 
 export type EmailProviderName = "resend" | "sendgrid" | "mailgun" | "ses";
 
@@ -49,6 +49,39 @@ export function createInstrumentedEmailProvider(
             return withProviderTracking(
               { workspaceId, category: "email", providerName },
               () => inner.sendCampaign!(campaign),
+            );
+          },
+        }
+      : {}),
+  };
+}
+
+/**
+ * Creates an EmailProvider that automatically falls back to `fallbackConfig`
+ * if the primary provider throws. Both are independently tracked.
+ */
+export function createEmailProviderWithFallback(
+  primaryConfig: EmailConfig & { workspaceId: string },
+  fallbackConfig: EmailConfig | null,
+): EmailProvider {
+  const primary  = createInstrumentedEmailProvider(primaryConfig);
+  const fallback = fallbackConfig
+    ? createInstrumentedEmailProvider({ ...fallbackConfig, workspaceId: primaryConfig.workspaceId })
+    : null;
+  const ctx = { category: "email", primaryName: primaryConfig.provider, fallbackName: fallbackConfig?.provider };
+
+  return {
+    name: primary.name,
+    async sendEmail(message: EmailMessage): Promise<EmailSendResult> {
+      return withProviderFallback(() => primary.sendEmail(message), fallback ? () => fallback.sendEmail(message) : null, ctx);
+    },
+    ...(primary.sendCampaign || fallback?.sendCampaign
+      ? {
+          async sendCampaign(campaign: EmailCampaign): Promise<{ sent: number; failed: number }> {
+            return withProviderFallback(
+              () => primary.sendCampaign!(campaign),
+              fallback?.sendCampaign ? () => fallback.sendCampaign!(campaign) : null,
+              ctx,
             );
           },
         }
