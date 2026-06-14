@@ -78,6 +78,79 @@ You are the user's strategic marketing advisor. You:
 Always cite specific numbers when making recommendations. Keep responses concise and actionable — every recommendation must have a clear next step. Focus entirely on marketing performance and growth strategy.`;
 }
 
+// ── Dynamic retrieval query builder ───────────────────────────────────────────
+// Generates a semantically rich, context-specific embedding query from live
+// GrowthMind platform data so RAG retrieval surfaces relevant knowledge instead
+// of returning the same generic chunks every time.
+function buildGrowthMindRetrievalQuery(pd: any): string {
+  if (!pd) return "marketing growth priorities, lead generation, campaign optimisation, revenue opportunities";
+
+  const parts: string[] = [];
+
+  // Lead pipeline state
+  if (pd.leads) {
+    const { total = 0, newLast7 = 0, staleCount = 0, conversionRate = 0, sales = 0 } = pd.leads;
+    parts.push(`Lead pipeline: ${total} total leads, ${newLast7} new this week, ${sales} converted, ${staleCount} stale`);
+    if (conversionRate > 0) parts.push(`conversion rate ${conversionRate}%`);
+    if (total > 10 && conversionRate < 5)  parts.push("low conversion — funnel improvement and lead qualification strategies");
+    if (total > 0 && staleCount / total > 0.3) parts.push("high stale ratio — re-engagement campaigns and follow-up automation");
+  }
+
+  // Campaign context
+  if (pd.campaigns) {
+    const { total = 0, active = 0, stats = [] } = pd.campaigns;
+    const activeNames = (stats as any[])
+      .filter((c) => c.status === "running" || c.status === "active")
+      .slice(0, 3).map((c) => c.name).join(", ");
+    if (active > 0 && activeNames) parts.push(`Active campaigns: ${activeNames}`);
+    if (active === 0 && total > 0) parts.push("all campaigns paused — campaign reactivation and lead nurturing recommendations");
+    if (active === 0 && total === 0) parts.push("no campaigns configured — campaign strategy and outreach setup guidance");
+  }
+
+  // Booking & call performance
+  if (pd.bookings) {
+    const { total = 0, bookingRate = 0, last7 = 0 } = pd.bookings;
+    parts.push(`Bookings: ${last7} this week, ${total} total (${bookingRate}% booking rate)`);
+    if (bookingRate < 5 && total > 0) parts.push("low booking conversion — appointment scheduling and follow-up optimisation");
+  }
+
+  if (pd.calls) {
+    const { total = 0, successRate = 0, last7 = 0 } = pd.calls;
+    if (total > 0) parts.push(`Calls: ${last7} this week, ${successRate}% success rate`);
+    if (total > 10 && successRate < 30) parts.push("low call success — outreach script, timing, and targeting improvements");
+  }
+
+  // Multi-channel channels
+  if (pd.whatsapp?.total > 0) parts.push(`WhatsApp engagement: ${pd.whatsapp.total} messages (30d)`);
+  if (pd.email) {
+    const { total = 0, active = 0 } = pd.email;
+    if (active > 0) parts.push(`${active} active email campaigns`);
+    else if (total === 0) parts.push("no email campaigns — email marketing strategy and sequence setup");
+  }
+
+  // SEO / content gaps
+  if (pd.marketing) {
+    const { seoKeywords = 0, recentContentCount = 0, competitorsCount = 0 } = pd.marketing;
+    if (seoKeywords > 0)          parts.push(`${seoKeywords} SEO keywords tracked`);
+    else                           parts.push("SEO monitoring not configured — keyword strategy and organic growth");
+    if (recentContentCount === 0)  parts.push("no recent content published — content marketing calendar and publishing strategy");
+    if (competitorsCount > 0)      parts.push(`${competitorsCount} competitors being tracked`);
+  }
+
+  // System health gaps → what knowledge to surface
+  if (pd.systemHealth) {
+    const gaps: string[] = [];
+    if (!pd.systemHealth.activeCampaigns) gaps.push("campaign activation and lead nurturing");
+    if (!pd.systemHealth.followUpCampaigns) gaps.push("follow-up sequence automation");
+    if (!pd.systemHealth.whatsapp)         gaps.push("WhatsApp outreach channel setup");
+    if (!pd.systemHealth.seoKeywords)      gaps.push("SEO monitoring and keyword tracking");
+    if (!pd.systemHealth.recentContent)    gaps.push("content publishing cadence");
+    if (gaps.length) parts.push(`Priority knowledge areas: ${gaps.join(", ")}`);
+  }
+
+  return parts.join(". ") || "marketing growth priorities, lead generation, campaign optimisation, revenue opportunities";
+}
+
 // ── AI Response ────────────────────────────────────────────────────────────────
 export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -150,7 +223,7 @@ export const getGrowthMindBriefing = createServerFn({ method: "POST" })
 
     const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
     const knowledgeBlock = workspaceId
-      ? await getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: "marketing growth priorities and risks", topK: 5 })
+      ? await getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: buildGrowthMindRetrievalQuery(data.platformData), topK: 5 })
       : "";
     const systemPrompt = compileSystemPrompt(data.platformData, "professional") + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
     const prompt = `Generate a concise morning marketing briefing (3-5 sentences) that:

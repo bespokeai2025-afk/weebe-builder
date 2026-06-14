@@ -296,6 +296,90 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   };
 }
 
+// ── Dynamic retrieval query builder ───────────────────────────────────────────
+// Builds a semantically rich, data-driven embedding query from live HiveMind
+// platform data. Called before every executive KB retrieval so that each
+// briefing / voice session retrieves uniquely relevant knowledge instead of
+// returning the same static chunks.
+function buildHiveMindRetrievalQuery(d: any): string {
+  if (!d) return "business operations priorities, lead management, pipeline decisions, and platform risks";
+
+  const parts: string[] = [];
+
+  // Today's activity snapshot
+  const todayBits: string[] = [];
+  if ((d.today?.leads  ?? 0) > 0) todayBits.push(`${d.today.leads} new lead${d.today.leads !== 1 ? "s" : ""}`);
+  if ((d.today?.bookings ?? 0) > 0) todayBits.push(`${d.today.bookings} booking${d.today.bookings !== 1 ? "s" : ""}`);
+  if ((d.today?.calls  ?? 0) > 0) todayBits.push(`${d.today.calls} call${d.today.calls !== 1 ? "s" : ""}`);
+  if (todayBits.length) parts.push(`Today: ${todayBits.join(", ")}`);
+
+  // Week & month momentum
+  if ((d.week?.leads ?? 0) > 0 || (d.month?.leads ?? 0) > 0) {
+    parts.push(`Pipeline momentum: ${d.week?.leads ?? 0} leads this week, ${d.month?.leads ?? 0} this month, ${d.month?.sales ?? 0} sales this month`);
+  }
+
+  // Lead pipeline health
+  if (d.leads) {
+    const { total = 0, active = 0, idle = 0, needCall = 0, conversionRate = 0, highInterest = 0, stale = 0 } = d.leads;
+    parts.push(`Pipeline: ${total} total (${active} active, ${idle} idle 14d+, ${needCall} need follow-up call)`);
+    if (highInterest > 0) parts.push(`${highInterest} high-interest lead${highInterest !== 1 ? "s" : ""} requiring priority outreach`);
+    if (total > 10 && conversionRate < 5) parts.push("conversion rate below threshold — pipeline bottleneck and sales process improvements");
+    if (total > 0 && stale / total > 0.3)  parts.push("high idle lead ratio — re-engagement automation and CRM hygiene");
+  }
+
+  // Campaign operations
+  if (d.campaigns) {
+    const { active = 0, stalled = 0, total = 0 } = d.campaigns;
+    parts.push(`Campaigns: ${active} active, ${stalled} stalled of ${total} total`);
+    if (stalled > 0) parts.push("stalled campaign recovery and operational remediation");
+    if (active === 0 && total > 0) parts.push("all campaigns paused — outreach activation strategy");
+  }
+
+  // Booking & call performance
+  if (d.bookings) {
+    const { thisWeek = 0, thisMonth = 0 } = d.bookings;
+    parts.push(`Bookings: ${thisWeek} this week, ${thisMonth} this month`);
+  }
+  if (d.calls) {
+    const { total = 0, successRate = 0 } = d.calls;
+    if (total > 0) parts.push(`Call performance: ${total} calls (${successRate}% success rate)`);
+    if (total > 10 && successRate < 30) parts.push("low call success — agent script and outreach quality improvements");
+  }
+
+  // Cost & efficiency
+  if (d.costs?.totalDollars > 0) {
+    parts.push(`Platform cost: $${d.costs.totalDollars} this month ($${d.costs.costPerLead} per lead)`);
+    if (d.costs.costPerLead > 50) parts.push("high cost per lead — efficiency and cost optimisation strategies");
+  }
+
+  // Pending actions & open tasks (decisions requiring COO input)
+  if ((d.pendingActions?.count ?? 0) > 0) {
+    const titles = (d.pendingActions.items ?? []).slice(0, 2).map((a: any) => a.title).join(", ");
+    parts.push(`${d.pendingActions.count} pending action${d.pendingActions.count !== 1 ? "s" : ""} awaiting decision${titles ? `: ${titles}` : ""}`);
+  }
+  if (d.tasks) {
+    const open = (d.tasks.approved ?? 0) + (d.tasks.inProgress ?? 0);
+    if (open > 0) parts.push(`${open} open operational task${open !== 1 ? "s" : ""} in progress`);
+    const suggested = d.tasks.suggested ?? 0;
+    if (suggested > 0) parts.push(`${suggested} AI-suggested task${suggested !== 1 ? "s" : ""} pending review`);
+  }
+
+  // Provider health gaps → surface relevant setup / troubleshooting knowledge
+  if (d.systemHealth) {
+    const gaps: string[] = [];
+    if (!d.systemHealth.retell)     gaps.push("voice provider not connected");
+    if (!d.systemHealth.calcom)     gaps.push("calendar integration missing");
+    if (!d.systemHealth.openai)     gaps.push("OpenAI API key not configured");
+    if (!d.systemHealth.whatsapp)   gaps.push("WhatsApp channel not connected");
+    if (gaps.length) parts.push(`Provider issues requiring resolution: ${gaps.join(", ")}`);
+  }
+
+  // Anchor to operational KB topics
+  parts.push("operational workflows, lead management best practices, pipeline optimisation, provider configuration, and platform decisions");
+
+  return parts.join(". ");
+}
+
 // ── Context builder ────────────────────────────────────────────────────────────
 function buildPlatformContext(d: any): string {
   if (!d) return "No platform data available yet.";
@@ -721,7 +805,7 @@ export const getHiveMindMorningBriefing = createServerFn({ method: "GET" })
     let knowledgeNote = "";
     try {
       const { retrieveExecutiveKnowledge } = await import("@/lib/executives/executive-knowledge.server");
-      const ragQuery = `Business operations priorities and next actions given ${d?.today?.leads ?? 0} new leads today and ${d?.month?.sales ?? 0} sales this month; key risks and decisions.`;
+      const ragQuery = buildHiveMindRetrievalQuery(d);
       const { chunks } = await retrieveExecutiveKnowledge({ sb, workspaceId, mindType: "hivemind", query: ragQuery, topK: 3 });
       const top = chunks.filter((c) => c.similarity >= 0.2)[0];
       if (top) {
@@ -780,7 +864,7 @@ export const getHiveMindSystemContext = createServerFn({ method: "GET" })
     const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
     const knowledgeBlock = await getRetrievedKnowledgeBlock({
       sb, workspaceId, mindType: "hivemind",
-      query: "business operations priorities, risks and decisions", topK: 5,
+      query: buildHiveMindRetrievalQuery(platformData), topK: 5,
     });
 
     const ctx          = buildPlatformContext(platformData)
