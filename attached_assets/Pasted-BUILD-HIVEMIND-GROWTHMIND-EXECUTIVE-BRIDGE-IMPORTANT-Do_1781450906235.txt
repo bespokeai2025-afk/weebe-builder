@@ -1,0 +1,341 @@
+BUILD HIVEMIND ↔ GROWTHMIND EXECUTIVE BRIDGE
+
+IMPORTANT
+
+Do not modify Builder.
+
+Do not modify Retell.
+
+Do not modify HyperStream.
+
+Do not modify VoxStream.
+
+Do not modify CRM.
+
+Do not modify HexMail.
+
+Do not modify WhatsApp Centre.
+
+Do not modify Cost Engine.
+
+Extend existing HiveMind and GrowthMind only.
+
+OBJECTIVE
+
+Transform HiveMind and GrowthMind into a connected Executive AI Team.
+
+HiveMind remains the only executive visible to users.
+
+GrowthMind becomes an Executive Advisor that reports to HiveMind.
+
+Users should never need to separately check GrowthMind to understand marketing performance.
+
+====================================================
+
+CURRENT ARCHITECTURE
+
+HiveMind
+= COO
+
+GrowthMind
+= CMO
+
+Both currently operate independently.
+
+====================================================
+
+TARGET ARCHITECTURE
+
+GrowthMind
+↓
+Executive Summary
+↓
+HiveMind
+↓
+User
+
+====================================================
+
+CREATE EXECUTIVE BRIDGE SERVICE
+
+Create:
+
+src/lib/executives/executive-bridge.server.ts
+
+Responsibilities:
+
+Collect:
+
+GrowthMind Reports
+GrowthMind Scores
+GrowthMind Recommendations
+GrowthMind Opportunities
+GrowthMind Risks
+
+Transform into:
+
+Executive Marketing Summary
+
+====================================================
+
+CREATE
+
+getGrowthMindExecutiveSummary()
+
+Return:
+
+Marketing Readiness Score
+
+Growth Score
+
+Campaign Readiness Score
+
+SEO Readiness Score
+
+Content Readiness Score
+
+Funnel Readiness Score
+
+Top Opportunities
+
+Top Risks
+
+Revenue Opportunities
+
+Missing Marketing Assets
+
+Recommended Actions
+
+Recent Marketing Reports
+
+====================================================
+
+CREATE
+
+getExecutiveCouncilSummary()
+
+This becomes the master executive briefing source.
+
+Combine:
+
+HiveMind Operational Data
+
+GrowthMind Marketing Data
+
+Cost Engine Data
+
+CRM Data
+
+Calls
+
+Bookings
+
+Pipeline
+
+Campaigns
+
+====================================================
+
+EXECUTIVE COUNCIL CONCEPT
+
+Create internal structure:
+
+Executive Council
+
+Members:
+
+HiveMind (COO)
+
+GrowthMind (CMO)
+
+Future:
+
+SystemMind (CTO)
+
+SalesMind (CRO)
+
+FinanceMind (CFO)
+
+====================================================
+
+HIVEMIND BRIEFING UPGRADE
+
+Current:
+
+Lead Counts
+Bookings
+Calls
+Tasks
+
+Add:
+
+GrowthMind Findings
+
+Examples:
+
+GrowthMind has identified 14 missing SEO opportunities.
+
+GrowthMind recommends launching a WhatsApp nurture campaign.
+
+GrowthMind reports no referral campaign exists.
+
+GrowthMind forecasts a 22% increase in appointments if follow-up campaigns are activated.
+
+====================================================
+
+HIVEMIND CHAT UPGRADE
+
+When user asks:
+
+How is the business doing?
+
+HiveMind should automatically request:
+
+Operations Summary
+
+Marketing Summary
+
+Pipeline Summary
+
+Cost Summary
+
+and merge into one response.
+
+====================================================
+
+EXECUTIVE TASK CREATION
+
+Allow GrowthMind to create recommendations.
+
+Do not allow GrowthMind to directly execute actions.
+
+GrowthMind sends:
+
+Recommendations
+
+to HiveMind.
+
+HiveMind decides whether:
+
+Create Task
+
+Create Action
+
+Ignore
+
+Escalate
+
+====================================================
+
+EXECUTIVE TASK TYPES
+
+Examples:
+
+Create SEO Campaign
+
+Create Follow-Up Campaign
+
+Create Referral Campaign
+
+Create Content Plan
+
+Create Competitor Review
+
+Create Lead Nurture Sequence
+
+====================================================
+
+EXECUTIVE BRIEFINGS
+
+Add section:
+
+Marketing Executive Summary
+
+to:
+
+HiveMind Dashboard
+
+HiveMind Briefing
+
+HiveMind Reports
+
+====================================================
+
+VOICE BRIEFINGS
+
+When HiveMind voice mode starts:
+
+Include:
+
+Operational Summary
+
+Marketing Summary
+
+Top Opportunity
+
+Top Risk
+
+Recommended Action
+
+====================================================
+
+EXECUTIVE EVENT LOG
+
+Create:
+
+executive_events
+
+Store:
+
+source
+
+hivemind
+growthmind
+
+event_type
+
+summary
+
+severity
+
+created_at
+
+workspace_id
+
+====================================================
+
+PREPARE FOR FUTURE EXECUTIVES
+
+Architecture must support:
+
+SystemMind (CTO)
+
+SalesMind (CRO)
+
+FinanceMind (CFO)
+
+SupportMind
+
+ComplianceMind
+
+without redesigning HiveMind.
+
+====================================================
+
+SUCCESS CRITERIA
+
+Users interact only with HiveMind.
+
+GrowthMind becomes a specialist advisor.
+
+HiveMind receives GrowthMind reports automatically.
+
+HiveMind includes GrowthMind findings in all executive briefings.
+
+HiveMind can create tasks and actions based on GrowthMind recommendations.
+
+Executive Council architecture is established for future AI executives.
+
+Generate implementation plan first.
+
+Then implement safely.
