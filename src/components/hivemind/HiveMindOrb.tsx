@@ -1,9 +1,38 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState } from "@tanstack/react-router";
-import { Brain, Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User } from "lucide-react";
+import { Send, Mic, MicOff, X, Minus, Loader2, ChevronRight, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getHiveMindAIResponse, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
+
+// ── Honeycomb SVG — 7 hexagons in a hive cluster ──────────────────────────────
+function HoneycombIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden>
+      {/* center */}
+      <polygon points="15.03,13.75 12,15.5 8.97,13.75 8.97,10.25 12,8.5 15.03,10.25"
+        stroke="currentColor" strokeWidth="0.85" strokeLinejoin="round" />
+      {/* right */}
+      <polygon points="21.09,13.75 18.06,15.5 15.03,13.75 15.03,10.25 18.06,8.5 21.09,10.25"
+        stroke="currentColor" strokeWidth="0.85" strokeLinejoin="round" />
+      {/* upper-right */}
+      <polygon points="18.06,8.5 15.03,10.25 12,8.5 12,5 15.03,3.25 18.06,5"
+        stroke="currentColor" strokeWidth="0.85" strokeLinejoin="round" />
+      {/* upper-left */}
+      <polygon points="12,8.5 8.97,10.25 5.94,8.5 5.94,5 8.97,3.25 12,5"
+        stroke="currentColor" strokeWidth="0.85" strokeLinejoin="round" />
+      {/* left */}
+      <polygon points="8.97,13.75 5.94,15.5 2.91,13.75 2.91,10.25 5.94,8.5 8.97,10.25"
+        stroke="currentColor" strokeWidth="0.85" strokeLinejoin="round" />
+      {/* lower-left */}
+      <polygon points="12,19 8.97,20.75 5.94,19 5.94,15.5 8.97,13.75 12,15.5"
+        stroke="currentColor" strokeWidth="0.85" strokeLinejoin="round" />
+      {/* lower-right */}
+      <polygon points="18.06,19 15.03,20.75 12,19 12,15.5 15.03,13.75 18.06,15.5"
+        stroke="currentColor" strokeWidth="0.85" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Msg = { id: string; role: "user" | "hm"; content: string };
@@ -165,7 +194,7 @@ function MiniChat({
       {/* Header */}
       <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-white/[0.06] shrink-0">
         <div className="relative flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 shadow-[0_0_8px_2px_rgba(139,92,246,0.4)]">
-          <Brain className="h-3 w-3 text-white" />
+          <HoneycombIcon className="h-3 w-3 text-white" />
           {speaking && <span className="absolute inset-0 rounded-full bg-violet-400/40 animate-ping" style={{ animationDuration: "0.9s" }} />}
         </div>
         <span className="text-xs font-semibold flex-1">HiveMind</span>
@@ -189,7 +218,7 @@ function MiniChat({
                   m.role === "hm" ? "bg-violet-500/20 ring-1 ring-violet-500/30" : "bg-white/[0.08]",
                 )}>
                   {m.role === "hm"
-                    ? <Brain className="h-2.5 w-2.5 text-violet-400" />
+                    ? <HoneycombIcon className="h-2.5 w-2.5 text-violet-400" />
                     : <User className="h-2.5 w-2.5 text-muted-foreground" />
                   }
                 </div>
@@ -287,7 +316,7 @@ export function HiveMindOrb() {
           {/* Subtle inner ring */}
           <div className="absolute inset-1 rounded-full ring-1 ring-white/20" />
           {/* Icon */}
-          <Brain className={cn(
+          <HoneycombIcon className={cn(
             "relative h-6 w-6 text-white transition-all duration-300",
             speaking && "scale-110",
           )} />
