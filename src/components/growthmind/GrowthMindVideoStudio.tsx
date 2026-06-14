@@ -5,7 +5,8 @@ import {
   Clapperboard, Loader2, Play, Trash2, CalendarDays, X,
   Sparkles, CheckCircle2, Circle, DollarSign, Volume2,
   Film, Zap, Star, Clock, ChevronDown, ChevronUp,
-  BarChart3, AlertCircle, Music2, Tv2, Radio,
+  BarChart3, AlertCircle, Music2, Tv2, Radio, RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -14,9 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   generateVideo, getVideoAssets, deleteVideoAsset, scheduleVideoAsset, getVideoCostStats,
+  retryVideoJob,
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
   type VideoType, type QualityMode, type VideoAsset, type StoryboardScene,
 } from "@/lib/growthmind/growthmind.video-studio";
+import {
+  isJobPending, isJobError, parseErrorMessage, isRealVideoUrl, parseJobSentinel,
+} from "@/lib/growthmind/video-job-poller";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -143,16 +148,24 @@ function SceneCard({ scene }: { scene: StoryboardScene }) {
 
 // ── Asset card ────────────────────────────────────────────────────────────────
 
-function VideoAssetCard({ asset, onDelete, onSchedule }: {
+function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   asset:      VideoAsset;
   onDelete:   (id: string) => void;
   onSchedule: (asset: VideoAsset) => void;
+  onRetry:    (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
-  const label     = VIDEO_TYPE_LABELS[asset.videoType] ?? asset.videoType;
-  const qMode     = QUALITY_MODES.find(q => q.id === asset.qualityMode) ?? QUALITY_MODES[0];
-  const QIcon     = qMode.icon;
+  const label  = VIDEO_TYPE_LABELS[asset.videoType] ?? asset.videoType;
+  const qMode  = QUALITY_MODES.find(q => q.id === asset.qualityMode) ?? QUALITY_MODES[0];
+  const QIcon  = qMode.icon;
+
+  const jobPending   = isJobPending(asset.videoUrl);
+  const jobError     = isJobError(asset.videoUrl);
+  const videoReady   = isRealVideoUrl(asset.videoUrl);
+  const jobInfo      = jobPending ? parseJobSentinel(asset.videoUrl) : null;
+  const errorMessage = jobError ? parseErrorMessage(asset.videoUrl!) : null;
+  const isGcsUri     = videoReady && asset.videoUrl?.startsWith("gs://");
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-3 hover:border-white/[0.12] transition-all">
@@ -167,6 +180,15 @@ function VideoAssetCard({ asset, onDelete, onSchedule }: {
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {jobError && (
+            <button
+              onClick={() => onRetry(asset.id)}
+              className="p-1 rounded text-muted-foreground/40 hover:text-amber-400 transition-colors"
+              title="Retry video generation"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             onClick={() => onSchedule(asset)}
             className="p-1 rounded text-muted-foreground/40 hover:text-emerald-400 transition-colors"
@@ -202,9 +224,20 @@ function VideoAssetCard({ asset, onDelete, onSchedule }: {
             <Volume2 className="h-2.5 w-2.5" />Voice
           </span>
         )}
-        {asset.videoUrl && (
+        {jobPending && (
+          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse">
+            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+            {jobInfo?.type === "runway" ? "Runway" : "Veo 3"} processing…
+          </span>
+        )}
+        {jobError && (
+          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-red-500/10 border-red-500/20 text-red-400">
+            <AlertCircle className="h-2.5 w-2.5" />Video failed
+          </span>
+        )}
+        {videoReady && (
           <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-violet-500/10 border-violet-500/20 text-violet-400">
-            <Play className="h-2.5 w-2.5" />Video
+            <Play className="h-2.5 w-2.5" />Video ready
           </span>
         )}
         {asset.scheduledAt && (
@@ -217,6 +250,63 @@ function VideoAssetCard({ asset, onDelete, onSchedule }: {
 
       {asset.audioUrl && asset.audioUrl.startsWith("data:") && (
         <audio controls src={asset.audioUrl} className="w-full h-8 opacity-80" />
+      )}
+
+      {/* Video states */}
+      {jobPending && (
+        <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/15 bg-amber-500/[0.04] px-3 py-2.5">
+          <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-amber-400">
+              {jobInfo?.type === "runway" ? "Runway Gen-4" : "Veo 3"} rendering…
+            </p>
+            <p className="text-[10px] text-muted-foreground/60 truncate">
+              Job: {jobInfo?.jobId?.slice(0, 40)}{(jobInfo?.jobId?.length ?? 0) > 40 ? "…" : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {jobError && errorMessage && (
+        <div className="space-y-1.5">
+          <div className="flex items-start gap-2.5 rounded-lg border border-red-500/20 bg-red-500/[0.05] px-3 py-2.5">
+            <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold text-red-400">Video generation failed</p>
+              <p className="text-[10px] text-red-400/70 leading-relaxed line-clamp-2">{errorMessage}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => onRetry(asset.id)}
+            className="flex items-center gap-1.5 text-[10px] text-amber-400/80 hover:text-amber-400 transition-colors font-medium"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Retry video generation
+          </button>
+        </div>
+      )}
+
+      {videoReady && !isGcsUri && (
+        <div className="rounded-lg overflow-hidden border border-white/[0.06]">
+          <video
+            controls
+            src={asset.videoUrl!}
+            className="w-full max-h-48 bg-black"
+            preload="metadata"
+          />
+        </div>
+      )}
+
+      {videoReady && isGcsUri && (
+        <div className="flex items-center gap-2.5 rounded-lg border border-violet-500/15 bg-violet-500/[0.04] px-3 py-2.5">
+          <ExternalLink className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-violet-400">Video ready (Google Cloud Storage)</p>
+            <p className="text-[10px] text-muted-foreground/60 truncate" title={asset.videoUrl!}>
+              {asset.videoUrl}
+            </p>
+          </div>
+        </div>
       )}
 
       {asset.storyboard.length > 0 && (
@@ -434,6 +524,7 @@ export function GrowthMindVideoStudio() {
   const generateFn   = useServerFn(generateVideo);
   const getAssetsFn  = useServerFn(getVideoAssets);
   const deleteAssetFn = useServerFn(deleteVideoAsset);
+  const retryFn      = useServerFn(retryVideoJob);
 
   const [videoType, setVideoType]     = useState<VideoType>("explainer_video");
   const [qualityMode, setQualityMode] = useState<QualityMode>("fast");
@@ -508,6 +599,15 @@ export function GrowthMindVideoStudio() {
       await deleteAssetFn({ data: { id } });
       qc.invalidateQueries({ queryKey: ["video-assets"] });
     } catch {}
+  }
+
+  async function handleRetry(id: string) {
+    try {
+      await retryFn({ data: { id } });
+      qc.invalidateQueries({ queryKey: ["video-assets"] });
+    } catch (e: any) {
+      alert(`Retry failed: ${e?.message ?? "Unknown error"}`);
+    }
   }
 
   const generating = !["idle", "done", "error"].includes(step);
@@ -690,20 +790,35 @@ export function GrowthMindVideoStudio() {
                 </div>
               )}
 
-              {lastResult.videoUrl && (
-                <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-4">
-                  <p className="text-[10px] uppercase tracking-wider text-violet-400/70 mb-1.5 font-semibold flex items-center gap-1.5">
-                    <Film className="h-3 w-3" />AI Video
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {lastResult.videoUrl.startsWith("[veo3_job:")
-                      ? `Veo 3 job submitted: ${lastResult.videoUrl.replace("[veo3_job:", "").replace("]", "")}`
-                      : lastResult.videoUrl.startsWith("[runway_job:")
-                        ? `Runway Gen-4 job submitted: ${lastResult.videoUrl.replace("[runway_job:", "").replace("]", "")}`
-                        : lastResult.videoUrl}
-                  </p>
-                </div>
-              )}
+              {lastResult.videoUrl && (() => {
+                const vUrl = lastResult.videoUrl;
+                const isPending = isJobPending(vUrl);
+                const isError   = isJobError(vUrl);
+                const isReady   = isRealVideoUrl(vUrl);
+                const jobInfo   = isPending ? parseJobSentinel(vUrl) : null;
+                return (
+                  <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-4 space-y-2">
+                    <p className="text-[10px] uppercase tracking-wider text-violet-400/70 font-semibold flex items-center gap-1.5">
+                      <Film className="h-3 w-3" />AI Video
+                    </p>
+                    {isPending && (
+                      <div className="flex items-center gap-2 text-xs text-amber-400">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                        {jobInfo?.type === "runway" ? "Runway Gen-4" : "Veo 3"} job submitted — rendering in background…
+                      </div>
+                    )}
+                    {isError && (
+                      <p className="text-xs text-red-400">{parseErrorMessage(vUrl)}</p>
+                    )}
+                    {isReady && !vUrl.startsWith("gs://") && (
+                      <video controls src={vUrl} className="w-full max-h-48 rounded-lg bg-black" preload="metadata" />
+                    )}
+                    {isReady && vUrl.startsWith("gs://") && (
+                      <p className="text-xs text-muted-foreground break-all">{vUrl}</p>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div>
                 <p className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -776,6 +891,7 @@ export function GrowthMindVideoStudio() {
                     asset={asset}
                     onDelete={handleDelete}
                     onSchedule={a => setScheduleAsset(a)}
+                    onRetry={handleRetry}
                   />
                 ))}
               </div>

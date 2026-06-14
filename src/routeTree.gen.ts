@@ -49,6 +49,7 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
+import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
 import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
@@ -328,6 +329,11 @@ const ApiWebhookCustomTelemetryRoute =
 const ApiPublicVoiceWebhookRoute = ApiPublicVoiceWebhookRouteImport.update({
   id: '/api/public/voice-webhook',
   path: '/api/public/voice-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicVideoJobPollerRoute = ApiPublicVideoJobPollerRouteImport.update({
+  id: '/api/public/video-job-poller',
+  path: '/api/public/video-job-poller',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicRetellWebhookRoute = ApiPublicRetellWebhookRouteImport.update({
@@ -832,6 +838,7 @@ export interface FileRoutesByFullPath {
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
+  '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -944,6 +951,7 @@ export interface FileRoutesByTo {
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
+  '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -1061,6 +1069,7 @@ export interface FileRoutesById {
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
+  '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -1178,6 +1187,7 @@ export interface FileRouteTypes {
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
+    | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -1290,6 +1300,7 @@ export interface FileRouteTypes {
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
+    | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -1406,6 +1417,7 @@ export interface FileRouteTypes {
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/retell-webhook'
+    | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -1468,6 +1480,7 @@ export interface RootRouteChildren {
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
   ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
+  ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
   ApiWebhookWatiInboundRoute: typeof ApiWebhookWatiInboundRoute
@@ -1784,6 +1797,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/voice-webhook'
       fullPath: '/api/public/voice-webhook'
       preLoaderRoute: typeof ApiPublicVoiceWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/video-job-poller': {
+      id: '/api/public/video-job-poller'
+      path: '/api/public/video-job-poller'
+      fullPath: '/api/public/video-job-poller'
+      preLoaderRoute: typeof ApiPublicVideoJobPollerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/retell-webhook': {
@@ -2536,6 +2556,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
   ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
+  ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
   ApiWebhookWatiInboundRoute: ApiWebhookWatiInboundRoute,

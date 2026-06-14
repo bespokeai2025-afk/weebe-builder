@@ -717,6 +717,70 @@ export const getVideoCostStats = createServerFn({ method: "GET" })
     };
   });
 
+// ── Retry a failed video job ───────────────────────────────────────────────────
+
+export const retryVideoJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const settings    = (context as any).settings ?? {};
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: asset, error: fetchErr } = await sb
+      .from("growthmind_video_assets")
+      .select("*")
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (fetchErr || !asset) throw new Error("Asset not found");
+
+    const storyboard: StoryboardScene[] = Array.isArray(asset.storyboard) ? asset.storyboard : [];
+    const ws = await sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle();
+    const companyName = ws.data?.name ?? ws.data?.settings?.company_name ?? "";
+    const tone = "professional";
+
+    const visualPrompt = [
+      storyboard[0]?.visual ?? "",
+      `Style: ${tone}, brand: ${companyName}`,
+    ].filter(Boolean).join(". ") || (asset.title ?? "promotional video");
+
+    const runwayKey = process.env.RUNWAY_API_KEY ?? settings.runway_api_key ?? "";
+    let newVideoUrl: string | null = null;
+    let newProvider: VideoProvider | null = asset.provider ?? null;
+
+    if (newProvider === "runway_gen4" || (!newProvider && runwayKey)) {
+      if (runwayKey) {
+        const runResult = await generateRunwayVideo(visualPrompt, runwayKey);
+        if (runResult) { newVideoUrl = `[runway_job:${runResult}]`; newProvider = "runway_gen4"; }
+      }
+    }
+
+    if (!newVideoUrl) {
+      const veoResult = await generateVeo3Video(visualPrompt, "");
+      if (veoResult) { newVideoUrl = `[veo3_job:${veoResult}]`; newProvider = "veo3"; }
+    }
+
+    if (!newVideoUrl && runwayKey) {
+      const runResult = await generateRunwayVideo(visualPrompt, runwayKey);
+      if (runResult) { newVideoUrl = `[runway_job:${runResult}]`; newProvider = "runway_gen4"; }
+    }
+
+    if (!newVideoUrl) throw new Error("No video provider credentials available for retry");
+
+    const { error: updateErr } = await sb
+      .from("growthmind_video_assets")
+      .update({ video_url: newVideoUrl, provider: newProvider })
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+
+    if (updateErr) throw new Error(updateErr.message);
+
+    return { ok: true, videoUrl: newVideoUrl, provider: newProvider };
+  });
+
 // ── HiveMind video summary ────────────────────────────────────────────────────
 
 export async function getVideoSummaryForHiveMind(
