@@ -2,8 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import {
-  TrendingUp, Loader2, RefreshCw, Target, Megaphone,
-  Users, ArrowRight, Lightbulb, AlertTriangle,
+  TrendingUp, TrendingDown, Loader2, RefreshCw, Target, Megaphone,
+  Users, ArrowRight, Lightbulb, AlertTriangle, Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -12,14 +12,44 @@ import { computeGrowthScore } from "@/lib/growthmind/growthmind.score";
 import { generateGrowthRecommendations } from "@/lib/growthmind/growthmind.recommendations";
 import { Button } from "@/components/ui/button";
 
-function StatCard({ label, value, sub, color = "emerald" }: {
-  label: string; value: string | number; sub?: string; color?: string;
+function TrendPill({ pct, label = "wow" }: { pct: number | null; label?: string }) {
+  if (pct === null) return null;
+  const up   = pct > 0;
+  const flat = pct === 0;
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-0.5 text-[10px] font-semibold rounded-full px-1.5 py-0.5",
+      flat  ? "bg-slate-500/15 text-slate-400" :
+      up    ? "bg-emerald-500/15 text-emerald-400" :
+              "bg-red-500/15 text-red-400",
+    )}>
+      {flat  ? <Minus className="h-2.5 w-2.5" /> :
+       up    ? <TrendingUp className="h-2.5 w-2.5" /> :
+               <TrendingDown className="h-2.5 w-2.5" />}
+      {up ? "+" : ""}{pct}% {label}
+    </span>
+  );
+}
+
+function StatCard({ label, value, sub, color = "emerald", wowPct, momPct }: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  color?: string;
+  wowPct?: number | null;
+  momPct?: number | null;
 }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
       <p className="text-[11px] text-muted-foreground mb-1.5 uppercase tracking-[0.08em] font-medium">{label}</p>
       <p className={cn("text-2xl font-bold tabular-nums", `text-${color}-400`)}>{value}</p>
       {sub && <p className="text-[11px] text-muted-foreground mt-1">{sub}</p>}
+      {(wowPct !== undefined || momPct !== undefined) && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {wowPct !== undefined && <TrendPill pct={wowPct ?? null} label="wow" />}
+          {momPct !== undefined && <TrendPill pct={momPct ?? null} label="mom" />}
+        </div>
+      )}
     </div>
   );
 }
@@ -38,6 +68,8 @@ export function GrowthMindOverview() {
 
   const scoreColor = score.total >= 70 ? "text-emerald-400" : score.total >= 40 ? "text-amber-400" : "text-red-400";
   const barColor   = score.total >= 70 ? "bg-emerald-500" : score.total >= 40 ? "bg-amber-500" : "bg-red-500";
+
+  const t = (data as any)?.trends;
 
   return (
     <GrowthMindShell>
@@ -109,16 +141,65 @@ export function GrowthMindOverview() {
               </div>
             </div>
 
-            {/* Key metrics */}
+            {/* Key metrics with trend indicators */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              <StatCard label="Total Leads"        value={data?.leads.total ?? 0}            sub={`${data?.leads.newLast7 ?? 0} new this week`} />
-              <StatCard label="Conversion Rate"    value={`${data?.leads.conversionRate ?? 0}%`} sub={`${data?.leads.sales ?? 0} sales closed`} color="emerald" />
-              <StatCard label="Calls (30d)"         value={data?.calls.total ?? 0}             sub={`${data?.calls.successRate ?? 0}% success rate`} color="blue" />
-              <StatCard label="Active Campaigns"   value={data?.campaigns.active ?? 0}        sub={`${data?.campaigns.total ?? 0} total`} color="purple" />
-              <StatCard label="Bookings"            value={data?.bookings.total ?? 0}          sub={`${data?.bookings.last7 ?? 0} this week`} color="amber" />
-              <StatCard label="Follow-Up Coverage" value={`${data?.leads.followUpCoverage ?? 0}%`} sub="of active leads contacted" color={data?.leads.followUpCoverage >= 75 ? "emerald" : "amber"} />
-              <StatCard label="Stale Leads"         value={data?.leads.staleCount ?? 0}        sub="14+ days without update" color={data?.leads.staleCount > 10 ? "red" : "amber"} />
-              <StatCard label="WhatsApp (30d)"      value={data?.whatsapp.total ?? 0}          sub={`${data?.whatsapp.inbound ?? 0} inbound`} color="emerald" />
+              <StatCard
+                label="Total Leads"
+                value={data?.leads.total ?? 0}
+                sub={`${data?.leads.newLast7 ?? 0} new this week`}
+                wowPct={t?.leads?.wowPct}
+                momPct={t?.leads?.momPct}
+              />
+              <StatCard
+                label="Conversion Rate"
+                value={`${data?.leads.conversionRate ?? 0}%`}
+                sub={`${data?.leads.sales ?? 0} sales closed`}
+                color="emerald"
+                wowPct={t?.conversionRate?.wowPct}
+                momPct={t?.conversionRate?.momPct}
+              />
+              <StatCard
+                label="Calls (30d)"
+                value={data?.calls.total ?? 0}
+                sub={`${data?.calls.successRate ?? 0}% success rate`}
+                color="blue"
+                wowPct={t?.calls?.wowPct}
+                momPct={t?.calls?.momPct}
+              />
+              <StatCard
+                label="Active Campaigns"
+                value={data?.campaigns.active ?? 0}
+                sub={`${data?.campaigns.total ?? 0} total`}
+                color="purple"
+              />
+              <StatCard
+                label="Bookings"
+                value={data?.bookings.total ?? 0}
+                sub={`${data?.bookings.last7 ?? 0} this week`}
+                color="amber"
+                wowPct={t?.bookings?.wowPct}
+                momPct={t?.bookings?.momPct}
+              />
+              <StatCard
+                label="Follow-Up Coverage"
+                value={`${data?.leads.followUpCoverage ?? 0}%`}
+                sub="of active leads contacted"
+                color={data?.leads.followUpCoverage >= 75 ? "emerald" : "amber"}
+              />
+              <StatCard
+                label="Call Success Rate"
+                value={`${data?.calls.successRate ?? 0}%`}
+                sub={`${data?.calls.success ?? 0} of ${data?.calls.total ?? 0} calls`}
+                color={data?.calls.successRate >= 60 ? "emerald" : "amber"}
+                wowPct={t?.callSuccess?.wowPct}
+                momPct={t?.callSuccess?.momPct}
+              />
+              <StatCard
+                label="WhatsApp (30d)"
+                value={data?.whatsapp.total ?? 0}
+                sub={`${data?.whatsapp.inbound ?? 0} inbound`}
+                color="emerald"
+              />
             </div>
 
             {/* Alerts + quick links */}
@@ -169,7 +250,7 @@ export function GrowthMindOverview() {
                     { label: "AI Assistant",        href: "/growthmind/chat",               icon: TrendingUp, desc: "Ask GrowthMind anything" },
                     { label: "Lead Opportunities",  href: "/growthmind/lead-opportunities", icon: Target,     desc: "Revenue in your pipeline" },
                     { label: "Campaigns",           href: "/growthmind/campaigns",          icon: Megaphone,  desc: "Campaign performance" },
-                    { label: "Full Report",         href: "/growthmind/reports",            icon: Users,      desc: "Download marketing report" },
+                    { label: "Full Report",         href: "/growthmind/reports",            icon: Users,      desc: "Trends & marketing report" },
                   ].map(item => (
                     <Link
                       key={item.href}

@@ -3,8 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
   Loader2, RefreshCw, FileText, Download,
-  ChevronDown, ChevronUp, TrendingUp, Users,
-  Megaphone, PhoneCall, Target, Lightbulb,
+  ChevronDown, ChevronUp, TrendingUp, TrendingDown,
+  Users, Megaphone, PhoneCall, Target, Lightbulb, BarChart2, Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -15,6 +15,101 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 type Section = { id: string; icon: React.ElementType; label: string; content: string[] };
+type SparkPoint = { label: string; value: number };
+
+// ── Inline SVG sparkline ───────────────────────────────────────────────────────
+function Sparkline({ data, color = "#10b981", height = 36, width = 120 }: {
+  data: SparkPoint[];
+  color?: string;
+  height?: number;
+  width?: number;
+}) {
+  if (data.length < 2) return <div style={{ width, height }} />;
+  const values = data.map(d => d.value);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+  const pad = 2;
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (width - pad * 2);
+    const y = pad + (1 - (v - minV) / range) * (height - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const lastVal = values[values.length - 1];
+  const prevVal = values[values.length - 2];
+  const dotColor = lastVal > prevVal ? "#10b981" : lastVal < prevVal ? "#f87171" : color;
+  const lastX = pad + ((values.length - 1) / (values.length - 1)) * (width - pad * 2);
+  const lastY = pad + (1 - (lastVal - minV) / range) * (height - pad * 2);
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        opacity={0.7}
+      />
+      <circle cx={lastX} cy={lastY} r={2.5} fill={dotColor} />
+    </svg>
+  );
+}
+
+// ── Trend pill ────────────────────────────────────────────────────────────────
+function TrendPill({ pct, label }: { pct: number | null; label: string }) {
+  if (pct === null) return <span className="text-[10px] text-muted-foreground">—</span>;
+  const up = pct > 0;
+  const flat = pct === 0;
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-0.5 text-[10px] font-semibold",
+      flat  ? "text-slate-400" :
+      up    ? "text-emerald-400" : "text-red-400",
+    )}>
+      {flat ? <Minus className="h-2.5 w-2.5" /> : up ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+      {up ? "+" : ""}{pct}% {label}
+    </span>
+  );
+}
+
+// ── Sparkline card ────────────────────────────────────────────────────────────
+function SparkCard({ title, data, color, unit = "", wowPct, momPct }: {
+  title: string;
+  data: SparkPoint[];
+  color: string;
+  unit?: string;
+  wowPct?: number | null;
+  momPct?: number | null;
+}) {
+  const values = data.map(d => d.value);
+  const latest = values[values.length - 1] ?? 0;
+  const prev   = values[values.length - 2] ?? 0;
+  const up     = latest > prev;
+  const flat   = latest === prev;
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-[11px] text-muted-foreground uppercase tracking-[0.08em] font-medium">{title}</p>
+          <p className={cn("text-xl font-bold tabular-nums mt-0.5", flat ? "text-foreground" : up ? "text-emerald-400" : "text-red-400")}>
+            {latest}{unit}
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-0.5 pt-0.5">
+          {wowPct !== undefined && <TrendPill pct={wowPct ?? null} label="wow" />}
+          {momPct !== undefined && <TrendPill pct={momPct ?? null} label="mom" />}
+        </div>
+      </div>
+      <Sparkline data={data} color={color} width={160} height={40} />
+      <p className="text-[10px] text-muted-foreground">
+        {data[0]?.label} → {data[data.length - 1]?.label} (12 weeks)
+      </p>
+    </div>
+  );
+}
 
 function buildReport(data: any, score: ReturnType<typeof computeGrowthScore>, recs: ReturnType<typeof generateGrowthRecommendations>): Section[] {
   if (!data) return [];
@@ -159,10 +254,23 @@ export function GrowthMindReports() {
 
   const [previewOpen, setPreviewOpen] = useState<Set<string>>(new Set());
   const [generated, setGenerated]     = useState(false);
+  const [trendPeriod, setTrendPeriod] = useState<30 | 60 | 90>(90);
 
   const score    = computeGrowthScore(data);
   const recs     = generateGrowthRecommendations(data);
   const sections = buildReport(data, score, recs);
+
+  const t   = (data as any)?.trends;
+  const rawSl = (data as any)?.sparklines;
+
+  // Slice sparklines to the selected period: 30d ≈ 4 weeks, 60d ≈ 8 weeks, 90d = 12 weeks
+  const weekCount = trendPeriod === 30 ? 4 : trendPeriod === 60 ? 8 : 12;
+  const sl = rawSl ? {
+    leadsCreated:   rawSl.leadsCreated?.slice(-weekCount)   ?? [],
+    conversionRate: rawSl.conversionRate?.slice(-weekCount) ?? [],
+    callSuccessRate: rawSl.callSuccessRate?.slice(-weekCount) ?? [],
+    bookingsPerWeek: rawSl.bookingsPerWeek?.slice(-weekCount) ?? [],
+  } : null;
 
   function toggleSection(id: string) {
     setPreviewOpen(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -211,7 +319,7 @@ export function GrowthMindReports() {
               <FileText className="h-5 w-5 text-emerald-400" />
               Marketing Reports
             </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Comprehensive marketing performance snapshot</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Comprehensive marketing performance snapshot &amp; trend analytics</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["growthmind-data"] })}>
             <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
@@ -227,6 +335,7 @@ export function GrowthMindReports() {
         ) : (
           <div className="space-y-5">
 
+            {/* Score summary */}
             <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 flex items-center gap-6 flex-wrap">
               <div className="text-center">
                 <div className={cn("text-5xl font-bold tabular-nums", scoreColor)}>{score.total}</div>
@@ -254,6 +363,71 @@ export function GrowthMindReports() {
               </div>
             </div>
 
+            {/* ── TRENDS SECTION ─────────────────────────────────────────────── */}
+            <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2 flex-wrap">
+                <BarChart2 className="h-4 w-4 text-emerald-400" />
+                <p className="text-sm font-semibold">Revenue Trends</p>
+                <span className="text-[11px] text-muted-foreground">Weekly sparklines</span>
+                <div className="ml-auto flex items-center gap-1">
+                  {([30, 60, 90] as const).map(d => (
+                    <button
+                      key={d}
+                      onClick={() => setTrendPeriod(d)}
+                      className={cn(
+                        "px-2.5 py-1 rounded text-[11px] font-medium transition-colors",
+                        trendPeriod === d
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                      )}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="p-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <SparkCard
+                  title="Leads Created"
+                  data={sl?.leadsCreated ?? []}
+                  color="#10b981"
+                  wowPct={t?.leads?.wowPct}
+                  momPct={t?.leads?.momPct}
+                />
+                <SparkCard
+                  title="Conversion Rate"
+                  data={sl?.conversionRate ?? []}
+                  color="#34d399"
+                  unit="%"
+                  wowPct={t?.conversionRate?.wowPct}
+                  momPct={t?.conversionRate?.momPct}
+                />
+                <SparkCard
+                  title="Call Success Rate"
+                  data={sl?.callSuccessRate ?? []}
+                  color="#a78bfa"
+                  unit="%"
+                  wowPct={t?.callSuccess?.wowPct}
+                  momPct={t?.callSuccess?.momPct}
+                />
+                <SparkCard
+                  title="Bookings / Week"
+                  data={sl?.bookingsPerWeek ?? []}
+                  color="#fbbf24"
+                  wowPct={t?.bookings?.wowPct}
+                  momPct={t?.bookings?.momPct}
+                />
+              </div>
+              <div className="px-4 pb-4">
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  <span className="text-emerald-400 font-medium">wow</span> = week-over-week (last 7d vs prior 7d) &nbsp;·&nbsp;
+                  <span className="text-emerald-400 font-medium">mom</span> = month-over-month (last 30d vs prior 30d) &nbsp;·&nbsp;
+                  Conversion rate = % of that week's new leads now closed. Dot color shows latest direction.
+                </p>
+              </div>
+            </div>
+
+            {/* Report sections */}
             <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
               <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
                 <p className="text-sm font-semibold">Report Contents</p>
@@ -287,12 +461,13 @@ export function GrowthMindReports() {
               </div>
             </div>
 
+            {/* Download */}
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
               <div className="flex items-start gap-4 flex-wrap">
                 <div className="flex-1 min-w-[200px]">
                   <h3 className="text-sm font-semibold mb-1">Generate GrowthMind Report</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Download a complete marketing report covering pipeline performance, growth score, campaign activity, and all recommended actions.
+                    Download a complete marketing report covering pipeline performance, growth score, trend analytics, campaign activity, and all recommended actions.
                   </p>
                 </div>
                 <Button

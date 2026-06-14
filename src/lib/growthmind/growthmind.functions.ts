@@ -16,11 +16,15 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const since7   = new Date(now); since7.setDate(now.getDate() - 7);
     const since14  = new Date(now); since14.setDate(now.getDate() - 14);
     const since30  = new Date(now); since30.setDate(now.getDate() - 30);
+    const since60  = new Date(now); since60.setDate(now.getDate() - 60);
+    const since90  = new Date(now); since90.setDate(now.getDate() - 90);
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
 
     const s7    = since7.toISOString();
     const s14   = since14.toISOString();
     const s30   = since30.toISOString();
+    const s60   = since60.toISOString();
+    const s90   = since90.toISOString();
     const today = todayStart.toISOString();
 
     const [
@@ -34,9 +38,9 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       sb.from("calls")
         .select("id, agent_id, agent_name, call_status, call_successful, duration_seconds, sentiment, started_at, call_type, from_number, to_number")
         .eq("workspace_id", workspaceId)
-        .gte("started_at", s30)
+        .gte("started_at", s90)
         .order("started_at", { ascending: false })
-        .limit(2000),
+        .limit(5000),
 
       sb.from("leads")
         .select("id, status, pipeline_stage, updated_at, created_at, full_name, name, phone, email, source")
@@ -94,16 +98,17 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const phoneNumbers: any[]    = phoneNumsRes.data       ?? [];
 
     // ── CALLS ────────────────────────────────────────────────────────────────
-    const totalCalls      = calls.length;
-    const successCalls    = calls.filter(c => c.call_successful === true).length;
+    const calls30   = calls.filter(c => c.started_at >= s30);
+    const totalCalls      = calls30.length;
+    const successCalls    = calls30.filter(c => c.call_successful === true).length;
     const successRate     = totalCalls > 0 ? Math.round((successCalls / totalCalls) * 100) : 0;
-    const durCalls        = calls.filter(c => c.duration_seconds > 0);
+    const durCalls        = calls30.filter(c => c.duration_seconds > 0);
     const avgDuration     = durCalls.length > 0
       ? Math.round(durCalls.reduce((s, c) => s + c.duration_seconds, 0) / durCalls.length) : 0;
-    const inboundCalls    = calls.filter(c => c.call_type === "inbound").length;
-    const outboundCalls   = calls.filter(c => c.call_type !== "inbound").length;
-    const callsLast7      = calls.filter(c => c.started_at >= s7).length;
-    const callsToday      = calls.filter(c => c.started_at >= today).length;
+    const inboundCalls    = calls30.filter(c => c.call_type === "inbound").length;
+    const outboundCalls   = calls30.filter(c => c.call_type !== "inbound").length;
+    const callsLast7      = calls30.filter(c => c.started_at >= s7).length;
+    const callsToday      = calls30.filter(c => c.started_at >= today).length;
 
     // ── LEADS ────────────────────────────────────────────────────────────────
     const totalLeads     = leads.length;
@@ -300,9 +305,112 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
       email: l.email,
     }));
 
+    // ── TREND HELPERS ─────────────────────────────────────────────────────────
+    function pctChange(curr: number, prev: number): number | null {
+      if (curr === 0 && prev === 0) return null;
+      if (prev === 0) return curr > 0 ? 100 : null;
+      return Math.round(((curr - prev) / prev) * 100);
+    }
+
+    // Helper: cohort conversion rate for a set of leads
+    function cohortConvRate(cohortLeads: any[]): number {
+      if (cohortLeads.length === 0) return 0;
+      const sales = cohortLeads.filter(l => l.status === "sale_done").length;
+      return Math.round((sales / cohortLeads.length) * 100);
+    }
+
+    // WoW: last 7d vs prior 7d (8-14d ago)
+    const wowLeadsCurr  = leads.filter(l => l.created_at >= s7);
+    const wowLeadsPrev  = leads.filter(l => l.created_at >= s14 && l.created_at < s7);
+
+    const wowCallsCurr  = calls.filter(c => c.started_at >= s7).length;
+    const wowCallsPrev  = calls.filter(c => c.started_at >= s14 && c.started_at < s7).length;
+
+    const wowCallSuccCurr  = calls.filter(c => c.started_at >= s7 && c.call_successful === true).length;
+    const wowCallSuccPrev  = calls.filter(c => c.started_at >= s14 && c.started_at < s7 && c.call_successful === true).length;
+    const wowCallSuccRateCurr = wowCallsCurr > 0 ? Math.round((wowCallSuccCurr / wowCallsCurr) * 100) : 0;
+    const wowCallSuccRatePrev = wowCallsPrev > 0 ? Math.round((wowCallSuccPrev / wowCallsPrev) * 100) : 0;
+
+    const wowBookCurr = bookings.filter(b => b.created_at >= s7).length;
+    const wowBookPrev = bookings.filter(b => b.created_at >= s14 && b.created_at < s7).length;
+
+    // True conversion rate deltas (cohort-based: of leads created in that window, % now sale_done)
+    const wowConvRateCurr = cohortConvRate(wowLeadsCurr);
+    const wowConvRatePrev = cohortConvRate(wowLeadsPrev);
+
+    // MoM: last 30d vs prior 30d (31-60d ago)
+    const momLeadsCurr  = leads.filter(l => l.created_at >= s30);
+    const momLeadsPrev  = leads.filter(l => l.created_at >= s60 && l.created_at < s30);
+
+    const momCallsCurr  = calls30.length;
+    const momCallsPrev  = calls.filter(c => c.started_at >= s60 && c.started_at < s30).length;
+
+    const momCallSuccCurr = successCalls;
+    const momCallSuccPrev = calls.filter(c => c.started_at >= s60 && c.started_at < s30 && c.call_successful === true).length;
+    const momCallSuccRateCurr = momCallsCurr > 0 ? Math.round((momCallSuccCurr / momCallsCurr) * 100) : 0;
+    const momCallSuccRatePrev = momCallsPrev > 0 ? Math.round((momCallSuccPrev / momCallsPrev) * 100) : 0;
+
+    const momBookCurr = bookings.filter(b => b.created_at >= s30).length;
+    const momBookPrev = bookings.filter(b => b.created_at >= s60 && b.created_at < s30).length;
+
+    // True conversion rate deltas MoM (cohort-based)
+    const momConvRateCurr = cohortConvRate(momLeadsCurr);
+    const momConvRatePrev = cohortConvRate(momLeadsPrev);
+
+    const trends = {
+      leads:          { wowPct: pctChange(wowLeadsCurr.length, wowLeadsPrev.length), momPct: pctChange(momLeadsCurr.length, momLeadsPrev.length) },
+      calls:          { wowPct: pctChange(wowCallsCurr, wowCallsPrev),               momPct: pctChange(momCallsCurr, momCallsPrev) },
+      callSuccess:    { wowPct: pctChange(wowCallSuccRateCurr, wowCallSuccRatePrev), momPct: pctChange(momCallSuccRateCurr, momCallSuccRatePrev) },
+      bookings:       { wowPct: pctChange(wowBookCurr, wowBookPrev),                 momPct: pctChange(momBookCurr, momBookPrev) },
+      conversionRate: { wowPct: pctChange(wowConvRateCurr, wowConvRatePrev),         momPct: pctChange(momConvRateCurr, momConvRatePrev) },
+    };
+
+    // ── SPARKLINES — weekly buckets, last 12 weeks ─────────────────────────────
+    const MS_WEEK = 7 * 24 * 60 * 60 * 1000;
+    function weekLabel(d: Date): string {
+      const m = d.toLocaleString("en-US", { month: "short" });
+      return `${m} ${d.getDate()}`;
+    }
+
+    // Build 12 week bucket boundaries (oldest first)
+    const weekBuckets: Array<{ start: string; end: string; label: string }> = [];
+    for (let i = 11; i >= 0; i--) {
+      const end   = new Date(now.getTime() - i * MS_WEEK);
+      const start = new Date(end.getTime() - MS_WEEK);
+      weekBuckets.push({
+        start: start.toISOString(),
+        end:   end.toISOString(),
+        label: weekLabel(start),
+      });
+    }
+
+    const sparklines = {
+      leadsCreated: weekBuckets.map(b => ({
+        label: b.label,
+        value: leads.filter(l => l.created_at >= b.start && l.created_at < b.end).length,
+      })),
+      // Conversion rate per weekly cohort: of leads created that week, % now sale_done
+      conversionRate: weekBuckets.map(b => {
+        const cohort = leads.filter(l => l.created_at >= b.start && l.created_at < b.end);
+        const sales  = cohort.filter(l => l.status === "sale_done").length;
+        return { label: b.label, value: cohort.length > 0 ? Math.round((sales / cohort.length) * 100) : 0 };
+      }),
+      callSuccessRate: weekBuckets.map(b => {
+        const wc  = calls.filter(c => c.started_at >= b.start && c.started_at < b.end);
+        const suc = wc.filter(c => c.call_successful === true).length;
+        return { label: b.label, value: wc.length > 0 ? Math.round((suc / wc.length) * 100) : 0 };
+      }),
+      bookingsPerWeek: weekBuckets.map(b => ({
+        label: b.label,
+        value: bookings.filter(bk => bk.created_at >= b.start && bk.created_at < b.end).length,
+      })),
+    };
+
     // ── RETURN — no credentials, no raw settings ──────────────────────────────
     return {
       agents, agentPerf,
+      trends,
+      sparklines,
       calls: {
         total: totalCalls, success: successCalls, successRate,
         avgDuration, inbound: inboundCalls, outbound: outboundCalls,
