@@ -66,26 +66,33 @@ export const getProviderRegistryData = createServerFn({ method: "GET" })
         .map(r => `${r.provider_category}:${r.provider_name}`),
     );
 
+    // For every provider, OR with dbConnectedSet so that credentials saved through
+    // the credential form (which sets status="connected" in provider_settings) are
+    // treated as connected even when the legacy workspace_settings column is absent.
+    // DB health status is authoritative: if the user ran "Test Connection" and it
+    // succeeded, we must not silently downgrade back to disconnected.
     const derivedConnected: Record<string, boolean> = {
       "llm:openai":        !!(ws?.openai_api_key || process.env.OPENAI_API_KEY)  || dbConnectedSet.has("llm:openai"),
       "llm:gemini":        !!(process.env.GEMINI_API_KEY)                        || dbConnectedSet.has("llm:gemini"),
       "llm:claude":        !!(process.env.ANTHROPIC_API_KEY)                     || dbConnectedSet.has("llm:claude"),
       "llm:openrouter":    dbConnectedSet.has("llm:openrouter"),
-      "voice:retell":      !!(ws?.retell_workspace_id || process.env.RETELL_API_KEY),
-      "voice:openai":      !!(ws?.openai_api_key || process.env.OPENAI_API_KEY),
-      "voice:elevenlabs":  !!(ws?.elevenlabs_api_key || process.env.ELEVENLABS_API_KEY),
-      "telephony:twilio":  !!(ws?.twilio_account_sid && ws?.twilio_auth_token),
+      "voice:retell":      !!(ws?.retell_workspace_id || process.env.RETELL_API_KEY) || dbConnectedSet.has("voice:retell"),
+      "voice:openai":      !!(ws?.openai_api_key || process.env.OPENAI_API_KEY)      || dbConnectedSet.has("voice:openai"),
+      "voice:elevenlabs":  !!(ws?.elevenlabs_api_key || process.env.ELEVENLABS_API_KEY) || dbConnectedSet.has("voice:elevenlabs"),
+      "telephony:twilio":  !!(ws?.twilio_account_sid && ws?.twilio_auth_token)       || dbConnectedSet.has("telephony:twilio"),
+      "telephony:frejun":  dbConnectedSet.has("telephony:frejun"),
       "whatsapp:wati":     !!(watiConn?.status === "active"),
+      "whatsapp:twilio":   !!(ws?.twilio_account_sid && ws?.twilio_auth_token)       || dbConnectedSet.has("whatsapp:twilio"),
       "whatsapp:meta":     dbConnectedSet.has("whatsapp:meta"),
-      "email:resend":      !!(ws?.resend_api_key || process.env.RESEND_API_KEY)  || dbConnectedSet.has("email:resend"),
+      "email:resend":      !!(ws?.resend_api_key || process.env.RESEND_API_KEY)      || dbConnectedSet.has("email:resend"),
       "email:sendgrid":    dbConnectedSet.has("email:sendgrid"),
-      "crm:hubspot":       !!(ws?.hubspot_api_key),
-      "crm:gohighlevel":   !!(ws?.ghl_api_key),
-      "calendar:calcom":   !!(ws?.calcom_api_key),
+      "crm:hubspot":       !!(ws?.hubspot_api_key)                                   || dbConnectedSet.has("crm:hubspot"),
+      "crm:gohighlevel":   !!(ws?.ghl_api_key)                                       || dbConnectedSet.has("crm:gohighlevel"),
+      "calendar:calcom":   !!(ws?.calcom_api_key)                                     || dbConnectedSet.has("calendar:calcom"),
       "calendar:google":   dbConnectedSet.has("calendar:google"),
-      "knowledge:retell_kb": !!(ws?.retell_workspace_id || process.env.RETELL_API_KEY),
+      "knowledge:retell_kb": !!(ws?.retell_workspace_id || process.env.RETELL_API_KEY) || dbConnectedSet.has("knowledge:retell_kb"),
       "knowledge:pinecone":  dbConnectedSet.has("knowledge:pinecone"),
-      "image:gpt_image":   !!(ws?.openai_api_key || process.env.OPENAI_API_KEY),
+      "image:gpt_image":   !!(ws?.openai_api_key || process.env.OPENAI_API_KEY)      || dbConnectedSet.has("image:gpt_image"),
       "image:imagen":      dbConnectedSet.has("image:imagen"),
       "video:runway":      dbConnectedSet.has("video:runway"),
       "video:google_veo":  dbConnectedSet.has("video:google_veo"),

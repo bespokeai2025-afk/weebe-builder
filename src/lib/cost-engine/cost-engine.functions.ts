@@ -902,13 +902,22 @@ export const saveProviderCostRate = createServerFn({ method: "POST" })
 
 /**
  * Delete a provider cost-rate override by its row ID.
+ * Constrained to the calling workspace so cross-workspace deletion is impossible
+ * even when using the admin client (which bypasses RLS).
  */
 export const deleteProviderCostRate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: { id: string }) => i)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const workspaceId: string = (context as any).workspaceId;
+    if (!workspaceId) throw new Error("Workspace not found");
     const sb = supabaseAdmin as any;
-    const { error } = await sb.from("provider_cost_rates").delete().eq("id", data.id);
+    // Delete ONLY if the row belongs to this workspace — prevents cross-workspace deletion.
+    const { error } = await sb
+      .from("provider_cost_rates")
+      .delete()
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
