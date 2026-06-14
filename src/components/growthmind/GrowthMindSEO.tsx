@@ -1063,6 +1063,8 @@ export function GrowthMindSEO() {
   const [aiInsight, setAiInsight]       = useState<string | null>(null);
   const [aiRecAt, setAiRecAt]           = useState<string | null>(null);
   const [aiLoading, setAiLoading]       = useState(false);
+  const [aiSuggestedIdeas, setAiSuggestedIdeas] = useState<ContentIdea[]>([]);
+  const [dismissedAiIdeaIds, setDismissedAiIdeaIds] = useState<Set<string>>(new Set());
 
   const [siteId, setSiteId]             = useState<string | undefined>();
   const [siteUrl, setSiteUrl]           = useState("");
@@ -1313,6 +1315,8 @@ export function GrowthMindSEO() {
     if (keywords.length === 0) return;
     setAiLoading(true);
     setAiInsight(null);
+    setAiSuggestedIdeas([]);
+    setDismissedAiIdeaIds(new Set());
     try {
       const kwSummary = keywords
         .slice()
@@ -1329,17 +1333,45 @@ export function GrowthMindSEO() {
       const { reply } = await aiRespFn({
         messages: [{
           role: "user",
-          content: `Here are my tracked SEO keywords for ${siteUrl}:\n\n${kwSummary}\n\nBased on this data, identify the top 3 priority keyword opportunities (high volume, lower difficulty, not yet ranking). For each, suggest the type of content that would best target it. Be specific and actionable in 3-4 sentences total.`,
+          content: `Here are my tracked SEO keywords for ${siteUrl}:\n\n${kwSummary}\n\nBased on this data, do two things:\n\n1. In 3-4 sentences, identify the top priority keyword opportunities (high volume, lower difficulty, not yet ranking) and suggest the type of content that would best target them.\n\n2. Suggest 3-5 specific content ideas. Output them as a JSON block at the end of your reply using this exact format:\n\nCONTENT_IDEAS_JSON:\n[{"title":"...","targetKeyword":"..."},...]`,
         }],
         platformData,
         personality: "professional",
       });
+
+      // Split out the JSON block from the text insight
+      const MARKER = "CONTENT_IDEAS_JSON:";
+      const markerIdx = reply.indexOf(MARKER);
+      let textPart = reply;
+      let parsedIdeas: ContentIdea[] = [];
+
+      if (markerIdx !== -1) {
+        textPart = reply.slice(0, markerIdx).trim();
+        const jsonStr = reply.slice(markerIdx + MARKER.length).trim();
+        try {
+          const raw = JSON.parse(jsonStr) as Array<{ title: string; targetKeyword: string }>;
+          if (Array.isArray(raw)) {
+            parsedIdeas = raw
+              .filter(item => typeof item.title === "string" && item.title.trim())
+              .map(item => ({
+                id:            nanoid(),
+                title:         item.title.trim(),
+                targetKeyword: (item.targetKeyword ?? "").trim(),
+                status:        "idea" as const,
+              }));
+          }
+        } catch {
+          // JSON parse failed — still show text insight, just no cards
+        }
+      }
+
       const now = new Date().toISOString();
-      setAiInsight(reply);
+      setAiInsight(textPart);
       setAiRecAt(now);
+      setAiSuggestedIdeas(parsedIdeas);
       if (siteId) {
         try {
-          await saveAiRecsFn({ id: siteId, text: reply });
+          await saveAiRecsFn({ id: siteId, text: textPart });
         } catch {
           // non-critical — insight is already shown in UI
         }
@@ -1349,6 +1381,17 @@ export function GrowthMindSEO() {
     } finally {
       setAiLoading(false);
     }
+  }
+
+  function addIdeaFromAI(idea: ContentIdea) {
+    const updated = [...contentIdeas, { ...idea, status: "idea" as const }];
+    setContentIdeas(updated);
+    setAiSuggestedIdeas(prev => prev.filter(i => i.id !== idea.id));
+    persistAll(keywords, updated);
+  }
+
+  function dismissAiIdea(id: string) {
+    setDismissedAiIdeaIds(prev => new Set([...prev, id]));
   }
 
   // ── Existing keyword terms (lowercased) for dupe detection ─────────────────
@@ -1690,6 +1733,53 @@ export function GrowthMindSEO() {
                     </Button>
                   </div>
 
+                  {/* AI-suggested idea cards */}
+                  {aiSuggestedIdeas.filter(i => !dismissedAiIdeaIds.has(i.id)).length > 0 && (
+                    <div className="px-4 py-3 border-b border-white/[0.06] bg-emerald-500/[0.03] space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-400/70 flex items-center gap-1.5">
+                        <Sparkles className="h-3 w-3" />
+                        AI Suggestions — click Add to track an idea
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {aiSuggestedIdeas
+                          .filter(i => !dismissedAiIdeaIds.has(i.id))
+                          .map(idea => (
+                            <div
+                              key={idea.id}
+                              className="flex items-start gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2.5"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium leading-snug">{idea.title}</p>
+                                {idea.targetKeyword && (
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    Keyword: <span className="text-emerald-400/80">{idea.targetKeyword}</span>
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                                <button
+                                  onClick={() => addIdeaFromAI(idea)}
+                                  title="Add to ideas"
+                                  className="flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Add
+                                </button>
+                                <button
+                                  onClick={() => dismissAiIdea(idea.id)}
+                                  title="Dismiss"
+                                  className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+
                   {showIdeaForm && (
                     <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
                       <div className="flex flex-wrap gap-2 items-end">
@@ -1724,13 +1814,13 @@ export function GrowthMindSEO() {
                     </div>
                   )}
 
-                  {contentIdeas.length === 0 ? (
+                  {contentIdeas.length === 0 && aiSuggestedIdeas.filter(i => !dismissedAiIdeaIds.has(i.id)).length === 0 ? (
                     <div className="px-4 py-8 text-center">
                       <p className="text-sm text-muted-foreground">
                         No content ideas yet. Add your first content opportunity.
                       </p>
                     </div>
-                  ) : (
+                  ) : contentIdeas.length === 0 ? null : (
                     <div className="divide-y divide-white/[0.04]">
                       {contentIdeas.map(idea => (
                         <ContentIdeaRow
