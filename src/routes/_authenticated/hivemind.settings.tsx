@@ -1,14 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   User, Brain, Mic, Zap, Eye, MessageSquare, Lightbulb,
   Save, CheckCircle2, DollarSign, Info, Volume2, Settings,
+  Play, Square, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
-import { listHiveMindVoices } from "@/lib/hivemind/hivemind.ai";
+import { listHiveMindVoices, getHiveMindTTS } from "@/lib/hivemind/hivemind.ai";
 import { getHiveMindMode, setHiveMindMode, type HiveMindMode } from "@/lib/hivemind/hivemind.actions";
 
 export const Route = createFileRoute("/_authenticated/hivemind/settings")({
@@ -99,6 +100,7 @@ function Section({ icon: Icon, title, desc, children }: {
 // ── Main component ─────────────────────────────────────────────────────────────
 function HiveMindSettings() {
   const voicesFn  = useServerFn(listHiveMindVoices);
+  const ttsFn     = useServerFn(getHiveMindTTS);
   const modeFn    = useServerFn(getHiveMindMode);
   const setModeFn = useServerFn(setHiveMindMode);
   const qc        = useQueryClient();
@@ -108,6 +110,9 @@ function HiveMindSettings() {
   const [userNameInput, setUserNameInput]       = useState("");
   const [nameSaved, setNameSaved]               = useState(false);
   const [modeSaving, setModeSaving]             = useState(false);
+  const [previewingId, setPreviewingId]         = useState<string | null>(null);
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+  const audioRef                                = useRef<HTMLAudioElement | null>(null);
 
   const { data: voices = [] } = useQuery({
     queryKey: ["hivemind-voices"],
@@ -149,6 +154,29 @@ function HiveMindSettings() {
       await setModeFn({ data: { mode: m } });
       qc.setQueryData(["hivemind-mode"], { mode: m });
     } finally { setModeSaving(false); }
+  }
+
+  function stopPreview() {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setPreviewingId(null);
+  }
+
+  async function previewVoice(voiceId: string, voiceName: string) {
+    if (previewingId === voiceId) { stopPreview(); return; }
+    if (previewLoadingId) return;
+    stopPreview();
+    setPreviewLoadingId(voiceId);
+    try {
+      const sample = `Hi there! I'm ${voiceName}. I'll be your HiveMind assistant — here to keep you on top of everything that matters in your business.`;
+      const r = await ttsFn({ data: { text: sample, voiceId, speed: voiceSettings.speed } });
+      if (!r.audioBase64) return;
+      const audio = new Audio(`data:audio/mpeg;base64,${r.audioBase64}`);
+      audioRef.current = audio;
+      setPreviewingId(voiceId);
+      audio.play();
+      audio.onended = () => { setPreviewingId(null); audioRef.current = null; };
+    } finally { setPreviewLoadingId(null); }
   }
 
   const currentVoice = voices.find(v => v.id === voiceSettings.voiceId);
@@ -258,21 +286,44 @@ function HiveMindSettings() {
               </div>
               {voices.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
-                  {voices.slice(0, 18).map(v => (
-                    <button
-                      key={v.id}
-                      onClick={() => updateVoice({ voiceId: v.id, voiceName: v.name })}
-                      className={cn(
-                        "text-left px-2.5 py-2 rounded-lg border text-xs transition-all",
-                        voiceSettings.voiceId === v.id
-                          ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
-                          : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.15]",
-                      )}
-                    >
-                      <p className="font-medium truncate">{v.name}</p>
-                      <p className="text-[10px] opacity-60 capitalize">{v.category}</p>
-                    </button>
-                  ))}
+                  {voices.slice(0, 18).map(v => {
+                    const isSelected = voiceSettings.voiceId === v.id;
+                    const isPlaying  = previewingId === v.id;
+                    const isLoading  = previewLoadingId === v.id;
+                    return (
+                      <div
+                        key={v.id}
+                        onClick={() => updateVoice({ voiceId: v.id, voiceName: v.name })}
+                        className={cn(
+                          "relative text-left px-2.5 py-2 rounded-lg border text-xs transition-all cursor-pointer group",
+                          isSelected
+                            ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
+                            : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.15]",
+                        )}
+                      >
+                        <p className="font-medium truncate pr-5">{v.name}</p>
+                        <p className="text-[10px] opacity-60 capitalize">{v.category}</p>
+                        <button
+                          onClick={e => { e.stopPropagation(); previewVoice(v.id, v.name); }}
+                          disabled={!!previewLoadingId && !isLoading}
+                          title={isPlaying ? "Stop preview" : "Preview voice"}
+                          className={cn(
+                            "absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full transition-all",
+                            isPlaying
+                              ? "bg-violet-500 text-white opacity-100"
+                              : "opacity-0 group-hover:opacity-100 bg-white/10 text-muted-foreground hover:bg-white/20 hover:text-foreground",
+                          )}
+                        >
+                          {isLoading
+                            ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            : isPlaying
+                              ? <Square className="h-2 w-2 fill-current" />
+                              : <Play className="h-2.5 w-2.5 fill-current" />
+                          }
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
