@@ -514,23 +514,37 @@ export const generateVideo = createServerFn({ method: "POST" })
         cta:            data.cta,
       }) || `${storyboard[0]?.visual ?? data.offer ?? "promotional video"}. Style: ${data.tone ?? "professional"}, brand: ${companyName}`;
 
+      // Helper: submit to Veo 3 using VeoProvider (supports Gemini API key + Vertex OAuth)
+      const submitVeo3 = async (prompt: string): Promise<boolean> => {
+        const veoCfg = resolveVeoConfig(veoCreds);
+        const veoProvider = new VeoProvider(veoCfg);
+        if (!veoProvider.authMode) {
+          console.warn("[video-studio] Veo 3 skipped — no credentials configured (add Gemini API Key in Settings → Providers → Video)");
+          return false;
+        }
+        try {
+          const veoResult = await veoProvider.generateVideo({ prompt, aspectRatio: "16:9", durationSeconds: 8 });
+          videoUrl = `[veo3_job:${veoResult.jobId}]`;
+          provider = "veo3";
+          return true;
+        } catch (err: any) {
+          console.error("[video-studio] Veo 3 generation failed:", err?.message ?? err);
+          videoUrl = `[error:Veo 3 error: ${(err?.message ?? "unknown").slice(0, 200)}]`;
+          return false;
+        }
+      };
+
       if (primaryProvider === "runway_gen4") {
-        // UGC / Testimonial → Runway Gen-4
+        // UGC / Testimonial → Runway Gen-4 primary, Veo 3 fallback
         if (runwayKey) {
           const runResult = await generateRunwayVideo(visualPrompt, runwayKey);
           if (runResult) { videoUrl = `[runway_job:${runResult}]`; provider = "runway_gen4"; }
         }
-        // Fallback to Veo 3 if Runway failed or no key
-        if (!videoUrl) {
-          const veoResult = await generateVeo3Video(visualPrompt, veoCreds);
-          if (veoResult) { videoUrl = `[veo3_job:${veoResult}]`; provider = "veo3"; }
-        }
+        if (!videoUrl) await submitVeo3(visualPrompt);
       } else {
-        // All other types → Veo 3 primary
-        const veoResult = await generateVeo3Video(visualPrompt, veoCreds);
-        if (veoResult) { videoUrl = `[veo3_job:${veoResult}]`; provider = "veo3"; }
-        // Fallback to Runway Gen-4 if Veo 3 failed or missing credentials
-        if (!videoUrl && runwayKey) {
+        // All other types → Veo 3 primary, Runway fallback
+        const submitted = await submitVeo3(visualPrompt);
+        if (!submitted && runwayKey) {
           const runResult = await generateRunwayVideo(visualPrompt, runwayKey);
           if (runResult) { videoUrl = `[runway_job:${runResult}]`; provider = "runway_gen4"; }
         }
@@ -751,7 +765,6 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     }
 
     if (!videoUrl) {
-      // Try Gemini API key path first, then fall back to OAuth token path
       const veoCfg = resolveVeoConfig(veoCreds);
       const veoProvider = new VeoProvider(veoCfg);
 
@@ -764,15 +777,13 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
           });
           videoUrl = `[veo3_job:${veoResult.jobId}]`;
           provider = "veo3";
-        } catch {
-          // Fall back to legacy adapter
-          const veoResult = await generateVeo3Video(masterPrompt, veoCreds);
-          if (veoResult) { videoUrl = `[veo3_job:${veoResult}]`; provider = "veo3"; }
+        } catch (veoErr: any) {
+          console.error("[video-studio] Veo 3 generation failed:", veoErr?.message ?? veoErr);
+          // No silent fallback to broken legacy adapter — surface the error via videoUrl
+          videoUrl = `[error:Veo 3 error: ${(veoErr?.message ?? "unknown").slice(0, 200)}]`;
         }
-      } else {
-        const veoResult = await generateVeo3Video(masterPrompt, veoCreds);
-        if (veoResult) { videoUrl = `[veo3_job:${veoResult}]`; provider = "veo3"; }
       }
+      // If no authMode configured, videoUrl stays null (no video job stored)
     }
 
     if (!videoUrl && runwayKey && data.preferredProvider !== "runway_gen4") {
