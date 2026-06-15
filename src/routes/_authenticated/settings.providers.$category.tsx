@@ -56,8 +56,11 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
   "email:sendgrid": [{ key: "apiKey", label: "SendGrid API Key", type: "password", required: true, placeholder: "SG..." }],
   "video:runway": [{ key: "apiKey", label: "Runway API Key", type: "password", required: true, placeholder: "key_..." }],
   "video:google_veo": [
-    { key: "gcpProject", label: "GCP Project ID", type: "text", required: true },
-    { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
+    { key: "geminiApiKey", label: "Gemini API Key",      type: "password", required: false, placeholder: "AIzaSy… (preferred)" },
+    { key: "gcpProject",   label: "GCP Project ID",      type: "text",     required: false, placeholder: "my-project-id (optional)" },
+    { key: "accessToken",  label: "GCP OAuth Token",     type: "password", required: false, placeholder: "ya29.… (optional)" },
+    { key: "location",     label: "GCP Location",        type: "text",     required: false, placeholder: "us-central1" },
+    { key: "veoModel",     label: "Veo Model",           type: "text",     required: false, placeholder: "veo-3.0-generate-preview" },
   ],
   "image:imagen": [
     { key: "gcpProject", label: "GCP Project ID", type: "text", required: true },
@@ -94,10 +97,6 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
   ],
   "image:gpt_image": [{ key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." }],
   "crm:hubspot": [{ key: "apiKey", label: "HubSpot Access Token", type: "password", required: true, placeholder: "pat-na1-..." }],
-  "video:google_veo": [
-    { key: "gcpProject",   label: "GCP Project ID",     type: "text",     required: true,  placeholder: "my-gcp-project-id" },
-    { key: "accessToken",  label: "OAuth Access Token", type: "password", required: true,  placeholder: "ya29...." },
-  ],
   "video:runway": [
     { key: "apiKey", label: "Runway API Key", type: "password", required: true, placeholder: "key_..." },
   ],

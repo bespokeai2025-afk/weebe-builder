@@ -1,0 +1,215 @@
+UPGRADE GROWTHMIND VIDEO STUDIO WITH FREE-FORM PROMPT TO VEO AD PIPELINE
+
+IMPORTANT
+
+Do not modify Retell, HyperStream, VoxStream, HiveMind, Builder, CRM, WhatsApp, or HexMail.
+
+Extend GrowthMind Video Studio only.
+
+OBJECTIVE
+
+Allow users to paste a creative prompt into Video Studio and have GrowthMind convert it into a full 10/10 marketing video ad pipeline.
+
+The user should be able to enter something like:
+
+"Create a premium Meta video ad for our AI receptionist product targeting estate agents in the UK. Show missed calls turning into booked appointments. Make it cinematic, high trust, blue WeeBee branding, 20 seconds, strong CTA."
+
+GrowthMind should generate:
+
+1. Marketing angle
+2. Target audience
+3. Hook
+4. Script
+5. Storyboard
+6. Scene-by-scene Veo prompt
+7. Voiceover script
+8. On-screen text
+9. CTA
+10. Final Veo generation request
+
+====================================================
+
+VIDEO STUDIO INPUT MODES
+
+Add two modes:
+
+1. Guided Builder
+2. Free-Form Prompt
+
+FREE-FORM PROMPT MODE
+
+Fields:
+
+Creative Prompt
+Business Goal
+Target Audience
+Platform
+Video Length
+Aspect Ratio
+Brand Style
+CTA
+Voiceover Required Yes/No
+Provider
+
+Provider options:
+
+Veo
+Runway
+Kling
+Pika
+
+====================================================
+
+VEO API KEY SETUP
+
+Add provider credential setup for:
+
+Google Veo / Gemini API
+
+Fields:
+
+GEMINI_API_KEY
+GOOGLE_CLOUD_PROJECT_ID optional
+GOOGLE_CLOUD_LOCATION optional
+VEO_MODEL default veo-3.1-generate-preview
+
+Never expose keys to frontend.
+
+Store securely in provider_settings or workspace_settings.
+
+Add Test Connection button.
+
+====================================================
+
+VEO PROVIDER
+
+Create or complete:
+
+src/lib/video/providers/veo.provider.ts
+
+Support:
+
+generateVideo()
+getStatus()
+estimateCost()
+listModels()
+
+Use Gemini API video generation.
+
+Support async job handling.
+
+Support polling until complete.
+
+Support failed job handling.
+
+====================================================
+
+PROMPT OPTIMISATION ENGINE
+
+Create:
+
+src/lib/growthmind/video-prompt-engine.server.ts
+
+It should take:
+
+User free-form prompt
+Business DNA
+Current value point
+Brand voice
+Target audience
+Platform
+Campaign goal
+Competitors
+GrowthMind Core Intelligence
+
+and produce:
+
+Optimised Veo prompt
+Scene list
+Camera directions
+Lighting
+Mood
+Brand style
+On-screen text
+Voiceover script
+CTA
+
+====================================================
+
+VEO AD QUALITY RULES
+
+Before sending to Veo, GrowthMind must check:
+
+Clear hook in first 3 seconds
+Single target audience
+Single clear offer
+Clear visual story
+Strong CTA
+No vague claims
+No overloaded text
+Platform-specific aspect ratio
+Brand colours included
+Ad objective included
+
+If missing, GrowthMind improves the prompt automatically.
+
+====================================================
+
+ASSET STORAGE
+
+Save:
+
+Original user prompt
+Optimised prompt
+Script
+Storyboard
+Provider
+Model
+Status
+Video URL
+Thumbnail URL
+Cost estimate
+Created date
+
+in:
+
+growthmind_video_assets
+
+====================================================
+
+CONTENT CALENDAR INTEGRATION
+
+Allow generated video assets to be added to:
+
+GrowthMind Content Calendar
+Growth Scheduler
+Campaign Factory
+Future Ad Studio
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+GrowthMind reports video creation activity to HiveMind.
+
+HiveMind remains the only speaking assistant.
+
+====================================================
+
+SUCCESS CRITERIA
+
+User can paste a creative video idea.
+
+GrowthMind turns it into an optimised ad concept.
+
+GrowthMind generates storyboard and Veo prompt.
+
+Veo provider can generate the video.
+
+Video is stored as an asset.
+
+Video can be scheduled or attached to campaigns.
+
+Generate implementation plan first.
+
+Then implement safely.

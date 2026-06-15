@@ -25,3 +25,4 @@
 - [Executive bridge (HiveMind COO ↔ GrowthMind CMO)](executive-bridge-arch.md) — GrowthMind is advisory-only (never executes); .server builders only via dynamic import; whitelist HiveMind summary (no cfg); executive_events migration manual.
 - [SystemMind Workflow Library](systemmind-workflow-library.md) — 4 tables (migration 20260708000000, manual); repair engine: 7 deterministic checks + AI; querySystemMindKnowledgeContext = KB RAG + playbooks + patterns; 22 playbooks seeded idempotently.
 - [GrowthMind DNA + Opportunity Engine](growthmind-dna-opportunity-arch.md) — 6-table schema; DNA trigger auto-seeds; `.inputValidator()` not `.validator()`; no-input fns call as `fn()`; bridge + content studio extended.
+- [Video Studio Free-Form + Veo Gemini auth](video-studio-freeform-upgrade.md) — dual-auth VeoProvider (Gemini API key preferred, Vertex OAuth fallback); prompt engine 10-step pipeline; VIDEO_STUDIO_FREEFORM_MIGRATION.sql must be applied manually.

@@ -6,7 +6,8 @@ import {
   Sparkles, CheckCircle2, Circle, DollarSign, Volume2,
   Film, Zap, Star, Clock, ChevronDown, ChevronUp,
   BarChart3, AlertCircle, Music2, Tv2, Radio, RefreshCw,
-  ExternalLink, Mic,
+  ExternalLink, Mic, PenLine, LayoutTemplate, ShieldCheck,
+  XCircle, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -14,8 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  generateVideo, getVideoAssets, deleteVideoAsset, scheduleVideoAsset, getVideoCostStats,
-  retryVideoJob, pollVideoJob, getVideoDownloadUrl,
+  generateVideo, generateVideoFromPrompt, getVideoAssets, deleteVideoAsset,
+  scheduleVideoAsset, getVideoCostStats, retryVideoJob, pollVideoJob, getVideoDownloadUrl,
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
   type VideoType, type QualityMode, type VideoAsset, type StoryboardScene,
 } from "@/lib/growthmind/growthmind.video-studio";
@@ -582,16 +583,55 @@ function ScheduleModal({ asset, onClose, onScheduled }: {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
+type InputMode = "guided" | "freeform";
+
+const PLATFORM_OPTIONS = [
+  { value: "meta",      label: "Meta (Facebook/Instagram)" },
+  { value: "tiktok",    label: "TikTok" },
+  { value: "linkedin",  label: "LinkedIn" },
+  { value: "youtube",   label: "YouTube" },
+  { value: "instagram", label: "Instagram Reels" },
+  { value: "general",   label: "General / Multi-Platform" },
+];
+
+const LENGTH_OPTIONS = [
+  { value: 10,  label: "10 seconds" },
+  { value: 15,  label: "15 seconds" },
+  { value: 20,  label: "20 seconds" },
+  { value: 30,  label: "30 seconds" },
+  { value: 60,  label: "60 seconds" },
+  { value: 90,  label: "90 seconds" },
+];
+
+const ASPECT_OPTIONS = [
+  { value: "9:16", label: "9:16 (Portrait / Stories)" },
+  { value: "16:9", label: "16:9 (Landscape / YouTube)" },
+  { value: "1:1",  label: "1:1 (Square)" },
+  { value: "4:5",  label: "4:5 (Vertical Feed)" },
+];
+
+const FREEFORM_PROVIDERS = [
+  { value: "veo3",       label: "Veo 3 (Google)",    note: "Cinematic quality" },
+  { value: "runway_gen4", label: "Runway Gen-4",      note: "UGC & authentic" },
+  { value: "kling",      label: "Kling",              note: "Coming soon" },
+  { value: "pika",       label: "Pika",               note: "Coming soon" },
+];
+
 export function GrowthMindVideoStudio() {
   const qc = useQueryClient();
 
-  const generateFn    = useServerFn(generateVideo);
-  const getAssetsFn   = useServerFn(getVideoAssets);
-  const deleteAssetFn = useServerFn(deleteVideoAsset);
-  const retryFn       = useServerFn(retryVideoJob);
-  const pollJobFn     = useServerFn(pollVideoJob);
-  const voicesFn      = useServerFn(listGrowthMindVoices);
+  const generateFn         = useServerFn(generateVideo);
+  const generateFreeFormFn = useServerFn(generateVideoFromPrompt);
+  const getAssetsFn        = useServerFn(getVideoAssets);
+  const deleteAssetFn      = useServerFn(deleteVideoAsset);
+  const retryFn            = useServerFn(retryVideoJob);
+  const pollJobFn          = useServerFn(pollVideoJob);
+  const voicesFn           = useServerFn(listGrowthMindVoices);
 
+  // ── Mode ──────────────────────────────────────────────────────────────────
+  const [inputMode, setInputMode] = useState<InputMode>("guided");
+
+  // ── Guided builder state ──────────────────────────────────────────────────
   const [videoType, setVideoType]     = useState<VideoType>("explainer_video");
   const [qualityMode, setQualityMode] = useState<QualityMode>("fast");
   const [targetAudience, setTargetAudience] = useState("");
@@ -599,6 +639,19 @@ export function GrowthMindVideoStudio() {
   const [tone, setTone]               = useState("professional");
   const [cta, setCta]                 = useState("");
 
+  // ── Free-form mode state ──────────────────────────────────────────────────
+  const [ffPrompt,    setFfPrompt]    = useState("");
+  const [ffGoal,      setFfGoal]      = useState("");
+  const [ffAudience,  setFfAudience]  = useState("");
+  const [ffPlatform,  setFfPlatform]  = useState("meta");
+  const [ffLength,    setFfLength]    = useState(20);
+  const [ffAspect,    setFfAspect]    = useState("9:16");
+  const [ffBrandStyle, setFfBrandStyle] = useState("");
+  const [ffCta,       setFfCta]       = useState("");
+  const [ffVoiceover, setFfVoiceover] = useState(true);
+  const [ffProvider,  setFfProvider]  = useState("veo3");
+
+  // ── Shared state ──────────────────────────────────────────────────────────
   const [voiceId, setVoiceId]     = useState(DEFAULT_VOICE_ID);
   const [voiceName, setVoiceName] = useState(DEFAULT_VOICE_NAME);
   const [voices, setVoices]       = useState<{ id: string; name: string; category: string }[]>([]);
@@ -627,13 +680,18 @@ export function GrowthMindVideoStudio() {
   }, []);
 
   const [lastResult, setLastResult] = useState<{
-    title:         string;
-    script:        string;
-    storyboard:    StoryboardScene[];
-    audioUrl:      string | null;
-    videoUrl:      string | null;
-    costEstimate:  number;
-    strategyBrief: string;
+    title:           string;
+    script:          string;
+    storyboard:      StoryboardScene[];
+    audioUrl:        string | null;
+    videoUrl:        string | null;
+    costEstimate:    number;
+    strategyBrief:   string;
+    marketingAngle?: string;
+    hook?:           string;
+    optimisedPrompt?: string;
+    qualityChecks?:  { rule: string; passed: boolean; note: string }[];
+    allChecksPassed?: boolean;
   } | null>(null);
 
   const [filterType, setFilterType]       = useState<VideoType | "all">("all");
@@ -709,6 +767,54 @@ export function GrowthMindVideoStudio() {
     }
   }
 
+  async function handleGenerateFreeForm() {
+    if (!ffPrompt.trim()) {
+      setError("Please enter a creative prompt.");
+      setStep("error");
+      return;
+    }
+    setStep("strategy");
+    setError("");
+    setLastResult(null);
+    try {
+      setStep("script");
+      const res = await generateFreeFormFn({ data: {
+        userPrompt:        ffPrompt,
+        businessGoal:      ffGoal,
+        targetAudience:    ffAudience,
+        platform:          ffPlatform as any,
+        videoLength:       ffLength,
+        aspectRatio:       ffAspect as any,
+        brandStyle:        ffBrandStyle,
+        cta:               ffCta,
+        voiceoverNeeded:   ffVoiceover,
+        preferredProvider: ffProvider as any,
+        voiceId,
+      }});
+      setStep("saving");
+      setLastResult({
+        title:           res.title,
+        script:          res.script,
+        storyboard:      res.storyboard,
+        audioUrl:        res.audioUrl,
+        videoUrl:        res.videoUrl,
+        costEstimate:    res.costEstimate,
+        strategyBrief:   res.strategyBrief,
+        marketingAngle:  res.marketingAngle,
+        hook:            res.hook,
+        optimisedPrompt: res.optimisedPrompt,
+        qualityChecks:   res.qualityChecks,
+        allChecksPassed: res.allChecksPassed,
+      });
+      setStep("done");
+      qc.invalidateQueries({ queryKey: ["video-assets"] });
+      qc.invalidateQueries({ queryKey: ["video-cost-stats"] });
+    } catch (e: any) {
+      setError(e.message ?? "Generation failed");
+      setStep("error");
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!confirm("Delete this video asset?")) return;
     try {
@@ -748,59 +854,362 @@ export function GrowthMindVideoStudio() {
           {/* Generator card */}
           <div className="rounded-2xl border border-white/[0.06] bg-card/60 p-5 space-y-5">
 
-            {/* Quality mode picker */}
-            <div className="space-y-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">Quality Mode</p>
-              <div className="grid grid-cols-3 gap-2">
-                {QUALITY_MODES.map(m => {
-                  const Icon = m.icon;
-                  const active = qualityMode === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => setQualityMode(m.id)}
-                      className={cn(
-                        "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all",
-                        active
-                          ? "border-violet-500/30 bg-violet-500/10"
-                          : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.10] hover:bg-white/[0.04]",
-                      )}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <Icon className={cn("h-3.5 w-3.5", active ? m.color : "text-muted-foreground/60")} />
-                        <span className={cn("text-xs font-semibold", active ? "text-foreground" : "text-muted-foreground/70")}>{m.label}</span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground/50 leading-tight">{m.desc}</p>
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Mode tabs */}
+            <div className="flex rounded-xl border border-white/[0.06] overflow-hidden p-0.5 bg-white/[0.02]">
+              <button
+                onClick={() => setInputMode("guided")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
+                  inputMode === "guided"
+                    ? "bg-violet-500/20 text-violet-300 border border-violet-500/25"
+                    : "text-muted-foreground/60 hover:text-foreground",
+                )}
+              >
+                <LayoutTemplate className="h-3.5 w-3.5" />
+                Guided Builder
+              </button>
+              <button
+                onClick={() => setInputMode("freeform")}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-semibold transition-all",
+                  inputMode === "freeform"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/25"
+                    : "text-muted-foreground/60 hover:text-foreground",
+                )}
+              >
+                <PenLine className="h-3.5 w-3.5" />
+                Free-Form Prompt
+              </button>
             </div>
 
-            {/* Voice picker — shown for balanced / premium modes */}
-            {qualityMode !== "fast" && (
+            {/* ── GUIDED BUILDER ─────────────────────────────────────────────── */}
+            {inputMode === "guided" && (<>
+
+              {/* Quality mode picker */}
               <div className="space-y-2">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold flex items-center gap-1.5">
-                  <Mic className="h-3 w-3 text-sky-400" />
-                  Voiceover Voice
-                  {voiceName && (
-                    <span className="ml-auto text-[10px] text-sky-400 font-medium normal-case tracking-normal">{voiceName}</span>
-                  )}
-                </p>
-                {voices.length === 0 ? (
-                  <p className="text-[11px] text-muted-foreground/60 italic">
-                    Add an ElevenLabs API key in Settings → Integrations to unlock voice selection
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">Quality Mode</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {QUALITY_MODES.map(m => {
+                    const Icon = m.icon;
+                    const active = qualityMode === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => setQualityMode(m.id)}
+                        className={cn(
+                          "flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all",
+                          active
+                            ? "border-violet-500/30 bg-violet-500/10"
+                            : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.10] hover:bg-white/[0.04]",
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Icon className={cn("h-3.5 w-3.5", active ? m.color : "text-muted-foreground/60")} />
+                          <span className={cn("text-xs font-semibold", active ? "text-foreground" : "text-muted-foreground/70")}>{m.label}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/50 leading-tight">{m.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Voice picker — shown for balanced / premium modes */}
+              {qualityMode !== "fast" && (
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold flex items-center gap-1.5">
+                    <Mic className="h-3 w-3 text-sky-400" />
+                    Voiceover Voice
+                    {voiceName && (
+                      <span className="ml-auto text-[10px] text-sky-400 font-medium normal-case tracking-normal">{voiceName}</span>
+                    )}
                   </p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                  {voices.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground/60 italic">
+                      Add an ElevenLabs API key in Settings → Integrations to unlock voice selection
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                      {voices.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => {
+                            setVoiceId(v.id);
+                            setVoiceName(v.name);
+                            saveStoredVoice(v.id, v.name);
+                          }}
+                          className={cn(
+                            "text-left px-2.5 py-1.5 rounded-lg border text-xs transition-all",
+                            voiceId === v.id
+                              ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
+                              : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.12]",
+                          )}
+                        >
+                          <p className="font-medium truncate">{v.name}</p>
+                          <p className="text-[10px] opacity-60 capitalize">{v.category}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Video type picker */}
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">Video Type</p>
+                {VIDEO_TYPE_CATEGORIES.map(cat => (
+                  <div key={cat.label} className="space-y-1.5">
+                    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40 font-semibold px-0.5">{cat.label}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {cat.types.map(t => {
+                        const active = videoType === t;
+                        return (
+                          <button
+                            key={t}
+                            onClick={() => setVideoType(t)}
+                            className={cn(
+                              "rounded-lg border px-2.5 py-1 text-xs font-medium transition-all",
+                              active
+                                ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
+                                : "border-white/[0.06] text-muted-foreground/70 hover:border-white/[0.12] hover:text-foreground",
+                            )}
+                          >
+                            {VIDEO_TYPE_LABELS[t]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Brief fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Target Audience</Label>
+                  <Input
+                    value={targetAudience}
+                    onChange={e => setTargetAudience(e.target.value)}
+                    placeholder="e.g. small business owners"
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Offer / Product</Label>
+                  <Input
+                    value={offer}
+                    onChange={e => setOffer(e.target.value)}
+                    placeholder="e.g. AI receptionist software"
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Tone of Voice</Label>
+                  <select
+                    value={tone}
+                    onChange={e => setTone(e.target.value)}
+                    className="w-full h-8 rounded-md border border-input bg-transparent px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {TONE_OPTIONS.map(o => <option key={o} value={o.toLowerCase()}>{o}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Call to Action</Label>
+                  <Input
+                    value={cta}
+                    onChange={e => setCta(e.target.value)}
+                    placeholder="e.g. Book a free demo"
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Generate button — Guided */}
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleGenerate}
+                  disabled={generating}
+                  className="bg-violet-600 hover:bg-violet-700 text-white"
+                >
+                  {generating
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <Sparkles className="mr-2 h-4 w-4" />}
+                  {generating ? "Generating…" : "Generate Video"}
+                </Button>
+                {generating && (
+                  <StepIndicator step={step} currentStep={step} qualityMode={qualityMode} />
+                )}
+              </div>
+            </>)}
+
+            {/* ── FREE-FORM PROMPT MODE ─────────────────────────────────────── */}
+            {inputMode === "freeform" && (<>
+
+              {/* Creative Prompt */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold flex items-center gap-1.5">
+                  <PenLine className="h-3 w-3 text-emerald-400" />
+                  Creative Prompt
+                </Label>
+                <textarea
+                  value={ffPrompt}
+                  onChange={e => setFfPrompt(e.target.value)}
+                  rows={4}
+                  placeholder={
+                    'e.g. Create a premium Meta video ad for our AI receptionist targeting estate agents in the UK. ' +
+                    'Show missed calls turning into booked appointments. Cinematic, high trust, blue WeeBee branding, 20 seconds, strong CTA.'
+                  }
+                  className="w-full rounded-xl border border-input bg-transparent px-3 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-emerald-500/50 resize-none leading-relaxed"
+                />
+                <p className="text-[10px] text-muted-foreground/50">
+                  GrowthMind will extract goals, audience, and platform — or fill the fields below for precision.
+                </p>
+              </div>
+
+              {/* Row 1: Goal + Audience */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Business Goal</Label>
+                  <Input
+                    value={ffGoal}
+                    onChange={e => setFfGoal(e.target.value)}
+                    placeholder="e.g. Generate demo bookings"
+                    className="h-8 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Target Audience</Label>
+                  <Input
+                    value={ffAudience}
+                    onChange={e => setFfAudience(e.target.value)}
+                    placeholder="e.g. Estate agents in the UK"
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Platform + Length */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Platform</Label>
+                  <select
+                    value={ffPlatform}
+                    onChange={e => setFfPlatform(e.target.value)}
+                    className="w-full h-8 rounded-md border border-input bg-transparent px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {PLATFORM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Video Length</Label>
+                  <select
+                    value={ffLength}
+                    onChange={e => setFfLength(Number(e.target.value))}
+                    className="w-full h-8 rounded-md border border-input bg-transparent px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {LENGTH_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Aspect Ratio + CTA */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Aspect Ratio</Label>
+                  <select
+                    value={ffAspect}
+                    onChange={e => setFfAspect(e.target.value)}
+                    className="w-full h-8 rounded-md border border-input bg-transparent px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {ASPECT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Call to Action</Label>
+                  <Input
+                    value={ffCta}
+                    onChange={e => setFfCta(e.target.value)}
+                    placeholder="e.g. Book your free demo"
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Brand Style */}
+              <div className="space-y-1">
+                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Brand Style</Label>
+                <Input
+                  value={ffBrandStyle}
+                  onChange={e => setFfBrandStyle(e.target.value)}
+                  placeholder="e.g. Blue WeeBee branding, cinematic, high-trust, professional"
+                  className="h-8 text-xs"
+                />
+              </div>
+
+              {/* Voiceover + Provider */}
+              <div className="grid grid-cols-2 gap-3 items-start">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Voiceover</Label>
+                  <button
+                    onClick={() => setFfVoiceover(v => !v)}
+                    className={cn(
+                      "flex items-center gap-2 h-8 px-3 rounded-md border text-xs font-medium transition-all w-full",
+                      ffVoiceover
+                        ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
+                        : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+                    )}
+                  >
+                    <div className={cn(
+                      "h-3 w-3 rounded-full border-2 flex items-center justify-center transition-all",
+                      ffVoiceover ? "border-sky-400 bg-sky-400" : "border-muted-foreground/40",
+                    )}>
+                      {ffVoiceover && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                    </div>
+                    {ffVoiceover ? "Voiceover on" : "Voiceover off"}
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">AI Video Provider</Label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {FREEFORM_PROVIDERS.map(p => {
+                      const disabled = p.note === "Coming soon";
+                      const active = ffProvider === p.value;
+                      return (
+                        <button
+                          key={p.value}
+                          onClick={() => !disabled && setFfProvider(p.value)}
+                          disabled={disabled}
+                          className={cn(
+                            "flex flex-col items-start px-2.5 py-1.5 rounded-lg border text-left transition-all",
+                            disabled ? "opacity-35 cursor-not-allowed border-white/[0.04]"
+                            : active
+                              ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
+                              : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground hover:border-white/[0.12]",
+                          )}
+                        >
+                          <span className="text-[10px] font-semibold leading-tight">{p.label}</span>
+                          <span className="text-[9px] opacity-60">{p.note}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Voice selector (if voiceover on) */}
+              {ffVoiceover && voices.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold flex items-center gap-1.5">
+                    <Mic className="h-3 w-3 text-sky-400" />
+                    Voice
+                    {voiceName && <span className="ml-auto text-sky-400 font-medium normal-case tracking-normal">{voiceName}</span>}
+                  </p>
+                  <div className="grid grid-cols-3 gap-1.5 max-h-28 overflow-y-auto pr-1">
                     {voices.map(v => (
                       <button
                         key={v.id}
-                        onClick={() => {
-                          setVoiceId(v.id);
-                          setVoiceName(v.name);
-                          saveStoredVoice(v.id, v.name);
-                        }}
+                        onClick={() => { setVoiceId(v.id); setVoiceName(v.name); saveStoredVoice(v.id, v.name); }}
                         className={cn(
                           "text-left px-2.5 py-1.5 rounded-lg border text-xs transition-all",
                           voiceId === v.id
@@ -813,99 +1222,28 @@ export function GrowthMindVideoStudio() {
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Generate button — Free-Form */}
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handleGenerateFreeForm}
+                  disabled={generating || !ffPrompt.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {generating
+                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    : <Sparkles className="mr-2 h-4 w-4" />}
+                  {generating ? "Optimising & Generating…" : "Generate Ad Pipeline"}
+                </Button>
+                {generating && (
+                  <StepIndicator step={step} currentStep={step} qualityMode="premium" />
                 )}
               </div>
-            )}
+            </>)}
 
-            {/* Video type picker */}
-            <div className="space-y-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">Video Type</p>
-              {VIDEO_TYPE_CATEGORIES.map(cat => (
-                <div key={cat.label} className="space-y-1.5">
-                  <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40 font-semibold px-0.5">{cat.label}</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {cat.types.map(t => {
-                      const active = videoType === t;
-                      return (
-                        <button
-                          key={t}
-                          onClick={() => setVideoType(t)}
-                          className={cn(
-                            "rounded-lg border px-2.5 py-1 text-xs font-medium transition-all",
-                            active
-                              ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
-                              : "border-white/[0.06] text-muted-foreground/70 hover:border-white/[0.12] hover:text-foreground",
-                          )}
-                        >
-                          {VIDEO_TYPE_LABELS[t]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Brief fields */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Target Audience</Label>
-                <Input
-                  value={targetAudience}
-                  onChange={e => setTargetAudience(e.target.value)}
-                  placeholder="e.g. small business owners"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Offer / Product</Label>
-                <Input
-                  value={offer}
-                  onChange={e => setOffer(e.target.value)}
-                  placeholder="e.g. AI receptionist software"
-                  className="h-8 text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Tone of Voice</Label>
-                <select
-                  value={tone}
-                  onChange={e => setTone(e.target.value)}
-                  className="w-full h-8 rounded-md border border-input bg-transparent px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  {TONE_OPTIONS.map(o => <option key={o} value={o.toLowerCase()}>{o}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Call to Action</Label>
-                <Input
-                  value={cta}
-                  onChange={e => setCta(e.target.value)}
-                  placeholder="e.g. Book a free demo"
-                  className="h-8 text-xs"
-                />
-              </div>
-            </div>
-
-            {/* Generate button */}
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={handleGenerate}
-                disabled={generating}
-                className="bg-violet-600 hover:bg-violet-700 text-white"
-              >
-                {generating
-                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  : <Sparkles className="mr-2 h-4 w-4" />}
-                {generating ? "Generating…" : "Generate Video"}
-              </Button>
-
-              {generating && (
-                <StepIndicator step={step} currentStep={step} qualityMode={qualityMode} />
-              )}
-            </div>
-
-            {/* Error */}
+            {/* Error — shared */}
             {step === "error" && error && (
               <div className="flex items-start gap-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.05] px-4 py-3">
                 <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
@@ -930,7 +1268,61 @@ export function GrowthMindVideoStudio() {
                 </div>
               </div>
 
-              {lastResult.strategyBrief && (
+              {/* Free-form only: marketing angle + hook */}
+              {lastResult.marketingAngle && (
+                <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-4 space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 font-semibold flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3" />Marketing Angle
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{lastResult.marketingAngle}</p>
+                  {lastResult.hook && (
+                    <>
+                      <p className="text-[10px] uppercase tracking-wider text-emerald-400/70 font-semibold mt-1">Hook (first 3s)</p>
+                      <p className="text-xs font-medium text-emerald-300/90 leading-relaxed">"{lastResult.hook}"</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Quality checks (free-form mode) */}
+              {lastResult.qualityChecks && lastResult.qualityChecks.length > 0 && (
+                <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-semibold flex items-center gap-1.5">
+                    <ShieldCheck className="h-3 w-3 text-violet-400" />
+                    Ad Quality Checks
+                    {lastResult.allChecksPassed
+                      ? <span className="ml-auto text-emerald-400 font-medium">All passed ✓</span>
+                      : <span className="ml-auto text-amber-400 font-medium">{lastResult.qualityChecks.filter(c => !c.passed).length} auto-fixed</span>
+                    }
+                  </p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {lastResult.qualityChecks.map((c, i) => (
+                      <div key={i} className={cn(
+                        "flex items-start gap-1.5 rounded-lg px-2 py-1.5 text-[10px]",
+                        c.passed ? "bg-emerald-500/[0.06] text-emerald-400/80" : "bg-amber-500/[0.06] text-amber-400/80",
+                      )}>
+                        {c.passed
+                          ? <Check className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                          : <XCircle className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                        }
+                        <span className="leading-tight">{c.rule}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Optimised Veo prompt */}
+              {lastResult.optimisedPrompt && (
+                <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-4 space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wider text-violet-400/70 font-semibold">Optimised Veo Prompt</p>
+                  <p className="text-[11px] text-muted-foreground/80 leading-relaxed font-mono break-words">
+                    {lastResult.optimisedPrompt}
+                  </p>
+                </div>
+              )}
+
+              {lastResult.strategyBrief && !lastResult.marketingAngle && (
                 <div className="rounded-xl border border-sky-500/15 bg-sky-500/[0.04] p-4">
                   <p className="text-[10px] uppercase tracking-wider text-sky-400/70 mb-1.5 font-semibold">Strategy Brief</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">{lastResult.strategyBrief}</p>
@@ -1080,9 +1472,11 @@ export function GrowthMindVideoStudio() {
             <p className="text-[10px] font-semibold text-amber-400/80 flex items-center gap-1.5">
               <BarChart3 className="h-3 w-3" />API Keys Required
             </p>
-            <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-              Premium video needs <code className="text-amber-300/70">GOOGLE_CLOUD_PROJECT</code> + <code className="text-amber-300/70">GOOGLE_CLOUD_ACCESS_TOKEN</code> (Veo 3) or <code className="text-amber-300/70">RUNWAY_API_KEY</code>. Voiceover needs <code className="text-amber-300/70">ELEVENLABS_API_KEY</code>.
-            </p>
+            <div className="text-[10px] text-muted-foreground/60 leading-relaxed space-y-1">
+              <p><span className="text-amber-300/80 font-medium">Veo 3 (recommended):</span> Add <code className="text-amber-300/70">GEMINI_API_KEY</code> in Settings → Providers → Video → Google Veo 3.</p>
+              <p><span className="text-amber-300/80 font-medium">Veo 3 (legacy):</span> <code className="text-amber-300/70">GCP Project ID</code> + <code className="text-amber-300/70">OAuth Access Token</code>.</p>
+              <p><span className="text-amber-300/80 font-medium">Runway:</span> <code className="text-amber-300/70">RUNWAY_API_KEY</code>. Voiceover: <code className="text-amber-300/70">ELEVENLABS_API_KEY</code>.</p>
+            </div>
           </div>
         </aside>
       </div>

@@ -1,0 +1,231 @@
+FIX VEO VIDEO STUDIO PRODUCTION READINESS
+
+IMPORTANT
+
+Do not rebuild Video Studio.
+
+Do not modify Retell, HyperStream, VoxStream, Builder, CRM, WhatsApp or HexMail.
+
+Fix the existing Veo implementation only.
+
+OBJECTIVE
+
+Upgrade Veo from conditional/basic working state to production-ready agency-grade ad creation.
+
+CURRENT AUDIT FINDINGS TO FIX
+
+1. OAuth token expires after around 1 hour.
+2. retryVideoJob passes empty credentials.
+3. pollVideoJob reads credentials from the wrong location.
+4. pg_cron production trigger is missing.
+5. Veo output is not copied to permanent storage.
+6. Content Studio cannot send prompts to Video Studio.
+7. Campaign Factory cannot generate linked Veo ads.
+8. Only storyboard scene 1 is sent to Veo.
+9. HiveMind video reporting is too shallow.
+10. Duplicate video:google_veo credential config exists.
+
+====================================================
+
+FIX 1 — CREDENTIALS
+
+Standardise Veo credentials in provider_settings.
+
+Use:
+
+provider_category = video
+provider_name = google_veo
+
+credentials:
+
+gcp_project_id
+gcp_location
+access_token
+refresh_token
+client_id
+client_secret
+
+Add refresh-token support.
+
+If token expires, refresh automatically server-side.
+
+Never expose credentials to frontend.
+
+====================================================
+
+FIX 2 — RETRY BUG
+
+Fix retryVideoJob so it loads workspace Veo credentials from provider_settings.
+
+Do not pass empty credentials.
+
+Retry must submit a new Veo job correctly.
+
+====================================================
+
+FIX 3 — POLLING BUG
+
+Fix pollVideoJob so UI refresh and background polling both read credentials from the same provider_settings path.
+
+Remove workspace_settings credential fallback unless intentionally supported.
+
+====================================================
+
+FIX 4 — PRODUCTION POLLING
+
+Add migration or documented setup for pg_cron:
+
+POST /api/public/video-job-poller
+
+Ensure production polling works automatically.
+
+Add admin/system health indicator:
+
+Video Poller Active / Not Active
+
+====================================================
+
+FIX 5 — PERMANENT VIDEO STORAGE
+
+When Veo completes:
+
+Download/copy the generated video from the temporary GCS URI.
+
+Store permanently in Supabase Storage.
+
+Save permanent public or signed URL into growthmind_video_assets.video_url.
+
+Also store thumbnail if available.
+
+Existing videos must not depend on expired OAuth tokens.
+
+====================================================
+
+FIX 6 — FULL STORYBOARD TO VEO
+
+Do not send only storyboard[0].visual.
+
+Create a full Veo prompt from all storyboard scenes.
+
+Include:
+
+Scene order
+Visual description
+Camera direction
+Lighting
+Mood
+Brand style
+On-screen text
+CTA
+Duration
+Platform
+Aspect ratio
+
+====================================================
+
+FIX 7 — CONTENT STUDIO BRIDGE
+
+Add button in GrowthMind Content Studio:
+
+Create Video From This Content
+
+This should send:
+
+content asset
+campaign goal
+audience
+offer
+CTA
+brand style
+
+to Video Studio as a draft video prompt.
+
+====================================================
+
+FIX 8 — CAMPAIGN FACTORY BRIDGE
+
+Allow campaign drafts to create linked video assets for:
+
+Meta video ad
+TikTok ad
+LinkedIn video
+YouTube short
+Instagram reel
+
+Campaign Factory should create the campaign concept.
+
+Video Studio should generate the video.
+
+Do not auto-publish.
+
+====================================================
+
+FIX 9 — HIVEMIND REPORTING
+
+Upgrade HiveMind video reporting.
+
+Include:
+
+videos created
+videos pending
+videos failed
+scheduled videos
+provider used
+quality mode
+estimated cost
+failed jobs needing attention
+
+HiveMind remains the only speaking assistant.
+
+====================================================
+
+FIX 10 — SETTINGS CLEANUP
+
+Remove duplicate video:google_veo credential field definition.
+
+Keep one clean provider settings config.
+
+====================================================
+
+AGENCY-GRADE AD QUALITY
+
+Before generation, GrowthMind must optimise every video ad for:
+
+Clear hook in first 3 seconds
+Single target audience
+Clear pain point
+Clear offer
+Strong visual story
+Strong CTA
+Brand colour alignment
+Platform-specific format
+No overloaded text
+No generic content
+
+====================================================
+
+SUCCESS CRITERIA
+
+Veo can generate real videos.
+
+Videos persist permanently.
+
+Retry works.
+
+Refresh works.
+
+Production polling works.
+
+Full storyboards are used.
+
+Content Studio can trigger videos.
+
+Campaign Factory can trigger videos.
+
+HiveMind can report video status and failures.
+
+Video Studio reaches agency-grade ad readiness.
+
+Generate implementation plan first.
+
+Then implement safely.

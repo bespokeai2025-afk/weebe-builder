@@ -5,6 +5,8 @@ import { routeGenerate } from "./model-router.server";
 import {
   parseJobSentinel, isJobPending,
 } from "./video-job-poller";
+import { optimiseVideoPrompt } from "./video-prompt-engine.server";
+import { VeoProvider, resolveVeoConfig } from "@/lib/video/providers/veo.provider";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -535,6 +537,258 @@ export const generateVideo = createServerFn({ method: "POST" })
       qualityMode,
       costEstimate: totalCost,
       strategyBrief: strategyResult.text,
+    };
+  });
+
+// ── Generate video from free-form prompt ──────────────────────────────────────
+
+const generateVideoFromPromptSchema = z.object({
+  userPrompt:        z.string().min(5),
+  businessGoal:      z.string().default(""),
+  targetAudience:    z.string().default(""),
+  platform:          z.enum(["meta", "tiktok", "linkedin", "youtube", "instagram", "general"]).default("meta"),
+  videoLength:       z.number().int().min(5).max(120).default(20),
+  aspectRatio:       z.enum(["16:9", "9:16", "1:1", "4:5"]).default("16:9"),
+  brandStyle:        z.string().default(""),
+  cta:               z.string().default(""),
+  voiceoverNeeded:   z.boolean().default(true),
+  preferredProvider: z.enum(["veo3", "runway_gen4", "kling", "pika"]).default("veo3"),
+  voiceId:           z.string().default("21m00Tcm4TlvDq8ikWAM"),
+});
+
+export const generateVideoFromPrompt = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => generateVideoFromPromptSchema.parse(input))
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const settings    = (context as any).settings ?? {};
+    if (!workspaceId) throw new Error("No workspace");
+
+    // ── Pull business DNA context ────────────────────────────────────────────
+    const [wsRes, seoRes, compRes, playbookRes, kbRes] = await Promise.all([
+      sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle(),
+      sb.from("growthmind_seo_sites").select("keywords").eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      sb.from("growthmind_competitors").select("name, positioning")
+        .eq("workspace_id", workspaceId).limit(10),
+      sb.from("growthmind_playbooks").select("industry").eq("workspace_id", workspaceId)
+        .eq("status", "active").maybeSingle(),
+      sb.from("knowledge_bases").select("name, description").eq("workspace_id", workspaceId)
+        .limit(5).catch(() => ({ data: [] })),
+    ]);
+
+    const ws          = wsRes.data;
+    const wsSettings  = ws?.settings ?? {};
+    const companyName = ws?.name ?? wsSettings.company_name ?? "";
+    const industry    = wsSettings.industry ?? "";
+
+    const keywords = ((seoRes.data?.keywords ?? []) as any[])
+      .slice(0, 10).map((k: any) => `"${k.term}"`).join(", ") || "";
+
+    const competitors = ((compRes.data ?? []) as any[])
+      .map((c: any) => `${c.name}${c.positioning ? ` — ${c.positioning}` : ""}`)
+      .join("; ") || "";
+
+    const playbook  = playbookRes.data?.industry ?? "";
+    const kbSummary = ((kbRes.data ?? []) as any[])
+      .map((k: any) => `${k.name}${k.description ? `: ${k.description}` : ""}`).join("; ") || "";
+
+    // ── Run prompt optimisation engine ───────────────────────────────────────
+    const engineResult = await optimiseVideoPrompt({
+      userPrompt:     data.userPrompt,
+      businessGoal:   data.businessGoal,
+      targetAudience: data.targetAudience,
+      platform:       data.platform,
+      videoLength:    data.videoLength,
+      aspectRatio:    data.aspectRatio,
+      brandStyle:     data.brandStyle,
+      cta:            data.cta,
+      voiceoverNeeded: data.voiceoverNeeded,
+      companyName,
+      industry,
+      keywords,
+      competitors,
+      playbook,
+      kbSummary,
+      settings,
+      workspaceId,
+      sb,
+    });
+
+    // ── Resolve video provider credentials ───────────────────────────────────
+    const veoSettingsRes = await sb.from("provider_settings")
+      .select("credentials, status")
+      .eq("workspace_id", workspaceId)
+      .eq("provider_category", "video")
+      .eq("provider_name", "google_veo")
+      .maybeSingle()
+      .catch(() => ({ data: null }));
+
+    const runwaySettingsRes = await sb.from("provider_settings")
+      .select("credentials, status")
+      .eq("workspace_id", workspaceId)
+      .eq("provider_category", "video")
+      .eq("provider_name", "runway")
+      .maybeSingle()
+      .catch(() => ({ data: null }));
+
+    const veoCreds   = (veoSettingsRes.data?.credentials ?? {}) as Record<string, string>;
+    const runwayCreds = (runwaySettingsRes.data?.credentials ?? {}) as Record<string, string>;
+    const runwayKey  = runwayCreds.apiKey?.trim() || process.env.RUNWAY_API_KEY || settings.runway_api_key || "";
+
+    // ── Step: ElevenLabs voiceover (if needed) ───────────────────────────────
+    let audioUrl: string | null = null;
+    if (data.voiceoverNeeded) {
+      const elKey = process.env.ELEVENLABS_API_KEY ?? settings.elevenlabs_api_key;
+      if (elKey) {
+        const voiceText = engineResult.voiceoverScript || engineResult.script;
+        audioUrl = await generateVoiceover(voiceText, data.voiceId, elKey);
+      }
+    }
+
+    // ── Step: Video generation ───────────────────────────────────────────────
+    // Use the per-scene veoPrompts joined together for a richer generation prompt;
+    // fall back to the master optimisedPrompt.
+    const scenePrompts = engineResult.storyboard
+      .map(s => s.veoPrompt).filter(Boolean).join(" | ");
+    const masterPrompt = scenePrompts || engineResult.optimisedPrompt;
+
+    let videoUrl: string | null = null;
+    let provider: VideoProvider | null = null;
+
+    if (data.preferredProvider === "runway_gen4" && runwayKey) {
+      const runResult = await generateRunwayVideo(masterPrompt, runwayKey);
+      if (runResult) { videoUrl = `[runway_job:${runResult}]`; provider = "runway_gen4"; }
+    }
+
+    if (!videoUrl) {
+      // Try Gemini API key path first, then fall back to OAuth token path
+      const veoCfg = resolveVeoConfig(veoCreds);
+      const veoProvider = new VeoProvider(veoCfg);
+
+      if (veoProvider.authMode) {
+        try {
+          const veoResult = await veoProvider.generateVideo({
+            prompt:          masterPrompt,
+            aspectRatio:     data.aspectRatio,
+            durationSeconds: Math.min(data.videoLength, 8),
+          });
+          videoUrl = `[veo3_job:${veoResult.jobId}]`;
+          provider = "veo3";
+        } catch {
+          // Fall back to legacy adapter
+          const veoResult = await generateVeo3Video(masterPrompt, veoCreds);
+          if (veoResult) { videoUrl = `[veo3_job:${veoResult}]`; provider = "veo3"; }
+        }
+      } else {
+        const veoResult = await generateVeo3Video(masterPrompt, veoCreds);
+        if (veoResult) { videoUrl = `[veo3_job:${veoResult}]`; provider = "veo3"; }
+      }
+    }
+
+    if (!videoUrl && runwayKey && data.preferredProvider !== "runway_gen4") {
+      const runResult = await generateRunwayVideo(masterPrompt, runwayKey);
+      if (runResult) { videoUrl = `[runway_job:${runResult}]`; provider = "runway_gen4"; }
+    }
+
+    // ── Cost estimate ────────────────────────────────────────────────────────
+    const aiTextCost = engineResult.costUsd ?? 0;
+    const voiceCost  = data.voiceoverNeeded ? 0.30 : 0;
+    const videoCost  = provider === "veo3" ? 2.40 : provider === "runway_gen4" ? 1.70 : 0;
+    const totalCost  = Math.round((aiTextCost + voiceCost + videoCost) * 10000) / 10000;
+
+    // Map OptimisedScene → StoryboardScene for DB storage
+    const storyboard: StoryboardScene[] = engineResult.storyboard.map(s => ({
+      scene:        s.scene,
+      visual:       s.visual,
+      voiceover:    s.voiceover,
+      onScreenText: s.onScreenText,
+      duration:     s.duration,
+      cta:          s.cta,
+    }));
+
+    // ── Save to growthmind_video_assets ──────────────────────────────────────
+    // Map platform to nearest VideoType
+    const platformToType: Record<string, VideoType> = {
+      meta:      "meta_video_ad",
+      tiktok:    "tiktok_video",
+      linkedin:  "linkedin_video",
+      youtube:   "youtube_ad",
+      instagram: "meta_video_ad",
+      general:   "explainer_video",
+    };
+    const videoType = platformToType[data.platform] ?? "explainer_video";
+
+    const { data: inserted, error: insertErr } = await sb
+      .from("growthmind_video_assets")
+      .insert({
+        workspace_id:     workspaceId,
+        title:            engineResult.title,
+        video_type:       videoType,
+        provider:         provider ?? null,
+        script:           engineResult.script,
+        storyboard,
+        video_url:        videoUrl  ?? null,
+        audio_url:        audioUrl  ?? null,
+        voice_id:         data.voiceId ?? null,
+        quality_mode:     "premium",
+        cost_estimate:    totalCost,
+        original_prompt:  data.userPrompt,
+        optimized_prompt: engineResult.optimisedPrompt,
+        generation_mode:  "freeform",
+        platform:         data.platform,
+        aspect_ratio:     data.aspectRatio,
+        quality_checks:   JSON.stringify(engineResult.qualityChecks),
+        created_at:       new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (insertErr) {
+      const isTableMissing =
+        insertErr.code === "PGRST205" ||
+        (insertErr.message?.includes("relation") && insertErr.message?.includes("does not exist"));
+      if (isTableMissing) {
+        throw new Error(
+          "Video Studio database migration not applied yet. " +
+          "Run VIDEO_STUDIO_FREEFORM_MIGRATION.sql in Supabase SQL Editor.",
+        );
+      }
+      throw new Error(insertErr.message);
+    }
+
+    sb.from("growthmind_generation_logs").insert({
+      workspace_id:       workspaceId,
+      asset_id:           null,
+      task_type:          `video_freeform_${data.platform}`,
+      provider:           "claude",
+      model:              "claude-sonnet-4-5",
+      input_tokens:       0,
+      output_tokens:      0,
+      estimated_cost_usd: totalCost,
+      status:             "success",
+      fallback_from:      null,
+      created_at:         new Date().toISOString(),
+    }).then(() => {}).catch(() => {});
+
+    return {
+      assetId:          inserted.id as string,
+      title:            engineResult.title,
+      script:           engineResult.script,
+      storyboard,
+      audioUrl,
+      videoUrl,
+      provider,
+      qualityMode:      "premium" as QualityMode,
+      costEstimate:     totalCost,
+      marketingAngle:   engineResult.marketingAngle,
+      hook:             engineResult.hook,
+      cta:              engineResult.cta,
+      optimisedPrompt:  engineResult.optimisedPrompt,
+      qualityChecks:    engineResult.qualityChecks,
+      allChecksPassed:  engineResult.allChecksPassed,
+      strategyBrief:    engineResult.marketingAngle,
     };
   });
 
