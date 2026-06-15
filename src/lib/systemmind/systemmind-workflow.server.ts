@@ -457,6 +457,105 @@ export type RepairIssue = {
   rollbackPlan: string;
 };
 
+export type WorkflowFixDiff = {
+  removedNodes: Array<{ id: string; type?: string; label?: string }>;
+  addedNodes:   Array<{ id: string; type?: string; label?: string }>;
+  removedEdges: Array<{ id: string; source: string; target: string }>;
+  addedEdges:   Array<{ id: string; source: string; target: string }>;
+};
+
+const AUTO_FIXABLE_TYPES = new Set(["disconnected_node", "broken_edge_handle"]);
+
+export function canAutoFix(issue: RepairIssue): boolean {
+  return (
+    (issue.riskLevel === "low" || issue.riskLevel === "medium") &&
+    AUTO_FIXABLE_TYPES.has(issue.type)
+  );
+}
+
+export async function applyWorkflowFix(
+  workspaceId: string,
+  agentId: string,
+  issue: RepairIssue,
+  dryRun: boolean,
+): Promise<{ diff: WorkflowFixDiff; applied: boolean }> {
+  const sb = supabaseAdmin as any;
+
+  const { data: agent, error } = await sb
+    .from("agents")
+    .select("id, name, flow_data")
+    .eq("id", agentId)
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  if (error || !agent) throw new Error("Agent not found or access denied.");
+
+  if (!canAutoFix(issue)) {
+    throw new Error(
+      `Issue type "${issue.type}" is ${issue.riskLevel}-risk and cannot be auto-fixed. Use the Builder for manual repair.`,
+    );
+  }
+
+  const flowData: { nodes: FlowNode[]; edges: FlowEdge[] } = JSON.parse(
+    JSON.stringify(agent.flow_data ?? { nodes: [], edges: [] }),
+  );
+  const nodes: FlowNode[] = flowData.nodes ?? [];
+  const edges: FlowEdge[] = flowData.edges ?? [];
+
+  const diff: WorkflowFixDiff = {
+    removedNodes: [],
+    addedNodes: [],
+    removedEdges: [],
+    addedEdges: [],
+  };
+
+  if (issue.type === "disconnected_node" && issue.nodeId) {
+    const nodeIdx = nodes.findIndex((n) => n.id === issue.nodeId);
+    if (nodeIdx !== -1) {
+      const n = nodes[nodeIdx];
+      diff.removedNodes.push({
+        id: n.id,
+        type: n.type,
+        label: (n.data as any)?.name ?? (n.data as any)?.label ?? n.id,
+      });
+      nodes.splice(nodeIdx, 1);
+    }
+    const staleEdges = edges.filter(
+      (e) => e.source === issue.nodeId || e.target === issue.nodeId,
+    );
+    for (const e of staleEdges) {
+      diff.removedEdges.push({ id: e.id, source: e.source, target: e.target });
+    }
+    flowData.nodes = nodes;
+    flowData.edges = edges.filter(
+      (e) => e.source !== issue.nodeId && e.target !== issue.nodeId,
+    );
+  } else if (issue.type === "broken_edge_handle" && issue.edgeId) {
+    const edgeIdx = edges.findIndex((e) => e.id === issue.edgeId);
+    if (edgeIdx !== -1) {
+      const e = edges[edgeIdx];
+      diff.removedEdges.push({ id: e.id, source: e.source, target: e.target });
+      edges.splice(edgeIdx, 1);
+    }
+    flowData.edges = edges;
+  } else {
+    throw new Error(
+      `Cannot apply fix for "${issue.type}" — required identifiers (nodeId/edgeId) are missing.`,
+    );
+  }
+
+  if (!dryRun) {
+    const { error: updateError } = await sb
+      .from("agents")
+      .update({ flow_data: flowData })
+      .eq("id", agentId)
+      .eq("workspace_id", workspaceId);
+    if (updateError) throw new Error(`Failed to save fix: ${updateError.message}`);
+  }
+
+  return { diff, applied: !dryRun };
+}
+
 export async function analyzeWorkflowRepair(
   workspaceId: string,
   agentId: string,

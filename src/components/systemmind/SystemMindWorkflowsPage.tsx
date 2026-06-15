@@ -9,6 +9,7 @@ import {
   Bot, Webhook, BookOpen, Users, ArrowRight, Copy,
   BarChart2, Zap, ArrowLeftRight, TrendingUp,
   Phone, FileText, MessageCircle, CalendarClock,
+  Wand2, X, MinusCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,8 +38,17 @@ import {
   compareWorkflows,
   generateFromExample,
   getWorkflowSuccessRates,
+  previewAndApplyWorkflowFix,
 } from "@/lib/systemmind/systemmind-workflow.functions";
-import type { RepairIssue } from "@/lib/systemmind/systemmind-workflow.server";
+import type { RepairIssue, WorkflowFixDiff } from "@/lib/systemmind/systemmind-workflow.server";
+
+const AUTO_FIXABLE_TYPES = new Set(["disconnected_node", "broken_edge_handle"]);
+function issueCanAutoFix(issue: RepairIssue): boolean {
+  return (
+    (issue.riskLevel === "low" || issue.riskLevel === "medium") &&
+    AUTO_FIXABLE_TYPES.has(issue.type)
+  );
+}
 
 const TABS = [
   "Library",
@@ -1053,16 +1063,109 @@ function PatternsTab({ onGenerateFromPattern }: { onGenerateFromPattern: (descri
   );
 }
 
+// ── Diff preview panel ────────────────────────────────────────────────────────
+function DiffPanel({
+  diff,
+  onConfirm,
+  onCancel,
+  confirming,
+}: {
+  diff: WorkflowFixDiff;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirming: boolean;
+}) {
+  const hasChanges =
+    diff.removedNodes.length > 0 ||
+    diff.removedEdges.length > 0 ||
+    diff.addedNodes.length > 0 ||
+    diff.addedEdges.length > 0;
+
+  return (
+    <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.05] p-4 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
+          <Wand2 className="h-3.5 w-3.5" /> Auto-fix preview
+        </p>
+        <button
+          onClick={onCancel}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {!hasChanges && (
+        <p className="text-xs text-muted-foreground">No changes would be made — the issue may have already been resolved.</p>
+      )}
+
+      {diff.removedNodes.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide font-semibold">Nodes to remove</p>
+          {diff.removedNodes.map((n) => (
+            <div key={n.id} className="flex items-center gap-2 rounded-md bg-red-500/[0.08] border border-red-500/20 px-2.5 py-1.5">
+              <MinusCircle className="h-3 w-3 text-red-400 shrink-0" />
+              <span className="text-xs text-red-300 font-mono">{n.label ?? n.id}</span>
+              {n.type && <span className="text-[10px] text-muted-foreground ml-auto">{n.type}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {diff.removedEdges.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide font-semibold">Edges to remove</p>
+          {diff.removedEdges.map((e) => (
+            <div key={e.id} className="flex items-center gap-2 rounded-md bg-red-500/[0.08] border border-red-500/20 px-2.5 py-1.5">
+              <MinusCircle className="h-3 w-3 text-red-400 shrink-0" />
+              <span className="text-xs text-red-300 font-mono truncate">
+                {e.source} <ArrowRight className="h-2.5 w-2.5 inline" /> {e.target}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-[10px] text-muted-foreground/60">
+        This change writes directly to the agent's flow data. Re-run Inspect after applying to confirm the issue is resolved.
+      </p>
+
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          className="text-xs gap-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30"
+          onClick={onConfirm}
+          disabled={confirming || !hasChanges}
+        >
+          {confirming ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+          Confirm fix
+        </Button>
+        <Button size="sm" variant="ghost" className="text-xs" onClick={onCancel} disabled={confirming}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Inspect & Repair tab ──────────────────────────────────────────────────────
 function RepairTab() {
   const [agentId, setAgentId]       = useState("");
   const [inspecting, setInspecting] = useState(false);
   const [result, setResult]         = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [diffState, setDiffState]   = useState<{
+    issueIdx: number;
+    issue: RepairIssue;
+    diff: WorkflowFixDiff;
+  } | null>(null);
+  const [previewingIdx, setPreviewingIdx] = useState<number | null>(null);
+  const [confirmingIdx, setConfirmingIdx] = useState<number | null>(null);
 
-  const agentListFn = useServerFn(getSystemMindAgentList);
-  const inspectFn   = useServerFn(inspectWorkflowRepair);
-  const submitFn    = useServerFn(submitRepairPlanToHiveMind);
+  const agentListFn  = useServerFn(getSystemMindAgentList);
+  const inspectFn    = useServerFn(inspectWorkflowRepair);
+  const submitFn     = useServerFn(submitRepairPlanToHiveMind);
+  const fixFn        = useServerFn(previewAndApplyWorkflowFix);
 
   const { data: agents } = useQuery({
     queryKey: ["sm-agent-list"],
@@ -1074,6 +1177,7 @@ function RepairTab() {
     if (!agentId) { toast.error("Select an agent"); return; }
     setInspecting(true);
     setResult(null);
+    setDiffState(null);
     try {
       const res: any = await inspectFn({ data: { agentId } });
       setResult(res);
@@ -1091,10 +1195,38 @@ function RepairTab() {
     finally { setSubmitting(false); }
   }
 
+  async function handlePreviewFix(issue: RepairIssue, issueIdx: number) {
+    setPreviewingIdx(issueIdx);
+    setDiffState(null);
+    try {
+      const res: any = await fixFn({ data: { agentId, issue, dryRun: true } });
+      setDiffState({ issueIdx, issue, diff: res.diff });
+    } catch (e: any) { toast.error(e?.message ?? "Preview failed"); }
+    finally { setPreviewingIdx(null); }
+  }
+
+  async function handleConfirmFix() {
+    if (!diffState) return;
+    setConfirmingIdx(diffState.issueIdx);
+    try {
+      await fixFn({ data: { agentId, issue: diffState.issue, dryRun: false } });
+      toast.success("Fix applied — re-running inspection…");
+      setDiffState(null);
+      setResult(null);
+      setInspecting(true);
+      try {
+        const res: any = await inspectFn({ data: { agentId } });
+        setResult(res);
+      } catch { /* graceful */ }
+      finally { setInspecting(false); }
+    } catch (e: any) { toast.error(e?.message ?? "Apply failed"); }
+    finally { setConfirmingIdx(null); }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Select value={agentId} onValueChange={setAgentId}>
+        <Select value={agentId} onValueChange={(v) => { setAgentId(v); setResult(null); setDiffState(null); }}>
           <SelectTrigger className="h-8 text-xs flex-1">
             <SelectValue placeholder="Select an agent to inspect…" />
           </SelectTrigger>
@@ -1148,21 +1280,52 @@ function RepairTab() {
           {(result.issues as RepairIssue[]).length > 0 && (
             <div className="space-y-2">
               {(result.issues as RepairIssue[]).map((issue, i) => (
-                <div key={i} className={cn("rounded-xl border px-4 py-3 space-y-1", RISK_COLORS[issue.riskLevel] ?? RISK_COLORS.medium)}>
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                    <span className="text-xs font-semibold">{issue.problem}</span>
-                    <span className="ml-auto text-[10px] opacity-70">{issue.confidence}% confidence</span>
+                <div key={i} className="space-y-2">
+                  <div className={cn("rounded-xl border px-4 py-3 space-y-1", RISK_COLORS[issue.riskLevel] ?? RISK_COLORS.medium)}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span className="text-xs font-semibold flex-1 min-w-0">{issue.problem}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] opacity-70">{issue.confidence}% confidence</span>
+                        {issueCanAutoFix(issue) ? (
+                          <button
+                            onClick={() => handlePreviewFix(issue, i)}
+                            disabled={previewingIdx === i || confirmingIdx === i}
+                            className={cn(
+                              "flex items-center gap-1 text-[10px] font-semibold rounded px-1.5 py-0.5 border transition-colors",
+                              "bg-sky-500/20 border-sky-500/30 text-sky-300 hover:bg-sky-500/30",
+                              "disabled:opacity-50 disabled:cursor-not-allowed",
+                            )}
+                          >
+                            {previewingIdx === i
+                              ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              : <Wand2 className="h-2.5 w-2.5" />}
+                            Auto-fix
+                          </button>
+                        ) : (
+                          <span className="text-[10px] opacity-50 italic">Manual fix required</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs opacity-75 ml-5">{issue.impact}</p>
+                    <div className="ml-5 space-y-0.5">
+                      <p className="text-[10px] opacity-60 uppercase tracking-wide font-semibold">Fix</p>
+                      <p className="text-xs opacity-75">{issue.suggestedFix}</p>
+                    </div>
+                    <div className="ml-5 space-y-0.5">
+                      <p className="text-[10px] opacity-60 uppercase tracking-wide font-semibold">Rollback</p>
+                      <p className="text-xs opacity-75">{issue.rollbackPlan}</p>
+                    </div>
                   </div>
-                  <p className="text-xs opacity-75 ml-5">{issue.impact}</p>
-                  <div className="ml-5 space-y-0.5">
-                    <p className="text-[10px] opacity-60 uppercase tracking-wide font-semibold">Fix</p>
-                    <p className="text-xs opacity-75">{issue.suggestedFix}</p>
-                  </div>
-                  <div className="ml-5 space-y-0.5">
-                    <p className="text-[10px] opacity-60 uppercase tracking-wide font-semibold">Rollback</p>
-                    <p className="text-xs opacity-75">{issue.rollbackPlan}</p>
-                  </div>
+
+                  {diffState?.issueIdx === i && (
+                    <DiffPanel
+                      diff={diffState.diff}
+                      onConfirm={handleConfirmFix}
+                      onCancel={() => setDiffState(null)}
+                      confirming={confirmingIdx === i}
+                    />
+                  )}
                 </div>
               ))}
             </div>
@@ -1182,7 +1345,7 @@ function RepairTab() {
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] py-14 text-center">
           <Wrench className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Select an agent and click Inspect</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Runs 7 structural checks + AI repair analysis</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Runs 7 structural checks + AI repair analysis · low/medium issues can be auto-fixed</p>
         </div>
       )}
     </div>

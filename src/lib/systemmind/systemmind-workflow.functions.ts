@@ -303,6 +303,37 @@ export const getWorkflowSuccessRates = createServerFn({ method: "POST" })
     return getWorkflowSuccessRatesServer(workspaceId);
   });
 
+// ── Preview or apply a safe auto-fix to flow_data ─────────────────────────────
+export const previewAndApplyWorkflowFix = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z
+      .object({
+        agentId: z.string().uuid(),
+        issue: z.object({
+          type: z.string(),
+          nodeId: z.string().optional(),
+          edgeId: z.string().optional(),
+          problem: z.string(),
+          impact: z.string(),
+          suggestedFix: z.string(),
+          confidence: z.number(),
+          riskLevel: z.enum(["low", "medium", "high", "critical"]),
+          rollbackPlan: z.string(),
+        }),
+        dryRun: z.boolean(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const { applyWorkflowFix } = await import(
+      "@/lib/systemmind/systemmind-workflow.server"
+    );
+    return applyWorkflowFix(workspaceId, data.agentId, data.issue as any, data.dryRun);
+  });
+
 // ── Submit repair plan to HiveMind event log ──────────────────────────────────
 export const submitRepairPlanToHiveMind = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
