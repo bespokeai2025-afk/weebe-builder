@@ -1,0 +1,425 @@
+INSTALL GROWTHMIND BUSINESS DNA + REAL-TIME OPPORTUNITY ENGINE
+
+IMPORTANT
+
+Do not modify HiveMind voice functionality.
+
+Do not modify SystemMind.
+
+Do not modify Builder.
+
+Do not modify Retell.
+
+Do not modify HyperStream.
+
+Do not modify existing GrowthMind pages unless extending them safely.
+
+GrowthMind must continue reporting to HiveMind.
+
+HiveMind remains the only speaking assistant.
+
+OBJECTIVE
+
+Upgrade GrowthMind into a true AI CMO that understands the business, monitors connected marketing data, detects the highest-value growth opportunities in real time, and creates tailored marketing strategies.
+
+====================================================
+
+PART 1 — BUSINESS DNA
+
+Create a GrowthMind Business DNA system.
+
+Route:
+
+/growthmind/business-dna
+
+Store:
+
+Company Name
+Website
+Industry
+Products
+Services
+Pricing
+Offers
+Locations
+Ideal Customer Profiles
+Target Markets
+Unique Selling Points
+Competitors
+Revenue Goals
+Monthly Marketing Budget
+Main Growth Objective
+Sales Process
+Average Deal Value
+Profit Margin
+Best Customers
+Worst Customers
+Case Studies
+Brand Voice
+Compliance Notes
+
+Create database table:
+
+growthmind_business_dna
+
+All workspace scoped.
+
+GrowthMind must use this data in every:
+
+strategy
+recommendation
+content generation
+campaign plan
+forecast
+report
+
+====================================================
+
+PART 2 — DATA SOURCE MAP
+
+Create a GrowthMind Data Source Map.
+
+Route:
+
+/growthmind/data-sources
+
+Show connected and missing data sources.
+
+Categories:
+
+Website
+Google Analytics
+Google Search Console
+Google Ads
+Meta Ads
+LinkedIn Ads
+TikTok Ads
+Google Business Profile
+CRM
+Calls
+WhatsApp
+HexMail
+Calendar
+Reviews
+Competitors
+Content Calendar
+Growth Scheduler
+
+For each source show:
+
+Connected
+Not Connected
+Data Available
+Last Sync
+Used By GrowthMind
+Missing Setup Steps
+
+Do not implement every OAuth connection yet.
+
+Create the architecture and status layer first.
+
+====================================================
+
+PART 3 — REAL-TIME OPPORTUNITY ENGINE
+
+Create:
+
+src/lib/growthmind/opportunity-engine.server.ts
+
+GrowthMind must continuously analyse:
+
+CRM leads
+Pipeline stages
+Call outcomes
+Bookings
+HexMail campaigns
+WhatsApp campaigns
+Content calendar
+SEO keywords
+Website records
+Competitors
+Growth goals
+Business DNA
+Connected ad/analytics data when available
+
+Detect opportunity types:
+
+SEO Opportunity
+Paid Ads Opportunity
+Content Opportunity
+Funnel Opportunity
+Follow-Up Opportunity
+Referral Opportunity
+Reactivation Opportunity
+Conversion Opportunity
+Offer Opportunity
+Audience Opportunity
+Geographic Opportunity
+
+Each opportunity must include:
+
+title
+category
+evidence
+expected_impact
+confidence_score
+urgency
+recommended_action
+estimated_effort
+recommended_channel
+related_assets
+source_data
+
+Create database table:
+
+growthmind_opportunities
+
+All workspace scoped.
+
+====================================================
+
+PART 4 — TRENDING VALUE POINT ENGINE
+
+Create:
+
+src/lib/growthmind/trending-value-engine.server.ts
+
+Purpose:
+
+Identify the highest trending value point of the business.
+
+Example:
+
+For WeeBee, the engine may detect:
+
+AI Receptionist
+AI Lead Qualification
+WhatsApp Automation
+AI Follow-Up
+AI Business Operating System
+
+For other businesses, it should detect their most valuable current opportunity.
+
+Inputs:
+
+Business DNA
+SEO keywords
+CRM lead notes
+Call transcripts
+Website services
+Competitor notes
+Content performance
+Campaign performance
+Connected analytics
+Connected ad data
+Market trends if available
+
+Output:
+
+current_highest_value_point
+why_it_matters
+who_to_target
+best_channels
+recommended_offer
+recommended_campaign
+recommended_content
+recommended_follow_up
+confidence_score
+
+Create database table:
+
+growthmind_value_points
+
+All workspace scoped.
+
+====================================================
+
+PART 5 — STRATEGY BUILDER UPGRADE
+
+Upgrade:
+
+/growthmind/strategy
+
+GrowthMind strategy must be based on:
+
+Business DNA
+Current highest value point
+Connected platform data
+SEO keywords
+Competitors
+CRM performance
+Campaign performance
+Budget
+Goals
+
+Generate:
+
+30 Day Strategy
+60 Day Strategy
+90 Day Strategy
+
+Each strategy must include:
+
+Primary Growth Angle
+Target Audience
+Core Offer
+Channels
+Campaigns
+Content Plan
+SEO Plan
+Paid Ads Plan
+WhatsApp Plan
+Email Plan
+AI Calling Plan
+Follow-Up Plan
+KPIs
+Expected Outcomes
+Tasks
+
+Store in:
+
+growthmind_strategies
+
+====================================================
+
+PART 6 — CAMPAIGN FACTORY
+
+Create GrowthMind Campaign Factory.
+
+Route:
+
+/growthmind/campaign-factory
+
+Allow GrowthMind to generate campaign plans for:
+
+Google Ads
+Meta Ads
+LinkedIn Ads
+SEO Content
+WhatsApp Broadcast
+HexMail Sequence
+AI Calling Campaign
+Referral Campaign
+Reactivation Campaign
+Launch Campaign
+
+Campaigns should be generated from:
+
+Business DNA
+Highest Value Point
+Growth Strategy
+Audience
+Offer
+Budget
+Goal
+
+Do not auto-launch campaigns.
+
+Save as drafts.
+
+Send recommended campaign drafts to HiveMind for approval.
+
+====================================================
+
+PART 7 — CONTENT FACTORY INTEGRATION
+
+Upgrade Content Studio so generated content uses:
+
+Business DNA
+Current Value Point
+Growth Strategy
+SEO Keywords
+Competitors
+Playbooks
+Campaign Factory drafts
+
+Content must no longer be generic.
+
+Content must be tied to a specific:
+
+Goal
+Audience
+Offer
+Channel
+Value Point
+
+====================================================
+
+PART 8 — HIVEMIND INTEGRATION
+
+GrowthMind reports to HiveMind.
+
+Create or extend:
+
+getGrowthMindExecutiveSummary()
+
+Add:
+
+Business DNA completion score
+Connected marketing data sources
+Top 5 opportunities
+Current highest value point
+Recommended campaign
+Recommended content
+Marketing readiness score
+Forecasted impact
+
+HiveMind should be able to say:
+
+"GrowthMind has identified your highest-value opportunity as AI Receptionist for estate agents. It recommends a 30-day LinkedIn and Meta campaign with follow-up calls."
+
+====================================================
+
+PART 9 — APPROVAL FLOW
+
+GrowthMind must not launch campaigns directly.
+
+GrowthMind creates:
+
+Recommendations
+Campaign Drafts
+Content Plans
+Tasks
+
+HiveMind sends them to:
+
+Action Approval Centre
+
+User approves before execution.
+
+====================================================
+
+PART 10 — UI REQUIREMENTS
+
+Create dashboards showing:
+
+Business DNA Completion
+Data Source Coverage
+Current Highest Value Point
+Top Opportunities
+Recommended Campaigns
+Recommended Content
+Growth Tasks
+Forecasted Impact
+
+Use the existing GrowthMind visual language.
+
+====================================================
+
+SUCCESS CRITERIA
+
+GrowthMind can understand a business deeply.
+
+GrowthMind can identify the highest-value current marketing opportunity.
+
+GrowthMind can create tailored marketing strategies.
+
+GrowthMind can generate campaigns based on real business context.
+
+GrowthMind can report opportunities to HiveMind.
+
+HiveMind remains the only speaking executive.
+
+Generate implementation plan first.
+
+Then implement safely.

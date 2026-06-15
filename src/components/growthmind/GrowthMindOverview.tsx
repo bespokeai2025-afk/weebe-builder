@@ -14,6 +14,11 @@ import { computeGrowthScore } from "@/lib/growthmind/growthmind.score";
 import { generateGrowthRecommendations } from "@/lib/growthmind/growthmind.recommendations";
 import { getActivePlaybook, PLAYBOOKS } from "@/lib/growthmind/growthmind.playbooks";
 import { Button } from "@/components/ui/button";
+import { getBusinessDna, computeDnaCompletionScore } from "@/lib/growthmind/growthmind.business-dna";
+import { getCurrentValuePoint } from "@/lib/growthmind/trending-value-engine.server";
+import { getOpportunities, runOpportunityEngine } from "@/lib/growthmind/opportunity-engine.server";
+import { toast } from "sonner";
+import { Dna, Zap, Rocket } from "lucide-react";
 
 function TrendPill({ pct, label = "wow" }: { pct: number | null; label?: string }) {
   if (pct === null) return null;
@@ -58,9 +63,14 @@ function StatCard({ label, value, sub, color = "emerald", wowPct, momPct }: {
 }
 
 export function GrowthMindOverview() {
-  const fn              = useServerFn(getGrowthMindData);
-  const getPlaybookFn   = useServerFn(getActivePlaybook);
+  const fn                 = useServerFn(getGrowthMindData);
+  const getPlaybookFn      = useServerFn(getActivePlaybook);
   const providerRegistryFn = useServerFn(getProviderRegistryData);
+  const getDnaFn           = useServerFn(getBusinessDna);
+  const getValuePointFn    = useServerFn(getCurrentValuePoint);
+  const getOpportunitiesFn = useServerFn(getOpportunities);
+  const runOppEngineFn     = useServerFn(runOpportunityEngine);
+  const [runningOppEngine, setRunningOppEngine] = React.useState(false);
   const qc = useQueryClient();
 
   const { data: providerData } = useQuery({

@@ -111,9 +111,25 @@ function buildContentPrompt(
     keywords:       string;
     competitors:    string;
     activePlaybook: string;
+    // Optional Business DNA enrichment
+    dnaUsp?:        string;
+    dnaOffer?:      string;
+    dnaIcp?:        string;
+    dnaBrandVoice?: string;
+    dnaCompliance?: string;
+    dnaCurrentVp?:  string;
   },
 ): { system: string; user: string } {
   const typeLabel = CONTENT_TYPE_LABELS[brief.contentType];
+
+  const dnaBlock = [
+    context.dnaUsp       && `Unique Selling Points: ${context.dnaUsp}`,
+    context.dnaOffer     && `Core Offers: ${context.dnaOffer}`,
+    context.dnaIcp       && `Ideal Customer Profile: ${context.dnaIcp}`,
+    context.dnaBrandVoice && `Brand Voice: ${context.dnaBrandVoice}`,
+    context.dnaCurrentVp && `Current Highest Value Point: ${context.dnaCurrentVp}`,
+    context.dnaCompliance && `Compliance Notes: ${context.dnaCompliance}`,
+  ].filter(Boolean).join("\n");
 
   const system = `You are GrowthMind Content Studio, an expert AI marketing content creator.
 
@@ -122,6 +138,7 @@ Business Name: ${context.companyName || "the business"}
 Industry: ${context.industry || "not specified"}
 Website: ${context.siteUrl || "not specified"}
 ${context.activePlaybook ? `Active Marketing Playbook: ${context.activePlaybook}` : ""}
+${dnaBlock ? `\n## Business DNA (use this to make content highly specific)\n${dnaBlock}` : ""}
 
 ## Tracked SEO Keywords
 ${context.keywords || "None tracked yet."}
@@ -364,11 +381,13 @@ export const generateContent = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No workspace");
 
     // ── Pull context in parallel ─────────────────────────────────────────────
-    const [wsRes, seoRes, compRes, playbookRes] = await Promise.all([
+    const [wsRes, seoRes, compRes, playbookRes, dnaRes, valuePointRes] = await Promise.all([
       sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle(),
       sb.from("growthmind_seo_sites").select("keywords").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       sb.from("growthmind_competitors").select("name, positioning").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(10),
       sb.from("growthmind_playbooks").select("industry").eq("workspace_id", workspaceId).eq("status", "active").maybeSingle(),
+      sb.from("growthmind_business_dna").select("company_name,industry,products,services,unique_selling_points,ideal_customer_profiles,offers,brand_voice,compliance_notes,target_markets,competitors_summary").eq("workspace_id", workspaceId).maybeSingle().catch(() => ({ data: null })),
+      sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
     ]);
 
     const ws         = wsRes.data;
@@ -388,6 +407,18 @@ export const generateContent = createServerFn({ method: "POST" })
 
     const activePlaybook = playbookRes.data?.industry ?? "";
 
+    // Business DNA context (best-effort — table may not exist yet)
+    const dna: any  = (dnaRes as any).data ?? null;
+    const vp: any   = (valuePointRes as any).data ?? null;
+    const dnaIndustry    = dna?.industry || "";
+    const dnaCompany     = dna?.company_name || "";
+    const dnaUsp         = dna?.unique_selling_points || "";
+    const dnaOffer       = dna?.offers || "";
+    const dnaIcp         = dna?.ideal_customer_profiles || "";
+    const dnaBrandVoice  = dna?.brand_voice || "";
+    const dnaCompliance  = dna?.compliance_notes || "";
+    const dnaCurrentVp   = vp?.current_highest_value || "";
+
     const brief: ContentBrief = {
       contentType:    data.contentType as ContentType,
       businessType:   data.businessType || industry,
@@ -404,7 +435,18 @@ export const generateContent = createServerFn({ method: "POST" })
     };
 
     const { system, user } = buildContentPrompt(brief, {
-      companyName, industry, siteUrl, keywords, competitors, activePlaybook,
+      companyName:   dnaCompany || companyName,
+      industry:      dnaIndustry || industry,
+      siteUrl,
+      keywords,
+      competitors,
+      activePlaybook,
+      dnaUsp:        dnaUsp        || undefined,
+      dnaOffer:      dnaOffer      || undefined,
+      dnaIcp:        dnaIcp        || undefined,
+      dnaBrandVoice: dnaBrandVoice || undefined,
+      dnaCompliance: dnaCompliance || undefined,
+      dnaCurrentVp:  dnaCurrentVp  || undefined,
     });
 
     const maxTokens = maxTokensForType(data.contentType as ContentType, data.length);

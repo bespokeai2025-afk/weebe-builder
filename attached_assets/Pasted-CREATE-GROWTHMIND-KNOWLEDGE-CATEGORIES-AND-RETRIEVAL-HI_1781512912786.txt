@@ -1,0 +1,394 @@
+CREATE GROWTHMIND KNOWLEDGE CATEGORIES AND RETRIEVAL HIERARCHY
+
+IMPORTANT
+
+Do not modify HiveMind.
+
+Do not modify SystemMind.
+
+Do not modify Builder.
+
+Do not modify existing Knowledge Centre functionality.
+
+Extend GrowthMind Knowledge architecture only.
+
+OBJECTIVE
+
+GrowthMind currently treats knowledge too generically.
+
+Create dedicated GrowthMind knowledge categories so GrowthMind can separate:
+
+Marketing Intelligence
+Customer Business Information
+Competitor Research
+Campaign Assets
+Business DNA
+
+GrowthMind should use these categories intelligently when creating:
+
+Strategies
+Campaigns
+Content
+Forecasts
+Recommendations
+Growth Opportunities
+
+====================================================
+
+CREATE NEW GROWTHMIND KNOWLEDGE CATEGORIES
+
+1. GrowthMind Core Intelligence
+
+Purpose:
+
+Built-in GrowthMind marketing expertise.
+
+Contains:
+
+Marketing Frameworks
+
+AIDA
+
+PAS
+
+Hormozi Offers
+
+Russell Brunson Funnels
+
+SEO Frameworks
+
+Google Ads Best Practices
+
+Meta Ads Best Practices
+
+LinkedIn Growth
+
+Email Marketing
+
+Lead Generation
+
+Conversion Optimisation
+
+Growth Loops
+
+Marketing Playbooks
+
+Customer Acquisition Frameworks
+
+This category is managed by platform admins only.
+
+====================================================
+
+2. GrowthMind Customer Business DNA
+
+Purpose:
+
+Understand the customer's business.
+
+Contains:
+
+Company Information
+
+Products
+
+Services
+
+Offers
+
+Pricing
+
+Locations
+
+Markets
+
+Ideal Customers
+
+Revenue Goals
+
+Brand Voice
+
+Unique Selling Points
+
+Sales Process
+
+Growth Objectives
+
+This category is editable by workspace users.
+
+====================================================
+
+3. GrowthMind Customer Knowledge
+
+Purpose:
+
+Customer supplied documents.
+
+Contains:
+
+Company Documents
+
+Sales Material
+
+Case Studies
+
+Brochures
+
+Training Documents
+
+Internal Processes
+
+Knowledge Base Uploads
+
+Editable by workspace users.
+
+====================================================
+
+4. GrowthMind Competitor Intelligence
+
+Purpose:
+
+Store competitor research.
+
+Contains:
+
+Competitor Profiles
+
+Competitor Offers
+
+Competitor Websites
+
+Competitor Campaign Notes
+
+Competitor Weaknesses
+
+Competitor Advantages
+
+Editable by workspace users.
+
+====================================================
+
+5. GrowthMind Campaign Assets
+
+Purpose:
+
+Store marketing assets.
+
+Contains:
+
+Winning Ads
+
+Winning Emails
+
+Landing Pages
+
+Campaign Results
+
+Creative Assets
+
+Video Concepts
+
+Content Ideas
+
+Editable by workspace users.
+
+====================================================
+
+DATABASE
+
+Extend executive knowledge categorisation.
+
+Support:
+
+growthmind_core_intelligence
+
+growthmind_business_dna
+
+growthmind_customer_knowledge
+
+growthmind_competitor_intelligence
+
+growthmind_campaign_assets
+
+Do not break existing knowledge bases.
+
+Migrate safely.
+
+====================================================
+
+KNOWLEDGE CENTRE UI
+
+Within GrowthMind Knowledge Centre create separate sections:
+
+Core Intelligence
+
+Business DNA
+
+Customer Knowledge
+
+Competitor Intelligence
+
+Campaign Assets
+
+Show:
+
+Document Count
+
+Indexed Count
+
+Last Updated
+
+Knowledge Health
+
+====================================================
+
+RETRIEVAL HIERARCHY
+
+When GrowthMind generates:
+
+Strategies
+Campaigns
+Content
+Recommendations
+Forecasts
+
+Use retrieval order:
+
+1. Business DNA
+
+2. Customer Knowledge
+
+3. Competitor Intelligence
+
+4. Campaign Assets
+
+5. Core Intelligence
+
+This ensures:
+
+Customer context first
+
+Marketing expertise second
+
+====================================================
+
+GROWTHMIND STRATEGY ENGINE
+
+When creating strategies:
+
+Combine:
+
+Business DNA
++
+Customer Knowledge
++
+Competitor Intelligence
++
+Campaign Assets
++
+Core Intelligence
+
+====================================================
+
+CONTENT STUDIO
+
+When generating content:
+
+Always use:
+
+Business DNA
+
+Current Value Point
+
+Campaign Goals
+
+Core Intelligence
+
+Competitor Intelligence
+
+Campaign Assets
+
+Content should never be generic.
+
+====================================================
+
+CAMPAIGN FACTORY
+
+When generating campaigns:
+
+Use:
+
+Business DNA
+
+Current Highest Value Point
+
+Competitor Intelligence
+
+Campaign Assets
+
+Core Intelligence
+
+Generate more tailored campaigns.
+
+====================================================
+
+ADMIN CONTROLS
+
+Platform admins can manage:
+
+GrowthMind Core Intelligence
+
+Only.
+
+Workspace users cannot edit it.
+
+Workspace users can manage:
+
+Business DNA
+
+Customer Knowledge
+
+Competitor Intelligence
+
+Campaign Assets
+
+====================================================
+
+SEED DEFAULT CORE INTELLIGENCE
+
+Create starter documents:
+
+Marketing Frameworks
+
+SEO Best Practices
+
+Google Ads Playbook
+
+Meta Ads Playbook
+
+LinkedIn Playbook
+
+Email Marketing Playbook
+
+Growth Loops
+
+Conversion Optimisation
+
+Lead Generation Frameworks
+
+Customer Acquisition Frameworks
+
+====================================================
+
+SUCCESS CRITERIA
+
+GrowthMind separates customer business knowledge from marketing intelligence.
+
+GrowthMind can build significantly more tailored strategies.
+
+GrowthMind uses customer context first and marketing expertise second.
+
+GrowthMind becomes a true AI CMO rather than a generic content generator.
+
+Generate implementation plan first.
+
+Then implement safely.

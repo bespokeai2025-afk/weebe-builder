@@ -3,18 +3,25 @@ import {
   TrendingUp, BarChart3, Lightbulb, FileText,
   MessageSquareMore, Target, Megaphone,
   BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
-  CalendarDays, Rocket, Clapperboard,
+  CalendarDays, Rocket, Clapperboard, Dna, Database, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CORE_NAV = [
   { label: "Overview",           href: "/growthmind",                      icon: BarChart3 },
   { label: "AI Assistant",       href: "/growthmind/chat",                 icon: MessageSquareMore, highlight: true },
+  { label: "Business DNA",       href: "/growthmind/business-dna",         icon: Dna,         highlight: true },
+  { label: "Opportunities",      href: "/growthmind/lead-opportunities",   icon: Zap },
   { label: "Recommendations",    href: "/growthmind/recommendations",      icon: Lightbulb },
-  { label: "Lead Opportunities", href: "/growthmind/lead-opportunities",   icon: Target },
   { label: "Goals",              href: "/growthmind/goals",                icon: Flag },
-  { label: "Campaigns",          href: "/growthmind/campaigns",            icon: Megaphone },
   { label: "Reports",            href: "/growthmind/reports",              icon: FileText },
+];
+
+const STRATEGY_NAV = [
+  { label: "Strategy",           href: "/growthmind/strategy",             icon: Target,      highlight: true },
+  { label: "Campaign Factory",   href: "/growthmind/campaign-factory",     icon: Rocket,      highlight: true },
+  { label: "Data Sources",       href: "/growthmind/data-sources",         icon: Database },
+  { label: "Campaigns",          href: "/growthmind/campaigns",            icon: Megaphone },
   { label: "Content Calendar",   href: "/growthmind/content-calendar",     icon: CalendarDays },
   { label: "Growth Scheduler",   href: "/growthmind/growth-scheduler",     icon: Rocket },
 ];
@@ -30,7 +37,7 @@ const INTELLIGENCE_NAV = [
   { label: "Competitors",     href: "/growthmind/competitors",    icon: Swords },
 ];
 
-const ALL_NAV = [...CORE_NAV, ...INTELLIGENCE_NAV];
+const ALL_NAV = [...CORE_NAV, ...STRATEGY_NAV, ...INTELLIGENCE_NAV];
 
 function NavItem({ label, href, icon: Icon, highlight, active }: {
   label: string; href: string; icon: React.ElementType; highlight?: boolean; active: boolean;
@@ -84,6 +91,16 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
         {/* Core nav */}
         <nav className="flex flex-col gap-0.5 px-2">
           {CORE_NAV.map(item => (
+            <NavItem key={item.href} {...item} active={isActive(item.href)} />
+          ))}
+        </nav>
+
+        {/* Strategy nav */}
+        <div className="mt-4 px-4 mb-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50">Strategy & Campaigns</p>
+        </div>
+        <nav className="flex flex-col gap-0.5 px-2">
+          {STRATEGY_NAV.map(item => (
             <NavItem key={item.href} {...item} active={isActive(item.href)} />
           ))}
         </nav>

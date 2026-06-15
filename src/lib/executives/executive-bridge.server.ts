@@ -73,7 +73,7 @@ export async function buildGrowthMindExecutiveSummary(
 
   // Recent marketing reports + latest forecast deal value (best-effort; tables may
   // not be migrated in every workspace).
-  const [forecastsRes, funnelsRes, plansRes] = await Promise.all([
+  const [forecastsRes, funnelsRes, plansRes, dnaRes, valuePointRes, storedOppsRes] = await Promise.all([
     Promise.resolve(
       sb.from("growthmind_forecasts")
         .select("id, scenario, deal_value, currency, created_at")
@@ -95,11 +95,36 @@ export async function buildGrowthMindExecutiveSummary(
         .order("created_at", { ascending: false })
         .limit(5),
     ).catch(() => ({ data: [] })),
+    // New DNA + intelligence tables (may not exist on older workspaces — always catch)
+    Promise.resolve(
+      sb.from("growthmind_business_dna")
+        .select("company_name,industry,products,services,unique_selling_points,ideal_customer_profiles,offers,brand_voice,compliance_notes,target_markets,main_growth_objective,updated_at")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle(),
+    ).catch(() => ({ data: null })),
+    Promise.resolve(
+      sb.from("growthmind_value_points")
+        .select("current_highest_value,why_it_matters,who_to_target,best_channels,recommended_campaign,confidence_score,created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ).catch(() => ({ data: null })),
+    Promise.resolve(
+      sb.from("growthmind_opportunities")
+        .select("id,title,category,urgency,confidence_score")
+        .eq("workspace_id", workspaceId)
+        .order("confidence_score", { ascending: false })
+        .limit(5),
+    ).catch(() => ({ data: [] })),
   ]);
 
   const forecasts = (forecastsRes as any).data ?? [];
   const funnels   = (funnelsRes as any).data ?? [];
   const plans     = (plansRes as any).data ?? [];
+  const dna       = (dnaRes as any).data ?? null;
+  const valuePoint = (valuePointRes as any).data ?? null;
+  const storedOpps: any[] = (storedOppsRes as any).data ?? [];
 
   const recentMarketingReports: ExecMarketingReport[] = [
     ...forecasts.map((f: any) => ({
@@ -173,6 +198,37 @@ export async function buildGrowthMindExecutiveSummary(
   if (!sh.competitors)       missingMarketingAssets.push("No competitor analysis");
   if (!sh.waOutreach)        missingMarketingAssets.push("No WhatsApp outreach");
 
+  // DNA completion check
+  if (dna) {
+    const dnaFilledFields = Object.values(dna).filter(v => v && String(v).trim().length > 0).length;
+    const dnaTotalFields  = Object.keys(dna).length - 2; // exclude updated_at etc.
+    if (dnaFilledFields / Math.max(dnaTotalFields, 1) < 0.5) {
+      missingMarketingAssets.push("Business DNA less than 50% complete — AI accuracy reduced");
+    }
+  } else {
+    missingMarketingAssets.push("Business DNA not configured — GrowthMind AI quality is limited");
+  }
+
+  // Augment topOpportunities with stored engine results (higher quality, evidence-backed)
+  if (storedOpps.length > 0) {
+    const storedMapped: ExecOpportunity[] = storedOpps.map((o: any) => ({
+      id: o.id,
+      label: o.title,
+      detail: `Category: ${o.category} · Urgency: ${o.urgency}`,
+      urgency: o.urgency as "critical" | "high" | "medium" | "low",
+    }));
+    // Merge stored opps (replacing existing if ids overlap)
+    const existingIds = new Set(topOpportunities.map((o: ExecOpportunity) => o.id));
+    for (const so of storedMapped) {
+      if (!existingIds.has(so.id)) topOpportunities.push(so);
+    }
+    topOpportunities.sort((a, b) => {
+      const order: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+      return (order[a.urgency] ?? 3) - (order[b.urgency] ?? 3);
+    });
+    topOpportunities.splice(6);
+  }
+
   // Revenue opportunity — a simple, clearly-labelled estimate (no forecast internals).
   const bt = oppSummary.byType;
   const recoverableLeads = bt.stale + bt.never_called + bt.stalled + bt.no_show;
@@ -194,10 +250,16 @@ export async function buildGrowthMindExecutiveSummary(
         : `${recoverableLeads} dormant lead(s) and ${hotLeads} hot lead(s) are re-engageable. Set a deal value in the forecast for a monetary estimate.`,
   };
 
+  const dnaNote = valuePoint
+    ? ` Current value point: "${valuePoint.current_highest_value}".`
+    : dna?.company_name
+      ? ` Business DNA configured for ${dna.company_name}.`
+      : " Business DNA not yet configured.";
+
   const headline =
     `Marketing readiness ${score.total}/100 (${score.label}). ` +
     `${topOpportunities.length} live opportunit${topOpportunities.length === 1 ? "y" : "ies"}, ` +
-    `${topRisks.length} risk${topRisks.length === 1 ? "" : "s"}.`;
+    `${topRisks.length} risk${topRisks.length === 1 ? "" : "s"}.${dnaNote}`;
 
   return {
     source: "growthmind",
