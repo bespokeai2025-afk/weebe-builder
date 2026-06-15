@@ -215,13 +215,9 @@ function ProviderPanel({
                 Configure in dedicated settings →
               </Button>
             </Link>
-          ) : credFields ? (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setOpen(o => !o)}>
-              {open ? "Hide" : "Configure"}
-            </Button>
           ) : null}
 
-          {open && credFields && (
+          {!redirectTo && credFields && (
             <div className="rounded-md border bg-muted/30 p-3 space-y-3">
               {credFields.map(f => (
                 <div key={f.key} className="space-y-1">

@@ -173,6 +173,19 @@ function SceneCard({ scene }: { scene: StoryboardScene }) {
 
 // ── Asset card ────────────────────────────────────────────────────────────────
 
+function useElapsedSeconds(since: string | null | undefined, active: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!active || !since) { setElapsed(0); return; }
+    const start = new Date(since).getTime();
+    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [active, since]);
+  return elapsed;
+}
+
 function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   asset:      VideoAsset;
   onDelete:   (id: string) => void;
@@ -188,6 +201,12 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   const label  = VIDEO_TYPE_LABELS[asset.videoType] ?? asset.videoType;
   const qMode  = QUALITY_MODES.find(q => q.id === asset.qualityMode) ?? QUALITY_MODES[0];
   const QIcon  = qMode.icon;
+
+  const jobPendingForTimer = isJobPending(asset.videoUrl);
+  const elapsedSec = useElapsedSeconds(asset.createdAt, jobPendingForTimer);
+  const elapsedLabel = elapsedSec < 60
+    ? `${elapsedSec}s`
+    : `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
 
   async function handleDownload() {
     setDownloadLoading(true);
@@ -306,12 +325,17 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
       {jobPending && (
         <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/15 bg-amber-500/[0.04] px-3 py-2.5">
           <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-amber-400">
-              {jobInfo?.type === "runway" ? "Runway Gen-4" : "Veo 3"} rendering…
-            </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-semibold text-amber-400">
+                {jobInfo?.type === "runway" ? "Runway Gen-4" : "Veo 3"} rendering…
+              </p>
+              <span className="text-[10px] font-mono tabular-nums text-amber-400/70 shrink-0">
+                ⏱ {elapsedLabel}
+              </span>
+            </div>
             <p className="text-[10px] text-muted-foreground/60 truncate">
-              Job: {jobInfo?.jobId?.slice(0, 40)}{(jobInfo?.jobId?.length ?? 0) > 40 ? "…" : ""}
+              Typically 2–5 min · auto-refreshes every 10s
             </p>
           </div>
         </div>
@@ -1631,9 +1655,16 @@ export function GrowthMindVideoStudio() {
                       <Film className="h-3 w-3" />AI Video
                     </p>
                     {isPending && (
-                      <div className="flex items-center gap-2 text-xs text-amber-400">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                        {jobInfo?.type === "runway" ? "Runway Gen-4" : "Veo 3"} job submitted — rendering in background…
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-xs text-amber-400">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                            {jobInfo?.type === "runway" ? "Runway Gen-4" : "Veo 3"} job submitted — rendering in background…
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/50">
+                          Typically 2–5 min · check the Asset Library below — it auto-polls every 10s
+                        </p>
                       </div>
                     )}
                     {isError && (
