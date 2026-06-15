@@ -584,6 +584,10 @@ export function AppSidebar() {
               <Database className="mr-2 h-4 w-4" />
               Provider Registry
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ to: "/settings/production-readiness" })}>
+              <ShieldCheck className="mr-2 h-4 w-4" />
+              Production Readiness
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 restartTour();

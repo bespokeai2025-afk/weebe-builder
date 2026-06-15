@@ -78,6 +78,7 @@ import { Route as AuthenticatedSystemmindChatRouteImport } from './routes/_authe
 import { Route as AuthenticatedSystemmindAuditsRouteImport } from './routes/_authenticated/systemmind.audits'
 import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './routes/_authenticated/systemmind.architecture'
 import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_authenticated/settings.providers'
+import { Route as AuthenticatedSettingsProductionReadinessRouteImport } from './routes/_authenticated/settings.production-readiness'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
@@ -116,6 +117,7 @@ import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/e
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as ApiRuntimeAgentIdRouteImport } from './routes/api/runtime/agent.$id'
+import { Route as ApiPublicWhatsappWebhookHealthRouteImport } from './routes/api/public/whatsapp-webhook.health'
 import { Route as ApiPublicWhatsappWebhookWorkspaceIdRouteImport } from './routes/api/public/whatsapp-webhook.$workspaceId'
 import { Route as ApiPublicVoiceWebhookHealthRouteImport } from './routes/api/public/voice-webhook.health'
 import { Route as ApiPublicTelephonyStatusRouteImport } from './routes/api/public/telephony/status'
@@ -140,12 +142,18 @@ import { Route as ApiPublicHyperstreamCancelRouteImport } from './routes/api/pub
 import { Route as ApiPublicHyperstreamBookRouteImport } from './routes/api/public/hyperstream/book'
 import { Route as ApiPublicHyperstreamAvailabilityRouteImport } from './routes/api/public/hyperstream/availability'
 import { Route as ApiPublicFrejunStatusRouteImport } from './routes/api/public/frejun/status'
+import { Route as ApiPublicFrejunHealthRouteImport } from './routes/api/public/frejun/health'
 import { Route as ApiPublicFrejunFlowRouteImport } from './routes/api/public/frejun/flow'
+import { Route as ApiPublicElevenlabsWebhookHealthRouteImport } from './routes/api/public/elevenlabs-webhook.health'
+import { Route as ApiPublicCalcomWebhookHealthRouteImport } from './routes/api/public/calcom-webhook.health'
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
 import { Route as AuthenticatedSettingsProvidersCategoryRouteImport } from './routes/_authenticated/settings.providers.$category'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
+import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
+import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
+import { Route as ApiPublicPaymentsWebhookHealthRouteImport } from './routes/api/public/payments/webhook.health'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -521,6 +529,12 @@ const AuthenticatedSettingsProvidersRoute =
     path: '/settings/providers',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsProductionReadinessRoute =
+  AuthenticatedSettingsProductionReadinessRouteImport.update({
+    id: '/settings/production-readiness',
+    path: '/settings/production-readiness',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsIntegrationsRoute =
   AuthenticatedSettingsIntegrationsRouteImport.update({
     id: '/settings/integrations',
@@ -744,6 +758,12 @@ const ApiRuntimeAgentIdRoute = ApiRuntimeAgentIdRouteImport.update({
   path: '/api/runtime/agent/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWhatsappWebhookHealthRoute =
+  ApiPublicWhatsappWebhookHealthRouteImport.update({
+    id: '/api/public/whatsapp-webhook/health',
+    path: '/api/public/whatsapp-webhook/health',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWhatsappWebhookWorkspaceIdRoute =
   ApiPublicWhatsappWebhookWorkspaceIdRouteImport.update({
     id: '/api/public/whatsapp-webhook/$workspaceId',
@@ -885,11 +905,28 @@ const ApiPublicFrejunStatusRoute = ApiPublicFrejunStatusRouteImport.update({
   path: '/api/public/frejun/status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicFrejunHealthRoute = ApiPublicFrejunHealthRouteImport.update({
+  id: '/api/public/frejun/health',
+  path: '/api/public/frejun/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicFrejunFlowRoute = ApiPublicFrejunFlowRouteImport.update({
   id: '/api/public/frejun/flow',
   path: '/api/public/frejun/flow',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicElevenlabsWebhookHealthRoute =
+  ApiPublicElevenlabsWebhookHealthRouteImport.update({
+    id: '/health',
+    path: '/health',
+    getParentRoute: () => ApiPublicElevenlabsWebhookRoute,
+  } as any)
+const ApiPublicCalcomWebhookHealthRoute =
+  ApiPublicCalcomWebhookHealthRouteImport.update({
+    id: '/api/public/calcom-webhook/health',
+    path: '/api/public/calcom-webhook/health',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCalcomWebhookWorkspaceIdRoute =
   ApiPublicCalcomWebhookWorkspaceIdRouteImport.update({
     id: '/api/public/calcom-webhook/$workspaceId',
@@ -917,6 +954,24 @@ const ApiRuntimeAgentIdExportRoute = ApiRuntimeAgentIdExportRouteImport.update({
   path: '/export',
   getParentRoute: () => ApiRuntimeAgentIdRoute,
 } as any)
+const ApiPublicTelephonyStatusHealthRoute =
+  ApiPublicTelephonyStatusHealthRouteImport.update({
+    id: '/health',
+    path: '/health',
+    getParentRoute: () => ApiPublicTelephonyStatusRoute,
+  } as any)
+const ApiPublicTelephonyInboundHealthRoute =
+  ApiPublicTelephonyInboundHealthRouteImport.update({
+    id: '/health',
+    path: '/health',
+    getParentRoute: () => ApiPublicTelephonyInboundRoute,
+  } as any)
+const ApiPublicPaymentsWebhookHealthRoute =
+  ApiPublicPaymentsWebhookHealthRouteImport.update({
+    id: '/health',
+    path: '/health',
+    getParentRoute: () => ApiPublicPaymentsWebhookRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -985,6 +1040,7 @@ export interface FileRoutesByFullPath {
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
+  '/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -1006,7 +1062,7 @@ export interface FileRoutesByFullPath {
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
-  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
+  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
@@ -1023,7 +1079,10 @@ export interface FileRoutesByFullPath {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
+  '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
   '/api/public/frejun/flow': typeof ApiPublicFrejunFlowRoute
+  '/api/public/frejun/health': typeof ApiPublicFrejunHealthRoute
   '/api/public/frejun/status': typeof ApiPublicFrejunStatusRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
@@ -1032,7 +1091,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/hyperstream/send-upload-link': typeof ApiPublicHyperstreamSendUploadLinkRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRouteWithChildren
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
@@ -1043,17 +1102,21 @@ export interface FileRoutesByFullPath {
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
   '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
-  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
+  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRouteWithChildren
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
-  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
+  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRouteWithChildren
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
+  '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
+  '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
+  '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
 }
 export interface FileRoutesByTo {
@@ -1118,6 +1181,7 @@ export interface FileRoutesByTo {
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
+  '/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -1139,7 +1203,7 @@ export interface FileRoutesByTo {
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
-  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
+  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
@@ -1156,7 +1220,10 @@ export interface FileRoutesByTo {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
+  '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
   '/api/public/frejun/flow': typeof ApiPublicFrejunFlowRoute
+  '/api/public/frejun/health': typeof ApiPublicFrejunHealthRoute
   '/api/public/frejun/status': typeof ApiPublicFrejunStatusRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
@@ -1165,7 +1232,7 @@ export interface FileRoutesByTo {
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/hyperstream/send-upload-link': typeof ApiPublicHyperstreamSendUploadLinkRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRouteWithChildren
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
@@ -1176,17 +1243,21 @@ export interface FileRoutesByTo {
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
   '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
-  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
+  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRouteWithChildren
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
-  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
+  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRouteWithChildren
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
+  '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
+  '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
+  '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
 }
 export interface FileRoutesById {
@@ -1258,6 +1329,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
+  '/_authenticated/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
   '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
@@ -1279,7 +1351,7 @@ export interface FileRoutesById {
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
-  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRoute
+  '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
@@ -1296,7 +1368,10 @@ export interface FileRoutesById {
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  '/api/public/calcom-webhook/health': typeof ApiPublicCalcomWebhookHealthRoute
+  '/api/public/elevenlabs-webhook/health': typeof ApiPublicElevenlabsWebhookHealthRoute
   '/api/public/frejun/flow': typeof ApiPublicFrejunFlowRoute
+  '/api/public/frejun/health': typeof ApiPublicFrejunHealthRoute
   '/api/public/frejun/status': typeof ApiPublicFrejunStatusRoute
   '/api/public/hyperstream/availability': typeof ApiPublicHyperstreamAvailabilityRoute
   '/api/public/hyperstream/book': typeof ApiPublicHyperstreamBookRoute
@@ -1305,7 +1380,7 @@ export interface FileRoutesById {
   '/api/public/hyperstream/event-types': typeof ApiPublicHyperstreamEventTypesRoute
   '/api/public/hyperstream/reschedule': typeof ApiPublicHyperstreamRescheduleRoute
   '/api/public/hyperstream/send-upload-link': typeof ApiPublicHyperstreamSendUploadLinkRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRouteWithChildren
   '/api/public/retell-webhook/debug': typeof ApiPublicRetellWebhookDebugRoute
   '/api/public/retell-webhook/health': typeof ApiPublicRetellWebhookHealthRoute
   '/api/public/retell/availability': typeof ApiPublicRetellAvailabilityRoute
@@ -1316,17 +1391,21 @@ export interface FileRoutesById {
   '/api/public/retell/reschedule': typeof ApiPublicRetellRescheduleRoute
   '/api/public/retell/send-upload-link': typeof ApiPublicRetellSendUploadLinkRoute
   '/api/public/systemmind/chat-stream': typeof ApiPublicSystemmindChatStreamRoute
-  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRoute
+  '/api/public/telephony/inbound': typeof ApiPublicTelephonyInboundRouteWithChildren
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
-  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRoute
+  '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRouteWithChildren
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
+  '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
+  '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
+  '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
 }
 export interface FileRouteTypes {
@@ -1398,6 +1477,7 @@ export interface FileRouteTypes {
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
+    | '/settings/production-readiness'
     | '/settings/providers'
     | '/systemmind/architecture'
     | '/systemmind/audits'
@@ -1436,7 +1516,10 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/calcom-webhook/health'
+    | '/api/public/elevenlabs-webhook/health'
     | '/api/public/frejun/flow'
+    | '/api/public/frejun/health'
     | '/api/public/frejun/status'
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
@@ -1461,12 +1544,16 @@ export interface FileRouteTypes {
     | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
+    | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/api/public/payments/webhook/health'
+    | '/api/public/telephony/inbound/health'
+    | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1531,6 +1618,7 @@ export interface FileRouteTypes {
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/integrations'
+    | '/settings/production-readiness'
     | '/settings/providers'
     | '/systemmind/architecture'
     | '/systemmind/audits'
@@ -1569,7 +1657,10 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/calcom-webhook/health'
+    | '/api/public/elevenlabs-webhook/health'
     | '/api/public/frejun/flow'
+    | '/api/public/frejun/health'
     | '/api/public/frejun/status'
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
@@ -1594,12 +1685,16 @@ export interface FileRouteTypes {
     | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
+    | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/api/public/payments/webhook/health'
+    | '/api/public/telephony/inbound/health'
+    | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
   id:
     | '__root__'
@@ -1670,6 +1765,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/calendar'
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/integrations'
+    | '/_authenticated/settings/production-readiness'
     | '/_authenticated/settings/providers'
     | '/_authenticated/systemmind/architecture'
     | '/_authenticated/systemmind/audits'
@@ -1708,7 +1804,10 @@ export interface FileRouteTypes {
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
+    | '/api/public/calcom-webhook/health'
+    | '/api/public/elevenlabs-webhook/health'
     | '/api/public/frejun/flow'
+    | '/api/public/frejun/health'
     | '/api/public/frejun/status'
     | '/api/public/hyperstream/availability'
     | '/api/public/hyperstream/book'
@@ -1733,12 +1832,16 @@ export interface FileRouteTypes {
     | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
     | '/api/public/whatsapp-webhook/$workspaceId'
+    | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/api/public/payments/webhook/health'
+    | '/api/public/telephony/inbound/health'
+    | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
   fileRoutesById: FileRoutesById
 }
@@ -1759,7 +1862,7 @@ export interface RootRouteChildren {
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
-  ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRoute
+  ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRouteWithChildren
   ApiPublicProviderHealthSweepRoute: typeof ApiPublicProviderHealthSweepRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
@@ -1770,7 +1873,9 @@ export interface RootRouteChildren {
   ApiInternalAgentToolsIdRoute: typeof ApiInternalAgentToolsIdRoute
   ApiPublicAgentsRegisterRoute: typeof ApiPublicAgentsRegisterRoute
   ApiPublicCalcomWebhookWorkspaceIdRoute: typeof ApiPublicCalcomWebhookWorkspaceIdRoute
+  ApiPublicCalcomWebhookHealthRoute: typeof ApiPublicCalcomWebhookHealthRoute
   ApiPublicFrejunFlowRoute: typeof ApiPublicFrejunFlowRoute
+  ApiPublicFrejunHealthRoute: typeof ApiPublicFrejunHealthRoute
   ApiPublicFrejunStatusRoute: typeof ApiPublicFrejunStatusRoute
   ApiPublicHyperstreamAvailabilityRoute: typeof ApiPublicHyperstreamAvailabilityRoute
   ApiPublicHyperstreamBookRoute: typeof ApiPublicHyperstreamBookRoute
@@ -1779,7 +1884,7 @@ export interface RootRouteChildren {
   ApiPublicHyperstreamEventTypesRoute: typeof ApiPublicHyperstreamEventTypesRoute
   ApiPublicHyperstreamRescheduleRoute: typeof ApiPublicHyperstreamRescheduleRoute
   ApiPublicHyperstreamSendUploadLinkRoute: typeof ApiPublicHyperstreamSendUploadLinkRoute
-  ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRouteWithChildren
   ApiPublicRetellAvailabilityRoute: typeof ApiPublicRetellAvailabilityRoute
   ApiPublicRetellBookRoute: typeof ApiPublicRetellBookRoute
   ApiPublicRetellCancelRoute: typeof ApiPublicRetellCancelRoute
@@ -1788,10 +1893,11 @@ export interface RootRouteChildren {
   ApiPublicRetellRescheduleRoute: typeof ApiPublicRetellRescheduleRoute
   ApiPublicRetellSendUploadLinkRoute: typeof ApiPublicRetellSendUploadLinkRoute
   ApiPublicSystemmindChatStreamRoute: typeof ApiPublicSystemmindChatStreamRoute
-  ApiPublicTelephonyInboundRoute: typeof ApiPublicTelephonyInboundRoute
+  ApiPublicTelephonyInboundRoute: typeof ApiPublicTelephonyInboundRouteWithChildren
   ApiPublicTelephonyRecordingRoute: typeof ApiPublicTelephonyRecordingRoute
-  ApiPublicTelephonyStatusRoute: typeof ApiPublicTelephonyStatusRoute
+  ApiPublicTelephonyStatusRoute: typeof ApiPublicTelephonyStatusRouteWithChildren
   ApiPublicWhatsappWebhookWorkspaceIdRoute: typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
+  ApiPublicWhatsappWebhookHealthRoute: typeof ApiPublicWhatsappWebhookHealthRoute
   ApiRuntimeAgentIdRoute: typeof ApiRuntimeAgentIdRouteWithChildren
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
@@ -2285,6 +2391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsProvidersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/production-readiness': {
+      id: '/_authenticated/settings/production-readiness'
+      path: '/settings/production-readiness'
+      fullPath: '/settings/production-readiness'
+      preLoaderRoute: typeof AuthenticatedSettingsProductionReadinessRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings/integrations': {
       id: '/_authenticated/settings/integrations'
       path: '/settings/integrations'
@@ -2551,6 +2664,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRuntimeAgentIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/whatsapp-webhook/health': {
+      id: '/api/public/whatsapp-webhook/health'
+      path: '/api/public/whatsapp-webhook/health'
+      fullPath: '/api/public/whatsapp-webhook/health'
+      preLoaderRoute: typeof ApiPublicWhatsappWebhookHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/whatsapp-webhook/$workspaceId': {
       id: '/api/public/whatsapp-webhook/$workspaceId'
       path: '/api/public/whatsapp-webhook/$workspaceId'
@@ -2719,11 +2839,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFrejunStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/frejun/health': {
+      id: '/api/public/frejun/health'
+      path: '/api/public/frejun/health'
+      fullPath: '/api/public/frejun/health'
+      preLoaderRoute: typeof ApiPublicFrejunHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/frejun/flow': {
       id: '/api/public/frejun/flow'
       path: '/api/public/frejun/flow'
       fullPath: '/api/public/frejun/flow'
       preLoaderRoute: typeof ApiPublicFrejunFlowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/elevenlabs-webhook/health': {
+      id: '/api/public/elevenlabs-webhook/health'
+      path: '/health'
+      fullPath: '/api/public/elevenlabs-webhook/health'
+      preLoaderRoute: typeof ApiPublicElevenlabsWebhookHealthRouteImport
+      parentRoute: typeof ApiPublicElevenlabsWebhookRoute
+    }
+    '/api/public/calcom-webhook/health': {
+      id: '/api/public/calcom-webhook/health'
+      path: '/api/public/calcom-webhook/health'
+      fullPath: '/api/public/calcom-webhook/health'
+      preLoaderRoute: typeof ApiPublicCalcomWebhookHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/calcom-webhook/$workspaceId': {
@@ -2760,6 +2901,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/runtime/agent/$id/export'
       preLoaderRoute: typeof ApiRuntimeAgentIdExportRouteImport
       parentRoute: typeof ApiRuntimeAgentIdRoute
+    }
+    '/api/public/telephony/status/health': {
+      id: '/api/public/telephony/status/health'
+      path: '/health'
+      fullPath: '/api/public/telephony/status/health'
+      preLoaderRoute: typeof ApiPublicTelephonyStatusHealthRouteImport
+      parentRoute: typeof ApiPublicTelephonyStatusRoute
+    }
+    '/api/public/telephony/inbound/health': {
+      id: '/api/public/telephony/inbound/health'
+      path: '/health'
+      fullPath: '/api/public/telephony/inbound/health'
+      preLoaderRoute: typeof ApiPublicTelephonyInboundHealthRouteImport
+      parentRoute: typeof ApiPublicTelephonyInboundRoute
+    }
+    '/api/public/payments/webhook/health': {
+      id: '/api/public/payments/webhook/health'
+      path: '/health'
+      fullPath: '/api/public/payments/webhook/health'
+      preLoaderRoute: typeof ApiPublicPaymentsWebhookHealthRouteImport
+      parentRoute: typeof ApiPublicPaymentsWebhookRoute
     }
   }
 }
@@ -2977,6 +3139,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
   AuthenticatedSettingsCrmRoute: typeof AuthenticatedSettingsCrmRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
+  AuthenticatedSettingsProductionReadinessRoute: typeof AuthenticatedSettingsProductionReadinessRoute
   AuthenticatedSettingsProvidersRoute: typeof AuthenticatedSettingsProvidersRouteWithChildren
 }
 
@@ -3013,6 +3176,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsCrmRoute: AuthenticatedSettingsCrmRoute,
   AuthenticatedSettingsIntegrationsRoute:
     AuthenticatedSettingsIntegrationsRoute,
+  AuthenticatedSettingsProductionReadinessRoute:
+    AuthenticatedSettingsProductionReadinessRoute,
   AuthenticatedSettingsProvidersRoute:
     AuthenticatedSettingsProvidersRouteWithChildren,
 }
@@ -3020,6 +3185,21 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
   AuthenticatedRouteChildren,
 )
+
+interface ApiPublicElevenlabsWebhookRouteChildren {
+  ApiPublicElevenlabsWebhookHealthRoute: typeof ApiPublicElevenlabsWebhookHealthRoute
+}
+
+const ApiPublicElevenlabsWebhookRouteChildren: ApiPublicElevenlabsWebhookRouteChildren =
+  {
+    ApiPublicElevenlabsWebhookHealthRoute:
+      ApiPublicElevenlabsWebhookHealthRoute,
+  }
+
+const ApiPublicElevenlabsWebhookRouteWithChildren =
+  ApiPublicElevenlabsWebhookRoute._addFileChildren(
+    ApiPublicElevenlabsWebhookRouteChildren,
+  )
 
 interface ApiPublicRetellWebhookRouteChildren {
   ApiPublicRetellWebhookDebugRoute: typeof ApiPublicRetellWebhookDebugRoute
@@ -3050,6 +3230,48 @@ const ApiPublicVoiceWebhookRouteWithChildren =
     ApiPublicVoiceWebhookRouteChildren,
   )
 
+interface ApiPublicPaymentsWebhookRouteChildren {
+  ApiPublicPaymentsWebhookHealthRoute: typeof ApiPublicPaymentsWebhookHealthRoute
+}
+
+const ApiPublicPaymentsWebhookRouteChildren: ApiPublicPaymentsWebhookRouteChildren =
+  {
+    ApiPublicPaymentsWebhookHealthRoute: ApiPublicPaymentsWebhookHealthRoute,
+  }
+
+const ApiPublicPaymentsWebhookRouteWithChildren =
+  ApiPublicPaymentsWebhookRoute._addFileChildren(
+    ApiPublicPaymentsWebhookRouteChildren,
+  )
+
+interface ApiPublicTelephonyInboundRouteChildren {
+  ApiPublicTelephonyInboundHealthRoute: typeof ApiPublicTelephonyInboundHealthRoute
+}
+
+const ApiPublicTelephonyInboundRouteChildren: ApiPublicTelephonyInboundRouteChildren =
+  {
+    ApiPublicTelephonyInboundHealthRoute: ApiPublicTelephonyInboundHealthRoute,
+  }
+
+const ApiPublicTelephonyInboundRouteWithChildren =
+  ApiPublicTelephonyInboundRoute._addFileChildren(
+    ApiPublicTelephonyInboundRouteChildren,
+  )
+
+interface ApiPublicTelephonyStatusRouteChildren {
+  ApiPublicTelephonyStatusHealthRoute: typeof ApiPublicTelephonyStatusHealthRoute
+}
+
+const ApiPublicTelephonyStatusRouteChildren: ApiPublicTelephonyStatusRouteChildren =
+  {
+    ApiPublicTelephonyStatusHealthRoute: ApiPublicTelephonyStatusHealthRoute,
+  }
+
+const ApiPublicTelephonyStatusRouteWithChildren =
+  ApiPublicTelephonyStatusRoute._addFileChildren(
+    ApiPublicTelephonyStatusRouteChildren,
+  )
+
 interface ApiRuntimeAgentIdRouteChildren {
   ApiRuntimeAgentIdExportRoute: typeof ApiRuntimeAgentIdExportRoute
 }
@@ -3078,7 +3300,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
-  ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRoute,
+  ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRouteWithChildren,
   ApiPublicProviderHealthSweepRoute: ApiPublicProviderHealthSweepRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
@@ -3090,7 +3312,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAgentsRegisterRoute: ApiPublicAgentsRegisterRoute,
   ApiPublicCalcomWebhookWorkspaceIdRoute:
     ApiPublicCalcomWebhookWorkspaceIdRoute,
+  ApiPublicCalcomWebhookHealthRoute: ApiPublicCalcomWebhookHealthRoute,
   ApiPublicFrejunFlowRoute: ApiPublicFrejunFlowRoute,
+  ApiPublicFrejunHealthRoute: ApiPublicFrejunHealthRoute,
   ApiPublicFrejunStatusRoute: ApiPublicFrejunStatusRoute,
   ApiPublicHyperstreamAvailabilityRoute: ApiPublicHyperstreamAvailabilityRoute,
   ApiPublicHyperstreamBookRoute: ApiPublicHyperstreamBookRoute,
@@ -3101,7 +3325,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHyperstreamRescheduleRoute: ApiPublicHyperstreamRescheduleRoute,
   ApiPublicHyperstreamSendUploadLinkRoute:
     ApiPublicHyperstreamSendUploadLinkRoute,
-  ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRouteWithChildren,
   ApiPublicRetellAvailabilityRoute: ApiPublicRetellAvailabilityRoute,
   ApiPublicRetellBookRoute: ApiPublicRetellBookRoute,
   ApiPublicRetellCancelRoute: ApiPublicRetellCancelRoute,
@@ -3110,11 +3334,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicRetellRescheduleRoute: ApiPublicRetellRescheduleRoute,
   ApiPublicRetellSendUploadLinkRoute: ApiPublicRetellSendUploadLinkRoute,
   ApiPublicSystemmindChatStreamRoute: ApiPublicSystemmindChatStreamRoute,
-  ApiPublicTelephonyInboundRoute: ApiPublicTelephonyInboundRoute,
+  ApiPublicTelephonyInboundRoute: ApiPublicTelephonyInboundRouteWithChildren,
   ApiPublicTelephonyRecordingRoute: ApiPublicTelephonyRecordingRoute,
-  ApiPublicTelephonyStatusRoute: ApiPublicTelephonyStatusRoute,
+  ApiPublicTelephonyStatusRoute: ApiPublicTelephonyStatusRouteWithChildren,
   ApiPublicWhatsappWebhookWorkspaceIdRoute:
     ApiPublicWhatsappWebhookWorkspaceIdRoute,
+  ApiPublicWhatsappWebhookHealthRoute: ApiPublicWhatsappWebhookHealthRoute,
   ApiRuntimeAgentIdRoute: ApiRuntimeAgentIdRouteWithChildren,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,

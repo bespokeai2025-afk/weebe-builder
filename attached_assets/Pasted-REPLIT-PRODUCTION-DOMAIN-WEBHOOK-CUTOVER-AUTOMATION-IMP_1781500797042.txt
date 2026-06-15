@@ -1,0 +1,288 @@
+REPLIT PRODUCTION DOMAIN + WEBHOOK CUTOVER AUTOMATION
+
+IMPORTANT
+
+Do not break development mode.
+
+Do not remove existing local/dev webhook URLs.
+
+Do not expose secrets to frontend.
+
+Do not overwrite provider credentials.
+
+Create a safe production cutover system.
+
+OBJECTIVE
+
+Prepare the WeeBee app for Replit Reserved VM deployment and custom domain:
+
+https://www.webeebuilder.com
+
+The system should update internal production URLs, verify webhook endpoints, and automate external webhook updates where provider APIs are already available.
+
+====================================================
+
+PART 1 — DEPLOYMENT SETTINGS AUDIT
+
+Audit current Replit deployment configuration.
+
+Confirm:
+
+Deployment type should be Reserved VM.
+
+Check:
+
+Build command
+Start command
+Port
+Environment variables
+Server entry
+Static output
+TanStack Start compatibility
+WebSocket compatibility
+SSE compatibility
+
+Return exact recommended Replit deployment settings.
+
+====================================================
+
+PART 2 — PRODUCTION BASE URL CONFIG
+
+Add or verify environment variable:
+
+PUBLIC_APP_URL=https://www.webeebuilder.com
+
+Also support:
+
+APP_URL=https://www.webeebuilder.com
+WEBHOOK_BASE_URL=https://www.webeebuilder.com
+
+Ensure production endpoints use WEBHOOK_BASE_URL instead of localhost, Replit preview URLs, or hardcoded domains.
+
+Do not remove development fallbacks.
+
+====================================================
+
+PART 3 — WEBHOOK ENDPOINT INVENTORY
+
+Find all webhook endpoints.
+
+Include:
+
+Retell
+Twilio Voice
+Twilio WhatsApp
+FreJun
+Meta WhatsApp
+WATI
+Cal.com
+Stripe
+ElevenLabs
+Custom Telemetry
+Campaign Executor
+
+For each endpoint output:
+
+Provider
+Route
+Full production URL
+Required secret/key
+Current handler file
+Health check available yes/no
+
+Example:
+
+Retell:
+https://www.webeebuilder.com/api/public/voice-webhook
+
+Twilio:
+https://www.webeebuilder.com/api/public/twilio/voice
+
+Cal.com:
+https://www.webeebuilder.com/api/public/calcom-webhook/{workspaceId}
+
+====================================================
+
+PART 4 — HEALTH CHECKS
+
+Add or verify health check routes for every webhook.
+
+Each should return:
+
+200 OK
+provider name
+environment
+timestamp
+expected method
+configured true/false
+
+Do not require provider signature on health check routes.
+
+====================================================
+
+PART 5 — AUTOMATIC PROVIDER WEBHOOK UPDATES
+
+Where provider APIs already exist, create update functions.
+
+Twilio:
+
+Use TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.
+
+Update:
+
+Voice URL
+Status Callback URL
+Recording Callback URL
+WhatsApp Messaging URL
+
+for connected numbers.
+
+Retell:
+
+If Retell webhook update API exists in current codebase, update workspace/agent webhook URL.
+
+Cal.com:
+
+If Cal.com API key exists, register production webhook for workspace.
+
+ElevenLabs:
+
+If ElevenLabs webhook API exists, update production webhook.
+
+WATI:
+
+If WATI webhook update API exists, update inbound webhook.
+
+Meta WhatsApp:
+
+Do not attempt full automatic app setup unless already implemented.
+
+Instead produce manual instructions for callback URL and verify token.
+
+Stripe:
+
+Do not modify live Stripe webhooks unless explicit STRIPE_SECRET_KEY and existing webhook management function are available.
+
+Otherwise output manual dashboard URL checklist.
+
+====================================================
+
+PART 6 — PROVIDER CONNECTION TEST PAGE
+
+Create or update:
+
+/settings/production-readiness
+
+Show:
+
+Production URL
+DNS status
+Webhook status
+Provider connection status
+Last webhook update time
+Health check result
+
+Buttons:
+
+Test All
+Update Supported Webhooks
+Copy Webhook URLs
+Export Checklist
+
+====================================================
+
+PART 7 — SUPABASE AUTH CHECKLIST
+
+Output manual instructions for Supabase dashboard:
+
+Add Site URL:
+
+https://www.webeebuilder.com
+
+Add Redirect URLs:
+
+https://www.webeebuilder.com/auth/callback
+https://www.webeebuilder.com/login
+https://www.webeebuilder.com/signup
+
+Do not attempt to modify Supabase dashboard automatically unless Supabase Management API is already configured.
+
+====================================================
+
+PART 8 — DNS CHECKLIST
+
+Output DNS checklist for:
+
+webeebuilder.com
+[www.webeebuilder.com](http://www.webeebuilder.com)
+
+Use the exact Replit custom domain DNS records shown in Replit deployment settings.
+
+Do not invent DNS records.
+
+====================================================
+
+PART 9 — SAFETY
+
+Before updating any provider webhook:
+
+Show planned changes.
+
+Require confirmation.
+
+Log every change.
+
+Store:
+
+provider
+old_url
+new_url
+status
+timestamp
+workspace_id
+
+Create table if needed:
+
+production_webhook_updates
+
+====================================================
+
+PART 10 — FINAL REPORT
+
+Produce:
+
+1. Exact Replit deployment settings.
+2. All production webhook URLs.
+3. Which providers can be auto-updated.
+4. Which providers need manual dashboard updates.
+5. Missing secrets.
+6. Broken endpoint routes.
+7. DNS checklist.
+8. Supabase checklist.
+9. Go-live checklist.
+
+SUCCESS CRITERIA
+
+After deployment, WeeBee can run on:
+
+https://www.webeebuilder.com
+
+with:
+
+auth
+webhooks
+voice calls
+WhatsApp
+Stripe
+Cal.com
+Retell
+Twilio
+ElevenLabs
+GrowthMind
+HiveMind
+
+using production URLs instead of preview/local URLs.
+
+Generate audit and implementation plan first.
+
+Do not update external providers until confirmation.
