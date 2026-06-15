@@ -160,13 +160,10 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
 
   const sb = createClient(supabaseUrl, supabaseKey);
 
-  const accessToken = process.env.GOOGLE_CLOUD_ACCESS_TOKEN ?? "";
-  const runwayKey   = process.env.RUNWAY_API_KEY ?? "";
-
-  // Fetch all assets with pending job sentinels
+  // Fetch all assets with pending job sentinels (include workspace_id for per-workspace creds)
   const { data: rows, error: fetchErr } = await sb
     .from("growthmind_video_assets")
-    .select("id, video_url, provider")
+    .select("id, video_url, provider, workspace_id")
     .or("video_url.like.[veo3_job:%,video_url.like.[runway_job:%")
     .limit(50);
 
@@ -180,6 +177,38 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
 
   const pending = (rows ?? []).filter((r: any) => isJobPending(r.video_url));
 
+  // Pre-load per-workspace video credentials for all unique workspaces
+  const workspaceIds = [...new Set(pending.map((r: any) => r.workspace_id).filter(Boolean))] as string[];
+  const wsCredsMap: Record<string, { veoToken?: string; runwayKey?: string }> = {};
+
+  await Promise.all(
+    workspaceIds.map(async (wsId) => {
+      const [veoRes, runwayRes] = await Promise.all([
+        sb.from("provider_settings")
+          .select("credentials")
+          .eq("workspace_id", wsId)
+          .eq("provider_category", "video")
+          .eq("provider_name", "google_veo")
+          .maybeSingle()
+          .catch(() => ({ data: null })),
+        sb.from("provider_settings")
+          .select("credentials")
+          .eq("workspace_id", wsId)
+          .eq("provider_category", "video")
+          .eq("provider_name", "runway")
+          .maybeSingle()
+          .catch(() => ({ data: null })),
+      ]);
+      const veoToken  = (veoRes.data?.credentials as any)?.accessToken?.trim() || "";
+      const runwayKey = (runwayRes.data?.credentials as any)?.apiKey?.trim() || "";
+      wsCredsMap[wsId] = { veoToken, runwayKey };
+    }),
+  );
+
+  // Fall back to env vars when workspace creds are absent
+  const globalVeoToken  = process.env.GOOGLE_CLOUD_ACCESS_TOKEN ?? "";
+  const globalRunwayKey = process.env.RUNWAY_API_KEY ?? "";
+
   const result: PollerResult = { checked: pending.length, resolved: 0, failed: 0, errors: [] };
 
   await Promise.all(
@@ -187,17 +216,21 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
       const job = parseJobSentinel(row.video_url);
       if (!job) return;
 
+      const wsCreds  = wsCredsMap[row.workspace_id] ?? {};
+
       let pollResult:
         | { done: false }
         | { done: true; videoUrl: string }
         | { done: true; error: string };
 
       if (job.type === "veo3") {
-        if (!accessToken) return; // Credentials not available yet — skip silently
-        pollResult = await pollVeo3Job(job.jobId, accessToken);
+        const token = wsCreds.veoToken || globalVeoToken;
+        if (!token) return; // Credentials not available yet — skip silently
+        pollResult = await pollVeo3Job(job.jobId, token);
       } else {
-        if (!runwayKey) return;
-        pollResult = await pollRunwayJob(job.jobId, runwayKey);
+        const key = wsCreds.runwayKey || globalRunwayKey;
+        if (!key) return;
+        pollResult = await pollRunwayJob(job.jobId, key);
       }
 
       if (!pollResult.done) return; // Still running

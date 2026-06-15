@@ -114,19 +114,19 @@ async function generateVoiceover(
 }
 
 // ── Veo 3 video generation ─────────────────────────────────────────────────────
-// NOTE: Veo 3 is accessed via Google Cloud Vertex AI. API will return a job ID
-// and the video URL is polled. For now we return null and log appropriately.
 
 async function generateVeo3Video(
-  prompt:   string,
-  _apiKey:  string,
+  prompt:      string,
+  credentials: { gcpProject?: string; accessToken?: string },
 ): Promise<string | null> {
   try {
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT;
-    const accessToken = process.env.GOOGLE_CLOUD_ACCESS_TOKEN;
+    const projectId   = credentials.gcpProject?.trim()   || process.env.GOOGLE_CLOUD_PROJECT   || "";
+    const accessToken = credentials.accessToken?.trim()  || process.env.GOOGLE_CLOUD_ACCESS_TOKEN || "";
     if (!projectId || !accessToken) return null;
 
-    const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/veo-3.0-generate-preview:predictLongRunning`;
+    const endpoint =
+      `https://us-central1-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
+      `/locations/us-central1/publishers/google/models/veo-3.0-generate-preview:predictLongRunning`;
 
     const res = await fetch(endpoint, {
       method: "POST",
@@ -135,8 +135,8 @@ async function generateVeo3Video(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: { aspectRatio: "16:9", durationSeconds: 8 },
+        instances:  [{ prompt }],
+        parameters: { aspectRatio: "16:9", durationSeconds: 8, sampleCount: 1 },
       }),
     });
 
@@ -410,7 +410,28 @@ export const generateVideo = createServerFn({ method: "POST" })
 
     if (qualityMode === "premium") {
       const primaryProvider = videoProviderForType(videoType);
-      const runwayKey = process.env.RUNWAY_API_KEY ?? settings.runway_api_key ?? "";
+
+      // Resolve video provider credentials: workspace provider_settings > env vars
+      const [veoSettingsRes, runwaySettingsRes] = await Promise.all([
+        sb.from("provider_settings")
+          .select("credentials, status")
+          .eq("workspace_id", workspaceId)
+          .eq("provider_category", "video")
+          .eq("provider_name", "google_veo")
+          .maybeSingle()
+          .catch(() => ({ data: null })),
+        sb.from("provider_settings")
+          .select("credentials, status")
+          .eq("workspace_id", workspaceId)
+          .eq("provider_category", "video")
+          .eq("provider_name", "runway")
+          .maybeSingle()
+          .catch(() => ({ data: null })),
+      ]);
+
+      const veoCreds = (veoSettingsRes.data?.credentials ?? {}) as Record<string, string>;
+      const runwayCreds = (runwaySettingsRes.data?.credentials ?? {}) as Record<string, string>;
+      const runwayKey = runwayCreds.apiKey?.trim() || process.env.RUNWAY_API_KEY || settings.runway_api_key || "";
 
       const visualPrompt = [
         storyboard[0]?.visual ?? "",
@@ -425,12 +446,12 @@ export const generateVideo = createServerFn({ method: "POST" })
         }
         // Fallback to Veo 3 if Runway failed or no key
         if (!videoUrl) {
-          const veoResult = await generateVeo3Video(visualPrompt, "");
+          const veoResult = await generateVeo3Video(visualPrompt, veoCreds);
           if (veoResult) { videoUrl = `[veo3_job:${veoResult}]`; provider = "veo3"; }
         }
       } else {
         // All other types → Veo 3 primary
-        const veoResult = await generateVeo3Video(visualPrompt, "");
+        const veoResult = await generateVeo3Video(visualPrompt, veoCreds);
         if (veoResult) { videoUrl = `[veo3_job:${veoResult}]`; provider = "veo3"; }
         // Fallback to Runway Gen-4 if Veo 3 failed or missing credentials
         if (!videoUrl && runwayKey) {

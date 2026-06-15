@@ -94,6 +94,13 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
   ],
   "image:gpt_image": [{ key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." }],
   "crm:hubspot": [{ key: "apiKey", label: "HubSpot Access Token", type: "password", required: true, placeholder: "pat-na1-..." }],
+  "video:google_veo": [
+    { key: "gcpProject",   label: "GCP Project ID",     type: "text",     required: true,  placeholder: "my-gcp-project-id" },
+    { key: "accessToken",  label: "OAuth Access Token", type: "password", required: true,  placeholder: "ya29...." },
+  ],
+  "video:runway": [
+    { key: "apiKey", label: "Runway API Key", type: "password", required: true, placeholder: "key_..." },
+  ],
 };
 
 const REDIRECT_PROVIDERS: Record<string, string> = {
