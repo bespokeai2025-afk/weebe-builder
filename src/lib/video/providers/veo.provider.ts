@@ -35,7 +35,7 @@ export type VeoJobResult =
   | { status: "completed";  jobId: string; videoUrl: string }
   | { status: "failed";     jobId: string; error?: string };
 
-const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1alpha"; // Veo requires v1alpha, not v1beta
+const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta";  // Veo uses v1beta (:predictLongRunning)
 const VERTEX_BASE   = "https://us-central1-aiplatform.googleapis.com/v1";
 const TOKEN_URL     = "https://oauth2.googleapis.com/token";
 const DEFAULT_MODEL_GEMINI = "veo-2.0-generate-001";       // Gemini Developer API (API key)
@@ -127,13 +127,13 @@ export class VeoProvider {
       if (params.referenceUrl) instance.image = { gcsUri: params.referenceUrl };
 
       if (this.authMode === "gemini_api_key") {
-        // Gemini Developer API uses :generateVideo (NOT :predictLongRunning — that is Vertex AI only)
-        const endpoint = `${GEMINI_BASE}/models/${this.model}:generateVideo?key=${encodeURIComponent(this.geminiKey)}`;
+        // Gemini Developer API: :predictLongRunning is the documented LRO endpoint for Veo
+        const endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
         const body = {
           instances: [instance],
           parameters: {
             aspectRatio:     params.aspectRatio     ?? "16:9",
-            durationSeconds: String(params.durationSeconds ?? 8),  // must be string on Gemini API
+            durationSeconds: params.durationSeconds ?? 8,   // must be a number, not a string
             sampleCount:     1,
           },
         };

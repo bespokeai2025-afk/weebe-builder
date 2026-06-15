@@ -1631,12 +1631,12 @@ export const getVeoStatus = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) return { connected: false };
 
-    // Check workspace-stored credentials first
+    // Read from the canonical provider_settings table (same as generateVideoFromPrompt)
     const { data } = await sb
-      .from("workspace_provider_settings")
+      .from("provider_settings")
       .select("credentials")
       .eq("workspace_id", workspaceId)
-      .eq("category", "video")
+      .eq("provider_category", "video")
       .eq("provider_name", "google_veo")
       .maybeSingle();
 

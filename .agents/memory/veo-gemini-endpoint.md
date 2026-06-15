@@ -1,21 +1,22 @@
 ---
-name: Veo Gemini API endpoint method
-description: Correct REST method names for Veo video generation depending on auth path
+name: Veo Gemini API endpoint
+description: Correct base URL and method for Veo on Gemini Developer API; getVeoStatus table bug
 ---
 
 ## Rule
-- **Gemini Developer API** (`generativelanguage.googleapis.com/v1beta`): use `:generateVideo`
-- **Vertex AI** (`us-central1-aiplatform.googleapis.com/v1`): use `:predictLongRunning`
+- Base URL: `https://generativelanguage.googleapis.com/v1beta` (NOT v1alpha)
+- Submit method for Gemini Developer API: `:predictLongRunning` (NOT `:generateVideo`)
+- Full submit: `POST /v1beta/models/veo-2.0-generate-001:predictLongRunning?key=API_KEY`
+- Poll: `GET /v1beta/{operationName}?key=API_KEY` — operationName from `data.name` e.g. `models/veo-2.0-generate-001/operations/ID`
+- Vertex AI path remains: `:predictLongRunning` on `us-central1-aiplatform.googleapis.com/v1`
+- `getVeoStatus` must query `provider_settings` with `provider_category='video'` — NOT `workspace_provider_settings` (doesn't exist).
 
-Mixing them up gives 404: "models/veo-3.0-generate-preview is not found for API version v1beta, or is not supported for predictLongRunning."
-
-## Request body
-Both paths use `instances`/`parameters` schema:
+## Request body (both paths)
 ```json
 { "instances": [{ "prompt": "..." }], "parameters": { "aspectRatio": "16:9", "durationSeconds": "8", "sampleCount": 1 } }
 ```
-Key difference: `durationSeconds` must be a **string** on Gemini API, an **integer** on Vertex AI.
+`durationSeconds` must be a **number** (integer), NOT a string — the API returns 400 INVALID_ARGUMENT if sent as a string.
 
-**Why:** The two APIs are served by different Google backends and have separate method registries. `predictLongRunning` is a Vertex AI convention; the Gemini Developer API exposes video generation under its own `generateVideo` method name.
+**Why:** The Python google-genai SDK uses `:predictLongRunning` on `v1beta`. The old `v1alpha/:generateVideo` endpoint was non-functional. The `workspace_provider_settings` table query was a copy-paste bug causing the Veo connected status to always read as false.
 
-**How to apply:** In VeoProvider.generateVideo(), the `doRequest` closure already branches on `this.authMode`. Always keep the two endpoint strings separate and never reuse `predictLongRunning` on the Gemini path.
+**How to apply:** Never change back to `v1alpha` or `:generateVideo` for the Gemini path. Credential lookups for Veo always go via `provider_settings.provider_category = 'video'`.
