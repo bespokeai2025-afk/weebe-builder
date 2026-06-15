@@ -17,7 +17,8 @@ type PlatformDoc =
   | { seedKey: string; title: string; kbSlug: string; content: string; prompt?: never }
   | { seedKey: string; title: string; kbSlug: string; prompt: string; content?: never };
 
-// ── Literal WEBEE Platform Overview (authoritative, no generation needed) ─────
+// ── Verbatim authoritative content (no LLM generation) ───────────────────────
+
 const WEBEE_PLATFORM_OVERVIEW_CONTENT = `# WEBEE Platform Overview
 
 **Company:** Webespoke AI
@@ -125,46 +126,114 @@ Tracks: Provider costs, Token usage, Voice costs, Telephony costs, Markup, Profi
 Real Estate, Legal, Professional Services, Consultancies, Education, Healthcare, Corporate Services, Sales Teams, Recruitment, Customer Support.
 `;
 
+const WEBEE_SELLING_POINTS_CONTENT = `# WEBEE Competitive Advantages and Selling Points
+
+## Positioning
+
+WEBEE is not just an AI agent builder.
+
+WEBEE is a complete AI Business Operating System.
+
+## Key Competitive Advantages
+
+### 1. One Platform
+
+Most competitors provide: Voice AI only, Chatbots only, CRM only, or Marketing only.
+
+WEBEE combines: AI Agents, CRM, Telephony, WhatsApp, Email, Campaigns, Analytics, and Executive AI — inside one platform.
+
+### 2. No Developers Required
+
+Users can create agents, deploy agents, connect channels, manage campaigns, and review analytics without coding.
+
+### 3. Multiple AI Agent Types
+
+Supports: Receptionist Agents, Lead Generation Agents, Client Qualification Agents, Customer Service Agents, Booking Agents, Document Collection Agents, WhatsApp Agents.
+
+### 4. Multi-Channel Automation
+
+Voice, WhatsApp, Email, CRM, Bookings, Campaigns — all connected.
+
+### 5. Executive AI Layer
+
+Unique feature.
+
+- HiveMind acts as an AI COO.
+- GrowthMind acts as an AI CMO.
+- SystemMind acts as an AI CTO.
+
+This creates an AI executive team that assists businesses in managing operations, growth and technology.
+
+### 6. Built-In Marketing Intelligence
+
+GrowthMind can: Analyse business goals, Identify opportunities, Generate strategies, Generate content, Recommend campaigns, Monitor performance.
+
+### 7. Built-In Technical Intelligence
+
+SystemMind can: Monitor integrations, Audit workflows, Identify failures, Suggest repairs, Generate implementation plans.
+
+### 8. AI Receptionist
+
+Businesses can replace or augment traditional receptionists with AI-powered voice agents.
+
+Benefits: 24/7 availability, Reduced staffing costs, Instant response times, Scalable call handling.
+
+### 9. AI Lead Qualification
+
+Automatically: Call leads, Qualify prospects, Book appointments, Update CRM records, Trigger follow-up campaigns.
+
+### 10. AI Follow-Up
+
+HexMail and WhatsApp Centre allow: Automated nurture, Email sequences, WhatsApp broadcasts, Reactivation campaigns, Appointment reminders.
+
+### 11. Provider Agnostic Architecture
+
+Supports: OpenAI, Gemini, Claude, Retell, ElevenLabs, Twilio, FreJun, Meta, WATI, Cal.com, Resend, and future providers.
+
+Businesses are not locked into a single vendor.
+
+### 12. Revenue Loop Automation
+
+WEBEE can automate: Lead Capture, Lead Qualification, Appointment Booking, Follow-Up, Customer Communication, Pipeline Management, Reporting.
+
+This creates a complete revenue-generation workflow.
+
+## Ideal Customer Problems Solved
+
+- Missed calls
+- Slow response times
+- Manual lead qualification
+- Poor follow-up
+- Fragmented systems
+- Disconnected marketing tools
+- Lack of operational visibility
+- High staffing costs
+- Lack of automation
+- Lack of reporting
+
+## Core Value Proposition
+
+Deploy AI employees, automate customer communications, manage leads, run campaigns and gain executive-level business intelligence from a single platform.
+`;
+
+// ── Document list ─────────────────────────────────────────────────────────────
+
 const PLATFORM_DOCS: PlatformDoc[] = [
-  // ── Verbatim authoritative content ─────────────────────────────────────────
+  // ── Verbatim authoritative documents ────────────────────────────────────────
   {
     seedKey: "platform:webee-overview",
     title:   "WEBEE Platform Overview",
     kbSlug:  "platform_shared",
     content: WEBEE_PLATFORM_OVERVIEW_CONTENT,
   },
-
-  // ── AI-generated companion documents ────────────────────────────────────────
   {
     seedKey: "platform:webee-selling-points",
-    title:   "WEBEE Selling Points & Value Propositions",
+    title:   "WEBEE Competitive Advantages & Selling Points",
     kbSlug:  "platform_shared",
-    prompt: `Write a high-signal reference document covering WEBEE's core selling points and value propositions for sales, marketing and executive context.
-
-WEBEE (by Webespoke AI) is a multi-tenant AI Operating System with the following product family:
-- WEBEE Builder: no-code visual flow builder for voice + WhatsApp agents
-- Smart Dash CRM: centralised dashboard (leads, pipeline, bookings, calls, campaigns)
-- HyperStream: OpenAI Realtime native voice engine (low latency, advanced VAD)
-- VoxStream: ElevenLabs native voice engine (custom deployments, browser sessions)
-- WhatsApp Centre: multi-provider WA management (Meta, Twilio, WATI, broadcast, AI agents)
-- HexMail: email marketing engine (campaigns, drip sequences, template studio)
-- HiveMind: AI Chief Operating Officer (briefings, reporting, tasks, approvals, voice)
-- GrowthMind: AI Chief Marketing Officer (marketing intelligence, content, SEO, strategy)
-- SystemMind: AI Chief Technology Officer (monitoring, auditing, repair, integrations)
-- Cost Engine: provider cost tracking, token usage, markup, profitability
-
-Cover:
-- Primary value proposition: enterprise-grade AI employees + full communication stack without developers
-- Voice agent capabilities: build, deploy and manage AI call agents in minutes (HyperStream + VoxStream)
-- Multi-channel outreach: voice, WhatsApp (3 providers), email — all from one platform
-- The three AI executives (HiveMind/GrowthMind/SystemMind) replacing specialist hires
-- ROI and efficiency gains: response time, lead follow-up, 24/7 availability, no-code speed
-- Key differentiators: single-platform architecture, provider-agnostic, built-in CRM + marketing + telephony
-- Common objections and rebuttals
-- Ideal customer profile: businesses with inbound/outbound call needs, sales teams, service operations
-
-Format: 700–1000 words, markdown headings and bullet points, sharp and persuasive.`,
+    content: WEBEE_SELLING_POINTS_CONTENT,
   },
+
+  // ── AI-generated companion documents ────────────────────────────────────────
   {
     seedKey: "platform:webee-customer-outcomes",
     title:   "WEBEE Customer Outcomes & Success Patterns",
