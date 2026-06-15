@@ -1469,6 +1469,42 @@ export function GrowthMindVideoStudio() {
         <aside className="hidden xl:flex w-64 shrink-0 flex-col border-l border-white/[0.06] p-4 gap-4 overflow-y-auto">
           <VideoCostPanel />
 
+          {/* ── Poller health chip ── */}
+          {(() => {
+            const pendingCount = assets.filter(a => isJobPending(a.videoUrl)).length;
+            const failedCount  = assets.filter(a => isJobError(a.videoUrl)).length;
+            return (
+              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-3 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 flex items-center gap-1.5">
+                  <Radio className="h-3 w-3" />
+                  Poller Status
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {pendingCount > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      {pendingCount} rendering
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      All done
+                    </span>
+                  )}
+                  {failedCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 border border-red-500/25 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+                      <XCircle className="h-2.5 w-2.5" />
+                      {failedCount} failed
+                    </span>
+                  )}
+                </div>
+                {pendingCount > 0 && (
+                  <p className="text-[10px] text-muted-foreground/50">Auto-polls every 10s</p>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-2.5">
             <p className="text-xs font-semibold flex items-center gap-2">
               <Radio className="h-3.5 w-3.5 text-violet-400" />

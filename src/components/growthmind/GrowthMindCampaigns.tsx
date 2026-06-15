@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Loader2, RefreshCw, Megaphone,
-  Play, Pause, BarChart3, Mail, MessageSquare,
+  Play, Pause, BarChart3, Mail, MessageSquare, Clapperboard,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -142,6 +142,23 @@ export function GrowthMindCampaigns() {
                         <div className="flex items-center justify-between mt-2 text-[11px] text-muted-foreground">
                           <span>{c.completedCalls} / {c.totalLeads} calls</span>
                           <span>{c.totalLeads - c.completedCalls} remaining</span>
+                        </div>
+
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            onClick={() => {
+                              const p = new URLSearchParams({
+                                mode:     "freeform",
+                                platform: "meta",
+                                prompt:   `Video ad for campaign: ${c.name}`,
+                              });
+                              window.location.assign(`/growthmind/video-studio?${p.toString()}`);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-400 hover:bg-violet-500/15 hover:border-violet-500/30 transition-colors"
+                          >
+                            <Clapperboard className="h-3 w-3" />
+                            Generate Video Ad
+                          </button>
                         </div>
                       </div>
                     );
