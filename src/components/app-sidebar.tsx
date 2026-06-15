@@ -32,6 +32,7 @@ import {
   TrendingUp,
   Server,
   BookOpen,
+  Calculator,
 } from "lucide-react";
 import {
   DndContext,
@@ -588,6 +589,12 @@ export function AppSidebar() {
               <ShieldCheck className="mr-2 h-4 w-4" />
               Production Readiness
             </DropdownMenuItem>
+            {isAdmin && (
+              <DropdownMenuItem onClick={() => navigate({ to: "/admin/cost-engine" })}>
+                <Calculator className="mr-2 h-4 w-4" />
+                Costing Studio
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onClick={() => {
                 restartTour();
