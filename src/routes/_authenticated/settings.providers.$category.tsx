@@ -63,7 +63,7 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "clientId",      label: "OAuth Client ID",              type: "text",     required: false, placeholder: "12345-abc.apps.googleusercontent.com" },
     { key: "clientSecret",  label: "OAuth Client Secret",          type: "password", required: false, placeholder: "GOCSPX-…" },
     { key: "location",      label: "GCP Location",                 type: "text",     required: false, placeholder: "us-central1" },
-    { key: "veoModel",      label: "Veo Model",                    type: "text",     required: false, placeholder: "veo-3.0-generate-preview" },
+    { key: "veoModel",      label: "Veo Model",                    type: "text",     required: false, placeholder: "veo-2.0-generate-001 (Gemini key) or veo-3.0-generate-preview (Vertex AI)" },
   ],
   "image:imagen": [
     { key: "gcpProject", label: "GCP Project ID", type: "text", required: true },

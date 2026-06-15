@@ -36,7 +36,8 @@ export type VeoJobResult =
 const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta";
 const VERTEX_BASE   = "https://us-central1-aiplatform.googleapis.com/v1";
 const TOKEN_URL     = "https://oauth2.googleapis.com/token";
-const DEFAULT_MODEL = "veo-3.0-generate-preview";
+const DEFAULT_MODEL_GEMINI = "veo-2.0-generate-001";       // Gemini Developer API (API key)
+const DEFAULT_MODEL_VERTEX = "veo-3.0-generate-preview";  // Vertex AI (GCP OAuth)
 
 export class VeoProvider {
   private cfg: VeoConfig;
@@ -60,7 +61,10 @@ export class VeoProvider {
   }
 
   private get model(): string {
-    return (this.cfg.model ?? "").trim() || process.env.VEO_MODEL || DEFAULT_MODEL;
+    const cfgModel = (this.cfg.model ?? "").trim() || process.env.VEO_MODEL;
+    if (cfgModel) return cfgModel;
+    // Gemini Developer API only supports up to veo-2; Vertex AI supports veo-3 preview
+    return this.authMode === "gemini_api_key" ? DEFAULT_MODEL_GEMINI : DEFAULT_MODEL_VERTEX;
   }
 
   private get location(): string {
