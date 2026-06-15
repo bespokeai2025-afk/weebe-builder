@@ -1,31 +1,28 @@
 /**
- * Veo Provider — Gemini API path
+ * Veo Provider — Gemini API + Vertex AI OAuth
  *
- * Supports Google Veo video generation via the Gemini API (API-key auth),
- * as an alternative to the existing Vertex AI OAuth-token adapter.
- *
- * Credentials (in order of precedence):
- *   1. GEMINI_API_KEY env var or workspace provider_settings.credentials.geminiApiKey
- *   2. Falls back to Vertex AI OAuth if gcpProject + accessToken present
- *
- * Gemini API endpoints:
- *   Submit:  POST https://generativelanguage.googleapis.com/v1beta/models/{model}:predictLongRunning?key={API_KEY}
- *   Poll:    GET  https://generativelanguage.googleapis.com/v1beta/{operationName}?key={API_KEY}
+ * Auth priority:
+ *   1. GEMINI_API_KEY / credentials.geminiApiKey  → generativelanguage.googleapis.com
+ *   2. accessToken + gcpProject                   → Vertex AI
+ *      If refreshToken + clientId + clientSecret present, auto-refreshes expired tokens.
  */
 
 export type VeoConfig = {
   geminiApiKey?:  string;
   gcpProject?:    string;
   accessToken?:   string;
+  refreshToken?:  string;
+  clientId?:      string;
+  clientSecret?:  string;
   location?:      string;
   model?:         string;
 };
 
 export type VeoGenerateParams = {
-  prompt:          string;
-  aspectRatio?:    "16:9" | "9:16" | "1:1" | "4:5";
+  prompt:           string;
+  aspectRatio?:     "16:9" | "9:16" | "1:1" | "4:5";
   durationSeconds?: number;
-  referenceUrl?:   string;
+  referenceUrl?:    string;
 };
 
 export type VeoJobResult =
@@ -34,15 +31,18 @@ export type VeoJobResult =
   | { status: "completed";  jobId: string; videoUrl: string }
   | { status: "failed";     jobId: string; error?: string };
 
-const GEMINI_BASE    = "https://generativelanguage.googleapis.com/v1beta";
-const VERTEX_BASE    = "https://us-central1-aiplatform.googleapis.com/v1";
-const DEFAULT_MODEL  = "veo-3.0-generate-preview";
+const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta";
+const VERTEX_BASE   = "https://us-central1-aiplatform.googleapis.com/v1";
+const TOKEN_URL     = "https://oauth2.googleapis.com/token";
+const DEFAULT_MODEL = "veo-3.0-generate-preview";
 
 export class VeoProvider {
-  private readonly cfg: VeoConfig;
+  private cfg: VeoConfig;
+  private _activeToken: string = "";
 
   constructor(cfg: VeoConfig = {}) {
-    this.cfg = cfg;
+    this.cfg = { ...cfg };
+    this._activeToken = cfg.accessToken?.trim() ?? "";
   }
 
   private get geminiKey(): string {
@@ -50,7 +50,7 @@ export class VeoProvider {
   }
 
   private get accessToken(): string {
-    return (this.cfg.accessToken ?? "").trim() || process.env.GOOGLE_CLOUD_ACCESS_TOKEN || "";
+    return this._activeToken || (this.cfg.accessToken ?? "").trim() || process.env.GOOGLE_CLOUD_ACCESS_TOKEN || "";
   }
 
   private get project(): string {
@@ -65,11 +65,40 @@ export class VeoProvider {
     return (this.cfg.location ?? "").trim() || process.env.GOOGLE_CLOUD_LOCATION || "us-central1";
   }
 
-  /** Returns which auth path is active, or null if no credentials. */
+  /** Returns active auth path or null if no credentials. */
   get authMode(): "gemini_api_key" | "vertex_oauth" | null {
     if (this.geminiKey) return "gemini_api_key";
     if (this.accessToken && this.project) return "vertex_oauth";
     return null;
+  }
+
+  // ── OAuth token refresh ───────────────────────────────────────────────────
+
+  private async refreshAccessToken(): Promise<string | null> {
+    const refreshToken = (this.cfg.refreshToken ?? "").trim();
+    const clientId     = (this.cfg.clientId     ?? "").trim();
+    const clientSecret = (this.cfg.clientSecret ?? "").trim();
+    if (!refreshToken || !clientId || !clientSecret) return null;
+
+    try {
+      const res = await fetch(TOKEN_URL, {
+        method:  "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body:    new URLSearchParams({
+          grant_type:    "refresh_token",
+          refresh_token: refreshToken,
+          client_id:     clientId,
+          client_secret: clientSecret,
+        }),
+      });
+      if (!res.ok) return null;
+      const json = await res.json() as { access_token?: string };
+      const newToken = json.access_token ?? null;
+      if (newToken) this._activeToken = newToken;
+      return newToken;
+    } catch {
+      return null;
+    }
   }
 
   // ── Generate ───────────────────────────────────────────────────────────────
@@ -94,27 +123,35 @@ export class VeoProvider {
       },
     };
 
-    let endpoint: string;
-    let headers:  Record<string, string>;
+    const doRequest = async (token: string): Promise<Response> => {
+      let endpoint: string;
+      let headers:  Record<string, string>;
 
-    if (this.authMode === "gemini_api_key") {
-      endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
-      headers  = { "Content-Type": "application/json" };
-    } else {
-      endpoint =
-        `${VERTEX_BASE}/projects/${encodeURIComponent(this.project)}` +
-        `/locations/${this.location}/publishers/google/models/${this.model}:predictLongRunning`;
-      headers = {
-        Authorization:  `Bearer ${this.accessToken}`,
-        "Content-Type": "application/json",
-      };
+      if (this.authMode === "gemini_api_key") {
+        endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
+        headers  = { "Content-Type": "application/json" };
+      } else {
+        endpoint =
+          `${VERTEX_BASE}/projects/${encodeURIComponent(this.project)}` +
+          `/locations/${this.location}/publishers/google/models/${this.model}:predictLongRunning`;
+        headers = {
+          Authorization:  `Bearer ${token}`,
+          "Content-Type": "application/json",
+        };
+      }
+
+      return fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+    };
+
+    let resp = await doRequest(this.accessToken);
+
+    // Auto-refresh token on 401 (Vertex OAuth path only)
+    if (resp.status === 401 && this.authMode === "vertex_oauth") {
+      const newToken = await this.refreshAccessToken();
+      if (newToken) {
+        resp = await doRequest(newToken);
+      }
     }
-
-    const resp = await fetch(endpoint, {
-      method:  "POST",
-      headers,
-      body:    JSON.stringify(body),
-    });
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => resp.statusText);
@@ -133,21 +170,27 @@ export class VeoProvider {
   async getStatus(jobId: string): Promise<VeoJobResult> {
     if (!this.authMode) throw new Error("Veo credentials not configured.");
 
-    let endpoint: string;
-    let headers:  Record<string, string>;
+    const doRequest = async (token: string): Promise<Response> => {
+      let endpoint: string;
+      let headers:  Record<string, string>;
 
-    if (this.authMode === "gemini_api_key") {
-      endpoint = `${GEMINI_BASE}/${jobId}?key=${encodeURIComponent(this.geminiKey)}`;
-      headers  = { "Content-Type": "application/json" };
-    } else {
-      endpoint = `${VERTEX_BASE}/${jobId}`;
-      headers  = {
-        Authorization:  `Bearer ${this.accessToken}`,
-        "Content-Type": "application/json",
-      };
+      if (this.authMode === "gemini_api_key") {
+        endpoint = `${GEMINI_BASE}/${jobId}?key=${encodeURIComponent(this.geminiKey)}`;
+        headers  = { "Content-Type": "application/json" };
+      } else {
+        endpoint = `${VERTEX_BASE}/${jobId}`;
+        headers  = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      }
+      return fetch(endpoint, { headers });
+    };
+
+    let resp = await doRequest(this.accessToken);
+
+    if (resp.status === 401 && this.authMode === "vertex_oauth") {
+      const newToken = await this.refreshAccessToken();
+      if (newToken) resp = await doRequest(newToken);
     }
 
-    const resp = await fetch(endpoint, { headers });
     if (!resp.ok) return { status: "failed", jobId, error: `Poll HTTP ${resp.status}` };
 
     const json = await resp.json() as any;
@@ -179,9 +222,9 @@ export class VeoProvider {
 
   listModels(): { id: string; label: string; defaultDuration: number }[] {
     return [
-      { id: "veo-3.0-generate-preview",   label: "Veo 3.0 (Preview)",   defaultDuration: 8 },
-      { id: "veo-3.1-generate-preview",   label: "Veo 3.1 (Preview)",   defaultDuration: 8 },
-      { id: "veo-2.0-generate-001",       label: "Veo 2.0",             defaultDuration: 8 },
+      { id: "veo-3.0-generate-preview", label: "Veo 3.0 (Preview)", defaultDuration: 8 },
+      { id: "veo-3.1-generate-preview", label: "Veo 3.1 (Preview)", defaultDuration: 8 },
+      { id: "veo-2.0-generate-001",     label: "Veo 2.0",           defaultDuration: 8 },
     ];
   }
 
@@ -211,10 +254,13 @@ export class VeoProvider {
 /** Resolve Veo credentials from DB provider_settings row + env vars. */
 export function resolveVeoConfig(storedCredentials: Record<string, string> = {}): VeoConfig {
   return {
-    geminiApiKey: storedCredentials.geminiApiKey?.trim() || process.env.GEMINI_API_KEY || "",
-    gcpProject:   storedCredentials.gcpProject?.trim()   || process.env.GOOGLE_CLOUD_PROJECT || "",
-    accessToken:  storedCredentials.accessToken?.trim()   || process.env.GOOGLE_CLOUD_ACCESS_TOKEN || "",
-    location:     storedCredentials.location?.trim()      || process.env.GOOGLE_CLOUD_LOCATION || "us-central1",
-    model:        storedCredentials.veoModel?.trim()      || process.env.VEO_MODEL || DEFAULT_MODEL,
+    geminiApiKey:  storedCredentials.geminiApiKey?.trim()  || process.env.GEMINI_API_KEY              || "",
+    gcpProject:    storedCredentials.gcpProject?.trim()    || process.env.GOOGLE_CLOUD_PROJECT         || "",
+    accessToken:   storedCredentials.accessToken?.trim()   || process.env.GOOGLE_CLOUD_ACCESS_TOKEN    || "",
+    refreshToken:  storedCredentials.refreshToken?.trim()  || process.env.GOOGLE_OAUTH_REFRESH_TOKEN   || "",
+    clientId:      storedCredentials.clientId?.trim()      || process.env.GOOGLE_OAUTH_CLIENT_ID       || "",
+    clientSecret:  storedCredentials.clientSecret?.trim()  || process.env.GOOGLE_OAUTH_CLIENT_SECRET   || "",
+    location:      storedCredentials.location?.trim()      || process.env.GOOGLE_CLOUD_LOCATION        || "us-central1",
+    model:         storedCredentials.veoModel?.trim()      || process.env.VEO_MODEL                    || DEFAULT_MODEL,
   };
 }

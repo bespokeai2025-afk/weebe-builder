@@ -35,7 +35,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     Promise.resolve(sb.from("knowledge_bases").select("id,name").eq("workspace_id", workspaceId).limit(20)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_recommendations").select("category,priority,problem,fix").eq("workspace_id", workspaceId).eq("is_dismissed", false).order("created_at", { ascending: false }).limit(5)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_generation_logs").select("provider,model,estimated_cost_usd,status,created_at").eq("workspace_id", workspaceId).gte("created_at", weekStart.toISOString()).limit(1000)).catch(() => ({ data: [] })),
-    Promise.resolve(sb.from("growthmind_video_assets").select("video_type,created_at").eq("workspace_id", workspaceId).gte("created_at", monthStart.toISOString()).limit(200)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_video_assets").select("id,video_type,provider,quality_mode,cost_estimate,video_url,created_at").eq("workspace_id", workspaceId).gte("created_at", monthStart.toISOString()).limit(200)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_content_calendar").select("id").eq("workspace_id", workspaceId).eq("content_type", "Video Script").gte("scheduled_date", new Date().toISOString().slice(0, 10)).limit(20)).catch(() => ({ data: [] })),
   ]);
 
@@ -280,17 +280,40 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     videoSummary: (() => {
       if (!videoAssetsArr.length && !videoScheduledArr.length) return null;
       const ALL_KEY_TYPES = ["meta_video_ad", "explainer_video", "ugc_ad", "product_demo", "testimonial_video"];
-      const byType: Record<string, number> = {};
+      const byType:     Record<string, number> = {};
+      const byProvider: Record<string, number> = {};
+      const byQuality:  Record<string, number> = {};
+      let   totalCostEst = 0;
+
       for (const a of videoAssetsArr) {
-        byType[a.video_type] = (byType[a.video_type] ?? 0) + 1;
+        byType[a.video_type ?? "unknown"] = (byType[a.video_type ?? "unknown"] ?? 0) + 1;
+        const prov = (a.provider ?? "text_only") as string;
+        byProvider[prov] = (byProvider[prov] ?? 0) + 1;
+        const q = (a.quality_mode ?? "fast") as string;
+        byQuality[q]     = (byQuality[q] ?? 0) + 1;
+        totalCostEst    += a.cost_estimate ?? 0;
       }
-      const coveredTypes = new Set(videoAssetsArr.map((a: any) => a.video_type as string));
-      const missingTypes = ALL_KEY_TYPES.filter(t => !coveredTypes.has(t));
+
+      const coveredTypes  = new Set(videoAssetsArr.map((a: any) => a.video_type as string));
+      const missingTypes  = ALL_KEY_TYPES.filter(t => !coveredTypes.has(t));
+      const pendingJobs   = videoAssetsArr.filter((a: any) =>
+        typeof a.video_url === "string" && /^\[veo3_job:|^\[runway_job:/.test(a.video_url)
+      );
+      const failedJobs    = videoAssetsArr.filter((a: any) =>
+        typeof a.video_url === "string" && a.video_url.startsWith("[error:")
+      );
+
       return {
-        totalThisMonth:    videoAssetsArr.length,
-        upcomingScheduled: videoScheduledArr.length,
+        totalThisMonth:         videoAssetsArr.length,
+        upcomingScheduled:      videoScheduledArr.length,
         byType,
         missingTypes,
+        pendingJobs:            pendingJobs.length,
+        failedJobs:             failedJobs.length,
+        failedJobIds:           failedJobs.map((a: any) => a.id as string),
+        byProvider,
+        byQuality,
+        estimatedCostThisMonth: Math.round(totalCostEst * 100) / 100,
       };
     })(),
   };
@@ -517,9 +540,19 @@ function buildPlatformContext(d: any): string {
     const typeBreakdown = Object.entries(vs.byType as Record<string, number>)
       .map(([t, n]) => `${t.replace(/_/g, " ")}: ${n}`)
       .join(", ");
+    const provBreakdown = Object.entries(vs.byProvider as Record<string, number>)
+      .map(([p, n]) => `${p}: ${n}`)
+      .join(", ");
+    const qualBreakdown = Object.entries(vs.byQuality as Record<string, number>)
+      .map(([q, n]) => `${q}: ${n}`)
+      .join(", ");
     lines.push(`\nGROWTHMIND VIDEO STUDIO (this month):`);
-    lines.push(`  ${vs.totalThisMonth} video asset(s) created | ${vs.upcomingScheduled} scheduled upcoming`);
-    if (typeBreakdown) lines.push(`  Types: ${typeBreakdown}`);
+    lines.push(`  ${vs.totalThisMonth} video(s) created | ${vs.upcomingScheduled} scheduled | Est. cost: $${vs.estimatedCostThisMonth ?? 0}`);
+    if (vs.pendingJobs  > 0) lines.push(`  ⏳ ${vs.pendingJobs} video job(s) still rendering`);
+    if (vs.failedJobs   > 0) lines.push(`  ⚠️  ${vs.failedJobs} video job(s) FAILED — need attention`);
+    if (typeBreakdown)        lines.push(`  Types: ${typeBreakdown}`);
+    if (provBreakdown)        lines.push(`  Providers: ${provBreakdown}`);
+    if (qualBreakdown)        lines.push(`  Quality modes: ${qualBreakdown}`);
     if (vs.missingTypes?.length > 0) lines.push(`  Missing asset types: ${vs.missingTypes.join(", ")}`);
   }
 

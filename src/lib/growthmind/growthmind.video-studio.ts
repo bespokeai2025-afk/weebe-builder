@@ -180,6 +180,45 @@ async function generateRunwayVideo(
   }
 }
 
+// ── Full Veo prompt from all storyboard scenes ────────────────────────────────
+
+function buildFullVeoPrompt(
+  storyboard: StoryboardScene[],
+  params: {
+    companyName?:    string;
+    tone?:           string;
+    platform?:       string;
+    aspectRatio?:    string;
+    videoType?:      VideoType | string;
+    targetAudience?: string;
+    offer?:          string;
+    cta?:            string;
+  },
+): string {
+  const sceneLines = storyboard.map((s) => {
+    const parts = [
+      `Scene ${s.scene ?? 1} (${s.duration ?? 5}s):`,
+      s.visual        ? `Visual — ${s.visual}`            : "",
+      s.onScreenText  ? `On-screen — "${s.onScreenText}"` : "",
+      s.cta           ? `CTA — "${s.cta}"`                : "",
+    ].filter(Boolean);
+    return parts.join(" ");
+  }).filter(Boolean).join(" // ");
+
+  const meta = [
+    params.companyName    ? `Brand: ${params.companyName}`                                                    : "",
+    params.platform       ? `Platform: ${params.platform}`                                                    : "",
+    params.aspectRatio    ? `Aspect ratio: ${params.aspectRatio}`                                             : "",
+    params.tone           ? `Style/tone: ${params.tone}`                                                      : "",
+    params.targetAudience ? `Target audience: ${params.targetAudience}`                                       : "",
+    params.offer          ? `Key offer: ${params.offer}`                                                      : "",
+    params.cta            ? `Call to action: ${params.cta}`                                                   : "",
+    params.videoType      ? `Format: ${VIDEO_TYPE_LABELS[params.videoType as VideoType] ?? params.videoType}` : "",
+  ].filter(Boolean).join(" | ");
+
+  return [sceneLines, meta].filter(Boolean).join("\n\n");
+}
+
 // ── Build generation prompts ──────────────────────────────────────────────────
 
 function buildVideoPrompts(params: {
@@ -435,10 +474,14 @@ export const generateVideo = createServerFn({ method: "POST" })
       const runwayCreds = (runwaySettingsRes.data?.credentials ?? {}) as Record<string, string>;
       const runwayKey = runwayCreds.apiKey?.trim() || process.env.RUNWAY_API_KEY || settings.runway_api_key || "";
 
-      const visualPrompt = [
-        storyboard[0]?.visual ?? "",
-        `Style: ${data.tone ?? "professional"}, brand: ${companyName}`,
-      ].filter(Boolean).join(". ");
+      const visualPrompt = buildFullVeoPrompt(storyboard, {
+        companyName:    companyName,
+        tone:           data.tone ?? "professional",
+        videoType:      videoType,
+        targetAudience: data.targetAudience,
+        offer:          data.offer,
+        cta:            data.cta,
+      }) || `${storyboard[0]?.visual ?? data.offer ?? "promotional video"}. Style: ${data.tone ?? "professional"}, brand: ${companyName}`;
 
       if (primaryProvider === "runway_gen4") {
         // UGC / Testimonial → Runway Gen-4
@@ -1016,29 +1059,55 @@ export const retryVideoJob = createServerFn({ method: "POST" })
     if (fetchErr || !asset) throw new Error("Asset not found");
 
     const storyboard: StoryboardScene[] = Array.isArray(asset.storyboard) ? asset.storyboard : [];
+
+    // Load credentials from provider_settings (same path as generateVideo)
+    const [veoSettingsRes, runwaySettingsRes] = await Promise.all([
+      sb.from("provider_settings")
+        .select("credentials")
+        .eq("workspace_id", workspaceId)
+        .eq("provider_category", "video")
+        .eq("provider_name", "google_veo")
+        .maybeSingle()
+        .catch(() => ({ data: null })),
+      sb.from("provider_settings")
+        .select("credentials")
+        .eq("workspace_id", workspaceId)
+        .eq("provider_category", "video")
+        .eq("provider_name", "runway")
+        .maybeSingle()
+        .catch(() => ({ data: null })),
+    ]);
+
     const ws = await sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle();
     const companyName = ws.data?.name ?? ws.data?.settings?.company_name ?? "";
-    const tone = "professional";
 
-    const visualPrompt = [
-      storyboard[0]?.visual ?? "",
-      `Style: ${tone}, brand: ${companyName}`,
-    ].filter(Boolean).join(". ") || (asset.title ?? "promotional video");
+    const veoCreds   = (veoSettingsRes.data?.credentials   ?? {}) as Record<string, string>;
+    const runwayCreds= (runwaySettingsRes.data?.credentials ?? {}) as Record<string, string>;
+    const runwayKey  = runwayCreds.apiKey?.trim() || process.env.RUNWAY_API_KEY || "";
 
-    const runwayKey = process.env.RUNWAY_API_KEY ?? settings.runway_api_key ?? "";
+    // Build a full prompt from ALL storyboard scenes
+    const visualPrompt = buildFullVeoPrompt(storyboard, {
+      companyName,
+      tone:      "professional",
+      videoType: asset.video_type as VideoType,
+    }) || `${storyboard[0]?.visual ?? asset.title ?? "promotional video"}. Brand: ${companyName}`;
+
     let newVideoUrl: string | null = null;
-    let newProvider: VideoProvider | null = asset.provider ?? null;
+    let newProvider: VideoProvider | null = (asset.provider as VideoProvider) ?? null;
 
-    if (newProvider === "runway_gen4" || (!newProvider && runwayKey)) {
-      if (runwayKey) {
-        const runResult = await generateRunwayVideo(visualPrompt, runwayKey);
-        if (runResult) { newVideoUrl = `[runway_job:${runResult}]`; newProvider = "runway_gen4"; }
-      }
+    const primaryProvider = newProvider ?? videoProviderForType(asset.video_type as VideoType);
+
+    if (primaryProvider === "runway_gen4" && runwayKey) {
+      const runResult = await generateRunwayVideo(visualPrompt, runwayKey);
+      if (runResult) { newVideoUrl = `[runway_job:${runResult}]`; newProvider = "runway_gen4"; }
     }
 
     if (!newVideoUrl) {
-      const veoResult = await generateVeo3Video(visualPrompt, "");
-      if (veoResult) { newVideoUrl = `[veo3_job:${veoResult}]`; newProvider = "veo3"; }
+      const veo = new VeoProvider(resolveVeoConfig(veoCreds));
+      if (veo.authMode) {
+        const veoResult = await veo.generateVideo({ prompt: visualPrompt });
+        if (veoResult.status === "pending") { newVideoUrl = `[veo3_job:${veoResult.jobId}]`; newProvider = "veo3"; }
+      }
     }
 
     if (!newVideoUrl && runwayKey) {
@@ -1046,7 +1115,7 @@ export const retryVideoJob = createServerFn({ method: "POST" })
       if (runResult) { newVideoUrl = `[runway_job:${runResult}]`; newProvider = "runway_gen4"; }
     }
 
-    if (!newVideoUrl) throw new Error("No video provider credentials available for retry");
+    if (!newVideoUrl) throw new Error("No video provider credentials available for retry — add Gemini API Key or Runway Key in Settings → Providers");
 
     const { error: updateErr } = await sb
       .from("growthmind_video_assets")
@@ -1088,8 +1157,27 @@ export const pollVideoJob = createServerFn({ method: "POST" })
     const job = parseJobSentinel(videoUrl);
     if (!job) return { status: "not_pending" as const, videoUrl };
 
-    const accessToken = process.env.GOOGLE_CLOUD_ACCESS_TOKEN ?? settings.google_cloud_access_token ?? "";
-    const runwayKey   = process.env.RUNWAY_API_KEY ?? settings.runway_api_key ?? "";
+    // Load credentials from provider_settings (same canonical path as generateVideo)
+    const [pollVeoRes, pollRunwayRes] = await Promise.all([
+      sb.from("provider_settings")
+        .select("credentials")
+        .eq("workspace_id", workspaceId)
+        .eq("provider_category", "video")
+        .eq("provider_name", "google_veo")
+        .maybeSingle()
+        .catch(() => ({ data: null })),
+      sb.from("provider_settings")
+        .select("credentials")
+        .eq("workspace_id", workspaceId)
+        .eq("provider_category", "video")
+        .eq("provider_name", "runway")
+        .maybeSingle()
+        .catch(() => ({ data: null })),
+    ]);
+
+    const pollVeoCreds  = (pollVeoRes.data?.credentials   ?? {}) as Record<string, string>;
+    const pollRunwayCreds= (pollRunwayRes.data?.credentials ?? {}) as Record<string, string>;
+    const runwayKey     = pollRunwayCreds.apiKey?.trim() || process.env.RUNWAY_API_KEY || "";
 
     let pollResult:
       | { done: false }
@@ -1097,8 +1185,16 @@ export const pollVideoJob = createServerFn({ method: "POST" })
       | { done: true; error: string };
 
     if (job.type === "veo3") {
-      if (!accessToken) return { status: "pending" as const, videoUrl };
-      pollResult = await pollVeo3JobFn(job.jobId, accessToken);
+      const veo = new VeoProvider(resolveVeoConfig(pollVeoCreds));
+      if (!veo.authMode) return { status: "pending" as const, videoUrl };
+      const veoStatus = await veo.getStatus(job.jobId);
+      if (veoStatus.status === "processing") {
+        pollResult = { done: false };
+      } else if (veoStatus.status === "completed") {
+        pollResult = { done: true, videoUrl: veoStatus.videoUrl };
+      } else {
+        pollResult = { done: true, error: veoStatus.error ?? "Veo generation failed" };
+      }
     } else {
       if (!runwayKey) return { status: "pending" as const, videoUrl };
       pollResult = await pollRunwayJobFn(job.jobId, runwayKey);

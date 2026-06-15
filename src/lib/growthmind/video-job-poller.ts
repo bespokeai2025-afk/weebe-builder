@@ -6,12 +6,17 @@
  * provider API, and writes back the real video URL (or an error sentinel) when
  * the job settles.
  *
+ * On completion, permanently archives the video to Supabase Storage
+ * (bucket: gm-videos) so URLs never expire. Falls back to the raw provider URL
+ * if storage is unavailable.
+ *
  * Called from:
  *   - video-job-poller.plugin.ts  (Vite dev — every 30 s)
  *   - src/routes/api/public/video-job-poller.ts  (pg_cron / production)
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { VeoProvider, resolveVeoConfig } from "../video/providers/veo.provider";
 
 // ── Sentinel patterns ─────────────────────────────────────────────────────────
 
@@ -41,73 +46,23 @@ export function parseErrorMessage(videoUrl: string): string {
 
 export function isRealVideoUrl(videoUrl: string | null): boolean {
   if (!videoUrl) return false;
-  return videoUrl.startsWith("http://") || videoUrl.startsWith("https://") || videoUrl.startsWith("gs://");
-}
-
-// ── Veo 3 — poll a long-running operation ─────────────────────────────────────
-
-async function pollVeo3Job(
-  operationName: string,
-  accessToken: string,
-): Promise<{ done: false } | { done: true; videoUrl: string } | { done: true; error: string }> {
-  try {
-    const res = await fetch(
-      `https://us-central1-aiplatform.googleapis.com/v1/${operationName}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      return { done: true, error: `Veo 3 poll HTTP ${res.status}: ${text.slice(0, 200)}` };
-    }
-
-    const json = await res.json() as any;
-
-    if (json.error) {
-      return { done: true, error: json.error.message ?? JSON.stringify(json.error).slice(0, 200) };
-    }
-
-    if (!json.done) return { done: false };
-
-    // Extract video URL from the response
-    // Vertex AI predictLongRunning response: response.predictions[]
-    const predictions = json.response?.predictions ?? [];
-    for (const pred of predictions) {
-      // Direct URL
-      if (typeof pred === "string" && (pred.startsWith("http") || pred.startsWith("gs://"))) {
-        return { done: true, videoUrl: pred };
-      }
-      // Object with videoUri or gcsUri
-      const uri = pred?.videoUri ?? pred?.gcsUri ?? pred?.uri ?? pred?.url;
-      if (typeof uri === "string") return { done: true, videoUrl: uri };
-      // Sometimes it's bytes in bytesBase64Encoded — convert to data URL
-      if (pred?.bytesBase64Encoded) {
-        return { done: true, videoUrl: `data:video/mp4;base64,${pred.bytesBase64Encoded}` };
-      }
-    }
-
-    // Fallback: log and treat as still running
-    return { done: true, error: "Veo 3 completed but no video URL found in response" };
-  } catch (e: any) {
-    return { done: true, error: `Veo 3 poll exception: ${e?.message ?? String(e)}` };
-  }
+  return (
+    videoUrl.startsWith("http://") ||
+    videoUrl.startsWith("https://") ||
+    videoUrl.startsWith("gs://")
+  );
 }
 
 // ── Runway Gen-4 — poll a task ────────────────────────────────────────────────
 
 async function pollRunwayJob(
-  taskId: string,
+  taskId:    string,
   runwayKey: string,
 ): Promise<{ done: false } | { done: true; videoUrl: string } | { done: true; error: string }> {
   try {
     const res = await fetch(`https://api.dev.runwayml.com/v1/tasks/${taskId}`, {
       headers: {
-        Authorization: `Bearer ${runwayKey}`,
+        Authorization:     `Bearer ${runwayKey}`,
         "X-Runway-Version": "2024-11-06",
       },
     });
@@ -117,7 +72,7 @@ async function pollRunwayJob(
       return { done: true, error: `Runway poll HTTP ${res.status}: ${text.slice(0, 200)}` };
     }
 
-    const json = await res.json() as any;
+    const json   = await res.json() as any;
     const status: string = json.status ?? "";
 
     if (status === "PENDING" || status === "THROTTLED" || status === "RUNNING") {
@@ -125,7 +80,10 @@ async function pollRunwayJob(
     }
 
     if (status === "FAILED" || status === "CANCELLED") {
-      return { done: true, error: json.failure ?? json.failureCode ?? `Runway task ${status.toLowerCase()}` };
+      return {
+        done:  true,
+        error: json.failure ?? json.failureCode ?? `Runway task ${status.toLowerCase()}`,
+      };
     }
 
     if (status === "SUCCEEDED") {
@@ -141,13 +99,81 @@ async function pollRunwayJob(
   }
 }
 
+// ── Permanent video storage (GCS / data-URI / https → Supabase Storage) ───────
+
+const STORAGE_BUCKET = "gm-videos";
+
+async function archiveVideoToStorage(
+  sb:          any,
+  videoUrl:    string,
+  workspaceId: string,
+  assetId:     string,
+  accessToken: string = "",
+): Promise<string> {
+  try {
+    let bytes: Uint8Array | null = null;
+
+    if (videoUrl.startsWith("data:video/")) {
+      // Gemini API returns base64 inline video
+      const b64 = videoUrl.split(",")[1] ?? "";
+      bytes = Buffer.from(b64, "base64") as unknown as Uint8Array;
+
+    } else if (videoUrl.startsWith("gs://")) {
+      // Vertex AI GCS URI — download via GCS JSON API (requires access token)
+      if (!accessToken) return videoUrl; // No token → leave as-is
+      const withoutScheme = videoUrl.slice("gs://".length);
+      const slashIdx = withoutScheme.indexOf("/");
+      if (slashIdx === -1) return videoUrl;
+      const bucket  = withoutScheme.slice(0, slashIdx);
+      const object  = withoutScheme.slice(slashIdx + 1);
+      const gcsUrl  = `https://storage.googleapis.com/download/storage/v1/b/${bucket}/o/${encodeURIComponent(object)}?alt=media`;
+      const resp    = await fetch(gcsUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!resp.ok) return videoUrl;
+      bytes = new Uint8Array(await resp.arrayBuffer());
+
+    } else if (videoUrl.startsWith("https://") || videoUrl.startsWith("http://")) {
+      // Runway / public HTTPS URL
+      const resp = await fetch(videoUrl);
+      if (!resp.ok) return videoUrl;
+      bytes = new Uint8Array(await resp.arrayBuffer());
+
+    } else {
+      return videoUrl; // Unknown scheme — leave as-is
+    }
+
+    if (!bytes) return videoUrl;
+
+    const storagePath = `${workspaceId}/${assetId}.mp4`;
+
+    const { error: uploadErr } = await sb.storage
+      .from(STORAGE_BUCKET)
+      .upload(storagePath, bytes, { contentType: "video/mp4", upsert: true });
+
+    if (uploadErr) {
+      console.warn(`[video-poller] Storage upload failed (${uploadErr.message}) — saving raw URL`);
+      return videoUrl;
+    }
+
+    const { data: urlData } = sb.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(storagePath);
+
+    return urlData?.publicUrl ?? videoUrl;
+
+  } catch (e: any) {
+    console.warn(`[video-poller] archiveVideoToStorage exception: ${e?.message ?? e}`);
+    return videoUrl; // Graceful degradation — original URL always wins on failure
+  }
+}
+
 // ── Main poller ───────────────────────────────────────────────────────────────
 
 export type PollerResult = {
-  checked: number;
+  checked:  number;
   resolved: number;
-  failed: number;
-  errors: string[];
+  failed:   number;
+  archived: number;
+  errors:   string[];
 };
 
 export async function runVideoJobPoller(): Promise<PollerResult> {
@@ -155,7 +181,7 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    return { checked: 0, resolved: 0, failed: 0, errors: ["Missing Supabase credentials"] };
+    return { checked: 0, resolved: 0, failed: 0, archived: 0, errors: ["Missing Supabase credentials"] };
   }
 
   const sb = createClient(supabaseUrl, supabaseKey);
@@ -171,15 +197,21 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
     const isTableMissing =
       fetchErr.code === "PGRST205" ||
       (fetchErr.message?.includes("relation") && fetchErr.message?.includes("does not exist"));
-    if (isTableMissing) return { checked: 0, resolved: 0, failed: 0, errors: [] };
-    return { checked: 0, resolved: 0, failed: 0, errors: [fetchErr.message] };
+    if (isTableMissing) return { checked: 0, resolved: 0, failed: 0, archived: 0, errors: [] };
+    return { checked: 0, resolved: 0, failed: 0, archived: 0, errors: [fetchErr.message] };
   }
 
   const pending = (rows ?? []).filter((r: any) => isJobPending(r.video_url));
 
   // Pre-load per-workspace video credentials for all unique workspaces
-  const workspaceIds = [...new Set(pending.map((r: any) => r.workspace_id).filter(Boolean))] as string[];
-  const wsCredsMap: Record<string, { veoToken?: string; runwayKey?: string }> = {};
+  const workspaceIds = [
+    ...new Set(pending.map((r: any) => r.workspace_id).filter(Boolean)),
+  ] as string[];
+
+  const wsCredsMap: Record<string, {
+    veoCreds:   Record<string, string>;
+    runwayKey:  string;
+  }> = {};
 
   await Promise.all(
     workspaceIds.map(async (wsId) => {
@@ -199,24 +231,31 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
           .maybeSingle()
           .catch(() => ({ data: null })),
       ]);
-      const veoToken  = (veoRes.data?.credentials as any)?.accessToken?.trim() || "";
+      const veoCreds  = (veoRes.data?.credentials  ?? {}) as Record<string, string>;
       const runwayKey = (runwayRes.data?.credentials as any)?.apiKey?.trim() || "";
-      wsCredsMap[wsId] = { veoToken, runwayKey };
+      wsCredsMap[wsId] = { veoCreds, runwayKey };
     }),
   );
 
-  // Fall back to env vars when workspace creds are absent
-  const globalVeoToken  = process.env.GOOGLE_CLOUD_ACCESS_TOKEN ?? "";
+  // Global env-var fallbacks
   const globalRunwayKey = process.env.RUNWAY_API_KEY ?? "";
 
-  const result: PollerResult = { checked: pending.length, resolved: 0, failed: 0, errors: [] };
+  const result: PollerResult = {
+    checked:  pending.length,
+    resolved: 0,
+    failed:   0,
+    archived: 0,
+    errors:   [],
+  };
 
   await Promise.all(
     pending.map(async (row: any) => {
       const job = parseJobSentinel(row.video_url);
       if (!job) return;
 
-      const wsCreds  = wsCredsMap[row.workspace_id] ?? {};
+      const wsCreds  = wsCredsMap[row.workspace_id] ?? { veoCreds: {}, runwayKey: "" };
+      const veoCfg   = resolveVeoConfig(wsCreds.veoCreds);
+      const runwayKey= wsCreds.runwayKey || globalRunwayKey;
 
       let pollResult:
         | { done: false }
@@ -224,33 +263,58 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
         | { done: true; error: string };
 
       if (job.type === "veo3") {
-        const token = wsCreds.veoToken || globalVeoToken;
-        if (!token) return; // Credentials not available yet — skip silently
-        pollResult = await pollVeo3Job(job.jobId, token);
+        const veo = new VeoProvider(veoCfg);
+        if (!veo.authMode) return; // Credentials not configured — skip silently
+        const veoStatus = await veo.getStatus(job.jobId);
+        if (veoStatus.status === "processing" || veoStatus.status === "pending") {
+          pollResult = { done: false };
+        } else if (veoStatus.status === "completed") {
+          pollResult = { done: true, videoUrl: veoStatus.videoUrl };
+        } else {
+          pollResult = { done: true, error: veoStatus.error ?? "Veo job failed" };
+        }
       } else {
-        const key = wsCreds.runwayKey || globalRunwayKey;
-        if (!key) return;
-        pollResult = await pollRunwayJob(job.jobId, key);
+        if (!runwayKey) return;
+        pollResult = await pollRunwayJob(job.jobId, runwayKey);
       }
 
       if (!pollResult.done) return; // Still running
 
-      const newUrl = "videoUrl" in pollResult
-        ? pollResult.videoUrl
-        : `[error:${pollResult.error}]`;
+      if ("videoUrl" in pollResult) {
+        // Archive to permanent Supabase Storage before saving URL
+        const accessToken = veoCfg.accessToken ?? "";
+        const permanentUrl = await archiveVideoToStorage(
+          sb,
+          pollResult.videoUrl,
+          row.workspace_id,
+          row.id,
+          accessToken,
+        );
 
-      const { error: updateErr } = await sb
-        .from("growthmind_video_assets")
-        .update({ video_url: newUrl })
-        .eq("id", row.id);
+        const { error: updateErr } = await sb
+          .from("growthmind_video_assets")
+          .update({ video_url: permanentUrl })
+          .eq("id", row.id);
 
-      if (updateErr) {
-        result.errors.push(`Failed to update ${row.id}: ${updateErr.message}`);
-      } else if ("videoUrl" in pollResult) {
-        result.resolved++;
+        if (updateErr) {
+          result.errors.push(`Failed to update ${row.id}: ${updateErr.message}`);
+        } else {
+          result.resolved++;
+          if (permanentUrl !== pollResult.videoUrl) result.archived++;
+        }
       } else {
-        result.failed++;
-        result.errors.push(`${row.id}: ${"error" in pollResult ? pollResult.error : "unknown"}`);
+        const errorSentinel = `[error:${"error" in pollResult ? pollResult.error : "Job failed"}]`;
+        const { error: updateErr } = await sb
+          .from("growthmind_video_assets")
+          .update({ video_url: errorSentinel })
+          .eq("id", row.id);
+
+        if (updateErr) {
+          result.errors.push(`Failed to update ${row.id}: ${updateErr.message}`);
+        } else {
+          result.failed++;
+          result.errors.push(`${row.id}: ${"error" in pollResult ? pollResult.error : "unknown"}`);
+        }
       }
     }),
   );

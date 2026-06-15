@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   Rocket, Loader2, Send, Trash2, ChevronDown, ChevronUp,
-  RefreshCw, DollarSign, Target, Copy, CheckCheck,
+  RefreshCw, DollarSign, Target, Copy, CheckCheck, Clapperboard,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,25 @@ function DraftCard({ draft, onDelete, onSend }: {
           <button type="button" onClick={() => setExpanded(o => !o)}
             className="p-1.5 text-muted-foreground hover:text-foreground rounded">
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            title="Generate video ad in Video Studio"
+            onClick={() => {
+              const params = new URLSearchParams({
+                mode:     "freeform",
+                prompt:   [
+                  draft.coreOffer,
+                  draft.targetAudience ? `Target audience: ${draft.targetAudience}` : "",
+                  draft.copyBlocks?.[0]?.content ?? "",
+                ].filter(Boolean).join("\n\n").slice(0, 1200),
+                title:    draft.name,
+                videoType: "meta_video_ad",
+              });
+              window.location.assign(`/growthmind/video-studio?${params.toString()}`);
+            }}
+            className="p-1.5 text-muted-foreground hover:text-violet-400 rounded transition-colors">
+            <Clapperboard className="h-4 w-4" />
           </button>
           <button type="button"
             onClick={async () => { setDeleting(true); try { onDelete(); } finally { setDeleting(false); } }}

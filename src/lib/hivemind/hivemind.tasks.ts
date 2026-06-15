@@ -201,7 +201,7 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
   const s14   = new Date(now); s14.setDate(now.getDate() - 14);
   const s28   = new Date(now); s28.setDate(now.getDate() - 28);
 
-  const [seoRes, adsRes, funnelRes, compRes, playbookRes, leadsRecentRes, leadsPreRes] = await Promise.all([
+  const [seoRes, adsRes, funnelRes, compRes, playbookRes, leadsRecentRes, leadsPreRes, failedVideoRes] = await Promise.all([
     sb.from("growthmind_seo_sites")
       .select("id, keywords")
       .eq("workspace_id", workspaceId)
@@ -239,6 +239,12 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
       .gte("created_at", s28.toISOString())
       .lt("created_at", s14.toISOString())
       .limit(2000),
+    sb.from("growthmind_video_assets")
+      .select("id, title")
+      .eq("workspace_id", workspaceId)
+      .like("video_url", "[error:%")
+      .limit(20)
+      .catch(() => ({ data: null })),
   ]);
 
   // 1. SEO health
@@ -470,7 +476,23 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
     }
   }
 
-  // 10. Referral engine opportunity — happy customers but no referral campaign.
+  // 10. Failed video jobs — need attention
+  const failedVideos = (failedVideoRes?.data ?? []) as Array<{ id: string; title: string }>;
+  if (failedVideos.length > 0) {
+    results.push({
+      trigger_type: "gm_video_jobs_failed",
+      entity_type:  "growthmind",
+      entity_id:    failedVideos[0].id,
+      entity_name:  "Video Studio",
+      title:        `${failedVideos.length} video job${failedVideos.length > 1 ? "s" : ""} failed in Video Studio`,
+      description:  `${failedVideos.length} video generation job${failedVideos.length > 1 ? "s have" : " has"} failed. Go to GrowthMind Video Studio, open the affected asset${failedVideos.length > 1 ? "s" : ""}, and click "Retry" to regenerate. Check your provider credentials if failures persist.`,
+      priority:     failedVideos.length >= 3 ? "high" : "medium",
+      severity:     failedVideos.length >= 3 ? "warning" : "info",
+      metadata:     { failedCount: failedVideos.length, failedIds: failedVideos.map(v => v.id) },
+    });
+  }
+
+  // 11. Referral engine opportunity — happy customers but no referral campaign.
   // Only escalate when there is no active campaign that looks like a referral push,
   // so we don't nag when one is already running.
   const bookingCount = (bookingsRes.data ?? []).length;

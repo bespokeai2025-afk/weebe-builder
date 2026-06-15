@@ -294,6 +294,19 @@ function AssetCard({ asset, onView, onDelete, onToggleFav, onStatusChange }: {
                   className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors">
                   {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />} Copy content
                 </button>
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    const params = new URLSearchParams({
+                      mode:   "freeform",
+                      prompt: asset.content.slice(0, 1200),
+                      title:  asset.title,
+                    });
+                    window.location.assign(`/growthmind/video-studio?${params.toString()}`);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors text-violet-400">
+                  <Clapperboard className="h-3 w-3" /> Create Video
+                </button>
                 {asset.status !== "published" && (
                   <button onClick={() => { onStatusChange(asset.id, "published"); setMenu(false); }}
                     className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors">

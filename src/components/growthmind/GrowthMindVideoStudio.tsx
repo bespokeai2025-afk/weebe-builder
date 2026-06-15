@@ -659,6 +659,24 @@ export function GrowthMindVideoStudio() {
   const [step, setStep]   = useState<GenerationStep>("idle");
   const [error, setError] = useState("");
 
+  // Pre-fill from URL params when navigating from Content Studio or Campaign Factory
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const mode      = sp.get("mode");
+    const prompt    = sp.get("prompt");
+    const vidType   = sp.get("videoType");
+    if (mode === "freeform") {
+      setInputMode("freeform");
+      if (prompt)  setFfPrompt(decodeURIComponent(prompt));
+      if (vidType) {
+        const VALID_PROVIDERS: Record<string, string> = {
+          meta_video_ad: "veo3", ugc_ad: "runway_gen4", testimonial_video: "runway_gen4",
+        };
+        setFfProvider(VALID_PROVIDERS[vidType] ?? "veo3");
+      }
+    }
+  }, []);
+
   useEffect(() => {
     const stored = loadStoredVoice();
     setVoiceId(stored.id);
