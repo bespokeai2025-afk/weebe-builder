@@ -121,8 +121,8 @@ export class VeoProvider {
 
     const doRequest = async (token: string): Promise<Response> => {
       // Both Gemini API and Vertex AI use the same instances/parameters schema.
-      // Key difference: Gemini API requires durationSeconds as a STRING ("8"),
-      // Vertex AI accepts it as an integer. Auth differs (API key vs Bearer token).
+      // durationSeconds must be a NUMBER on both paths — the API returns 400 if sent as a string.
+      // Auth differs: API key (Gemini) vs Bearer token (Vertex AI).
       const instance: Record<string, unknown> = { prompt: params.prompt };
       if (params.referenceUrl) instance.image = { gcsUri: params.referenceUrl };
 
