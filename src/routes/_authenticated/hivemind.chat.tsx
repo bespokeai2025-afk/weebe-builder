@@ -69,26 +69,61 @@ function saveVoiceSettings(s: VoiceSettings) {
 }
 
 // ── Markdown-lite renderer ─────────────────────────────────────────────────────
+function renderInline(line: string) {
+  const parts = line.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p, j) =>
+    p.startsWith("**") && p.endsWith("**")
+      ? (
+        <mark
+          key={j}
+          className="font-semibold not-italic px-[3px] py-px rounded-[3px] text-amber-200 bg-amber-400/20 border border-amber-400/25"
+          style={{ textDecorationLine: "none" }}
+        >
+          {p.slice(2, -2)}
+        </mark>
+      )
+      : <span key={j}>{p}</span>
+  );
+}
+
+function isKeyLine(line: string) {
+  const t = line.replace(/\*\*[^*]+\*\*/g, "x");
+  return (
+    /^(action|key|important|note|critical|priority|next step|do this|remember)[\s:]/i.test(t) ||
+    line.startsWith("→ ") ||
+    line.startsWith("! ")  ||
+    line.startsWith("⚡")  ||
+    line.startsWith("✅")  ||
+    line.startsWith("🎯")
+  );
+}
+
 function MessageText({ text }: { text: string }) {
   const lines = text.split("\n");
   return (
     <div className="text-sm leading-relaxed space-y-1">
       {lines.map((line, i) => {
-        const parts = line.split(/(\*\*[^*]+\*\*)/g);
-        const rendered = parts.map((p, j) =>
-          p.startsWith("**") && p.endsWith("**")
-            ? <strong key={j} className="font-semibold">{p.slice(2, -2)}</strong>
-            : <span key={j}>{p}</span>
-        );
-        if (line.startsWith("• ") || line.startsWith("- ")) {
+        const isBullet = line.startsWith("• ") || line.startsWith("- ");
+        const key      = isKeyLine(line);
+        const content  = isBullet ? renderInline(line.slice(2)) : renderInline(line);
+
+        if (key) {
           return (
-            <div key={i} className="flex gap-1.5">
-              <span className="text-violet-400 shrink-0 mt-0.5">•</span>
-              <span>{rendered.slice(1)}</span>
+            <div key={i} className="flex gap-2 pl-2 border-l-2 border-amber-400/50 bg-amber-400/[0.06] rounded-r-md py-0.5 pr-1">
+              <span className="shrink-0 text-amber-400 text-[11px] mt-0.5 font-bold">★</span>
+              <span>{content}</span>
             </div>
           );
         }
-        return <div key={i}>{rendered}</div>;
+        if (isBullet) {
+          return (
+            <div key={i} className="flex gap-1.5">
+              <span className="text-violet-400 shrink-0 mt-0.5">•</span>
+              <span>{content}</span>
+            </div>
+          );
+        }
+        return <div key={i}>{content}</div>;
       })}
     </div>
   );
