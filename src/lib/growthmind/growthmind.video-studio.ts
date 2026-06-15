@@ -328,6 +328,7 @@ const generateVideoSchema = z.object({
   cta:           z.string().default(""),
   voiceId:       z.string().default("21m00Tcm4TlvDq8ikWAM"),
   campaignId:    z.string().uuid().nullish(),
+  includeKb:     z.boolean().default(true),
 });
 
 export const generateVideo = createServerFn({ method: "POST" })
@@ -370,11 +371,11 @@ export const generateVideo = createServerFn({ method: "POST" })
 
     const playbook = playbookRes.data?.industry ?? "";
 
-    const kbSummary = ((kbRes.data ?? []) as any[])
+    const kbSummary = data.includeKb === false ? "" : ((kbRes.data ?? []) as any[])
       .map((k: any) => `${k.name}${k.description ? `: ${k.description}` : ""}`)
       .join("; ") || "";
 
-    const docSummary = ((docsRes.data ?? []) as any[])
+    const docSummary = data.includeKb === false ? "" : ((docsRes.data ?? []) as any[])
       .map((d: any) => {
         const excerpt = typeof d.content === "string" ? d.content.slice(0, 300) : "";
         return `${d.name}${excerpt ? `: ${excerpt}` : ""}`;
@@ -632,6 +633,7 @@ const generateVideoFromPromptSchema = z.object({
   campaignId:        z.string().uuid().nullish(),
   variantGroupId:    z.string().uuid().nullish(),
   variantType:       z.string().nullish(),
+  includeKb:         z.boolean().default(true),
 });
 
 export const generateVideoFromPrompt = createServerFn({ method: "POST" })
@@ -670,7 +672,7 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       .join("; ") || "";
 
     const playbook  = playbookRes.data?.industry ?? "";
-    const kbSummary = ((kbRes.data ?? []) as any[])
+    const kbSummary = data.includeKb === false ? "" : ((kbRes.data ?? []) as any[])
       .map((k: any) => `${k.name}${k.description ? `: ${k.description}` : ""}`).join("; ") || "";
 
     const vp2 = vpRes2.data;
