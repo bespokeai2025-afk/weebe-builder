@@ -119,40 +119,6 @@ async function generateVoiceover(
   }
 }
 
-// ── Veo 3 video generation ─────────────────────────────────────────────────────
-
-async function generateVeo3Video(
-  prompt:      string,
-  credentials: { gcpProject?: string; accessToken?: string },
-): Promise<string | null> {
-  try {
-    const projectId   = credentials.gcpProject?.trim()   || process.env.GOOGLE_CLOUD_PROJECT   || "";
-    const accessToken = credentials.accessToken?.trim()  || process.env.GOOGLE_CLOUD_ACCESS_TOKEN || "";
-    if (!projectId || !accessToken) return null;
-
-    const endpoint =
-      `https://us-central1-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(projectId)}` +
-      `/locations/us-central1/publishers/google/models/veo-3.0-generate-preview:predictLongRunning`;
-
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization:  `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        instances:  [{ prompt }],
-        parameters: { aspectRatio: "16:9", durationSeconds: 8, sampleCount: 1 },
-      }),
-    });
-
-    if (!res.ok) return null;
-    const json = await res.json() as any;
-    return json?.name ?? null;
-  } catch {
-    return null;
-  }
-}
 
 // ── Runway Gen-4 video generation ─────────────────────────────────────────────
 // NOTE: Runway Gen-4 API — returns a task ID. Video URL available after polling.
@@ -162,7 +128,7 @@ async function generateRunwayVideo(
   runwayKey:   string,
 ): Promise<string | null> {
   try {
-    const res = await fetch("https://api.dev.runwayml.com/v1/image_to_video", {
+    const res = await fetch("https://api.runwayml.com/v1/image_to_video", {
       method: "POST",
       headers: {
         Authorization:  `Bearer ${runwayKey}`,

@@ -2,10 +2,12 @@
  * Veo Provider — Gemini Developer API + Vertex AI OAuth
  *
  * Auth priority:
- *   1. GEMINI_API_KEY / credentials.geminiApiKey  → generativelanguage.googleapis.com
- *      Request body: { model, contents, config } (Gemini SDK format)
- *   2. accessToken + gcpProject                   → aiplatform.googleapis.com
+ *   1. GEMINI_API_KEY / credentials.geminiApiKey  → generativelanguage.googleapis.com/v1alpha
+ *      Request body: { instances, parameters } — same schema as Vertex AI
+ *      Model default: veo-2.0-generate-001 (Veo 3 not available on Gemini Developer API)
+ *   2. accessToken + gcpProject                   → aiplatform.googleapis.com/v1
  *      Request body: { instances, parameters } (Vertex AI format)
+ *      Model default: veo-3.0-generate-preview
  *      If refreshToken + clientId + clientSecret present, auto-refreshes expired tokens.
  */
 
@@ -252,11 +254,10 @@ export class VeoProvider {
 
   // ── List available models ─────────────────────────────────────────────────
 
-  listModels(): { id: string; label: string; defaultDuration: number }[] {
+  listModels(): { id: string; label: string; defaultDuration: number; requiresVertex?: boolean }[] {
     return [
-      { id: "veo-3.0-generate-preview", label: "Veo 3.0 (Preview)", defaultDuration: 8 },
-      { id: "veo-3.1-generate-preview", label: "Veo 3.1 (Preview)", defaultDuration: 8 },
-      { id: "veo-2.0-generate-001",     label: "Veo 2.0",           defaultDuration: 8 },
+      { id: "veo-2.0-generate-001",     label: "Veo 2.0 (Gemini API key)",        defaultDuration: 8 },
+      { id: "veo-3.0-generate-preview", label: "Veo 3.0 Preview (Vertex AI only)", defaultDuration: 8, requiresVertex: true },
     ];
   }
 

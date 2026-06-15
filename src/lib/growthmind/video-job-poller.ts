@@ -62,7 +62,7 @@ async function pollRunwayJob(
   runwayKey: string,
 ): Promise<{ done: false } | { done: true; videoUrl: string } | { done: true; error: string }> {
   try {
-    const res = await fetch(`https://api.dev.runwayml.com/v1/tasks/${taskId}`, {
+    const res = await fetch(`https://api.runwayml.com/v1/tasks/${taskId}`, {
       headers: {
         Authorization:     `Bearer ${runwayKey}`,
         "X-Runway-Version": "2024-11-06",
@@ -196,7 +196,7 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
   // Fetch all assets with pending job sentinels (include workspace_id for per-workspace creds)
   const { data: rows, error: fetchErr } = await sb
     .from("growthmind_video_assets")
-    .select("id, video_url, provider, workspace_id")
+    .select("id, video_url, provider, workspace_id, created_at")
     .or("video_url.like.[veo3_job:%,video_url.like.[runway_job:%")
     .limit(50);
 
@@ -208,7 +208,33 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
     return { checked: 0, resolved: 0, failed: 0, archived: 0, errors: [fetchErr.message] };
   }
 
-  const pending = (rows ?? []).filter((r: any) => isJobPending(r.video_url));
+  const JOB_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours — mark stale jobs as failed
+  const now = Date.now();
+
+  // Expire any jobs older than the timeout before polling so they don't clog the queue
+  const timedOut = (rows ?? []).filter((r: any) => {
+    if (!isJobPending(r.video_url)) return false;
+    const age = r.created_at ? now - new Date(r.created_at).getTime() : 0;
+    return age > JOB_TIMEOUT_MS;
+  });
+
+  if (timedOut.length > 0) {
+    await Promise.all(
+      timedOut.map((r: any) =>
+        sb.from("growthmind_video_assets")
+          .update({ video_url: "[error:Job timed out after 2 hours]" })
+          .eq("id", r.id)
+          .catch(() => {}),
+      ),
+    );
+    console.warn(`[video-poller] Expired ${timedOut.length} stuck job(s) older than 2 hours`);
+  }
+
+  const pending = (rows ?? []).filter((r: any) => {
+    if (!isJobPending(r.video_url)) return false;
+    const age = r.created_at ? now - new Date(r.created_at).getTime() : 0;
+    return age <= JOB_TIMEOUT_MS;
+  });
 
   // Pre-load per-workspace video credentials for all unique workspaces
   const workspaceIds = [
