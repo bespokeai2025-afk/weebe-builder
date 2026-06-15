@@ -698,8 +698,12 @@ export function GrowthMindVideoStudio() {
   const pollJobFn          = useServerFn(pollVideoJob);
   const voicesFn           = useServerFn(listGrowthMindVoices);
 
-  const generateVariantsFn = useServerFn(generateVideoVariants);
-  const scoreFn            = useServerFn(scoreVideoCreative);
+  const generateVariantsFn  = useServerFn(generateVideoVariants);
+  const scoreFn             = useServerFn(scoreVideoCreative);
+  const getDownloadResultFn = useServerFn(getVideoDownloadUrl);
+
+  const [resultPlayUrl,    setResultPlayUrl]    = useState<string | null>(null);
+  const [resultPlayLoading, setResultPlayLoading] = useState(false);
 
   // ── Mode ──────────────────────────────────────────────────────────────────
   const [inputMode, setInputMode] = useState<InputMode>("guided");
@@ -841,6 +845,24 @@ export function GrowthMindVideoStudio() {
 
     return () => clearInterval(interval);
   }, [assets, pollJobFn, qc]);
+
+  // Sync lastResult.videoUrl from the asset list once the poller resolves it.
+  // The result panel shows the sentinel forever otherwise.
+  useEffect(() => {
+    if (!lastResult?.assetId) return;
+    const resolved = assets.find(a => a.id === lastResult.assetId);
+    if (!resolved) return;
+    if (resolved.videoUrl && resolved.videoUrl !== lastResult.videoUrl) {
+      setLastResult(prev => prev ? { ...prev, videoUrl: resolved.videoUrl } : prev);
+      setResultPlayUrl(null); // reset lazy-load state for the new URL
+    }
+  }, [assets, lastResult?.assetId, lastResult?.videoUrl]);
+
+  // Reset result panel play state when a new generation starts
+  useEffect(() => {
+    setResultPlayUrl(null);
+    setResultPlayLoading(false);
+  }, [lastResult?.assetId]);
 
   async function handleGenerate() {
     setStep("strategy");
@@ -1715,7 +1737,36 @@ export function GrowthMindVideoStudio() {
                     {isError && (
                       <p className="text-xs text-red-400">{parseErrorMessage(vUrl)}</p>
                     )}
-                    {isReady && !vUrl.startsWith("gs://") && (
+                    {isReady && vUrl === "__data_uri__" && (
+                      resultPlayUrl ? (
+                        <video controls src={resultPlayUrl} className="w-full max-h-48 rounded-lg bg-black" preload="metadata" />
+                      ) : (
+                        <div className="flex items-center gap-2.5 rounded-lg border border-violet-500/15 bg-violet-500/[0.06] px-3 py-2.5">
+                          <Play className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-semibold text-violet-400">Video ready — click to load</p>
+                            <p className="text-[10px] text-muted-foreground/50">Stored as inline data · loads from database</p>
+                          </div>
+                          <button
+                            disabled={resultPlayLoading}
+                            onClick={async () => {
+                              if (!lastResult?.assetId) return;
+                              setResultPlayLoading(true);
+                              try {
+                                const res = await getDownloadResultFn({ data: { id: lastResult.assetId } });
+                                if (res.downloadUrl) setResultPlayUrl(res.downloadUrl);
+                              } catch { /* ignore */ }
+                              setResultPlayLoading(false);
+                            }}
+                            className="shrink-0 flex items-center gap-1.5 rounded-lg bg-violet-500/15 border border-violet-500/25 px-2.5 py-1.5 text-[10px] font-semibold text-violet-300 hover:bg-violet-500/25 transition-colors disabled:opacity-50"
+                          >
+                            {resultPlayLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                            {resultPlayLoading ? "Loading…" : "Play"}
+                          </button>
+                        </div>
+                      )
+                    )}
+                    {isReady && !vUrl.startsWith("gs://") && vUrl !== "__data_uri__" && (
                       <video controls src={vUrl} className="w-full max-h-48 rounded-lg bg-black" preload="metadata" />
                     )}
                     {isReady && vUrl.startsWith("gs://") && (
