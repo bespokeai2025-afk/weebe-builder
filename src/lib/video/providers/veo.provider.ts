@@ -122,18 +122,17 @@ export class VeoProvider {
 
       if (this.authMode === "gemini_api_key") {
         const endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
+        // Minimal body — preview models reject unknown/unsupported parameters
         const body = {
           instances: [instance],
           parameters: {
-            aspectRatio:       params.aspectRatio       ?? "16:9",
-            durationSeconds:   String(params.durationSeconds ?? 8),  // must be string on Gemini API
-            sampleCount:       1,
-            personGeneration:  "allow_all",
-            generateAudio:     false,
-            resolution:        "720p",
+            aspectRatio:     params.aspectRatio     ?? "16:9",
+            durationSeconds: String(params.durationSeconds ?? 8),  // MUST be string on Gemini API
+            sampleCount:     1,
           },
         };
-        console.log("[veo-provider] Gemini API request →", endpoint.replace(/key=[^&]+/, "key=***"), JSON.stringify(body).slice(0, 300));
+        console.log("[veo-provider] Gemini API POST", endpoint.replace(/key=[^&]+/, "key=***"));
+        console.log("[veo-provider] body:", JSON.stringify(body).slice(0, 400));
         return fetch(endpoint, {
           method:  "POST",
           headers: {
@@ -164,6 +163,7 @@ export class VeoProvider {
     };
 
     let resp = await doRequest(this.accessToken);
+    console.log("[veo-provider] response status:", resp.status, resp.statusText, "content-type:", resp.headers.get("content-type"));
 
     // Auto-refresh token on 401 (Vertex OAuth path only)
     if (resp.status === 401 && this.authMode === "vertex_oauth") {
@@ -173,7 +173,10 @@ export class VeoProvider {
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => resp.statusText);
-      throw new Error(`Veo submit error ${resp.status}: ${text.slice(0, 400)}`);
+      const isHtml = text.trimStart().startsWith("<!") || text.trimStart().startsWith("<html");
+      const snippet = isHtml ? `[HTML error page, status ${resp.status}]` : text.slice(0, 400);
+      console.error("[veo-provider] error response:", snippet);
+      throw new Error(`Veo submit error ${resp.status}: ${snippet}`);
     }
 
     const data = await resp.json() as { name?: string };
