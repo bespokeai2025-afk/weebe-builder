@@ -350,8 +350,8 @@ export const generateVideo = createServerFn({ method: "POST" })
       sb.from("growthmind_playbooks").select("industry").eq("workspace_id", workspaceId).eq("status", "active").maybeSingle(),
       Promise.resolve(sb.from("knowledge_bases").select("name, description").eq("workspace_id", workspaceId).limit(5)).catch(() => ({ data: [] })),
       Promise.resolve(sb.from("documents").select("name, content").eq("workspace_id", workspaceId).limit(3)).catch(() => ({ data: [] })),
-      sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
-      sb.from("growthmind_opportunities").select("title,recommended_action,urgency").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
+      Promise.resolve(sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
+      Promise.resolve(sb.from("growthmind_opportunities").select("title,recommended_action,urgency").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
     ]);
 
     const ws          = wsRes.data;
@@ -491,15 +491,13 @@ export const generateVideo = createServerFn({ method: "POST" })
           .eq("workspace_id", workspaceId)
           .eq("provider_category", "video")
           .eq("provider_name", "google_veo")
-          .maybeSingle()
-          .catch(() => ({ data: null })),
+          .maybeSingle(),
         sb.from("provider_settings")
           .select("credentials, status")
           .eq("workspace_id", workspaceId)
           .eq("provider_category", "video")
           .eq("provider_name", "runway")
-          .maybeSingle()
-          .catch(() => ({ data: null })),
+          .maybeSingle(),
       ]);
 
       const veoCreds = (veoSettingsRes.data?.credentials ?? {}) as Record<string, string>;
@@ -654,10 +652,9 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
         .eq("workspace_id", workspaceId).limit(10),
       sb.from("growthmind_playbooks").select("industry").eq("workspace_id", workspaceId)
         .eq("status", "active").maybeSingle(),
-      sb.from("knowledge_bases").select("name, description").eq("workspace_id", workspaceId)
-        .limit(5).catch(() => ({ data: [] })),
-      sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
-      sb.from("growthmind_opportunities").select("title,recommended_action,urgency").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
+      Promise.resolve(sb.from("knowledge_bases").select("name, description").eq("workspace_id", workspaceId).limit(5)).catch(() => ({ data: [] })),
+      Promise.resolve(sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
+      Promise.resolve(sb.from("growthmind_opportunities").select("title,recommended_action,urgency").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
     ]);
 
     const ws          = wsRes.data;
@@ -713,16 +710,14 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       .eq("workspace_id", workspaceId)
       .eq("provider_category", "video")
       .eq("provider_name", "google_veo")
-      .maybeSingle()
-      .catch(() => ({ data: null }));
+      .maybeSingle();
 
     const runwaySettingsRes = await sb.from("provider_settings")
       .select("credentials, status")
       .eq("workspace_id", workspaceId)
       .eq("provider_category", "video")
       .eq("provider_name", "runway")
-      .maybeSingle()
-      .catch(() => ({ data: null }));
+      .maybeSingle();
 
     const veoCreds   = (veoSettingsRes.data?.credentials ?? {}) as Record<string, string>;
     const runwayCreds = (runwaySettingsRes.data?.credentials ?? {}) as Record<string, string>;
@@ -1086,7 +1081,7 @@ export const generateVideoVariants = createServerFn({ method: "POST" })
       selected.map(async (angle) => {
         const [wsRes, vpRes] = await Promise.all([
           sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle(),
-          sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
+          Promise.resolve(sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
         ]);
 
         const ws          = wsRes.data;
@@ -1304,15 +1299,13 @@ export const retryVideoJob = createServerFn({ method: "POST" })
         .eq("workspace_id", workspaceId)
         .eq("provider_category", "video")
         .eq("provider_name", "google_veo")
-        .maybeSingle()
-        .catch(() => ({ data: null })),
+        .maybeSingle(),
       sb.from("provider_settings")
         .select("credentials")
         .eq("workspace_id", workspaceId)
         .eq("provider_category", "video")
         .eq("provider_name", "runway")
-        .maybeSingle()
-        .catch(() => ({ data: null })),
+        .maybeSingle(),
     ]);
 
     const ws = await sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle();
@@ -1401,15 +1394,13 @@ export const pollVideoJob = createServerFn({ method: "POST" })
         .eq("workspace_id", workspaceId)
         .eq("provider_category", "video")
         .eq("provider_name", "google_veo")
-        .maybeSingle()
-        .catch(() => ({ data: null })),
+        .maybeSingle(),
       sb.from("provider_settings")
         .select("credentials")
         .eq("workspace_id", workspaceId)
         .eq("provider_category", "video")
         .eq("provider_name", "runway")
-        .maybeSingle()
-        .catch(() => ({ data: null })),
+        .maybeSingle(),
     ]);
 
     const pollVeoCreds  = (pollVeoRes.data?.credentials   ?? {}) as Record<string, string>;
