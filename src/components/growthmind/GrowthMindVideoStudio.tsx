@@ -74,6 +74,24 @@ function isStaleServerFnError(e: any): boolean {
   );
 }
 
+/** Converts a raw Zod issue array (serialised as the error message) into a
+ *  human-readable sentence, e.g. "userPrompt: String must contain at least 5 character(s)" */
+function formatErrorMessage(e: any): string {
+  const msg: string = e?.message ?? "";
+  try {
+    const parsed = JSON.parse(msg);
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.message) {
+      return parsed
+        .map((issue: any) => {
+          const field = issue.path?.join(".") ?? "";
+          return field ? `${field}: ${issue.message}` : issue.message;
+        })
+        .join("; ");
+    }
+  } catch { /* not JSON — fall through */ }
+  return msg || "Generation failed";
+}
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
@@ -918,14 +936,14 @@ export function GrowthMindVideoStudio() {
       qc.invalidateQueries({ queryKey: ["video-cost-stats"] });
     } catch (e: any) {
       if (isStaleServerFnError(e)) { window.location.reload(); return; }
-      setError(e.message ?? "Generation failed");
+      setError(formatErrorMessage(e));
       setStep("error");
     }
   }
 
   async function handleGenerateFreeForm() {
-    if (!ffPrompt.trim()) {
-      setError("Please enter a creative prompt.");
+    if (ffPrompt.trim().length < 5) {
+      setError("Please enter a prompt of at least 5 characters.");
       setStep("error");
       return;
     }
@@ -971,7 +989,7 @@ export function GrowthMindVideoStudio() {
       qc.invalidateQueries({ queryKey: ["video-cost-stats"] });
     } catch (e: any) {
       if (isStaleServerFnError(e)) { window.location.reload(); return; }
-      setError(e.message ?? "Generation failed");
+      setError(formatErrorMessage(e));
       setStep("error");
     }
   }
@@ -1003,7 +1021,7 @@ export function GrowthMindVideoStudio() {
       qc.invalidateQueries({ queryKey: ["video-cost-stats"] });
     } catch (e: any) {
       if (isStaleServerFnError(e)) { window.location.reload(); return; }
-      setError(e.message ?? "Variant generation failed");
+      setError(formatErrorMessage(e));
       setStep("error");
     }
   }
