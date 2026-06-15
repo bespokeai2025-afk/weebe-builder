@@ -18,7 +18,7 @@ export async function getWorkflowSuccessRatesServer(
   try {
     const { data: calls } = await sb
       .from("calls")
-      .select("agent_id, call_successful")
+      .select("agent_id, call_status")
       .eq("workspace_id", workspaceId)
       .limit(5000);
 
@@ -27,7 +27,7 @@ export async function getWorkflowSuccessRatesServer(
       if (!call.agent_id) continue;
       if (!byAgent[call.agent_id]) byAgent[call.agent_id] = { total: 0, successful: 0 };
       byAgent[call.agent_id].total++;
-      if (call.call_successful) byAgent[call.agent_id].successful++;
+      if (call.call_status === "completed") byAgent[call.agent_id].successful++;
     }
 
     const result: Record<string, SuccessRateStats> = {};

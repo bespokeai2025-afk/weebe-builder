@@ -291,7 +291,7 @@ export const generateFromExample = createServerFn({ method: "POST" })
     return generateFromExampleServer(workspaceId, data.exampleKey, data.customDesc ?? "", apiKey);
   });
 
-// ── Workflow success rates from calls table ────────────────────────────────────
+// ── Workflow success rates: calls with call_status='completed' / total ─────────
 export const getWorkflowSuccessRates = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

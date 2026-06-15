@@ -107,7 +107,7 @@ function ComplexityBadge({ label, color }: { label: string; color: string }) {
 }
 
 function SuccessRateBadge({ sr }: { sr: { total: number; successful: number; rate: number } | null }) {
-  if (!sr || sr.total === 0) return <span className="text-[10px] text-muted-foreground/40">—</span>;
+  if (!sr || sr.total === 0) return <span className="text-[10px] text-muted-foreground/40">No data</span>;
   const cls =
     sr.rate >= 80 ? "text-emerald-400"
     : sr.rate >= 60 ? "text-sky-400"
@@ -457,16 +457,16 @@ function ScoreHealthTab() {
 
           {/* Full table */}
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-            <div className="grid grid-cols-[1fr_60px_80px_70px_60px_60px] gap-2 px-4 py-2 border-b border-white/[0.05] text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">
+            <div className="grid grid-cols-[1fr_60px_80px_70px_60px_80px] gap-2 px-4 py-2 border-b border-white/[0.05] text-[10px] text-muted-foreground font-semibold uppercase tracking-wide">
               <span>Workflow</span>
               <span className="text-right">Score</span>
               <span>Health</span>
               <span>Complexity</span>
               <span className="text-right">Nodes</span>
-              <span className="text-right" title="Call success rate from calls table">Success</span>
+              <span className="text-right" title="Completion rate: calls with status 'completed' / total calls">Success Rate</span>
             </div>
             {sorted.map((r) => (
-              <div key={r.id} className="grid grid-cols-[1fr_60px_80px_70px_60px_60px] gap-2 px-4 py-2.5 border-b border-white/[0.03] last:border-0 items-center">
+              <div key={r.id} className="grid grid-cols-[1fr_60px_80px_70px_60px_80px] gap-2 px-4 py-2.5 border-b border-white/[0.03] last:border-0 items-center">
                 <div className="min-w-0">
                   <p className="text-xs truncate">{r.workflow_name}</p>
                   <p className="text-[10px] text-muted-foreground truncate">{r.category}</p>
