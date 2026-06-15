@@ -74,22 +74,63 @@ function isStaleServerFnError(e: any): boolean {
   );
 }
 
-/** Converts a raw Zod issue array (serialised as the error message) into a
- *  human-readable sentence, e.g. "userPrompt: String must contain at least 5 character(s)" */
+/** Parses a Zod issue array into a readable string. */
+function parseZodIssues(issues: any[]): string {
+  return issues
+    .map((issue: any) => {
+      const field = Array.isArray(issue.path) ? issue.path.join(".") : "";
+      return field ? `${field}: ${issue.message}` : (issue.message ?? "Validation error");
+    })
+    .join("; ");
+}
+
+/** Converts any TanStack Start / Zod validation error into a human-readable string.
+ *  Checks every common location where Zod issues end up (message, cause, data, body). */
 function formatErrorMessage(e: any): string {
-  const msg: string = e?.message ?? "";
-  try {
-    const parsed = JSON.parse(msg);
-    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.message) {
-      return parsed
-        .map((issue: any) => {
-          const field = issue.path?.join(".") ?? "";
-          return field ? `${field}: ${issue.message}` : issue.message;
-        })
-        .join("; ");
-    }
-  } catch { /* not JSON — fall through */ }
+  // 1. Zod error object directly (e.issues)
+  if (Array.isArray(e?.issues) && e.issues.length > 0) return parseZodIssues(e.issues);
+
+  // 2. Nested cause (TanStack Start sometimes wraps)
+  if (Array.isArray(e?.cause?.issues) && e.cause.issues.length > 0) return parseZodIssues(e.cause.issues);
+  if (Array.isArray(e?.data?.issues)  && e.data.issues.length  > 0) return parseZodIssues(e.data.issues);
+
+  const msg: string = e?.message ?? e?.toString?.() ?? "";
+
+  // 3. JSON array embedded anywhere in the message
+  const bracketIdx = msg.indexOf("[");
+  if (bracketIdx !== -1) {
+    try {
+      const candidate = msg.slice(bracketIdx);
+      const parsed = JSON.parse(candidate);
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.message) {
+        return parseZodIssues(parsed);
+      }
+    } catch { /* not JSON there */ }
+  }
+
+  // 4. Plain JSON array as the whole message
+  if (msg.trimStart().startsWith("[")) {
+    try {
+      const parsed = JSON.parse(msg);
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.message) {
+        return parseZodIssues(parsed);
+      }
+    } catch { /* fall through */ }
+  }
+
   return msg || "Generation failed";
+}
+
+/** Same as formatErrorMessage but works on an already-stringified error stored in state. */
+function formatDisplayError(raw: string): string {
+  if (!raw) return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.message) {
+      return parseZodIssues(parsed);
+    }
+  } catch { /* not JSON */ }
+  return raw;
 }
 
 function formatDate(iso: string): string {
@@ -1611,7 +1652,7 @@ export function GrowthMindVideoStudio() {
                 <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-xs font-semibold text-red-400">Generation failed</p>
-                  <p className="text-xs text-red-400/80 mt-0.5">{error}</p>
+                  <p className="text-xs text-red-400/80 mt-0.5">{formatDisplayError(error)}</p>
                 </div>
               </div>
             )}
