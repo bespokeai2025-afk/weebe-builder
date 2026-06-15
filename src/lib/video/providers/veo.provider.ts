@@ -33,7 +33,7 @@ export type VeoJobResult =
   | { status: "completed";  jobId: string; videoUrl: string }
   | { status: "failed";     jobId: string; error?: string };
 
-const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta";
+const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1alpha"; // Veo requires v1alpha, not v1beta
 const VERTEX_BASE   = "https://us-central1-aiplatform.googleapis.com/v1";
 const TOKEN_URL     = "https://oauth2.googleapis.com/token";
 const DEFAULT_MODEL_GEMINI = "veo-2.0-generate-001";       // Gemini Developer API (API key)
