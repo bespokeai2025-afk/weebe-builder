@@ -62,6 +62,18 @@ type GenerationStep =
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Detects TanStack Start stale server-function-ID errors (happen after server restarts).
+ *  The response body is an HTML error page. Auto-reload fixes it. */
+function isStaleServerFnError(e: any): boolean {
+  const msg: string = e?.message ?? "";
+  return (
+    msg.trimStart().startsWith("<!") ||
+    msg.trimStart().startsWith("<html") ||
+    msg.includes("Invalid server function ID") ||
+    msg.includes("This page didn't load")
+  );
+}
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
@@ -905,6 +917,7 @@ export function GrowthMindVideoStudio() {
       qc.invalidateQueries({ queryKey: ["video-assets"] });
       qc.invalidateQueries({ queryKey: ["video-cost-stats"] });
     } catch (e: any) {
+      if (isStaleServerFnError(e)) { window.location.reload(); return; }
       setError(e.message ?? "Generation failed");
       setStep("error");
     }
@@ -957,6 +970,7 @@ export function GrowthMindVideoStudio() {
       qc.invalidateQueries({ queryKey: ["video-assets"] });
       qc.invalidateQueries({ queryKey: ["video-cost-stats"] });
     } catch (e: any) {
+      if (isStaleServerFnError(e)) { window.location.reload(); return; }
       setError(e.message ?? "Generation failed");
       setStep("error");
     }
@@ -988,6 +1002,7 @@ export function GrowthMindVideoStudio() {
       qc.invalidateQueries({ queryKey: ["video-assets"] });
       qc.invalidateQueries({ queryKey: ["video-cost-stats"] });
     } catch (e: any) {
+      if (isStaleServerFnError(e)) { window.location.reload(); return; }
       setError(e.message ?? "Variant generation failed");
       setStep("error");
     }
