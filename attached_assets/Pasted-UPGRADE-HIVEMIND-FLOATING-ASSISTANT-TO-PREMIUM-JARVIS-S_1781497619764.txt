@@ -1,0 +1,347 @@
+UPGRADE HIVEMIND FLOATING ASSISTANT TO PREMIUM JARVIS-STYLE EXECUTIVE ORB
+
+IMPORTANT
+
+Remove the existing "Talk to HiveMind" button completely.
+
+Do not remove HiveMind voice functionality.
+
+Do not remove HiveMind chat functionality.
+
+Do not modify GrowthMind.
+
+Do not modify SystemMind.
+
+This is a visual and interaction upgrade only.
+
+====================================================
+
+OBJECTIVE
+
+Replace the existing HiveMind button with a premium floating executive assistant orb.
+
+The orb should feel closer to:
+
+Jarvis (Iron Man)
+
+F.R.I.D.A.Y.
+
+Enterprise AI Operating System
+
+NOT a chatbot button.
+
+NOT a support widget.
+
+NOT a generic AI assistant.
+
+HiveMind is the Executive COO of the platform.
+
+The visual design should reflect that.
+
+====================================================
+
+REMOVE
+
+Current:
+
+"Talk to HiveMind" Button
+
+Completely remove from UI.
+
+The floating orb becomes the only entry point.
+
+====================================================
+
+NEW HIVEMIND ORB
+
+Position:
+
+Bottom Right
+
+Fixed
+
+Always Visible
+
+Above page content
+
+====================================================
+
+VISUAL STYLE
+
+Use existing WeeBee colours.
+
+Primary:
+
+Deep Blue
+
+Electric Blue
+
+Cyan Glow
+
+Use the same colour language already used throughout:
+
+Builder
+
+GrowthMind
+
+HiveMind
+
+Do not introduce new colours.
+
+====================================================
+
+JARVIS STYLE EFFECT
+
+Orb should have:
+
+Core Energy Center
+
+Outer Rings
+
+Animated Pulse
+
+Soft Glow
+
+Rotating Ring Effects
+
+Breathing Animation
+
+Subtle Particle Motion
+
+====================================================
+
+IDLE STATE
+
+Small
+
+Elegant
+
+Minimal movement
+
+Slow pulse
+
+Soft glow
+
+Very low distraction
+
+====================================================
+
+LISTENING STATE
+
+When user activates HiveMind:
+
+Orb expands
+
+Outer rings rotate
+
+Glow increases
+
+Micro pulse animation
+
+Indicate:
+
+Listening
+
+====================================================
+
+THINKING STATE
+
+When HiveMind is processing:
+
+Orb rotates
+
+Inner rings animate
+
+Energy pulses
+
+Blue light movement
+
+Show clearly:
+
+Thinking
+
+====================================================
+
+SPEAKING STATE
+
+Most important.
+
+When HiveMind is speaking:
+
+Orb grows larger
+
+Glow expands
+
+Outer rings pulse to speech
+
+Audio-reactive scale animation
+
+Waveform effect around orb
+
+Subtle frequency response
+
+The orb should feel alive.
+
+Similar to Jarvis speaking.
+
+====================================================
+
+VOICE VISUALISATION
+
+Add:
+
+Live audio response animation
+
+Volume responsive pulse
+
+Speech energy visualisation
+
+Smooth transitions
+
+No harsh jumps
+
+====================================================
+
+HOVER INTERACTION
+
+On hover:
+
+Slight scale increase
+
+Glow intensifies
+
+Show tooltip:
+
+HiveMind Executive Assistant
+
+====================================================
+
+CLICK INTERACTION
+
+Single click:
+
+Open HiveMind Voice Assistant
+
+Double click:
+
+Open HiveMind Dashboard
+
+====================================================
+
+STATUS INDICATORS
+
+Show subtle state:
+
+Idle
+
+Listening
+
+Thinking
+
+Speaking
+
+Error
+
+Connected
+
+Disconnected
+
+====================================================
+
+NOTIFICATIONS
+
+If HiveMind has:
+
+New Recommendation
+
+New Task
+
+New Alert
+
+New Executive Report
+
+The orb should:
+
+Soft pulse
+
+Display notification badge
+
+Never become intrusive
+
+====================================================
+
+EXECUTIVE ALERT MODE
+
+If SystemMind or GrowthMind reports:
+
+Critical Issue
+
+Provider Failure
+
+Campaign Failure
+
+Revenue Risk
+
+The orb should:
+
+Glow brighter
+
+Show alert ring
+
+Display subtle warning indicator
+
+====================================================
+
+PERFORMANCE
+
+Animations must remain:
+
+60fps
+
+GPU accelerated
+
+Low CPU usage
+
+No excessive DOM updates
+
+====================================================
+
+RESPONSIVE
+
+Desktop
+
+Tablet
+
+Mobile
+
+All supported.
+
+====================================================
+
+SUCCESS CRITERIA
+
+The existing button is removed.
+
+HiveMind is represented by a premium executive AI orb.
+
+The orb visually reflects:
+
+Idle
+
+Listening
+
+Thinking
+
+Speaking
+
+Notifications
+
+Critical Alerts
+
+The speaking animation feels similar to a modern Jarvis-style AI assistant.
+
+The orb becomes one of the signature visual elements of the WeeBee platform.
+
+Generate implementation plan first.
+
+Then implement safely.

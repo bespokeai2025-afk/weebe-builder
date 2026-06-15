@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { getOverviewStats } from "@/lib/dashboard/leads.functions";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
-import { HiveMindVoiceButton } from "@/components/dashboard/HiveMindVoiceWidget";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Webee" }] }),
@@ -84,12 +83,9 @@ function DashboardPage() {
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
       {/* Page header */}
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-base font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Overview of your receptionist activity</p>
-        </div>
-        <HiveMindVoiceButton />
+      <div className="mb-5">
+        <h1 className="text-base font-semibold tracking-tight">Dashboard</h1>
+        <p className="text-[11px] text-muted-foreground mt-0.5">Overview of your receptionist activity</p>
       </div>
 
       {/* Live Agents strip */}
