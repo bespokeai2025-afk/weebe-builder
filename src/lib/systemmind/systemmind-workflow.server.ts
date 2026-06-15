@@ -130,6 +130,7 @@ function analyzeFlow(flowData: any) {
 export async function scanAndStoreAgentWorkflows(workspaceId: string): Promise<{
   scanned: number;
   stored: number;
+  live: number;
   templates: number;
   campaigns: number;
 }> {
@@ -139,17 +140,30 @@ export async function scanAndStoreAgentWorkflows(workspaceId: string): Promise<{
   // ── 1a. Scan agents → systemmind_workflow_library ──────────────────────────
   const { data: agents, error } = await sb
     .from("agents")
-    .select("id, name, agent_type, voice_provider, flow_data, settings, variables")
+    .select("id, name, agent_type, voice_provider, flow_data, settings, variables, retell_agent_id, inbound_phone_number")
     .eq("workspace_id", workspaceId)
     .order("name");
 
   if (error) throw new Error(`Failed to read agents: ${error.message}`);
 
   let stored = 0;
+  let liveCount = 0;
   for (const agent of agents ?? []) {
     try {
       const settings = agent.settings ?? {};
       const flow = analyzeFlow(agent.flow_data);
+
+      // Derive live status: agent is "live" if it has a Retell agent ID, a
+      // deployed ElevenLabs agent ID, a deployed phone number, or an inbound
+      // phone number assigned to it.
+      const isLive = !!(
+        agent.retell_agent_id ||
+        agent.inbound_phone_number ||
+        settings.deployedRetellAgentId ||
+        settings.deployedElevenLabsAgentId ||
+        settings.deployedConversationFlowId
+      );
+
       const row = {
         workspace_id: workspaceId,
         agent_id: agent.id,
@@ -166,7 +180,7 @@ export async function scanAndStoreAgentWorkflows(workspaceId: string): Promise<{
         has_booking: flow.hasBooking,
         has_transfer: flow.hasTransfer,
         has_knowledge_base: flow.hasKnowledgeBase,
-        deployment_mode: settings.deploymentMode ?? null,
+        deployment_mode: isLive ? "live" : (settings.deploymentMode ?? "draft"),
         flow_snapshot: {
           nodes: flow.nodes.slice(0, 20).map((n) => ({
             id: n.id,
@@ -181,7 +195,10 @@ export async function scanAndStoreAgentWorkflows(workspaceId: string): Promise<{
       const { error: upsertError } = await sb
         .from("systemmind_workflow_library")
         .upsert(row, { onConflict: "workspace_id,agent_id" });
-      if (!upsertError) stored++;
+      if (!upsertError) {
+        stored++;
+        if (isLive) liveCount++;
+      }
     } catch {
       // Skip agents with malformed flow data
     }
@@ -222,6 +239,7 @@ export async function scanAndStoreAgentWorkflows(workspaceId: string): Promise<{
   return {
     scanned: (agents ?? []).length,
     stored,
+    live: liveCount,
     templates: templateCount,
     campaigns: campaignCount,
   };

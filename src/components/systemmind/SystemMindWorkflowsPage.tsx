@@ -162,7 +162,9 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
     setScanning(true);
     try {
       const res: any = await scanFn({ data: {} });
-      const parts = [`${res.scanned} agent${res.scanned !== 1 ? "s" : ""}`, `${res.stored} stored`];
+      const parts = [`${res.scanned} agent${res.scanned !== 1 ? "s" : ""}`];
+      if (res.live > 0) parts.push(`${res.live} live`);
+      parts.push(`${res.stored} stored`);
       if (res.templates > 0) parts.push(`${res.templates} template${res.templates !== 1 ? "s" : ""}`);
       if (res.campaigns > 0) parts.push(`${res.campaigns} campaign${res.campaigns !== 1 ? "s" : ""}`);
       toast.success(`Scanned all sources — ${parts.join(" · ")}`);
@@ -253,6 +255,11 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-semibold">{row.workflow_name}</span>
+                    {row.deployment_mode === "live" && (
+                      <span className="text-[10px] border border-emerald-500/40 bg-emerald-500/10 rounded px-1.5 py-0.5 text-emerald-400 font-medium">
+                        Live
+                      </span>
+                    )}
                     {row.category && (
                       <span className="text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground">
                         {row.category}
@@ -326,7 +333,9 @@ function ScoreHealthTab() {
     setScanning(true);
     try {
       const res: any = await scanFn({ data: {} });
-      const parts = [`${res.scanned} agent${res.scanned !== 1 ? "s" : ""}`, `${res.stored} stored`];
+      const parts = [`${res.scanned} agent${res.scanned !== 1 ? "s" : ""}`];
+      if (res.live > 0) parts.push(`${res.live} live`);
+      parts.push(`${res.stored} stored`);
       if (res.templates > 0) parts.push(`${res.templates} template${res.templates !== 1 ? "s" : ""}`);
       if (res.campaigns > 0) parts.push(`${res.campaigns} campaign${res.campaigns !== 1 ? "s" : ""}`);
       toast.success(`Scanned all sources — ${parts.join(" · ")}`);
