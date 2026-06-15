@@ -114,41 +114,47 @@ export class VeoProvider {
     }
 
     const doRequest = async (token: string): Promise<Response> => {
+      // Both Gemini API and Vertex AI use the same instances/parameters schema.
+      // Key difference: Gemini API requires durationSeconds as a STRING ("8"),
+      // Vertex AI accepts it as an integer. Auth differs (API key vs Bearer token).
+      const instance: Record<string, unknown> = { prompt: params.prompt };
+      if (params.referenceUrl) instance.image = { gcsUri: params.referenceUrl };
+
       if (this.authMode === "gemini_api_key") {
-        // Gemini Developer API format for Veo predictLongRunning
-        // Schema: { model, prompt (string), generateVideoConfig }
-        // NOT Gemini Chat format (contents/config) — those are unknown fields here
         const endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
-        const body: Record<string, unknown> = {
-          model:  `models/${this.model}`,
-          prompt: params.prompt,
-          generateVideoConfig: {
-            aspectRatio:     params.aspectRatio     ?? "16:9",
-            durationSeconds: params.durationSeconds ?? 8,
-            numberOfVideos:  1,
+        const body = {
+          instances: [instance],
+          parameters: {
+            aspectRatio:       params.aspectRatio       ?? "16:9",
+            durationSeconds:   String(params.durationSeconds ?? 8),  // must be string on Gemini API
+            sampleCount:       1,
+            personGeneration:  "allow_all",
+            generateAudio:     false,
+            resolution:        "720p",
           },
         };
+        console.log("[veo-provider] Gemini API request →", endpoint.replace(/key=[^&]+/, "key=***"), JSON.stringify(body).slice(0, 300));
         return fetch(endpoint, {
           method:  "POST",
           headers: {
             "Content-Type":   "application/json",
             "x-goog-api-key": this.geminiKey,
           },
-          body:    JSON.stringify(body),
+          body: JSON.stringify(body),
         });
       } else {
-        // Vertex AI format
         const endpoint =
           `${VERTEX_BASE}/projects/${encodeURIComponent(this.project)}` +
           `/locations/${this.location}/publishers/google/models/${this.model}:predictLongRunning`;
         const body = {
-          instances:  [{ prompt: params.prompt, ...(params.referenceUrl ? { image: { gcsUri: params.referenceUrl } } : {}) }],
+          instances: [instance],
           parameters: {
             aspectRatio:     params.aspectRatio     ?? "16:9",
-            durationSeconds: params.durationSeconds ?? 8,
+            durationSeconds: params.durationSeconds ?? 8,  // integer on Vertex AI
             sampleCount:     1,
           },
         };
+        console.log("[veo-provider] Vertex AI request →", endpoint, JSON.stringify(body).slice(0, 300));
         return fetch(endpoint, {
           method:  "POST",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
