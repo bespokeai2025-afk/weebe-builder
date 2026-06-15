@@ -16,12 +16,14 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   getProviderRegistryData,
+  getProviderUsageStats,
   updateProviderPriority,
   toggleProviderEnabled,
   saveProviderCredentials,
   testProviderConnection,
   refreshAllProviderHealth,
 } from "@/lib/providers/providers.functions";
+import type { ProviderUsageStat } from "@/lib/providers/providers.functions";
 import {
   saveProviderCostRate,
 } from "@/lib/cost-engine/cost-engine.functions";
@@ -317,11 +319,72 @@ function CredentialForm({
   );
 }
 
+// ── Usage Stats Mini-Grid ─────────────────────────────────────────────────────
+
+function UsageStatsBar({ stats }: { stats: ProviderUsageStat }) {
+  if (stats.requests === 0) {
+    return (
+      <p className="text-[10px] text-muted-foreground/50 mb-2 italic">No usage in the last 30 days</p>
+    );
+  }
+
+  const fmtLatency = stats.avgLatencyMs >= 1000
+    ? `${(stats.avgLatencyMs / 1000).toFixed(1)}s`
+    : `${stats.avgLatencyMs}ms`;
+
+  const fmtCost = stats.totalCostUsd === 0
+    ? "$0"
+    : stats.totalCostUsd < 0.01
+    ? `$${stats.totalCostUsd.toFixed(5)}`
+    : `$${stats.totalCostUsd.toFixed(4)}`;
+
+  return (
+    <div className="mb-2">
+      <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/50 mb-1">Last 30 days</p>
+    <div className="grid grid-cols-4 gap-px rounded-lg border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+      <div className="flex flex-col items-center py-1.5 px-1 bg-black/10">
+        <span className="text-[11px] font-semibold tabular-nums leading-none">
+          {stats.requests >= 1000
+            ? `${(stats.requests / 1000).toFixed(1)}k`
+            : stats.requests.toLocaleString()}
+        </span>
+        <span className="text-[9px] text-muted-foreground/70 mt-0.5">calls</span>
+      </div>
+      <div className="flex flex-col items-center py-1.5 px-1 bg-black/10">
+        <span className="text-[11px] font-semibold tabular-nums leading-none text-emerald-400">
+          {fmtCost}
+        </span>
+        <span className="text-[9px] text-muted-foreground/70 mt-0.5">cost</span>
+      </div>
+      <div className="flex flex-col items-center py-1.5 px-1 bg-black/10">
+        <span className={cn(
+          "text-[11px] font-semibold tabular-nums leading-none",
+          stats.errorRatePct > 5 ? "text-red-400" : stats.errorRatePct > 1 ? "text-amber-400" : "text-foreground",
+        )}>
+          {stats.errorRatePct < 0.1 ? "0%" : `${stats.errorRatePct.toFixed(1)}%`}
+        </span>
+        <span className="text-[9px] text-muted-foreground/70 mt-0.5">errors</span>
+      </div>
+      <div className="flex flex-col items-center py-1.5 px-1 bg-black/10">
+        <span className={cn(
+          "text-[11px] font-semibold tabular-nums leading-none",
+          stats.avgLatencyMs > 3000 ? "text-amber-400" : "text-foreground",
+        )}>
+          {stats.avgLatencyMs === 0 ? "—" : fmtLatency}
+        </span>
+        <span className="text-[9px] text-muted-foreground/70 mt-0.5">avg latency</span>
+      </div>
+    </div>
+    </div>
+  );
+}
+
 // ── Provider Card ─────────────────────────────────────────────────────────────
 
 function ProviderCard({
   provider,
   category,
+  stats,
   onSetPrimary,
   onSetFallback,
   onDisable,
@@ -330,6 +393,7 @@ function ProviderCard({
 }: {
   provider: any;
   category: string;
+  stats: ProviderUsageStat | undefined;
   onSetPrimary: () => void;
   onSetFallback: () => void;
   onDisable: () => void;
@@ -384,12 +448,8 @@ function ProviderCard({
 
       <p className="text-[11px] text-muted-foreground leading-snug mb-2">{provider.description}</p>
 
-      {isConnected && (provider.requests > 0 || provider.errors > 0) && (
-        <div className="flex gap-3 text-[10px] text-muted-foreground mb-2">
-          {provider.requests > 0 && <span>{provider.requests.toLocaleString()} req</span>}
-          {provider.errors > 0 && <span className="text-red-400">{provider.errors} err</span>}
-          {provider.totalCostUsd > 0 && <span>${provider.totalCostUsd.toFixed(4)}</span>}
-        </div>
+      {isConnected && (
+        <UsageStatsBar stats={stats ?? { requests: 0, errors: 0, errorRatePct: 0, totalCostUsd: 0, avgLatencyMs: 0, lastUsedAt: null }} />
       )}
 
       {/* Controls for connected providers */}
@@ -612,6 +672,7 @@ function getSetupLink(category: string, providerName: string): string {
 
 function ProvidersSettingsPage() {
   const getFn              = useServerFn(getProviderRegistryData);
+  const getStatsFn         = useServerFn(getProviderUsageStats);
   const updatePriorityFn   = useServerFn(updateProviderPriority);
   const toggleEnabledFn    = useServerFn(toggleProviderEnabled);
   const refreshHealthFn    = useServerFn(refreshAllProviderHealth);
@@ -622,6 +683,12 @@ function ProvidersSettingsPage() {
     queryKey: ["provider-registry"],
     queryFn: () => getFn(),
     staleTime: 60_000,
+  });
+
+  const { data: usageStats } = useQuery({
+    queryKey: ["provider-usage-stats"],
+    queryFn: () => getStatsFn(),
+    staleTime: 120_000,
   });
 
   const mutation = useMutation({
@@ -688,6 +755,7 @@ function ProvidersSettingsPage() {
               } finally {
                 setSweeping(false);
                 qc.invalidateQueries({ queryKey: ["provider-registry"] });
+                qc.invalidateQueries({ queryKey: ["provider-usage-stats"] });
               }
             }}
           >
@@ -756,8 +824,12 @@ function ProvidersSettingsPage() {
                         key={provider.name}
                         provider={provider}
                         category={cat}
+                        stats={usageStats?.[`${cat}:${provider.name}`]}
                         isPending={mutation.isPending}
-                        onCredentialSaved={() => qc.invalidateQueries({ queryKey: ["provider-registry"] })}
+                        onCredentialSaved={() => {
+                          qc.invalidateQueries({ queryKey: ["provider-registry"] });
+                          qc.invalidateQueries({ queryKey: ["provider-usage-stats"] });
+                        }}
                         onSetPrimary={() =>
                           mutation.mutate({ type: "priority", category: cat, providerName: provider.name, role: "primary" })
                         }

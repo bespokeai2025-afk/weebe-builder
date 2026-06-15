@@ -2,9 +2,18 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { buildScopedView } from "./registry";
-import { getProviderUsage, upsertProviderSetting } from "./usage.server";
+import { getProviderUsage, getProviderUsageLast30Days, upsertProviderSetting } from "./usage.server";
 import { runProviderHealthCheck, runAllProviderHealthChecks } from "./health.server";
 import type { RegistryEntry } from "./registry";
+
+export type ProviderUsageStat = {
+  requests: number;
+  errors: number;
+  errorRatePct: number;
+  totalCostUsd: number;
+  avgLatencyMs: number;
+  lastUsedAt: string | null;
+};
 
 export type ProviderHealthSummary = {
   category: string;
@@ -12,6 +21,7 @@ export type ProviderHealthSummary = {
     requests: number;
     errors: number;
     totalCostUsd: number;
+    totalDurationMs: number;
     lastUsedAt: string | null;
   }>;
   connectedCount: number;
@@ -131,6 +141,7 @@ export const getProviderRegistryData = createServerFn({ method: "GET" })
           requests: usage?.requests ?? 0,
           errors: usage?.errors ?? 0,
           totalCostUsd: spend,
+          totalDurationMs: usage?.total_duration_ms ?? 0,
           lastUsedAt: usage?.last_used_at ?? null,
         };
       });
@@ -154,6 +165,49 @@ export const getProviderRegistryData = createServerFn({ method: "GET" })
     runAllProviderHealthChecks(workspaceId).catch(() => {});
 
     return { byCategory: result, totalSpend, totalConnected, totalProviders, recentErrors };
+  });
+
+// ── Query: per-provider usage stats (requests, cost, error rate, avg latency) ──
+
+export const getProviderUsageStats = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<Record<string, ProviderUsageStat>> => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    // Primary source: 30-day window from the time-series log table.
+    // Falls back to an empty array if the migration hasn't been applied yet.
+    const logRows = await getProviderUsageLast30Days(workspaceId, 30);
+
+    // Secondary source: all-time aggregates, used only for `lastUsedAt` metadata.
+    const allTimeRows = await getProviderUsage(workspaceId);
+    const lastUsedMap = new Map(allTimeRows.map(r => [
+      `${r.provider_category}:${r.provider_name}`,
+      r.last_used_at,
+    ]));
+
+    const result: Record<string, ProviderUsageStat> = {};
+
+    // If the log table is populated, use 30-day data exclusively.
+    // When the log table is empty (pre-migration or new workspace), fall back
+    // to all-time totals so the UI is never blank for workspaces with data.
+    const rows = logRows.length > 0 ? logRows : allTimeRows;
+
+    for (const row of rows) {
+      const key = `${row.provider_category}:${row.provider_name}`;
+      const req = row.requests ?? 0;
+      const err = row.errors ?? 0;
+      result[key] = {
+        requests:     req,
+        errors:       err,
+        errorRatePct: req > 0 ? (err / req) * 100 : 0,
+        totalCostUsd: Number(row.total_cost_usd ?? 0),
+        avgLatencyMs: req > 0 ? Math.round((row.total_duration_ms ?? 0) / req) : 0,
+        lastUsedAt:   lastUsedMap.get(key) ?? null,
+      };
+    }
+
+    return result;
   });
 
 // ── Shared helper: enforce workspace owner/admin ───────────────────────────────

@@ -99,6 +99,18 @@ export async function trackProviderUsage(params: TrackUsageParams): Promise<void
         } : {}),
       });
     }
+
+    // Write to the time-series log for rolling-window queries (e.g. 30-day stats).
+    // Fire-and-forget — failures here must not block the caller.
+    sb.from("provider_usage_log").insert({
+      workspace_id:      workspaceId,
+      provider_category: category,
+      provider_name:     providerName,
+      requests:          1,
+      errors:            isError ? 1 : 0,
+      cost_usd:          resolvedCostUsd,
+      duration_ms:       durationMs,
+    }).then(() => {}).catch(() => {});
   } catch (err) {
     // Log column-not-found errors at debug level — they're expected before the migration is applied
     const msg = String(err);
@@ -159,6 +171,65 @@ export async function getProviderUsage(workspaceId: string): Promise<
       .eq("workspace_id", workspaceId)
       .order("total_cost_usd", { ascending: false });
     return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Aggregate the last `days` days of usage from the provider_usage_log time-series table.
+ * Returns one row per (category, provider) with summed requests/errors/cost/duration.
+ * Falls back to an empty array when the log table doesn't exist yet (pre-migration).
+ */
+export async function getProviderUsageLast30Days(
+  workspaceId: string,
+  days = 30,
+): Promise<
+  Array<{
+    provider_category: string;
+    provider_name: string;
+    requests: number;
+    errors: number;
+    total_cost_usd: number;
+    total_duration_ms: number;
+  }>
+> {
+  try {
+    const sb = supabaseAdmin as any;
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await sb
+      .from("provider_usage_log")
+      .select("provider_category, provider_name, requests, errors, cost_usd, duration_ms")
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", since);
+
+    if (error) return [];
+
+    // Group in JS — avoids needing a DB function / RPC for the aggregation
+    const map = new Map<
+      string,
+      { provider_category: string; provider_name: string; requests: number; errors: number; total_cost_usd: number; total_duration_ms: number }
+    >();
+
+    for (const row of (data ?? [])) {
+      const key = `${row.provider_category}:${row.provider_name}`;
+      const existing = map.get(key) ?? {
+        provider_category: row.provider_category,
+        provider_name:     row.provider_name,
+        requests:          0,
+        errors:            0,
+        total_cost_usd:    0,
+        total_duration_ms: 0,
+      };
+      existing.requests          += row.requests          ?? 1;
+      existing.errors            += row.errors            ?? 0;
+      existing.total_cost_usd    += Number(row.cost_usd   ?? 0);
+      existing.total_duration_ms += row.duration_ms       ?? 0;
+      map.set(key, existing);
+    }
+
+    return Array.from(map.values());
   } catch {
     return [];
   }
