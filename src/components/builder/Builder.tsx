@@ -1535,7 +1535,7 @@ export function Builder({
                                   audio.play().catch(() => {});
                                   audio.onended = () => { URL.revokeObjectURL(url); retAudioRef.current = null; setRetPlaying(false); };
                                 } else {
-                                  toast.error("Preview unavailable", { description: result.missingKey ? "No Retell API key configured." : "TTS returned no audio." });
+                                  toast.error("Preview unavailable", { description: result.missingKey ? "No OmniVoice API key configured." : "TTS returned no audio." });
                                 }
                               } catch {
                                 toast.error("Preview failed");
@@ -1656,7 +1656,7 @@ export function Builder({
                 <div>
                   <Label className="text-[9px] flex items-center gap-1">
                     Model
-                    <span className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground" title="Internal cost (Retell rate + $0.15/min margin). Not shown to customers.">
+                    <span className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded bg-muted text-muted-foreground" title="Internal cost estimate (platform rate + margin).">
                       builder cost
                     </span>
                   </Label>

@@ -147,7 +147,7 @@ function TelephonySettingsPage() {
         </div>
 
         <p className="mb-4 text-xs text-muted-foreground leading-relaxed">
-          These credentials are set once at the platform level and shared across all workspaces — the same pattern as your Retell API key. To update them, go to the <strong>Secrets</strong> tab in your Replit project.
+          These credentials are set once at the platform level and shared across all workspaces — the same pattern as your OmniVoice API key. To update them, go to the <strong>Secrets</strong> tab in your Replit project.
         </p>
 
         <div className="flex flex-col gap-2">

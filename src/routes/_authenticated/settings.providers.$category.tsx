@@ -84,7 +84,7 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
     { key: "calendarId", label: "Calendar ID", type: "text", required: false, placeholder: "primary" },
   ],
-  "voice:retell": [{ key: "apiKey", label: "Retell API Key", type: "password", required: true, placeholder: "key_..." }],
+  "voice:retell": [{ key: "apiKey", label: "OmniVoice API Key", type: "password", required: true, placeholder: "key_..." }],
   "voice:openai": [{ key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." }],
   "voice:elevenlabs": [{ key: "apiKey", label: "ElevenLabs API Key", type: "password", required: true, placeholder: "sk_..." }],
   "telephony:frejun": [{ key: "apiKey", label: "FreJun API Key", type: "password", required: true }],

@@ -2792,7 +2792,7 @@ export function RetellDeployDialog({
               Save OpenAI Realtime Agent
             </DialogTitle>
             <DialogDescription>
-              This agent routes through the OpenAI Realtime engine. Retell provisioning is skipped —
+              This agent routes through the OpenAI Realtime engine. OmniVoice provisioning is skipped —
               your tool schema and voice settings are compiled and saved directly.
             </DialogDescription>
           </DialogHeader>

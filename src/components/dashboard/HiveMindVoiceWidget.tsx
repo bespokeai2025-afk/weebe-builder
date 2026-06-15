@@ -50,7 +50,7 @@ export function HiveMindVoiceButton() {
       return;
     }
     if (!agentId.startsWith("agent_")) {
-      toast.error("Invalid agent ID — please configure a deployed Retell agent in Settings → Integrations.");
+      toast.error("Invalid agent ID — please configure a deployed OmniVoice agent in Settings → Integrations.");
       return;
     }
     setStarting(true);

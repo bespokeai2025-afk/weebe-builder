@@ -527,7 +527,7 @@ export function ImportPDFDialog({
                     ? "bg-orange-500/15 text-orange-300 border-orange-500/20"
                     : "bg-cyan-500/15 text-cyan-300 border-cyan-500/20",
                 )}>
-                  {flowResult.voiceProvider === "RETELL" ? "Retell format" : "OmniVoice format"}
+                  {flowResult.voiceProvider === "RETELL" ? "OmniVoice format" : "OmniVoice format"}
                 </span>
                 {selectedAgent && (
                   <span className="text-[9px] rounded px-1.5 py-0.5 bg-violet-500/15 text-violet-300 border border-violet-500/20">
@@ -650,7 +650,7 @@ export function ImportPDFDialog({
                     <span className="text-[11px] font-semibold text-violet-300">
                       Global Prompt
                       <span className="ml-1.5 font-normal text-[9px] text-violet-300/60">
-                        {flowResult.voiceProvider === "RETELL" ? "· Retell general_prompt style" : "· OmniVoice overall-instructions style"}
+                        {flowResult.voiceProvider === "RETELL" ? "· OmniVoice prompt style" : "· OmniVoice overall-instructions style"}
                       </span>
                     </span>
                   </div>

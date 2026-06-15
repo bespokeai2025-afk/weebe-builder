@@ -451,7 +451,7 @@ function IntegrationsPage() {
               )}
             </div>
             <CardDescription>
-              Choose which deployed Retell agent will be used when you click "Talk to HiveMind" on the
+              Choose which deployed OmniVoice agent will be used when you click "Talk to HiveMind" on the
               dashboard. The agent must already be deployed in the Builder.
             </CardDescription>
           </CardHeader>

@@ -686,7 +686,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Your request for <strong>{wsReq?.workspace_name}</strong> is with the Webespoke
-                  team. Once approved, your production phone line and Retell workspace will be
+                  team. Once approved, your production phone line and OmniVoice workspace will be
                   provisioned and you can go live — typically within a business day.
                 </p>
               </>
@@ -720,7 +720,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
               <>
                 <p className="text-sm">
                   You can build and test your agent freely. To go live with a real phone number,
-                  submit a deploy request below — our team will set up your production Retell
+                  submit a deploy request below — our team will set up your production OmniVoice
                   workspace and approve it shortly.
                 </p>
                 <div className="space-y-2">
@@ -1406,7 +1406,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
                     />
                   )}
                   <p className="text-[11px] text-muted-foreground">
-                    Which event type Retell uses when checking availability and booking.
+                    Which event type OmniVoice uses when checking availability and booking.
                   </p>
                 </div>
 

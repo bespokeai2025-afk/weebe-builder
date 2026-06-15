@@ -446,7 +446,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                   </Select>
                 )}
                 <p className="mt-1 text-[10px] text-muted-foreground">
-                  Agents are synced from your Retell AI account
+                  Agents are synced from your OmniVoice account
                 </p>
               </div>
             </div>

@@ -407,7 +407,7 @@ function Step8({ saved }: { saved: boolean }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Click the <span className="text-indigo-300 font-medium">Save</span> button in the toolbar to compile your conversation flow and register the agent on Retell.
+        Click the <span className="text-indigo-300 font-medium">Save</span> button in the toolbar to compile your conversation flow and register the agent.
       </p>
       {!saved ? (
         <WaitingFor text="Waiting for you to click Save ↑" />
@@ -424,11 +424,11 @@ function Step9() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-slate-400 leading-relaxed">
-        Click the <span className="text-white font-medium">+</span> button in the builder toolbar to deploy your agent to Retell AI. This creates a real live voice agent.
+        Click the <span className="text-white font-medium">+</span> button in the builder toolbar to deploy your agent live. This creates a real live voice agent.
       </p>
       <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-[10px] text-slate-400 space-y-1">
         <div className="text-slate-200 font-medium text-[11px]">What this does</div>
-        <p className="leading-relaxed">Compiles your conversation flow and uploads it to Retell's infrastructure so it can handle real phone calls.</p>
+        <p className="leading-relaxed">Compiles your conversation flow and uploads it to our voice infrastructure so it can handle real phone calls.</p>
       </div>
       <WaitingFor text="Waiting for you to click the + Deploy button ↑" />
     </div>

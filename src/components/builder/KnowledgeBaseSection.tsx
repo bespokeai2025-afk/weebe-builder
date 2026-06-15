@@ -351,7 +351,7 @@ export function KnowledgeBaseSection({ isRetell, isHyperStream }: Props) {
               )}
               {isRetell && (
                 <p className="text-[10px] text-muted-foreground">
-                  Retell will crawl and index this URL automatically.
+                  OmniVoice will crawl and index this URL automatically.
                 </p>
               )}
             </TabsContent>

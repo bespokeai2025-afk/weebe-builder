@@ -109,7 +109,7 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "calendarId", label: "Calendar ID (optional)", type: "text", required: false, placeholder: "primary" },
   ],
   "voice:retell": [
-    { key: "apiKey", label: "Retell API Key", type: "password", required: false, placeholder: "Leave blank to use platform key" },
+    { key: "apiKey", label: "OmniVoice API Key", type: "password", required: false, placeholder: "Leave blank to use platform key" },
   ],
   "voice:openai": [
     { key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." },

@@ -158,7 +158,7 @@ function RetellTranscriptionSettings() {
         <input
           type="text"
           className="w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-          placeholder="Split by comma. Example: Retell, Walmart"
+          placeholder="Split by comma. Example: Webespoke, Walmart"
           value={(settings.boostedKeywords ?? []).join(", ")}
           onChange={(e) => csv("boostedKeywords", e.target.value)}
         />

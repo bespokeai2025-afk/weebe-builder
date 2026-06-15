@@ -30,7 +30,7 @@ type Integration = {
 
 const INTEGRATIONS: Integration[] = [
   {
-    key: "retell", label: "Retell", desc: "Voice agent deployment platform",
+    key: "retell", label: "OmniVoice", desc: "Voice agent deployment platform",
     icon: Bot, setupHref: "/settings/integrations", category: "Voice",
     detail: d => d?.agents?.filter((a: any) => a.retell_agent_id || a.settings?.deployedRetellAgentId).length + " agent(s) deployed",
   },

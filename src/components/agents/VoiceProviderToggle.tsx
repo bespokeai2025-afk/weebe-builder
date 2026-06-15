@@ -15,7 +15,7 @@ interface Props {
 }
 
 const OPTIONS: { value: VoiceProvider; label: string; sub: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: "RETELL", label: "Retell AI", sub: "Managed cloud", icon: Radio },
+  { value: "RETELL", label: "OmniVoice", sub: "Managed cloud", icon: Radio },
   { value: "OPENAI_REALTIME", label: "In-House OpenAI Fast", sub: "Native realtime", icon: Zap },
 ];
 
@@ -42,7 +42,7 @@ export function VoiceProviderToggle({ agentId, currentProvider, hasPhone }: Prop
         toast.success("Voice Engine successfully reassigned!", {
           description:
             next === "RETELL"
-              ? "Traffic now routes via Retell AI."
+              ? "Traffic now routes via OmniVoice."
               : "Traffic now routes via In-House OpenAI Fast.",
         });
       }

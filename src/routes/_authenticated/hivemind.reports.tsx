@@ -124,11 +124,11 @@ function buildReport(data: any, recs: ReturnType<typeof generateRecommendations>
       label: "Cost Summary",
       content: [
         `COST ESTIMATES`,
-        `  Retell call cost (est.): $${costs?.retellEst?.toFixed(2) ?? "0.00"}`,
+        `  OmniVoice call cost (est.): $${costs?.retellEst?.toFixed(2) ?? "0.00"}`,
         `  Basis: ${calls.total} calls × ${calls.avgDuration}s avg @ $0.05/min`,
         ``,
-        `  Note: Actual costs depend on your Retell plan and usage tier.`,
-        `  Visit your Retell dashboard for exact billing figures.`,
+        `  Note: Actual costs depend on your OmniVoice plan and usage tier.`,
+        `  Visit your OmniVoice dashboard for exact billing figures.`,
       ],
     },
     {

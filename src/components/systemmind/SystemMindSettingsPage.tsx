@@ -27,7 +27,7 @@ const DEFAULT_PROVIDER_PRIORITY = [
 ];
 
 const PROVIDER_LABELS: Record<string, string> = {
-  openai: "OpenAI", retell: "Retell AI", elevenlabs: "ElevenLabs",
+  openai: "OpenAI", retell: "OmniVoice", elevenlabs: "ElevenLabs",
   twilio: "Twilio", whatsapp: "WhatsApp (Meta)", wati: "WATI (WhatsApp)",
   hubspot: "HubSpot CRM", ghl: "GoHighLevel", stripe: "Stripe",
   calcom: "Cal.com", resend: "Resend (email)",
