@@ -195,6 +195,8 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   const [expanded, setExpanded]           = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [downloadError, setDownloadError] = useState("");
+  const [playUrl,  setPlayUrl]            = useState<string | null>(null);
+  const [loadingPlay, setLoadingPlay]     = useState(false);
 
   const getDownloadFn = useServerFn(getVideoDownloadUrl);
 
@@ -207,6 +209,22 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   const elapsedLabel = elapsedSec < 60
     ? `${elapsedSec}s`
     : `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`;
+
+  // "__data_uri__" marker means the list query stripped the real data URI for
+  // performance — we fetch it on demand when the user clicks Play.
+  const isDataUriMarker = asset.videoUrl === "__data_uri__";
+
+  async function handleLoadPlay() {
+    setLoadingPlay(true);
+    try {
+      const res = await getDownloadFn({ data: { id: asset.id } });
+      if (res.downloadUrl) setPlayUrl(res.downloadUrl);
+      else setDownloadError(res.error ?? "Could not load video");
+    } catch (e: any) {
+      setDownloadError(e?.message ?? "Load failed");
+    }
+    setLoadingPlay(false);
+  }
 
   async function handleDownload() {
     setDownloadLoading(true);
@@ -360,7 +378,7 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
         </div>
       )}
 
-      {videoReady && !isGcsUri && (
+      {videoReady && !isGcsUri && !isDataUriMarker && (
         <div className="rounded-lg overflow-hidden border border-white/[0.06]">
           <video
             controls
@@ -368,6 +386,33 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
             className="w-full max-h-48 bg-black"
             preload="metadata"
           />
+        </div>
+      )}
+
+      {isDataUriMarker && (
+        <div className="space-y-2">
+          {playUrl ? (
+            <div className="rounded-lg overflow-hidden border border-white/[0.06]">
+              <video controls src={playUrl} className="w-full max-h-48 bg-black" preload="metadata" />
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5 rounded-lg border border-violet-500/15 bg-violet-500/[0.04] px-3 py-2.5">
+              <Play className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold text-violet-400">Video ready</p>
+                <p className="text-[10px] text-muted-foreground/60">Stored as inline data — click to load</p>
+              </div>
+              <button
+                onClick={handleLoadPlay}
+                disabled={loadingPlay}
+                className="shrink-0 flex items-center gap-1.5 rounded-lg bg-violet-500/15 border border-violet-500/25 px-2.5 py-1.5 text-[10px] font-semibold text-violet-300 hover:bg-violet-500/25 transition-colors disabled:opacity-50"
+              >
+                {loadingPlay ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                {loadingPlay ? "Loading…" : "Play"}
+              </button>
+            </div>
+          )}
+          {downloadError && <p className="text-[10px] text-red-400/80 px-1">{downloadError}</p>}
         </div>
       )}
 

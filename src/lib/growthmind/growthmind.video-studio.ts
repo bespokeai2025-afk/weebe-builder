@@ -916,25 +916,32 @@ export const getVideoAssets = createServerFn({ method: "GET" })
       throw new Error(error.message);
     }
 
-    const assets: VideoAsset[] = (rows ?? []).map((r: any) => ({
-      id:             r.id,
-      title:          r.title,
-      videoType:      r.video_type as VideoType,
-      provider:       r.provider   ?? null,
-      script:         r.script     ?? "",
-      storyboard:     Array.isArray(r.storyboard) ? r.storyboard : [],
-      videoUrl:       r.video_url  ?? null,
-      audioUrl:       r.audio_url  ?? null,
-      voiceId:        r.voice_id   ?? null,
-      qualityMode:    r.quality_mode as QualityMode,
-      costEstimate:   r.cost_estimate ?? 0,
-      scheduledAt:    r.scheduled_at ?? null,
-      createdAt:      r.created_at,
-      campaignId:     r.campaign_id      ?? null,
-      variantGroupId: r.variant_group_id ?? null,
-      variantType:    r.variant_type     ?? null,
-      creativeScore:  r.creative_score   ?? null,
-    }));
+    const assets: VideoAsset[] = (rows ?? []).map((r: any) => {
+      // Data URIs can be 20-80 MB of base64 — never ship them in the list.
+      // Replace with a stable marker so the card knows to lazy-fetch the real URL.
+      const rawUrl: string | null = r.video_url ?? null;
+      const videoUrl = rawUrl?.startsWith("data:video/") ? "__data_uri__" : rawUrl;
+
+      return {
+        id:             r.id,
+        title:          r.title,
+        videoType:      r.video_type as VideoType,
+        provider:       r.provider   ?? null,
+        script:         r.script     ?? "",
+        storyboard:     Array.isArray(r.storyboard) ? r.storyboard : [],
+        videoUrl,
+        audioUrl:       r.audio_url  ?? null,
+        voiceId:        r.voice_id   ?? null,
+        qualityMode:    r.quality_mode as QualityMode,
+        costEstimate:   r.cost_estimate ?? 0,
+        scheduledAt:    r.scheduled_at ?? null,
+        createdAt:      r.created_at,
+        campaignId:     r.campaign_id      ?? null,
+        variantGroupId: r.variant_group_id ?? null,
+        variantType:    r.variant_type     ?? null,
+        creativeScore:  r.creative_score   ?? null,
+      };
+    });
 
     return { assets };
   });

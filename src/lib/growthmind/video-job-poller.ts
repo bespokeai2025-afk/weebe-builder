@@ -49,7 +49,9 @@ export function isRealVideoUrl(videoUrl: string | null): boolean {
   return (
     videoUrl.startsWith("http://") ||
     videoUrl.startsWith("https://") ||
-    videoUrl.startsWith("gs://")
+    videoUrl.startsWith("gs://") ||
+    videoUrl.startsWith("data:video/") ||
+    videoUrl === "__data_uri__"   // lazy-load marker set by getVideoAssets
   );
 }
 
@@ -186,6 +188,11 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
 
   const sb = createClient(supabaseUrl, supabaseKey);
 
+  // Ensure the storage bucket exists (idempotent — safe to call every time)
+  await Promise.resolve(
+    sb.storage.createBucket(STORAGE_BUCKET, { public: true }),
+  ).catch(() => {/* already exists or insufficient perms — ignore */});
+
   // Fetch all assets with pending job sentinels (include workspace_id for per-workspace creds)
   const { data: rows, error: fetchErr } = await sb
     .from("growthmind_video_assets")
@@ -318,6 +325,40 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
       }
     }),
   );
+
+  // ── Re-archive any existing data:video/ URLs to Supabase Storage ─────────────
+  // This happens when a previous poll succeeded but the bucket didn't exist yet.
+  // Now that createBucket ran above, we can try again.
+  try {
+    const { data: dataUriRows } = await sb
+      .from("growthmind_video_assets")
+      .select("id, video_url, workspace_id")
+      .like("video_url", "data:video/%")
+      .limit(10);
+
+    if (dataUriRows && dataUriRows.length > 0) {
+      await Promise.all(
+        dataUriRows.map(async (row: any) => {
+          const permanentUrl = await archiveVideoToStorage(
+            sb,
+            row.video_url,
+            row.workspace_id,
+            row.id,
+          );
+          if (permanentUrl !== row.video_url) {
+            await sb
+              .from("growthmind_video_assets")
+              .update({ video_url: permanentUrl })
+              .eq("id", row.id)
+              .catch(() => {});
+            result.archived++;
+          }
+        }),
+      );
+    }
+  } catch {
+    // Re-archive sweep is best-effort
+  }
 
   return result;
 }

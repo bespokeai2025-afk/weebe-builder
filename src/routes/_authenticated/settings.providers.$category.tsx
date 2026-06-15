@@ -200,9 +200,49 @@ function ProviderPanel({
               Test Connection
             </Button>
           )}
+          {credFields && (
+            <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] gap-1" onClick={() => setOpen(o => !o)}>
+              <Save className="h-2.5 w-2.5" />
+              {open ? "Hide" : "Update Key"}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px] gap-1 text-red-400/70 hover:text-red-400" onClick={handleDisable}>
             <PowerOff className="h-2.5 w-2.5" />
             Disable
+          </Button>
+        </div>
+      )}
+
+      {isConnected && open && credFields && (
+        <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+          {credFields.map(f => (
+            <div key={f.key} className="space-y-1">
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                {f.label}{f.required && <span className="text-red-400 ml-0.5">*</span>}
+              </label>
+              <div className="relative">
+                <Input
+                  type={f.type === "password" && !visible[f.key] ? "password" : "text"}
+                  placeholder={f.placeholder}
+                  value={creds[f.key] ?? ""}
+                  onChange={e => setCreds(c => ({ ...c, [f.key]: e.target.value }))}
+                  className="h-7 text-xs pr-7"
+                />
+                {f.type === "password" && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setVisible(v => ({ ...v, [f.key]: !v[f.key] }))}
+                  >
+                    {visible[f.key] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+          <Button size="sm" variant="default" className="h-6 px-3 text-[10px] gap-1" disabled={saving} onClick={handleSave}>
+            {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Save className="h-2.5 w-2.5" />}
+            Save
           </Button>
         </div>
       )}
