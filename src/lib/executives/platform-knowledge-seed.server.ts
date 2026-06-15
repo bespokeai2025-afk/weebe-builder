@@ -4,48 +4,162 @@
 //
 // Idempotent: each document has a stable global seed_key with the unique index
 // exec_docs_platform_seed_key_idx. Re-runs skip already-indexed docs.
+//
+// Docs with a `content` field are stored verbatim (no LLM call).
+// Docs with a `prompt` field are generated via OpenAI gpt-4o-mini.
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { indexTextDocument } from "@/lib/executives/executive-document-processing.server";
 
 // ── Platform document definitions ────────────────────────────────────────────
 
-const PLATFORM_DOCS: {
-  seedKey:  string;
-  title:    string;
-  kbSlug:   string;      // platform KB slug this doc belongs to
-  prompt:   string;      // prompt to generate the document content
-}[] = [
+type PlatformDoc =
+  | { seedKey: string; title: string; kbSlug: string; content: string; prompt?: never }
+  | { seedKey: string; title: string; kbSlug: string; prompt: string; content?: never };
+
+// ── Literal WEBEE Platform Overview (authoritative, no generation needed) ─────
+const WEBEE_PLATFORM_OVERVIEW_CONTENT = `# WEBEE Platform Overview
+
+**Company:** Webespoke AI
+
+## Product Family
+
+- WEBEE Builder
+- WEBEE Smart Dash
+- HiveMind
+- GrowthMind
+- SystemMind
+- HexMail
+- WhatsApp Centre
+- HyperStream
+- VoxStream
+- Cost Engine
+
+## Mission
+
+To allow businesses to deploy enterprise-grade AI employees, communication systems, CRM workflows, marketing systems and operational automation without requiring developers.
+
+## Overview
+
+WEBEE is a multi-tenant AI Operating System combining conversational AI, telephony, CRM, marketing automation, WhatsApp automation, campaign management, analytics and executive AI assistants inside a single platform.
+
+The platform enables users to deploy AI-powered receptionists, lead generation agents, client qualification agents, customer service agents and marketing systems through a no-code interface.
+
+## Core Modules
+
+### 1. WEBEE Builder
+
+Visual no-code flow builder.
+
+Supports: Voice workflows, WhatsApp workflows, Logic routing, Variable extraction, Tool calling, Webhooks, Document collection, Agent transfers, Knowledge base integration, PDF-to-flow conversion.
+
+### 2. Smart Dash CRM
+
+Centralised operational dashboard.
+
+Supports: Leads, Qualified Leads, Pipeline, Bookings, Contacts, Documents, Calls, Recordings, Transcripts, Notes, Campaigns.
+
+### 3. HyperStream
+
+Native OpenAI Realtime voice engine.
+
+Supports: OpenAI Realtime, Custom workflows, Tool calling, Knowledge retrieval, Advanced VAD, Low latency voice conversations.
+
+### 4. VoxStream
+
+Native ElevenLabs voice engine.
+
+Supports: ElevenLabs conversational AI, Custom voice deployments, Voice testing, Browser voice sessions.
+
+### 5. WhatsApp Centre
+
+Multi-provider WhatsApp management.
+
+Supports: Meta, Twilio, WATI, Broadcast campaigns, Inbound messaging, WhatsApp AI agents, Templates, Automation workflows.
+
+### 6. HexMail
+
+Email marketing and follow-up engine.
+
+Supports: Email campaigns, Drip sequences, Multi-channel follow-up, Campaign enrolments, Template Studio.
+
+### 7. HiveMind
+
+AI Chief Operating Officer.
+
+Provides: Executive briefings, Business reporting, Recommendations, Task creation, Operational intelligence, Action approval workflows, Voice interaction.
+
+### 8. GrowthMind
+
+AI Chief Marketing Officer.
+
+Provides: Marketing intelligence, Campaign recommendations, Business opportunity detection, Content planning, SEO recommendations, Advertising recommendations, Business strategy generation.
+
+### 9. SystemMind
+
+AI Chief Technology Officer.
+
+Provides: Architecture analysis, Workflow intelligence, Provider monitoring, Technical auditing, Workflow repair recommendations, Integration health monitoring.
+
+### 10. Cost Engine
+
+Tracks: Provider costs, Token usage, Voice costs, Telephony costs, Markup, Profitability, Customer pricing.
+
+## Platform Differentiators
+
+- Single platform architecture
+- Provider agnostic
+- Multi-channel communication
+- Executive AI layer
+- No-code deployment
+- Multi-tenant
+- Built-in CRM
+- Built-in marketing
+- Built-in telephony
+- Built-in WhatsApp
+- Built-in campaign automation
+- Built-in AI executives
+
+## Target Industries
+
+Real Estate, Legal, Professional Services, Consultancies, Education, Healthcare, Corporate Services, Sales Teams, Recruitment, Customer Support.
+`;
+
+const PLATFORM_DOCS: PlatformDoc[] = [
+  // ── Verbatim authoritative content ─────────────────────────────────────────
   {
     seedKey: "platform:webee-overview",
     title:   "WEBEE Platform Overview",
     kbSlug:  "platform_shared",
-    prompt: `Write a comprehensive platform overview for WEBEE (also spelled Webee), an AI voice-agent builder and multi-executive intelligence platform.
-
-Cover:
-- What WEBEE is and who it's for (SMBs, agencies, enterprises)
-- Core products: Voice Agent Builder (OmniVoice), GrowthMind (AI CMO), HiveMind (AI COO), SystemMind (AI CTO)
-- Key capabilities: no-code voice agent creation, multi-channel outreach (voice, WhatsApp, SMS), CRM integration, business intelligence
-- The three AI executives and what they do
-- Platform philosophy: replace 3-5 specialist hires with always-on AI executives
-- Integration ecosystem: telephony, WhatsApp, email, CRM, analytics
-
-Format: 600–900 words, markdown headings, practical and direct.`,
+    content: WEBEE_PLATFORM_OVERVIEW_CONTENT,
   },
+
+  // ── AI-generated companion documents ────────────────────────────────────────
   {
     seedKey: "platform:webee-selling-points",
     title:   "WEBEE Selling Points & Value Propositions",
     kbSlug:  "platform_shared",
     prompt: `Write a high-signal reference document covering WEBEE's core selling points and value propositions for sales, marketing and executive context.
 
+WEBEE (by Webespoke AI) is a multi-tenant AI Operating System with the following product family:
+- WEBEE Builder: no-code visual flow builder for voice + WhatsApp agents
+- Smart Dash CRM: centralised dashboard (leads, pipeline, bookings, calls, campaigns)
+- HyperStream: OpenAI Realtime native voice engine (low latency, advanced VAD)
+- VoxStream: ElevenLabs native voice engine (custom deployments, browser sessions)
+- WhatsApp Centre: multi-provider WA management (Meta, Twilio, WATI, broadcast, AI agents)
+- HexMail: email marketing engine (campaigns, drip sequences, template studio)
+- HiveMind: AI Chief Operating Officer (briefings, reporting, tasks, approvals, voice)
+- GrowthMind: AI Chief Marketing Officer (marketing intelligence, content, SEO, strategy)
+- SystemMind: AI Chief Technology Officer (monitoring, auditing, repair, integrations)
+- Cost Engine: provider cost tracking, token usage, markup, profitability
+
 Cover:
-- Primary value proposition: always-on AI executives at a fraction of human hire cost
-- Voice agent capabilities: build, deploy and manage AI call agents in minutes
-- GrowthMind: automated marketing intelligence, content creation, campaign management
-- HiveMind: real-time business oversight, task management, operational intelligence
-- SystemMind: technical monitoring, reliability management, infrastructure oversight
-- ROI and efficiency gains: response time, lead follow-up, 24/7 availability
-- Key differentiators vs competitors: ease of use, multi-executive AI, no-code voice agents
+- Primary value proposition: enterprise-grade AI employees + full communication stack without developers
+- Voice agent capabilities: build, deploy and manage AI call agents in minutes (HyperStream + VoxStream)
+- Multi-channel outreach: voice, WhatsApp (3 providers), email — all from one platform
+- The three AI executives (HiveMind/GrowthMind/SystemMind) replacing specialist hires
+- ROI and efficiency gains: response time, lead follow-up, 24/7 availability, no-code speed
+- Key differentiators: single-platform architecture, provider-agnostic, built-in CRM + marketing + telephony
 - Common objections and rebuttals
 - Ideal customer profile: businesses with inbound/outbound call needs, sales teams, service operations
 
@@ -53,12 +167,18 @@ Format: 700–1000 words, markdown headings and bullet points, sharp and persuas
   },
   {
     seedKey: "platform:webee-customer-outcomes",
-    title:   "WEBEE Customer Outcomes & Case Evidence",
+    title:   "WEBEE Customer Outcomes & Success Patterns",
     kbSlug:  "platform_shared",
     prompt: `Write a practical reference document on the expected customer outcomes and success patterns for WEBEE platform users.
 
+WEBEE product family (for context):
+WEBEE Builder (no-code voice+WA flows), Smart Dash CRM, HyperStream (OpenAI Realtime voice), VoxStream (ElevenLabs voice), WhatsApp Centre (Meta/Twilio/WATI), HexMail (email campaigns), HiveMind (AI COO), GrowthMind (AI CMO), SystemMind (AI CTO), Cost Engine.
+
+Target industries: Real Estate, Legal, Professional Services, Consultancies, Education, Healthcare, Corporate Services, Sales Teams, Recruitment, Customer Support.
+
 Cover:
 - Typical outcomes for voice agent deployments (lead response time, booking rates, missed-call recovery)
+- WhatsApp and multi-channel campaign outcomes
 - GrowthMind outcomes: marketing coverage, content volume, campaign ROI improvement
 - HiveMind outcomes: operational visibility, task completion rates, decision speed
 - SystemMind outcomes: system reliability, incident response, cost monitoring
@@ -75,6 +195,8 @@ Format: 600–800 words, markdown, practical with specific metrics and timelines
     kbSlug:  "platform_growthmind",
     prompt: `Write a dense reference document on the core marketing frameworks that GrowthMind AI CMO should apply when advising businesses on growth and marketing strategy.
 
+GrowthMind's role: Marketing intelligence, campaign recommendations, business opportunity detection, content planning, SEO recommendations, advertising recommendations, business strategy generation.
+
 Cover:
 - AIDA Framework (Awareness, Interest, Desire, Action) — definition, application, metrics
 - PAS Framework (Problem, Agitate, Solution) — copy and campaign use
@@ -85,6 +207,7 @@ Cover:
 - Lead generation to revenue: MQL → SQL → opportunity → close
 - CAC and LTV optimisation principles
 - Retention and referral loops
+- Multi-channel coordination: voice campaigns + WhatsApp + email (HexMail) + content
 
 Format: 800–1100 words, markdown headings, formulas and benchmarks included.`,
   },
@@ -94,16 +217,19 @@ Format: 800–1100 words, markdown headings, formulas and benchmarks included.`,
     kbSlug:  "platform_hivemind",
     prompt: `Write a dense reference document on the core operational and business frameworks that HiveMind AI COO should apply when advising businesses on operations, performance and scaling.
 
+HiveMind's role: Executive briefings, business reporting, recommendations, task creation, operational intelligence, action approval workflows, voice interaction.
+
 Cover:
 - OKRs (Objectives and Key Results) — structure, cadence, examples
 - KPI hierarchies — leading vs lagging indicators, dashboard design
 - Pipeline management — stage definitions, conversion benchmarks, stall detection
-- Revenue operations fundamentals — CRM hygiene, pipeline velocity formula
+- Revenue operations fundamentals — CRM hygiene (Smart Dash), pipeline velocity formula
 - Business health scorecard — the 6–8 metrics every SMB must track weekly
 - Scaling frameworks — Traction / EOS model overview, bottleneck identification
 - Team productivity and accountability — daily stand-ups, weekly reviews, escalation paths
 - Decision-making under uncertainty — data-driven vs intuition balance
 - Lead recovery and churn prevention tactics
+- How HiveMind uses the Cost Engine data to surface profitability insights
 
 Format: 800–1100 words, markdown headings, specific metrics and decision rules.`,
   },
@@ -113,16 +239,21 @@ Format: 800–1100 words, markdown headings, specific metrics and decision rules
     kbSlug:  "platform_systemmind",
     prompt: `Write a dense reference document on the core technical and reliability frameworks that SystemMind AI CTO should apply when advising on system health, monitoring and technical operations.
 
+SystemMind's role: Architecture analysis, workflow intelligence, provider monitoring, technical auditing, workflow repair recommendations, integration health monitoring.
+
+The WEBEE platform integrates: telephony (HyperStream/VoxStream/Retell), WhatsApp (Meta/Twilio/WATI), email (HexMail), CRM (Smart Dash), AI executives (HiveMind/GrowthMind/SystemMind), Cost Engine, and the WEBEE Builder no-code flow system.
+
 Cover:
 - Observability fundamentals — metrics, logs, traces (the three pillars)
 - SLIs, SLOs, and SLAs — definitions, how to set thresholds, error budgets
 - Incident response — severity levels, escalation trees, post-mortem templates
 - API reliability patterns — circuit breakers, retries, timeouts, rate limiting
 - Database operations best practices — query optimisation, indexing, backup cadence
-- Cost optimisation — rightsizing, idle resource detection, per-feature cost attribution
+- Cost optimisation — rightsizing, idle resource detection, per-feature cost attribution (Cost Engine)
 - Security fundamentals — principle of least privilege, secrets management, audit logs
 - Telephony and voice infrastructure reliability — uptime targets, failover patterns
 - AI runtime monitoring — latency, token costs, error rates, hallucination detection
+- WEBEE workflow health — no-code flow repair, integration status monitoring
 
 Format: 800–1100 words, markdown headings, specific thresholds and formulas.`,
   },
@@ -132,17 +263,18 @@ Format: 800–1100 words, markdown headings, specific thresholds and formulas.`,
     kbSlug:  "platform_shared",
     prompt: `Write a practical cross-industry playbook reference for WEBEE AI executives to understand key business patterns, terminology and success metrics across major industry verticals.
 
-Cover these industries with 4–6 bullet points each:
+WEBEE serves: Real Estate, Legal, Professional Services, Consultancies, Education, Healthcare, Corporate Services, Sales Teams, Recruitment, Customer Support.
+
+WEBEE tools available per industry: AI voice agents (HyperStream/VoxStream), WhatsApp automation (WhatsApp Centre), email campaigns (HexMail), CRM (Smart Dash), AI executives (HiveMind/GrowthMind/SystemMind), no-code builder (WEBEE Builder).
+
+Cover these industries with 4–6 bullet points each, including which WEBEE tools are most impactful:
 - Real Estate: lead nurturing cadence, listing-to-close metrics, agent follow-up patterns
-- Mortgage & Finance: compliance considerations, application funnel, broker economics
-- Healthcare & Dental: appointment booking, patient recall, no-show recovery
 - Legal Services: intake qualification, retainer conversion, urgency triggers
-- Home Services (HVAC, Plumbing, etc.): seasonal demand, emergency vs scheduled, repeat customer value
-- Automotive: lead response SLAs, test drive conversion, finance upsell patterns
-- Insurance: policy renewal cycles, multi-line cross-sell, claims touchpoints
-- E-commerce & Retail: abandoned cart recovery, LTV tiers, return reduction
-- SaaS & Tech: trial-to-paid conversion, churn early warning signals, expansion revenue
-- Recruitment & Staffing: candidate pipeline velocity, client fill rates, placement economics
+- Professional Services & Consultancies: proposal pipeline, retainer growth, referral loops
+- Healthcare & Education: appointment booking, patient/student recall, no-show recovery
+- Corporate Services & Sales Teams: outbound cadence, pipeline velocity, CRM hygiene
+- Recruitment: candidate pipeline velocity, client fill rates, placement economics
+- Customer Support: first-contact resolution, escalation routing, satisfaction tracking
 
 Format: 900–1200 words, markdown headings per industry, sharp and specific.`,
   },
@@ -162,15 +294,17 @@ export type PlatformSeedResult = {
  * Seed missing platform default knowledge documents (idempotent, batched).
  * Processes up to `limit` missing docs per call (default 2).
  * Returns `remaining` so callers can re-invoke until done.
+ *
+ * Docs with literal `content` are stored verbatim (no LLM call).
+ * Docs with `prompt` are generated via OpenAI gpt-4o-mini.
  */
 export async function seedPlatformKnowledge(
   limit = 2,
 ): Promise<PlatformSeedResult> {
   const sb = supabaseAdmin as any;
 
-  // Resolve OpenAI key from env.
+  // Resolve OpenAI key from env (only needed for generated docs).
   const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured.");
 
   // Fetch platform KB rows.
   const { data: kbRows, error: kbErr } = await sb
@@ -211,8 +345,14 @@ export async function seedPlatformKnowledge(
     }
 
     try {
-      // Generate content via OpenAI.
-      const content = await generatePlatformDoc(doc.prompt, doc.title, apiKey);
+      // Resolve content: verbatim if `content` is set, else generate via OpenAI.
+      let text: string;
+      if (doc.content) {
+        text = doc.content;
+      } else {
+        if (!apiKey) throw new Error("OPENAI_API_KEY not configured — required for generated docs.");
+        text = await generatePlatformDoc(doc.prompt, doc.title, apiKey);
+      }
 
       // Remove any stale failed row so the unique index doesn't block.
       if (existingMap[doc.seedKey] === "failed") {
@@ -243,8 +383,8 @@ export async function seedPlatformKnowledge(
       await indexTextDocument(supabaseAdmin, {
         documentId:  docRow.id,
         workspaceId: null,
-        text:        content,
-        apiKey,
+        text,
+        apiKey:      apiKey ?? "",
       });
 
       processed++;
