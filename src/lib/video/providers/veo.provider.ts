@@ -115,13 +115,14 @@ export class VeoProvider {
 
     const doRequest = async (token: string): Promise<Response> => {
       if (this.authMode === "gemini_api_key") {
-        // Gemini Developer API format (google-genai SDK schema)
-        // Key sent both as query param and as x-goog-api-key header for max compatibility
+        // Gemini Developer API format for Veo predictLongRunning
+        // Schema: { model, prompt (string), generateVideoConfig }
+        // NOT Gemini Chat format (contents/config) — those are unknown fields here
         const endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
         const body: Record<string, unknown> = {
-          model:    `models/${this.model}`,
-          contents: [{ role: "user", parts: [{ text: params.prompt }] }],
-          config: {
+          model:  `models/${this.model}`,
+          prompt: params.prompt,
+          generateVideoConfig: {
             aspectRatio:     params.aspectRatio     ?? "16:9",
             durationSeconds: params.durationSeconds ?? 8,
             numberOfVideos:  1,
@@ -130,8 +131,8 @@ export class VeoProvider {
         return fetch(endpoint, {
           method:  "POST",
           headers: {
-            "Content-Type":    "application/json",
-            "x-goog-api-key":  this.geminiKey,
+            "Content-Type":   "application/json",
+            "x-goog-api-key": this.geminiKey,
           },
           body:    JSON.stringify(body),
         });
