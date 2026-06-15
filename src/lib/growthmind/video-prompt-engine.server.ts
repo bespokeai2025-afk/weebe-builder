@@ -41,6 +41,9 @@ export type PromptEngineInput = {
   playbook:       string;
   kbSummary:      string;
 
+  valuePoint?:     string;
+  topOpportunity?: string;
+
   settings:       Record<string, string>;
   workspaceId:    string;
   sb:             any;
@@ -103,6 +106,11 @@ export async function optimiseVideoPrompt(
     input.playbook     ? `## Active Playbook: ${input.playbook}`       : "",
   ].filter(Boolean).join("\n\n");
 
+  const valueContext = [
+    input.valuePoint     ? `## Current Highest Value Point\n${input.valuePoint}\nIMPORTANT: Make this the central pillar of the video — it is the strongest market angle right now.` : "",
+    input.topOpportunity ? `## Top Live Opportunity\n${input.topOpportunity}` : "",
+  ].filter(Boolean).join("\n\n");
+
   const systemPrompt = `You are GrowthMind Video Studio — an elite AI advertising strategist and video director.
 
 Your job: Convert a raw creative prompt into a production-ready, 10/10 marketing video pipeline for ${input.platform.toUpperCase()}.
@@ -111,6 +119,7 @@ Your job: Convert a raw creative prompt into a production-ready, 10/10 marketing
 Company: ${input.companyName || "the business"}
 Industry: ${input.industry || "not specified"}
 ${kbContext}
+${valueContext}
 
 ## Platform Rules (${input.platform.toUpperCase()})
 - Hook window: first ${platform.hookSeconds} seconds must stop the scroll

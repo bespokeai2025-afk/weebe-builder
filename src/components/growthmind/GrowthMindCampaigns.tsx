@@ -148,9 +148,11 @@ export function GrowthMindCampaigns() {
                           <button
                             onClick={() => {
                               const p = new URLSearchParams({
-                                mode:     "freeform",
-                                platform: "meta",
-                                prompt:   `Video ad for campaign: ${c.name}`,
+                                mode:         "freeform",
+                                platform:     "meta",
+                                prompt:       `Video ad for campaign: ${c.name}`,
+                                campaignId:   c.id,
+                                campaignName: c.name,
                               });
                               window.location.assign(`/growthmind/video-studio?${p.toString()}`);
                             }}

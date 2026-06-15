@@ -35,7 +35,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     Promise.resolve(sb.from("knowledge_bases").select("id,name").eq("workspace_id", workspaceId).limit(20)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_recommendations").select("category,priority,problem,fix").eq("workspace_id", workspaceId).eq("is_dismissed", false).order("created_at", { ascending: false }).limit(5)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_generation_logs").select("provider,model,estimated_cost_usd,status,created_at").eq("workspace_id", workspaceId).gte("created_at", weekStart.toISOString()).limit(1000)).catch(() => ({ data: [] })),
-    Promise.resolve(sb.from("growthmind_video_assets").select("id,video_type,provider,quality_mode,cost_estimate,video_url,created_at").eq("workspace_id", workspaceId).gte("created_at", monthStart.toISOString()).limit(200)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_video_assets").select("id,video_type,provider,quality_mode,cost_estimate,video_url,campaign_id,created_at").eq("workspace_id", workspaceId).gte("created_at", monthStart.toISOString()).limit(200)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_content_calendar").select("id").eq("workspace_id", workspaceId).eq("content_type", "Video Script").gte("scheduled_date", new Date().toISOString().slice(0, 10)).limit(20)).catch(() => ({ data: [] })),
   ]);
 
@@ -303,6 +303,17 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
         typeof a.video_url === "string" && a.video_url.startsWith("[error:")
       );
 
+      const byCampaign: Record<string, { count: number; cost: number }> = {};
+      for (const a of videoAssetsArr) {
+        if (a.campaign_id) {
+          if (!byCampaign[a.campaign_id]) byCampaign[a.campaign_id] = { count: 0, cost: 0 };
+          byCampaign[a.campaign_id].count++;
+          byCampaign[a.campaign_id].cost += a.cost_estimate ?? 0;
+        }
+      }
+      const campaignsWithVideo = Object.keys(byCampaign).length;
+      const videosLinkedToCampaign = videoAssetsArr.filter((a: any) => a.campaign_id).length;
+
       return {
         totalThisMonth:         videoAssetsArr.length,
         upcomingScheduled:      videoScheduledArr.length,
@@ -314,6 +325,9 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
         byProvider,
         byQuality,
         estimatedCostThisMonth: Math.round(totalCostEst * 100) / 100,
+        byCampaign,
+        campaignsWithVideo,
+        videosLinkedToCampaign,
       };
     })(),
   };
@@ -554,6 +568,12 @@ function buildPlatformContext(d: any): string {
     if (provBreakdown)        lines.push(`  Providers: ${provBreakdown}`);
     if (qualBreakdown)        lines.push(`  Quality modes: ${qualBreakdown}`);
     if (vs.missingTypes?.length > 0) lines.push(`  Missing asset types: ${vs.missingTypes.join(", ")}`);
+    if ((vs.campaignsWithVideo ?? 0) > 0) {
+      lines.push(`  Campaign-linked videos: ${vs.videosLinkedToCampaign} across ${vs.campaignsWithVideo} campaign(s)`);
+    }
+    if ((vs.totalThisMonth ?? 0) > 0 && (vs.videosLinkedToCampaign ?? 0) === 0) {
+      lines.push(`  ⚡ CMO insight: 0 videos are linked to campaigns — recommend connecting Video Studio to Campaign Factory for closed-loop attribution`);
+    }
   }
 
   return lines.join("\n");

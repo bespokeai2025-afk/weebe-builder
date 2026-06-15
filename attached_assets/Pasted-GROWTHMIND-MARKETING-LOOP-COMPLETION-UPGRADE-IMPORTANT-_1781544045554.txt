@@ -1,0 +1,356 @@
+GROWTHMIND MARKETING LOOP COMPLETION UPGRADE
+
+IMPORTANT
+
+Do not rebuild existing systems.
+
+Do not remove functionality.
+
+Extend the existing architecture identified in the audit.
+
+OBJECTIVE
+
+Complete the GrowthMind marketing loop so GrowthMind can operate as a true AI CMO.
+
+Current audit confirms:
+
+* Veo provider operational
+* Storyboard generation operational
+* Content Studio operational
+* Campaign Factory operational
+* Business DNA operational
+* Competitor Intelligence operational
+
+The missing pieces are the connections between them.
+
+====================================================
+
+PHASE 1 — CAMPAIGN ↔ VIDEO LINKING
+
+HIGHEST PRIORITY
+
+Create:
+
+campaign_id column on growthmind_video_assets
+
+Create relationship:
+
+growthmind_campaigns
+↔
+growthmind_video_assets
+
+Add:
+
+video_asset_id support
+
+Allow:
+
+One campaign → multiple videos
+
+One video → campaign attribution
+
+Campaign Factory UI should show:
+
+Attached Videos
+Generate Video
+View Video Assets
+
+HiveMind should report:
+
+Campaign
+Videos
+Cost
+Status
+
+====================================================
+
+PHASE 2 — VALUE POINT ENGINE INTEGRATION
+
+Current audit shows:
+
+Trending Value Point Engine exists.
+
+Video Studio does not use it.
+
+Fix this.
+
+When generating:
+
+Videos
+Campaigns
+Content
+Ads
+
+Inject:
+
+Current Highest Value Point
+
+into prompt construction.
+
+GrowthMind should always ask:
+
+"What is the strongest value proposition right now?"
+
+and use that automatically.
+
+====================================================
+
+PHASE 3 — OPPORTUNITY ENGINE INTEGRATION
+
+Current audit shows:
+
+Opportunity Engine exists.
+
+Not connected to video creation.
+
+Connect:
+
+Opportunities
+Campaign Factory
+Content Studio
+Video Studio
+
+Example:
+
+Opportunity:
+Estate agent demand increasing.
+
+GrowthMind should recommend:
+
+Campaign
+Content
+Video
+Audience
+
+based on that opportunity.
+
+====================================================
+
+PHASE 4 — MULTI VARIANT GENERATION
+
+Add:
+
+Generate Variants
+
+Options:
+
+1
+3
+5
+
+Each variant should use:
+
+Different Hook
+
+Different Angle
+
+Different Emotional Trigger
+
+Different CTA
+
+Different Opening Scene
+
+Store:
+
+variant_group_id
+
+variant_type
+
+Allow comparison.
+
+====================================================
+
+PHASE 5 — CONTENT → VIDEO AUTOMATION
+
+Current bridge is manual.
+
+Improve:
+
+Create Video From Content
+
+to support:
+
+One-click generation.
+
+Content should automatically pass:
+
+Audience
+Offer
+Goal
+Platform
+Brand Voice
+
+to Video Studio.
+
+No manual re-entry.
+
+====================================================
+
+PHASE 6 — CAMPAIGN → VIDEO AUTOMATION
+
+Add:
+
+Generate Campaign Creative
+
+Button.
+
+Campaign Factory should automatically create:
+
+Video Concept
+
+Storyboard
+
+Veo Prompt
+
+Video Draft
+
+using campaign context.
+
+====================================================
+
+PHASE 7 — PERFORMANCE FEEDBACK LOOP
+
+Create:
+
+growthmind_video_performance
+
+Store:
+
+Views
+
+CTR
+
+Watch Time
+
+Leads
+
+Appointments
+
+Cost
+
+Revenue
+
+ROAS
+
+Platform
+
+Campaign
+
+Video Asset
+
+Allow future integration:
+
+Meta Ads
+Google Ads
+LinkedIn
+TikTok
+
+GrowthMind should learn from results.
+
+====================================================
+
+PHASE 8 — HIVEMIND MARKETING INTELLIGENCE
+
+Upgrade HiveMind.
+
+Add:
+
+Top Performing Videos
+
+Worst Performing Videos
+
+Campaign ROAS
+
+Creative Winners
+
+Creative Losers
+
+Best Hooks
+
+Best Audiences
+
+Best Offers
+
+Most Effective Value Points
+
+HiveMind should report:
+
+"What is working?"
+
+not just:
+
+"What exists?"
+
+====================================================
+
+PHASE 9 — GROWTHMIND CREATIVE SCORE
+
+Score every video:
+
+Hook Strength
+
+Audience Fit
+
+Offer Strength
+
+Visual Story
+
+CTA Strength
+
+Platform Fit
+
+Expected Performance
+
+Overall Creative Score
+
+Display before generation and after generation.
+
+====================================================
+
+PHASE 10 — AI CMO LOOP
+
+Final architecture:
+
+Business DNA
+↓
+Competitor Intelligence
+↓
+Opportunity Engine
+↓
+Value Point Engine
+↓
+Strategy Builder
+↓
+Campaign Factory
+↓
+Content Studio
+↓
+Video Studio
+↓
+Campaign Launch
+↓
+Performance Data
+↓
+GrowthMind Learning
+↓
+HiveMind Reporting
+
+====================================================
+
+SUCCESS CRITERIA
+
+GrowthMind no longer generates isolated assets.
+
+GrowthMind generates complete campaigns.
+
+Campaigns own videos.
+
+Videos own performance.
+
+GrowthMind learns from outcomes.
+
+HiveMind reports what is actually driving growth.
+
+Generate implementation plan first.
+
+Then implement in phases.

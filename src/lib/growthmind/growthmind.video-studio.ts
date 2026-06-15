@@ -38,19 +38,23 @@ export type StoryboardScene = {
 };
 
 export type VideoAsset = {
-  id:           string;
-  title:        string;
-  videoType:    VideoType;
-  provider:     VideoProvider | null;
-  script:       string;
-  storyboard:   StoryboardScene[];
-  videoUrl:     string | null;
-  audioUrl:     string | null;
-  voiceId:      string | null;
-  qualityMode:  QualityMode;
-  costEstimate: number;
-  scheduledAt:  string | null;
-  createdAt:    string;
+  id:             string;
+  title:          string;
+  videoType:      VideoType;
+  provider:       VideoProvider | null;
+  script:         string;
+  storyboard:     StoryboardScene[];
+  videoUrl:       string | null;
+  audioUrl:       string | null;
+  voiceId:        string | null;
+  qualityMode:    QualityMode;
+  costEstimate:   number;
+  scheduledAt:    string | null;
+  createdAt:      string;
+  campaignId:     string | null;
+  variantGroupId: string | null;
+  variantType:    string | null;
+  creativeScore:  Record<string, number> | null;
 };
 
 export const VIDEO_TYPE_LABELS: Record<VideoType, string> = {
@@ -222,25 +226,32 @@ function buildFullVeoPrompt(
 // ── Build generation prompts ──────────────────────────────────────────────────
 
 function buildVideoPrompts(params: {
-  videoType:      VideoType;
-  companyName:    string;
-  industry:       string;
-  targetAudience: string;
-  offer:          string;
-  tone:           string;
-  cta:            string;
-  keywords:       string;
-  competitors:    string;
-  playbook:       string;
-  kbSummary:      string;
-  docSummary:     string;
-  qualityMode:    QualityMode;
+  videoType:       VideoType;
+  companyName:     string;
+  industry:        string;
+  targetAudience:  string;
+  offer:           string;
+  tone:            string;
+  cta:             string;
+  keywords:        string;
+  competitors:     string;
+  playbook:        string;
+  kbSummary:       string;
+  docSummary:      string;
+  qualityMode:     QualityMode;
+  valuePoint?:     string;
+  topOpportunity?: string;
 }): { strategySystem: string; strategyUser: string; scriptSystem: string; scriptUser: string } {
   const label = VIDEO_TYPE_LABELS[params.videoType];
 
   const kbContext = [
     params.kbSummary  ? `## Knowledge Bases\n${params.kbSummary}` : "",
     params.docSummary ? `## Company Documents\n${params.docSummary}` : "",
+  ].filter(Boolean).join("\n\n");
+
+  const valueContext = [
+    params.valuePoint     ? `## Current Highest Value Point\n${params.valuePoint}\nIMPORTANT: Lead with this value proposition — it is the strongest market angle right now.` : "",
+    params.topOpportunity ? `## Top Live Opportunity\n${params.topOpportunity}` : "",
   ].filter(Boolean).join("\n\n");
 
   const strategySystem = `You are GrowthMind Video Studio, an expert AI marketing strategist specialising in video content.
@@ -252,9 +263,10 @@ SEO Keywords: ${params.keywords || "None tracked"}
 Competitors: ${params.competitors || "None tracked"}
 ${params.playbook ? `Active Playbook: ${params.playbook}` : ""}
 ${kbContext}
+${valueContext}
 
 ## Your Role
-Generate a concise video strategy brief (3-5 sentences) for a ${label}. Focus on unique angle, differentiation, and primary message. Output only the brief, no headings.`;
+Generate a concise video strategy brief (3-5 sentences) for a ${label}. Focus on unique angle, differentiation, and primary message. Lead with the current highest value point if available. Output only the brief, no headings.`;
 
   const strategyUser = `Create a strategy brief for a ${label} targeting ${params.targetAudience || "our ideal customer"}.
 Offer: ${params.offer || "our product/service"}
@@ -315,6 +327,7 @@ const generateVideoSchema = z.object({
   tone:          z.string().default("professional"),
   cta:           z.string().default(""),
   voiceId:       z.string().default("21m00Tcm4TlvDq8ikWAM"),
+  campaignId:    z.string().uuid().nullish(),
 });
 
 export const generateVideo = createServerFn({ method: "POST" })
@@ -330,13 +343,15 @@ export const generateVideo = createServerFn({ method: "POST" })
     const qualityMode = data.qualityMode;
 
     // ── Pull context ────────────────────────────────────────────────────────
-    const [wsRes, seoRes, compRes, playbookRes, kbRes, docsRes] = await Promise.all([
+    const [wsRes, seoRes, compRes, playbookRes, kbRes, docsRes, vpRes, oppRes] = await Promise.all([
       sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle(),
       sb.from("growthmind_seo_sites").select("keywords").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       sb.from("growthmind_competitors").select("name, positioning").eq("workspace_id", workspaceId).limit(10),
       sb.from("growthmind_playbooks").select("industry").eq("workspace_id", workspaceId).eq("status", "active").maybeSingle(),
       Promise.resolve(sb.from("knowledge_bases").select("name, description").eq("workspace_id", workspaceId).limit(5)).catch(() => ({ data: [] })),
       Promise.resolve(sb.from("documents").select("name, content").eq("workspace_id", workspaceId).limit(3)).catch(() => ({ data: [] })),
+      sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
+      sb.from("growthmind_opportunities").select("title,recommended_action,urgency").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
     ]);
 
     const ws          = wsRes.data;
@@ -366,6 +381,21 @@ export const generateVideo = createServerFn({ method: "POST" })
       })
       .join("\n") || "";
 
+    const vp = vpRes.data;
+    const valuePoint = vp
+      ? [
+          vp.current_highest_value,
+          vp.who_to_target   ? `Target: ${vp.who_to_target}` : "",
+          vp.recommended_offer ? `Offer: ${vp.recommended_offer}` : "",
+          vp.best_channels   ? `Channels: ${vp.best_channels}` : "",
+        ].filter(Boolean).join(" | ")
+      : "";
+
+    const opp = oppRes.data;
+    const topOpportunity = opp
+      ? `${opp.title}${opp.recommended_action ? ` — ${opp.recommended_action}` : ""} (urgency: ${opp.urgency ?? "medium"})`
+      : "";
+
     const prompts = buildVideoPrompts({
       videoType, companyName, industry, keywords, competitors, playbook,
       kbSummary, docSummary,
@@ -374,6 +404,8 @@ export const generateVideo = createServerFn({ method: "POST" })
       tone:           data.tone,
       cta:            data.cta,
       qualityMode,
+      valuePoint,
+      topOpportunity,
     });
 
     // ── Step 1: Strategy brief (Gemini 2.5 Pro) ─────────────────────────────
@@ -533,6 +565,7 @@ export const generateVideo = createServerFn({ method: "POST" })
         voice_id:      data.voiceId ?? null,
         quality_mode:  qualityMode,
         cost_estimate: totalCost,
+        campaign_id:   data.campaignId ?? null,
         created_at:    new Date().toISOString(),
       })
       .select("id")
@@ -580,6 +613,7 @@ export const generateVideo = createServerFn({ method: "POST" })
       qualityMode,
       costEstimate: totalCost,
       strategyBrief: strategyResult.text,
+      valuePointUsed: valuePoint || null,
     };
   });
 
@@ -597,6 +631,9 @@ const generateVideoFromPromptSchema = z.object({
   voiceoverNeeded:   z.boolean().default(true),
   preferredProvider: z.enum(["veo3", "runway_gen4", "kling", "pika"]).default("veo3"),
   voiceId:           z.string().default("21m00Tcm4TlvDq8ikWAM"),
+  campaignId:        z.string().uuid().nullish(),
+  variantGroupId:    z.string().uuid().nullish(),
+  variantType:       z.string().nullish(),
 });
 
 export const generateVideoFromPrompt = createServerFn({ method: "POST" })
@@ -609,7 +646,7 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No workspace");
 
     // ── Pull business DNA context ────────────────────────────────────────────
-    const [wsRes, seoRes, compRes, playbookRes, kbRes] = await Promise.all([
+    const [wsRes, seoRes, compRes, playbookRes, kbRes, vpRes2, oppRes2] = await Promise.all([
       sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle(),
       sb.from("growthmind_seo_sites").select("keywords").eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -619,6 +656,8 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
         .eq("status", "active").maybeSingle(),
       sb.from("knowledge_bases").select("name, description").eq("workspace_id", workspaceId)
         .limit(5).catch(() => ({ data: [] })),
+      sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
+      sb.from("growthmind_opportunities").select("title,recommended_action,urgency").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
     ]);
 
     const ws          = wsRes.data;
@@ -637,6 +676,13 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     const kbSummary = ((kbRes.data ?? []) as any[])
       .map((k: any) => `${k.name}${k.description ? `: ${k.description}` : ""}`).join("; ") || "";
 
+    const vp2 = vpRes2.data;
+    const valuePoint2 = vp2
+      ? [vp2.current_highest_value, vp2.who_to_target ? `Target: ${vp2.who_to_target}` : "", vp2.recommended_offer ? `Offer: ${vp2.recommended_offer}` : ""].filter(Boolean).join(" | ")
+      : "";
+    const opp2 = oppRes2.data;
+    const topOpp2 = opp2 ? `${opp2.title}${opp2.recommended_action ? ` — ${opp2.recommended_action}` : ""}` : "";
+
     // ── Run prompt optimisation engine ───────────────────────────────────────
     const engineResult = await optimiseVideoPrompt({
       userPrompt:     data.userPrompt,
@@ -654,6 +700,8 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       competitors,
       playbook,
       kbSummary,
+      valuePoint:     valuePoint2,
+      topOpportunity: topOpp2,
       settings,
       workspaceId,
       sb,
@@ -783,6 +831,9 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
         platform:         data.platform,
         aspect_ratio:     data.aspectRatio,
         quality_checks:   JSON.stringify(engineResult.qualityChecks),
+        campaign_id:      data.campaignId      ?? null,
+        variant_group_id: data.variantGroupId  ?? null,
+        variant_type:     data.variantType     ?? null,
         created_at:       new Date().toISOString(),
       })
       .select("id")
@@ -869,19 +920,23 @@ export const getVideoAssets = createServerFn({ method: "GET" })
     }
 
     const assets: VideoAsset[] = (rows ?? []).map((r: any) => ({
-      id:           r.id,
-      title:        r.title,
-      videoType:    r.video_type as VideoType,
-      provider:     r.provider   ?? null,
-      script:       r.script     ?? "",
-      storyboard:   Array.isArray(r.storyboard) ? r.storyboard : [],
-      videoUrl:     r.video_url  ?? null,
-      audioUrl:     r.audio_url  ?? null,
-      voiceId:      r.voice_id   ?? null,
-      qualityMode:  r.quality_mode as QualityMode,
-      costEstimate: r.cost_estimate ?? 0,
-      scheduledAt:  r.scheduled_at ?? null,
-      createdAt:    r.created_at,
+      id:             r.id,
+      title:          r.title,
+      videoType:      r.video_type as VideoType,
+      provider:       r.provider   ?? null,
+      script:         r.script     ?? "",
+      storyboard:     Array.isArray(r.storyboard) ? r.storyboard : [],
+      videoUrl:       r.video_url  ?? null,
+      audioUrl:       r.audio_url  ?? null,
+      voiceId:        r.voice_id   ?? null,
+      qualityMode:    r.quality_mode as QualityMode,
+      costEstimate:   r.cost_estimate ?? 0,
+      scheduledAt:    r.scheduled_at ?? null,
+      createdAt:      r.created_at,
+      campaignId:     r.campaign_id      ?? null,
+      variantGroupId: r.variant_group_id ?? null,
+      variantType:    r.variant_type     ?? null,
+      creativeScore:  r.creative_score   ?? null,
     }));
 
     return { assets };
@@ -905,6 +960,188 @@ export const deleteVideoAsset = createServerFn({ method: "POST" })
 
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+// ── Score video creative ──────────────────────────────────────────────────────
+
+export type CreativeScore = {
+  hook:         number;
+  clarity:      number;
+  emotion:      number;
+  cta:          number;
+  brand:        number;
+  platform:     number;
+  overall:      number;
+  verdict:      string;
+  improvements: string[];
+};
+
+export const scoreVideoCreative = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      assetId: z.string().uuid(),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: asset } = await sb
+      .from("growthmind_video_assets")
+      .select("title,script,storyboard,video_type,platform")
+      .eq("id", data.assetId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (!asset) throw new Error("Asset not found");
+
+    const { routeGenerate } = await import("./growthmind.ai-router.server");
+    const storyboardText = Array.isArray(asset.storyboard)
+      ? asset.storyboard.map((s: any) => `Scene ${s.scene}: ${s.visual}. VO: ${s.voiceover}`).join("\n")
+      : "";
+
+    const result = await routeGenerate({
+      system: `You are a senior creative director scoring a marketing video. Score each dimension 1-10.
+Return ONLY valid JSON:
+{
+  "hook":         <1-10>,
+  "clarity":      <1-10>,
+  "emotion":      <1-10>,
+  "cta":          <1-10>,
+  "brand":        <1-10>,
+  "platform":     <1-10>,
+  "verdict":      "one sentence overall verdict",
+  "improvements": ["up to 3 specific improvements"]
+}`,
+      user: `Score this ${asset.video_type} video:\n\nTitle: ${asset.title}\nScript: ${asset.script}\n\nStoryboard:\n${storyboardText}`,
+      contentType: "analysis",
+    });
+
+    let scores: CreativeScore;
+    try {
+      const raw = result.text.replace(/```json\n?|\n?```/g, "").trim();
+      const parsed = JSON.parse(raw);
+      const avg = ["hook","clarity","emotion","cta","brand","platform"]
+        .reduce((sum, k) => sum + (Number(parsed[k]) || 5), 0) / 6;
+      scores = {
+        hook:         Number(parsed.hook)     || 5,
+        clarity:      Number(parsed.clarity)  || 5,
+        emotion:      Number(parsed.emotion)  || 5,
+        cta:          Number(parsed.cta)      || 5,
+        brand:        Number(parsed.brand)    || 5,
+        platform:     Number(parsed.platform) || 5,
+        overall:      Math.round(avg * 10) / 10,
+        verdict:      parsed.verdict   ?? "",
+        improvements: Array.isArray(parsed.improvements) ? parsed.improvements : [],
+      };
+    } catch {
+      scores = { hook: 5, clarity: 5, emotion: 5, cta: 5, brand: 5, platform: 5, overall: 5, verdict: "Unable to score", improvements: [] };
+    }
+
+    await sb
+      .from("growthmind_video_assets")
+      .update({ creative_score: scores.overall })
+      .eq("id", data.assetId)
+      .eq("workspace_id", workspaceId);
+
+    return { score: scores };
+  });
+
+// ── Generate video variants ───────────────────────────────────────────────────
+
+export const generateVideoVariants = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      campaignId:  z.string().uuid().nullish(),
+      videoType:   z.string().min(1),
+      qualityMode: z.enum(["fast", "balanced", "premium"]),
+      targetAudience: z.string().default(""),
+      offer:       z.string().default(""),
+      tone:        z.string().default("professional"),
+      cta:         z.string().default(""),
+      voiceId:     z.string().default("21m00Tcm4TlvDq8ikWAM"),
+      count:       z.union([z.literal(1), z.literal(3), z.literal(5)]).default(3),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const variantGroupId = crypto.randomUUID();
+    const VARIANT_ANGLES = [
+      { type: "hook_emotion",    label: "Emotional Hook" },
+      { type: "hook_curiosity",  label: "Curiosity Hook" },
+      { type: "hook_social",     label: "Social Proof Hook" },
+      { type: "hook_urgency",    label: "Urgency Hook" },
+      { type: "hook_question",   label: "Question Hook" },
+    ] as const;
+
+    const selected = VARIANT_ANGLES.slice(0, data.count);
+
+    const results = await Promise.allSettled(
+      selected.map(async (angle) => {
+        const [wsRes, vpRes] = await Promise.all([
+          sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle(),
+          sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
+        ]);
+
+        const ws          = wsRes.data;
+        const wsSettings  = ws?.settings ?? {};
+        const companyName = ws?.name ?? wsSettings.company_name ?? "";
+
+        const vp = vpRes.data;
+        const valuePoint = vp ? vp.current_highest_value ?? "" : "";
+
+        const { routeGenerate } = await import("./growthmind.ai-router.server");
+        const strategy = await routeGenerate({
+          system: `You are an expert video strategist. Create a ${angle.label} variant strategy for a ${data.videoType} video for ${companyName}. Focus on the hook style: ${angle.type}. ${valuePoint ? `Lead with this value point: ${valuePoint}` : ""}`,
+          user:   `Target: ${data.targetAudience || "ideal customer"}\nOffer: ${data.offer || "our product"}\nTone: ${data.tone}\nCTA: ${data.cta || "Contact us"}`,
+          contentType: "strategy",
+        });
+
+        const script = await routeGenerate({
+          system: `You are an expert video scriptwriter creating a ${angle.label} variant. Hook style: ${angle.type}. Strategy: ${strategy.text}`,
+          user:   `Write a complete video script for this ${data.videoType}. Include hook, body, CTA. Target: ${data.targetAudience}. Offer: ${data.offer}.`,
+          contentType: "script",
+        });
+
+        const storyboard = [{
+          scene: 1, visual: `${angle.label} opening shot`, voiceover: script.text.slice(0, 80),
+          onScreenText: angle.label, duration: 5, cta: data.cta || "Learn more",
+        }];
+
+        const { data: inserted } = await sb
+          .from("growthmind_video_assets")
+          .insert({
+            workspace_id:     workspaceId,
+            title:            `${data.videoType} — ${angle.label}`,
+            video_type:       data.videoType,
+            provider:         null,
+            script:           script.text,
+            storyboard,
+            quality_mode:     data.qualityMode,
+            cost_estimate:    (strategy.inputTokens + strategy.outputTokens + script.inputTokens + script.outputTokens) * 0.000003,
+            campaign_id:      data.campaignId ?? null,
+            variant_group_id: variantGroupId,
+            variant_type:     angle.type,
+            created_at:       new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        return { id: inserted?.id, variantType: angle.type, label: angle.label };
+      })
+    );
+
+    const succeeded = results
+      .filter((r): r is PromiseFulfilledResult<any> => r.status === "fulfilled")
+      .map(r => r.value);
+
+    return { variantGroupId, count: succeeded.length, variants: succeeded };
   });
 
 // ── Schedule video asset to content calendar ──────────────────────────────────

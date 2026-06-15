@@ -7,7 +7,7 @@ import {
   Film, Zap, Star, Clock, ChevronDown, ChevronUp,
   BarChart3, AlertCircle, Music2, Tv2, Radio, RefreshCw,
   ExternalLink, Mic, PenLine, LayoutTemplate, ShieldCheck,
-  XCircle, Check,
+  XCircle, Check, Megaphone, Layers, Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import {
   generateVideo, generateVideoFromPrompt, getVideoAssets, deleteVideoAsset,
   scheduleVideoAsset, getVideoCostStats, retryVideoJob, pollVideoJob, getVideoDownloadUrl,
+  generateVideoVariants, scoreVideoCreative,
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
   type VideoType, type QualityMode, type VideoAsset, type StoryboardScene,
 } from "@/lib/growthmind/growthmind.video-studio";
@@ -628,6 +629,9 @@ export function GrowthMindVideoStudio() {
   const pollJobFn          = useServerFn(pollVideoJob);
   const voicesFn           = useServerFn(listGrowthMindVoices);
 
+  const generateVariantsFn = useServerFn(generateVideoVariants);
+  const scoreFn            = useServerFn(scoreVideoCreative);
+
   // ── Mode ──────────────────────────────────────────────────────────────────
   const [inputMode, setInputMode] = useState<InputMode>("guided");
 
@@ -665,9 +669,15 @@ export function GrowthMindVideoStudio() {
     const mode      = sp.get("mode");
     const prompt    = sp.get("prompt");
     const vidType   = sp.get("videoType");
+    const cid       = sp.get("campaignId");
+    const cname     = sp.get("campaignName");
+    const platform  = sp.get("platform");
+    if (cid)   setCampaignId(cid);
+    if (cname) setCampaignName(decodeURIComponent(cname));
     if (mode === "freeform") {
       setInputMode("freeform");
-      if (prompt)  setFfPrompt(decodeURIComponent(prompt));
+      if (prompt)   setFfPrompt(decodeURIComponent(prompt));
+      if (platform) setFfPlatform(platform);
       if (vidType) {
         const VALID_PROVIDERS: Record<string, string> = {
           meta_video_ad: "veo3", ugc_ad: "runway_gen4", testimonial_video: "runway_gen4",
@@ -698,19 +708,30 @@ export function GrowthMindVideoStudio() {
   }, []);
 
   const [lastResult, setLastResult] = useState<{
-    title:           string;
-    script:          string;
-    storyboard:      StoryboardScene[];
-    audioUrl:        string | null;
-    videoUrl:        string | null;
-    costEstimate:    number;
-    strategyBrief:   string;
-    marketingAngle?: string;
-    hook?:           string;
+    assetId:          string;
+    title:            string;
+    script:           string;
+    storyboard:       StoryboardScene[];
+    audioUrl:         string | null;
+    videoUrl:         string | null;
+    costEstimate:     number;
+    strategyBrief:    string;
+    marketingAngle?:  string;
+    hook?:            string;
     optimisedPrompt?: string;
-    qualityChecks?:  { rule: string; passed: boolean; note: string }[];
+    qualityChecks?:   { rule: string; passed: boolean; note: string }[];
     allChecksPassed?: boolean;
+    valuePointUsed?:  string | null;
   } | null>(null);
+
+  // ── Campaign + variant state ───────────────────────────────────────────────
+  const [campaignId, setCampaignId]       = useState<string | null>(null);
+  const [campaignName, setCampaignName]   = useState<string>("");
+  const [variantCount, setVariantCount]   = useState<1 | 3 | 5>(1);
+
+  // ── Creative score state ───────────────────────────────────────────────────
+  const [creativeScore, setCreativeScore] = useState<{ overall: number; verdict: string; improvements: string[]; hook: number; clarity: number; emotion: number; cta: number; brand: number; platform: number } | null>(null);
+  const [scoringId, setScoringId]         = useState<string | null>(null);
 
   const [filterType, setFilterType]       = useState<VideoType | "all">("all");
   const [scheduleAsset, setScheduleAsset] = useState<VideoAsset | null>(null);
@@ -755,6 +776,7 @@ export function GrowthMindVideoStudio() {
     setStep("strategy");
     setError("");
     setLastResult(null);
+    setCreativeScore(null);
     try {
       setStep("script");
       const res = await generateFn({ data: {
@@ -765,16 +787,19 @@ export function GrowthMindVideoStudio() {
         tone,
         cta,
         voiceId,
+        campaignId,
       }});
       setStep("saving");
       setLastResult({
-        title:         res.title,
-        script:        res.script,
-        storyboard:    res.storyboard,
-        audioUrl:      res.audioUrl,
-        videoUrl:      res.videoUrl,
-        costEstimate:  res.costEstimate,
-        strategyBrief: res.strategyBrief,
+        assetId:        res.assetId,
+        title:          res.title,
+        script:         res.script,
+        storyboard:     res.storyboard,
+        audioUrl:       res.audioUrl,
+        videoUrl:       res.videoUrl,
+        costEstimate:   res.costEstimate,
+        strategyBrief:  res.strategyBrief,
+        valuePointUsed: res.valuePointUsed,
       });
       setStep("done");
       qc.invalidateQueries({ queryKey: ["video-assets"] });
@@ -794,6 +819,7 @@ export function GrowthMindVideoStudio() {
     setStep("strategy");
     setError("");
     setLastResult(null);
+    setCreativeScore(null);
     try {
       setStep("script");
       const res = await generateFreeFormFn({ data: {
@@ -808,9 +834,11 @@ export function GrowthMindVideoStudio() {
         voiceoverNeeded:   ffVoiceover,
         preferredProvider: ffProvider as any,
         voiceId,
+        campaignId,
       }});
       setStep("saving");
       setLastResult({
+        assetId:         res.assetId,
         title:           res.title,
         script:          res.script,
         storyboard:      res.storyboard,
@@ -831,6 +859,50 @@ export function GrowthMindVideoStudio() {
       setError(e.message ?? "Generation failed");
       setStep("error");
     }
+  }
+
+  async function handleGenerateVariants() {
+    if (variantCount === 1) {
+      if (inputMode === "freeform") return handleGenerateFreeForm();
+      return handleGenerate();
+    }
+    setStep("strategy");
+    setError("");
+    setLastResult(null);
+    setCreativeScore(null);
+    try {
+      setStep("script");
+      await generateVariantsFn({ data: {
+        videoType:      inputMode === "guided" ? videoType : "meta_video_ad",
+        qualityMode:    inputMode === "guided" ? qualityMode : "fast",
+        targetAudience: inputMode === "guided" ? targetAudience : ffAudience,
+        offer:          inputMode === "guided" ? offer : ffGoal,
+        tone:           inputMode === "guided" ? tone : "professional",
+        cta:            inputMode === "guided" ? cta : ffCta,
+        voiceId,
+        campaignId,
+        count:          variantCount,
+      }});
+      setStep("done");
+      qc.invalidateQueries({ queryKey: ["video-assets"] });
+      qc.invalidateQueries({ queryKey: ["video-cost-stats"] });
+    } catch (e: any) {
+      setError(e.message ?? "Variant generation failed");
+      setStep("error");
+    }
+  }
+
+  async function handleScoreAsset(assetId: string) {
+    setScoringId(assetId);
+    setCreativeScore(null);
+    try {
+      const res = await scoreFn({ data: { assetId } });
+      setCreativeScore(res.score);
+      qc.invalidateQueries({ queryKey: ["video-assets"] });
+    } catch (e: any) {
+      alert(`Scoring failed: ${e?.message ?? "Unknown error"}`);
+    }
+    setScoringId(null);
   }
 
   async function handleDelete(id: string) {
@@ -868,6 +940,24 @@ export function GrowthMindVideoStudio() {
               <p className="text-xs text-muted-foreground">AI-powered video scripts, storyboards & voiceovers</p>
             </div>
           </div>
+
+          {/* Campaign context banner */}
+          {campaignName && (
+            <div className="rounded-xl border border-violet-500/20 bg-violet-500/[0.07] px-4 py-2.5 flex items-center gap-2.5">
+              <Megaphone className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-violet-400/60 uppercase tracking-wider font-semibold">Campaign Context</p>
+                <p className="text-xs font-semibold truncate text-violet-200">{campaignName}</p>
+              </div>
+              <button
+                onClick={() => { setCampaignId(null); setCampaignName(""); }}
+                className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                title="Clear campaign context"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Generator card */}
           <div className="rounded-2xl border border-white/[0.06] bg-card/60 p-5 space-y-5">
@@ -1042,17 +1132,50 @@ export function GrowthMindVideoStudio() {
                 </div>
               </div>
 
+              {/* Variant count selector */}
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold flex items-center gap-1.5">
+                  <Layers className="h-3 w-3 text-violet-400" />
+                  Variants to Generate
+                </p>
+                <div className="flex gap-1.5">
+                  {([1, 3, 5] as const).map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setVariantCount(n)}
+                      className={cn(
+                        "flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-all",
+                        variantCount === n
+                          ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
+                          : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+                      )}
+                    >
+                      {n === 1 ? "1 video" : `${n} variants`}
+                    </button>
+                  ))}
+                </div>
+                {variantCount > 1 && (
+                  <p className="text-[10px] text-muted-foreground/50">
+                    Generates {variantCount} hook variants (emotional, curiosity, urgency…) for A/B testing
+                  </p>
+                )}
+              </div>
+
               {/* Generate button — Guided */}
               <div className="flex items-center gap-3">
                 <Button
-                  onClick={handleGenerate}
+                  onClick={variantCount > 1 ? handleGenerateVariants : handleGenerate}
                   disabled={generating}
                   className="bg-violet-600 hover:bg-violet-700 text-white"
                 >
                   {generating
                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     : <Sparkles className="mr-2 h-4 w-4" />}
-                  {generating ? "Generating…" : "Generate Video"}
+                  {generating
+                    ? "Generating…"
+                    : variantCount > 1
+                      ? `Generate ${variantCount} Variants`
+                      : "Generate Video"}
                 </Button>
                 {generating && (
                   <StepIndicator step={step} currentStep={step} qualityMode={qualityMode} />
@@ -1243,17 +1366,45 @@ export function GrowthMindVideoStudio() {
                 </div>
               )}
 
+              {/* Variant count selector — freeform */}
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold flex items-center gap-1.5">
+                  <Layers className="h-3 w-3 text-emerald-400" />
+                  Variants to Generate
+                </p>
+                <div className="flex gap-1.5">
+                  {([1, 3, 5] as const).map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setVariantCount(n)}
+                      className={cn(
+                        "flex-1 rounded-lg border py-1.5 text-xs font-semibold transition-all",
+                        variantCount === n
+                          ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-300"
+                          : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground",
+                      )}
+                    >
+                      {n === 1 ? "1 video" : `${n} variants`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Generate button — Free-Form */}
               <div className="flex items-center gap-3">
                 <Button
-                  onClick={handleGenerateFreeForm}
+                  onClick={variantCount > 1 ? handleGenerateVariants : handleGenerateFreeForm}
                   disabled={generating || !ffPrompt.trim()}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
                   {generating
                     ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     : <Sparkles className="mr-2 h-4 w-4" />}
-                  {generating ? "Optimising & Generating…" : "Generate Ad Pipeline"}
+                  {generating
+                    ? "Optimising & Generating…"
+                    : variantCount > 1
+                      ? `Generate ${variantCount} Variants`
+                      : "Generate Ad Pipeline"}
                 </Button>
                 {generating && (
                   <StepIndicator step={step} currentStep={step} qualityMode="premium" />
@@ -1276,13 +1427,21 @@ export function GrowthMindVideoStudio() {
           {/* Result preview */}
           {lastResult && step === "done" && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <p className="text-sm font-semibold">Generated: {lastResult.title}</p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[10px] text-muted-foreground/60">Est. cost: {formatCost(lastResult.costEstimate)}</span>
                   <span className="rounded-full bg-emerald-500/15 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                     Saved ✓
                   </span>
+                  <button
+                    onClick={() => handleScoreAsset(lastResult.assetId)}
+                    disabled={!!scoringId}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 text-[11px] font-medium text-violet-400 hover:bg-violet-500/15 transition-colors disabled:opacity-50"
+                  >
+                    {scoringId ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <BarChart3 className="h-2.5 w-2.5" />}
+                    Score Creative
+                  </button>
                 </div>
               </div>
 
@@ -1344,6 +1503,67 @@ export function GrowthMindVideoStudio() {
                 <div className="rounded-xl border border-sky-500/15 bg-sky-500/[0.04] p-4">
                   <p className="text-[10px] uppercase tracking-wider text-sky-400/70 mb-1.5 font-semibold">Strategy Brief</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">{lastResult.strategyBrief}</p>
+                </div>
+              )}
+
+              {/* Value point used */}
+              {lastResult.valuePointUsed && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-3 flex items-start gap-2.5">
+                  <Target className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] uppercase tracking-wider text-amber-400/70 font-semibold mb-0.5">Value Point Injected</p>
+                    <p className="text-[11px] text-muted-foreground/80 leading-relaxed">{lastResult.valuePointUsed}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Creative score panel */}
+              {creativeScore && (
+                <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-wider text-violet-400/70 font-semibold flex items-center gap-1.5">
+                      <BarChart3 className="h-3 w-3" />Creative Score
+                    </p>
+                    <span className={cn(
+                      "text-sm font-bold tabular-nums",
+                      creativeScore.overall >= 8 ? "text-emerald-400"
+                      : creativeScore.overall >= 6 ? "text-amber-400"
+                      : "text-red-400",
+                    )}>
+                      {creativeScore.overall}/10
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {([
+                      { label: "Hook",     value: creativeScore.hook },
+                      { label: "Clarity",  value: creativeScore.clarity },
+                      { label: "Emotion",  value: creativeScore.emotion },
+                      { label: "CTA",      value: creativeScore.cta },
+                      { label: "Brand",    value: creativeScore.brand },
+                      { label: "Platform", value: creativeScore.platform },
+                    ] as const).map(d => (
+                      <div key={d.label} className="rounded-lg bg-white/[0.03] border border-white/[0.05] p-2 text-center">
+                        <p className={cn(
+                          "text-sm font-bold tabular-nums",
+                          (d.value as number) >= 8 ? "text-emerald-400" : (d.value as number) >= 6 ? "text-amber-400" : "text-red-400",
+                        )}>{d.value}</p>
+                        <p className="text-[9px] text-muted-foreground/60 mt-0.5">{d.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {creativeScore.verdict && (
+                    <p className="text-[11px] text-muted-foreground/80 italic">{creativeScore.verdict}</p>
+                  )}
+                  {creativeScore.improvements.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-semibold">Improvements</p>
+                      {creativeScore.improvements.map((imp, i) => (
+                        <p key={i} className="text-[11px] text-muted-foreground/70 flex items-start gap-1.5">
+                          <span className="text-violet-400/60 shrink-0">→</span>{imp}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1521,6 +1741,45 @@ export function GrowthMindVideoStudio() {
               </div>
             </div>
           </div>
+
+          {/* ── AI CMO Pipeline Status ── */}
+          {(campaignName || assets.some(a => a.campaignId)) && (
+            <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-3 space-y-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400/70 flex items-center gap-1.5">
+                <Megaphone className="h-3 w-3" />
+                CMO Pipeline
+              </p>
+              {campaignName && (
+                <div className="flex items-center gap-1.5">
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  <p className="text-[11px] text-foreground/80 truncate">{campaignName}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-2">
+                  <p className="text-[10px] text-muted-foreground/60">Linked</p>
+                  <p className="text-sm font-bold tabular-nums text-emerald-400">
+                    {assets.filter(a => a.campaignId).length}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] p-2">
+                  <p className="text-[10px] text-muted-foreground/60">Variants</p>
+                  <p className="text-sm font-bold tabular-nums text-violet-400">
+                    {assets.filter(a => a.variantGroupId).length}
+                  </p>
+                </div>
+              </div>
+              {assets.some(a => a.creativeScore !== null && a.creativeScore !== undefined) && (
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-muted-foreground/60">Avg Creative Score</p>
+                  <p className="text-[11px] font-semibold text-amber-400">
+                    {(assets.filter(a => a.creativeScore != null).reduce((s, a) => s + (a.creativeScore ?? 0), 0) /
+                      assets.filter(a => a.creativeScore != null).length).toFixed(1)}/10
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-4 space-y-1.5">
             <p className="text-[10px] font-semibold text-amber-400/80 flex items-center gap-1.5">
