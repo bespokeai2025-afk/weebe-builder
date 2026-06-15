@@ -132,6 +132,12 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "authToken", label: "Auth Token", type: "password", required: true },
     { key: "from", label: "WhatsApp From Number", type: "text", required: false, placeholder: "+15551234567" },
   ],
+  "whatsapp:meta": [
+    { key: "accessToken",   label: "Permanent Access Token",     type: "password", required: true,  placeholder: "EAAxxxxx… (System User or Business token)" },
+    { key: "phoneNumberId", label: "Phone Number ID",            type: "text",     required: true,  placeholder: "1234567890123456" },
+    { key: "wabaId",        label: "WhatsApp Business Account ID (WABA)", type: "text", required: false, placeholder: "9876543210987654" },
+    { key: "verifyToken",   label: "Webhook Verify Token",       type: "text",     required: false, placeholder: "any secret string you choose" },
+  ],
   "image:gpt_image": [
     { key: "apiKey", label: "OpenAI API Key", type: "password", required: false, placeholder: "Leave blank to use LLM OpenAI key" },
   ],
@@ -657,7 +663,6 @@ function getSetupLink(category: string, providerName: string): string {
   const overrides: Record<string, string> = {
     "telephony:twilio":  "/telephony-settings",
     "whatsapp:wati":     "/whatsapp",
-    "whatsapp:meta":     "/whatsapp",
     "crm:hubspot":       "/settings/crm",
     "crm:gohighlevel":   "/settings/crm",
     "calendar:calcom":   "/settings/calendar",

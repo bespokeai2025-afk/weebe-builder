@@ -93,6 +93,12 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
   "voice:retell": [{ key: "apiKey", label: "OmniVoice API Key", type: "password", required: true, placeholder: "key_..." }],
   "voice:openai": [{ key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." }],
   "voice:elevenlabs": [{ key: "apiKey", label: "ElevenLabs API Key", type: "password", required: true, placeholder: "sk_..." }],
+  "whatsapp:meta": [
+    { key: "accessToken",   label: "Permanent Access Token",     type: "password", required: true,  placeholder: "EAAxxxxx… (System User or Business token)" },
+    { key: "phoneNumberId", label: "Phone Number ID",            type: "text",     required: true,  placeholder: "1234567890123456" },
+    { key: "wabaId",        label: "WhatsApp Business Account ID (WABA)", type: "text", required: false, placeholder: "9876543210987654" },
+    { key: "verifyToken",   label: "Webhook Verify Token",       type: "text",     required: false, placeholder: "any secret string you choose" },
+  ],
   "telephony:frejun": [{ key: "apiKey", label: "FreJun API Key", type: "password", required: true }],
   "telephony:twilio": [
     { key: "accountSid", label: "Account SID", type: "text", required: true, placeholder: "ACxxxx" },
@@ -104,7 +110,6 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
 
 const REDIRECT_PROVIDERS: Record<string, string> = {
   "crm:gohighlevel": "/settings/crm",
-  "whatsapp:meta":   "/settings/integrations",
 };
 
 function StatusBadge({ status }: { status: string }) {

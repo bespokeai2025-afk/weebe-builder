@@ -130,7 +130,7 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
   // WhatsApp
   { category: "whatsapp", name: "wati",    label: "WATI",              description: "WATI WhatsApp Business API",                status: "disconnected", isDefault: true, priority: 1 },
   { category: "whatsapp", name: "twilio",  label: "Twilio WhatsApp",  description: "Twilio WhatsApp sandbox & production",      status: "disconnected", priority: 2 },
-  { category: "whatsapp", name: "meta",    label: "Meta Cloud API",   description: "Official Meta WhatsApp Business Cloud API", status: "coming_soon",  priority: 3 },
+  { category: "whatsapp", name: "meta",    label: "Meta Cloud API",   description: "Official Meta WhatsApp Business Cloud API", status: "disconnected", priority: 3 },
 
   // Email
   { category: "email", name: "resend",    label: "Resend",     description: "Transactional email via Resend",       status: "connected",   isDefault: true, priority: 1 },
