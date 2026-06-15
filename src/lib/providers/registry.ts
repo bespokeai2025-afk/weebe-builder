@@ -114,7 +114,7 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
   { category: "llm", name: "llama",      label: "Llama",        description: "Meta Llama (self-hosted)",                 status: "coming_soon",  priority: 7 },
 
   // Voice
-  { category: "voice", name: "retell",      label: "OmniVoice (Retell)",       description: "Retell AI — managed voice layer",         status: "connected", isDefault: true, priority: 1 },
+  { category: "voice", name: "retell",      label: "OmniVoice",                description: "Managed voice layer",                    status: "connected", isDefault: true, priority: 1 },
   { category: "voice", name: "openai",      label: "HyperStream (OpenAI)",     description: "OpenAI Realtime — GPT-4o voice",          status: "connected", priority: 2 },
   { category: "voice", name: "elevenlabs",  label: "VoxStream (ElevenLabs)",   description: "ElevenLabs ConvAI — ultra-realistic TTS", status: "connected", priority: 3 },
   { category: "voice", name: "claude",      label: "Claude Native",            description: "Anthropic Claude Realtime (coming soon)",  status: "coming_soon", priority: 4 },
@@ -151,7 +151,7 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
   { category: "calendar", name: "outlook", label: "Outlook Calendar", description: "Microsoft Outlook / Exchange",    status: "coming_soon",  priority: 3 },
 
   // Knowledge
-  { category: "knowledge", name: "retell_kb", label: "OmniVoice KB",       description: "Retell built-in knowledge base",         status: "connected",   isDefault: true, priority: 1 },
+  { category: "knowledge", name: "retell_kb", label: "OmniVoice KB",       description: "OmniVoice built-in knowledge base",      status: "connected",   isDefault: true, priority: 1 },
   { category: "knowledge", name: "weebee_kb", label: "WeeBee KB",          description: "WeeBee PDF-based knowledge base",        status: "connected",   priority: 2 },
   { category: "knowledge", name: "pinecone",  label: "Pinecone",           description: "Pinecone vector database",               status: "coming_soon", priority: 3 },
   { category: "knowledge", name: "openai_vs", label: "OpenAI Vector Store", description: "OpenAI Vector Store for RAG",          status: "coming_soon", priority: 4 },
