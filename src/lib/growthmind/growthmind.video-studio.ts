@@ -1656,3 +1656,30 @@ export async function getVideoSummaryForHiveMind(
     return { totalThisMonth: 0, upcomingScheduled: 0, missingTypes: [], byType: {} };
   }
 }
+
+// ── Veo connection status ────────────────────────────────────────────────────
+export const getVeoStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) return { connected: false };
+
+    // Check workspace-stored credentials first
+    const { data } = await sb
+      .from("workspace_provider_settings")
+      .select("credentials")
+      .eq("workspace_id", workspaceId)
+      .eq("category", "video")
+      .eq("provider_name", "google_veo")
+      .maybeSingle();
+
+    const creds = data?.credentials ?? {};
+    const hasGeminiKey =
+      !!(creds.geminiApiKey?.trim()) || !!(process.env.GEMINI_API_KEY);
+    const hasVertexCreds =
+      !!(creds.gcpProject?.trim()) &&
+      (!!(creds.accessToken?.trim()) || !!(creds.refreshToken?.trim()));
+
+    return { connected: hasGeminiKey || hasVertexCreds, hasGeminiKey, hasVertexCreds };
+  });

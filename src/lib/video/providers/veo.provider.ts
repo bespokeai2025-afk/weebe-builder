@@ -121,13 +121,13 @@ export class VeoProvider {
       if (params.referenceUrl) instance.image = { gcsUri: params.referenceUrl };
 
       if (this.authMode === "gemini_api_key") {
-        const endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
-        // Minimal body — preview models reject unknown/unsupported parameters
+        // Gemini Developer API uses :generateVideo (NOT :predictLongRunning — that is Vertex AI only)
+        const endpoint = `${GEMINI_BASE}/models/${this.model}:generateVideo?key=${encodeURIComponent(this.geminiKey)}`;
         const body = {
           instances: [instance],
           parameters: {
             aspectRatio:     params.aspectRatio     ?? "16:9",
-            durationSeconds: String(params.durationSeconds ?? 8),  // MUST be string on Gemini API
+            durationSeconds: String(params.durationSeconds ?? 8),  // must be string on Gemini API
             sampleCount:     1,
           },
         };

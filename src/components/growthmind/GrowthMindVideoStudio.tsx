@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import {
   generateVideo, generateVideoFromPrompt, getVideoAssets, deleteVideoAsset,
   scheduleVideoAsset, getVideoCostStats, retryVideoJob, pollVideoJob, getVideoDownloadUrl,
-  generateVideoVariants, scoreVideoCreative,
+  generateVideoVariants, scoreVideoCreative, getVeoStatus,
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
   type VideoType, type QualityMode, type VideoAsset, type StoryboardScene,
 } from "@/lib/growthmind/growthmind.video-studio";
@@ -697,6 +697,13 @@ export function GrowthMindVideoStudio() {
   const retryFn            = useServerFn(retryVideoJob);
   const pollJobFn          = useServerFn(pollVideoJob);
   const voicesFn           = useServerFn(listGrowthMindVoices);
+  const getVeoStatusFn     = useServerFn(getVeoStatus);
+
+  const { data: veoStatus } = useQuery({
+    queryKey: ["veo-status"],
+    queryFn:  () => getVeoStatusFn(),
+    staleTime: 60_000,
+  });
 
   const generateVariantsFn  = useServerFn(generateVideoVariants);
   const scoreFn             = useServerFn(scoreVideoCreative);
@@ -1034,6 +1041,25 @@ export function GrowthMindVideoStudio() {
               <p className="text-xs text-muted-foreground">AI-powered video scripts, storyboards & voiceovers</p>
             </div>
           </div>
+
+          {/* Veo not connected banner */}
+          {veoStatus && !veoStatus.connected && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3 flex items-start gap-3">
+              <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-amber-300">Video provider not connected</p>
+                <p className="text-[11px] text-amber-400/70 mt-0.5">
+                  Add a <strong>Gemini API Key</strong> to generate videos with Google Veo 3.
+                </p>
+              </div>
+              <a
+                href="/settings/providers/video"
+                className="shrink-0 text-[11px] font-semibold text-amber-300 hover:text-amber-200 border border-amber-500/40 hover:border-amber-400/60 rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+              >
+                Connect Veo →
+              </a>
+            </div>
+          )}
 
           {/* Campaign context banner */}
           {campaignName && (
