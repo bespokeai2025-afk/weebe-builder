@@ -209,7 +209,7 @@ const UpsertSchema = z.object({
 
 export const upsertBusinessDna = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: unknown) => UpsertSchema.parse(data))
+  .inputValidator((data: unknown) => UpsertSchema.parse(data))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

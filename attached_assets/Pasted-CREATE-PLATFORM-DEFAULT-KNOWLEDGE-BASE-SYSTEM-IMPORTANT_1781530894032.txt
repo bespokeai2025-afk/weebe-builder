@@ -1,0 +1,199 @@
+CREATE PLATFORM DEFAULT KNOWLEDGE BASE SYSTEM
+
+IMPORTANT
+
+Do not overwrite existing workspace knowledge bases.
+
+Do not mix WEBEE platform knowledge with customer business knowledge.
+
+Do not modify Retell KB behaviour.
+
+Extend Executive Knowledge Centre safely.
+
+OBJECTIVE
+
+Create two separate knowledge layers:
+
+1. Platform Default Knowledge
+   Used by all workspaces.
+
+2. Workspace Knowledge
+   Specific to each customer/business.
+
+====================================================
+
+KNOWLEDGE TYPES
+
+PLATFORM DEFAULT KNOWLEDGE
+
+Contains:
+
+WEBEE features
+WEBEE selling points
+WEBEE platform architecture
+Industry playbooks
+Marketing frameworks
+Sales frameworks
+GrowthMind default knowledge
+HiveMind default knowledge
+SystemMind default knowledge
+
+WORKSPACE KNOWLEDGE
+
+Contains:
+
+Customer company details
+Customer website
+Customer services
+Customer pricing
+Customer competitors
+Customer documents
+Customer campaigns
+Customer internal processes
+
+====================================================
+
+DATABASE CHANGES
+
+Extend executive_knowledge_bases with:
+
+scope
+
+Values:
+
+platform_default
+workspace
+
+If scope = platform_default:
+
+workspace_id can be null.
+
+If scope = workspace:
+
+workspace_id is required.
+
+====================================================
+
+ACCESS RULES
+
+Every workspace can READ platform_default knowledge.
+
+Only platform admins can CREATE, EDIT or DELETE platform_default knowledge.
+
+Workspace users can CREATE, EDIT and DELETE only their own workspace knowledge.
+
+====================================================
+
+KNOWLEDGE RETRIEVAL ORDER
+
+When GrowthMind queries knowledge:
+
+1. Workspace GrowthMind KB
+2. Workspace Shared KB
+3. Platform Default GrowthMind KB
+4. Platform Default Shared KB
+
+When HiveMind queries knowledge:
+
+1. Workspace HiveMind KB
+2. Workspace Shared KB
+3. Platform Default HiveMind KB
+4. Platform Default Shared KB
+
+When SystemMind queries knowledge:
+
+1. Workspace SystemMind KB
+2. Workspace Shared KB
+3. Platform Default SystemMind KB
+4. Platform Default Shared KB
+
+====================================================
+
+ADMIN UI
+
+Create admin page:
+
+/admin/platform-knowledge
+
+Allow platform admin to manage:
+
+Default HiveMind KB
+Default GrowthMind KB
+Default SystemMind KB
+Default Shared KB
+
+Support:
+
+Upload
+Edit
+Delete
+Re-index
+Seed Defaults
+
+====================================================
+
+WORKSPACE UI
+
+In Knowledge Centre show sections:
+
+Platform Defaults
+
+Read-only.
+
+Workspace Knowledge
+
+Editable by workspace users.
+
+Clearly label:
+
+"Provided by WEBEE"
+
+"Your Workspace Knowledge"
+
+====================================================
+
+DEFAULT SEEDING
+
+Create platform default KBs:
+
+WEBEE Platform Overview
+
+WEBEE Selling Points
+
+WEBEE Customer Outcomes
+
+GrowthMind Marketing Frameworks
+
+HiveMind Operations Frameworks
+
+SystemMind Technical Frameworks
+
+Industry Playbooks
+
+====================================================
+
+NO DUPLICATION
+
+Do not copy platform default documents into every workspace.
+
+Store once globally.
+
+Retrieve globally.
+
+====================================================
+
+SUCCESS CRITERIA
+
+WEBEE standard knowledge is available to every workspace automatically.
+
+Customer knowledge remains separate.
+
+GrowthMind can use both WEBEE platform knowledge and customer-specific business knowledge.
+
+HiveMind and SystemMind can do the same.
+
+Platform admins can update default knowledge once and all workspaces benefit.
+
+Generate implementation plan first.
+
+Then implement safely.

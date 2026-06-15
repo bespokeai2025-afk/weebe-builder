@@ -185,7 +185,7 @@ export const getStrategies = createServerFn({ method: "GET" })
 
 export const generateStrategy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: unknown) =>
+  .inputValidator((data: unknown) =>
     z.object({ period: z.enum(["30_day", "60_day", "90_day"]) }).parse(data),
   )
   .handler(async ({ context, data: { period } }) => {
@@ -338,7 +338,7 @@ export const generateStrategy = createServerFn({ method: "POST" })
 
 export const deleteStrategy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: unknown) => z.object({ period: z.enum(["30_day", "60_day", "90_day"]) }).parse(data))
+  .inputValidator((data: unknown) => z.object({ period: z.enum(["30_day", "60_day", "90_day"]) }).parse(data))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
@@ -358,7 +358,7 @@ export const deleteStrategy = createServerFn({ method: "POST" })
 
 export const sendStrategyToHiveMind = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: unknown) => z.object({ strategyId: z.string().uuid() }).parse(data))
+  .inputValidator((data: unknown) => z.object({ strategyId: z.string().uuid() }).parse(data))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

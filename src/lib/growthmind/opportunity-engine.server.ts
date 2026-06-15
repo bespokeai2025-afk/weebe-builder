@@ -469,7 +469,7 @@ export const getOpportunities = createServerFn({ method: "GET" })
 
 export const sendOpportunityToHiveMind = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: unknown) => z.object({ opportunityId: z.string().uuid() }).parse(data))
+  .inputValidator((data: unknown) => z.object({ opportunityId: z.string().uuid() }).parse(data))
   .handler(async ({ context, data }) => {
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;

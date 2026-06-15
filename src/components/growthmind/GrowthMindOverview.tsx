@@ -1,3 +1,4 @@
+import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
@@ -89,6 +90,42 @@ export function GrowthMindOverview() {
     queryFn:  () => getPlaybookFn(),
     staleTime: 60_000,
   });
+
+  const { data: dnaData } = useQuery({
+    queryKey: ["growthmind-business-dna"],
+    queryFn:  () => getDnaFn(),
+    staleTime: 120_000,
+  });
+
+  const { data: valuePointData } = useQuery({
+    queryKey: ["growthmind-value-point"],
+    queryFn:  () => getValuePointFn(),
+    staleTime: 120_000,
+  });
+
+  const { data: oppsData, refetch: refetchOpps } = useQuery({
+    queryKey: ["growthmind-opportunities"],
+    queryFn:  () => getOpportunitiesFn(),
+    staleTime: 120_000,
+  });
+
+  const dna        = (dnaData as any)?.dna ?? null;
+  const dnaScore   = dna ? computeDnaCompletionScore(dna) : null;
+  const valuePoint = (valuePointData as any)?.valuePoint ?? null;
+  const storedOpps = (oppsData as any)?.opportunities ?? [];
+
+  async function handleRunOppEngine() {
+    try {
+      setRunningOppEngine(true);
+      await runOppEngineFn();
+      await refetchOpps();
+      toast.success("Opportunity Engine complete — opportunities updated");
+    } catch {
+      toast.error("Opportunity Engine failed — try again");
+    } finally {
+      setRunningOppEngine(false);
+    }
+  }
 
   const score = computeGrowthScore(data);
   const recs  = generateGrowthRecommendations(data);
@@ -197,6 +234,106 @@ export function GrowthMindOverview() {
               </div>
             )}
 
+            {/* ── Business DNA + Value Point + Opportunity Engine ───────────── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+              {/* DNA completion card */}
+              <Link to="/growthmind/business-dna" className="rounded-xl border border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] transition-all group">
+                <div className="flex items-center gap-2 mb-2">
+                  <Dna className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <p className="text-xs font-semibold">Business DNA</p>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground ml-auto group-hover:text-emerald-400 transition-colors" />
+                </div>
+                {dnaScore !== null ? (
+                  <>
+                    <div className="flex items-end gap-1.5 mb-2">
+                      <span className={cn("text-2xl font-bold tabular-nums", dnaScore.pct >= 70 ? "text-emerald-400" : dnaScore.pct >= 40 ? "text-amber-400" : "text-red-400")}>
+                        {dnaScore.pct}%
+                      </span>
+                      <span className="text-[10px] text-muted-foreground mb-0.5">complete</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/[0.06] mb-2">
+                      <div
+                        className={cn("h-full rounded-full transition-all", dnaScore.pct >= 70 ? "bg-emerald-500" : dnaScore.pct >= 40 ? "bg-amber-500" : "bg-red-500")}
+                        style={{ width: `${dnaScore.pct}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{dnaScore.missing.length === 0 ? "All fields complete" : `${dnaScore.missing.length} field${dnaScore.missing.length !== 1 ? "s" : ""} missing`}</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">Set up your Business DNA to unlock AI-powered marketing insights.</p>
+                )}
+              </Link>
+
+              {/* Current Value Point card */}
+              <Link to="/growthmind/business-dna" className="rounded-xl border border-white/[0.06] bg-card/60 p-4 hover:border-emerald-500/20 hover:bg-emerald-500/[0.03] transition-all group">
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="h-4 w-4 text-amber-400 shrink-0" />
+                  <p className="text-xs font-semibold">Top Value Point</p>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground ml-auto group-hover:text-emerald-400 transition-colors" />
+                </div>
+                {valuePoint ? (
+                  <>
+                    <p className="text-xs font-medium leading-snug line-clamp-2">{valuePoint.current_highest_value}</p>
+                    {valuePoint.who_to_target && (
+                      <p className="text-[10px] text-muted-foreground mt-1.5 line-clamp-1">Target: {valuePoint.who_to_target}</p>
+                    )}
+                    {valuePoint.confidence_score != null && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <div className="flex-1 h-1 rounded-full bg-white/[0.06]">
+                          <div className="h-full rounded-full bg-amber-500" style={{ width: `${valuePoint.confidence_score}%` }} />
+                        </div>
+                        <span className="text-[9px] text-muted-foreground">{valuePoint.confidence_score}%</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">Run the Opportunity Engine to discover your top value point.</p>
+                )}
+              </Link>
+
+              {/* Opportunity Engine card */}
+              <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-1">
+                  <Rocket className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <p className="text-xs font-semibold">Opportunity Engine</p>
+                </div>
+                {storedOpps.length > 0 ? (
+                  <div className="flex-1 space-y-1.5">
+                    {storedOpps.slice(0, 3).map((o: any) => (
+                      <div key={o.id} className="flex items-center gap-2">
+                        <span className={cn(
+                          "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase",
+                          o.urgency === "critical" ? "bg-red-500/15 text-red-400" :
+                          o.urgency === "high"     ? "bg-orange-500/15 text-orange-400" :
+                          o.urgency === "medium"   ? "bg-amber-500/15 text-amber-400" :
+                                                     "bg-slate-500/15 text-slate-400",
+                        )}>{o.urgency}</span>
+                        <p className="text-[10px] text-muted-foreground truncate">{o.title}</p>
+                      </div>
+                    ))}
+                    {storedOpps.length > 3 && (
+                      <Link to="/growthmind/lead-opportunities" className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-0.5 mt-1">
+                        +{storedOpps.length - 3} more <ArrowRight className="h-2.5 w-2.5" />
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground flex-1">No opportunities detected yet.</p>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs mt-auto"
+                  onClick={handleRunOppEngine}
+                  disabled={runningOppEngine}
+                >
+                  {runningOppEngine ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />}
+                  {runningOppEngine ? "Running…" : "Run Analysis"}
+                </Button>
+              </div>
+            </div>
+
             {/* Key metrics with trend indicators */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               <StatCard
@@ -299,10 +436,12 @@ export function GrowthMindOverview() {
                 </div>
                 <div className="p-3 grid grid-cols-2 gap-2">
                   {[
-                    { label: "AI CMO Chat",         href: "/growthmind/chat",               icon: TrendingUp, desc: "Ask GrowthMind anything" },
-                    { label: "Lead Opportunities",  href: "/growthmind/lead-opportunities", icon: Target,     desc: "Revenue in your pipeline" },
-                    { label: "Content Studio",      href: "/growthmind/content-studio",     icon: BookOpen,   desc: "Generate & publish content" },
-                    { label: "Full Report",         href: "/growthmind/reports",            icon: Megaphone,  desc: "Trends & marketing report" },
+                    { label: "AI CMO Chat",        href: "/growthmind/chat",               icon: TrendingUp, desc: "Ask GrowthMind anything" },
+                    { label: "Business DNA",       href: "/growthmind/business-dna",       icon: Dna,        desc: "Configure your brand & offers" },
+                    { label: "Strategy Builder",   href: "/growthmind/strategy",           icon: Rocket,     desc: "30/60/90-day growth plans" },
+                    { label: "Campaign Factory",   href: "/growthmind/campaign-factory",   icon: Zap,        desc: "AI-generated campaigns" },
+                    { label: "Content Studio",     href: "/growthmind/content-studio",     icon: BookOpen,   desc: "Generate & publish content" },
+                    { label: "Full Report",        href: "/growthmind/reports",            icon: Megaphone,  desc: "Trends & marketing report" },
                   ].map(item => (
                     <Link
                       key={item.href}
