@@ -2,8 +2,7 @@
 -- Apply in Supabase SQL Editor (safe to re-run — all IF NOT EXISTS)
 
 ALTER TABLE growthmind_video_assets
-  ADD COLUMN IF NOT EXISTS original_prompt  TEXT,
-  ADD COLUMN IF NOT EXISTS optimized_prompt TEXT,
+ADD COLUMN IF NOT EXISTS optimized_prompt TEXT,
   ADD COLUMN IF NOT EXISTS generation_mode  TEXT DEFAULT 'guided',
   ADD COLUMN IF NOT EXISTS platform         TEXT,
   ADD COLUMN IF NOT EXISTS aspect_ratio     TEXT DEFAULT '16:9',
