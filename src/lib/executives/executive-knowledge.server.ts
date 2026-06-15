@@ -15,6 +15,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   DEFAULT_EXECUTIVE_KBS,
   getReadableKbSlugs,
+  getPlatformKbSlugs,
   EXECUTIVE_EMBEDDING_MODEL,
 } from "@/lib/executives/executive-knowledge.config";
 
@@ -135,7 +136,33 @@ export async function getKnowledgeBaseBySlug(
   return kb;
 }
 
+// ── Platform KB resolution ────────────────────────────────────────────────────
+// Fetches the platform_default KB rows for the given slugs. Returns [] if the
+// migration has not been applied yet (no scope column) — degrades gracefully.
+export async function getPlatformKnowledgeBases(
+  sb: any,
+  slugs: string[],
+): Promise<ExecutiveKbRow[]> {
+  if (slugs.length === 0) return [];
+  try {
+    const { data } = await sb
+      .from("executive_knowledge_bases")
+      .select("*")
+      .eq("scope", "platform_default")
+      .in("slug", slugs);
+    return (data ?? []) as ExecutiveKbRow[];
+  } catch {
+    return []; // graceful degradation if scope column not yet applied
+  }
+}
+
 // ── Access-rule-scoped retrieval ──────────────────────────────────────────────
+// Retrieval order per spec:
+//   1. Workspace-specific KB (e.g. growthmind)
+//   2. Workspace shared KB
+//   3. Platform default executive KB (e.g. platform_growthmind)
+//   4. Platform default shared KB
+// All IDs are resolved server-side before calling the SECURITY DEFINER RPC.
 export async function retrieveExecutiveKnowledge(opts: {
   sb?: any;
   workspaceId: string;
@@ -149,58 +176,68 @@ export async function retrieveExecutiveKnowledge(opts: {
   const topK = Math.max(1, Math.min(opts.topK ?? 5, 20));
   const readableSlugs = getReadableKbSlugs(opts.mindType);
 
+  // ── 1. Workspace KBs ──────────────────────────────────────────────────────
   const all = await ensureDefaultKnowledgeBases(sb, opts.workspaceId);
   const readableKbs = all.filter((k) => readableSlugs.includes(k.slug));
-  if (readableKbs.length === 0) return { chunks: [], kbSlugs: [] };
+
+  // ── 2. Platform default KBs (fetched in parallel with embedding) ──────────
+  const platformSlugs = getPlatformKbSlugs(opts.mindType);
+  const platformKbs   = await getPlatformKnowledgeBases(sb, platformSlugs);
+
+  // Merge: workspace KBs first (ranked higher by order), then platform KBs.
+  const allQueryKbs = [...readableKbs, ...platformKbs];
+  if (allQueryKbs.length === 0) return { chunks: [], kbSlugs: [] };
 
   const apiKey = opts.apiKey ?? (await resolveOpenAiKey(sb, opts.workspaceId));
   const queryVec = await embedQuery(opts.query, apiKey);
-  if (queryVec.length === 0) return { chunks: [], kbSlugs: readableSlugs };
+  if (queryVec.length === 0) {
+    return { chunks: [], kbSlugs: [...readableSlugs, ...platformSlugs] };
+  }
 
   // The match RPC is SECURITY DEFINER and granted to service_role only, so it
   // must be invoked with the service-role client (never the user/anon client).
-  // This prevents direct cross-workspace RPC calls from the browser; the
-  // workspace_id passed here is always the trusted, auth-derived value.
+  // The updated RPC WHERE clause accepts both workspace chunks and platform
+  // chunks (workspace_id IS NULL) when their KB ids are in the list.
   const rpcClient = supabaseAdmin as any;
   const { data, error } = await rpcClient.rpc("match_executive_document_chunks", {
-    p_workspace_id: opts.workspaceId,
-    p_knowledge_base_ids: readableKbs.map((k) => k.id),
-    p_query_embedding: toVectorLiteral(queryVec),
-    p_match_count: topK,
+    p_workspace_id:       opts.workspaceId,
+    p_knowledge_base_ids: allQueryKbs.map((k) => k.id),
+    p_query_embedding:    toVectorLiteral(queryVec),
+    p_match_count:        topK,
   });
   if (error) throw new Error(`Knowledge retrieval failed: ${error.message}`);
 
   const chunks: RetrievedChunk[] = (data ?? []).map((r: any) => ({
-    chunkId: r.chunk_id,
+    chunkId:    r.chunk_id,
     documentId: r.document_id,
-    kbId: r.knowledge_base_id,
-    content: r.content,
+    kbId:       r.knowledge_base_id,
+    content:    r.content,
     similarity: typeof r.similarity === "number" ? r.similarity : 0,
-    metadata: r.metadata ?? {},
+    metadata:   r.metadata ?? {},
   }));
 
   if (opts.log !== false) {
     const matchedSlugs = Array.from(
       new Set(
         chunks
-          .map((c) => readableKbs.find((k) => k.id === c.kbId)?.slug)
+          .map((c) => allQueryKbs.find((k) => k.id === c.kbId)?.slug)
           .filter(Boolean) as string[],
       ),
     );
     await sb
       .from("executive_knowledge_queries")
       .insert({
-        workspace_id: opts.workspaceId,
-        mind_type: opts.mindType,
-        query: opts.query.slice(0, 2000),
-        top_k: topK,
-        matched_count: chunks.length,
-        matched_kb_slugs: matchedSlugs,
+        workspace_id:      opts.workspaceId,
+        mind_type:         opts.mindType,
+        query:             opts.query.slice(0, 2000),
+        top_k:             topK,
+        matched_count:     chunks.length,
+        matched_kb_slugs:  matchedSlugs,
       })
       .then(undefined, () => {/* logging is best-effort */});
   }
 
-  return { chunks, kbSlugs: readableSlugs };
+  return { chunks, kbSlugs: [...readableSlugs, ...platformSlugs] };
 }
 
 // ── Prompt formatting ─────────────────────────────────────────────────────────

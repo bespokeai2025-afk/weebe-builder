@@ -141,13 +141,18 @@ async function embedAndStoreChunks(
   return chunks.length;
 }
 
-async function loadDocument(sb: any, documentId: string, workspaceId: string) {
-  const { data: doc, error } = await sb
+// Loads a document by id, supporting both workspace-scoped and platform docs (workspace_id = NULL).
+async function loadDocument(sb: any, documentId: string, workspaceId: string | null) {
+  let q = sb
     .from("executive_documents")
     .select("*")
-    .eq("id", documentId)
-    .eq("workspace_id", workspaceId)
-    .maybeSingle();
+    .eq("id", documentId);
+  if (workspaceId === null) {
+    q = q.is("workspace_id", null);
+  } else {
+    q = q.eq("workspace_id", workspaceId);
+  }
+  const { data: doc, error } = await q.maybeSingle();
   if (error || !doc) throw new Error("Document not found.");
   return doc;
 }
@@ -157,16 +162,22 @@ async function markStatus(sb: any, documentId: string, fields: Record<string, un
 }
 
 // Index an UPLOADED document: download bytes from storage, extract, chunk, embed.
+// workspaceId: pass null for platform_default documents (workspace_id = NULL in DB).
 export async function indexUploadedDocument(
   sbArg: any,
-  args: { documentId: string; workspaceId: string; apiKey?: string },
+  args: { documentId: string; workspaceId: string | null; apiKey?: string },
 ): Promise<{ chunkCount: number }> {
   const sb = sbArg ?? (supabaseAdmin as any);
   const doc = await loadDocument(sb, args.documentId, args.workspaceId);
   await markStatus(sb, doc.id, { embedding_status: "processing", error_message: null });
   try {
     if (!doc.storage_path) throw new Error("Document has no stored file.");
-    const apiKey = args.apiKey ?? (await resolveOpenAiKey(sb, args.workspaceId));
+    // For platform docs (workspaceId = null) the key must come from env.
+    const apiKey = args.apiKey ?? (
+      args.workspaceId
+        ? await resolveOpenAiKey(sb, args.workspaceId)
+        : (process.env.OPENAI_API_KEY ?? (() => { throw new Error("OPENAI_API_KEY not set"); })())
+    );
 
     const { data: blob, error: dlErr } = await supabaseAdmin.storage
       .from(EXECUTIVE_BUCKET)
@@ -194,9 +205,10 @@ export async function indexUploadedDocument(
 }
 
 // Index a TEXT document (AI-seeded reference content — no storage download).
+// workspaceId: pass null for platform_default documents.
 export async function indexTextDocument(
   sbArg: any,
-  args: { documentId: string; workspaceId: string; text: string; apiKey: string },
+  args: { documentId: string; workspaceId: string | null; text: string; apiKey: string },
 ): Promise<{ chunkCount: number }> {
   const sb = sbArg ?? (supabaseAdmin as any);
   const doc = await loadDocument(sb, args.documentId, args.workspaceId);

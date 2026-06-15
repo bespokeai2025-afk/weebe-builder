@@ -114,6 +114,7 @@ import { Route as AuthenticatedGrowthmindAdsRouteImport } from './routes/_authen
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
+import { Route as AuthenticatedAdminPlatformKnowledgeRouteImport } from './routes/_authenticated/admin.platform-knowledge'
 import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -747,6 +748,12 @@ const AuthenticatedAdminUserActivityRoute =
     path: '/user-activity',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminPlatformKnowledgeRoute =
+  AuthenticatedAdminPlatformKnowledgeRouteImport.update({
+    id: '/platform-knowledge',
+    path: '/platform-knowledge',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminCostEngineRoute =
   AuthenticatedAdminCostEngineRouteImport.update({
     id: '/cost-engine',
@@ -1037,6 +1044,7 @@ export interface FileRoutesByFullPath {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
@@ -1182,6 +1190,7 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
@@ -1334,6 +1343,7 @@ export interface FileRoutesById {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/upload/$token': typeof UploadTokenRoute
   '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
+  '/_authenticated/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
@@ -1486,6 +1496,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/upload/$token'
     | '/admin/cost-engine'
+    | '/admin/platform-knowledge'
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
@@ -1631,6 +1642,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/upload/$token'
     | '/admin/cost-engine'
+    | '/admin/platform-knowledge'
     | '/admin/user-activity'
     | '/admin/users'
     | '/agents/new'
@@ -1782,6 +1794,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/upload/$token'
     | '/_authenticated/admin/cost-engine'
+    | '/_authenticated/admin/platform-knowledge'
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
@@ -2695,6 +2708,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminUserActivityRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/platform-knowledge': {
+      id: '/_authenticated/admin/platform-knowledge'
+      path: '/platform-knowledge'
+      fullPath: '/admin/platform-knowledge'
+      preLoaderRoute: typeof AuthenticatedAdminPlatformKnowledgeRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/cost-engine': {
       id: '/_authenticated/admin/cost-engine'
       path: '/cost-engine'
@@ -3008,6 +3028,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminCostEngineRoute: typeof AuthenticatedAdminCostEngineRoute
+  AuthenticatedAdminPlatformKnowledgeRoute: typeof AuthenticatedAdminPlatformKnowledgeRoute
   AuthenticatedAdminUserActivityRoute: typeof AuthenticatedAdminUserActivityRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -3015,6 +3036,8 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminCostEngineRoute: AuthenticatedAdminCostEngineRoute,
+  AuthenticatedAdminPlatformKnowledgeRoute:
+    AuthenticatedAdminPlatformKnowledgeRoute,
   AuthenticatedAdminUserActivityRoute: AuthenticatedAdminUserActivityRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
