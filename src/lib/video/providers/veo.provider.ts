@@ -293,6 +293,6 @@ export function resolveVeoConfig(storedCredentials: Record<string, string> = {})
     clientId:      storedCredentials.clientId?.trim()      || process.env.GOOGLE_OAUTH_CLIENT_ID       || "",
     clientSecret:  storedCredentials.clientSecret?.trim()  || process.env.GOOGLE_OAUTH_CLIENT_SECRET   || "",
     location:      storedCredentials.location?.trim()      || process.env.GOOGLE_CLOUD_LOCATION        || "us-central1",
-    model:         storedCredentials.veoModel?.trim()      || process.env.VEO_MODEL                    || DEFAULT_MODEL,
+    model:         storedCredentials.veoModel?.trim()      || process.env.VEO_MODEL                    || "",
   };
 }
