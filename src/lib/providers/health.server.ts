@@ -178,7 +178,11 @@ async function dispatchHealthCheck(
       return new RunwayAdapter(key).healthCheck!();
     }
     case "video:google_veo": {
-      return new GoogleVeoAdapter({ gcpProject: str(stored.gcpProject), accessToken: str(stored.accessToken) }).healthCheck!();
+      // Supports Gemini API key (preferred) or GCP OAuth (gcpProject + accessToken)
+      const { VeoProvider, resolveVeoConfig } = await import("../video/providers/veo.provider");
+      const veo = new VeoProvider(resolveVeoConfig(stored as Record<string, string>));
+      if (veo.authMode) return veo.healthCheck();
+      return false;
     }
 
     // ── Knowledge ──────────────────────────────────────────────────────────────

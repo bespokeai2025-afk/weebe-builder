@@ -157,7 +157,7 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
   { category: "knowledge", name: "openai_vs", label: "OpenAI Vector Store", description: "OpenAI Vector Store for RAG",          status: "coming_soon", priority: 4 },
 
   // Video
-  { category: "video", name: "google_veo", label: "Google Veo 3", description: "Google Veo 3 — state-of-the-art AI video via Vertex AI", status: "disconnected", isDefault: true, priority: 1 },
+  { category: "video", name: "google_veo", label: "Google Veo 3", description: "Google Veo 3 — use a Gemini API Key (easiest) or GCP Project + OAuth token", status: "disconnected", isDefault: true, priority: 1 },
   { category: "video", name: "runway",     label: "Runway Gen-4", description: "Runway Gen-4 Turbo video generation",                    status: "disconnected", priority: 2 },
   { category: "video", name: "pika",       label: "Pika",         description: "Pika video generation",                                  status: "coming_soon",  priority: 3 },
   { category: "video", name: "sora",       label: "Sora",         description: "OpenAI Sora video generation",                           status: "coming_soon",  priority: 4 },
