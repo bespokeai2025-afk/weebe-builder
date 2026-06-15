@@ -1,7 +1,8 @@
 -- ── SystemMind Workflow Intelligence ─────────────────────────────────────────
 -- Four tables: workflow library, extracted patterns, repair playbooks, and
 -- AI-generated workflow drafts. All workspace-scoped with RLS.
--- Apply MANUALLY in the Supabase SQL Editor.
+-- Safe to re-run: tables/indexes use IF NOT EXISTS; policies use
+-- DROP IF EXISTS before CREATE so partial-apply states are handled cleanly.
 
 -- 1. systemmind_workflow_library ──────────────────────────────────────────────
 -- One row per (workspace, agent) — updated on each scan.
@@ -106,7 +107,11 @@ ALTER TABLE public.systemmind_workflow_patterns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.systemmind_repair_playbooks  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.systemmind_workflow_drafts   ENABLE ROW LEVEL SECURITY;
 
--- systemmind_workflow_library
+-- systemmind_workflow_library — drop-before-create for full idempotency
+DROP POLICY IF EXISTS "sm_wl_sel" ON public.systemmind_workflow_library;
+DROP POLICY IF EXISTS "sm_wl_ins" ON public.systemmind_workflow_library;
+DROP POLICY IF EXISTS "sm_wl_upd" ON public.systemmind_workflow_library;
+DROP POLICY IF EXISTS "sm_wl_del" ON public.systemmind_workflow_library;
 CREATE POLICY "sm_wl_sel" ON public.systemmind_workflow_library FOR SELECT
   USING (workspace_id IN (SELECT workspace_id FROM public.workspace_members WHERE user_id = auth.uid()));
 CREATE POLICY "sm_wl_ins" ON public.systemmind_workflow_library FOR INSERT
@@ -117,6 +122,10 @@ CREATE POLICY "sm_wl_del" ON public.systemmind_workflow_library FOR DELETE
   USING (workspace_id IN (SELECT workspace_id FROM public.workspace_members WHERE user_id = auth.uid()));
 
 -- systemmind_workflow_patterns
+DROP POLICY IF EXISTS "sm_wp_sel" ON public.systemmind_workflow_patterns;
+DROP POLICY IF EXISTS "sm_wp_ins" ON public.systemmind_workflow_patterns;
+DROP POLICY IF EXISTS "sm_wp_upd" ON public.systemmind_workflow_patterns;
+DROP POLICY IF EXISTS "sm_wp_del" ON public.systemmind_workflow_patterns;
 CREATE POLICY "sm_wp_sel" ON public.systemmind_workflow_patterns FOR SELECT
   USING (workspace_id IN (SELECT workspace_id FROM public.workspace_members WHERE user_id = auth.uid()));
 CREATE POLICY "sm_wp_ins" ON public.systemmind_workflow_patterns FOR INSERT
@@ -127,6 +136,10 @@ CREATE POLICY "sm_wp_del" ON public.systemmind_workflow_patterns FOR DELETE
   USING (workspace_id IN (SELECT workspace_id FROM public.workspace_members WHERE user_id = auth.uid()));
 
 -- systemmind_repair_playbooks
+DROP POLICY IF EXISTS "sm_pb_sel" ON public.systemmind_repair_playbooks;
+DROP POLICY IF EXISTS "sm_pb_ins" ON public.systemmind_repair_playbooks;
+DROP POLICY IF EXISTS "sm_pb_upd" ON public.systemmind_repair_playbooks;
+DROP POLICY IF EXISTS "sm_pb_del" ON public.systemmind_repair_playbooks;
 CREATE POLICY "sm_pb_sel" ON public.systemmind_repair_playbooks FOR SELECT
   USING (workspace_id IN (SELECT workspace_id FROM public.workspace_members WHERE user_id = auth.uid()));
 CREATE POLICY "sm_pb_ins" ON public.systemmind_repair_playbooks FOR INSERT
@@ -137,6 +150,9 @@ CREATE POLICY "sm_pb_del" ON public.systemmind_repair_playbooks FOR DELETE
   USING (workspace_id IN (SELECT workspace_id FROM public.workspace_members WHERE user_id = auth.uid()));
 
 -- systemmind_workflow_drafts
+DROP POLICY IF EXISTS "sm_wd_sel" ON public.systemmind_workflow_drafts;
+DROP POLICY IF EXISTS "sm_wd_ins" ON public.systemmind_workflow_drafts;
+DROP POLICY IF EXISTS "sm_wd_del" ON public.systemmind_workflow_drafts;
 CREATE POLICY "sm_wd_sel" ON public.systemmind_workflow_drafts FOR SELECT
   USING (workspace_id IN (SELECT workspace_id FROM public.workspace_members WHERE user_id = auth.uid()));
 CREATE POLICY "sm_wd_ins" ON public.systemmind_workflow_drafts FOR INSERT
