@@ -1,9 +1,11 @@
 /**
- * Veo Provider — Gemini API + Vertex AI OAuth
+ * Veo Provider — Gemini Developer API + Vertex AI OAuth
  *
  * Auth priority:
  *   1. GEMINI_API_KEY / credentials.geminiApiKey  → generativelanguage.googleapis.com
- *   2. accessToken + gcpProject                   → Vertex AI
+ *      Request body: { model, contents, config } (Gemini SDK format)
+ *   2. accessToken + gcpProject                   → aiplatform.googleapis.com
+ *      Request body: { instances, parameters } (Vertex AI format)
  *      If refreshToken + clientId + clientSecret present, auto-refreshes expired tokens.
  */
 
@@ -111,36 +113,47 @@ export class VeoProvider {
       );
     }
 
-    const body = {
-      instances: [{
-        prompt: params.prompt,
-        ...(params.referenceUrl ? { image: { gcsUri: params.referenceUrl } } : {}),
-      }],
-      parameters: {
-        aspectRatio:     params.aspectRatio     ?? "16:9",
-        durationSeconds: params.durationSeconds ?? 8,
-        sampleCount:     1,
-      },
-    };
-
     const doRequest = async (token: string): Promise<Response> => {
-      let endpoint: string;
-      let headers:  Record<string, string>;
-
       if (this.authMode === "gemini_api_key") {
-        endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
-        headers  = { "Content-Type": "application/json" };
+        // Gemini Developer API format (google-genai SDK schema)
+        // Key sent both as query param and as x-goog-api-key header for max compatibility
+        const endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
+        const body: Record<string, unknown> = {
+          model:    `models/${this.model}`,
+          contents: [{ role: "user", parts: [{ text: params.prompt }] }],
+          config: {
+            aspectRatio:     params.aspectRatio     ?? "16:9",
+            durationSeconds: params.durationSeconds ?? 8,
+            numberOfVideos:  1,
+          },
+        };
+        return fetch(endpoint, {
+          method:  "POST",
+          headers: {
+            "Content-Type":    "application/json",
+            "x-goog-api-key":  this.geminiKey,
+          },
+          body:    JSON.stringify(body),
+        });
       } else {
-        endpoint =
+        // Vertex AI format
+        const endpoint =
           `${VERTEX_BASE}/projects/${encodeURIComponent(this.project)}` +
           `/locations/${this.location}/publishers/google/models/${this.model}:predictLongRunning`;
-        headers = {
-          Authorization:  `Bearer ${token}`,
-          "Content-Type": "application/json",
+        const body = {
+          instances:  [{ prompt: params.prompt, ...(params.referenceUrl ? { image: { gcsUri: params.referenceUrl } } : {}) }],
+          parameters: {
+            aspectRatio:     params.aspectRatio     ?? "16:9",
+            durationSeconds: params.durationSeconds ?? 8,
+            sampleCount:     1,
+          },
         };
+        return fetch(endpoint, {
+          method:  "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body:    JSON.stringify(body),
+        });
       }
-
-      return fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
     };
 
     let resp = await doRequest(this.accessToken);
@@ -148,14 +161,12 @@ export class VeoProvider {
     // Auto-refresh token on 401 (Vertex OAuth path only)
     if (resp.status === 401 && this.authMode === "vertex_oauth") {
       const newToken = await this.refreshAccessToken();
-      if (newToken) {
-        resp = await doRequest(newToken);
-      }
+      if (newToken) resp = await doRequest(newToken);
     }
 
     if (!resp.ok) {
       const text = await resp.text().catch(() => resp.statusText);
-      throw new Error(`Veo submit error ${resp.status}: ${text.slice(0, 300)}`);
+      throw new Error(`Veo submit error ${resp.status}: ${text.slice(0, 400)}`);
     }
 
     const data = await resp.json() as { name?: string };
@@ -171,17 +182,13 @@ export class VeoProvider {
     if (!this.authMode) throw new Error("Veo credentials not configured.");
 
     const doRequest = async (token: string): Promise<Response> => {
-      let endpoint: string;
-      let headers:  Record<string, string>;
-
       if (this.authMode === "gemini_api_key") {
-        endpoint = `${GEMINI_BASE}/${jobId}?key=${encodeURIComponent(this.geminiKey)}`;
-        headers  = { "Content-Type": "application/json" };
+        const endpoint = `${GEMINI_BASE}/${jobId}?key=${encodeURIComponent(this.geminiKey)}`;
+        return fetch(endpoint, { headers: { "Content-Type": "application/json" } });
       } else {
-        endpoint = `${VERTEX_BASE}/${jobId}`;
-        headers  = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+        const endpoint = `${VERTEX_BASE}/${jobId}`;
+        return fetch(endpoint, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } });
       }
-      return fetch(endpoint, { headers });
     };
 
     let resp = await doRequest(this.accessToken);
@@ -197,19 +204,30 @@ export class VeoProvider {
     if (json.error) return { status: "failed", jobId, error: json.error.message ?? "Veo error" };
     if (!json.done) return { status: "processing", jobId };
 
+    // ── Gemini API response: { response: { generateVideoResponse: { generatedSamples: [...] } } }
+    const geminiSamples: any[] = json.response?.generateVideoResponse?.generatedSamples ?? [];
+    for (const sample of geminiSamples) {
+      const uri = sample?.video?.uri ?? sample?.video?.gcsUri ?? sample?.videoUri;
+      if (typeof uri === "string" && uri) return { status: "completed", jobId, videoUrl: uri };
+      if (sample?.video?.bytesBase64Encoded) {
+        return { status: "completed", jobId, videoUrl: `data:video/mp4;base64,${sample.video.bytesBase64Encoded}` };
+      }
+    }
+
+    // ── Vertex AI response: { response: { predictions: [...] } }
     const predictions: any[] = json.response?.predictions ?? [];
     for (const pred of predictions) {
       if (typeof pred === "string" && (pred.startsWith("http") || pred.startsWith("gs://"))) {
         return { status: "completed", jobId, videoUrl: pred };
       }
       const uri = pred?.videoUri ?? pred?.gcsUri ?? pred?.uri ?? pred?.url;
-      if (typeof uri === "string") return { status: "completed", jobId, videoUrl: uri };
+      if (typeof uri === "string" && uri) return { status: "completed", jobId, videoUrl: uri };
       if (pred?.bytesBase64Encoded) {
         return { status: "completed", jobId, videoUrl: `data:video/mp4;base64,${pred.bytesBase64Encoded}` };
       }
     }
 
-    return { status: "failed", jobId, error: "Operation completed but no video URL found" };
+    return { status: "failed", jobId, error: "Operation completed but no video URL found in response" };
   }
 
   // ── Cost estimate ──────────────────────────────────────────────────────────
