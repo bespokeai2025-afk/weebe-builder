@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,9 +9,10 @@ import { toast } from "sonner";
 import {
   Pencil, Trash2, Plus, RefreshCw, TrendingUp, DollarSign,
   Cpu, Mic, Phone, Database, Wrench, Server, BarChart3, Zap,
-  Users, Briefcase, X, ChevronDown, ChevronUp,
+  Users, Briefcase, X, ChevronDown, ChevronUp, Calculator,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { cn } from "@/lib/utils";
 import {
   getCostEngine, getCostAnalytics,
   saveLlmCost, deleteLlmCost,
@@ -81,9 +81,51 @@ function NumInput({ label, value, onChange, step = "0.000001" }: { label: string
   );
 }
 
+// ── Sidebar nav definition ─────────────────────────────────────────────────────
+
+const SIDEBAR_SECTIONS = [
+  {
+    title: "PERFORMANCE",
+    items: [
+      { id: "overview",        label: "Overview",          icon: BarChart3 },
+      { id: "analytics",       label: "Analytics",         icon: TrendingUp },
+    ],
+  },
+  {
+    title: "COST RATES",
+    items: [
+      { id: "llm",             label: "LLM Models",        icon: Cpu },
+      { id: "voice",           label: "Voice",             icon: Mic },
+      { id: "telephony",       label: "Telephony",         icon: Phone },
+      { id: "fixed",           label: "Fixed Costs",       icon: Server },
+      { id: "provider-rates",  label: "Provider Rates",    icon: DollarSign },
+    ],
+  },
+  {
+    title: "ENGINES",
+    items: [
+      { id: "hyperstream",     label: "HyperStream",       icon: Zap },
+      { id: "retell",          label: "Retell",            icon: Phone },
+    ],
+  },
+  {
+    title: "PRICING",
+    items: [
+      { id: "profit",          label: "Profit & Plans",    icon: TrendingUp },
+      { id: "onboarding",      label: "Onboarding",        icon: Users },
+      { id: "clients",         label: "Client Estimates",  icon: Briefcase },
+    ],
+  },
+] as const;
+
+type TabId = typeof SIDEBAR_SECTIONS[number]["items"][number]["id"];
+
+const ALL_ITEMS = SIDEBAR_SECTIONS.flatMap(s => s.items);
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function CostEnginePage() {
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [data, setData] = useState<(CostEngineData & { tablesReady: boolean }) | null>(null);
   const [analytics, setAnalytics] = useState<CostAnalytics | null>(null);
   const [estimates, setEstimates] = useState<ClientEstimate[]>([]);
@@ -112,113 +154,108 @@ function CostEnginePage() {
 
   const refresh = async () => { setBusy(true); await loadAll(); setBusy(false); };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">Loading cost engine…</div>;
-  }
+  const activeLabel = ALL_ITEMS.find(i => i.id === activeTab)?.label ?? "Overview";
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/admin/users" className="text-xs text-muted-foreground hover:text-foreground">← Admin</Link>
-          <div>
-            <h1 className="text-xl font-bold">Cost Engine</h1>
-            <p className="text-sm text-muted-foreground">Platform-wide pricing, profit, and margin management</p>
+    <div className="flex h-full min-h-0 w-full">
+
+      {/* ── Left sidebar ── */}
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[hsl(var(--sidebar-background))] py-4 overflow-y-auto">
+
+        {/* Brand */}
+        <div className="px-4 mb-5">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-violet-500/20 flex items-center justify-center shrink-0">
+              <Calculator className="h-3.5 w-3.5 text-violet-400" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold leading-none truncate">Costing Studio</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 truncate">Platform pricing engine</p>
+            </div>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={refresh} disabled={busy}>
-          <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${busy ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-      </div>
 
-      {data && !(data as any).tablesReady && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
-          <p className="text-sm font-semibold text-amber-600 mb-1">⚠ Database Migration Required</p>
-          <p className="text-xs text-amber-700 mb-3">The Cost Engine tables haven't been created yet. Apply the migration file to activate all features:</p>
-          <code className="block text-xs bg-black/10 rounded p-2 font-mono text-amber-800 break-all">
-            supabase/migrations/20260613130000_cost_engine.sql
-          </code>
-          <p className="text-xs text-amber-700 mt-2">Run: <code className="font-mono">supabase db push</code> (after linking your project), or paste the SQL into your Supabase dashboard → SQL Editor.</p>
+        {/* Nav sections */}
+        {SIDEBAR_SECTIONS.map(section => (
+          <div key={section.title} className="px-3 mb-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50 px-2 mb-1.5">
+              {section.title}
+            </p>
+            <div className="space-y-0.5">
+              {section.items.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id as TabId)}
+                  className={cn(
+                    "w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors text-left",
+                    activeTab === item.id
+                      ? "bg-violet-500/15 text-violet-300"
+                      : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                  )}
+                >
+                  <item.icon className={cn("h-3.5 w-3.5 shrink-0", activeTab === item.id && "text-violet-400")} />
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </aside>
+
+      {/* ── Main content ── */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+
+        {/* Top bar */}
+        <div className="border-b border-white/[0.06] px-6 py-3.5 flex items-center justify-between shrink-0">
+          <div>
+            <h1 className="text-sm font-semibold">{activeLabel}</h1>
+            <p className="text-[11px] text-muted-foreground">Platform-wide pricing, profit, and margin management</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={refresh} disabled={busy} className="h-7 text-xs gap-1.5">
+            <RefreshCw className={cn("w-3.5 h-3.5", busy && "animate-spin")} />
+            Refresh
+          </Button>
         </div>
-      )}
 
-      <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap h-auto gap-0.5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="llm">LLM Models</TabsTrigger>
-          <TabsTrigger value="voice">Voice</TabsTrigger>
-          <TabsTrigger value="telephony">Telephony</TabsTrigger>
-          <TabsTrigger value="fixed">Fixed Costs</TabsTrigger>
-          <TabsTrigger value="hyperstream">HyperStream</TabsTrigger>
-          <TabsTrigger value="retell">Retell</TabsTrigger>
-          <TabsTrigger value="profit">Profit & Plans</TabsTrigger>
-          <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
-          <TabsTrigger value="clients">Client Estimates</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="provider-rates">Provider Rates</TabsTrigger>
-        </TabsList>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-        {/* ── Overview ─────────────────────────────────────────────────────── */}
-        <TabsContent value="overview" className="space-y-6 mt-4">
-          {data && analytics && <OverviewTab data={data} analytics={analytics} />}
-        </TabsContent>
+          {/* Migration warning */}
+          {data && !(data as any).tablesReady && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+              <p className="text-sm font-semibold text-amber-600 mb-1">⚠ Database Migration Required</p>
+              <p className="text-xs text-amber-700 mb-3">The Cost Engine tables haven't been created yet. Apply the migration file to activate all features:</p>
+              <code className="block text-xs bg-black/10 rounded p-2 font-mono text-amber-800 break-all">
+                supabase/migrations/20260613130000_cost_engine.sql
+              </code>
+              <p className="text-xs text-amber-700 mt-2">Run: <code className="font-mono">supabase db push</code>, or paste the SQL into your Supabase dashboard → SQL Editor.</p>
+            </div>
+          )}
 
-        {/* ── LLM ──────────────────────────────────────────────────────────── */}
-        <TabsContent value="llm" className="mt-4">
-          {data && <LlmTab rows={data.llm} onSaved={loadAll} />}
-        </TabsContent>
+          {loading && (
+            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+              Loading cost engine…
+            </div>
+          )}
 
-        {/* ── Voice ────────────────────────────────────────────────────────── */}
-        <TabsContent value="voice" className="mt-4">
-          {data && <VoiceTab rows={data.voice} onSaved={loadAll} />}
-        </TabsContent>
-
-        {/* ── Telephony ────────────────────────────────────────────────────── */}
-        <TabsContent value="telephony" className="mt-4">
-          {data && <TelephonyTab rows={data.telephony} onSaved={loadAll} />}
-        </TabsContent>
-
-        {/* ── Fixed Costs ──────────────────────────────────────────────────── */}
-        <TabsContent value="fixed" className="mt-4 space-y-6">
-          {data && <FixedCostsTab data={data} onSaved={loadAll} />}
-        </TabsContent>
-
-        {/* ── HyperStream ──────────────────────────────────────────────────── */}
-        <TabsContent value="hyperstream" className="mt-4">
-          {data && <HyperstreamTab data={data} />}
-        </TabsContent>
-
-        {/* ── Retell ───────────────────────────────────────────────────────── */}
-        <TabsContent value="retell" className="mt-4">
-          {data && <RetellCalculatorTab data={data} />}
-        </TabsContent>
-
-        {/* ── Profit & Plans ───────────────────────────────────────────────── */}
-        <TabsContent value="profit" className="mt-4 space-y-6">
-          {data && <ProfitTab data={data} onSaved={loadAll} />}
-        </TabsContent>
-
-        {/* ── Onboarding ───────────────────────────────────────────────────── */}
-        <TabsContent value="onboarding" className="mt-4">
-          {data && <OnboardingTab rows={data.dev_roles} onSaved={loadAll} />}
-        </TabsContent>
-
-        {/* ── Client Estimates ─────────────────────────────────────────────── */}
-        <TabsContent value="clients" className="mt-4">
-          {data && <ClientEstimatesTab data={data} estimates={estimates} onSaved={loadAll} />}
-        </TabsContent>
-
-        {/* ── Analytics ────────────────────────────────────────────────────── */}
-        <TabsContent value="analytics" className="mt-4">
-          {analytics && <AnalyticsTab analytics={analytics} />}
-        </TabsContent>
-
-        {/* ── Provider Rates ───────────────────────────────────────────────── */}
-        <TabsContent value="provider-rates" className="mt-4">
-          <ProviderRatesTab />
-        </TabsContent>
-      </Tabs>
+          {!loading && (
+            <>
+              {activeTab === "overview"       && data && analytics && <OverviewTab data={data} analytics={analytics} />}
+              {activeTab === "llm"            && data && <LlmTab rows={data.llm} onSaved={loadAll} />}
+              {activeTab === "voice"          && data && <VoiceTab rows={data.voice} onSaved={loadAll} />}
+              {activeTab === "telephony"      && data && <TelephonyTab rows={data.telephony} onSaved={loadAll} />}
+              {activeTab === "fixed"          && data && <FixedCostsTab data={data} onSaved={loadAll} />}
+              {activeTab === "hyperstream"    && data && <HyperstreamTab data={data} />}
+              {activeTab === "retell"         && data && <RetellCalculatorTab data={data} />}
+              {activeTab === "profit"         && data && <ProfitTab data={data} onSaved={loadAll} />}
+              {activeTab === "onboarding"     && data && <OnboardingTab rows={data.dev_roles} onSaved={loadAll} />}
+              {activeTab === "clients"        && data && <ClientEstimatesTab data={data} estimates={estimates} onSaved={loadAll} />}
+              {activeTab === "analytics"      && analytics && <AnalyticsTab analytics={analytics} />}
+              {activeTab === "provider-rates" && <ProviderRatesTab />}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

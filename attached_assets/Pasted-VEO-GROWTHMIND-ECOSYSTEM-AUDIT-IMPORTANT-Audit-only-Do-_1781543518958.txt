@@ -1,0 +1,212 @@
+VEO + GROWTHMIND ECOSYSTEM AUDIT
+
+IMPORTANT
+
+Audit only.
+
+Do not implement changes.
+
+Do not modify code.
+
+OBJECTIVE
+
+Determine whether Veo is fully integrated into the GrowthMind ecosystem and capable of generating agency-grade marketing video ads.
+
+Do not assess Veo in isolation.
+
+Assess Veo as part of:
+
+GrowthMind
+Content Studio
+Campaign Factory
+Business DNA
+Opportunity Engine
+Value Point Engine
+HiveMind
+
+====================================================
+
+SECTION 1 — PROVIDER READINESS
+
+Confirm:
+
+1. Veo provider adapter exists.
+2. Credentials are stored correctly.
+3. OAuth refresh exists.
+4. Retry path works.
+5. Polling path works.
+6. Production polling works.
+7. Videos are stored permanently.
+8. Asset URLs remain valid long-term.
+9. Cost tracking is accurate.
+10. Multiple workspaces are supported safely.
+
+Score provider readiness.
+
+====================================================
+
+SECTION 2 — GROWTHMIND INTEGRATION
+
+Can GrowthMind:
+
+1. Read Business DNA?
+2. Read Value Point Engine?
+3. Read Opportunity Engine?
+4. Read Campaign Factory?
+5. Read Content Studio?
+6. Use Competitor Intelligence?
+7. Use Campaign Assets?
+8. Generate video concepts automatically?
+
+For each answer:
+
+YES
+PARTIAL
+NO
+
+====================================================
+
+SECTION 3 — CONTENT STUDIO INTEGRATION
+
+Can a user:
+
+Create content
+Convert content into a video
+Generate storyboard
+Generate Veo prompt
+Generate final video
+
+without leaving GrowthMind?
+
+If not:
+
+Show exact missing links.
+
+====================================================
+
+SECTION 4 — CAMPAIGN FACTORY INTEGRATION
+
+Can a campaign draft:
+
+Generate video concepts
+Generate storyboards
+Generate Veo prompts
+Generate final assets
+
+and attach those assets to campaigns?
+
+If not:
+
+Show exact missing components.
+
+====================================================
+
+SECTION 5 — STORYBOARD QUALITY
+
+Verify:
+
+1. Entire storyboard used.
+2. Multi-scene prompts supported.
+3. Hooks generated.
+4. CTA generated.
+5. Platform-specific optimisation exists.
+6. Brand voice used.
+7. Audience targeting used.
+8. Offer positioning used.
+
+Determine:
+
+Can GrowthMind generate:
+
+Meta Ads
+LinkedIn Ads
+TikTok Ads
+Instagram Reels
+YouTube Shorts
+
+at agency quality?
+
+====================================================
+
+SECTION 6 — HIVEMIND VISIBILITY
+
+Can HiveMind see:
+
+Video costs
+Video performance
+Video failures
+Provider used
+Quality mode
+Campaign association
+
+If not:
+
+List missing visibility.
+
+====================================================
+
+SECTION 7 — AGENCY GRADE AD TEST
+
+Simulate:
+
+Business:
+WEBEE
+
+Offer:
+AI Receptionist
+
+Audience:
+Estate Agents
+
+Goal:
+Generate qualified appointments
+
+Platform:
+Meta
+
+Budget:
+£1,000
+
+Determine whether the current system can automatically produce:
+
+1. Marketing strategy.
+2. Campaign concept.
+3. Hook.
+4. Storyboard.
+5. Veo prompt.
+6. Video.
+7. Campaign asset.
+8. HiveMind report.
+
+Mark each:
+
+WORKING
+PARTIAL
+MISSING
+
+====================================================
+
+SECTION 8 — FINAL SCORE
+
+Score:
+
+Provider Readiness
+GrowthMind Integration
+Campaign Integration
+Content Integration
+Agency Ad Readiness
+Production Readiness
+
+====================================================
+
+MOST IMPORTANT
+
+Answer:
+
+"What is preventing GrowthMind from consistently creating 10/10 agency-grade video ads today?"
+
+Rank blockers from highest impact to lowest impact.
+
+Audit only.
+
+No implementation.

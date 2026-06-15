@@ -229,7 +229,7 @@ export const getProductionReadinessData = createServerFn().handler(
 
 // ── Run Auto-Updates ───────────────────────────────────────────────────────────
 export const runWebhookAutoUpdate = createServerFn()
-  .validator(z.object({ providers: z.array(z.string()) }))
+  .inputValidator(z.object({ providers: z.array(z.string()) }))
   .handler(async ({ data }): Promise<WebhookUpdateResult[]> => {
     const base = getBase();
     const results: WebhookUpdateResult[] = [];
