@@ -513,7 +513,7 @@ function IntegrationsPage() {
                 )}
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Or paste a Retell agent ID manually</Label>
+                  <Label className="text-xs text-muted-foreground">Or paste an OmniVoice agent ID manually</Label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="agent_..."
