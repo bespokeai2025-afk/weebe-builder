@@ -7,12 +7,13 @@ import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import {
   BarChart2, RefreshCw, TrendingUp, TrendingDown, Minus,
   AlertTriangle, CheckCircle2, XCircle, ExternalLink, MousePointerClick,
-  Eye, ShoppingCart, DollarSign, Loader2, Zap,
+  Eye, ShoppingCart, DollarSign, Loader2, Zap, Bell, Settings2,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/growthmind/ads-performance")({
@@ -236,6 +237,208 @@ const acknowledgeAlert = createServerFn({ method: "POST" })
       .eq("workspace_id", context.workspaceId);
     return { ok: true };
   });
+
+// ── Budget cap CRUD ─────────────────────────────────────────────────────────────
+
+interface BudgetCap {
+  platform: "meta" | "google";
+  monthly_budget_cap: number | null;
+  alert_at_pct: number;
+  currency: string;
+}
+
+const getBudgetCaps = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<BudgetCap[]> => {
+    const sb = context.supabase as any;
+    const { workspaceId } = context;
+    if (!workspaceId) return [];
+    try {
+      const { data } = await sb
+        .from("growthmind_ad_budget_caps")
+        .select("platform,monthly_budget_cap,alert_at_pct,currency")
+        .eq("workspace_id", workspaceId)
+        .in("platform", ["meta", "google"]);
+      return (data ?? []).map((r: any) => ({
+        platform:           r.platform,
+        monthly_budget_cap: r.monthly_budget_cap ? Number(r.monthly_budget_cap) : null,
+        alert_at_pct:       Number(r.alert_at_pct ?? 80),
+        currency:           r.currency ?? "GBP",
+      }));
+    } catch {
+      return [];
+    }
+  });
+
+const saveBudgetCap = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: { platform: string; monthly_budget_cap: number | null; alert_at_pct: number; currency: string }) => i)
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase as any;
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No workspace");
+    const now = new Date().toISOString();
+    await sb.from("growthmind_ad_budget_caps").upsert(
+      {
+        workspace_id:       workspaceId,
+        platform:           data.platform,
+        monthly_budget_cap: data.monthly_budget_cap,
+        alert_at_pct:       data.alert_at_pct,
+        currency:           data.currency,
+        updated_at:         now,
+      },
+      { onConflict: "workspace_id,platform" },
+    );
+    return { ok: true };
+  });
+
+// ── Budget caps configuration panel ────────────────────────────────────────────
+
+const PLATFORM_CAP_CONFIG = [
+  { platform: "meta"   as const, label: "Meta Ads",   color: "text-blue-400" },
+  { platform: "google" as const, label: "Google Ads", color: "text-emerald-400" },
+];
+
+function BudgetCapsPanel() {
+  const qc          = useQueryClient();
+  const getCapsFn   = useServerFn(getBudgetCaps);
+  const saveCapFn   = useServerFn(saveBudgetCap);
+
+  const { data: caps = [], isLoading } = useQuery({
+    queryKey: ["budget-caps"],
+    queryFn:  () => getCapsFn(),
+    staleTime: 30_000,
+  });
+
+  type DraftCap = { monthly_budget_cap: string; alert_at_pct: string; currency: string };
+  const [drafts,  setDrafts]  = useState<Record<string, DraftCap>>({});
+  const [saving,  setSaving]  = useState<Record<string, boolean>>({});
+  const [open,    setOpen]    = useState(false);
+
+  function getDraft(platform: string): DraftCap {
+    if (drafts[platform]) return drafts[platform];
+    const existing = caps.find(c => c.platform === platform);
+    return {
+      monthly_budget_cap: existing?.monthly_budget_cap != null ? String(existing.monthly_budget_cap) : "",
+      alert_at_pct:       String(existing?.alert_at_pct ?? 80),
+      currency:           existing?.currency ?? "GBP",
+    };
+  }
+
+  function setDraft(platform: string, patch: Partial<DraftCap>) {
+    setDrafts(d => ({ ...d, [platform]: { ...getDraft(platform), ...patch } }));
+  }
+
+  async function handleSave(platform: string) {
+    setSaving(s => ({ ...s, [platform]: true }));
+    try {
+      const draft = getDraft(platform);
+      const cap   = draft.monthly_budget_cap.trim() === "" ? null : Number(draft.monthly_budget_cap);
+      const pct   = Math.max(1, Math.min(100, Number(draft.alert_at_pct) || 80));
+      await saveCapFn({ data: { platform, monthly_budget_cap: cap, alert_at_pct: pct, currency: draft.currency || "GBP" } });
+      toast.success(`${platform === "meta" ? "Meta" : "Google"} Ads budget cap saved`);
+      qc.invalidateQueries({ queryKey: ["budget-caps"] });
+      setDrafts(d => { const n = { ...d }; delete n[platform]; return n; });
+    } catch (e: any) { toast.error(e.message); }
+    setSaving(s => ({ ...s, [platform]: false }));
+  }
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-card/40">
+      <button
+        className="w-full flex items-center gap-2 px-5 py-3.5 text-left hover:bg-white/[0.02] transition-colors"
+        onClick={() => setOpen(o => !o)}
+      >
+        <Settings2 className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+        <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/60 flex-1">
+          Budget Alert Thresholds
+        </span>
+        <Bell className="h-3 w-3 text-muted-foreground/40" />
+        <span className="text-[10px] text-muted-foreground/40">{open ? "Hide" : "Configure"}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-white/[0.06] px-5 pb-5 pt-4 space-y-5">
+          <p className="text-[11px] text-muted-foreground/70">
+            Set per-platform monthly spend caps. Alerts fire at your chosen percentage (default 80%) and again at 100%.
+          </p>
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {PLATFORM_CAP_CONFIG.map(({ platform, label, color }) => {
+                const draft = getDraft(platform);
+                return (
+                  <div key={platform} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
+                    <span className={cn("text-xs font-semibold", color)}>{label}</span>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider flex items-center gap-2">
+                        Monthly Budget Cap
+                        <span className="normal-case font-normal text-muted-foreground/50">(leave blank to disable)</span>
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={draft.currency}
+                          onChange={e => setDraft(platform, { currency: e.target.value })}
+                          className="h-7 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                        >
+                          <option value="GBP">£ GBP</option>
+                          <option value="USD">$ USD</option>
+                          <option value="EUR">€ EUR</option>
+                        </select>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="100"
+                          placeholder="e.g. 5000"
+                          value={draft.monthly_budget_cap}
+                          onChange={e => setDraft(platform, { monthly_budget_cap: e.target.value })}
+                          className="h-7 text-xs flex-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">
+                        Alert at (% of budget)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="100"
+                          placeholder="80"
+                          value={draft.alert_at_pct}
+                          onChange={e => setDraft(platform, { alert_at_pct: e.target.value })}
+                          className="h-7 text-xs w-20"
+                        />
+                        <span className="text-xs text-muted-foreground/60">%</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-3 text-[10px] gap-1"
+                      disabled={saving[platform]}
+                      onClick={() => handleSave(platform)}
+                    >
+                      {saving[platform] ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
+                      Save
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Spend-by-platform bar chart ────────────────────────────────────────────────
 
@@ -725,6 +928,9 @@ function AdsPerformancePage() {
                 </p>
               </div>
             )}
+
+            {/* Budget alert threshold configuration */}
+            <BudgetCapsPanel />
 
             {/* Connect more platforms */}
             {!(data?.hasMetaCreds && data?.hasGoogleCreds) && (

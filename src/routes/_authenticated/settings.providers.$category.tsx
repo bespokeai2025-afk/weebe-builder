@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
+import { createServerFn, useServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import {
   ArrowLeft, CheckCircle2, XCircle, AlertCircle, Clock,
   Loader2, FlaskConical, Eye, EyeOff, Save, PowerOff,
   Cpu, Mic, Phone, MessageSquare, Mail, Database,
-  CalendarCheck, BookOpen, Video, Image, BarChart3, Megaphone,
+  CalendarCheck, BookOpen, Video, Image, BarChart3, Megaphone, Zap,
 } from "lucide-react";
 import {
   getProviderRegistryData,
@@ -17,6 +18,21 @@ import {
   testProviderConnection,
   toggleProviderEnabled,
 } from "@/lib/providers/providers.functions";
+
+// Trigger an ad sync after connecting an ads provider so campaigns appear immediately
+const triggerAdsSyncForWorkspace = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) return { ok: false };
+    try {
+      const { runAdsSyncTick } = await import("@/lib/growthmind/growthmind.ads-sync-tick");
+      const summary = await runAdsSyncTick({ workspaceId });
+      return { ok: true, synced: summary.synced, errors: summary.errors };
+    } catch (err: any) {
+      return { ok: false, error: err?.message };
+    }
+  });
 
 export const Route = createFileRoute("/_authenticated/settings/providers/$category")({
   component: CategoryProvidersPage,
@@ -75,13 +91,16 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
   ],
   "advertising:google_ads": [
-    { key: "developerToken", label: "Developer Token", type: "password", required: true },
-    { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
+    { key: "developerToken", label: "Developer Token", type: "password", required: true, placeholder: "ABCdef123..." },
     { key: "customerId", label: "Customer ID", type: "text", required: true, placeholder: "123-456-7890" },
+    { key: "accessToken", label: "OAuth Access Token", type: "password", required: false, placeholder: "ya29.…" },
+    { key: "refreshToken", label: "OAuth Refresh Token (recommended — auto-renews access)", type: "password", required: false, placeholder: "1//0g…" },
+    { key: "clientId", label: "OAuth Client ID", type: "text", required: false, placeholder: "12345-abc.apps.googleusercontent.com" },
+    { key: "clientSecret", label: "OAuth Client Secret", type: "password", required: false, placeholder: "GOCSPX-…" },
   ],
   "advertising:meta_ads": [
-    { key: "accessToken", label: "Access Token", type: "password", required: true },
-    { key: "adAccountId", label: "Ad Account ID", type: "text", required: true, placeholder: "act_123456789" },
+    { key: "accessToken", label: "Access Token", type: "password", required: true, placeholder: "EAAxxxxx…" },
+    { key: "adAccountId", label: "Ad Account ID", type: "text", required: true, placeholder: "act_123456789 or 123456789" },
   ],
   "knowledge:pinecone": [
     { key: "apiKey", label: "Pinecone API Key", type: "password", required: true },
@@ -148,15 +167,18 @@ function ProviderPanel({
   const saveFn   = useServerFn(saveProviderCredentials);
   const testFn   = useServerFn(testProviderConnection);
   const toggleFn = useServerFn(toggleProviderEnabled);
+  const syncFn   = useServerFn(triggerAdsSyncForWorkspace);
 
-  const [open,    setOpen]    = useState(false);
-  const [creds,   setCreds]   = useState<Record<string, string>>({});
-  const [visible, setVisible] = useState<Record<string, boolean>>({});
-  const [saving,  setSaving]  = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [open,     setOpen]    = useState(false);
+  const [creds,    setCreds]   = useState<Record<string, string>>({});
+  const [visible,  setVisible] = useState<Record<string, boolean>>({});
+  const [saving,   setSaving]  = useState(false);
+  const [testing,  setTesting] = useState(false);
+  const [syncing,  setSyncing] = useState(false);
 
   const isConnected  = provider.status === "connected";
   const isComingSoon = provider.status === "coming_soon";
+  const isAds        = category === "advertising";
 
   async function handleSave() {
     setSaving(true);
@@ -165,6 +187,21 @@ function ProviderPanel({
       toast.success(`${provider.label} credentials saved`);
       setOpen(false);
       onRefresh();
+
+      // For advertising providers, auto-trigger a sync so campaigns appear immediately
+      if (isAds) {
+        setSyncing(true);
+        try {
+          const res = await syncFn() as any;
+          if (res?.synced > 0) {
+            toast.success(`Synced ${res.synced} platform(s) — check Ads Performance for live data`);
+          } else {
+            toast.info("Credentials saved — Sync Now in Ads Performance to pull campaign data");
+          }
+        } catch { /* sync errors are non-fatal */ }
+        setSyncing(false);
+        onRefresh();
+      }
     } catch (e: any) { toast.error(e.message); }
     setSaving(false);
   }
@@ -253,9 +290,8 @@ function ProviderPanel({
               </div>
             </div>
           ))}
-          <Button size="sm" variant="default" className="h-6 px-3 text-[10px] gap-1" disabled={saving} onClick={handleSave}>
-            {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Save className="h-2.5 w-2.5" />}
-            Save
+          <Button size="sm" variant="default" className="h-6 px-3 text-[10px] gap-1" disabled={saving || syncing} onClick={handleSave}>
+            {syncing ? <><Zap className="h-2.5 w-2.5 animate-pulse" />Syncing…</> : saving ? <><Loader2 className="h-2.5 w-2.5 animate-spin" />Saving…</> : <><Save className="h-2.5 w-2.5" />Save</>}
           </Button>
         </div>
       )}
@@ -297,10 +333,9 @@ function ProviderPanel({
                   </div>
                 </div>
               ))}
-              <div className="flex gap-1.5">
-                <Button size="sm" variant="default" className="h-6 px-3 text-[10px] gap-1" disabled={saving} onClick={handleSave}>
-                  {saving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Save className="h-2.5 w-2.5" />}
-                  Save
+              <div className="flex gap-1.5 flex-wrap">
+                <Button size="sm" variant="default" className="h-6 px-3 text-[10px] gap-1" disabled={saving || syncing} onClick={handleSave}>
+                  {syncing ? <><Zap className="h-2.5 w-2.5 animate-pulse" />Syncing…</> : saving ? <><Loader2 className="h-2.5 w-2.5 animate-spin" />Saving…</> : <><Save className="h-2.5 w-2.5" />Save & Connect</>}
                 </Button>
                 <Button size="sm" variant="outline" className="h-6 px-3 text-[10px] gap-1" disabled={testing} onClick={handleTest}>
                   {testing ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <FlaskConical className="h-2.5 w-2.5" />}

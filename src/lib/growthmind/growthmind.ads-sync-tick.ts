@@ -55,8 +55,10 @@ async function getMetaCreds(sb: ReturnType<typeof getAdminClient>, workspaceId: 
     .maybeSingle();
 
   const c = (ps as any)?.credentials as Record<string, string> | undefined;
-  if (c?.accessToken && c?.accountId) {
-    return { accessToken: c.accessToken, accountId: c.accountId };
+  // Form key is adAccountId; legacy rows may have accountId
+  const accountId = c?.adAccountId || c?.accountId;
+  if (c?.accessToken && accountId) {
+    return { accessToken: c.accessToken, accountId };
   }
   return null;
 }

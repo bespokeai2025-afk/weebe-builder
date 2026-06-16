@@ -357,7 +357,9 @@ export const saveProviderCredentials = createServerFn({ method: "POST" })
     // can read them without a provider_settings join.
     if (key === "advertising:meta_ads") {
       if (credentials.accessToken) wsUpdate.meta_ads_access_token = credentials.accessToken;
-      if (credentials.accountId)   wsUpdate.meta_ads_account_id   = credentials.accountId;
+      // Form saves the field as adAccountId; fall back to accountId for legacy rows
+      const accountId = credentials.adAccountId || credentials.accountId;
+      if (accountId) wsUpdate.meta_ads_account_id = accountId;
     }
 
     if (Object.keys(wsUpdate).length > 0) {
