@@ -1,0 +1,201 @@
+ADD KNOWLEDGE CONTEXT SELECTOR TO VIDEO STUDIO
+
+IMPORTANT
+
+Do not remove existing Video Studio functionality.
+
+Do not break current Business DNA integration.
+
+Extend the system safely.
+
+OBJECTIVE
+
+Allow users to select which knowledge base and business context should be used when generating videos.
+
+Current issue:
+
+Video Studio assumes the current workspace business context.
+
+Users need to create videos for:
+
+* Their own company
+* Client companies
+* Test campaigns
+* Multiple brands
+* Different industries
+
+====================================================
+
+NEW SECTION
+
+Add to Video Studio generation panel:
+
+Knowledge Context
+
+Dropdown:
+
+Current Business (Default)
+
+Specific Knowledge Base
+
+Specific Client
+
+Custom Campaign Context
+
+No Knowledge Context
+
+====================================================
+
+KNOWLEDGE BASE PICKER
+
+When "Specific Knowledge Base" selected:
+
+Show searchable selector.
+
+Display:
+
+Knowledge Base Name
+
+Knowledge Type
+
+Last Updated
+
+Owner
+
+Document Count
+
+====================================================
+
+PROMPT INJECTION
+
+Current:
+
+User Prompt
+↓
+Business DNA
+↓
+Prompt
+
+New:
+
+User Prompt
+↓
+Selected Knowledge Context
+↓
+Selected Business DNA
+↓
+Selected Knowledge Pack
+↓
+Prompt Intelligence
+↓
+Video Generation
+
+====================================================
+
+CLIENT SUPPORT
+
+If client workspaces exist:
+
+Allow:
+
+Generate video for:
+
+WEBEE
+
+Client A
+
+Client B
+
+Client C
+
+Without changing workspace settings.
+
+====================================================
+
+CUSTOM CAMPAIGN MODE
+
+Allow user to create:
+
+Temporary Campaign Context
+
+Fields:
+
+Business Name
+
+Industry
+
+Target Audience
+
+Offer
+
+Brand Voice
+
+Website
+
+Campaign Goal
+
+This context exists only for the generated asset.
+
+====================================================
+
+DISPLAY IN VIDEO ASSET
+
+Store:
+
+knowledge_context_type
+
+knowledge_context_id
+
+knowledge_context_name
+
+business_name
+
+in growthmind_video_assets.
+
+Show in asset card:
+
+Generated using:
+WEBEE Knowledge Base
+
+or
+
+Generated using:
+Client XYZ Knowledge Base
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should know:
+
+Which knowledge context generated the asset.
+
+When reviewing video proposals.
+
+====================================================
+
+GROWTHMIND INTEGRATION
+
+GrowthMind should generate:
+
+Video concepts
+
+Storyboards
+
+Campaign ideas
+
+using the selected context rather than always using workspace defaults.
+
+====================================================
+
+SUCCESS CRITERIA
+
+User can create videos for multiple businesses.
+
+Video Studio no longer assumes WEBEE is always the target business.
+
+Knowledge bases become reusable across multiple brands and campaigns.
+
+Generate implementation plan first.
+
+Then implement safely.
