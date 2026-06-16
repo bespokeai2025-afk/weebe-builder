@@ -5,6 +5,10 @@ import { useState } from "react";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend,
+} from "recharts";
+import {
   BarChart2, RefreshCw, TrendingUp, TrendingDown, Minus,
   AlertTriangle, CheckCircle2, XCircle, ExternalLink, MousePointerClick,
   Eye, ShoppingCart, DollarSign, Loader2, Zap, Bell, Settings2,
@@ -238,6 +242,120 @@ const acknowledgeAlert = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ── Trend data server fn ────────────────────────────────────────────────────────
+
+interface TrendPoint {
+  date:                string;
+  meta_spend?:         number;
+  google_spend?:       number;
+  meta_impressions?:   number;
+  google_impressions?: number;
+  meta_conversions?:   number;
+  google_conversions?: number;
+  meta_roas?:          number;
+  google_roas?:        number;
+}
+
+const getAdsTrendData = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: { days: number }) => i)
+  .handler(async ({ data, context }): Promise<TrendPoint[]> => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) return [];
+
+    // Clamp to allowed range values only
+    const allowedDays = [7, 30, 90] as const;
+    const days   = allowedDays.includes(data.days as any) ? data.days : 30;
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    // growthmind_ad_sync_log is the canonical table written by the sync engine
+    // (growthmind.ads-sync-tick.ts). Each row is a *snapshot* of cumulative
+    // totals at sync time — not an incremental delta. To get the correct daily
+    // value we take the LATEST row per (day, platform). Rows are fetched
+    // ascending so later rows overwrite earlier ones in the accumulator.
+    //
+    // Limit: 90d × 2 platforms × 96 syncs/day ≈ 17 000 rows worst-case.
+    // 50 000 covers this with room to spare.
+    const [perfRes, roasRes] = await Promise.all([
+      sb.from("growthmind_ad_sync_log")
+        .select("platform,spend_total,impressions_total,conversions_total,synced_at")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "success")
+        .gte("synced_at", cutoff)
+        .order("synced_at", { ascending: true })
+        .limit(50_000),
+
+      // ROAS is not stored in the performance log — derive it from campaigns.
+      // Campaigns are upserted on each sync; average ROAS per day/platform.
+      sb.from("growthmind_ad_campaigns")
+        .select("platform,roas,synced_at")
+        .eq("workspace_id", workspaceId)
+        .not("roas", "is", null)
+        .gte("synced_at", cutoff)
+        .order("synced_at", { ascending: true })
+        .limit(50_000),
+    ]);
+
+    const perfRows: any[] = perfRes.data ?? [];
+    const roasRows: any[] = roasRes.data ?? [];
+
+    type DayKey = string; // ISO date "2026-06-10"
+
+    // For spend/impressions/conversions: keep only the LATEST snapshot per
+    // (day, platform). Iterating in ascending order means later rows win.
+    const latestSnap = new Map<`${DayKey}:${"meta" | "google"}`, {
+      spend: number; impressions: number; conversions: number;
+    }>();
+
+    for (const r of perfRows) {
+      const platform = r.platform as "meta" | "google";
+      if (platform !== "meta" && platform !== "google") continue;
+      const day = r.synced_at.slice(0, 10) as DayKey;
+      latestSnap.set(`${day}:${platform}`, {
+        spend:       Number(r.spend_total        ?? 0),
+        impressions: Number(r.impressions_total  ?? 0),
+        conversions: Number(r.conversions_total  ?? 0),
+      });
+    }
+
+    // For ROAS: average across all campaign records on that day/platform.
+    const roasAcc = new Map<`${DayKey}:${"meta" | "google"}`, { sum: number; count: number }>();
+
+    for (const r of roasRows) {
+      const platform = r.platform as "meta" | "google";
+      if (platform !== "meta" && platform !== "google") continue;
+      const day = r.synced_at.slice(0, 10) as DayKey;
+      const key = `${day}:${platform}` as const;
+      const prev = roasAcc.get(key) ?? { sum: 0, count: 0 };
+      roasAcc.set(key, { sum: prev.sum + Number(r.roas), count: prev.count + 1 });
+    }
+
+    // Collect all distinct days from both sources
+    const allDays = new Set<DayKey>();
+    for (const k of latestSnap.keys()) allDays.add(k.split(":")[0] as DayKey);
+    for (const k of roasAcc.keys())    allDays.add(k.split(":")[0] as DayKey);
+
+    return [...allDays].sort().map(day => {
+      const metaSnap   = latestSnap.get(`${day}:meta`);
+      const googleSnap = latestSnap.get(`${day}:google`);
+      const metaRoas   = roasAcc.get(`${day}:meta`);
+      const googleRoas = roasAcc.get(`${day}:google`);
+
+      const dt    = new Date(day + "T00:00:00Z");
+      const label = dt.toLocaleDateString("en-GB", { month: "short", day: "numeric", timeZone: "UTC" });
+
+      const point: TrendPoint = { date: label };
+
+      if (metaSnap)   { point.meta_spend = +metaSnap.spend.toFixed(2); point.meta_impressions = metaSnap.impressions; point.meta_conversions = metaSnap.conversions; }
+      if (googleSnap) { point.google_spend = +googleSnap.spend.toFixed(2); point.google_impressions = googleSnap.impressions; point.google_conversions = googleSnap.conversions; }
+      if (metaRoas   && metaRoas.count   > 0) point.meta_roas   = +(metaRoas.sum   / metaRoas.count).toFixed(2);
+      if (googleRoas && googleRoas.count > 0) point.google_roas = +(googleRoas.sum / googleRoas.count).toFixed(2);
+
+      return point;
+    });
+  });
+
 // ── Budget cap CRUD ─────────────────────────────────────────────────────────────
 
 interface BudgetCap {
@@ -434,6 +552,193 @@ function BudgetCapsPanel() {
               })}
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Historical trend charts ─────────────────────────────────────────────────────
+
+const RANGE_OPTIONS = [
+  { label: "7d",  days: 7  },
+  { label: "30d", days: 30 },
+  { label: "90d", days: 90 },
+] as const;
+
+type RangeDays = 7 | 30 | 90;
+
+const CHART_PANELS = [
+  {
+    key:       "spend" as const,
+    label:     "Spend",
+    metaKey:   "meta_spend",
+    googleKey: "google_spend",
+    fmt:       (v: number) => `£${v.toLocaleString("en-GB", { maximumFractionDigits: 0 })}`,
+    yFmt:      (v: number) => `£${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`,
+  },
+  {
+    key:       "roas" as const,
+    label:     "ROAS",
+    metaKey:   "meta_roas",
+    googleKey: "google_roas",
+    fmt:       (v: number) => `${v.toFixed(2)}x`,
+    yFmt:      (v: number) => `${v.toFixed(1)}x`,
+  },
+  {
+    key:       "impressions" as const,
+    label:     "Impressions",
+    metaKey:   "meta_impressions",
+    googleKey: "google_impressions",
+    fmt:       (v: number) => v.toLocaleString("en-GB"),
+    yFmt:      (v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v),
+  },
+  {
+    key:       "conversions" as const,
+    label:     "Conversions",
+    metaKey:   "meta_conversions",
+    googleKey: "google_conversions",
+    fmt:       (v: number) => v.toLocaleString("en-GB"),
+    yFmt:      (v: number) => String(v),
+  },
+] as const;
+
+function AdsTrendCharts() {
+  const trendFn          = useServerFn(getAdsTrendData);
+  const [range, setRange] = useState<RangeDays>(30);
+
+  const { data: points = [], isLoading } = useQuery({
+    queryKey:  ["ads-trend", range],
+    queryFn:   () => trendFn({ data: { days: range } }),
+    staleTime: 5 * 60_000,
+  });
+
+  const hasAnyData = points.length > 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
+          Historical Trends
+        </h2>
+        <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5">
+          {RANGE_OPTIONS.map(opt => (
+            <button
+              key={opt.days}
+              onClick={() => setRange(opt.days as RangeDays)}
+              className={cn(
+                "px-2.5 py-1 rounded text-[10px] font-semibold transition-colors",
+                range === opt.days
+                  ? "bg-white/[0.08] text-foreground"
+                  : "text-muted-foreground/60 hover:text-muted-foreground",
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center h-40 rounded-xl border border-white/[0.06] bg-card/40">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground/40" />
+        </div>
+      ) : !hasAnyData ? (
+        <div className="flex flex-col items-center justify-center h-40 rounded-xl border border-dashed border-white/[0.08] text-center gap-2">
+          <TrendingUp className="h-6 w-6 text-muted-foreground/20" />
+          <p className="text-xs text-muted-foreground/60">No sync history yet for this range</p>
+          <p className="text-[10px] text-muted-foreground/40">Charts populate after your first successful sync</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {CHART_PANELS.map(panel => {
+            const hasMetaData   = points.some(p => (p as any)[panel.metaKey]   != null);
+            const hasGoogleData = points.some(p => (p as any)[panel.googleKey] != null);
+
+            if (!hasMetaData && !hasGoogleData) return null;
+
+            return (
+              <div key={panel.key} className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
+                  {panel.label}
+                </p>
+                <ResponsiveContainer width="100%" height={160}>
+                  <AreaChart data={points} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id={`meta-${panel.key}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}    />
+                      </linearGradient>
+                      <linearGradient id={`google-${panel.key}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}    />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={panel.yFmt}
+                      width={52}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "rgba(15,15,20,0.92)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: 8,
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.85)",
+                      }}
+                      labelStyle={{ color: "rgba(255,255,255,0.55)", marginBottom: 4, fontSize: 10 }}
+                      formatter={(value: number) => [panel.fmt(value)]}
+                    />
+                    {hasMetaData && (
+                      <Area
+                        type="monotone"
+                        dataKey={panel.metaKey}
+                        name="Meta"
+                        stroke="#3b82f6"
+                        strokeWidth={1.5}
+                        fill={`url(#meta-${panel.key})`}
+                        dot={false}
+                        connectNulls
+                      />
+                    )}
+                    {hasGoogleData && (
+                      <Area
+                        type="monotone"
+                        dataKey={panel.googleKey}
+                        name="Google"
+                        stroke="#10b981"
+                        strokeWidth={1.5}
+                        fill={`url(#google-${panel.key})`}
+                        dot={false}
+                        connectNulls
+                      />
+                    )}
+                    {(hasMetaData || hasGoogleData) && (
+                      <Legend
+                        iconType="circle"
+                        iconSize={6}
+                        wrapperStyle={{ fontSize: 10, paddingTop: 4 }}
+                        formatter={(value) => (
+                          <span style={{ color: "rgba(255,255,255,0.55)" }}>{value}</span>
+                        )}
+                      />
+                    )}
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -842,6 +1147,9 @@ function AdsPerformancePage() {
                 google={data?.google ?? { count: 0, spend: 0, impressions: 0, clicks: 0, conversions: 0, avgRoas: null, ctr: null, lastSyncedAt: null }}
               />
             )}
+
+            {/* Historical trend charts */}
+            <AdsTrendCharts />
 
             {/* Platform cards */}
             <div className="space-y-2">
