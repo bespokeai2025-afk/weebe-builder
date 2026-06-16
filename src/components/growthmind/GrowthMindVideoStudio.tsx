@@ -18,9 +18,10 @@ import {
   generateVideo, generateVideoFromPrompt, getVideoAssets, deleteVideoAsset,
   scheduleVideoAsset, getVideoCostStats, retryVideoJob, pollVideoJob, getVideoDownloadUrl,
   generateVideoVariants, scoreVideoCreative, getVeoStatus, clearFailedVideoAssets,
-  getVideoClips, triggerVideoAssembly,
+  getVideoClips, triggerVideoAssembly, listVideoKnowledgeBases,
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
   type VideoType, type QualityMode, type VideoAsset, type StoryboardScene, type VideoClip,
+  type KnowledgeContextType, type VideoKnowledgeBase,
 } from "@/lib/growthmind/growthmind.video-studio";
 import { listGrowthMindVoices } from "@/lib/growthmind/growthmind.ai";
 import {
@@ -521,6 +522,16 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
             <Play className="h-2.5 w-2.5" />Video ready
           </span>
         )}
+        {asset.knowledgeContextName && (
+          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-teal-500/10 border-teal-500/20 text-teal-400" title={`Context: ${asset.knowledgeContextName}`}>
+            <BookOpen className="h-2.5 w-2.5" />{asset.knowledgeContextName.length > 20 ? `${asset.knowledgeContextName.slice(0, 20)}…` : asset.knowledgeContextName}
+          </span>
+        )}
+        {!asset.knowledgeContextName && asset.knowledgeContextType && asset.knowledgeContextType !== "default" && (
+          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-teal-500/10 border-teal-500/20 text-teal-400">
+            <BookOpen className="h-2.5 w-2.5" />{asset.knowledgeContextType === "none" ? "No context" : asset.knowledgeContextType === "custom_campaign" ? "Custom campaign" : "KB context"}
+          </span>
+        )}
         {asset.scheduledAt && (
           <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
             <CalendarDays className="h-2.5 w-2.5" />Scheduled
@@ -958,6 +969,149 @@ const FREEFORM_PROVIDERS = [
   { value: "pika",       label: "Pika",               note: "Coming soon" },
 ];
 
+// ── KnowledgeContextSelector component ────────────────────────────────────────
+
+const CTX_MODES = [
+  { id: "default"         as KnowledgeContextType, label: "Current Business",    icon: "🏢", desc: "Uses your workspace DNA & knowledge bases" },
+  { id: "specific_kb"     as KnowledgeContextType, label: "Specific KB",         icon: "📚", desc: "Select one knowledge base to focus on" },
+  { id: "custom_campaign" as KnowledgeContextType, label: "Custom Campaign",     icon: "🎯", desc: "Provide custom business context for this video" },
+  { id: "none"            as KnowledgeContextType, label: "No Context",          icon: "⚡",  desc: "Pure creative generation, no business data" },
+];
+
+function KnowledgeContextSelector({
+  value, onChange,
+  selectedKbId, selectedKbName, onKbSelect,
+  kbList,
+  customBizName, onCustomBizName,
+  customIndustry, onCustomIndustry,
+  customOffer, onCustomOffer,
+  customBrandVoice, onCustomBrandVoice,
+  customWebsite, onCustomWebsite,
+  customCampaignGoal, onCustomCampaignGoal,
+  accentClass,
+}: {
+  value:                KnowledgeContextType;
+  onChange:             (v: KnowledgeContextType) => void;
+  selectedKbId:         string | null;
+  selectedKbName:       string;
+  onKbSelect:           (id: string, name: string) => void;
+  kbList:               VideoKnowledgeBase[];
+  customBizName:        string;
+  onCustomBizName:      (v: string) => void;
+  customIndustry:       string;
+  onCustomIndustry:     (v: string) => void;
+  customOffer:          string;
+  onCustomOffer:        (v: string) => void;
+  customBrandVoice:     string;
+  onCustomBrandVoice:   (v: string) => void;
+  customWebsite:        string;
+  onCustomWebsite:      (v: string) => void;
+  customCampaignGoal:   string;
+  onCustomCampaignGoal: (v: string) => void;
+  accentClass:          "violet" | "emerald";
+}) {
+  const accent = accentClass === "violet" ? "violet" : "emerald";
+  const activeRing = accent === "violet" ? "border-violet-500/40 bg-violet-500/10 text-violet-300" : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <BookOpen className="h-3.5 w-3.5 text-muted-foreground/50" />
+        <span className="text-xs font-semibold text-muted-foreground/70">Knowledge Context</span>
+      </div>
+
+      {/* 4 mode buttons */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {CTX_MODES.map(m => (
+          <button
+            key={m.id}
+            onClick={() => onChange(m.id)}
+            title={m.desc}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-medium transition-all",
+              value === m.id ? activeRing : "border-white/[0.06] text-muted-foreground/60 hover:text-foreground hover:border-white/10",
+            )}
+          >
+            <span className="text-base leading-none">{m.icon}</span>
+            <span className="truncate">{m.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Mode description */}
+      <p className="text-[10px] text-muted-foreground/50">
+        {CTX_MODES.find(m => m.id === value)?.desc}
+      </p>
+
+      {/* Specific KB picker */}
+      {value === "specific_kb" && (
+        <div className="space-y-1.5">
+          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/60">Select Knowledge Base</Label>
+          {kbList.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground/50 italic">No knowledge bases found — create one in the Executive Knowledge System</p>
+          ) : (
+            <select
+              value={selectedKbId ?? ""}
+              onChange={e => {
+                const kb = kbList.find(k => k.id === e.target.value);
+                if (kb) onKbSelect(kb.id, kb.name);
+              }}
+              className="w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— choose a KB —</option>
+              {kbList.map(kb => (
+                <option key={kb.id} value={kb.id}>
+                  {kb.name}{kb.documentCount > 0 ? ` (${kb.documentCount} docs)` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+          {selectedKbName && (
+            <p className="text-[11px] text-teal-400/80 flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" />
+              Using: {selectedKbName}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Custom campaign fields */}
+      {value === "custom_campaign" && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground/60">Business Name</Label>
+              <Input value={customBizName} onChange={e => onCustomBizName(e.target.value)} placeholder="Acme Corp" className="h-7 text-[11px]" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground/60">Industry</Label>
+              <Input value={customIndustry} onChange={e => onCustomIndustry(e.target.value)} placeholder="SaaS, E-commerce…" className="h-7 text-[11px]" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground/60">Offer / Product</Label>
+            <Input value={customOffer} onChange={e => onCustomOffer(e.target.value)} placeholder="What are you promoting?" className="h-7 text-[11px]" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] text-muted-foreground/60">Campaign Goal</Label>
+            <Input value={customCampaignGoal} onChange={e => onCustomCampaignGoal(e.target.value)} placeholder="Drive sign-ups, boost awareness…" className="h-7 text-[11px]" />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground/60">Brand Voice</Label>
+              <Input value={customBrandVoice} onChange={e => onCustomBrandVoice(e.target.value)} placeholder="Bold, friendly…" className="h-7 text-[11px]" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground/60">Website (optional)</Label>
+              <Input value={customWebsite} onChange={e => onCustomWebsite(e.target.value)} placeholder="acme.com" className="h-7 text-[11px]" />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function GrowthMindVideoStudio() {
   const qc = useQueryClient();
 
@@ -1007,8 +1161,26 @@ export function GrowthMindVideoStudio() {
   const [ffVoiceover, setFfVoiceover] = useState(true);
   const [ffProvider,  setFfProvider]  = useState("veo3");
 
+  // ── Knowledge context state ────────────────────────────────────────────────
+  const [kbContextType,   setKbContextType]   = useState<KnowledgeContextType>("default");
+  const [kbContextId,     setKbContextId]     = useState<string | null>(null);
+  const [kbContextName,   setKbContextName]   = useState<string>("");
+  const [customBizName,   setCustomBizName]   = useState("");
+  const [customIndustry,  setCustomIndustry]  = useState("");
+  const [customOffer,     setCustomOffer]      = useState("");
+  const [customBrandVoice, setCustomBrandVoice] = useState("");
+  const [customWebsite,   setCustomWebsite]   = useState("");
+  const [customCampaignGoal, setCustomCampaignGoal] = useState("");
+
+  const listKbsFn = useServerFn(listVideoKnowledgeBases);
+  const { data: kbList = [] } = useQuery<VideoKnowledgeBase[]>({
+    queryKey: ["video-kbs"],
+    queryFn:  () => listKbsFn(),
+    staleTime: 120_000,
+  });
+
   // ── Shared state ──────────────────────────────────────────────────────────
-  const [includeKb, setIncludeKb] = useState(true);
+  const includeKb = kbContextType !== "none";
   const [veoAudio,  setVeoAudio]  = useState(true);
   const [voiceId, setVoiceId]     = useState(DEFAULT_VOICE_ID);
   const [voiceName, setVoiceName] = useState(DEFAULT_VOICE_NAME);
@@ -1162,7 +1334,16 @@ export function GrowthMindVideoStudio() {
         voiceId,
         campaignId,
         includeKb,
-        generateVeoAudio: veoAudio,
+        generateVeoAudio:     veoAudio,
+        knowledgeContextType: kbContextType,
+        knowledgeContextId:   kbContextId   ?? undefined,
+        knowledgeContextName: kbContextName || undefined,
+        customBusinessName:   customBizName,
+        customIndustry,
+        customOffer,
+        customBrandVoice,
+        customWebsite,
+        customCampaignGoal,
       }});
       setStep("saving");
       setLastResult({
@@ -1199,20 +1380,29 @@ export function GrowthMindVideoStudio() {
     try {
       setStep("script");
       const res = await generateFreeFormFn({ data: {
-        userPrompt:        ffPrompt,
-        businessGoal:      ffGoal,
-        targetAudience:    ffAudience,
-        platform:          ffPlatform as any,
-        videoLength:       ffLength,
-        aspectRatio:       ffAspect as any,
-        brandStyle:        ffBrandStyle,
-        cta:               ffCta,
-        voiceoverNeeded:   ffVoiceover,
-        preferredProvider: ffProvider as any,
+        userPrompt:           ffPrompt,
+        businessGoal:         ffGoal,
+        targetAudience:       ffAudience,
+        platform:             ffPlatform as any,
+        videoLength:          ffLength,
+        aspectRatio:          ffAspect as any,
+        brandStyle:           ffBrandStyle,
+        cta:                  ffCta,
+        voiceoverNeeded:      ffVoiceover,
+        preferredProvider:    ffProvider as any,
         voiceId,
         campaignId,
         includeKb,
-        generateVeoAudio:  veoAudio,
+        generateVeoAudio:     veoAudio,
+        knowledgeContextType: kbContextType,
+        knowledgeContextId:   kbContextId   ?? undefined,
+        knowledgeContextName: kbContextName || undefined,
+        customBusinessName:   customBizName,
+        customIndustry,
+        customOffer,
+        customBrandVoice,
+        customWebsite,
+        customCampaignGoal,
       }});
       setStep("saving");
       setLastResult({
@@ -1575,25 +1765,28 @@ export function GrowthMindVideoStudio() {
                 )}
               </div>
 
-              {/* KB toggle — Guided */}
-              <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="h-3.5 w-3.5 text-muted-foreground/50" />
-                  <span className="text-xs text-muted-foreground/70">Use Knowledge Base</span>
-                </div>
-                <button
-                  onClick={() => setIncludeKb(v => !v)}
-                  className={cn(
-                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
-                    includeKb ? "bg-violet-600" : "bg-white/10",
-                  )}
-                >
-                  <span className={cn(
-                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
-                    includeKb ? "translate-x-4" : "translate-x-0",
-                  )} />
-                </button>
-              </div>
+              {/* Knowledge Context Selector — Guided */}
+              <KnowledgeContextSelector
+                value={kbContextType}
+                onChange={setKbContextType}
+                selectedKbId={kbContextId}
+                selectedKbName={kbContextName}
+                onKbSelect={(id, name) => { setKbContextId(id); setKbContextName(name); }}
+                kbList={kbList}
+                customBizName={customBizName}
+                onCustomBizName={setCustomBizName}
+                customIndustry={customIndustry}
+                onCustomIndustry={setCustomIndustry}
+                customOffer={customOffer}
+                onCustomOffer={setCustomOffer}
+                customBrandVoice={customBrandVoice}
+                onCustomBrandVoice={setCustomBrandVoice}
+                customWebsite={customWebsite}
+                onCustomWebsite={setCustomWebsite}
+                customCampaignGoal={customCampaignGoal}
+                onCustomCampaignGoal={setCustomCampaignGoal}
+                accentClass="violet"
+              />
 
               {/* Veo Audio toggle — Guided */}
               {(() => {
@@ -1886,25 +2079,28 @@ export function GrowthMindVideoStudio() {
                 </div>
               </div>
 
-              {/* KB toggle — Free-Form */}
-              <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="h-3.5 w-3.5 text-muted-foreground/50" />
-                  <span className="text-xs text-muted-foreground/70">Use Knowledge Base</span>
-                </div>
-                <button
-                  onClick={() => setIncludeKb(v => !v)}
-                  className={cn(
-                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
-                    includeKb ? "bg-emerald-600" : "bg-white/10",
-                  )}
-                >
-                  <span className={cn(
-                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
-                    includeKb ? "translate-x-4" : "translate-x-0",
-                  )} />
-                </button>
-              </div>
+              {/* Knowledge Context Selector — Free-Form */}
+              <KnowledgeContextSelector
+                value={kbContextType}
+                onChange={setKbContextType}
+                selectedKbId={kbContextId}
+                selectedKbName={kbContextName}
+                onKbSelect={(id, name) => { setKbContextId(id); setKbContextName(name); }}
+                kbList={kbList}
+                customBizName={customBizName}
+                onCustomBizName={setCustomBizName}
+                customIndustry={customIndustry}
+                onCustomIndustry={setCustomIndustry}
+                customOffer={customOffer}
+                onCustomOffer={setCustomOffer}
+                customBrandVoice={customBrandVoice}
+                onCustomBrandVoice={setCustomBrandVoice}
+                customWebsite={customWebsite}
+                onCustomWebsite={setCustomWebsite}
+                customCampaignGoal={customCampaignGoal}
+                onCustomCampaignGoal={setCustomCampaignGoal}
+                accentClass="emerald"
+              />
 
               {/* Veo Audio toggle — Free-Form */}
               {(() => {

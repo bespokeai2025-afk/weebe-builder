@@ -61,7 +61,10 @@ export type VideoAsset = {
   assemblyError:    string | null;
   finalVideoUrl:    string | null;
   requestedDuration: number | null;
-  hasNativeAudio:   boolean | null;
+  hasNativeAudio:       boolean | null;
+  knowledgeContextType: string | null;
+  knowledgeContextName: string | null;
+  businessName:         string | null;
 };
 
 export type VideoClip = {
@@ -113,6 +116,160 @@ function estimateCost(qualityMode: QualityMode, videoType: VideoType): number {
   if (qualityMode === "balanced") return 0.35;
   const provider = videoProviderForType(videoType);
   return provider === "veo3" ? 2.50 : 1.80;
+}
+
+// ── Knowledge Context types ────────────────────────────────────────────────────
+
+export type KnowledgeContextType =
+  | "default"
+  | "specific_kb"
+  | "custom_campaign"
+  | "none";
+
+export type VideoKnowledgeBase = {
+  id:            string;
+  name:          string;
+  description:   string | null;
+  documentCount: number;
+  updatedAt:     string | null;
+  slug:          string;
+};
+
+/** List executive knowledge bases available for video context selection. */
+export const listVideoKnowledgeBases = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const [kbRes, docRes] = await Promise.all([
+      sb.from("executive_knowledge_bases")
+        .select("id, slug, name, description, updated_at")
+        .eq("workspace_id", workspaceId)
+        .order("name"),
+      sb.from("executive_documents")
+        .select("knowledge_base_id")
+        .eq("workspace_id", workspaceId)
+        .eq("embedding_status", "indexed"),
+    ]);
+
+    const kbs: any[]  = kbRes.data  ?? [];
+    const docs: any[] = docRes.data ?? [];
+
+    const countMap: Record<string, number> = {};
+    for (const d of docs) {
+      if (d.knowledge_base_id)
+        countMap[d.knowledge_base_id] = (countMap[d.knowledge_base_id] ?? 0) + 1;
+    }
+
+    return kbs.map((kb: any): VideoKnowledgeBase => ({
+      id:            kb.id,
+      name:          kb.name,
+      description:   kb.description ?? null,
+      documentCount: countMap[kb.id] ?? 0,
+      updatedAt:     kb.updated_at  ?? null,
+      slug:          kb.slug,
+    }));
+  });
+
+/** Resolve the effective company name, industry, kbSummary, and docSummary
+ *  based on the selected knowledge context type.  Returns enriched context
+ *  plus a human-readable `contextName` label and `contextType` tag. */
+async function resolveVideoKnowledgeContext(
+  sb:          any,
+  workspaceId: string,
+  opts: {
+    knowledgeContextType?: string | null;
+    knowledgeContextId?:   string | null;
+    knowledgeContextName?: string | null;
+    customBusinessName?:   string;
+    customIndustry?:       string;
+    customOffer?:          string;
+    customBrandVoice?:     string;
+    customWebsite?:        string;
+    customCampaignGoal?:   string;
+    targetAudience?:       string;
+  },
+  defaults: { companyName: string; industry: string; kbSummary: string; docSummary: string },
+): Promise<{
+  companyName:  string;
+  industry:     string;
+  kbSummary:    string;
+  docSummary:   string;
+  contextName:  string;
+  contextType:  string;
+}> {
+  const type = opts.knowledgeContextType ?? "default";
+
+  if (type === "none") {
+    return {
+      companyName: defaults.companyName,
+      industry:    defaults.industry,
+      kbSummary:   "",
+      docSummary:  "",
+      contextName: "No Context",
+      contextType: "none",
+    };
+  }
+
+  if (type === "custom_campaign") {
+    const ctxParts = [
+      opts.customOffer        ? `Offer: ${opts.customOffer}` : "",
+      opts.customBrandVoice   ? `Brand voice: ${opts.customBrandVoice}` : "",
+      opts.customWebsite      ? `Website: ${opts.customWebsite}` : "",
+      opts.customCampaignGoal ? `Campaign goal: ${opts.customCampaignGoal}` : "",
+      opts.targetAudience     ? `Target audience: ${opts.targetAudience}` : "",
+    ].filter(Boolean);
+    return {
+      companyName: opts.customBusinessName || defaults.companyName,
+      industry:    opts.customIndustry     || defaults.industry,
+      kbSummary:   ctxParts.join(" | "),
+      docSummary:  "",
+      contextName: opts.customBusinessName || "Custom Campaign",
+      contextType: "custom_campaign",
+    };
+  }
+
+  if (type === "specific_kb" && opts.knowledgeContextId) {
+    const [kbRes, docRes] = await Promise.all([
+      sb.from("executive_knowledge_bases")
+        .select("name, description")
+        .eq("id", opts.knowledgeContextId)
+        .maybeSingle(),
+      sb.from("executive_documents")
+        .select("title, content")
+        .eq("knowledge_base_id", opts.knowledgeContextId)
+        .eq("embedding_status", "indexed")
+        .limit(6),
+    ]);
+    const kb   = kbRes.data;
+    const docs: any[] = docRes.data ?? [];
+
+    const kbSummary  = kb
+      ? `${kb.name}${kb.description ? `: ${kb.description}` : ""}`
+      : "";
+    const docSummary = docs.map((d: any) => {
+      const excerpt = typeof d.content === "string" ? d.content.slice(0, 300) : "";
+      return `${d.title}${excerpt ? `: ${excerpt}` : ""}`;
+    }).join("\n");
+
+    return {
+      companyName: defaults.companyName,
+      industry:    defaults.industry,
+      kbSummary,
+      docSummary,
+      contextName: opts.knowledgeContextName || kb?.name || "Knowledge Base",
+      contextType: "specific_kb",
+    };
+  }
+
+  // default — workspace context as-is
+  return {
+    ...defaults,
+    contextName: defaults.companyName,
+    contextType: "default",
+  };
 }
 
 // ── Generate voiceover via ElevenLabs ─────────────────────────────────────────
@@ -318,8 +475,17 @@ const generateVideoSchema = z.object({
   cta:              z.string().default(""),
   voiceId:          z.string().default("21m00Tcm4TlvDq8ikWAM"),
   campaignId:       z.string().uuid().nullish(),
-  includeKb:        z.boolean().default(true),
-  generateVeoAudio: z.boolean().default(true),
+  includeKb:            z.boolean().default(true),
+  generateVeoAudio:     z.boolean().default(true),
+  knowledgeContextType: z.enum(["default", "specific_kb", "custom_campaign", "none"]).default("default"),
+  knowledgeContextId:   z.string().uuid().nullish(),
+  knowledgeContextName: z.string().nullish(),
+  customBusinessName:   z.string().default(""),
+  customIndustry:       z.string().default(""),
+  customOffer:          z.string().default(""),
+  customBrandVoice:     z.string().default(""),
+  customWebsite:        z.string().default(""),
+  customCampaignGoal:   z.string().default(""),
 });
 
 export const generateVideo = createServerFn({ method: "POST" })
@@ -388,12 +554,30 @@ export const generateVideo = createServerFn({ method: "POST" })
       ? `${opp.title}${opp.recommended_action ? ` — ${opp.recommended_action}` : ""} (urgency: ${opp.urgency ?? "medium"})`
       : "";
 
+    // ── Knowledge Context Resolution ──────────────────────────────────────────
+    const ctx = await resolveVideoKnowledgeContext(sb, workspaceId, {
+      knowledgeContextType: data.knowledgeContextType,
+      knowledgeContextId:   data.knowledgeContextId,
+      knowledgeContextName: data.knowledgeContextName,
+      customBusinessName:   data.customBusinessName,
+      customIndustry:       data.customIndustry,
+      customOffer:          data.customOffer,
+      customBrandVoice:     data.customBrandVoice,
+      customWebsite:        data.customWebsite,
+      customCampaignGoal:   data.customCampaignGoal,
+      targetAudience:       data.targetAudience,
+    }, { companyName, industry, kbSummary, docSummary });
+
     const prompts = buildVideoPrompts({
-      videoType, companyName, industry, keywords, competitors, playbook,
-      kbSummary, docSummary,
+      videoType,
+      companyName:    ctx.companyName,
+      industry:       ctx.industry,
+      keywords, competitors, playbook,
+      kbSummary:      ctx.kbSummary,
+      docSummary:     ctx.docSummary,
       targetAudience: data.targetAudience,
-      offer:          data.offer,
-      tone:           data.tone,
+      offer:          data.customOffer || data.offer,
+      tone:           data.customBrandVoice || data.tone,
       cta:            data.cta,
       qualityMode,
       valuePoint,
@@ -560,20 +744,24 @@ export const generateVideo = createServerFn({ method: "POST" })
     const hasNativeAudio = provider === "veo3" && data.generateVeoAudio;
 
     const guidedInsertRow = {
-      workspace_id:  workspaceId,
+      workspace_id:           workspaceId,
       title,
-      video_type:    videoType,
-      provider:      provider ?? null,
+      video_type:             videoType,
+      provider:               provider ?? null,
       script,
       storyboard,
-      video_url:     videoUrl   ?? null,
-      audio_url:     audioUrl   ?? null,
-      voice_id:      data.voiceId ?? null,
-      quality_mode:  qualityMode,
-      cost_estimate: totalCost,
-      campaign_id:   data.campaignId ?? null,
-      has_audio:     hasNativeAudio,
-      created_at:    new Date().toISOString(),
+      video_url:              videoUrl   ?? null,
+      audio_url:              audioUrl   ?? null,
+      voice_id:               data.voiceId ?? null,
+      quality_mode:           qualityMode,
+      cost_estimate:          totalCost,
+      campaign_id:            data.campaignId ?? null,
+      has_audio:              hasNativeAudio,
+      knowledge_context_type: ctx.contextType,
+      knowledge_context_id:   data.knowledgeContextId ?? null,
+      knowledge_context_name: ctx.contextType !== "default" ? ctx.contextName : null,
+      business_name:          ctx.companyName,
+      created_at:             new Date().toISOString(),
     };
 
     const isMissingCol = (e: any) =>
@@ -586,10 +774,16 @@ export const generateVideo = createServerFn({ method: "POST" })
       .select("id")
       .single();
 
+    // Graceful fallback: strip knowledge_context columns if migration not yet applied
+    if (guidedRes.error && isMissingCol(guidedRes.error)) {
+      console.warn("[video-studio] knowledge_context columns not found — apply KNOWLEDGE_CONTEXT_VIDEO_MIGRATION.sql");
+      const { knowledge_context_type: _kct, knowledge_context_id: _kci, knowledge_context_name: _kcn, business_name: _bn, ...rowNoCtx } = guidedInsertRow as any;
+      guidedRes = await sb.from("growthmind_video_assets").insert(rowNoCtx).select("id").single();
+    }
     // Graceful fallback: if has_audio column not yet migrated, retry without it
     if (guidedRes.error && isMissingCol(guidedRes.error)) {
       console.warn("[video-studio] has_audio column not found — apply VEO_AUDIO_FIX_MIGRATION.sql to track native audio status");
-      const { has_audio: _flag, ...rowWithoutAudio } = guidedInsertRow;
+      const { has_audio: _flag, ...rowWithoutAudio } = guidedInsertRow as any;
       guidedRes = await sb
         .from("growthmind_video_assets")
         .insert(rowWithoutAudio)
@@ -750,8 +944,17 @@ const generateVideoFromPromptSchema = z.object({
   campaignId:        z.string().uuid().nullish(),
   variantGroupId:    z.string().uuid().nullish(),
   variantType:       z.string().nullish(),
-  includeKb:         z.boolean().default(true),
-  generateVeoAudio:  z.boolean().default(true),
+  includeKb:            z.boolean().default(true),
+  generateVeoAudio:     z.boolean().default(true),
+  knowledgeContextType: z.enum(["default", "specific_kb", "custom_campaign", "none"]).default("default"),
+  knowledgeContextId:   z.string().uuid().nullish(),
+  knowledgeContextName: z.string().nullish(),
+  customBusinessName:   z.string().default(""),
+  customIndustry:       z.string().default(""),
+  customOffer:          z.string().default(""),
+  customBrandVoice:     z.string().default(""),
+  customWebsite:        z.string().default(""),
+  customCampaignGoal:   z.string().default(""),
 });
 
 export const generateVideoFromPrompt = createServerFn({ method: "POST" })
@@ -800,23 +1003,37 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     const opp2 = oppRes2.data;
     const topOpp2 = opp2 ? `${opp2.title}${opp2.recommended_action ? ` — ${opp2.recommended_action}` : ""}` : "";
 
+    // ── Knowledge Context Resolution ──────────────────────────────────────────
+    const ctx2 = await resolveVideoKnowledgeContext(sb, workspaceId, {
+      knowledgeContextType: data.knowledgeContextType,
+      knowledgeContextId:   data.knowledgeContextId,
+      knowledgeContextName: data.knowledgeContextName,
+      customBusinessName:   data.customBusinessName,
+      customIndustry:       data.customIndustry,
+      customOffer:          data.customOffer,
+      customBrandVoice:     data.customBrandVoice,
+      customWebsite:        data.customWebsite,
+      customCampaignGoal:   data.customCampaignGoal,
+      targetAudience:       data.targetAudience,
+    }, { companyName, industry, kbSummary, docSummary: "" });
+
     // ── Run prompt optimisation engine ───────────────────────────────────────
     const engineResult = await optimiseVideoPrompt({
       userPrompt:     data.userPrompt,
-      businessGoal:   data.businessGoal,
+      businessGoal:   data.businessGoal || data.customCampaignGoal,
       targetAudience: data.targetAudience,
       platform:       data.platform,
       videoLength:    data.videoLength,
       aspectRatio:    data.aspectRatio,
-      brandStyle:     data.brandStyle,
+      brandStyle:     data.customBrandVoice || data.brandStyle,
       cta:            data.cta,
       voiceoverNeeded: data.voiceoverNeeded,
-      companyName,
-      industry,
+      companyName:    ctx2.companyName,
+      industry:       ctx2.industry,
       keywords,
       competitors,
       playbook,
-      kbSummary,
+      kbSummary:      ctx2.kbSummary,
       valuePoint:     valuePoint2,
       topOpportunity: topOpp2,
       settings,
@@ -960,6 +1177,10 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       variant_group_id:           data.variantGroupId  ?? null,
       variant_type:               data.variantType     ?? null,
       has_audio:                  freeFormHasNativeAudio,
+      knowledge_context_type:     ctx2.contextType,
+      knowledge_context_id:       data.knowledgeContextId ?? null,
+      knowledge_context_name:     ctx2.contextType !== "default" ? ctx2.contextName : null,
+      business_name:              ctx2.companyName,
       created_at:                 new Date().toISOString(),
     };
     const multiClipFields = {
@@ -988,6 +1209,13 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
         .insert(baseInsertRow)
         .select("id")
         .single();
+    }
+
+    // Graceful fallback: strip knowledge_context columns if migration not yet applied
+    if (firstRes.error && isMissingColumn(firstRes.error)) {
+      console.warn("[video-studio] knowledge_context columns not found — apply KNOWLEDGE_CONTEXT_VIDEO_MIGRATION.sql");
+      const { knowledge_context_type: _kct, knowledge_context_id: _kci, knowledge_context_name: _kcn, business_name: _bn, ...rowNoCtx } = baseInsertRow as any;
+      firstRes = await sb.from("growthmind_video_assets").insert(rowNoCtx).select("id").single();
     }
 
     // Second-level fallback: if has_audio column not yet migrated, strip it and retry
@@ -1122,8 +1350,11 @@ export const getVideoAssets = createServerFn({ method: "GET" })
         assemblyStatus:   r.assembly_status  ?? null,
         assemblyError:    r.assembly_error   ?? null,
         finalVideoUrl:    r.final_video_url  ?? null,
-        requestedDuration: r.requested_duration_seconds ?? null,
-        hasNativeAudio:   r.has_audio        ?? null,
+        requestedDuration:    r.requested_duration_seconds ?? null,
+        hasNativeAudio:       r.has_audio                 ?? null,
+        knowledgeContextType: r.knowledge_context_type   ?? null,
+        knowledgeContextName: r.knowledge_context_name   ?? null,
+        businessName:         r.business_name             ?? null,
       };
     });
 
