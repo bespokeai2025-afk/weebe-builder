@@ -1,0 +1,293 @@
+UPGRADE GROWTHMIND FROM ASSISTANT TO AI CMO
+
+IMPORTANT
+
+Do not rebuild HiveMind.
+
+Do not rebuild GrowthMind.
+
+Extend the existing architecture.
+
+OBJECTIVE
+
+GrowthMind should become a proactive AI Chief Marketing Officer.
+
+Current behaviour:
+
+GrowthMind waits for user prompts.
+
+Target behaviour:
+
+GrowthMind continuously analyses the business and proactively proposes growth initiatives.
+
+====================================================
+
+NEW OPERATING MODEL
+
+HiveMind remains the only executive users speak to.
+
+GrowthMind becomes a specialist executive.
+
+GrowthMind should continuously report to HiveMind.
+
+HiveMind should present GrowthMind findings.
+
+====================================================
+
+BUSINESS UNDERSTANDING ENGINE
+
+GrowthMind must automatically learn:
+
+Company name
+
+Industry
+
+Services
+
+Products
+
+Pricing
+
+Target audiences
+
+Locations
+
+Case studies
+
+Knowledge packs
+
+Business DNA
+
+Competitor data
+
+Campaign history
+
+CRM activity
+
+Call activity
+
+WhatsApp activity
+
+Email activity
+
+Website content
+
+Knowledge base content
+
+GrowthMind should continuously update its understanding.
+
+====================================================
+
+SERVICE OPPORTUNITY ENGINE
+
+GrowthMind should score every service.
+
+For each service calculate:
+
+Market demand
+
+Competition
+
+Profit potential
+
+Ease of sale
+
+Lead availability
+
+Marketing opportunity
+
+Trend strength
+
+Generate:
+
+Service Opportunity Score
+
+Example:
+
+AI Receptionist = 94
+
+Lead Generation = 88
+
+Client Qualification = 82
+
+Voice Builder = 76
+
+====================================================
+
+TREND ENGINE
+
+GrowthMind should continuously monitor:
+
+Google Trends data (when connected)
+
+SEO data
+
+Competitor content
+
+Campaign performance
+
+CRM enquiries
+
+Website traffic
+
+Lead source trends
+
+Call topic trends
+
+WhatsApp conversation topics
+
+Email engagement
+
+GrowthMind should identify:
+
+Emerging demand
+
+Growing industries
+
+Declining opportunities
+
+Seasonal opportunities
+
+====================================================
+
+CAMPAIGN PROPOSAL ENGINE
+
+GrowthMind should automatically create proposals.
+
+Examples:
+
+"Launch estate agent campaign."
+
+"Launch law firm receptionist campaign."
+
+"Promote AI lead qualification service."
+
+"Create WhatsApp campaign for Dubai businesses."
+
+Each proposal should include:
+
+Reason
+
+Evidence
+
+Audience
+
+Expected outcome
+
+Budget
+
+Content plan
+
+Video plan
+
+Campaign plan
+
+====================================================
+
+VIDEO CAMPAIGN PROPOSAL ENGINE
+
+GrowthMind should automatically propose:
+
+Video concepts
+
+Hooks
+
+Platforms
+
+Audiences
+
+Storyboards
+
+Creative angles
+
+Expected outcomes
+
+Before user requests them.
+
+====================================================
+
+HIVEMIND EXECUTIVE BRIEFING
+
+HiveMind should receive:
+
+Top opportunities
+
+Recommended services
+
+Recommended campaigns
+
+Recommended videos
+
+Recommended content
+
+Recommended audiences
+
+Recommended budgets
+
+Growth forecasts
+
+Marketing readiness
+
+Marketing risks
+
+====================================================
+
+NEW DASHBOARD CARDS
+
+GrowthMind Dashboard
+
+Add:
+
+Highest Opportunity Service
+
+Fastest Growing Audience
+
+Recommended Campaign
+
+Recommended Video
+
+Recommended Funnel
+
+Recommended Budget
+
+Recommended Next Action
+
+====================================================
+
+AUTONOMOUS MODE
+
+In Assistant or Operator mode:
+
+GrowthMind may:
+
+Create campaign drafts
+
+Create content drafts
+
+Create video drafts
+
+Create funnel drafts
+
+Create WhatsApp drafts
+
+Create HexMail drafts
+
+All drafts require HiveMind approval before activation.
+
+====================================================
+
+SUCCESS CRITERIA
+
+GrowthMind no longer waits for instructions.
+
+GrowthMind continuously analyses the business.
+
+GrowthMind proactively proposes growth opportunities.
+
+HiveMind becomes the executive interface.
+
+Users receive recommendations instead of having to ask for them.
+
+Generate implementation plan first.
+
+Then implement safely.
