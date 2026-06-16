@@ -630,14 +630,19 @@ function buildSceneVeoPrompt(scene: StoryboardScene): string {
 }
 
 async function submitMultiClipJobs(
-  sb:          any,
-  assetId:     string,
-  scenes:      StoryboardScene[],
-  veoCfg:      VeoConfig,
-  aspectRatio: string,
-  workspaceId: string,
+  sb:            any,
+  assetId:       string,
+  scenes:        StoryboardScene[],
+  veoCfg:        VeoConfig,
+  aspectRatio:   string,
+  workspaceId:   string,
+  generateAudio: boolean = true,
 ): Promise<void> {
-  const MAX_CLIPS    = 12;
+  const MAX_CLIPS     = 12;
+  const BASE_DELAY_MS = 3000;  // 3s between submissions — stays under Gemini 10 req/min quota
+  const MAX_RETRIES   = 3;
+  const RETRY_DELAY_MS = 15_000; // 15s backoff on 429
+
   const clipsToSubmit = scenes.slice(0, MAX_CLIPS);
 
   for (let idx = 0; idx < clipsToSubmit.length; idx++) {
@@ -665,24 +670,38 @@ async function submitMultiClipJobs(
       continue;
     }
 
-    try {
-      const veo    = new VeoProvider(veoCfg);
-      const result = await veo.generateVideo({
-        prompt:          scenePrompt,
-        aspectRatio,
-        durationSeconds: clipDuration,
-      });
-      await sb.from("growthmind_video_clips")
-        .update({ provider_job_id: result.jobId, status: "processing", updated_at: new Date().toISOString() })
-        .eq("id", clip.id);
-    } catch (e: any) {
-      await sb.from("growthmind_video_clips")
-        .update({ status: "failed", error_message: (e?.message ?? "Veo submission failed").slice(0, 500), updated_at: new Date().toISOString() })
-        .eq("id", clip.id);
+    let submitted = false;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const veo    = new VeoProvider(veoCfg);
+        const result = await veo.generateVideo({
+          prompt:          scenePrompt,
+          aspectRatio,
+          durationSeconds: clipDuration,
+          generateAudio,
+        });
+        await sb.from("growthmind_video_clips")
+          .update({ provider_job_id: result.jobId, status: "processing", updated_at: new Date().toISOString() })
+          .eq("id", clip.id);
+        submitted = true;
+        break;
+      } catch (e: any) {
+        const is429 = e?.message?.includes("429") || e?.message?.includes("RESOURCE_EXHAUSTED");
+        if (is429 && attempt < MAX_RETRIES) {
+          const wait = RETRY_DELAY_MS * (attempt + 1);
+          console.warn(`[multi-clip] Clip ${idx} rate-limited (429) — retrying in ${wait / 1000}s (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          await new Promise(r => setTimeout(r, wait));
+        } else {
+          await sb.from("growthmind_video_clips")
+            .update({ status: "failed", error_message: (e?.message ?? "Veo submission failed").slice(0, 500), updated_at: new Date().toISOString() })
+            .eq("id", clip.id);
+          break;
+        }
+      }
     }
 
-    if (idx < clipsToSubmit.length - 1) {
-      await new Promise(r => setTimeout(r, 600)); // Rate-limit safety delay
+    if (submitted && idx < clipsToSubmit.length - 1) {
+      await new Promise(r => setTimeout(r, BASE_DELAY_MS));
     }
   }
 
@@ -974,7 +993,7 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     // Dispatch multi-clip jobs (fire-and-forget — clips reference the inserted asset ID)
     if (isCompositeVideo && inserted?.id) {
       submitMultiClipJobs(
-        sb, inserted.id as string, storyboard, veoCfg, data.aspectRatio, workspaceId,
+        sb, inserted.id as string, storyboard, veoCfg, data.aspectRatio, workspaceId, data.generateVeoAudio,
       ).catch((e: any) => {
         console.error("[video-studio] Multi-clip dispatch error:", e?.message ?? e);
       });
