@@ -162,6 +162,14 @@ export const saveAdsAccount = createServerFn({ method: "POST" })
       result = inserted;
     }
 
+    // Auto-sync if a token was provided
+    if (data.token && data.token.trim()) {
+      try {
+        const { syncAdAccountById } = await import("./growthmind.ads-sync.server");
+        syncAdAccountById(result.id, workspaceId).catch(() => {});
+      } catch { /* non-fatal */ }
+    }
+
     return { ok: true, id: result.id };
   });
 

@@ -1,10 +1,11 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
   BarChart2, Plus, Loader2, RefreshCw, Trash2, Edit2,
   X, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2,
   Eye, EyeOff, Lightbulb, TrendingUp, Link as LinkIcon,
+  Zap, Bell, BellOff, DollarSign, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -20,6 +21,12 @@ import {
   type AdsAccount,
   type AdsCampaign,
 } from "@/lib/growthmind/growthmind.ads";
+import {
+  syncAdAccount,
+  syncSingleAdAccount,
+  getAdSyncStatus,
+  acknowledgeAdAlert,
+} from "@/lib/growthmind/growthmind.ads-sync.server";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { HiveMindReportBanner } from "./HiveMindReportBanner";
@@ -632,12 +639,40 @@ function PlatformCard({ platform, accounts, onConnect, onEdit, onDelete }: {
   );
 }
 
+// ── Sync status badge ──────────────────────────────────────────────────────────
+function SyncBadge({ status, lastSynced }: { status: string; lastSynced?: string | null }) {
+  if (status === "syncing") return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-blue-400">
+      <Loader2 className="h-2.5 w-2.5 animate-spin" /> Syncing…
+    </span>
+  );
+  if (status === "synced" && lastSynced) {
+    const mins = Math.round((Date.now() - new Date(lastSynced).getTime()) / 60000);
+    const label = mins < 2 ? "just now" : mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+        <CheckCircle2 className="h-2.5 w-2.5" /> synced {label}
+      </span>
+    );
+  }
+  if (status === "error") return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-red-400">
+      <AlertTriangle className="h-2.5 w-2.5" /> sync failed
+    </span>
+  );
+  return null;
+}
+
 // ── Main Component ──────────────────────────────────────────────────────────────
 
 export function GrowthMindAds() {
+  const qc            = useQueryClient();
   const accountsFn    = useServerFn(getAdsAccounts);
   const saveAccountFn = useServerFn(saveAdsAccount);
   const deleteAcctFn  = useServerFn(deleteAdsAccount);
+  const syncAllFn     = useServerFn(syncAdAccount);
+  const getSyncFn     = useServerFn(getAdSyncStatus);
+  const ackAlertFn    = useServerFn(acknowledgeAdAlert);
 
   const [accountModal,  setAccountModal]  = useState<{ open: boolean; editing: AdsAccount | null; defaultPlatform?: AdsPlatform }>({ open: false, editing: null });
   const [savingAccount, setSavingAccount] = useState(false);
@@ -648,7 +683,28 @@ export function GrowthMindAds() {
     staleTime: 30_000,
   });
 
+  const { data: syncData, refetch: refetchSync } = useQuery({
+    queryKey:  ["ads-sync-status"],
+    queryFn:   () => getSyncFn(),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const syncMut = useMutation({
+    mutationFn: () => syncAllFn(),
+    onSuccess: (res: any) => {
+      const synced = res?.results?.filter((r: any) => r.ok).length ?? 0;
+      const failed = res?.results?.filter((r: any) => !r.ok).length ?? 0;
+      toast.success(`Synced ${synced} account${synced !== 1 ? "s" : ""}${failed ? ` (${failed} failed)` : ""}`);
+      refetch(); refetchSync();
+      qc.invalidateQueries({ queryKey: ["ads-campaigns"] });
+    },
+    onError: (e: any) => toast.error("Sync failed", { description: e?.message }),
+  });
+
   const accounts = data?.accounts ?? [];
+  const alerts   = syncData?.alerts ?? [];
+  const syncAccounts = syncData?.accounts ?? [];
 
   async function handleSaveAccount(vals: any) {
     setSavingAccount(true);
@@ -656,7 +712,12 @@ export function GrowthMindAds() {
       await saveAccountFn({ data: vals });
       await refetch();
       setAccountModal({ open: false, editing: null });
-      toast.success(vals.id ? "Account updated" : "Account connected");
+      if (vals.token) {
+        toast.success(vals.id ? "Account updated — syncing live data…" : "Account connected — syncing live data…");
+        setTimeout(() => { refetchSync(); refetch(); }, 4000);
+      } else {
+        toast.success(vals.id ? "Account updated" : "Account connected");
+      }
     } catch (e: any) {
       toast.error("Failed to save account", { description: e.message });
     } finally {
@@ -667,27 +728,35 @@ export function GrowthMindAds() {
   async function handleDeleteAccount(id: string) {
     try {
       await deleteAcctFn({ data: { id } });
-      await refetch();
+      await refetch(); refetchSync();
       toast.success("Account disconnected");
     } catch {
       toast.error("Failed to disconnect account");
     }
   }
 
-  // Group accounts by platform
+  async function handleAckAlert(alertId: string) {
+    await ackAlertFn({ data: { alertId } } as any).catch(() => {});
+    refetchSync();
+  }
+
+  // Merge sync status into accounts
+  const syncMap = Object.fromEntries(syncAccounts.map((a: any) => [a.id, a]));
   const accountsByPlatform = PLATFORMS.reduce<Record<AdsPlatform, AdsAccount[]>>((acc, p) => {
     acc[p.id] = accounts.filter(a => a.platform === p.id);
     return acc;
   }, { google: [], meta: [], linkedin: [], tiktok: [] });
 
   const totalConnected = accounts.length;
+  const totalSpend     = syncData?.totalSpend ?? 0;
+  const hasToken       = accounts.some((a: any) => a.has_token);
 
   return (
     <GrowthMindShell>
       <div className="px-6 py-5 max-w-4xl">
 
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between gap-3">
+        <div className="mb-5 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold flex items-center gap-2">
               <BarChart2 className="h-5 w-5 text-emerald-400" />
@@ -695,12 +764,19 @@ export function GrowthMindAds() {
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               {totalConnected > 0
-                ? `${totalConnected} account${totalConnected !== 1 ? "s" : ""} connected · Track spend, CPL & ROAS across all platforms`
-                : "Track paid ad performance across Google, Meta, LinkedIn, and TikTok"}
+                ? `${totalConnected} account${totalConnected !== 1 ? "s" : ""} connected · live sync enabled`
+                : "Connect accounts to pull live spend, CPL & ROAS across all platforms"}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
+            {hasToken && (
+              <Button variant="outline" size="sm" onClick={() => syncMut.mutate()} disabled={syncMut.isPending}>
+                {syncMut.isPending
+                  ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Syncing…</>
+                  : <><Zap className="mr-1.5 h-3.5 w-3.5 text-amber-400" /> Sync Now</>}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => { refetch(); refetchSync(); }}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isFetching && "animate-spin")} />
               Refresh
             </Button>
@@ -712,6 +788,39 @@ export function GrowthMindAds() {
           </div>
         </div>
 
+        {/* Total spend summary */}
+        {totalSpend > 0 && (
+          <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {syncAccounts.map((acc: any) => (
+              <div key={acc.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                <div className="text-[10px] text-muted-foreground/60 uppercase tracking-widest flex items-center gap-1">
+                  <DollarSign className="h-2.5 w-2.5" /> {acc.platform}
+                </div>
+                <div className="text-lg font-bold mt-1">£{Number(acc.total_spend_synced ?? 0).toFixed(0)}</div>
+                <SyncBadge status={acc.sync_status} lastSynced={acc.last_synced_at} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Budget alerts */}
+        {alerts.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {alerts.map((alert: any) => (
+              <div key={alert.id} className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                  <p className="text-xs text-amber-300">{alert.message}</p>
+                </div>
+                <button onClick={() => handleAckAlert(alert.id)}
+                  className="shrink-0 p-1 rounded text-amber-400/60 hover:text-amber-400 transition-colors">
+                  <BellOff className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <HiveMindReportBanner domain="Ads" />
 
         {isLoading ? (
@@ -721,7 +830,6 @@ export function GrowthMindAds() {
           </div>
         ) : (
           <div className="space-y-3">
-            {/* Always show all 4 platform cards */}
             {PLATFORMS.map(p => (
               <PlatformCard
                 key={p.id}
@@ -733,16 +841,14 @@ export function GrowthMindAds() {
               />
             ))}
 
-            {/* Info note */}
-            <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-4 mt-2">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 mt-2">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                <span className="text-emerald-400 font-medium">Note:</span> Live API syncing is coming soon. Log campaign stats manually to track CPL and ROAS now. Tokens are encrypted with AES-256-GCM before storage and never returned to the browser.
+                <span className="text-emerald-400 font-medium">Live sync:</span> Connect your ad accounts with access tokens to pull real campaign data, spend, ROAS and impressions automatically. Tokens are encrypted with AES-256-GCM and never returned to the browser. Webhooks for Meta &amp; TikTok receive conversion events at <code className="text-[10px] bg-white/[0.04] px-1 rounded">/api/public/meta-ads-webhook</code> and <code className="text-[10px] bg-white/[0.04] px-1 rounded">/api/public/tiktok-ads-webhook</code>.
               </p>
             </div>
           </div>
         )}
 
-        {/* Account modal */}
         {accountModal.open && (
           <AccountModal
             initial={accountModal.editing}

@@ -14,7 +14,8 @@ export type ActionType     =
   | "launch_broadcast"
   | "growthmind_video_campaign"
   | "growthmind_growth_campaign"
-  | "register_resend_webhook";
+  | "register_resend_webhook"
+  | "sync_ad_stats";
 
 export interface HiveMindAction {
   id:             string;
@@ -149,6 +150,15 @@ async function executeAction(sb: any, workspaceId: string, action: HiveMindActio
       const { registerResendWebhookForWorkspace } = await import("@/lib/hexmail/deliverability.server");
       const result = await registerResendWebhookForWorkspace(workspaceId);
       return result;
+    }
+
+    case "sync_ad_stats": {
+      const { syncAllAdsForWorkspace } = await import("@/lib/growthmind/growthmind.ads-sync.server");
+      const results = await syncAllAdsForWorkspace(workspaceId);
+      const synced = results.filter((r: any) => r.ok).length;
+      const failed = results.filter((r: any) => !r.ok).length;
+      const totalSpend = results.reduce((s: number, r: any) => s + (r.spend ?? 0), 0);
+      return { synced, failed, totalSpend, results };
     }
 
     default:
@@ -517,7 +527,33 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
       }
     } catch { /* graceful — tables may not exist yet */ }
 
-    // 7. Resend webhook not registered — auto-propose for workspaces with Resend API key
+    // 7. Ad accounts with token but never synced — propose sync
+    try {
+      const { data: stalAccounts } = await sb
+        .from("growthmind_ads_accounts")
+        .select("id, platform, label")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "active")
+        .not("token_enc", "is", null)
+        .or("last_synced_at.is.null,sync_status.eq.error")
+        .limit(5)
+        .catch(() => ({ data: [] }));
+
+      if ((stalAccounts ?? []).length > 0 && !pendingTypes.has("sync_ad_stats")) {
+        const platforms = [...new Set((stalAccounts ?? []).map((a: any) => a.platform))].join(", ");
+        proposed.push({
+          workspace_id:   workspaceId,
+          title:          `Sync live ad stats from ${platforms}`,
+          description:    `${(stalAccounts ?? []).length} connected ad account(s) have not synced yet. Approving will pull live campaign data, spend, ROAS and impressions from the ad platform APIs.`,
+          action_type:    "sync_ad_stats",
+          action_payload: {},
+          proposed_by:    "hivemind",
+          status:         "pending",
+        });
+      }
+    } catch { /* graceful */ }
+
+    // 8. Resend webhook not registered — auto-propose for workspaces with Resend API key
     try {
       const { checkResendWebhookStatusForWorkspace } = await import("@/lib/hexmail/deliverability.server");
       const whStatus = await checkResendWebhookStatusForWorkspace(workspaceId);

@@ -54,9 +54,11 @@ import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
+import { Route as ApiPublicTiktokAdsWebhookRouteImport } from './routes/api/public/tiktok-ads-webhook'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
 import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/resend-webhook'
 import { Route as ApiPublicProviderHealthSweepRouteImport } from './routes/api/public/provider-health-sweep'
+import { Route as ApiPublicMetaAdsWebhookRouteImport } from './routes/api/public/meta-ads-webhook'
 import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
@@ -401,6 +403,12 @@ const ApiPublicVideoJobPollerRoute = ApiPublicVideoJobPollerRouteImport.update({
   path: '/api/public/video-job-poller',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTiktokAdsWebhookRoute =
+  ApiPublicTiktokAdsWebhookRouteImport.update({
+    id: '/api/public/tiktok-ads-webhook',
+    path: '/api/public/tiktok-ads-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicRetellWebhookRoute = ApiPublicRetellWebhookRouteImport.update({
   id: '/api/public/retell-webhook',
   path: '/api/public/retell-webhook',
@@ -417,6 +425,11 @@ const ApiPublicProviderHealthSweepRoute =
     path: '/api/public/provider-health-sweep',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicMetaAdsWebhookRoute = ApiPublicMetaAdsWebhookRouteImport.update({
+  id: '/api/public/meta-ads-webhook',
+  path: '/api/public/meta-ads-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicElevenlabsWebhookRoute =
   ApiPublicElevenlabsWebhookRouteImport.update({
     id: '/api/public/elevenlabs-webhook',
@@ -1157,9 +1170,11 @@ export interface FileRoutesByFullPath {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
+  '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
+  '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
@@ -1310,9 +1325,11 @@ export interface FileRoutesByTo {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
+  '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
+  '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
@@ -1470,9 +1487,11 @@ export interface FileRoutesById {
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
+  '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
+  '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
@@ -1630,9 +1649,11 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
+    | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
     | '/api/public/resend-webhook'
     | '/api/public/retell-webhook'
+    | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
@@ -1783,9 +1804,11 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
+    | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
     | '/api/public/resend-webhook'
     | '/api/public/retell-webhook'
+    | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
@@ -1942,9 +1965,11 @@ export interface FileRouteTypes {
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
+    | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
     | '/api/public/resend-webhook'
     | '/api/public/retell-webhook'
+    | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/webhook/custom-telemetry'
@@ -2018,9 +2043,11 @@ export interface RootRouteChildren {
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
   ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRouteWithChildren
+  ApiPublicMetaAdsWebhookRoute: typeof ApiPublicMetaAdsWebhookRoute
   ApiPublicProviderHealthSweepRoute: typeof ApiPublicProviderHealthSweepRoute
   ApiPublicResendWebhookRoute: typeof ApiPublicResendWebhookRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
+  ApiPublicTiktokAdsWebhookRoute: typeof ApiPublicTiktokAdsWebhookRoute
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
@@ -2379,6 +2406,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicVideoJobPollerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/tiktok-ads-webhook': {
+      id: '/api/public/tiktok-ads-webhook'
+      path: '/api/public/tiktok-ads-webhook'
+      fullPath: '/api/public/tiktok-ads-webhook'
+      preLoaderRoute: typeof ApiPublicTiktokAdsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/retell-webhook': {
       id: '/api/public/retell-webhook'
       path: '/api/public/retell-webhook'
@@ -2398,6 +2432,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/provider-health-sweep'
       fullPath: '/api/public/provider-health-sweep'
       preLoaderRoute: typeof ApiPublicProviderHealthSweepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/meta-ads-webhook': {
+      id: '/api/public/meta-ads-webhook'
+      path: '/api/public/meta-ads-webhook'
+      fullPath: '/api/public/meta-ads-webhook'
+      preLoaderRoute: typeof ApiPublicMetaAdsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/elevenlabs-webhook': {
@@ -3580,9 +3621,11 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
   ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRouteWithChildren,
+  ApiPublicMetaAdsWebhookRoute: ApiPublicMetaAdsWebhookRoute,
   ApiPublicProviderHealthSweepRoute: ApiPublicProviderHealthSweepRoute,
   ApiPublicResendWebhookRoute: ApiPublicResendWebhookRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
+  ApiPublicTiktokAdsWebhookRoute: ApiPublicTiktokAdsWebhookRoute,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
