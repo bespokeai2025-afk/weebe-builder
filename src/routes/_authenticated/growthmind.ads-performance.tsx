@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import React, { useState } from "react";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import {
@@ -242,6 +242,49 @@ const acknowledgeAlert = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ── Sync history server fn ──────────────────────────────────────────────────────
+
+interface SyncHistoryRow {
+  id:               string;
+  platform:         string;
+  campaignsSynced:  number;
+  spendTotal:       number | null;
+  impressionsTotal: number | null;
+  conversionsTotal: number | null;
+  status:           string;
+  errorMessage:     string | null;
+  syncedAt:         string;
+}
+
+const getSyncHistory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<SyncHistoryRow[]> => {
+    const sb = context.supabase as any;
+    const { workspaceId } = context;
+    if (!workspaceId) return [];
+    try {
+      const { data } = await sb
+        .from("growthmind_ad_sync_log")
+        .select("id,platform,campaigns_synced,spend_total,impressions_total,conversions_total,status,error_message,synced_at")
+        .eq("workspace_id", workspaceId)
+        .order("synced_at", { ascending: false })
+        .limit(20);
+      return (data ?? []).map((r: any) => ({
+        id:               r.id,
+        platform:         r.platform,
+        campaignsSynced:  r.campaigns_synced ?? 0,
+        spendTotal:       r.spend_total       != null ? Number(r.spend_total)       : null,
+        impressionsTotal: r.impressions_total != null ? Number(r.impressions_total) : null,
+        conversionsTotal: r.conversions_total != null ? Number(r.conversions_total) : null,
+        status:           r.status,
+        errorMessage:     r.error_message ?? null,
+        syncedAt:         r.synced_at,
+      }));
+    } catch {
+      return [];
+    }
+  });
+
 // ── Trend data server fn ────────────────────────────────────────────────────────
 
 interface TrendPoint {
@@ -409,6 +452,157 @@ const saveBudgetCap = createServerFn({ method: "POST" })
     );
     return { ok: true };
   });
+
+// ── Hero aggregate stats ────────────────────────────────────────────────────────
+
+function HeroStats({ data }: { data: AdsPerformanceData }) {
+  const totalImpressions = data.meta.impressions + data.google.impressions;
+  const totalClicks      = data.meta.clicks      + data.google.clicks;
+  const totalConversions = data.meta.conversions  + data.google.conversions;
+
+  const roasCamps = data.campaigns.filter(c => c.roas != null && c.roas > 0);
+  const blendedRoas = roasCamps.length > 0
+    ? +(roasCamps.reduce((a, c) => a + Number(c.roas), 0) / roasCamps.length).toFixed(2)
+    : null;
+
+  const overallCtr = totalImpressions > 0
+    ? +(totalClicks / totalImpressions * 100).toFixed(2)
+    : null;
+
+  const stats = [
+    { label: "Total Spend",    value: fmtCurrency(data.totalSpend),                     icon: DollarSign,       cls: "text-foreground"  },
+    { label: "Blended ROAS",   value: blendedRoas !== null ? `${blendedRoas.toFixed(2)}x` : "—", icon: TrendingUp, cls: roasColor(blendedRoas) },
+    { label: "Impressions",    value: fmt(totalImpressions),                              icon: Eye,              cls: "text-foreground"  },
+    { label: "Clicks",         value: fmt(totalClicks),                                  icon: MousePointerClick,cls: "text-foreground"  },
+    { label: "CTR",            value: overallCtr !== null ? `${overallCtr}%` : "—",      icon: TrendingUp,       cls: "text-foreground"  },
+    { label: "Conversions",    value: fmt(totalConversions),                             icon: ShoppingCart,     cls: "text-foreground"  },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      {stats.map(s => (
+        <div key={s.label} className="rounded-xl border border-white/[0.06] bg-card/40 p-3.5 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <s.icon className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+            <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">{s.label}</span>
+          </div>
+          <p className={cn("text-lg font-bold tabular-nums leading-none", s.cls)}>{s.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Sync history panel ──────────────────────────────────────────────────────────
+
+function SyncHistoryPanel() {
+  const histFn = useServerFn(getSyncHistory);
+  const [open, setOpen] = useState(false);
+
+  const { data: rows = [], isLoading } = useQuery({
+    queryKey:  ["ads-sync-history"],
+    queryFn:   () => histFn(),
+    enabled:   open,
+    staleTime: 60_000,
+  });
+
+  const STATUS_ICON: Record<string, React.ReactNode> = {
+    success: <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />,
+    error:   <XCircle      className="h-3 w-3 text-red-400    shrink-0" />,
+    partial: <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0" />,
+  };
+
+  const PLATFORM_BADGE: Record<string, string> = {
+    meta:   "bg-blue-500/15 text-blue-400",
+    google: "bg-emerald-500/15 text-emerald-400",
+    tiktok: "bg-pink-500/15 text-pink-400",
+  };
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-card/40">
+      <button
+        className="w-full flex items-center gap-2 px-5 py-3.5 text-left hover:bg-white/[0.02] transition-colors"
+        onClick={() => setOpen(o => !o)}
+      >
+        <RefreshCw className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+        <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/60 flex-1">
+          Sync History
+        </span>
+        <span className="text-[10px] text-muted-foreground/40">{open ? "Hide" : "View recent syncs"}</span>
+      </button>
+
+      {open && (
+        <div className="border-t border-white/[0.06]">
+          {isLoading ? (
+            <div className="flex items-center gap-2 p-5 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading sync log…
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="p-5 text-center">
+              <p className="text-xs text-muted-foreground/60">No sync history yet. Click "Sync Now" to start your first sync.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.04]">
+                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Platform</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Status</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Campaigns</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Spend</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Impressions</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">Conversions</th>
+                    <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.id} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
+                      <td className="px-4 py-2.5">
+                        <span className={cn("text-[9px] font-semibold px-1.5 py-0.5 rounded-full", PLATFORM_BADGE[r.platform] ?? "bg-slate-500/15 text-slate-400")}>
+                          {r.platform.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          {STATUS_ICON[r.status] ?? <Minus className="h-3 w-3 text-muted-foreground/40 shrink-0" />}
+                          <span className={cn(
+                            "text-[10px] font-medium capitalize",
+                            r.status === "success" ? "text-emerald-400" : r.status === "error" ? "text-red-400" : "text-amber-400",
+                          )}>
+                            {r.status}
+                          </span>
+                          {r.errorMessage && (
+                            <span className="text-[10px] text-muted-foreground/50 truncate max-w-[180px]" title={r.errorMessage}>
+                              — {r.errorMessage}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{r.campaignsSynced}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium">
+                        {r.spendTotal != null ? fmtCurrency(r.spendTotal) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {r.impressionsTotal != null ? fmt(r.impressionsTotal) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {r.conversionsTotal != null ? fmt(r.conversionsTotal) : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-muted-foreground/60 whitespace-nowrap">
+                        {timeAgo(r.syncedAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Budget caps configuration panel ────────────────────────────────────────────
 
@@ -1016,6 +1210,7 @@ function AdsPerformancePage() {
         toast.success(`Synced ${total} campaign${total !== 1 ? "s" : ""} from ${result.results.length} platform(s)`);
       }
       qc.invalidateQueries({ queryKey: ["ads-performance"] });
+      qc.invalidateQueries({ queryKey: ["ads-sync-history"] });
     },
     onError: (err: any) => toast.error(err?.message ?? "Sync failed"),
   });
@@ -1113,6 +1308,9 @@ function AdsPerformancePage() {
 
         {!isLoading && hasAnyCreds && (
           <>
+            {/* Hero aggregate stats — only once there is synced data */}
+            {data?.hasSyncedData && <HeroStats data={data} />}
+
             {/* Budget alerts */}
             {alerts.length > 0 && (
               <div className="space-y-2">
@@ -1236,6 +1434,9 @@ function AdsPerformancePage() {
                 </p>
               </div>
             )}
+
+            {/* Sync history */}
+            <SyncHistoryPanel />
 
             {/* Budget alert threshold configuration */}
             <BudgetCapsPanel />
