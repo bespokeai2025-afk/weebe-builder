@@ -373,7 +373,7 @@ function ChainBuilderEditor({
 
   function addStep() {
     const maxOrder = sorted.reduce((m, s) => Math.max(m, s.order), 0);
-    onChange([...steps, { order: maxOrder + 1, templateId: null, label: `Step ${maxOrder + 1}`, description: "", outputSections: [], inputMappings: [] }]);
+    onChange([...steps, { order: maxOrder + 1, templateId: null, label: `Step ${maxOrder + 1}`, description: "", outputSections: [], inputMappings: [], autoInjectSections: false }]);
   }
 
   function removeStep(idx: number) {
@@ -571,6 +571,57 @@ function ChainBuilderEditor({
                     </button>
                   </div>
                 )}
+
+                {/* Auto-inject toggle */}
+                {(step.outputSections ?? []).some(s => s.trim()) && (
+                  <div className="mt-2">
+                    {readOnly ? (
+                      step.autoInjectSections && (
+                        <div className="flex items-center gap-1.5">
+                          <Zap className="h-3 w-3 text-amber-400/70 shrink-0" />
+                          <span className="text-[10px] text-amber-300/80">Auto-inject sections as variables is on</span>
+                        </div>
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => updateStep(idx, { autoInjectSections: !step.autoInjectSections })}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded px-2 py-1 text-[10px] transition-colors border",
+                          step.autoInjectSections
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/15"
+                            : "bg-white/[0.03] border-white/[0.06] text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/[0.05]"
+                        )}
+                      >
+                        <Zap className="h-2.5 w-2.5 shrink-0" />
+                        Auto-inject sections as variables
+                        <span className={cn(
+                          "ml-1 rounded-full h-3.5 w-6 relative transition-colors shrink-0",
+                          step.autoInjectSections ? "bg-amber-500/60" : "bg-white/10"
+                        )}>
+                          <span className={cn(
+                            "absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white transition-transform",
+                            step.autoInjectSections ? "translate-x-3" : "translate-x-0.5"
+                          )} />
+                        </span>
+                      </button>
+                    )}
+                    {step.autoInjectSections && (
+                      <div className="mt-1.5 rounded bg-amber-500/[0.06] border border-amber-500/20 px-2 py-1.5 space-y-0.5">
+                        <p className="text-[9px] text-amber-300/60 uppercase tracking-widest mb-1">Available auto-variables in downstream steps</p>
+                        <div className="flex flex-wrap gap-1">
+                          {(step.outputSections ?? []).filter(s => s.trim()).map((sec, si) => {
+                            const key = `step${idx + 1}_${sec.trim().toLowerCase().replace(/[\s-]+/g, "_").replace(/[^\w]/g, "")}`;
+                            return (
+                              <code key={si} className="rounded px-1.5 py-0.5 text-[9px] font-mono bg-amber-500/10 text-amber-300 border border-amber-500/20">{`{{${key}}}`}</code>
+                            );
+                          })}
+                          <code className="rounded px-1.5 py-0.5 text-[9px] font-mono bg-amber-500/10 text-amber-300 border border-amber-500/20">{`{{step${idx + 1}_output}}`}</code>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Input mappings — for each variable in the selected template */}
@@ -580,6 +631,33 @@ function ChainBuilderEditor({
                     <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
                     <label className="text-[10px] text-muted-foreground/70 uppercase tracking-widest">Input Variable Sources</label>
                   </div>
+                  {/* Auto-variable hint: show which {{stepN_x}} vars are available from upstream auto-inject steps */}
+                  {(() => {
+                    const autoVars: string[] = [];
+                    sorted.slice(0, idx).forEach((prevStep, prevIdx) => {
+                      if (!prevStep.autoInjectSections) return;
+                      const stepNum = prevIdx + 1;
+                      (prevStep.outputSections ?? []).filter(s => s.trim()).forEach(sec => {
+                        const key = `step${stepNum}_${sec.trim().toLowerCase().replace(/[\s-]+/g, "_").replace(/[^\w]/g, "")}`;
+                        autoVars.push(key);
+                      });
+                      autoVars.push(`step${stepNum}_output`);
+                    });
+                    if (!autoVars.length) return null;
+                    return (
+                      <div className="mb-2 rounded bg-amber-500/[0.06] border border-amber-500/20 px-2 py-1.5">
+                        <p className="text-[9px] text-amber-300/60 uppercase tracking-widest mb-1 flex items-center gap-1">
+                          <Zap className="h-2.5 w-2.5" />Auto-injected variables available
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {autoVars.map(v => (
+                            <code key={v} className="rounded px-1.5 py-0.5 text-[9px] font-mono bg-amber-500/10 text-amber-300 border border-amber-500/20">{`{{${v}}}`}</code>
+                          ))}
+                        </div>
+                        <p className="text-[9px] text-muted-foreground/40 mt-1">Use these in your template prompt — they are filled automatically at runtime.</p>
+                      </div>
+                    );
+                  })()}
                   <div className="space-y-1.5">
                     {vars.map(varName => {
                       const currentEncoded = getMappingEncoded(step, varName);

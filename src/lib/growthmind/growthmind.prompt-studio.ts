@@ -23,12 +23,13 @@ export type ChainStepMapping = {
 };
 
 export type PromptChainStep = {
-  order:          number;
-  templateId:     string | null;
-  label:          string;
-  description:    string;
-  outputSections: string[];  // named sections this step will produce (for downstream mapping)
-  inputMappings:  ChainStepMapping[];
+  order:               number;
+  templateId:          string | null;
+  label:               string;
+  description:         string;
+  outputSections:      string[];  // named sections this step will produce (for downstream mapping)
+  inputMappings:       ChainStepMapping[];
+  autoInjectSections:  boolean;   // when true, runtime pre-populates {{stepN_sectionname}} vars for all downstream steps
 };
 
 export type PromptTemplate = {
@@ -100,7 +101,8 @@ function mapTemplate(r: any): PromptTemplate {
     variables:          r.variables ?? [],
     chainSteps:         (r.chain_steps ?? []).map((s: any) => ({
       ...s,
-      outputSections: s.outputSections ?? s.output_sections ?? [],
+      outputSections:     s.outputSections ?? s.output_sections ?? [],
+      autoInjectSections: s.autoInjectSections ?? false,
     })),
     tags:               r.tags ?? [],
     isActive:           r.is_active ?? true,
@@ -1435,12 +1437,13 @@ export const runPromptChain = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({
       chainSteps: z.array(z.object({
-        order:          z.number(),
-        templateId:     z.string().uuid().nullable(),
-        label:          z.string(),
-        description:    z.string().default(""),
-        outputSections: z.array(z.string()).default([]),
-        inputMappings:  z.array(z.object({
+        order:               z.number(),
+        templateId:          z.string().uuid().nullable(),
+        label:               z.string(),
+        description:         z.string().default(""),
+        outputSections:      z.array(z.string()).default([]),
+        autoInjectSections:  z.boolean().default(false),
+        inputMappings:       z.array(z.object({
           toVar:       z.string(),
           fromStep:    z.number(),
           fromSection: z.string().optional(),
@@ -1532,6 +1535,26 @@ export const runPromptChain = createServerFn({ method: "POST" })
 
       // Build this step's variable set: workspace ctx + initial inputs + mapped step outputs
       const stepVars: Record<string, string> = { ...workspaceCtx, ...data.inputVariables };
+
+      // Auto-inject: for any previous step with autoInjectSections=true, pre-populate
+      // {{stepN_sectionname}} variables so downstream templates can reference them without
+      // needing an explicit inputMapping.
+      for (let prevIdx = 0; prevIdx < sortedSteps.indexOf(step); prevIdx++) {
+        const prevStep = sortedSteps[prevIdx];
+        if (!prevStep.autoInjectSections) continue;
+        const stepNum   = prevIdx + 1;
+        const prevText  = stepOutputTexts[prevIdx] ?? "";
+        for (const sec of (prevStep.outputSections ?? [])) {
+          const trimmed = sec.trim();
+          if (!trimmed) continue;
+          // Normalise section name → safe variable key: lowercase, spaces/hyphens → underscore, strip rest
+          const key = `step${stepNum}_${trimmed.toLowerCase().replace(/[\s\-]+/g, "_").replace(/[^\w]/g, "")}`;
+          stepVars[key] = extractSection(prevText, trimmed);
+        }
+        // Also expose the full output of the step as {{stepN_output}}
+        stepVars[`step${stepNum}_output`] = prevText;
+      }
+
       for (const mapping of (step.inputMappings ?? [])) {
         if (mapping.fromStep === 0) {
           // fromStep 0 = use user's initial test inputs (already merged above)
