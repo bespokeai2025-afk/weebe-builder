@@ -473,7 +473,7 @@ export function GrowthMindPromptStudio() {
   const handleNewTemplate = () => {
     setSelectedId(null);
     setEditState({ ...DEFAULT_EDIT });
-    setIsDirty(false);
+    setIsDirty(true);   // must be true so the editor panel renders (gate: !selectedId && !isDirty)
     setTestOutput(null);
     setVersions([]);
     setLibTab("custom");
