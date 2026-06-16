@@ -293,14 +293,14 @@ function HighlightedTextarea({
 
   return (
     <div className="relative rounded-lg overflow-hidden border border-white/[0.08] focus-within:border-emerald-500/40">
-      {/* Highlight backdrop — styling must match textarea exactly */}
+      {/* Highlight backdrop — shows all text at normal opacity; {{variable}} marks are emerald.
+          The textarea on top is transparent so this layer is what the user reads. */}
       <div
         ref={bgRef}
         aria-hidden="true"
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-        className="absolute inset-0 px-3 py-2 text-xs font-mono leading-relaxed whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
-        style={{ color: "transparent" }}
+        className="absolute inset-0 px-3 py-2 text-xs font-mono leading-relaxed whitespace-pre-wrap break-words overflow-hidden pointer-events-none text-white/80"
       />
       {/* Actual textarea — transparent text so backdrop shows through; white caret */}
       <textarea
