@@ -102,6 +102,10 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "accessToken", label: "Access Token", type: "password", required: true, placeholder: "EAAxxxxx…" },
     { key: "adAccountId", label: "Ad Account ID", type: "text", required: true, placeholder: "act_123456789 or 123456789" },
   ],
+  "advertising:tiktok_ads": [
+    { key: "accessToken",   label: "Access Token",   type: "password", required: true,  placeholder: "Your TikTok Marketing API long-lived access token" },
+    { key: "advertiserId",  label: "Advertiser ID",  type: "text",     required: true,  placeholder: "1234567890123" },
+  ],
   "knowledge:pinecone": [
     { key: "apiKey", label: "Pinecone API Key", type: "password", required: true },
     { key: "indexName", label: "Index Name", type: "text", required: true },
