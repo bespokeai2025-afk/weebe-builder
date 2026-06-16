@@ -55,6 +55,10 @@ export function isRealVideoUrl(videoUrl: string | null): boolean {
   );
 }
 
+export function isCompositePending(videoUrl: string | null): boolean {
+  return videoUrl === "[composite_pending]";
+}
+
 // ── Runway Gen-4 — poll a task ────────────────────────────────────────────────
 
 async function pollRunwayJob(
@@ -430,5 +434,135 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
     // Re-archive sweep is best-effort
   }
 
+  // ── Poll growthmind_video_clips (multi-clip composite jobs) ──────────────────
+  await pollVideoClips(sb, wsCredsMap);
+
   return result;
+}
+
+// ── Clip polling — polls per-scene Veo jobs for composite videos ──────────────
+
+async function checkAndMaybeAssemble(
+  sb:          any,
+  assetId:     string,
+  workspaceId: string,
+): Promise<void> {
+  const { data: allClips } = await Promise.resolve(
+    sb.from("growthmind_video_clips")
+      .select("status")
+      .eq("asset_id", assetId)
+  ).catch(() => ({ data: null }));
+
+  if (!allClips || allClips.length === 0) return;
+
+  const allSettled  = allClips.every((c: any) => c.status === "completed" || c.status === "failed");
+  const anyComplete = allClips.some((c: any) => c.status === "completed");
+
+  if (!allSettled || !anyComplete) return;
+
+  // Avoid double-assembly
+  const { data: asset } = await Promise.resolve(
+    sb.from("growthmind_video_assets")
+      .select("assembly_status")
+      .eq("id", assetId)
+      .maybeSingle()
+  ).catch(() => ({ data: null }));
+
+  const safeToAssemble = asset?.assembly_status === "clips_generating" || asset?.assembly_status === "clips_complete";
+  if (!safeToAssemble) return;
+
+  console.log(`[video-poller] All clips settled for ${assetId} — triggering assembly`);
+  const { assembleCompositeVideo } = await import("./video-assembly.server");
+  await assembleCompositeVideo(sb, assetId, workspaceId);
+}
+
+async function pollVideoClips(
+  sb:         any,
+  wsCredsMap: Record<string, { veoCreds: Record<string, string>; runwayKey: string }>,
+): Promise<void> {
+  const { data: clips, error } = await Promise.resolve(
+    sb.from("growthmind_video_clips")
+      .select("*")
+      .in("status", ["pending", "processing"])
+      .limit(50)
+  ).catch(() => ({ data: null, error: null }));
+
+  if (error) {
+    const isMissing =
+      (error as any).code === "PGRST205" ||
+      ((error as any).message?.includes("relation") && (error as any).message?.includes("does not exist"));
+    if (!isMissing) console.warn("[video-poller] Clip query error:", (error as any).message);
+    return;
+  }
+
+  if (!clips || clips.length === 0) return;
+
+  // Load creds for workspaces not already in wsCredsMap
+  const newWsIds = [...new Set(
+    (clips as any[]).map((c: any) => c.workspace_id).filter((id: string) => id && !wsCredsMap[id])
+  )] as string[];
+
+  if (newWsIds.length > 0) {
+    await Promise.all(newWsIds.map(async (wsId) => {
+      const veoRes = await Promise.resolve(
+        sb.from("provider_settings")
+          .select("credentials")
+          .eq("workspace_id", wsId)
+          .eq("provider_category", "video")
+          .eq("provider_name", "google_veo")
+          .maybeSingle()
+      ).catch(() => ({ data: null }));
+      wsCredsMap[wsId] = {
+        veoCreds:  (veoRes.data?.credentials ?? {}) as Record<string, string>,
+        runwayKey: "",
+      };
+    }));
+  }
+
+  await Promise.all((clips as any[]).map(async (clip: any) => {
+    if (clip.status === "pending" && !clip.provider_job_id) return; // Not yet dispatched
+
+    const wsCreds  = wsCredsMap[clip.workspace_id] ?? { veoCreds: {}, runwayKey: "" };
+    const veoCfg   = resolveVeoConfig(wsCreds.veoCreds);
+    const veo      = new VeoProvider(veoCfg);
+    if (!veo.authMode || !clip.provider_job_id) return;
+
+    const veoStatus = await veo.getStatus(clip.provider_job_id);
+
+    if (veoStatus.status === "processing" || veoStatus.status === "pending") return;
+
+    if (veoStatus.status === "completed") {
+      const geminiApiKey = veoCfg.geminiApiKey ?? "";
+      const accessToken  = veoCfg.accessToken  ?? "";
+      const archived = await archiveVideoToStorage(
+        sb, veoStatus.videoUrl, clip.workspace_id, clip.id, accessToken, geminiApiKey,
+      );
+
+      await Promise.resolve(
+        sb.from("growthmind_video_clips")
+          .update({
+            status:             "completed",
+            raw_video_url:      veoStatus.videoUrl,
+            archived_video_url: archived,
+            updated_at:         new Date().toISOString(),
+          })
+          .eq("id", clip.id)
+      ).catch(() => {});
+
+      await checkAndMaybeAssemble(sb, clip.asset_id, clip.workspace_id);
+
+    } else {
+      await Promise.resolve(
+        sb.from("growthmind_video_clips")
+          .update({
+            status:        "failed",
+            error_message: (veoStatus.error ?? "Veo job failed").slice(0, 500),
+            updated_at:    new Date().toISOString(),
+          })
+          .eq("id", clip.id)
+      ).catch(() => {});
+
+      await checkAndMaybeAssemble(sb, clip.asset_id, clip.workspace_id);
+    }
+  }));
 }

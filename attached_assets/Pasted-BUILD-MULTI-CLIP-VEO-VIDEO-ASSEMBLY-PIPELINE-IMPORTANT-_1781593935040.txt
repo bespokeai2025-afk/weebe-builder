@@ -1,0 +1,277 @@
+BUILD MULTI-CLIP VEO VIDEO ASSEMBLY PIPELINE
+
+IMPORTANT
+
+Do not rebuild Video Studio.
+
+Do not break existing 8-second Veo generation.
+
+Extend the current GrowthMind Video Studio.
+
+OBJECTIVE
+
+Support true long-form video generation for 15s, 20s, 30s, 60s and 90s videos using multiple Veo clips.
+
+Current problem:
+
+Video Studio creates a long storyboard but only sends one 8-second prompt to Veo.
+
+Target:
+
+Long storyboard
+→ multiple Veo clip jobs
+→ archive each clip
+→ stitch clips in order
+→ mux ElevenLabs voiceover
+→ save final merged MP4
+→ display one finished video asset
+
+====================================================
+
+PHASE 1 — DATABASE
+
+Extend growthmind_video_assets with:
+
+is_composite boolean default false
+final_video_url text
+audio_url text
+assembly_status text
+assembly_error text
+requested_duration_seconds integer
+actual_duration_seconds integer
+
+Create:
+
+growthmind_video_clips
+
+Fields:
+
+id
+workspace_id
+asset_id
+scene_index
+scene_title
+scene_prompt
+duration_seconds
+provider
+provider_job_id
+status
+raw_video_url
+archived_video_url
+error_message
+created_at
+updated_at
+
+====================================================
+
+PHASE 2 — PER-SCENE GENERATION
+
+When requested duration > 8 seconds:
+
+Split storyboard into clip jobs.
+
+Example:
+
+60 seconds
+→ 8 clips maximum
+→ each clip <= 8 seconds
+
+For each scene:
+
+Call VeoProvider.generateVideo()
+
+Store each job in growthmind_video_clips.
+
+Do not collapse all scenes into one prompt.
+
+Each scene must become its own generation request.
+
+====================================================
+
+PHASE 3 — CLIP POLLING
+
+Extend video-job-poller.
+
+Poll:
+
+growthmind_video_clips
+
+not only:
+
+growthmind_video_assets
+
+When clip completes:
+
+archive clip to Supabase Storage
+
+update clip status
+
+When all clips completed:
+
+trigger assembly.
+
+====================================================
+
+PHASE 4 — VIDEO ASSEMBLY
+
+Add assembly service:
+
+src/lib/growthmind/video-assembly.server.ts
+
+Use ffmpeg if available in Replit production.
+
+If ffmpeg is unavailable:
+
+Add clear error:
+
+"Video assembly requires ffmpeg or a cloud assembly provider."
+
+Assembly steps:
+
+Download archived clips
+
+Sort by scene_index
+
+Concatenate MP4 clips
+
+Normalise resolution/aspect ratio if needed
+
+Create final MP4
+
+Upload final MP4 to gm-videos bucket
+
+Save final_video_url
+
+====================================================
+
+PHASE 5 — AUDIO MUXING
+
+If ElevenLabs voiceover exists:
+
+Download audio_url
+
+Mux audio into final MP4
+
+If audio duration longer than video:
+
+Trim audio
+
+If audio shorter than video:
+
+Allow silence at end
+
+Save final muxed MP4.
+
+====================================================
+
+PHASE 6 — FRONTEND UI
+
+Update Video Studio UI.
+
+Show:
+
+Composite Video Progress
+
+Example:
+
+Clip 1 of 8 generating
+
+Clip 2 of 8 complete
+
+Clip 3 failed
+
+Assembly pending
+
+Final video ready
+
+Display:
+
+Individual clips
+
+Final assembled video
+
+Download final video
+
+====================================================
+
+PHASE 7 — FALLBACK
+
+For Fast mode:
+
+Keep existing single 8s generation.
+
+For Premium mode:
+
+Use multi-clip generation.
+
+For 10s video:
+
+Generate 2 clips if needed.
+
+For 60s video:
+
+Generate up to 8 clips.
+
+For 90s video:
+
+Generate up to 12 clips or warn about cost/time.
+
+====================================================
+
+PHASE 8 — COST TRACKING
+
+Track:
+
+number of clips
+
+seconds generated
+
+voiceover cost
+
+assembly cost
+
+storage cost
+
+total cost estimate
+
+Update Cost Engine.
+
+====================================================
+
+PHASE 9 — HIVEMIND REPORTING
+
+HiveMind should see:
+
+Long-form videos requested
+
+Clips generated
+
+Assembly failures
+
+Final videos completed
+
+Total video cost
+
+====================================================
+
+SUCCESS CRITERIA
+
+When user selects 60 seconds:
+
+System creates multiple Veo jobs.
+
+Each storyboard scene becomes a clip.
+
+Each clip is archived.
+
+Final clips are stitched.
+
+Voiceover is merged.
+
+Final 60-second MP4 is stored and playable.
+
+Existing 8-second video generation continues working.
+
+Generate implementation plan first.
+
+Then implement safely.

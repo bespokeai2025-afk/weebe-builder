@@ -7,7 +7,7 @@ import {
   parseJobSentinel, isJobPending, archiveVideoToStorage,
 } from "./video-job-poller";
 import { optimiseVideoPrompt } from "./video-prompt-engine.server";
-import { VeoProvider, resolveVeoConfig } from "@/lib/video/providers/veo.provider";
+import { VeoProvider, resolveVeoConfig, type VeoConfig } from "@/lib/video/providers/veo.provider";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,23 +39,45 @@ export type StoryboardScene = {
 };
 
 export type VideoAsset = {
-  id:             string;
-  title:          string;
-  videoType:      VideoType;
-  provider:       VideoProvider | null;
-  script:         string;
-  storyboard:     StoryboardScene[];
-  videoUrl:       string | null;
-  audioUrl:       string | null;
-  voiceId:        string | null;
-  qualityMode:    QualityMode;
-  costEstimate:   number;
-  scheduledAt:    string | null;
-  createdAt:      string;
-  campaignId:     string | null;
-  variantGroupId: string | null;
-  variantType:    string | null;
-  creativeScore:  Record<string, number> | null;
+  id:               string;
+  title:            string;
+  videoType:        VideoType;
+  provider:         VideoProvider | null;
+  script:           string;
+  storyboard:       StoryboardScene[];
+  videoUrl:         string | null;
+  audioUrl:         string | null;
+  voiceId:          string | null;
+  qualityMode:      QualityMode;
+  costEstimate:     number;
+  scheduledAt:      string | null;
+  createdAt:        string;
+  campaignId:       string | null;
+  variantGroupId:   string | null;
+  variantType:      string | null;
+  creativeScore:    Record<string, number> | null;
+  isComposite:      boolean;
+  assemblyStatus:   string | null;
+  assemblyError:    string | null;
+  finalVideoUrl:    string | null;
+  requestedDuration: number | null;
+};
+
+export type VideoClip = {
+  id:               string;
+  workspaceId:      string;
+  assetId:          string;
+  sceneIndex:       number;
+  sceneTitle:       string | null;
+  scenePrompt:      string | null;
+  durationSeconds:  number | null;
+  provider:         string | null;
+  providerJobId:    string | null;
+  status:           "pending" | "processing" | "completed" | "failed";
+  rawVideoUrl:      string | null;
+  archivedVideoUrl: string | null;
+  errorMessage:     string | null;
+  createdAt:        string;
 };
 
 export const VIDEO_TYPE_LABELS: Record<VideoType, string> = {
@@ -597,6 +619,75 @@ export const generateVideo = createServerFn({ method: "POST" })
     };
   });
 
+// ── Multi-clip helpers ────────────────────────────────────────────────────────
+
+function buildSceneVeoPrompt(scene: StoryboardScene): string {
+  const parts: string[] = [];
+  if (scene.visual)       parts.push(scene.visual);
+  if (scene.onScreenText) parts.push(`Text: "${scene.onScreenText}"`);
+  return parts.join(". ") || scene.voiceover || "professional brand video scene";
+}
+
+async function submitMultiClipJobs(
+  sb:          any,
+  assetId:     string,
+  scenes:      StoryboardScene[],
+  veoCfg:      VeoConfig,
+  aspectRatio: string,
+  workspaceId: string,
+): Promise<void> {
+  const MAX_CLIPS    = 12;
+  const clipsToSubmit = scenes.slice(0, MAX_CLIPS);
+
+  for (let idx = 0; idx < clipsToSubmit.length; idx++) {
+    const scene        = clipsToSubmit[idx];
+    const clipDuration = Math.min(scene.duration || 8, 8);
+    const scenePrompt  = buildSceneVeoPrompt(scene);
+
+    const { data: clip, error: clipErr } = await sb
+      .from("growthmind_video_clips")
+      .insert({
+        workspace_id:    workspaceId,
+        asset_id:        assetId,
+        scene_index:     idx,
+        scene_title:     (scene.visual || "").slice(0, 100),
+        scene_prompt:    scenePrompt,
+        duration_seconds: clipDuration,
+        provider:        "veo3",
+        status:          "pending",
+      })
+      .select("id")
+      .single();
+
+    if (clipErr || !clip) {
+      console.error(`[multi-clip] Failed to insert clip ${idx}:`, clipErr?.message ?? "unknown");
+      continue;
+    }
+
+    try {
+      const veo    = new VeoProvider(veoCfg);
+      const result = await veo.generateVideo({
+        prompt:          scenePrompt,
+        aspectRatio,
+        durationSeconds: clipDuration,
+      });
+      await sb.from("growthmind_video_clips")
+        .update({ provider_job_id: result.jobId, status: "processing", updated_at: new Date().toISOString() })
+        .eq("id", clip.id);
+    } catch (e: any) {
+      await sb.from("growthmind_video_clips")
+        .update({ status: "failed", error_message: (e?.message ?? "Veo submission failed").slice(0, 500), updated_at: new Date().toISOString() })
+        .eq("id", clip.id);
+    }
+
+    if (idx < clipsToSubmit.length - 1) {
+      await new Promise(r => setTimeout(r, 600)); // Rate-limit safety delay
+    }
+  }
+
+  console.log(`[multi-clip] Dispatched ${clipsToSubmit.length} clip jobs for asset ${assetId}`);
+}
+
 // ── Generate video from free-form prompt ──────────────────────────────────────
 
 const generateVideoFromPromptSchema = z.object({
@@ -716,25 +807,37 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       }
     }
 
-    // ── Step: Video generation ───────────────────────────────────────────────
-    // Use the per-scene veoPrompts joined together for a richer generation prompt;
-    // fall back to the master optimisedPrompt.
+    // ── Step: Video generation ────────────────────────────────────────────────
+    // Multi-clip path: when videoLength > 8s and multiple storyboard scenes exist,
+    // each scene becomes its own Veo job (tracked in growthmind_video_clips).
+    // Single-clip: combine all scenes into one 8s Veo generation (existing flow).
     const scenePrompts = engineResult.storyboard
       .map(s => s.veoPrompt).filter(Boolean).join(" | ");
     const masterPrompt = scenePrompts || engineResult.optimisedPrompt;
 
     let videoUrl: string | null = null;
     let provider: VideoProvider | null = null;
+    let isCompositeVideo = false;
 
-    if (data.preferredProvider === "runway_gen4" && runwayKey) {
+    const veoCfg      = resolveVeoConfig(veoCreds);
+    const veoProvider = new VeoProvider(veoCfg);
+
+    const useMultiClip =
+      data.preferredProvider === "veo3" &&
+      data.videoLength > 8 &&
+      engineResult.storyboard.length > 1 &&
+      veoProvider.authMode;
+
+    if (useMultiClip) {
+      videoUrl         = "[composite_pending]";
+      provider         = "veo3";
+      isCompositeVideo = true;
+    } else if (data.preferredProvider === "runway_gen4" && runwayKey) {
       const runResult = await generateRunwayVideo(masterPrompt, runwayKey);
       if (runResult) { videoUrl = `[runway_job:${runResult}]`; provider = "runway_gen4"; }
     }
 
-    if (!videoUrl) {
-      const veoCfg = resolveVeoConfig(veoCreds);
-      const veoProvider = new VeoProvider(veoCfg);
-
+    if (!isCompositeVideo && !videoUrl) {
       if (veoProvider.authMode) {
         try {
           const veoResult = await veoProvider.generateVideo({
@@ -746,22 +849,21 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
           provider = "veo3";
         } catch (veoErr: any) {
           console.error("[video-studio] Veo 3 generation failed:", veoErr?.message ?? veoErr);
-          // No silent fallback to broken legacy adapter — surface the error via videoUrl
           videoUrl = `[error:Veo 3 error: ${(veoErr?.message ?? "unknown").slice(0, 200)}]`;
         }
       }
-      // If no authMode configured, videoUrl stays null (no video job stored)
     }
 
-    if (!videoUrl && runwayKey && data.preferredProvider !== "runway_gen4") {
+    if (!isCompositeVideo && !videoUrl && runwayKey && data.preferredProvider !== "runway_gen4") {
       const runResult = await generateRunwayVideo(masterPrompt, runwayKey);
       if (runResult) { videoUrl = `[runway_job:${runResult}]`; provider = "runway_gen4"; }
     }
 
-    // ── Cost estimate ────────────────────────────────────────────────────────
+    // ── Cost estimate ─────────────────────────────────────────────────────────
     const aiTextCost = engineResult.costUsd ?? 0;
     const voiceCost  = data.voiceoverNeeded ? 0.30 : 0;
-    const videoCost  = provider === "veo3" ? 2.40 : provider === "runway_gen4" ? 1.70 : 0;
+    const clipCount  = isCompositeVideo ? Math.min(engineResult.storyboard.length, 12) : 1;
+    const videoCost  = provider === "veo3" ? 2.40 * clipCount : provider === "runway_gen4" ? 1.70 : 0;
     const totalCost  = Math.round((aiTextCost + voiceCost + videoCost) * 10000) / 10000;
 
     // Map OptimisedScene → StoryboardScene for DB storage
@@ -789,27 +891,30 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     const { data: inserted, error: insertErr } = await sb
       .from("growthmind_video_assets")
       .insert({
-        workspace_id:     workspaceId,
-        title:            engineResult.title,
-        video_type:       videoType,
-        provider:         provider ?? null,
-        script:           engineResult.script,
+        workspace_id:               workspaceId,
+        title:                      engineResult.title,
+        video_type:                 videoType,
+        provider:                   provider ?? null,
+        script:                     engineResult.script,
         storyboard,
-        video_url:        videoUrl  ?? null,
-        audio_url:        audioUrl  ?? null,
-        voice_id:         data.voiceId ?? null,
-        quality_mode:     "premium",
-        cost_estimate:    totalCost,
-        original_prompt:  data.userPrompt,
-        optimized_prompt: engineResult.optimisedPrompt,
-        generation_mode:  "freeform",
-        platform:         data.platform,
-        aspect_ratio:     data.aspectRatio,
-        quality_checks:   JSON.stringify(engineResult.qualityChecks),
-        campaign_id:      data.campaignId      ?? null,
-        variant_group_id: data.variantGroupId  ?? null,
-        variant_type:     data.variantType     ?? null,
-        created_at:       new Date().toISOString(),
+        video_url:                  videoUrl  ?? null,
+        audio_url:                  audioUrl  ?? null,
+        voice_id:                   data.voiceId ?? null,
+        quality_mode:               "premium",
+        cost_estimate:              totalCost,
+        original_prompt:            data.userPrompt,
+        optimized_prompt:           engineResult.optimisedPrompt,
+        generation_mode:            "freeform",
+        platform:                   data.platform,
+        aspect_ratio:               data.aspectRatio,
+        quality_checks:             JSON.stringify(engineResult.qualityChecks),
+        campaign_id:                data.campaignId      ?? null,
+        variant_group_id:           data.variantGroupId  ?? null,
+        variant_type:               data.variantType     ?? null,
+        is_composite:               isCompositeVideo,
+        assembly_status:            isCompositeVideo ? "clips_generating" : null,
+        requested_duration_seconds: data.videoLength,
+        created_at:                 new Date().toISOString(),
       })
       .select("id")
       .single();
@@ -841,6 +946,15 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       created_at:         new Date().toISOString(),
     }).then(() => {}).catch(() => {});
 
+    // Dispatch multi-clip jobs (fire-and-forget — clips reference the inserted asset ID)
+    if (isCompositeVideo && inserted?.id) {
+      submitMultiClipJobs(
+        sb, inserted.id as string, storyboard, veoCfg, data.aspectRatio, workspaceId,
+      ).catch((e: any) => {
+        console.error("[video-studio] Multi-clip dispatch error:", e?.message ?? e);
+      });
+    }
+
     return {
       assetId:          inserted.id as string,
       title:            engineResult.title,
@@ -858,6 +972,8 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       qualityChecks:    engineResult.qualityChecks,
       allChecksPassed:  engineResult.allChecksPassed,
       strategyBrief:    engineResult.marketingAngle,
+      isComposite:      isCompositeVideo,
+      clipCount:        isCompositeVideo ? clipCount : 1,
     };
   });
 
@@ -901,23 +1017,28 @@ export const getVideoAssets = createServerFn({ method: "GET" })
       const videoUrl = rawUrl?.startsWith("data:video/") ? "__data_uri__" : rawUrl;
 
       return {
-        id:             r.id,
-        title:          r.title,
-        videoType:      r.video_type as VideoType,
-        provider:       r.provider   ?? null,
-        script:         r.script     ?? "",
-        storyboard:     Array.isArray(r.storyboard) ? r.storyboard : [],
+        id:               r.id,
+        title:            r.title,
+        videoType:        r.video_type as VideoType,
+        provider:         r.provider   ?? null,
+        script:           r.script     ?? "",
+        storyboard:       Array.isArray(r.storyboard) ? r.storyboard : [],
         videoUrl,
-        audioUrl:       r.audio_url  ?? null,
-        voiceId:        r.voice_id   ?? null,
-        qualityMode:    r.quality_mode as QualityMode,
-        costEstimate:   r.cost_estimate ?? 0,
-        scheduledAt:    r.scheduled_at ?? null,
-        createdAt:      r.created_at,
-        campaignId:     r.campaign_id      ?? null,
-        variantGroupId: r.variant_group_id ?? null,
-        variantType:    r.variant_type     ?? null,
-        creativeScore:  r.creative_score   ?? null,
+        audioUrl:         r.audio_url  ?? null,
+        voiceId:          r.voice_id   ?? null,
+        qualityMode:      r.quality_mode as QualityMode,
+        costEstimate:     r.cost_estimate ?? 0,
+        scheduledAt:      r.scheduled_at ?? null,
+        createdAt:        r.created_at,
+        campaignId:       r.campaign_id      ?? null,
+        variantGroupId:   r.variant_group_id ?? null,
+        variantType:      r.variant_type     ?? null,
+        creativeScore:    r.creative_score   ?? null,
+        isComposite:      r.is_composite     ?? false,
+        assemblyStatus:   r.assembly_status  ?? null,
+        assemblyError:    r.assembly_error   ?? null,
+        finalVideoUrl:    r.final_video_url  ?? null,
+        requestedDuration: r.requested_duration_seconds ?? null,
       };
     });
 
@@ -1718,4 +1839,80 @@ export const getVeoStatus = createServerFn({ method: "GET" })
       (!!(creds.accessToken?.trim()) || !!(creds.refreshToken?.trim()));
 
     return { connected: hasGeminiKey || hasVertexCreds, hasGeminiKey, hasVertexCreds };
+  });
+
+// ── Get clips for a composite video asset ─────────────────────────────────────
+
+export const getVideoClips = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input ?? {}))
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: rows, error } = await Promise.resolve(
+      sb.from("growthmind_video_clips")
+        .select("*")
+        .eq("asset_id", data.assetId)
+        .eq("workspace_id", workspaceId)
+        .order("scene_index", { ascending: true })
+    ).catch((e: any) => ({ data: null, error: e }));
+
+    if (error) {
+      const isTableMissing =
+        error.code === "PGRST205" ||
+        (error.message?.includes("relation") && error.message?.includes("does not exist"));
+      if (isTableMissing) return { clips: [] };
+      throw new Error(error.message);
+    }
+
+    const clips: VideoClip[] = (rows ?? []).map((r: any) => ({
+      id:               r.id,
+      workspaceId:      r.workspace_id,
+      assetId:          r.asset_id,
+      sceneIndex:       r.scene_index,
+      sceneTitle:       r.scene_title   ?? null,
+      scenePrompt:      r.scene_prompt  ?? null,
+      durationSeconds:  r.duration_seconds ?? null,
+      provider:         r.provider      ?? null,
+      providerJobId:    r.provider_job_id ?? null,
+      status:           r.status        as VideoClip["status"],
+      rawVideoUrl:      r.raw_video_url ?? null,
+      archivedVideoUrl: r.archived_video_url ?? null,
+      errorMessage:     r.error_message ?? null,
+      createdAt:        r.created_at,
+    }));
+
+    return { clips };
+  });
+
+// ── Manually trigger assembly for a composite video ───────────────────────────
+
+export const triggerVideoAssembly = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ assetId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    // Verify ownership
+    const { data: asset } = await Promise.resolve(
+      sb.from("growthmind_video_assets")
+        .select("id, assembly_status, is_composite")
+        .eq("id", data.assetId)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle()
+    ).catch(() => ({ data: null }));
+
+    if (!asset) throw new Error("Asset not found");
+    if (!asset.is_composite) throw new Error("Asset is not a composite video");
+    if (asset.assembly_status === "assembling") throw new Error("Assembly already in progress");
+
+    // Import and run assembly (service-role client already in sb)
+    const { assembleCompositeVideo } = await import("./video-assembly.server");
+    const result = await assembleCompositeVideo(sb, data.assetId, workspaceId);
+
+    return result;
   });

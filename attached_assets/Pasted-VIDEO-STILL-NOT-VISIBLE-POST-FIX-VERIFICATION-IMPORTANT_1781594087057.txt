@@ -1,0 +1,85 @@
+VIDEO STILL NOT VISIBLE — POST-FIX VERIFICATION
+
+IMPORTANT
+
+Audit and fix only the video visibility issue.
+
+Do not rebuild Video Studio.
+
+The poller crash was reportedly fixed, but the video is still not visible.
+
+OBJECTIVE
+
+Find why the existing video still does not display after the re-archive fix.
+
+CHECK
+
+1. Inspect the latest growthmind_video_assets row.
+2. Show:
+   - id
+   - status
+   - provider
+   - video_url
+   - thumbnail_url
+   - error_message
+   - updated_at
+3. Determine whether video_url is:
+   - [error:...]
+   - [veo3_job:...]
+   - gs://...
+   - generativelanguage.googleapis.com/...
+   - Supabase Storage URL
+   - empty/null
+
+4. If video_url is still a Google API URL:
+   - manually run the re-archive function for that asset
+   - confirm it downloads bytes successfully
+   - confirm upload to gm-videos bucket
+   - confirm DB update to Supabase public URL
+
+5. If video_url is Supabase URL:
+   - fetch the URL server-side
+   - check HTTP status
+   - check content-type
+   - check file size
+   - confirm browser-playable MP4
+
+6. Check Supabase Storage:
+   - bucket exists
+   - file exists
+   - file size > 0
+   - public URL works
+   - MIME type is video/mp4
+
+7. Check frontend:
+   - isRealVideoUrl()
+   - VideoAssetCard
+   - video player src
+   - any conditional hiding logic
+   - browser console/network errors
+
+8. Add one temporary debug panel in Video Studio showing:
+   - raw video_url
+   - url type
+   - status
+   - storage check result
+   - last poll time
+   - last archive result
+
+ANSWER CLEARLY
+
+Why is the video still not visible?
+
+Is it:
+A. Asset never completed
+B. Re-archive did not run
+C. Re-archive failed
+D. Supabase file missing
+E. Supabase URL not public
+F. Frontend not rendering the correct URL
+G. Browser/cache issue
+H. Old unrecoverable failed asset
+
+If the asset is unrecoverable, say so clearly and add a "Delete + Regenerate" action.
+
+Return exact root cause and implement the smallest safe fix.

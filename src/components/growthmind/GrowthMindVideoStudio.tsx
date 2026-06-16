@@ -18,12 +18,14 @@ import {
   generateVideo, generateVideoFromPrompt, getVideoAssets, deleteVideoAsset,
   scheduleVideoAsset, getVideoCostStats, retryVideoJob, pollVideoJob, getVideoDownloadUrl,
   generateVideoVariants, scoreVideoCreative, getVeoStatus, clearFailedVideoAssets,
+  getVideoClips, triggerVideoAssembly,
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
-  type VideoType, type QualityMode, type VideoAsset, type StoryboardScene,
+  type VideoType, type QualityMode, type VideoAsset, type StoryboardScene, type VideoClip,
 } from "@/lib/growthmind/growthmind.video-studio";
 import { listGrowthMindVoices } from "@/lib/growthmind/growthmind.ai";
 import {
   isJobPending, isJobError, parseErrorMessage, isRealVideoUrl, parseJobSentinel,
+  isCompositePending,
 } from "@/lib/growthmind/video-job-poller";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -257,6 +259,121 @@ function useElapsedSeconds(since: string | null | undefined, active: boolean) {
   return elapsed;
 }
 
+// ── Composite video progress panel ────────────────────────────────────────────
+
+function CompositeProgressPanel({ asset }: { asset: VideoAsset }) {
+  const getClipsFn = useServerFn(getVideoClips);
+  const triggerFn  = useServerFn(triggerVideoAssembly);
+  const [triggering, setTriggering] = useState(false);
+  const [triggerError, setTriggerError] = useState("");
+
+  const status = asset.assemblyStatus;
+  const isAssembling = status === "assembling";
+  const isFailed     = status === "failed";
+  const isDone       = status === "complete";
+  const needsTrigger = status === "clips_generating" || status === "clips_complete";
+
+  const { data: clipsData } = useQuery({
+    queryKey: ["video-clips", asset.id],
+    queryFn:  () => getClipsFn({ data: { assetId: asset.id } }),
+    enabled:  !isDone,
+    refetchInterval: needsTrigger || isAssembling ? 8_000 : false,
+  });
+  const clips: VideoClip[] = clipsData?.clips ?? [];
+
+  const completedCount = clips.filter(c => c.status === "completed").length;
+  const failedCount    = clips.filter(c => c.status === "failed").length;
+  const totalCount     = clips.length;
+
+  async function handleTrigger() {
+    setTriggering(true);
+    setTriggerError("");
+    try {
+      await triggerFn({ data: { assetId: asset.id } });
+    } catch (e: any) {
+      setTriggerError(e?.message ?? "Assembly failed");
+    }
+    setTriggering(false);
+  }
+
+  return (
+    <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.04] p-3 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <Layers className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+        <p className="text-[10px] uppercase tracking-wider text-violet-400/80 font-semibold flex-1">
+          Composite Video
+          {asset.requestedDuration && (
+            <span className="ml-1.5 text-violet-400/50 normal-case">
+              {asset.requestedDuration}s
+            </span>
+          )}
+        </p>
+        {isAssembling && (
+          <span className="flex items-center gap-1 text-[10px] text-amber-400 animate-pulse">
+            <Loader2 className="h-2.5 w-2.5 animate-spin" />Assembling…
+          </span>
+        )}
+        {isDone && (
+          <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+            <CheckCircle2 className="h-2.5 w-2.5" />Complete
+          </span>
+        )}
+      </div>
+
+      {clips.length > 0 && (
+        <div className="grid grid-cols-4 gap-1">
+          {clips.map(clip => (
+            <div
+              key={clip.id}
+              title={`Scene ${clip.sceneIndex + 1}: ${clip.sceneTitle ?? ""}`}
+              className={cn(
+                "flex items-center justify-center h-7 rounded text-[9px] font-bold border",
+                clip.status === "completed" ? "bg-emerald-500/15 border-emerald-500/25 text-emerald-400"
+                : clip.status === "failed"  ? "bg-red-500/15 border-red-500/20 text-red-400"
+                : clip.status === "processing" ? "bg-amber-500/15 border-amber-500/25 text-amber-400 animate-pulse"
+                : "bg-white/[0.03] border-white/[0.06] text-muted-foreground/40",
+              )}
+            >
+              {clip.status === "completed" ? "✓"
+               : clip.status === "failed"  ? "✗"
+               : clip.status === "processing" ? "…"
+               : `${clip.sceneIndex + 1}`}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {totalCount > 0 && (
+        <p className="text-[10px] text-muted-foreground/60">
+          {completedCount}/{totalCount} clips done
+          {failedCount > 0 && (
+            <span className="text-red-400/80 ml-1.5">{failedCount} failed</span>
+          )}
+        </p>
+      )}
+
+      {isFailed && asset.assemblyError && (
+        <p className="text-[10px] text-red-400/80 leading-relaxed">{asset.assemblyError.slice(0, 120)}</p>
+      )}
+
+      {(isFailed || (needsTrigger && completedCount > 0 && completedCount === totalCount - failedCount && totalCount > 0)) && (
+        <button
+          onClick={handleTrigger}
+          disabled={triggering}
+          className="flex items-center gap-1.5 text-[10px] font-medium text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-50"
+        >
+          {triggering ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          {triggering ? "Assembling…" : "Assemble clips now"}
+        </button>
+      )}
+
+      {triggerError && (
+        <p className="text-[10px] text-red-400/80">{triggerError}</p>
+      )}
+    </div>
+  );
+}
+
 function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   asset:      VideoAsset;
   onDelete:   (id: string) => void;
@@ -377,12 +494,16 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
             <Volume2 className="h-2.5 w-2.5" />Voice
           </span>
         )}
-        {jobPending && (
+        {isCompositePending(asset.videoUrl) ? (
+          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-violet-500/10 border-violet-500/20 text-violet-400 animate-pulse">
+            <Layers className="h-2.5 w-2.5" />Building clips…
+          </span>
+        ) : jobPending ? (
           <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse">
             <Loader2 className="h-2.5 w-2.5 animate-spin" />
             {jobInfo?.type === "runway" ? "Runway" : "Veo 3"} processing…
           </span>
-        )}
+        ) : null}
         {jobError && (
           <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-red-500/10 border-red-500/20 text-red-400">
             <AlertCircle className="h-2.5 w-2.5" />Video failed
@@ -409,6 +530,8 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
           <audio controls src={asset.audioUrl} className="w-full h-8" />
         </div>
       )}
+
+      {asset.isComposite && <CompositeProgressPanel asset={asset} />}
 
       {/* Video states */}
       {jobPending && (
@@ -1992,8 +2115,10 @@ export function GrowthMindVideoStudio() {
 
           {/* ── Poller health chip ── */}
           {(() => {
-            const pendingCount = assets.filter(a => isJobPending(a.videoUrl)).length;
-            const failedCount  = assets.filter(a => isJobError(a.videoUrl)).length;
+            const pendingCount    = assets.filter(a => isJobPending(a.videoUrl)).length;
+            const compositeCount  = assets.filter(a => isCompositePending(a.videoUrl) || (a.isComposite && a.assemblyStatus && !["complete", "failed"].includes(a.assemblyStatus))).length;
+            const failedCount     = assets.filter(a => isJobError(a.videoUrl)).length;
+            const anyActive       = pendingCount > 0 || compositeCount > 0;
             return (
               <div className="rounded-xl border border-white/[0.06] bg-card/60 p-3 space-y-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 flex items-center gap-1.5">
@@ -2001,12 +2126,19 @@ export function GrowthMindVideoStudio() {
                   Poller Status
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {pendingCount > 0 ? (
+                  {pendingCount > 0 && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
                       <Loader2 className="h-2.5 w-2.5 animate-spin" />
                       {pendingCount} rendering
                     </span>
-                  ) : (
+                  )}
+                  {compositeCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 text-[10px] font-semibold text-violet-400">
+                      <Layers className="h-2.5 w-2.5" />
+                      {compositeCount} compositing
+                    </span>
+                  )}
+                  {!anyActive && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
                       <CheckCircle2 className="h-2.5 w-2.5" />
                       All done
@@ -2019,7 +2151,7 @@ export function GrowthMindVideoStudio() {
                     </span>
                   )}
                 </div>
-                {pendingCount > 0 && (
+                {anyActive && (
                   <p className="text-[10px] text-muted-foreground/50">Auto-polls every 10s</p>
                 )}
               </div>
