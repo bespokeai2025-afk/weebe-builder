@@ -252,6 +252,72 @@ function VariableEditor({
 // Stable empty workspace context — avoids infinite render loop when query hasn't resolved yet
 const EMPTY_WS_CTX: Record<string, string> = {};
 
+// ── HighlightedTextarea ─────────────────────────────────────────────────────────
+// Renders {{variable}} tokens with emerald highlight spans using a backdrop overlay.
+// The textarea sits on top with transparent text / white caret so the highlight shows through.
+
+function HighlightedTextarea({
+  value,
+  onChange,
+  disabled,
+  rows = 8,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  rows?: number;
+  placeholder?: string;
+}) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const bgRef = useRef<HTMLDivElement>(null);
+
+  const highlightedHtml = useMemo(() => {
+    const safe = value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const html = safe.replace(
+      /(\{\{(\w+)\}\})/g,
+      '<mark style="background:rgba(52,211,153,0.18);color:#6ee7b7;border-radius:2px;font-style:normal">$1</mark>',
+    );
+    return html + "\u200b"; // zero-width space prevents scroll clamp
+  }, [value]);
+
+  const syncScroll = () => {
+    if (bgRef.current && taRef.current) {
+      bgRef.current.scrollTop  = taRef.current.scrollTop;
+      bgRef.current.scrollLeft = taRef.current.scrollLeft;
+    }
+  };
+
+  return (
+    <div className="relative rounded-lg overflow-hidden border border-white/[0.08] focus-within:border-emerald-500/40">
+      {/* Highlight backdrop — styling must match textarea exactly */}
+      <div
+        ref={bgRef}
+        aria-hidden="true"
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+        className="absolute inset-0 px-3 py-2 text-xs font-mono leading-relaxed whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
+        style={{ color: "transparent" }}
+      />
+      {/* Actual textarea — transparent text so backdrop shows through; white caret */}
+      <textarea
+        ref={taRef}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onScroll={syncScroll}
+        disabled={disabled}
+        rows={rows}
+        placeholder={placeholder}
+        className="relative w-full bg-transparent px-3 py-2 text-xs font-mono leading-relaxed resize-y outline-none disabled:opacity-60 placeholder:text-muted-foreground/40"
+        style={{ color: "transparent", caretColor: "white" }}
+      />
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export function GrowthMindPromptStudio() {
@@ -733,14 +799,15 @@ export function GrowthMindPromptStudio() {
                   {/* System Prompt */}
                   <div>
                     <label className="text-[10px] text-muted-foreground uppercase tracking-widest">System Prompt</label>
-                    <textarea
-                      value={editState.systemPrompt}
-                      onChange={e => { setEditState(s => ({ ...s, systemPrompt: e.target.value })); setIsDirty(true); }}
-                      disabled={isReadOnly}
-                      rows={8}
-                      className="mt-1 w-full bg-transparent border border-white/[0.08] rounded-lg px-3 py-2 text-xs font-mono resize-y outline-none focus:border-emerald-500/40 disabled:opacity-60 leading-relaxed"
-                      placeholder="Define the AI persona, context, and instructions here..."
-                    />
+                    <div className="mt-1">
+                      <HighlightedTextarea
+                        value={editState.systemPrompt}
+                        onChange={v => { setEditState(s => ({ ...s, systemPrompt: v })); setIsDirty(true); }}
+                        disabled={isReadOnly}
+                        rows={8}
+                        placeholder="Define the AI persona, context, and instructions here..."
+                      />
+                    </div>
                   </div>
 
                   {/* User Prompt Template */}
@@ -749,12 +816,11 @@ export function GrowthMindPromptStudio() {
                       <label className="text-[10px] text-muted-foreground uppercase tracking-widest">User Prompt Template</label>
                       <span className="text-[10px] text-muted-foreground/50">Use <code className="text-emerald-400/70">{"{{variable_name}}"}</code> for dynamic values</span>
                     </div>
-                    <textarea
+                    <HighlightedTextarea
                       value={editState.userPromptTemplate}
-                      onChange={e => { setEditState(s => ({ ...s, userPromptTemplate: e.target.value })); setIsDirty(true); }}
+                      onChange={v => { setEditState(s => ({ ...s, userPromptTemplate: v })); setIsDirty(true); }}
                       disabled={isReadOnly}
                       rows={10}
-                      className="w-full bg-transparent border border-white/[0.08] rounded-lg px-3 py-2 text-xs font-mono resize-y outline-none focus:border-emerald-500/40 disabled:opacity-60 leading-relaxed"
                       placeholder="Write the user message template here. Use {{variable_name}} for dynamic values..."
                     />
                     {/* Detected variables */}

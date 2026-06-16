@@ -959,12 +959,25 @@ export const restorePromptVersion = createServerFn({ method: "POST" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    // Verify target template is a custom (editable) template — never overwrite library packs
+    const { data: tpl, error: tplErr } = await sb
+      .from("growthmind_prompt_templates")
+      .select("category")
+      .eq("id", data.templateId)
+      .eq("workspace_id", workspaceId)
+      .single();
+    if (tplErr) throw new Error(tplErr.message);
+    if (tpl?.category === "library") throw new Error("Library templates are read-only and cannot be restored to a version.");
+
+    // Fetch version and verify it belongs to THIS template (prevents cross-template restore)
     const { data: v, error: ve } = await sb.from("growthmind_prompt_versions")
       .select("*")
       .eq("id", data.versionId)
+      .eq("template_id", data.templateId)
       .eq("workspace_id", workspaceId)
       .single();
     if (ve) throw new Error(ve.message);
+    if (!v) throw new Error("Version not found or does not belong to this template.");
 
     const { error } = await sb.from("growthmind_prompt_templates").update({
       system_prompt:        v.system_prompt,
@@ -973,7 +986,8 @@ export const restorePromptVersion = createServerFn({ method: "POST" })
       updated_at:           new Date().toISOString(),
     })
       .eq("id", data.templateId)
-      .eq("workspace_id", workspaceId);
+      .eq("workspace_id", workspaceId)
+      .eq("category", "custom");
 
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -1209,7 +1223,7 @@ export async function getPromptPerformanceSummary(sb: any, workspaceId: string) 
     const overallAvg   = all.length > 0
       ? Math.round(all.reduce((s, r) => s + (r.avg_score ?? 0), 0) / all.length * 10) / 10
       : null;
-    const lowPerfCount = all.filter(r => (r.avg_score ?? 10) < 4).length;
+    const lowPerfCount = all.filter(r => (r.avg_score ?? 10) < 3).length;
 
     return { best, worst, totalUsage, overallAvg, totalTemplates: all.length, lowPerfCount };
   } catch {

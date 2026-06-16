@@ -729,7 +729,7 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
         sb.from("growthmind_prompt_stats")
           .select("template_id, avg_score, usage_count, growthmind_prompt_templates(name, type)")
           .eq("workspace_id", workspaceId)
-          .lt("avg_score", 4)
+          .lt("avg_score", 3)
           .gt("usage_count", 0)
           .order("avg_score", { ascending: true })
           .limit(5),
@@ -756,13 +756,13 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
         proposed.push({
           workspace_id:   workspaceId,
           title:          `Critically low-scoring prompt templates need urgent revision in Prompt Studio`,
-          description:    `${poorPrompts.length} prompt template${poorPrompts.length !== 1 ? "s are" : " is"} scoring below 4/10 — these are producing poor-quality AI outputs that may be hurting content and campaign results. Worst performers: ${worstNames}.${bestHint} Open Prompt Studio to rewrite the system and user prompts, then re-run the scoring test.`,
+          description:    `${poorPrompts.length} prompt template${poorPrompts.length !== 1 ? "s are" : " is"} scoring below 3/10 — critically failing outputs that will actively hurt content quality and campaign performance. Worst performers: ${worstNames}.${bestHint} Use best-performing templates as reference when rewriting.`,
           action_type:    "create_task",
           action_payload: {
-            title:       "Revise critically poor prompt templates in GrowthMind → Prompt Studio",
-            description: `Templates scoring below 4/10: ${worstNames}. Open GrowthMind → Prompt Studio, select each template, rewrite the system and user prompts using the best-performer templates as reference${bestNames ? ` (${bestNames})` : ""}, then re-run the test runner until scores exceed 7/10.`,
+            title:       "Revise critically failing prompt templates in GrowthMind → Prompt Studio",
+            description: `Templates scoring below 3/10: ${worstNames}. Open GrowthMind → Prompt Studio, select each failing template, study the best-performers${bestNames ? ` (${bestNames})` : ""} for reference, rewrite the system and user prompts, then re-run the scorer until scores exceed 7/10.`,
             priority:    "high",
-            trigger_type:"low_prompt_score",
+            trigger_type:"prompt_performance",
           },
           proposed_by: "hivemind",
           status:      "pending",
