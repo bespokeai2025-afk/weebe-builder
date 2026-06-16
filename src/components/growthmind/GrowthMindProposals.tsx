@@ -398,6 +398,7 @@ export function GrowthMindProposals() {
     if (!highlightId || !data || highlightConsumed.current) return;
     highlightConsumed.current = true;
     setStatusFilter("all");
+    window.history.replaceState({}, "", window.location.pathname);
   }, [highlightId, data]);
 
   const allProposals: AnyProposal[] = [
