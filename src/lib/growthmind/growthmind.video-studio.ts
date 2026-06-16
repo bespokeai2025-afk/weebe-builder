@@ -891,36 +891,58 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     };
     const videoType = platformToType[data.platform] ?? "explainer_video";
 
-    const { data: inserted, error: insertErr } = await sb
+    const baseInsertRow = {
+      workspace_id:               workspaceId,
+      title:                      engineResult.title,
+      video_type:                 videoType,
+      provider:                   provider ?? null,
+      script:                     engineResult.script,
+      storyboard,
+      video_url:                  videoUrl  ?? null,
+      audio_url:                  audioUrl  ?? null,
+      voice_id:                   data.voiceId ?? null,
+      quality_mode:               "premium",
+      cost_estimate:              totalCost,
+      original_prompt:            data.userPrompt,
+      optimized_prompt:           engineResult.optimisedPrompt,
+      generation_mode:            "freeform",
+      platform:                   data.platform,
+      aspect_ratio:               data.aspectRatio,
+      quality_checks:             JSON.stringify(engineResult.qualityChecks),
+      campaign_id:                data.campaignId      ?? null,
+      variant_group_id:           data.variantGroupId  ?? null,
+      variant_type:               data.variantType     ?? null,
+      created_at:                 new Date().toISOString(),
+    };
+    const multiClipFields = {
+      is_composite:               isCompositeVideo,
+      assembly_status:            isCompositeVideo ? "clips_generating" : null,
+      requested_duration_seconds: data.videoLength,
+    };
+
+    let firstRes = await sb
       .from("growthmind_video_assets")
-      .insert({
-        workspace_id:               workspaceId,
-        title:                      engineResult.title,
-        video_type:                 videoType,
-        provider:                   provider ?? null,
-        script:                     engineResult.script,
-        storyboard,
-        video_url:                  videoUrl  ?? null,
-        audio_url:                  audioUrl  ?? null,
-        voice_id:                   data.voiceId ?? null,
-        quality_mode:               "premium",
-        cost_estimate:              totalCost,
-        original_prompt:            data.userPrompt,
-        optimized_prompt:           engineResult.optimisedPrompt,
-        generation_mode:            "freeform",
-        platform:                   data.platform,
-        aspect_ratio:               data.aspectRatio,
-        quality_checks:             JSON.stringify(engineResult.qualityChecks),
-        campaign_id:                data.campaignId      ?? null,
-        variant_group_id:           data.variantGroupId  ?? null,
-        variant_type:               data.variantType     ?? null,
-        is_composite:               isCompositeVideo,
-        assembly_status:            isCompositeVideo ? "clips_generating" : null,
-        requested_duration_seconds: data.videoLength,
-        created_at:                 new Date().toISOString(),
-      })
+      .insert({ ...baseInsertRow, ...multiClipFields })
       .select("id")
       .single();
+
+    // Graceful fallback: if multi-clip columns don't exist yet (migration pending),
+    // retry without them so single-clip generation still works.
+    const isMissingColumn = (e: any) =>
+      e?.code === "PGRST204" ||
+      (typeof e?.message === "string" && e.message.includes("column") && e.message.includes("schema cache"));
+
+    if (firstRes.error && isMissingColumn(firstRes.error)) {
+      console.warn("[video-studio] Multi-clip columns not found — retrying without them (apply MULTI_CLIP_VIDEO_MIGRATION.sql to enable multi-clip)");
+      isCompositeVideo = false;
+      firstRes = await sb
+        .from("growthmind_video_assets")
+        .insert(baseInsertRow)
+        .select("id")
+        .single();
+    }
+
+    const { data: inserted, error: insertErr } = firstRes;
 
     if (insertErr) {
       const isTableMissing =
