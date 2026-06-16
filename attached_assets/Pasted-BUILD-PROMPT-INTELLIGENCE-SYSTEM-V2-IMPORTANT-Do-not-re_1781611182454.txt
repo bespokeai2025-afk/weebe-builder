@@ -1,0 +1,323 @@
+BUILD PROMPT INTELLIGENCE SYSTEM V2
+
+IMPORTANT
+
+Do not remove existing prompts.
+
+Do not break current generation.
+
+This is an enhancement layer.
+
+OBJECTIVE
+
+Create a professional prompt orchestration system that sits between the user and every AI generation feature.
+
+Current:
+
+User prompt → LLM
+
+Target:
+
+User prompt → Prompt Intelligence Layer → LLM
+
+====================================================
+
+NEW PAGE
+
+/growthmind/prompt-studio
+
+====================================================
+
+CREATE
+
+Prompt Templates
+
+Prompt Variables
+
+Prompt Libraries
+
+Prompt Packs
+
+Prompt Versions
+
+Prompt Testing
+
+Prompt Scoring
+
+====================================================
+
+PROMPT STACKING
+
+Before any AI generation automatically inject:
+
+Business DNA
+
+Knowledge Packs
+
+Workspace Context
+
+GrowthMind Strategy
+
+Current Value Point
+
+Target Audience
+
+Competitor Intelligence
+
+Brand Voice
+
+Channel Requirements
+
+Campaign Goals
+
+====================================================
+
+PROMPT TYPES
+
+Content
+
+Video
+
+Campaign
+
+SEO
+
+Meta Ads
+
+Google Ads
+
+WhatsApp
+
+Email
+
+Sales
+
+AI Calling
+
+Landing Pages
+
+Funnels
+
+Agent Scripts
+
+Knowledge Extraction
+
+====================================================
+
+ADVANCED VARIABLES
+
+Allow variables:
+
+{{business_name}}
+
+{{industry}}
+
+{{service}}
+
+{{target_audience}}
+
+{{offer}}
+
+{{competitor}}
+
+{{highest_value_point}}
+
+{{campaign_goal}}
+
+{{brand_voice}}
+
+{{platform}}
+
+{{budget}}
+
+{{location}}
+
+{{call_to_action}}
+
+====================================================
+
+PROMPT CHAINING
+
+Allow:
+
+Prompt A
+↓
+Output
+↓
+Prompt B
+↓
+Output
+↓
+Prompt C
+↓
+Final Asset
+
+Example:
+
+Research
+↓
+Strategy
+↓
+Hook Generation
+↓
+Storyboard
+↓
+Veo Prompt
+
+====================================================
+
+VIDEO STUDIO INTEGRATION
+
+Video prompts should automatically inject:
+
+Business DNA
+
+Offer
+
+Target audience
+
+Creative angle
+
+Value point
+
+Platform
+
+Visual style
+
+Audio style
+
+Brand guidelines
+
+Instead of relying solely on user text.
+
+====================================================
+
+CONTENT STUDIO INTEGRATION
+
+Content prompts should automatically inject:
+
+SEO goals
+
+Target audience
+
+Brand voice
+
+Offer
+
+Competitor gaps
+
+Growth strategy
+
+====================================================
+
+CAMPAIGN FACTORY INTEGRATION
+
+Campaign prompts should automatically inject:
+
+Channel scores
+
+Audience scores
+
+Business DNA
+
+Current opportunities
+
+Growth strategy
+
+====================================================
+
+PROMPT LIBRARY
+
+Seed templates:
+
+Alex Hormozi Offer Builder
+
+Russell Brunson Funnel Builder
+
+Direct Response Copywriter
+
+Meta Ads Specialist
+
+Google Ads Specialist
+
+SEO Specialist
+
+Content Strategist
+
+Video Creative Director
+
+CMO Strategy Builder
+
+AI Receptionist Sales Expert
+
+Lead Generation Specialist
+
+Client Qualification Specialist
+
+====================================================
+
+PROMPT TESTING
+
+Allow:
+
+Version A
+
+Version B
+
+Version C
+
+Score outputs based on:
+
+Quality
+
+Completeness
+
+Audience fit
+
+Brand fit
+
+Conversion potential
+
+====================================================
+
+PROMPT SCORING
+
+Store:
+
+Prompt score
+
+Output score
+
+Usage count
+
+Success rate
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should see:
+
+Best performing prompts
+
+Worst performing prompts
+
+Recommended prompt upgrades
+
+Prompt effectiveness trends
+
+====================================================
+
+SUCCESS CRITERIA
+
+Users can create reusable prompt systems.
+
+All GrowthMind outputs become significantly more intelligent.
+
+Video Studio, Content Studio and Campaign Factory use structured context automatically.
+
+Prompt quality improves over time.
+
+Generate implementation plan first.
+
+Then implement safely.

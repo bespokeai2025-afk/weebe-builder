@@ -2,12 +2,14 @@
  * Veo Provider — Gemini Developer API + Vertex AI OAuth
  *
  * Auth priority:
- *   1. GEMINI_API_KEY / credentials.geminiApiKey  → generativelanguage.googleapis.com/v1alpha
+ *   1. GEMINI_API_KEY / credentials.geminiApiKey  → generativelanguage.googleapis.com/v1beta
  *      Request body: { instances, parameters } — same schema as Vertex AI
- *      Model default: veo-2.0-generate-001 (Veo 3 not available on Gemini Developer API)
+ *      Model default: veo-3.0-generate-preview (Veo 3 is NOW available on Gemini Developer API)
+ *      Note: Veo 3+ on Gemini API generates audio by default; generateAudio=false is a no-op.
  *   2. accessToken + gcpProject                   → aiplatform.googleapis.com/v1
  *      Request body: { instances, parameters } (Vertex AI format)
  *      Model default: veo-3.0-generate-preview
+ *      generateAudio parameter is fully controllable on Vertex AI path.
  *      If refreshToken + clientId + clientSecret present, auto-refreshes expired tokens.
  */
 
@@ -27,7 +29,7 @@ export type VeoGenerateParams = {
   aspectRatio?:     "16:9" | "9:16" | "1:1" | "4:5";
   durationSeconds?: number;
   referenceUrl?:    string;
-  generateAudio?:   boolean;  // Request native AI-generated audio (Veo 3 Vertex only)
+  generateAudio?:   boolean;  // Veo 3+ native AI audio — controllable on Vertex; always-on for Gemini API Veo 3
 };
 
 export type VeoJobResult =
@@ -36,11 +38,18 @@ export type VeoJobResult =
   | { status: "completed";  jobId: string; videoUrl: string }
   | { status: "failed";     jobId: string; error?: string };
 
-const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta";  // Veo uses v1beta (:predictLongRunning)
+const GEMINI_BASE   = "https://generativelanguage.googleapis.com/v1beta";  // :predictLongRunning LRO endpoint
 const VERTEX_BASE   = "https://us-central1-aiplatform.googleapis.com/v1";
 const TOKEN_URL     = "https://oauth2.googleapis.com/token";
-const DEFAULT_MODEL_GEMINI = "veo-2.0-generate-001";       // Gemini Developer API (API key)
+// Veo 3 is now available on the Gemini Developer API and generates native audio by default.
+// Veo 2 (veo-2.0-generate-001) has NO audio support — keep as explicit fallback only.
+const DEFAULT_MODEL_GEMINI = "veo-3.0-generate-preview";  // Gemini Developer API (API key) — Veo 3 with audio
 const DEFAULT_MODEL_VERTEX = "veo-3.0-generate-preview";  // Vertex AI (GCP OAuth)
+
+/** Returns true for Veo 3.x models that support native audio generation. */
+export function isAudioCapableModel(model: string): boolean {
+  return model.startsWith("veo-3") || model.startsWith("veo-3.");
+}
 
 export class VeoProvider {
   private cfg: VeoConfig;
@@ -66,7 +75,6 @@ export class VeoProvider {
   private get model(): string {
     const cfgModel = (this.cfg.model ?? "").trim() || process.env.VEO_MODEL;
     if (cfgModel) return cfgModel;
-    // Gemini Developer API only supports up to veo-2; Vertex AI supports veo-3 preview
     return this.authMode === "gemini_api_key" ? DEFAULT_MODEL_GEMINI : DEFAULT_MODEL_VERTEX;
   }
 
@@ -121,24 +129,25 @@ export class VeoProvider {
     }
 
     const doRequest = async (token: string): Promise<Response> => {
-      // Both Gemini API and Vertex AI use the same instances/parameters schema.
-      // durationSeconds must be a NUMBER on both paths — the API returns 400 if sent as a string.
-      // Auth differs: API key (Gemini) vs Bearer token (Vertex AI).
       const instance: Record<string, unknown> = { prompt: params.prompt };
       if (params.referenceUrl) instance.image = { gcsUri: params.referenceUrl };
 
       if (this.authMode === "gemini_api_key") {
-        // Gemini Developer API: :predictLongRunning is the documented LRO endpoint for Veo
+        // Gemini Developer API: :predictLongRunning is the documented LRO endpoint for Veo.
+        // Veo 3+ on Gemini API generates audio by default; generateAudio=true is a no-op,
+        // generateAudio=false is ignored (audio cannot be disabled on Gemini Developer API).
         const endpoint = `${GEMINI_BASE}/models/${this.model}:predictLongRunning?key=${encodeURIComponent(this.geminiKey)}`;
+        const audioCapable = isAudioCapableModel(this.model);
         const body = {
           instances: [instance],
           parameters: {
             aspectRatio:     params.aspectRatio     ?? "16:9",
-            durationSeconds: params.durationSeconds ?? 8,   // must be a number, not a string
+            durationSeconds: params.durationSeconds ?? 8,
             sampleCount:     1,
+            ...(audioCapable ? { generateAudio: params.generateAudio ?? true } : {}),
           },
         };
-        console.log("[veo-provider] Gemini API POST", endpoint.replace(/key=[^&]+/, "key=***"));
+        console.log("[veo-provider] Gemini API POST", endpoint.replace(/key=[^&]+/, "key=***"), `model=${this.model} audioCapable=${audioCapable}`);
         console.log("[veo-provider] body:", JSON.stringify(body).slice(0, 400));
         return fetch(endpoint, {
           method:  "POST",
@@ -156,9 +165,9 @@ export class VeoProvider {
           instances: [instance],
           parameters: {
             aspectRatio:     params.aspectRatio     ?? "16:9",
-            durationSeconds: params.durationSeconds ?? 8,  // integer on Vertex AI
+            durationSeconds: params.durationSeconds ?? 8,
             sampleCount:     1,
-            generateAudio:   params.generateAudio ?? true,  // Veo 3 native AI audio (user-controllable)
+            generateAudio:   params.generateAudio ?? true,  // Fully controllable on Vertex AI
           },
         };
         console.log("[veo-provider] Vertex AI request →", endpoint, JSON.stringify(body).slice(0, 300));
@@ -256,10 +265,12 @@ export class VeoProvider {
 
   // ── List available models ─────────────────────────────────────────────────
 
-  listModels(): { id: string; label: string; defaultDuration: number; requiresVertex?: boolean }[] {
+  listModels(): { id: string; label: string; defaultDuration: number; supportsAudio: boolean; requiresVertex?: boolean }[] {
     return [
-      { id: "veo-2.0-generate-001",     label: "Veo 2.0 (Gemini API key)",        defaultDuration: 8 },
-      { id: "veo-3.0-generate-preview", label: "Veo 3.0 Preview (Vertex AI only)", defaultDuration: 8, requiresVertex: true },
+      { id: "veo-3.0-generate-preview",       label: "Veo 3.0 (Gemini API or Vertex)",       defaultDuration: 8,  supportsAudio: true  },
+      { id: "veo-3.1-generate-preview",       label: "Veo 3.1 Preview (Gemini API or Vertex)", defaultDuration: 8,  supportsAudio: true  },
+      { id: "veo-3.1-fast-generate-preview",  label: "Veo 3.1 Fast (Gemini API or Vertex)",   defaultDuration: 8,  supportsAudio: true  },
+      { id: "veo-2.0-generate-001",           label: "Veo 2.0 (no audio — legacy fallback)",  defaultDuration: 8,  supportsAudio: false },
     ];
   }
 

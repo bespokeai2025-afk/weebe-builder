@@ -61,6 +61,7 @@ export type VideoAsset = {
   assemblyError:    string | null;
   finalVideoUrl:    string | null;
   requestedDuration: number | null;
+  hasNativeAudio:   boolean | null;
 };
 
 export type VideoClip = {
@@ -554,25 +555,49 @@ export const generateVideo = createServerFn({ method: "POST" })
     const totalCost    = Math.round((aiTextCost + voiceVideoCostEst) * 10000) / 10000;
 
     // ── Save to growthmind_video_assets ────────────────────────────────────
-    const { data: inserted, error: insertErr } = await sb
+    // has_audio = true when Veo 3+ is the provider and native audio was requested.
+    // On the Gemini API path, Veo 3 always generates audio regardless; on Vertex AI it is user-controllable.
+    const hasNativeAudio = provider === "veo3" && data.generateVeoAudio;
+
+    const guidedInsertRow = {
+      workspace_id:  workspaceId,
+      title,
+      video_type:    videoType,
+      provider:      provider ?? null,
+      script,
+      storyboard,
+      video_url:     videoUrl   ?? null,
+      audio_url:     audioUrl   ?? null,
+      voice_id:      data.voiceId ?? null,
+      quality_mode:  qualityMode,
+      cost_estimate: totalCost,
+      campaign_id:   data.campaignId ?? null,
+      has_audio:     hasNativeAudio,
+      created_at:    new Date().toISOString(),
+    };
+
+    const isMissingCol = (e: any) =>
+      e?.code === "PGRST204" ||
+      (typeof e?.message === "string" && e.message.includes("column") && e.message.includes("schema cache"));
+
+    let guidedRes = await sb
       .from("growthmind_video_assets")
-      .insert({
-        workspace_id:  workspaceId,
-        title,
-        video_type:    videoType,
-        provider:      provider ?? null,
-        script,
-        storyboard,
-        video_url:     videoUrl   ?? null,
-        audio_url:     audioUrl   ?? null,
-        voice_id:      data.voiceId ?? null,
-        quality_mode:  qualityMode,
-        cost_estimate: totalCost,
-        campaign_id:   data.campaignId ?? null,
-        created_at:    new Date().toISOString(),
-      })
+      .insert(guidedInsertRow)
       .select("id")
       .single();
+
+    // Graceful fallback: if has_audio column not yet migrated, retry without it
+    if (guidedRes.error && isMissingCol(guidedRes.error)) {
+      console.warn("[video-studio] has_audio column not found — apply VEO_AUDIO_FIX_MIGRATION.sql to track native audio status");
+      const { has_audio: _flag, ...rowWithoutAudio } = guidedInsertRow;
+      guidedRes = await sb
+        .from("growthmind_video_assets")
+        .insert(rowWithoutAudio)
+        .select("id")
+        .single();
+    }
+
+    const { data: inserted, error: insertErr } = guidedRes;
 
     if (insertErr) {
       const isTableMissing =
@@ -910,6 +935,9 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
     };
     const videoType = platformToType[data.platform] ?? "explainer_video";
 
+    // has_audio = true when Veo 3+ is the provider and native audio was requested.
+    const freeFormHasNativeAudio = provider === "veo3" && data.generateVeoAudio;
+
     const baseInsertRow = {
       workspace_id:               workspaceId,
       title:                      engineResult.title,
@@ -931,6 +959,7 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       campaign_id:                data.campaignId      ?? null,
       variant_group_id:           data.variantGroupId  ?? null,
       variant_type:               data.variantType     ?? null,
+      has_audio:                  freeFormHasNativeAudio,
       created_at:                 new Date().toISOString(),
     };
     const multiClipFields = {
@@ -957,6 +986,17 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
       firstRes = await sb
         .from("growthmind_video_assets")
         .insert(baseInsertRow)
+        .select("id")
+        .single();
+    }
+
+    // Second-level fallback: if has_audio column not yet migrated, strip it and retry
+    if (firstRes.error && isMissingColumn(firstRes.error)) {
+      console.warn("[video-studio] has_audio column not found — apply VEO_AUDIO_FIX_MIGRATION.sql to track native audio status");
+      const { has_audio: _flag, ...rowWithoutAudio } = baseInsertRow as any;
+      firstRes = await sb
+        .from("growthmind_video_assets")
+        .insert(rowWithoutAudio)
         .select("id")
         .single();
     }
@@ -1083,6 +1123,7 @@ export const getVideoAssets = createServerFn({ method: "GET" })
         assemblyError:    r.assembly_error   ?? null,
         finalVideoUrl:    r.final_video_url  ?? null,
         requestedDuration: r.requested_duration_seconds ?? null,
+        hasNativeAudio:   r.has_audio        ?? null,
       };
     });
 

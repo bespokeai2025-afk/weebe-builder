@@ -1,0 +1,173 @@
+VEO 3 AUDIO GENERATION AUDIT + FIX
+
+IMPORTANT
+
+Audit first.
+
+Then implement the smallest safe fix.
+
+Do not rebuild Video Studio.
+
+OBJECTIVE
+
+Find why GrowthMind Video Studio is not producing Veo videos with sound.
+
+CURRENT PROBLEM
+
+User enables "Veo Native Sound", but generated videos still have no sound.
+
+CHECK
+
+1. Which provider path is being used:
+
+* Gemini API key
+* Vertex AI OAuth
+* Service account
+* fallback provider
+
+2. Which model is being called:
+
+* veo-2
+* veo-3
+* veo-3.1
+* veo-3.1-fast
+* veo-3.1-generate-preview
+* veo-3.1-fast-generate-preview
+
+3. Whether the current model supports native audio.
+
+4. Whether native audio is actually being sent in the API request.
+
+5. Whether the app is using the correct parameter name.
+
+6. Whether the returned MP4 contains an audio track.
+
+7. Whether archiveVideoToStorage preserves audio.
+
+8. Whether Supabase upload preserves MIME type and bytes.
+
+9. Whether frontend video player has muted=true by default.
+
+10. Whether browser autoplay policy is causing silent playback.
+
+====================================================
+
+IMPORTANT CHECKS
+
+The previous implementation said:
+
+"Gemini API key path = Veo 2, no native audio"
+
+This may now be outdated.
+
+Google documentation says Veo 3.1 via Gemini API supports native audio.
+
+Therefore:
+
+Do not assume Gemini API key means no sound.
+
+Check actual available model list and current docs.
+
+====================================================
+
+REQUIRED BEHAVIOUR
+
+Add Video Provider Mode:
+
+1. Gemini API + Veo 3.1
+2. Vertex AI + Veo 3 / Veo 3.1
+3. Gemini API + Veo 2 video-only fallback
+
+If selected model supports audio:
+
+Native Sound toggle should work.
+
+If selected model does not support audio:
+
+Show clear warning and disable native sound.
+
+====================================================
+
+MODEL CONFIG
+
+Update provider settings to allow explicit model selection:
+
+veo-3.1-generate-preview
+veo-3.1-fast-generate-preview
+veo-3.0-generate-preview
+veo-2 fallback
+
+Do not hardcode one deprecated model.
+
+====================================================
+
+REQUEST BODY
+
+Verify correct request body for the selected API path.
+
+If Gemini API generate_videos supports audio by default, do not send unsupported generateAudio fields.
+
+If Vertex AI requires generateAudio, send it only for supported models.
+
+Avoid unsupported parameter errors.
+
+====================================================
+
+AUDIO VERIFICATION
+
+After video completes:
+
+Run server-side verification:
+
+* Download final MP4
+* Check whether audio track exists
+* Store has_audio boolean
+* Store audio_mode
+* Store audio_provider
+
+Add fields if needed:
+
+has_audio
+audio_mode
+audio_provider
+audio_error
+
+====================================================
+
+FRONTEND
+
+In Video Studio asset card show:
+
+Audio:
+Veo Native Audio detected
+No audio track detected
+ElevenLabs voiceover attached
+Silent video
+
+Make sure the video player controls allow unmuting.
+
+Do not force muted playback for completed videos.
+
+====================================================
+
+SUCCESS CRITERIA
+
+When user selects Veo Native Sound and a Veo 3/3.1 audio-capable model:
+
+* video generation request uses correct model
+* audio-capable request is sent
+* final MP4 includes audio
+* Supabase archived video preserves audio
+* frontend player can play sound
+* asset card shows audio detected
+
+Return:
+
+1. Root cause
+2. Current provider path
+3. Current model
+4. Whether model supports audio
+5. Exact fix applied
+6. How to test with one new video
+
+Generate implementation plan first.

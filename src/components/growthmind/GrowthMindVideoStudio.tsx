@@ -491,6 +491,11 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
           <QIcon className="h-2.5 w-2.5" />
           {qMode.label}
         </span>
+        {asset.hasNativeAudio && (
+          <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-amber-500/10 border-amber-500/20 text-amber-400">
+            <Volume2 className="h-2.5 w-2.5" />Veo Audio
+          </span>
+        )}
         {asset.audioUrl && (
           <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] border bg-sky-500/10 border-sky-500/20 text-sky-400">
             <Volume2 className="h-2.5 w-2.5" />Voice
@@ -1592,7 +1597,7 @@ export function GrowthMindVideoStudio() {
 
               {/* Veo Audio toggle — Guided */}
               {(() => {
-                const audioSupported = !!veoStatus?.hasVertexCreds;
+                const audioSupported = !!veoStatus?.hasGeminiKey || !!veoStatus?.hasVertexCreds;
                 return (
                   <div className={cn(
                     "flex items-center justify-between rounded-xl border px-3 py-2.5",
@@ -1606,8 +1611,8 @@ export function GrowthMindVideoStudio() {
                         <span className="text-xs text-muted-foreground/70">Veo Native Sound</span>
                         <p className="text-[10px] leading-tight text-muted-foreground/40">
                           {audioSupported
-                            ? "AI-generated audio alongside video (Veo 3 / Vertex)"
-                            : "Requires Veo 3 via Vertex AI — not supported on Gemini API key (Veo 2)"}
+                            ? "AI-generated audio baked into video (Veo 3 — Gemini API or Vertex)"
+                            : "Add a Gemini API key or Vertex AI credentials in Settings → Providers → Video"}
                         </p>
                       </div>
                     </div>
@@ -1880,7 +1885,7 @@ export function GrowthMindVideoStudio() {
 
               {/* Veo Audio toggle — Free-Form */}
               {(() => {
-                const audioSupported = !!veoStatus?.hasVertexCreds;
+                const audioSupported = !!veoStatus?.hasGeminiKey || !!veoStatus?.hasVertexCreds;
                 return (
                   <div className={cn(
                     "flex items-center justify-between rounded-xl border px-3 py-2.5",
@@ -1894,8 +1899,8 @@ export function GrowthMindVideoStudio() {
                         <span className="text-xs text-muted-foreground/70">Veo Native Sound</span>
                         <p className="text-[10px] leading-tight text-muted-foreground/40">
                           {audioSupported
-                            ? "AI-generated audio alongside video (Veo 3 / Vertex)"
-                            : "Requires Veo 3 via Vertex AI — not supported on Gemini API key (Veo 2)"}
+                            ? "AI-generated audio baked into video (Veo 3 — Gemini API or Vertex)"
+                            : "Add a Gemini API key or Vertex AI credentials in Settings → Providers → Video"}
                         </p>
                       </div>
                     </div>
