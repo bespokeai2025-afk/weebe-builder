@@ -1,0 +1,110 @@
+GROWTHMIND VIDEO LOADING FAILURE AUDIT
+
+IMPORTANT
+
+Do not modify code.
+Do not implement fixes yet.
+Audit only.
+
+OBJECTIVE
+
+Find the exact reason GrowthMind Video Studio videos are not loading.
+
+Check the full video lifecycle:
+
+1. Video generation request
+2. Provider job creation
+3. Job polling
+4. Provider completion response
+5. Video download/copy process
+6. Supabase Storage upload
+7. Stored video_url
+8. Signed/public URL generation
+9. Frontend video player rendering
+
+AUDIT THESE AREAS
+
+Database:
+- growthmind_video_assets
+- provider_job_id
+- provider
+- status
+- video_url
+- thumbnail_url
+- error_message
+- storage_path
+- created_at
+- updated_at
+
+Storage:
+- Supabase bucket used for videos
+- Is bucket created?
+- Is bucket public or private?
+- Are video files actually present?
+- Are storage paths correct?
+- Are signed URLs generated correctly?
+- Do URLs expire?
+- Are CORS settings blocking playback?
+
+Backend:
+- src/lib/growthmind/growthmind.video-studio.ts
+- src/lib/growthmind/video-job-poller.ts
+- src/lib/video/providers/veo.provider.ts
+- src/lib/providers/video/adapters/google-veo.adapter.ts
+- archiveVideoToStorage()
+- getVideoDownloadUrl()
+- pollVideoJob()
+- retryVideoJob()
+
+Frontend:
+- src/components/growthmind/GrowthMindVideoStudio.tsx
+- video player component
+- asset gallery
+- thumbnail rendering
+- browser console errors
+- network request failures
+
+CHECK EACH VIDEO ASSET
+
+For each recent video asset, report:
+
+- Asset ID
+- Status
+- Provider
+- Provider Job ID
+- Video URL exists yes/no
+- URL type: Supabase / Google / base64 / empty
+- URL reachable yes/no
+- HTTP status
+- File present in storage yes/no
+- Playback supported yes/no
+- Exact failure reason
+
+SPECIFIC QUESTIONS TO ANSWER
+
+1. Are videos failing because jobs are still pending?
+2. Are videos failing because the poller is not running?
+3. Are videos failing because Veo returned a temporary Google URL?
+4. Are videos failing because archiveVideoToStorage failed?
+5. Are videos failing because Supabase bucket permissions are wrong?
+6. Are videos failing because signed URLs expired?
+7. Are videos failing because the frontend player is using the wrong URL?
+8. Are videos failing because MIME type/content-type is wrong?
+9. Are videos failing because CORS blocks playback?
+10. Are old videos broken but new videos work?
+
+FINAL OUTPUT
+
+Return:
+
+- Root cause
+- Exact failing step
+- Affected files
+- Affected routes
+- Affected tables
+- Whether old videos can be recovered
+- Whether new videos will work
+- Top recommended fix
+- Replit prompt to implement the fix
+
+Audit only. No implementation.
