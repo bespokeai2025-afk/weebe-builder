@@ -161,10 +161,13 @@ function TemplateCard({
       </div>
 
       {template.stats && (
-        <div className="flex items-center gap-2 mt-1.5">
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           <StarRating score={template.stats.avgScore} />
           {template.stats.usageCount > 0 && (
             <span className="text-[10px] text-muted-foreground/60">{template.stats.usageCount} run{template.stats.usageCount !== 1 ? "s" : ""}</span>
+          )}
+          {template.stats.successRate != null && template.stats.usageCount > 0 && (
+            <span className="text-[10px] text-emerald-400/70">{template.stats.successRate.toFixed(0)}% success</span>
           )}
         </div>
       )}
@@ -344,9 +347,12 @@ export function GrowthMindPromptStudio() {
   const [libTab,      setLibTab]      = useState<"library" | "custom">("library");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter,  setTypeFilter]  = useState("all");
-  const [testInputs,  setTestInputs]  = useState<Record<string, string>>({});
-  const [testOutput,  setTestOutput]  = useState<any>(null);
-  const [isRunning,   setIsRunning]   = useState(false);
+  const [testInputs,   setTestInputs]   = useState<Record<string, string>>({});
+  const [testOutput,   setTestOutput]   = useState<any>(null);
+  const [isRunning,    setIsRunning]    = useState(false);
+  const [abEnabled,    setAbEnabled]    = useState(false);
+  const [variantBSys,  setVariantBSys]  = useState("");
+  const [variantBUser, setVariantBUser] = useState("");
   const [versions,    setVersions]    = useState<PromptVersion[]>([]);
   const [seedDone,    setSeedDone]    = useState(false);
   const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -552,7 +558,12 @@ export function GrowthMindPromptStudio() {
     setIsRunning(true);
     setTestOutput(null);
     try {
-      const result = await testTemplateFn({ data: { templateId: selectedId, inputVariables: testInputs }});
+      const payload: Record<string, any> = { templateId: selectedId, inputVariables: testInputs };
+      if (abEnabled && variantBSys.trim() && variantBUser.trim()) {
+        payload.variantBSystemPrompt = variantBSys;
+        payload.variantBUserPrompt   = variantBUser;
+      }
+      const result = await testTemplateFn({ data: payload as any });
       setTestOutput(result);
       qc.invalidateQueries({ queryKey: ["prompt-templates"] });
     } catch (e: any) {
@@ -968,13 +979,61 @@ export function GrowthMindPromptStudio() {
                           </div>
                         )}
 
+                        {/* A/B Test toggle */}
+                        <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">A/B Test</p>
+                              <p className="text-[10px] text-muted-foreground/50 mt-0.5">Compare template against alternate prompts</p>
+                            </div>
+                            <button
+                              onClick={() => { setAbEnabled(v => !v); setTestOutput(null); }}
+                              className={cn(
+                                "relative h-5 w-9 rounded-full transition-colors",
+                                abEnabled ? "bg-emerald-500" : "bg-white/[0.12]",
+                              )}
+                            >
+                              <span className={cn(
+                                "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform",
+                                abEnabled && "translate-x-4",
+                              )} />
+                            </button>
+                          </div>
+
+                          {abEnabled && (
+                            <div className="space-y-2 pt-1 border-t border-white/[0.06]">
+                              <p className="text-[10px] text-blue-300/80 uppercase tracking-widest">Variant B — alternate prompts</p>
+                              <div>
+                                <label className="text-[10px] text-muted-foreground/70">System Prompt</label>
+                                <textarea
+                                  value={variantBSys}
+                                  onChange={e => setVariantBSys(e.target.value)}
+                                  rows={4}
+                                  placeholder="Enter alternate system prompt for Variant B…"
+                                  className="mt-1 w-full bg-transparent border border-blue-500/20 rounded-lg px-3 py-2 text-xs font-mono leading-relaxed resize-y outline-none focus:border-blue-500/40"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[10px] text-muted-foreground/70">User Prompt Template</label>
+                                <textarea
+                                  value={variantBUser}
+                                  onChange={e => setVariantBUser(e.target.value)}
+                                  rows={4}
+                                  placeholder="Enter alternate user prompt template for Variant B…"
+                                  className="mt-1 w-full bg-transparent border border-blue-500/20 rounded-lg px-3 py-2 text-xs font-mono leading-relaxed resize-y outline-none focus:border-blue-500/40"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         <button
                           onClick={handleTest}
                           disabled={isRunning}
                           className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-300 py-2 text-xs font-medium transition-colors disabled:opacity-50"
                         >
                           {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                          {isRunning ? "Running…" : "Run Generation"}
+                          {isRunning ? "Running…" : abEnabled ? "Run A/B Test" : "Run Generation"}
                         </button>
 
                         {/* Test output */}
@@ -986,45 +1045,55 @@ export function GrowthMindPromptStudio() {
                               </div>
                             ) : (
                               <>
-                                {/* Score cards */}
-                                <div>
-                                  <div className="flex items-center justify-between mb-2">
-                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Scores</p>
-                                    <span className={cn("text-sm font-bold", scoreColor(testOutput.scores?.overall ?? 0))}>
-                                      {testOutput.scores?.overall?.toFixed(1) ?? "—"}/10
-                                    </span>
+                                {/* Render one variant block — label is "Variant A" when A/B is active, "Output" otherwise */}
+                                {[
+                                  { label: testOutput.variantB ? "Variant A (Template)" : null, data: testOutput, color: "text-emerald-300" },
+                                  ...(testOutput.variantB ? [{ label: "Variant B", data: testOutput.variantB, color: "text-blue-300" }] : []),
+                                ].map(({ label, data: vd, color }) => (
+                                  <div key={label ?? "A"} className="space-y-2">
+                                    {label && (
+                                      <p className={cn("text-[10px] font-semibold uppercase tracking-widest", color)}>{label}</p>
+                                    )}
+                                    {/* Score bars */}
+                                    <div>
+                                      <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Scores</p>
+                                        <span className={cn("text-sm font-bold", scoreColor(vd.scores?.overall ?? 0))}>
+                                          {vd.scores?.overall?.toFixed(1) ?? "—"}/10
+                                        </span>
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        {Object.entries(SCORE_LABELS).map(([key, slabel]) => {
+                                          const val = vd.scores?.[key] ?? 0;
+                                          return (
+                                            <div key={key}>
+                                              <div className="flex items-center justify-between mb-0.5">
+                                                <span className="text-[10px] text-muted-foreground">{slabel}</span>
+                                                <span className={cn("text-[10px] font-medium", scoreColor(val))}>{val}/10</span>
+                                              </div>
+                                              <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                                                <div className={cn("h-full rounded-full transition-all", scoreBg(val))} style={{ width: `${val * 10}%` }} />
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                    {/* Output text */}
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Output</p>
+                                        <span className="text-[10px] text-muted-foreground/50">{vd.provider}/{vd.model}</span>
+                                      </div>
+                                      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 max-h-48 overflow-y-auto">
+                                        <p className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">{vd.outputText}</p>
+                                      </div>
+                                      {vd.costUsd != null && (
+                                        <p className="text-[10px] text-muted-foreground/50 mt-1">${vd.costUsd.toFixed(5)} generation cost</p>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="space-y-1.5">
-                                    {Object.entries(SCORE_LABELS).map(([key, label]) => {
-                                      const val = testOutput.scores?.[key] ?? 0;
-                                      return (
-                                        <div key={key}>
-                                          <div className="flex items-center justify-between mb-0.5">
-                                            <span className="text-[10px] text-muted-foreground">{label}</span>
-                                            <span className={cn("text-[10px] font-medium", scoreColor(val))}>{val}/10</span>
-                                          </div>
-                                          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
-                                            <div className={cn("h-full rounded-full transition-all", scoreBg(val))} style={{ width: `${val * 10}%` }} />
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-
-                                {/* Output text */}
-                                <div>
-                                  <div className="flex items-center justify-between mb-1">
-                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Output</p>
-                                    <span className="text-[10px] text-muted-foreground/50">{testOutput.provider}/{testOutput.model}</span>
-                                  </div>
-                                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 max-h-60 overflow-y-auto">
-                                    <p className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">{testOutput.outputText}</p>
-                                  </div>
-                                  {testOutput.costUsd != null && (
-                                    <p className="text-[10px] text-muted-foreground/50 mt-1">${testOutput.costUsd.toFixed(5)} generation cost</p>
-                                  )}
-                                </div>
+                                ))}
                               </>
                             )}
                           </div>

@@ -996,10 +996,13 @@ export const restorePromptVersion = createServerFn({ method: "POST" })
 // ── testPromptTemplate ─────────────────────────────────────────────────────────
 
 const testSchema = z.object({
-  templateId:     z.string().uuid(),
-  inputVariables: z.record(z.string()).default({}),
-  provider:       z.string().optional(),
-  model:          z.string().optional(),
+  templateId:           z.string().uuid(),
+  inputVariables:       z.record(z.string()).default({}),
+  provider:             z.string().optional(),
+  model:                z.string().optional(),
+  // A/B test variant — when both are provided, runs B in parallel with A
+  variantBSystemPrompt: z.string().optional(),
+  variantBUserPrompt:   z.string().optional(),
 });
 
 export const testPromptTemplate = createServerFn({ method: "POST" })
@@ -1043,77 +1046,94 @@ export const testPromptTemplate = createServerFn({ method: "POST" })
       return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `[${key}]`);
     }
 
-    const mergedVars   = { ...workspaceCtx, ...data.inputVariables };
-    const filledSystem = fillVars(tpl.system_prompt, mergedVars);
-    const filledUser   = fillVars(tpl.user_prompt_template, mergedVars);
+    const mergedVars    = { ...workspaceCtx, ...data.inputVariables };
+    const defaultScores = { quality: 7, completeness: 7, audience_fit: 7, brand_fit: 7, conversion_potential: 7, overall: 7 };
 
-    // Run generation
-    const genResult = await routeGenerate({
-      system:      filledSystem,
-      user:        filledUser,
-      contentType: tpl.type,
-      maxTokens:   1200,
-      mode:        data.provider && data.model ? "manual" : "smart",
-      provider:    data.provider as any,
-      model:       data.model as any,
-      settings,
-      workspaceId,
-      sb,
-    });
+    // ── runVariant: generate + score + persist one A/B variant ─────────────────
+    async function runVariant(label: string, systemPrompt: string, userPromptTemplate: string) {
+      const filledSystem = fillVars(systemPrompt, mergedVars);
+      const filledUser   = fillVars(userPromptTemplate, mergedVars);
 
-    // Score the output with a fast model
-    let scores = { quality: 7, completeness: 7, audience_fit: 7, brand_fit: 7, conversion_potential: 7, overall: 7 };
-    try {
-      const scoringResult = await routeGenerate({
-        system: `You are a prompt output evaluator. Score the provided AI output on 5 dimensions from 1-10. Return ONLY valid JSON.`,
-        user: `Score this AI output. Context: type="${tpl.type}", audience="${data.inputVariables.target_audience ?? "general"}"
+      const genResult = await routeGenerate({
+        system:      filledSystem,
+        user:        filledUser,
+        contentType: tpl.type,
+        maxTokens:   1200,
+        mode:        data.provider && data.model ? "manual" : "smart",
+        provider:    data.provider as any,
+        model:       data.model as any,
+        settings,
+        workspaceId,
+        sb,
+      });
+
+      let scores = { ...defaultScores };
+      try {
+        const scoringResult = await routeGenerate({
+          system: `You are a prompt output evaluator. Score the provided AI output on 5 dimensions from 1-10. Return ONLY valid JSON.`,
+          user: `Score this AI output. Context: type="${tpl.type}", audience="${data.inputVariables.target_audience ?? "general"}"
 
 OUTPUT TO SCORE:
 ${genResult.text.slice(0, 2000)}
 
 Return this JSON (integers 1-10 only):
 {"quality":0,"completeness":0,"audience_fit":0,"brand_fit":0,"conversion_potential":0,"overall":0}`,
-        contentType: "scoring",
-        maxTokens:   120,
-        mode:        "manual",
-        provider:    "openai",
-        model:       "gpt-4.1-mini",
-        settings,
-        workspaceId,
-        sb,
-      });
+          contentType: "scoring",
+          maxTokens:   120,
+          mode:        "manual",
+          provider:    "openai",
+          model:       "gpt-4o-mini",
+          settings,
+          workspaceId,
+          sb,
+        });
+        const cleaned = scoringResult.text.replace(/```json|```/g, "").trim();
+        const parsed  = JSON.parse(cleaned);
+        scores = {
+          quality:              Math.min(10, Math.max(1, Number(parsed.quality)              || 7)),
+          completeness:         Math.min(10, Math.max(1, Number(parsed.completeness)         || 7)),
+          audience_fit:         Math.min(10, Math.max(1, Number(parsed.audience_fit)         || 7)),
+          brand_fit:            Math.min(10, Math.max(1, Number(parsed.brand_fit)            || 7)),
+          conversion_potential: Math.min(10, Math.max(1, Number(parsed.conversion_potential) || 7)),
+          overall:              Math.min(10, Math.max(1, Number(parsed.overall)              || 7)),
+        };
+      } catch { /* use default scores if scoring fails */ }
 
-      const cleaned = scoringResult.text.replace(/```json|```/g, "").trim();
-      const parsed  = JSON.parse(cleaned);
-      scores = {
-        quality:              Math.min(10, Math.max(1, Number(parsed.quality)              || 7)),
-        completeness:         Math.min(10, Math.max(1, Number(parsed.completeness)         || 7)),
-        audience_fit:         Math.min(10, Math.max(1, Number(parsed.audience_fit)         || 7)),
-        brand_fit:            Math.min(10, Math.max(1, Number(parsed.brand_fit)            || 7)),
-        conversion_potential: Math.min(10, Math.max(1, Number(parsed.conversion_potential) || 7)),
-        overall:              Math.min(10, Math.max(1, Number(parsed.overall)              || 7)),
+      const rowNow = new Date().toISOString();
+      const { data: outputRow } = await sb.from("growthmind_prompt_test_outputs").insert({
+        workspace_id:    workspaceId,
+        template_id:     data.templateId,
+        variant_label:   label,
+        input_variables: data.inputVariables,
+        output_text:     genResult.text,
+        scores,
+        model_used:      genResult.model,
+        provider_used:   genResult.provider,
+        cost_usd:        genResult.costUsd,
+        created_at:      rowNow,
+      }).select("id").maybeSingle();
+
+      return {
+        outputId:   outputRow?.id ?? null,
+        outputText: genResult.text,
+        scores,
+        model:      genResult.model,
+        provider:   genResult.provider,
+        costUsd:    genResult.costUsd,
       };
-    } catch {
-      // Use default scores if scoring fails
     }
 
+    // Run variant A always; run variant B in parallel when provided
+    const hasVariantB = !!(data.variantBSystemPrompt && data.variantBUserPrompt);
+    const [variantA, variantB] = await Promise.all([
+      runVariant("A", tpl.system_prompt, tpl.user_prompt_template),
+      hasVariantB
+        ? runVariant("B", data.variantBSystemPrompt!, data.variantBUserPrompt!)
+        : Promise.resolve(null),
+    ]);
+
+    // Update stats using variant A scores (A is the template's own prompt)
     const now = new Date().toISOString();
-
-    // Store test output
-    const { data: outputRow } = await sb.from("growthmind_prompt_test_outputs").insert({
-      workspace_id:    workspaceId,
-      template_id:     data.templateId,
-      variant_label:   "A",
-      input_variables: data.inputVariables,
-      output_text:     genResult.text,
-      scores,
-      model_used:      genResult.model,
-      provider_used:   genResult.provider,
-      cost_usd:        genResult.costUsd,
-      created_at:      now,
-    }).select("id").maybeSingle();
-
-    // Update stats (upsert)
     const { data: existingStats } = await sb.from("growthmind_prompt_stats")
       .select("usage_count, avg_score")
       .eq("template_id", data.templateId)
@@ -1121,27 +1141,34 @@ Return this JSON (integers 1-10 only):
       .maybeSingle();
 
     const prevCount = existingStats?.usage_count ?? 0;
-    const prevAvg   = existingStats?.avg_score   ?? scores.overall;
+    const prevAvg   = existingStats?.avg_score   ?? variantA.scores.overall;
     const newCount  = prevCount + 1;
-    const newAvg    = Math.round(((prevAvg * prevCount) + scores.overall) / newCount * 100) / 100;
+    const newAvg    = Math.round(((prevAvg * prevCount) + variantA.scores.overall) / newCount * 100) / 100;
 
     await sb.from("growthmind_prompt_stats").upsert({
       template_id:  data.templateId,
       workspace_id: workspaceId,
       usage_count:  newCount,
       avg_score:    newAvg,
-      success_rate: Math.round((scores.overall / 10) * 100 * 100) / 100,
+      success_rate: Math.round((variantA.scores.overall / 10) * 100 * 100) / 100,
       last_used_at: now,
       updated_at:   now,
     }, { onConflict: "template_id,workspace_id" });
 
     return {
-      outputId:   outputRow?.id ?? null,
-      outputText: genResult.text,
-      scores,
-      model:      genResult.model,
-      provider:   genResult.provider,
-      costUsd:    genResult.costUsd,
+      outputId:   variantA.outputId,
+      outputText: variantA.outputText,
+      scores:     variantA.scores,
+      model:      variantA.model,
+      provider:   variantA.provider,
+      costUsd:    variantA.costUsd,
+      variantB:   variantB ? {
+        outputText: variantB.outputText,
+        scores:     variantB.scores,
+        model:      variantB.model,
+        provider:   variantB.provider,
+        costUsd:    variantB.costUsd,
+      } : null,
     };
   });
 
