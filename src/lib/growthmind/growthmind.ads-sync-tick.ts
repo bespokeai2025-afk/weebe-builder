@@ -113,13 +113,13 @@ async function upsertCampaigns(sb: ReturnType<typeof getAdminClient>, workspaceI
   }));
 
   const { error } = await sb
-    .from("growthmind_campaigns")
+    .from("growthmind_ad_campaigns")
     .upsert(rows, { onConflict: "workspace_id,platform,external_id,date_start" });
 
   if (error) {
     for (const row of rows) {
-      await sb.from("growthmind_campaigns")
-        .upsert(row, { onConflict: "workspace_id,platform,external_id" })
+      await sb.from("growthmind_ad_campaigns")
+        .upsert(row, { onConflict: "workspace_id,platform,external_id,date_start" })
         .catch(() => {});
     }
   }
@@ -328,19 +328,24 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
 
 // ── Platform tick ─────────────────────────────────────────────────────────────
 
-export async function runAdsSyncTick(): Promise<AdsSyncSummary> {
+// opts.workspaceId — when provided, only syncs that workspace (manual sync from dashboard).
+// When omitted, syncs all workspaces with ads credentials (cron / dev plugin tick).
+export async function runAdsSyncTick(opts?: { workspaceId?: string }): Promise<AdsSyncSummary> {
   const sb = getAdminClient();
   const workspaceSet = new Set<string>();
 
-  const [wsRows, psRows] = await Promise.all([
-    sb.from("workspace_settings").select("workspace_id")
-      .not("meta_ads_access_token", "is", null),
-    sb.from("provider_settings").select("workspace_id")
-      .eq("provider_category", "advertising").eq("status", "connected"),
-  ]);
-
-  for (const r of wsRows?.data  ?? []) workspaceSet.add((r as any).workspace_id);
-  for (const r of psRows?.data  ?? []) workspaceSet.add((r as any).workspace_id);
+  if (opts?.workspaceId) {
+    workspaceSet.add(opts.workspaceId);
+  } else {
+    const [wsRows, psRows] = await Promise.all([
+      sb.from("workspace_settings").select("workspace_id")
+        .not("meta_ads_access_token", "is", null),
+      sb.from("provider_settings").select("workspace_id")
+        .eq("provider_category", "advertising").eq("status", "connected"),
+    ]);
+    for (const r of wsRows?.data  ?? []) workspaceSet.add((r as any).workspace_id);
+    for (const r of psRows?.data  ?? []) workspaceSet.add((r as any).workspace_id);
+  }
 
   const allResults: AdsSyncResult[] = [];
   for (const wid of workspaceSet) {

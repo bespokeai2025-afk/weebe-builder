@@ -4,18 +4,32 @@
 -- Safe to re-run (all IF NOT EXISTS / ADD COLUMN IF NOT EXISTS)
 -- ──────────────────────────────────────────────────────────────────────────────
 
--- 1. Extend growthmind_campaigns with sync tracking columns
-ALTER TABLE growthmind_campaigns
-  ADD COLUMN IF NOT EXISTS external_id    TEXT,          -- platform campaign ID
-  ADD COLUMN IF NOT EXISTS synced_at      TIMESTAMPTZ,   -- last pulled from API
-  ADD COLUMN IF NOT EXISTS revenue        NUMERIC(12,2), -- total conversion value
-  ADD COLUMN IF NOT EXISTS date_start     DATE,
-  ADD COLUMN IF NOT EXISTS date_end       DATE;
+-- 1. Dedicated ads campaign metrics table — separate from growthmind_campaigns
+--    (growthmind_campaigns is a legacy planner table; ads sync uses this table)
+CREATE TABLE IF NOT EXISTS growthmind_ad_campaigns (
+  id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id  UUID          NOT NULL,
+  platform      TEXT          NOT NULL,  -- meta | google
+  external_id   TEXT          NOT NULL,  -- platform-assigned campaign ID
+  name          TEXT          NOT NULL,
+  status        TEXT          NOT NULL DEFAULT 'active',
+  spend         NUMERIC(12,2) NOT NULL DEFAULT 0,
+  impressions   BIGINT        NOT NULL DEFAULT 0,
+  clicks        BIGINT        NOT NULL DEFAULT 0,
+  conversions   BIGINT        NOT NULL DEFAULT 0,
+  revenue       NUMERIC(12,2) NOT NULL DEFAULT 0,
+  roas          NUMERIC(8,4),
+  date_start    DATE,
+  date_end      DATE,
+  synced_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  UNIQUE (workspace_id, platform, external_id, date_start)
+);
 
--- Unique constraint for upsert: one row per workspace+platform+external campaign id per period
-CREATE UNIQUE INDEX IF NOT EXISTS idx_growthmind_campaigns_upsert
-  ON growthmind_campaigns (workspace_id, platform, external_id, date_start)
-  WHERE external_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_ad_campaigns_ws     ON growthmind_ad_campaigns (workspace_id);
+CREATE INDEX IF NOT EXISTS idx_ad_campaigns_plat   ON growthmind_ad_campaigns (workspace_id, platform);
+CREATE INDEX IF NOT EXISTS idx_ad_campaigns_sync   ON growthmind_ad_campaigns (workspace_id, synced_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ad_campaigns_spend  ON growthmind_ad_campaigns (workspace_id, spend DESC);
 
 -- 2. Ad sync log — records every sync attempt per workspace+platform
 --    (growthmind_ad_sync_log is the canonical name; growthmind_ad_performance_log is an alias view)

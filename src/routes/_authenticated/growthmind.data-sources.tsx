@@ -58,10 +58,11 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
         .in("status", ["connected", "partial"])
         .limit(10)
         .catch(() => ({ data: [] })),
-      // New: check growthmind_campaigns for synced data
-      sb.from("growthmind_campaigns")
+      // Dedicated ads campaigns table — synced within last 30 days only
+      sb.from("growthmind_ad_campaigns")
         .select("platform,status,synced_at")
         .eq("workspace_id", workspaceId)
+        .gte("synced_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
         .order("synced_at", { ascending: false })
         .limit(100)
         .catch(() => ({ data: [] })),

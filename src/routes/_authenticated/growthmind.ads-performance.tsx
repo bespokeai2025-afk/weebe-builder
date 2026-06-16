@@ -80,16 +80,20 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    // 30-day rolling window — prevents stale snapshots from inflating aggregates
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
     const [
       campaignsRes,
       alertsRes,
       wsRes,
       psRes,
     ] = await Promise.all([
-      sb.from("growthmind_campaigns")
+      sb.from("growthmind_ad_campaigns")
         .select("id,platform,name,status,spend,impressions,clicks,conversions,roas,date_start,date_end,synced_at")
         .eq("workspace_id", workspaceId)
         .not("synced_at", "is", null)
+        .gte("synced_at", thirtyDaysAgo)
         .order("spend", { ascending: false })
         .limit(200)
         .catch(() => ({ data: [] })),
@@ -196,93 +200,24 @@ const triggerAdsSync = createServerFn({ method: "POST" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No workspace");
 
-    const { syncMetaAdsCampaigns } = await import("@/lib/growthmind/ads-sync-meta.server");
-    const { syncGoogleAdsCampaigns } = await import("@/lib/growthmind/ads-sync-google.server");
-    const sb = context.supabase as any;
+    // Use the same orchestrator as the cron/dev tick so that sync log rows
+    // and budget alerts are generated consistently on every sync path.
+    const { runAdsSyncTick } = await import("@/lib/growthmind/growthmind.ads-sync-tick");
+    const summary = await runAdsSyncTick({ workspaceId });
 
-    const results: Array<{ platform: string; campaigns: number; status: string; error?: string }> = [];
+    const results = summary.results
+      .filter(r => r.status !== "skipped")
+      .map(r => ({
+        platform:  r.platform,
+        campaigns: r.campaignsSynced,
+        status:    r.status,
+        error:     r.error,
+      }));
 
-    // Meta
-    const ws = await sb.from("workspace_settings")
-      .select("meta_ads_access_token,meta_ads_account_id")
-      .eq("workspace_id", workspaceId)
-      .maybeSingle()
-      .then((r: any) => r.data).catch(() => null);
-
-    if (ws?.meta_ads_access_token && ws?.meta_ads_account_id) {
-      try {
-        const camps = await syncMetaAdsCampaigns(ws.meta_ads_access_token, ws.meta_ads_account_id);
-        const now  = new Date().toISOString();
-        const rows = camps.map(c => ({
-          workspace_id: workspaceId,
-          platform:     "meta",
-          name:         c.name,
-          external_id:  c.externalId,
-          status:       c.status === "active" ? "active" : "paused",
-          spend:        c.spend,
-          impressions:  c.impressions,
-          clicks:       c.clicks,
-          conversions:  c.conversions,
-          revenue:      c.revenue,
-          roas:         c.roas,
-          date_start:   c.dateStart || null,
-          date_end:     c.dateEnd   || null,
-          synced_at:    now,
-          updated_at:   now,
-        }));
-        if (rows.length > 0) {
-          await sb.from("growthmind_campaigns")
-            .upsert(rows, { onConflict: "workspace_id,platform,external_id,date_start", ignoreDuplicates: false })
-            .catch(() => {});
-        }
-        results.push({ platform: "meta", campaigns: camps.length, status: "success" });
-      } catch (err: any) {
-        results.push({ platform: "meta", campaigns: 0, status: "error", error: err?.message });
-      }
+    if (results.length === 0) {
+      throw new Error("No ads accounts connected. Connect Meta Ads or Google Ads in Provider Settings.");
     }
 
-    // Google
-    const ps = await sb.from("provider_settings")
-      .select("credentials")
-      .eq("workspace_id", workspaceId)
-      .eq("provider_category", "advertising")
-      .eq("provider_name", "google_ads")
-      .maybeSingle()
-      .then((r: any) => r.data).catch(() => null);
-
-    const gc = ps?.credentials;
-    if (gc?.developerToken && gc?.customerId) {
-      try {
-        const camps = await syncGoogleAdsCampaigns(gc);
-        const now  = new Date().toISOString();
-        const rows = camps.map(c => ({
-          workspace_id: workspaceId,
-          platform:     "google",
-          name:         c.name,
-          external_id:  c.externalId,
-          status:       c.status === "active" ? "active" : "paused",
-          spend:        c.spend,
-          impressions:  c.impressions,
-          clicks:       c.clicks,
-          conversions:  c.conversions,
-          roas:         c.roas,
-          date_start:   c.dateStart || null,
-          date_end:     c.dateEnd   || null,
-          synced_at:    now,
-          updated_at:   now,
-        }));
-        if (rows.length > 0) {
-          await sb.from("growthmind_campaigns")
-            .upsert(rows, { onConflict: "workspace_id,platform,external_id,date_start", ignoreDuplicates: false })
-            .catch(() => {});
-        }
-        results.push({ platform: "google", campaigns: camps.length, status: "success" });
-      } catch (err: any) {
-        results.push({ platform: "google", campaigns: 0, status: "error", error: err?.message });
-      }
-    }
-
-    if (results.length === 0) throw new Error("No ads accounts connected. Connect Meta Ads or Google Ads in Provider Settings.");
     return { results };
   });
 

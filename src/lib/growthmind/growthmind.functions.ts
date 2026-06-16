@@ -116,13 +116,16 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
         .maybeSingle(),
     ]);
 
-    // Ads campaign metrics (best-effort — growthmind_campaigns may not have
-    // synced_at / external_id columns yet if the ADS_ANALYTICS_MIGRATION hasn't
-    // been applied; fall back gracefully to an empty array).
+    // Ads campaign metrics — reads from growthmind_ad_campaigns (dedicated ads table).
+    // Scoped to last 30 days (synced_at) and requires synced_at IS NOT NULL to exclude stale rows.
+    // Falls back gracefully if the ADS_ANALYTICS_MIGRATION hasn't been applied yet.
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const adsCampaignsRes = await sb
-      .from("growthmind_campaigns")
+      .from("growthmind_ad_campaigns")
       .select("id,platform,name,status,spend,impressions,clicks,conversions,roas,revenue,synced_at,date_start,date_end")
       .eq("workspace_id", workspaceId)
+      .not("synced_at", "is", null)
+      .gte("synced_at", thirtyDaysAgo)
       .order("spend", { ascending: false })
       .limit(200)
       .catch(() => ({ data: [] }));
