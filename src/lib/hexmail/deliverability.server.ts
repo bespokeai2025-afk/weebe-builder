@@ -755,6 +755,86 @@ export const registerResendWebhook = createServerFn({ method: "POST" })
     return { ok: true, webhook: data, webhookEndpoint };
   });
 
+// ── Admin helper (no auth — called by HiveMind operator actions) ─────────────
+
+export async function registerResendWebhookForWorkspace(workspaceId: string): Promise<Record<string, unknown>> {
+  const sb = supabaseAdmin as any;
+
+  const { data: ws } = await sb
+    .from("workspace_settings")
+    .select("hexmail_resend_api_key")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  const apiKey = ws?.hexmail_resend_api_key ?? process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("No Resend API key configured for this workspace.");
+
+  const appUrl = process.env.REPLIT_DOMAINS
+    ? `https://${process.env.REPLIT_DOMAINS.split(",")[0].trim()}`
+    : process.env.APP_URL ?? "";
+
+  if (!appUrl) throw new Error("APP_URL not set — cannot build webhook endpoint.");
+
+  const webhookEndpoint = `${appUrl}/api/public/resend-webhook`;
+
+  const listRes = await fetch("https://api.resend.com/webhooks", {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (listRes.ok) {
+    const listJson = await listRes.json() as any;
+    const existing = (listJson?.data ?? listJson ?? []).find((w: any) => w.endpoint === webhookEndpoint);
+    if (existing) return { ok: true, alreadyRegistered: true, webhookEndpoint, webhook: existing };
+  }
+
+  const res = await fetch("https://api.resend.com/webhooks", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      endpoint: webhookEndpoint,
+      events: ["email.bounced", "email.complained", "email.delivery_failed", "email.delivered"],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Resend API error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  return { ok: true, alreadyRegistered: false, webhookEndpoint, webhook: data };
+}
+
+export async function checkResendWebhookStatusForWorkspace(workspaceId: string): Promise<{ hasApiKey: boolean; registered: boolean }> {
+  const sb = supabaseAdmin as any;
+
+  const { data: ws } = await sb
+    .from("workspace_settings")
+    .select("hexmail_resend_api_key")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+
+  const apiKey = ws?.hexmail_resend_api_key ?? process.env.RESEND_API_KEY;
+  if (!apiKey) return { hasApiKey: false, registered: false };
+
+  const appUrl = process.env.REPLIT_DOMAINS
+    ? `https://${process.env.REPLIT_DOMAINS.split(",")[0].trim()}`
+    : process.env.APP_URL ?? "";
+
+  const webhookEndpoint = `${appUrl}/api/public/resend-webhook`;
+
+  try {
+    const res = await fetch("https://api.resend.com/webhooks", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) return { hasApiKey: true, registered: false };
+    const json = await res.json() as any;
+    const registered = (json?.data ?? json ?? []).some((w: any) => w.endpoint === webhookEndpoint);
+    return { hasApiKey: true, registered };
+  } catch {
+    return { hasApiKey: true, registered: false };
+  }
+}
+
 export const deleteResendWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ webhookId: z.string() }).parse(input))

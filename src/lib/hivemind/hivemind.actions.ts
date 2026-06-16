@@ -13,7 +13,8 @@ export type ActionType     =
   | "assign_knowledge_base"
   | "launch_broadcast"
   | "growthmind_video_campaign"
-  | "growthmind_growth_campaign";
+  | "growthmind_growth_campaign"
+  | "register_resend_webhook";
 
 export interface HiveMindAction {
   id:             string;
@@ -141,6 +142,12 @@ async function executeAction(sb: any, workspaceId: string, action: HiveMindActio
         budget:        p.budget != null ? Number(p.budget) : null,
         goal:          p.goal   ? String(p.goal)   : undefined,
       });
+      return result;
+    }
+
+    case "register_resend_webhook": {
+      const { registerResendWebhookForWorkspace } = await import("@/lib/hexmail/deliverability.server");
+      const result = await registerResendWebhookForWorkspace(workspaceId);
       return result;
     }
 
@@ -509,6 +516,23 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
         }
       }
     } catch { /* graceful — tables may not exist yet */ }
+
+    // 7. Resend webhook not registered — auto-propose for workspaces with Resend API key
+    try {
+      const { checkResendWebhookStatusForWorkspace } = await import("@/lib/hexmail/deliverability.server");
+      const whStatus = await checkResendWebhookStatusForWorkspace(workspaceId);
+      if (whStatus.hasApiKey && !whStatus.registered && !pendingTypes.has("register_resend_webhook")) {
+        proposed.push({
+          workspace_id:   workspaceId,
+          title:          "Register Resend bounce/complaint webhook",
+          description:    "Your workspace has Resend configured but the deliverability webhook is not registered. Approving this action will automatically register the webhook so bounces, complaints, and delivery failures are tracked in real time.",
+          action_type:    "register_resend_webhook",
+          action_payload: {},
+          proposed_by:    "hivemind",
+          status:         "pending",
+        });
+      }
+    } catch { /* graceful */ }
 
     if (proposed.length > 0) {
       await sb.from("hivemind_actions").insert(proposed);
