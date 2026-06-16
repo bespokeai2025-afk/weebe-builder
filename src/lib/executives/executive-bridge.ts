@@ -241,6 +241,47 @@ export const updateProposalStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ── All proposals (campaign + video) with optional status filter ───────────────
+export const getAllProposals = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const [campaignResult, videoResult] = await Promise.all([
+      sb.from("growthmind_campaign_proposals")
+        .select("id, title, reason, evidence, audience, expected_outcome, budget_estimate, content_plan, video_plan, channels, status, generated_at")
+        .eq("workspace_id", workspaceId)
+        .order("generated_at", { ascending: false }),
+      sb.from("growthmind_video_proposals")
+        .select("id, title, hook, platform, target_audience, storyboard, creative_angles, expected_outcome, duration, call_to_action, status, generated_at")
+        .eq("workspace_id", workspaceId)
+        .order("generated_at", { ascending: false }),
+    ]);
+
+    const campaigns = ((campaignResult as any).data ?? []).map((r: any) => ({
+      id: r.id, type: "campaign" as const, title: r.title, reason: r.reason,
+      evidence: r.evidence, audience: r.audience, expectedOutcome: r.expected_outcome,
+      budgetEstimate: r.budget_estimate, contentPlan: r.content_plan, videoPlan: r.video_plan,
+      channels: r.channels ?? [], status: r.status as "draft" | "approved" | "rejected",
+      generatedAt: r.generated_at,
+    }));
+
+    const videos = ((videoResult as any).data ?? []).map((r: any) => ({
+      id: r.id, type: "video" as const, title: r.title, hook: r.hook,
+      platform: r.platform, targetAudience: r.target_audience, storyboard: r.storyboard,
+      creativeAngles: r.creative_angles ?? [], expectedOutcome: r.expected_outcome,
+      duration: r.duration, callToAction: r.call_to_action,
+      status: r.status as "draft" | "approved" | "rejected",
+      generatedAt: r.generated_at,
+    }));
+
+    const approvedCount = [...campaigns, ...videos].filter(p => p.status === "approved").length;
+
+    return { campaigns, videos, approvedCount };
+  });
+
 // ── Read executive events ──────────────────────────────────────────────────────
 export const getExecutiveEvents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

@@ -104,6 +104,7 @@ import { Route as AuthenticatedGrowthmindStrategyRouteImport } from './routes/_a
 import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
 import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
 import { Route as AuthenticatedGrowthmindRecommendationsRouteImport } from './routes/_authenticated/growthmind.recommendations'
+import { Route as AuthenticatedGrowthmindProposalsRouteImport } from './routes/_authenticated/growthmind.proposals'
 import { Route as AuthenticatedGrowthmindPlaybooksRouteImport } from './routes/_authenticated/growthmind.playbooks'
 import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
 import { Route as AuthenticatedGrowthmindGrowthSchedulerRouteImport } from './routes/_authenticated/growthmind.growth-scheduler'
@@ -699,6 +700,12 @@ const AuthenticatedGrowthmindRecommendationsRoute =
     path: '/recommendations',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindProposalsRoute =
+  AuthenticatedGrowthmindProposalsRouteImport.update({
+    id: '/proposals',
+    path: '/proposals',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindPlaybooksRoute =
   AuthenticatedGrowthmindPlaybooksRouteImport.update({
     id: '/playbooks',
@@ -1141,6 +1148,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
+  '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
@@ -1298,6 +1306,7 @@ export interface FileRoutesByTo {
   '/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
+  '/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
@@ -1462,6 +1471,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
   '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/_authenticated/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
+  '/_authenticated/growthmind/proposals': typeof AuthenticatedGrowthmindProposalsRoute
   '/_authenticated/growthmind/recommendations': typeof AuthenticatedGrowthmindRecommendationsRoute
   '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
@@ -1626,6 +1636,7 @@ export interface FileRouteTypes {
     | '/growthmind/growth-scheduler'
     | '/growthmind/lead-opportunities'
     | '/growthmind/playbooks'
+    | '/growthmind/proposals'
     | '/growthmind/recommendations'
     | '/growthmind/reports'
     | '/growthmind/seo'
@@ -1783,6 +1794,7 @@ export interface FileRouteTypes {
     | '/growthmind/growth-scheduler'
     | '/growthmind/lead-opportunities'
     | '/growthmind/playbooks'
+    | '/growthmind/proposals'
     | '/growthmind/recommendations'
     | '/growthmind/reports'
     | '/growthmind/seo'
@@ -1946,6 +1958,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/growth-scheduler'
     | '/_authenticated/growthmind/lead-opportunities'
     | '/_authenticated/growthmind/playbooks'
+    | '/_authenticated/growthmind/proposals'
     | '/_authenticated/growthmind/recommendations'
     | '/_authenticated/growthmind/reports'
     | '/_authenticated/growthmind/seo'
@@ -2782,6 +2795,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindRecommendationsRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/proposals': {
+      id: '/_authenticated/growthmind/proposals'
+      path: '/proposals'
+      fullPath: '/growthmind/proposals'
+      preLoaderRoute: typeof AuthenticatedGrowthmindProposalsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/playbooks': {
       id: '/_authenticated/growthmind/playbooks'
       path: '/playbooks'
@@ -3286,6 +3306,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindGrowthSchedulerRoute: typeof AuthenticatedGrowthmindGrowthSchedulerRoute
   AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   AuthenticatedGrowthmindPlaybooksRoute: typeof AuthenticatedGrowthmindPlaybooksRoute
+  AuthenticatedGrowthmindProposalsRoute: typeof AuthenticatedGrowthmindProposalsRoute
   AuthenticatedGrowthmindRecommendationsRoute: typeof AuthenticatedGrowthmindRecommendationsRoute
   AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
   AuthenticatedGrowthmindSeoRoute: typeof AuthenticatedGrowthmindSeoRoute
@@ -3327,6 +3348,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindLeadOpportunitiesRoute,
     AuthenticatedGrowthmindPlaybooksRoute:
       AuthenticatedGrowthmindPlaybooksRoute,
+    AuthenticatedGrowthmindProposalsRoute:
+      AuthenticatedGrowthmindProposalsRoute,
     AuthenticatedGrowthmindRecommendationsRoute:
       AuthenticatedGrowthmindRecommendationsRoute,
     AuthenticatedGrowthmindReportsRoute: AuthenticatedGrowthmindReportsRoute,

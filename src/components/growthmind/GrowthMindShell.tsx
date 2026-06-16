@@ -1,4 +1,6 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   TrendingUp, BarChart3, Lightbulb, FileText,
   MessageSquareMore, Target, Megaphone,
@@ -6,6 +8,7 @@ import {
   CalendarDays, Rocket, Clapperboard, Dna, Database, Zap, Newspaper, Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getAllProposals } from "@/lib/executives/executive-bridge";
 
 const CORE_NAV = [
   { label: "Overview",           href: "/growthmind",                      icon: BarChart3 },
@@ -15,6 +18,7 @@ const CORE_NAV = [
   { label: "Recommendations",    href: "/growthmind/recommendations",      icon: Lightbulb },
   { label: "Goals",              href: "/growthmind/goals",                icon: Flag },
   { label: "Reports",            href: "/growthmind/reports",              icon: FileText },
+  { label: "Proposals",          href: "/growthmind/proposals",            icon: Filter },
 ];
 
 const STRATEGY_NAV = [
@@ -41,8 +45,8 @@ const INTELLIGENCE_NAV = [
 
 const ALL_NAV = [...CORE_NAV, ...STRATEGY_NAV, ...INTELLIGENCE_NAV];
 
-function NavItem({ label, href, icon: Icon, highlight, active }: {
-  label: string; href: string; icon: React.ElementType; highlight?: boolean; active: boolean;
+function NavItem({ label, href, icon: Icon, highlight, active, badge }: {
+  label: string; href: string; icon: React.ElementType; highlight?: boolean; active: boolean; badge?: number;
 }) {
   return (
     <Link
@@ -58,8 +62,16 @@ function NavItem({ label, href, icon: Icon, highlight, active }: {
     >
       <Icon className={cn("h-3.5 w-3.5 shrink-0", (active || highlight) && "text-emerald-400")} />
       {label}
-      {highlight && !active && (
+      {highlight && !active && !badge && (
         <span className="ml-auto rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400 leading-none">AI</span>
+      )}
+      {badge != null && badge > 0 && (
+        <span className={cn(
+          "ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none",
+          active
+            ? "bg-emerald-500/30 text-emerald-300"
+            : "bg-emerald-500/20 text-emerald-400",
+        )}>{badge}</span>
       )}
     </Link>
   );
@@ -68,6 +80,14 @@ function NavItem({ label, href, icon: Icon, highlight, active }: {
 export function GrowthMindShell({ children }: { children: React.ReactNode }) {
   const router = useRouterState();
   const path   = router.location.pathname;
+
+  const getProposalsFn = useServerFn(getAllProposals);
+  const { data: proposalsData } = useQuery({
+    queryKey: ["growthmind-all-proposals"],
+    queryFn:  () => getProposalsFn(),
+    staleTime: 60_000,
+  });
+  const approvedCount = proposalsData?.approvedCount ?? 0;
 
   function isActive(href: string) {
     return href === "/growthmind" ? path === "/growthmind" : path.startsWith(href);
@@ -93,7 +113,12 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
         {/* Core nav */}
         <nav className="flex flex-col gap-0.5 px-2">
           {CORE_NAV.map(item => (
-            <NavItem key={item.href} {...item} active={isActive(item.href)} />
+            <NavItem
+              key={item.href}
+              {...item}
+              active={isActive(item.href)}
+              badge={item.href === "/growthmind/proposals" ? approvedCount : undefined}
+            />
           ))}
         </nav>
 
@@ -141,6 +166,7 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
       <div className="flex md:hidden border-b border-white/[0.06] overflow-x-auto shrink-0 w-full">
         {ALL_NAV.map(({ label, href, icon: Icon }) => {
           const active = isActive(href);
+          const isProposals = href === "/growthmind/proposals";
           return (
             <Link key={href} to={href}
               className={cn(
@@ -149,6 +175,11 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
               )}>
               <Icon className="h-3 w-3" />
               {label}
+              {isProposals && approvedCount > 0 && (
+                <span className="ml-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[8px] font-bold text-emerald-400 leading-none">
+                  {approvedCount}
+                </span>
+              )}
             </Link>
           );
         })}
