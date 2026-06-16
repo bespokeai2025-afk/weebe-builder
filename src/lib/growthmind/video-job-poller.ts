@@ -385,31 +385,42 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
     }),
   );
 
-  // ── Re-archive any existing data:video/ URLs to Supabase Storage ─────────────
-  // This happens when a previous poll succeeded but the bucket didn't exist yet.
-  // Now that createBucket ran above, we can try again.
+  // ── Re-archive sweep: data:video/ URIs and unarchived Google Files URLs ───────
+  // Covers two cases:
+  //   1. data:video/ — bucket didn't exist at poll time; bucket now created above.
+  //   2. generativelanguage.googleapis.com — API key wasn't passed at poll time;
+  //      now we have credentials from wsCredsMap.
   try {
-    const { data: dataUriRows } = await sb
+    const { data: staleRows } = await sb
       .from("growthmind_video_assets")
       .select("id, video_url, workspace_id")
-      .like("video_url", "data:video/%")
-      .limit(10);
+      .or(
+        "video_url.like.data:video/%," +
+        "video_url.like.https://generativelanguage.googleapis.com%"
+      )
+      .limit(20);
 
-    if (dataUriRows && dataUriRows.length > 0) {
+    if (staleRows && staleRows.length > 0) {
       await Promise.all(
-        dataUriRows.map(async (row: any) => {
+        staleRows.map(async (row: any) => {
+          const wsCreds     = wsCredsMap[row.workspace_id] ?? { veoCreds: {}, runwayKey: "" };
+          const veoCfg      = resolveVeoConfig(wsCreds.veoCreds);
+          const geminiApiKey = veoCfg.geminiApiKey ?? "";
           const permanentUrl = await archiveVideoToStorage(
             sb,
             row.video_url,
             row.workspace_id,
             row.id,
+            "",
+            geminiApiKey,
           );
-          if (permanentUrl !== row.video_url) {
-            await sb
-              .from("growthmind_video_assets")
-              .update({ video_url: permanentUrl })
-              .eq("id", row.id)
-              .catch(() => {});
+          if (permanentUrl !== row.video_url && !permanentUrl.startsWith("https://generativelanguage.googleapis.com")) {
+            await Promise.resolve(
+              sb
+                .from("growthmind_video_assets")
+                .update({ video_url: permanentUrl })
+                .eq("id", row.id)
+            ).catch(() => {});
             result.archived++;
           }
         }),
