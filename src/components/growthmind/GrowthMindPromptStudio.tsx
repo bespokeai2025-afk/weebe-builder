@@ -5,13 +5,14 @@ import {
   Sparkles, Plus, Save, Trash2, Copy, Play, Clock, BarChart2,
   Star, StarOff, ChevronRight, Search, X, FlaskConical, Tag, Wand2,
   RotateCcw, CheckCircle2, AlertCircle, Loader2, Info, Eye,
+  Columns2, Trophy, GitCompare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
 import {
   getPromptTemplates, savePromptTemplate, deletePromptTemplate,
   testPromptTemplate, seedLibraryPacks, restorePromptVersion, togglePromptFavorite, getPromptTemplate,
-  getWorkspaceContext,
+  getWorkspaceContext, setPromptWinner,
   type PromptTemplate, type PromptVariable, type PromptVersion,
 } from "@/lib/growthmind/growthmind.prompt-studio";
 
@@ -336,25 +337,28 @@ export function GrowthMindPromptStudio() {
   const restoreVersionFn  = useServerFn(restorePromptVersion);
   const toggleFavoriteFn  = useServerFn(togglePromptFavorite);
   const getWorkspaceCtxFn = useServerFn(getWorkspaceContext);
+  const setWinnerFn       = useServerFn(setPromptWinner);
 
   // State
-  const [selectedId,  setSelectedId]  = useState<string | null>(null);
-  const [editState,   setEditState]   = useState({ ...DEFAULT_EDIT });
-  const [isDirty,     setIsDirty]     = useState(false);
-  const [isSaving,    setIsSaving]    = useState(false);
-  const [isDeleting,  setIsDeleting]  = useState(false);
-  const [rightTab,    setRightTab]    = useState<"test" | "preview" | "versions" | "stats">("test");
-  const [libTab,      setLibTab]      = useState<"library" | "custom">("library");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter,  setTypeFilter]  = useState("all");
-  const [testInputs,   setTestInputs]   = useState<Record<string, string>>({});
-  const [testOutput,   setTestOutput]   = useState<any>(null);
-  const [isRunning,    setIsRunning]    = useState(false);
-  const [abEnabled,    setAbEnabled]    = useState(false);
-  const [variantBSys,  setVariantBSys]  = useState("");
-  const [variantBUser, setVariantBUser] = useState("");
-  const [versions,    setVersions]    = useState<PromptVersion[]>([]);
-  const [seedDone,    setSeedDone]    = useState(false);
+  const [selectedId,     setSelectedId]     = useState<string | null>(null);
+  const [editState,      setEditState]      = useState({ ...DEFAULT_EDIT });
+  const [isDirty,        setIsDirty]        = useState(false);
+  const [isSaving,       setIsSaving]       = useState(false);
+  const [isDeleting,     setIsDeleting]     = useState(false);
+  const [rightTab,       setRightTab]       = useState<"test" | "preview" | "versions" | "stats">("test");
+  const [libTab,         setLibTab]         = useState<"library" | "custom">("library");
+  const [searchQuery,    setSearchQuery]    = useState("");
+  const [typeFilter,     setTypeFilter]     = useState("all");
+  const [testInputs,     setTestInputs]     = useState<Record<string, string>>({});
+  const [testOutput,     setTestOutput]     = useState<any>(null);
+  const [isRunning,      setIsRunning]      = useState(false);
+  const [abEnabled,      setAbEnabled]      = useState(false);
+  const [variantBSys,    setVariantBSys]    = useState("");
+  const [variantBUser,   setVariantBUser]   = useState("");
+  const [isSettingWinner, setIsSettingWinner] = useState(false);
+  const [winnerSet,       setWinnerSet]       = useState<"A" | "B" | null>(null);
+  const [versions,       setVersions]       = useState<PromptVersion[]>([]);
+  const [seedDone,       setSeedDone]       = useState(false);
   const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Queries
@@ -468,6 +472,10 @@ export function GrowthMindPromptStudio() {
     setIsDirty(false);
     setTestOutput(null);
     setVersions([]);
+    setAbEnabled(false);
+    setVariantBSys("");
+    setVariantBUser("");
+    setWinnerSet(null);
 
     // Load versions
     try {
@@ -570,6 +578,45 @@ export function GrowthMindPromptStudio() {
       setTestOutput({ error: e?.message ?? "Test failed" });
     } finally {
       setIsRunning(false);
+    }
+  };
+
+  const handleSetAsWinner = async (label: "A" | "B") => {
+    if (!selectedId || isReadOnly) return;
+    const isB = label === "B";
+    const sysPrompt  = isB ? (testOutput?.variantBSystemPrompt ?? variantBSys) : editState.systemPrompt;
+    const userPrompt = isB ? (testOutput?.variantBUserPrompt ?? variantBUser) : editState.userPromptTemplate;
+
+    if (label === "A") {
+      // A is already the template — just confirm the choice
+      setWinnerSet("A");
+      setAbEnabled(false);
+      setTestOutput(null);
+      return;
+    }
+
+    setIsSettingWinner(true);
+    try {
+      await setWinnerFn({ data: {
+        templateId:   selectedId,
+        systemPrompt: sysPrompt,
+        userPrompt:   userPrompt,
+        winnerLabel:  label,
+      }});
+      // Update the editor to reflect the winner's prompts
+      setEditState(s => ({ ...s, systemPrompt: sysPrompt, userPromptTemplate: userPrompt }));
+      setIsDirty(false);
+      setWinnerSet("B");
+      setAbEnabled(false);
+      setTestOutput(null);
+      // Refresh versions + templates
+      const res = await getTemplateFn({ data: { id: selectedId } });
+      setVersions(res.versions);
+      await qc.invalidateQueries({ queryKey: ["prompt-templates"] });
+    } catch (e: any) {
+      console.error("Set winner failed:", e);
+    } finally {
+      setIsSettingWinner(false);
     }
   };
 
@@ -925,7 +972,10 @@ export function GrowthMindPromptStudio() {
             </div>
 
             {/* ── Right panel: Test / Versions / Stats ──────────────────── */}
-            <aside className="w-80 shrink-0 border-l border-white/[0.06] flex flex-col min-h-0">
+            <aside className={cn(
+              "shrink-0 border-l border-white/[0.06] flex flex-col min-h-0 transition-all duration-300",
+              abEnabled && testOutput?.variantB ? "w-[680px]" : "w-80",
+            )}>
               {/* Tab bar */}
               <div className="flex border-b border-white/[0.06]">
                 {(["test", "preview", "versions", "stats"] as const).map(tab => {
@@ -979,18 +1029,31 @@ export function GrowthMindPromptStudio() {
                           </div>
                         )}
 
-                        {/* A/B Test toggle */}
+                        {/* Compare mode toggle */}
                         <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 space-y-2">
                           <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-widest">A/B Test</p>
-                              <p className="text-[10px] text-muted-foreground/50 mt-0.5">Compare template against alternate prompts</p>
+                            <div className="flex items-center gap-2">
+                              <GitCompare className="h-3 w-3 text-blue-400" />
+                              <div>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Compare Mode</p>
+                                <p className="text-[10px] text-muted-foreground/50 mt-0.5">Test two prompt versions side-by-side</p>
+                              </div>
                             </div>
                             <button
-                              onClick={() => { setAbEnabled(v => !v); setTestOutput(null); }}
+                              onClick={() => {
+                                const next = !abEnabled;
+                                setAbEnabled(next);
+                                setTestOutput(null);
+                                setWinnerSet(null);
+                                if (next) {
+                                  // Pre-fill B with current template prompts for delta editing
+                                  if (!variantBSys)  setVariantBSys(editState.systemPrompt);
+                                  if (!variantBUser) setVariantBUser(editState.userPromptTemplate);
+                                }
+                              }}
                               className={cn(
                                 "relative h-5 w-9 rounded-full transition-colors",
-                                abEnabled ? "bg-emerald-500" : "bg-white/[0.12]",
+                                abEnabled ? "bg-blue-500" : "bg-white/[0.12]",
                               )}
                             >
                               <span className={cn(
@@ -1002,14 +1065,17 @@ export function GrowthMindPromptStudio() {
 
                           {abEnabled && (
                             <div className="space-y-2 pt-1 border-t border-white/[0.06]">
-                              <p className="text-[10px] text-blue-300/80 uppercase tracking-widest">Variant B — alternate prompts</p>
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-500/20 text-[9px] font-bold text-blue-300">B</span>
+                                <p className="text-[10px] text-blue-300/80 uppercase tracking-widest">Variant B — edit what you want to test differently</p>
+                              </div>
                               <div>
                                 <label className="text-[10px] text-muted-foreground/70">System Prompt</label>
                                 <textarea
                                   value={variantBSys}
                                   onChange={e => setVariantBSys(e.target.value)}
                                   rows={4}
-                                  placeholder="Enter alternate system prompt for Variant B…"
+                                  placeholder="System prompt for Variant B…"
                                   className="mt-1 w-full bg-transparent border border-blue-500/20 rounded-lg px-3 py-2 text-xs font-mono leading-relaxed resize-y outline-none focus:border-blue-500/40"
                                 />
                               </div>
@@ -1019,7 +1085,7 @@ export function GrowthMindPromptStudio() {
                                   value={variantBUser}
                                   onChange={e => setVariantBUser(e.target.value)}
                                   rows={4}
-                                  placeholder="Enter alternate user prompt template for Variant B…"
+                                  placeholder="User prompt template for Variant B…"
                                   className="mt-1 w-full bg-transparent border border-blue-500/20 rounded-lg px-3 py-2 text-xs font-mono leading-relaxed resize-y outline-none focus:border-blue-500/40"
                                 />
                               </div>
@@ -1032,9 +1098,24 @@ export function GrowthMindPromptStudio() {
                           disabled={isRunning}
                           className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-300 py-2 text-xs font-medium transition-colors disabled:opacity-50"
                         >
-                          {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                          {isRunning ? "Running…" : abEnabled ? "Run A/B Test" : "Run Generation"}
+                          {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : abEnabled ? <Columns2 className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                          {isRunning ? (abEnabled ? "Running comparison…" : "Running…") : abEnabled ? "Run Side-by-Side Comparison" : "Run Generation"}
                         </button>
+
+                        {/* Winner set confirmation */}
+                        {winnerSet && !testOutput && (
+                          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.08] p-3 flex items-start gap-2">
+                            <Trophy className="h-3.5 w-3.5 text-yellow-400 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-medium text-emerald-300">
+                                Variant {winnerSet} saved as new template version
+                              </p>
+                              <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                                {winnerSet === "B" ? "The editor now reflects the winning prompts." : "Template A kept unchanged."}
+                              </p>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Test output */}
                         {testOutput && (
@@ -1043,33 +1124,63 @@ export function GrowthMindPromptStudio() {
                               <div className="rounded-lg border border-red-500/30 bg-red-500/[0.08] p-3">
                                 <p className="text-xs text-red-300">{testOutput.error}</p>
                               </div>
-                            ) : (
-                              <>
-                                {/* Render one variant block — label is "Variant A" when A/B is active, "Output" otherwise */}
-                                {[
-                                  { label: testOutput.variantB ? "Variant A (Template)" : null, data: testOutput, color: "text-emerald-300" },
-                                  ...(testOutput.variantB ? [{ label: "Variant B", data: testOutput.variantB, color: "text-blue-300" }] : []),
-                                ].map(({ label, data: vd, color }) => (
-                                  <div key={label ?? "A"} className="space-y-2">
-                                    {label && (
-                                      <p className={cn("text-[10px] font-semibold uppercase tracking-widest", color)}>{label}</p>
-                                    )}
-                                    {/* Score bars */}
-                                    <div>
-                                      <div className="flex items-center justify-between mb-2">
-                                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Scores</p>
+                            ) : testOutput.variantB ? (
+                              /* ── Side-by-side comparison layout ── */
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                  <Columns2 className="h-3 w-3 text-muted-foreground" />
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Side-by-Side Results</p>
+                                  {!isReadOnly && (
+                                    <span className="ml-auto text-[10px] text-muted-foreground/50">Pick the winner →</span>
+                                  )}
+                                </div>
+
+                                {/* Score comparison header */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  {([
+                                    { label: "A", data: testOutput, accent: "emerald", isWinner: testOutput.scores?.overall >= testOutput.variantB.scores?.overall },
+                                    { label: "B", data: testOutput.variantB, accent: "blue", isWinner: testOutput.variantB.scores?.overall > testOutput.scores?.overall },
+                                  ] as const).map(({ label, data: vd, accent, isWinner }) => (
+                                    <div key={label} className={cn(
+                                      "rounded-lg border p-2 space-y-2",
+                                      accent === "emerald" ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-blue-500/20 bg-blue-500/[0.04]",
+                                    )}>
+                                      {/* Variant header */}
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className={cn(
+                                            "inline-flex items-center justify-center h-4 w-4 rounded-full text-[9px] font-bold",
+                                            accent === "emerald" ? "bg-emerald-500/20 text-emerald-300" : "bg-blue-500/20 text-blue-300",
+                                          )}>{label}</span>
+                                          <span className={cn("text-[10px] font-semibold uppercase tracking-widest", accent === "emerald" ? "text-emerald-300" : "text-blue-300")}>
+                                            {label === "A" ? "Template" : "Variant B"}
+                                          </span>
+                                          {isWinner && (
+                                            <Trophy className="h-3 w-3 text-yellow-400" />
+                                          )}
+                                        </div>
                                         <span className={cn("text-sm font-bold", scoreColor(vd.scores?.overall ?? 0))}>
                                           {vd.scores?.overall?.toFixed(1) ?? "—"}/10
                                         </span>
                                       </div>
-                                      <div className="space-y-1.5">
+
+                                      {/* Score bars */}
+                                      <div className="space-y-1">
                                         {Object.entries(SCORE_LABELS).map(([key, slabel]) => {
-                                          const val = vd.scores?.[key] ?? 0;
+                                          const val  = vd.scores?.[key] ?? 0;
+                                          const otherVal = label === "A"
+                                            ? testOutput.variantB?.scores?.[key] ?? 0
+                                            : testOutput.scores?.[key] ?? 0;
+                                          const better = val > otherVal;
+                                          const equal  = val === otherVal;
                                           return (
                                             <div key={key}>
                                               <div className="flex items-center justify-between mb-0.5">
-                                                <span className="text-[10px] text-muted-foreground">{slabel}</span>
-                                                <span className={cn("text-[10px] font-medium", scoreColor(val))}>{val}/10</span>
+                                                <span className="text-[9px] text-muted-foreground">{slabel}</span>
+                                                <span className={cn("text-[9px] font-medium flex items-center gap-0.5", scoreColor(val))}>
+                                                  {val}/10
+                                                  {!equal && <span className={better ? "text-emerald-400" : "text-red-400"}>{better ? "▲" : "▼"}</span>}
+                                                </span>
                                               </div>
                                               <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
                                                 <div className={cn("h-full rounded-full transition-all", scoreBg(val))} style={{ width: `${val * 10}%` }} />
@@ -1078,23 +1189,87 @@ export function GrowthMindPromptStudio() {
                                           );
                                         })}
                                       </div>
-                                    </div>
-                                    {/* Output text */}
-                                    <div>
-                                      <div className="flex items-center justify-between mb-1">
-                                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Output</p>
-                                        <span className="text-[10px] text-muted-foreground/50">{vd.provider}/{vd.model}</span>
+
+                                      {/* Output text */}
+                                      <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Output</p>
+                                          <span className="text-[9px] text-muted-foreground/50">{vd.provider ?? "—"}/{vd.model ?? "—"}</span>
+                                        </div>
+                                        <div className="rounded border border-white/[0.06] bg-black/20 p-2 max-h-40 overflow-y-auto">
+                                          <p className="text-[10px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{vd.outputText}</p>
+                                        </div>
+                                        {vd.costUsd != null && (
+                                          <p className="text-[9px] text-muted-foreground/50 mt-0.5">${vd.costUsd.toFixed(5)}</p>
+                                        )}
                                       </div>
-                                      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 max-h-48 overflow-y-auto">
-                                        <p className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">{vd.outputText}</p>
-                                      </div>
-                                      {vd.costUsd != null && (
-                                        <p className="text-[10px] text-muted-foreground/50 mt-1">${vd.costUsd.toFixed(5)} generation cost</p>
+
+                                      {/* Set as winner button */}
+                                      {!isReadOnly && selectedId && (
+                                        <button
+                                          onClick={() => handleSetAsWinner(label)}
+                                          disabled={isSettingWinner}
+                                          className={cn(
+                                            "w-full flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[10px] font-medium transition-colors disabled:opacity-50",
+                                            isWinner
+                                              ? accent === "emerald"
+                                                ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300"
+                                                : "bg-blue-500/20 hover:bg-blue-500/30 text-blue-300"
+                                              : "bg-white/[0.04] hover:bg-white/[0.08] text-muted-foreground hover:text-foreground",
+                                          )}
+                                        >
+                                          {isSettingWinner ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                          ) : (
+                                            <Trophy className="h-3 w-3" />
+                                          )}
+                                          Set Variant {label} as Winner
+                                        </button>
                                       )}
                                     </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              /* ── Single variant output (no compare mode) ── */
+                              <div className="space-y-2">
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Scores</p>
+                                    <span className={cn("text-sm font-bold", scoreColor(testOutput.scores?.overall ?? 0))}>
+                                      {testOutput.scores?.overall?.toFixed(1) ?? "—"}/10
+                                    </span>
                                   </div>
-                                ))}
-                              </>
+                                  <div className="space-y-1.5">
+                                    {Object.entries(SCORE_LABELS).map(([key, slabel]) => {
+                                      const val = testOutput.scores?.[key] ?? 0;
+                                      return (
+                                        <div key={key}>
+                                          <div className="flex items-center justify-between mb-0.5">
+                                            <span className="text-[10px] text-muted-foreground">{slabel}</span>
+                                            <span className={cn("text-[10px] font-medium", scoreColor(val))}>{val}/10</span>
+                                          </div>
+                                          <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                                            <div className={cn("h-full rounded-full transition-all", scoreBg(val))} style={{ width: `${val * 10}%` }} />
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Output</p>
+                                    <span className="text-[10px] text-muted-foreground/50">{testOutput.provider}/{testOutput.model}</span>
+                                  </div>
+                                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 max-h-48 overflow-y-auto">
+                                    <p className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">{testOutput.outputText}</p>
+                                  </div>
+                                  {testOutput.costUsd != null && (
+                                    <p className="text-[10px] text-muted-foreground/50 mt-1">${testOutput.costUsd.toFixed(5)} generation cost</p>
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </div>
                         )}

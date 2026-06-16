@@ -1155,6 +1155,42 @@ Return this JSON (integers 1-10 only):
       updated_at:   now,
     }, { onConflict: "template_id,workspace_id" });
 
+    // Store A/B test run in growthmind_prompt_tests when comparison was run
+    let testRunId: string | null = null;
+    if (hasVariantB && variantB) {
+      try {
+        const { data: testRow } = await sb.from("growthmind_prompt_tests").insert({
+          workspace_id: workspaceId,
+          template_id:  data.templateId,
+          name:         `A/B Test — ${tpl.name ?? "Template"} — ${new Date(now).toLocaleString()}`,
+          variants: [
+            {
+              label:        "A",
+              systemPrompt: tpl.system_prompt,
+              userPrompt:   tpl.user_prompt_template,
+              outputText:   variantA.outputText,
+              scores:       variantA.scores,
+              model:        variantA.model,
+              provider:     variantA.provider,
+            },
+            {
+              label:        "B",
+              systemPrompt: data.variantBSystemPrompt,
+              userPrompt:   data.variantBUserPrompt,
+              outputText:   variantB.outputText,
+              scores:       variantB.scores,
+              model:        variantB.model,
+              provider:     variantB.provider,
+            },
+          ],
+          status:       "completed",
+          created_at:   now,
+          completed_at: now,
+        }).select("id").maybeSingle();
+        testRunId = testRow?.id ?? null;
+      } catch { /* non-critical — table may not have been migrated yet */ }
+    }
+
     return {
       outputId:   variantA.outputId,
       outputText: variantA.outputText,
@@ -1162,6 +1198,9 @@ Return this JSON (integers 1-10 only):
       model:      variantA.model,
       provider:   variantA.provider,
       costUsd:    variantA.costUsd,
+      testRunId,
+      variantBSystemPrompt: hasVariantB ? data.variantBSystemPrompt : null,
+      variantBUserPrompt:   hasVariantB ? data.variantBUserPrompt   : null,
       variantB:   variantB ? {
         outputText: variantB.outputText,
         scores:     variantB.scores,
@@ -1170,6 +1209,73 @@ Return this JSON (integers 1-10 only):
         costUsd:    variantB.costUsd,
       } : null,
     };
+  });
+
+// ── setPromptWinner ────────────────────────────────────────────────────────────
+// Saves the winning variant's prompts as the new live content for the template,
+// creating a version snapshot of the winner in the process.
+
+export const setPromptWinner = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      templateId:   z.string().uuid(),
+      systemPrompt: z.string(),
+      userPrompt:   z.string(),
+      winnerLabel:  z.enum(["A", "B"]),
+      changeNote:   z.string().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: tpl, error: te } = await sb
+      .from("growthmind_prompt_templates")
+      .select("category, variables")
+      .eq("id", data.templateId)
+      .eq("workspace_id", workspaceId)
+      .single();
+    if (te) throw new Error(te.message);
+    if (tpl?.category === "library") throw new Error("Library templates are read-only.");
+
+    const now = new Date().toISOString();
+
+    // Find next version number
+    const { data: latest } = await sb.from("growthmind_prompt_versions")
+      .select("version")
+      .eq("template_id", data.templateId)
+      .eq("workspace_id", workspaceId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextVersion = (latest?.version ?? 0) + 1;
+
+    // Save winner as a new version
+    await sb.from("growthmind_prompt_versions").insert({
+      template_id:          data.templateId,
+      workspace_id:         workspaceId,
+      version:              nextVersion,
+      system_prompt:        data.systemPrompt,
+      user_prompt_template: data.userPrompt,
+      variables:            tpl.variables ?? [],
+      change_note:          data.changeNote ?? `Winner of A/B comparison — Variant ${data.winnerLabel} selected`,
+      created_at:           now,
+    });
+
+    // Overwrite the template with the winner's prompts
+    const { error } = await sb.from("growthmind_prompt_templates").update({
+      system_prompt:        data.systemPrompt,
+      user_prompt_template: data.userPrompt,
+      updated_at:           now,
+    })
+      .eq("id", data.templateId)
+      .eq("workspace_id", workspaceId)
+      .eq("category", "custom");
+    if (error) throw new Error(error.message);
+
+    return { ok: true, version: nextVersion };
   });
 
 // ── seedLibraryPacks ───────────────────────────────────────────────────────────
