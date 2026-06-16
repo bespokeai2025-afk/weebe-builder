@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { Component, useState, useMemo, useEffect } from "react";
+import type { ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -16,8 +18,65 @@ import {
   sendStrategyCentreToHiveMind, approveStrategyCentre,
   rejectStrategyCentre, deleteStrategyCentre,
   updateStrategyCentre, getStrategyTasks, getStrategyAssets,
+  updateStrategyTask,
   type StrategyCentre,
 } from "@/lib/growthmind/growthmind.strategy-centre";
+
+// ── Error boundary ───────────────────────────────────────────────────────────────
+
+class StrategyErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+  static getDerivedStateFromError(err: Error) {
+    return { hasError: true, message: err.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-center">
+          <AlertTriangle className="h-8 w-8 text-red-400" />
+          <p className="text-sm font-medium text-red-300">Failed to render strategy</p>
+          <p className="text-xs text-muted-foreground">{this.state.message}</p>
+          <button
+            className="text-xs px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.08] transition-colors"
+            onClick={() => this.setState({ hasError: false, message: "" })}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ── Markdown renderer ─────────────────────────────────────────────────────────────
+
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      components={{
+        p:      ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+        h1:     ({ children }) => <p className="font-bold text-foreground mb-1.5 mt-2 first:mt-0">{children}</p>,
+        h2:     ({ children }) => <p className="font-semibold text-foreground/90 mb-1 mt-2 first:mt-0">{children}</p>,
+        h3:     ({ children }) => <p className="font-medium text-foreground/80 mb-0.5 mt-1.5 first:mt-0">{children}</p>,
+        ul:     ({ children }) => <ul className="list-disc pl-4 space-y-0.5 mb-2">{children}</ul>,
+        ol:     ({ children }) => <ol className="list-decimal pl-4 space-y-0.5 mb-2">{children}</ol>,
+        li:     ({ children }) => <li>{children}</li>,
+        strong: ({ children }) => <strong className="text-foreground font-semibold">{children}</strong>,
+        em:     ({ children }) => <em className="text-foreground/80">{children}</em>,
+        code:   ({ children }) => <code className="bg-white/[0.06] rounded px-1 py-0.5 text-[11px]">{children}</code>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
 
 // ── Strategy type definitions ────────────────────────────────────────────────────
 
@@ -112,7 +171,7 @@ function Section({
         </span>
         {open ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
       </button>
-      {open && <div className="px-4 py-3 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{children}</div>}
+      {open && <div className="px-4 py-3 text-sm text-muted-foreground leading-relaxed">{children}</div>}
     </div>
   );
 }
@@ -130,11 +189,12 @@ function ScorePill({ score }: { score: number }) {
 // ── Full strategy display ────────────────────────────────────────────────────────
 
 type EditableFields = {
-  executiveSummary:    string;
-  selectedService:     string;
-  targetAudience:      string;
-  budgetRecommendation: string;
-  expectedOutcome:     string;
+  executiveSummary:      string;
+  selectedService:       string;
+  targetAudience:        string;
+  budgetRecommendation:  string;
+  expectedOutcome:       string;
+  channelRecommendation: string;
 };
 
 function StrategyDisplay({
@@ -148,16 +208,18 @@ function StrategyDisplay({
   onRegenerate: () => void;
   onEdit: (fields: Partial<EditableFields>) => Promise<void>;
 }) {
-  const tasksFn  = useServerFn(getStrategyTasks);
-  const assetsFn = useServerFn(getStrategyAssets);
+  const tasksFn      = useServerFn(getStrategyTasks);
+  const assetsFn     = useServerFn(getStrategyAssets);
+  const taskUpdateFn = useServerFn(updateStrategyTask);
+  const qcInner      = useQueryClient();
 
-  const { data: tasksData } = useQuery({
+  const { data: tasksData,  isLoading: tasksLoading,  isError: tasksError  } = useQuery({
     queryKey:  ["strategy-tasks", strategy.id],
     queryFn:   () => tasksFn({ data: { strategyId: strategy.id } }),
     enabled:   strategy.status === "approved",
     staleTime: 30_000,
   });
-  const { data: assetsData } = useQuery({
+  const { data: assetsData, isLoading: assetsLoading, isError: assetsError } = useQuery({
     queryKey:  ["strategy-assets", strategy.id],
     queryFn:   () => assetsFn({ data: { strategyId: strategy.id } }),
     staleTime: 60_000,
@@ -165,6 +227,16 @@ function StrategyDisplay({
 
   const tasks  = tasksData?.tasks  ?? [];
   const assets = assetsData?.assets ?? [];
+
+  async function handleTaskToggle(taskId: string, currentStatus: string) {
+    const nextStatus = currentStatus === "completed" ? "pending" : "completed";
+    try {
+      await taskUpdateFn({ data: { taskId, status: nextStatus as "pending" | "completed" } });
+      await qcInner.invalidateQueries({ queryKey: ["strategy-tasks", strategy.id] });
+    } catch {
+      toast.error("Failed to update task");
+    }
+  }
 
   const [sending,      setSending]      = useState(false);
   const [approving,    setApproving]    = useState(false);
@@ -174,20 +246,22 @@ function StrategyDisplay({
   const [editing,      setEditing]      = useState(false);
   const [saving,       setSaving]       = useState(false);
   const [editFields,   setEditFields]   = useState<EditableFields>({
-    executiveSummary:     strategy.executiveSummary     ?? "",
-    selectedService:      strategy.selectedService      ?? "",
-    targetAudience:       strategy.targetAudience       ?? "",
-    budgetRecommendation: strategy.budgetRecommendation ?? "",
-    expectedOutcome:      strategy.expectedOutcome      ?? "",
+    executiveSummary:      strategy.executiveSummary          ?? "",
+    selectedService:       strategy.selectedService           ?? "",
+    targetAudience:        strategy.targetAudience            ?? "",
+    budgetRecommendation:  strategy.budgetRecommendation      ?? "",
+    expectedOutcome:       strategy.expectedOutcome           ?? "",
+    channelRecommendation: strategy.channelRecommendation.join(", "),
   });
 
   useEffect(() => {
     setEditFields({
-      executiveSummary:     strategy.executiveSummary     ?? "",
-      selectedService:      strategy.selectedService      ?? "",
-      targetAudience:       strategy.targetAudience       ?? "",
-      budgetRecommendation: strategy.budgetRecommendation ?? "",
-      expectedOutcome:      strategy.expectedOutcome      ?? "",
+      executiveSummary:      strategy.executiveSummary          ?? "",
+      selectedService:       strategy.selectedService           ?? "",
+      targetAudience:        strategy.targetAudience            ?? "",
+      budgetRecommendation:  strategy.budgetRecommendation      ?? "",
+      expectedOutcome:       strategy.expectedOutcome           ?? "",
+      channelRecommendation: strategy.channelRecommendation.join(", "),
     });
   }, [strategy.id, strategy.updatedAt]);
 
@@ -309,12 +383,16 @@ function StrategyDisplay({
           <p className="text-[10px] text-blue-400 uppercase tracking-widest font-semibold flex items-center gap-1.5">
             <Edit2 className="h-3 w-3" /> Edit Strategy
           </p>
+          <p className="text-[10px] text-muted-foreground/50 italic">
+            Strategy type is fixed — regenerate to change it.
+          </p>
           {(
             [
-              { label: "Service to Promote",  field: "selectedService"     as const },
-              { label: "Target Audience",      field: "targetAudience"      as const },
-              { label: "Budget",               field: "budgetRecommendation" as const },
-              { label: "Expected Outcome",     field: "expectedOutcome"     as const },
+              { label: "Service to Promote",    field: "selectedService"       as const },
+              { label: "Target Audience",        field: "targetAudience"        as const },
+              { label: "Budget Recommendation",  field: "budgetRecommendation"  as const },
+              { label: "Expected Outcome",       field: "expectedOutcome"       as const },
+              { label: "Channels (comma-sep.)",  field: "channelRecommendation" as const },
             ] as { label: string; field: keyof EditableFields }[]
           ).map(({ label, field }) => (
             <div key={field}>
@@ -425,7 +503,7 @@ function StrategyDisplay({
       <div className="space-y-2">
         {planSections.map(({ title, icon, content }) => (
           <Section key={title} title={title} icon={icon} defaultOpen={false}>
-            {content}
+            <MarkdownContent content={content} />
           </Section>
         ))}
       </div>
@@ -538,63 +616,111 @@ function StrategyDisplay({
       )}
 
       {/* Generated Assets */}
-      {assets.length > 0 && (
-        <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+      <div className="rounded-xl border border-white/[0.06] overflow-hidden">
           <div className="px-4 py-3 bg-white/[0.02] flex items-center gap-2">
             <Package className="h-3.5 w-3.5 text-muted-foreground" />
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Generated Campaign Assets</p>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 ml-auto">
-              {assets.length} deliverable{assets.length !== 1 ? "s" : ""}
-            </span>
+            {assets.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 ml-auto">
+                {assets.length} deliverable{assets.length !== 1 ? "s" : ""}
+              </span>
+            )}
           </div>
           <div className="p-3 space-y-2">
+            {assetsLoading && (
+              <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading assets…
+              </div>
+            )}
+            {assetsError && (
+              <p className="text-xs text-red-400 px-1 py-2">Failed to load assets.</p>
+            )}
+            {!assetsLoading && !assetsError && assets.length === 0 && (
+              <p className="text-xs text-muted-foreground/60 px-1 py-2">No campaign assets generated for this strategy.</p>
+            )}
             {(assets as any[]).map((asset: any) => {
               const EIcon = ENGINE_ICONS[asset.engine as string] ?? Sparkles;
               return (
                 <Section key={asset.id} title={asset.title ?? asset.engine} icon={EIcon} defaultOpen={false}>
-                  {asset.content}
+                  <MarkdownContent content={asset.content ?? ""} />
                 </Section>
               );
             })}
           </div>
         </div>
-      )}
 
       {/* Strategy Tasks */}
-      {tasks.length > 0 && (
+      {strategy.status === "approved" && (
         <div className="rounded-xl border border-white/[0.06] overflow-hidden">
           <div className="px-4 py-3 bg-white/[0.02] flex items-center gap-2">
             <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Strategy Tasks</p>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 ml-auto">
-              {tasks.length} task{tasks.length !== 1 ? "s" : ""} created
-            </span>
+            {tasks.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 ml-auto">
+                {tasks.filter((t: any) => t.status === "completed").length}/{tasks.length} done
+              </span>
+            )}
           </div>
           <div className="p-3 space-y-1.5">
-            {(tasks as any[]).map((task: any) => (
-              <div key={task.id} className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
-                <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground/30 mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium leading-snug">{task.title}</p>
-                  {task.description && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">{task.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-                  {task.channel && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.05] text-muted-foreground/60 uppercase tracking-widest">{task.channel}</span>
-                  )}
-                  <span className={cn(
-                    "text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-widest",
-                    task.priority === "high"
-                      ? "bg-red-500/10 text-red-400"
-                      : "bg-blue-500/10 text-blue-400",
-                  )}>
-                    {task.priority}
-                  </span>
-                </div>
+            {tasksLoading && (
+              <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading tasks…
               </div>
-            ))}
+            )}
+            {tasksError && (
+              <p className="text-xs text-red-400 px-1 py-2">Failed to load tasks.</p>
+            )}
+            {!tasksLoading && !tasksError && tasks.length === 0 && (
+              <p className="text-xs text-muted-foreground/60 px-1 py-2">No tasks were generated for this strategy.</p>
+            )}
+            {(tasks as any[]).map((task: any) => {
+              const done = task.status === "completed";
+              return (
+                <div
+                  key={task.id}
+                  className={cn(
+                    "flex items-start gap-3 px-3 py-2.5 rounded-lg border transition-colors",
+                    done
+                      ? "bg-emerald-500/[0.04] border-emerald-500/10 opacity-60"
+                      : "bg-white/[0.02] border-white/[0.04]",
+                  )}
+                >
+                  <button
+                    type="button"
+                    title={done ? "Mark pending" : "Mark complete"}
+                    onClick={() => handleTaskToggle(task.id, task.status)}
+                    className="mt-0.5 shrink-0 transition-colors"
+                  >
+                    <CheckCircle2 className={cn(
+                      "h-3.5 w-3.5",
+                      done ? "text-emerald-400" : "text-muted-foreground/30 hover:text-emerald-400",
+                    )} />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn("text-xs font-medium leading-snug", done && "line-through")}>{task.title}</p>
+                    {task.description && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">{task.description}</p>
+                    )}
+                    {task.week_number && (
+                      <p className="text-[9px] text-muted-foreground/40 mt-0.5">Week {task.week_number}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                    {task.channel && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.05] text-muted-foreground/60 uppercase tracking-widest">{task.channel}</span>
+                    )}
+                    <span className={cn(
+                      "text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-widest",
+                      task.priority === "high"   ? "bg-red-500/10 text-red-400"
+                      : task.priority === "medium" ? "bg-yellow-500/10 text-yellow-400"
+                      : "bg-white/[0.05] text-muted-foreground/60",
+                    )}>
+                      {task.priority}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -642,7 +768,15 @@ export function GrowthMindStrategyCentre() {
 
   async function handleEdit(strategyId: string, fields: Partial<EditableFields>) {
     try {
-      await updateFn({ data: { strategyId, ...fields } });
+      const { channelRecommendation, ...rest } = fields;
+      const update: Record<string, unknown> = { ...rest };
+      if (channelRecommendation !== undefined) {
+        update.channelRecommendation = channelRecommendation
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+      }
+      await updateFn({ data: { strategyId, ...update } });
       await qc.invalidateQueries({ queryKey: ["strategy-centre"] });
       toast.success("Strategy updated");
     } catch (e: any) {
@@ -689,7 +823,12 @@ export function GrowthMindStrategyCentre() {
       const res = await approveFn({ data: { strategyId } });
       await qc.invalidateQueries({ queryKey: ["strategy-centre"] });
       await qc.invalidateQueries({ queryKey: ["strategy-tasks", strategyId] });
-      toast.success(`Strategy approved — ${(res as any).tasksCreated ?? 0} tasks created`);
+      const created = (res as any).tasksCreated ?? 0;
+      toast.success(
+        created > 0
+          ? `Strategy approved — ${created} task${created !== 1 ? "s" : ""} created`
+          : "Strategy approved — no tasks were generated for this strategy",
+      );
     } catch (e: any) {
       toast.error(e.message ?? "Failed");
     }
@@ -730,6 +869,8 @@ export function GrowthMindStrategyCentre() {
       await qc.invalidateQueries({ queryKey: ["strategy-centre"] });
       setSelectedStrategyId(res.strategy.id);
       const autoSent = (res as any).autoSentToHiveMind;
+      setBudget("");
+      setGoal("");
       toast.success(autoSent
         ? "Strategy regenerated & sent to HiveMind"
         : "Strategy regenerated"
@@ -899,15 +1040,17 @@ export function GrowthMindStrategyCentre() {
               </div>
             </div>
           ) : selectedStrategy ? (
-            <StrategyDisplay
-              strategy={selectedStrategy}
-              onApprove={() => handleApprove(selectedStrategy.id)}
-              onReject={() => handleReject(selectedStrategy.id)}
-              onSend={() => handleSend(selectedStrategy.id)}
-              onDelete={() => handleDelete(selectedStrategy.id)}
-              onRegenerate={() => handleRegenerate(selectedStrategy.strategyType as StrategyCentreType, selectedStrategy.id)}
-              onEdit={(fields) => handleEdit(selectedStrategy.id, fields)}
-            />
+            <StrategyErrorBoundary>
+              <StrategyDisplay
+                strategy={selectedStrategy}
+                onApprove={() => handleApprove(selectedStrategy.id)}
+                onReject={() => handleReject(selectedStrategy.id)}
+                onSend={() => handleSend(selectedStrategy.id)}
+                onDelete={() => handleDelete(selectedStrategy.id)}
+                onRegenerate={() => handleRegenerate(selectedStrategy.strategyType as StrategyCentreType, selectedStrategy.id)}
+                onEdit={(fields) => handleEdit(selectedStrategy.id, fields)}
+              />
+            </StrategyErrorBoundary>
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-6">
               <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/20 flex items-center justify-center">

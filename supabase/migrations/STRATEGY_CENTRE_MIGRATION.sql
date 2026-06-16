@@ -139,6 +139,17 @@ DO $$ BEGIN CREATE POLICY "gm_pr_insert"  ON growthmind_prompt_runs FOR INSERT W
 GRANT SELECT, INSERT ON growthmind_prompt_runs TO authenticated;
 GRANT ALL ON growthmind_prompt_runs TO service_role;
 
+-- ── New columns (added post-audit) ─────────────────────────────────────────────
+
+-- Store user-specified Goal and Budget with the strategy row
+ALTER TABLE growthmind_strategy_centre
+  ADD COLUMN IF NOT EXISTS user_budget text,
+  ADD COLUMN IF NOT EXISTS user_goal   text;
+
+-- Track when an asset was last updated (e.g. status change)
+ALTER TABLE growthmind_strategy_assets
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT now();
+
 -- ── Missing policies (added post-audit) ─────────────────────────────────────────
 
 -- growthmind_strategy_assets: UPDATE policy was missing (needed for status changes)

@@ -42,6 +42,8 @@ export type StrategyCentre = {
   generatedByModel:       string | null;
   hivemindActionId:       string | null;
   rejectionReason:        string | null;
+  userBudget:             string | null;
+  userGoal:               string | null;
   createdAt:              string;
   updatedAt:              string;
 };
@@ -79,6 +81,8 @@ function mapStrategy(r: any): StrategyCentre {
     generatedByModel:       r.generated_by_model ?? null,
     hivemindActionId:       r.hivemind_action_id ?? null,
     rejectionReason:        r.rejection_reason ?? null,
+    userBudget:             r.user_budget  ?? null,
+    userGoal:               r.user_goal    ?? null,
     createdAt:              r.created_at,
     updatedAt:              r.updated_at,
   };
@@ -285,6 +289,8 @@ export const generateStrategyCentre = createServerFn({ method: "POST" })
       source_data_snapshot:    snapshot,
       confidence_score:        Math.min(1, Math.max(0, Number(raw.confidence_score) || 0.75)),
       generated_by_model:      model,
+      user_budget:             data.budget ?? null,
+      user_goal:               data.goal   ?? null,
       updated_at:              new Date().toISOString(),
     };
 
@@ -443,7 +449,7 @@ export const listStrategyCentre = createServerFn({ method: "GET" })
       .select("*")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(200);
 
     if (error) throw new Error(error.message);
     return { strategies: (data ?? []).map(mapStrategy) };
@@ -753,10 +759,16 @@ export const getStrategyTasks = createServerFn({ method: "GET" })
       .eq("strategy_id", data.strategyId)
       .eq("workspace_id", workspaceId)
       .order("week_number", { ascending: true })
-      .order("priority", { ascending: true })
       .catch(() => ({ data: [] }));
 
-    return { tasks: rows ?? [] };
+    // Sort by priority in JS — DB text sort gives wrong order (high < low < medium)
+    const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    const sorted = (rows ?? []).sort(
+      (a: any, b: any) =>
+        (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99),
+    );
+
+    return { tasks: sorted };
   });
 
 // ── getStrategyAssets ─────────────────────────────────────────────────────────────
@@ -778,4 +790,29 @@ export const getStrategyAssets = createServerFn({ method: "GET" })
       .catch(() => ({ data: [] }));
 
     return { assets: rows ?? [] };
+  });
+
+// ── updateStrategyTask ────────────────────────────────────────────────────────────
+
+export const updateStrategyTask = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      taskId: z.string().uuid(),
+      status: z.enum(["pending", "in_progress", "completed"]),
+    }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { error } = await sb
+      .from("growthmind_strategy_tasks")
+      .update({ status: data.status })
+      .eq("id", data.taskId)
+      .eq("workspace_id", workspaceId);
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
