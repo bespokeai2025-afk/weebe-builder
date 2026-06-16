@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { getBusinessDna, computeDnaCompletionScore } from "@/lib/growthmind/growthmind.business-dna";
 import { getCurrentValuePoint } from "@/lib/growthmind/trending-value-engine.server";
 import { getOpportunities, runOpportunityEngine } from "@/lib/growthmind/opportunity-engine.server";
-import { getCMODashboardData, runCMOAnalysis } from "@/lib/executives/executive-bridge";
+import { getCMODashboardData, runCMOAnalysis, updateProposalStatus } from "@/lib/executives/executive-bridge";
 import { toast } from "sonner";
 
 function TrendPill({ pct, label = "wow" }: { pct: number | null; label?: string }) {
@@ -72,10 +72,13 @@ export function GrowthMindOverview() {
   const getValuePointFn    = useServerFn(getCurrentValuePoint);
   const getOpportunitiesFn  = useServerFn(getOpportunities);
   const runOppEngineFn      = useServerFn(runOpportunityEngine);
-  const getCMODashboardFn   = useServerFn(getCMODashboardData);
-  const runCMOAnalysisFn    = useServerFn(runCMOAnalysis);
+  const getCMODashboardFn      = useServerFn(getCMODashboardData);
+  const runCMOAnalysisFn       = useServerFn(runCMOAnalysis);
+  const updateProposalStatusFn = useServerFn(updateProposalStatus);
   const [runningOppEngine, setRunningOppEngine] = React.useState(false);
   const [runningCMO, setRunningCMO] = React.useState(false);
+  const [showRejected, setShowRejected] = React.useState(false);
+  const [updatingProposal, setUpdatingProposal] = React.useState<string | null>(null);
   const qc = useQueryClient();
 
   const { data: providerData } = useQuery({
@@ -150,6 +153,24 @@ export function GrowthMindOverview() {
       toast.error("CMO Analysis failed — try again");
     } finally {
       setRunningCMO(false);
+    }
+  }
+
+  async function handleUpdateProposalStatus(
+    proposalType: "campaign" | "video",
+    proposalId: string,
+    status: "approved" | "rejected" | "draft",
+  ) {
+    setUpdatingProposal(proposalId);
+    try {
+      await updateProposalStatusFn({ data: { proposalType, proposalId, status } });
+      await refetchCMO();
+      const label = status === "approved" ? "approved" : status === "rejected" ? "dismissed" : "reset to draft";
+      toast.success(`Proposal ${label}`);
+    } catch {
+      toast.error("Failed to update proposal — try again");
+    } finally {
+      setUpdatingProposal(null);
     }
   }
 
@@ -590,7 +611,15 @@ export function GrowthMindOverview() {
                   </p>
                   {topCampaign ? (
                     <>
-                      <p className="text-sm font-bold text-amber-200 leading-snug line-clamp-2">{topCampaign.title}</p>
+                      <div className="flex items-start gap-1.5 flex-wrap">
+                        <p className="text-sm font-bold text-amber-200 leading-snug line-clamp-2 flex-1">{topCampaign.title}</p>
+                        {topCampaign.status === "approved" && (
+                          <span className="shrink-0 text-[9px] rounded-full px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 font-semibold">Approved</span>
+                        )}
+                        {topCampaign.status === "rejected" && (
+                          <span className="shrink-0 text-[9px] rounded-full px-1.5 py-0.5 bg-red-500/15 text-red-400 font-semibold">Dismissed</span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2">{topCampaign.reason}</p>
                       <div className="flex flex-wrap gap-1 pt-0.5">
                         {(topCampaign.channels ?? []).slice(0, 3).map((ch: string) => (
@@ -610,7 +639,15 @@ export function GrowthMindOverview() {
                   </p>
                   {topVideo ? (
                     <>
-                      <p className="text-sm font-bold text-pink-200 leading-snug line-clamp-2">{topVideo.title}</p>
+                      <div className="flex items-start gap-1.5 flex-wrap">
+                        <p className="text-sm font-bold text-pink-200 leading-snug line-clamp-2 flex-1">{topVideo.title}</p>
+                        {topVideo.status === "approved" && (
+                          <span className="shrink-0 text-[9px] rounded-full px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 font-semibold">Approved</span>
+                        )}
+                        {topVideo.status === "rejected" && (
+                          <span className="shrink-0 text-[9px] rounded-full px-1.5 py-0.5 bg-red-500/15 text-red-400 font-semibold">Dismissed</span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-muted-foreground italic leading-snug line-clamp-2">{topVideo.hook}</p>
                       <p className="text-[10px] text-muted-foreground/70">{topVideo.platform} · {topVideo.duration}</p>
                     </>
@@ -667,6 +704,176 @@ export function GrowthMindOverview() {
 
               </div>
             </div>
+
+            {/* ── CMO Proposals — full approve/reject list ───────────────── */}
+            {(campaignProposals.length > 0 || videoProposals.length > 0) && (
+              <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.02] overflow-hidden">
+                <div className="px-4 py-3 border-b border-amber-500/10 flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                    <Zap className="h-4 w-4 text-amber-400" />
+                    CMO Proposals
+                    <span className="ml-1 text-[10px] rounded-full bg-amber-500/15 text-amber-300 px-2 py-0.5 font-semibold">
+                      {campaignProposals.length + videoProposals.length} total
+                    </span>
+                  </p>
+                  <button
+                    onClick={() => setShowRejected(v => !v)}
+                    className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                  >
+                    {showRejected ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                    {showRejected ? "Hide dismissed" : "Show dismissed"}
+                  </button>
+                </div>
+
+                <div className="divide-y divide-white/[0.04]">
+                  {/* Campaign proposals */}
+                  {campaignProposals
+                    .filter((p: any) => showRejected || p.status !== "rejected")
+                    .map((p: any) => (
+                      <div
+                        key={p.id}
+                        className={cn(
+                          "px-4 py-3 flex items-start gap-3",
+                          p.status === "approved" && "bg-emerald-500/[0.04]",
+                          p.status === "rejected" && "opacity-50",
+                        )}
+                      >
+                        <Zap className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold leading-snug">{p.title}</p>
+                            {p.status === "approved" && (
+                              <span className="text-[9px] rounded-full px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 font-semibold">Approved</span>
+                            )}
+                            {p.status === "rejected" && (
+                              <span className="text-[9px] rounded-full px-1.5 py-0.5 bg-red-500/15 text-red-400 font-semibold">Dismissed</span>
+                            )}
+                            {p.status === "draft" && (
+                              <span className="text-[9px] rounded-full px-1.5 py-0.5 bg-amber-500/15 text-amber-400 font-semibold">Draft</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{p.reason}</p>
+                          {p.audience && <p className="text-[10px] text-muted-foreground/70">Audience: {p.audience}</p>}
+                          {(p.channels ?? []).length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {(p.channels ?? []).slice(0, 4).map((ch: string) => (
+                                <span key={ch} className="text-[9px] rounded border border-amber-500/20 bg-amber-500/[0.06] text-amber-300 px-1 py-0.5">{ch}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {p.status !== "approved" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/50"
+                              disabled={updatingProposal === p.id}
+                              onClick={() => handleUpdateProposalStatus("campaign", p.id, "approved")}
+                            >
+                              {updatingProposal === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                              Approve
+                            </Button>
+                          )}
+                          {p.status !== "rejected" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] border-red-500/25 text-red-400 hover:bg-red-500/10 hover:border-red-500/40"
+                              disabled={updatingProposal === p.id}
+                              onClick={() => handleUpdateProposalStatus("campaign", p.id, "rejected")}
+                            >
+                              {updatingProposal === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3 mr-1" />}
+                              Dismiss
+                            </Button>
+                          )}
+                          {p.status !== "draft" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
+                              disabled={updatingProposal === p.id}
+                              onClick={() => handleUpdateProposalStatus("campaign", p.id, "draft")}
+                            >
+                              Reset
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* Video proposals */}
+                  {videoProposals
+                    .filter((p: any) => showRejected || p.status !== "rejected")
+                    .map((p: any) => (
+                      <div
+                        key={p.id}
+                        className={cn(
+                          "px-4 py-3 flex items-start gap-3",
+                          p.status === "approved" && "bg-emerald-500/[0.04]",
+                          p.status === "rejected" && "opacity-50",
+                        )}
+                      >
+                        <Clapperboard className="h-4 w-4 text-pink-400 mt-0.5 shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold leading-snug">{p.title}</p>
+                            {p.status === "approved" && (
+                              <span className="text-[9px] rounded-full px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 font-semibold">Approved</span>
+                            )}
+                            {p.status === "rejected" && (
+                              <span className="text-[9px] rounded-full px-1.5 py-0.5 bg-red-500/15 text-red-400 font-semibold">Dismissed</span>
+                            )}
+                            {p.status === "draft" && (
+                              <span className="text-[9px] rounded-full px-1.5 py-0.5 bg-pink-500/15 text-pink-400 font-semibold">Draft</span>
+                            )}
+                            <span className="text-[9px] text-muted-foreground/60 uppercase">{p.platform} · {p.duration}</span>
+                          </div>
+                          {p.hook && <p className="text-[11px] text-muted-foreground italic leading-snug line-clamp-2">{p.hook}</p>}
+                          {p.targetAudience && <p className="text-[10px] text-muted-foreground/70">Audience: {p.targetAudience}</p>}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {p.status !== "approved" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:border-emerald-500/50"
+                              disabled={updatingProposal === p.id}
+                              onClick={() => handleUpdateProposalStatus("video", p.id, "approved")}
+                            >
+                              {updatingProposal === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                              Approve
+                            </Button>
+                          )}
+                          {p.status !== "rejected" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-[11px] border-red-500/25 text-red-400 hover:bg-red-500/10 hover:border-red-500/40"
+                              disabled={updatingProposal === p.id}
+                              onClick={() => handleUpdateProposalStatus("video", p.id, "rejected")}
+                            >
+                              {updatingProposal === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3 mr-1" />}
+                              Dismiss
+                            </Button>
+                          )}
+                          {p.status !== "draft" && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-[11px] text-muted-foreground hover:text-foreground"
+                              disabled={updatingProposal === p.id}
+                              onClick={() => handleUpdateProposalStatus("video", p.id, "draft")}
+                            >
+                              Reset
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
 
             {/* Score breakdown */}
             <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4">

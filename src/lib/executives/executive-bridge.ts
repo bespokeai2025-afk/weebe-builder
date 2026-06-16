@@ -211,6 +211,35 @@ export const runCMOAnalysis = createServerFn({ method: "POST" })
     };
   });
 
+// ── Update proposal status (approve / reject / draft) ─────────────────────────
+export const updateProposalStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      proposalType: z.enum(["campaign", "video"]),
+      proposalId:   z.string().uuid(),
+      status:       z.enum(["approved", "rejected", "draft"]),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const table = data.proposalType === "campaign"
+      ? "growthmind_campaign_proposals"
+      : "growthmind_video_proposals";
+
+    const { error } = await sb
+      .from(table)
+      .update({ status: data.status })
+      .eq("id", data.proposalId)
+      .eq("workspace_id", workspaceId);
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // ── Read executive events ──────────────────────────────────────────────────────
 export const getExecutiveEvents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
