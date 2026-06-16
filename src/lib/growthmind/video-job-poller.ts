@@ -210,10 +210,14 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
 
   const sb = createClient(supabaseUrl, supabaseKey);
 
-  // Ensure the storage bucket exists (idempotent — safe to call every time)
+  // Ensure the storage bucket exists AND is public (idempotent)
   await Promise.resolve(
     sb.storage.createBucket(STORAGE_BUCKET, { public: true }),
-  ).catch(() => {/* already exists or insufficient perms — ignore */});
+  ).catch(() => {/* already exists — ignore */});
+  // Force public=true even if bucket already existed with public=false
+  await Promise.resolve(
+    sb.storage.updateBucket(STORAGE_BUCKET, { public: true }),
+  ).catch(() => {});
 
   // Fetch all assets with pending job sentinels (include workspace_id for per-workspace creds)
   const { data: rows, error: fetchErr } = await sb

@@ -385,6 +385,8 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
   const [downloadError, setDownloadError] = useState("");
   const [playUrl,  setPlayUrl]            = useState<string | null>(null);
   const [loadingPlay, setLoadingPlay]     = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState("");
+  const [showDebug, setShowDebug]           = useState(false);
 
   const getDownloadFn = useServerFn(getVideoDownloadUrl);
 
@@ -573,13 +575,31 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
       )}
 
       {videoReady && !isGcsUri && !isDataUriMarker && (
-        <div className="rounded-lg overflow-hidden border border-white/[0.06]">
-          <video
-            controls
-            src={asset.videoUrl!}
-            className="w-full max-h-48 bg-black"
-            preload="metadata"
-          />
+        <div className="space-y-1.5">
+          <div className="rounded-lg overflow-hidden border border-white/[0.06]">
+            <video
+              controls
+              src={asset.videoUrl!}
+              className="w-full max-h-48 bg-black"
+              preload="metadata"
+              onError={() => setVideoLoadError("Video failed to load. The storage URL may be inaccessible — try refreshing the page.")}
+              onLoadedMetadata={() => setVideoLoadError("")}
+            />
+          </div>
+          {videoLoadError && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/[0.05] px-3 py-2">
+              <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+              <div className="min-w-0 space-y-1">
+                <p className="text-[10px] text-red-400/90">{videoLoadError}</p>
+                <button
+                  onClick={() => onRetry(asset.id)}
+                  className="flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  <RefreshCw className="h-3 w-3" />Delete + Regenerate
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -655,6 +675,58 @@ function VideoAssetCard({ asset, onDelete, onSchedule, onRetry }: {
           ))}
         </div>
       )}
+
+      {/* ── Debug panel ──────────────────────────────────────────────── */}
+      <button
+        onClick={() => setShowDebug(v => !v)}
+        className="flex items-center gap-1 text-[9px] text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"
+      >
+        <BookOpen className="h-2.5 w-2.5" />
+        {showDebug ? "Hide" : "Show"} debug
+      </button>
+
+      {showDebug && (() => {
+        const url = asset.videoUrl ?? "(null)";
+        let urlType = "unknown";
+        if (!asset.videoUrl)                                      urlType = "NULL";
+        else if (url === "[composite_pending]")                   urlType = "COMPOSITE_PENDING";
+        else if (url === "__data_uri__")                          urlType = "DATA_URI_MARKER";
+        else if (url.startsWith("data:video/"))                   urlType = "DATA_URI";
+        else if (url.startsWith("https://") && url.includes("supabase")) urlType = "SUPABASE_STORAGE ✓";
+        else if (url.startsWith("https://"))                      urlType = "HTTPS";
+        else if (url.startsWith("gs://"))                         urlType = "GCS_URI";
+        else if (url.startsWith("[veo3_job:"))                    urlType = "VEO3_PENDING";
+        else if (url.startsWith("[runway_job:"))                  urlType = "RUNWAY_PENDING";
+        else if (url.startsWith("[error:"))                       urlType = "ERROR_SENTINEL";
+        else if (url.includes("generativelanguage.googleapis.com")) urlType = "GOOGLE_FILES_EXPIRED";
+
+        const rows: [string, string][] = [
+          ["Asset ID",     asset.id],
+          ["Provider",     asset.provider ?? "(none)"],
+          ["URL type",     urlType],
+          ["Raw URL",      url.slice(0, 80) + (url.length > 80 ? "…" : "")],
+          ["Composite",    asset.isComposite ? `yes — ${asset.assemblyStatus ?? "unknown"}` : "no"],
+          ["Created",      asset.createdAt],
+          ["Video error",  videoLoadError || "none"],
+        ];
+
+        return (
+          <div className="rounded-lg border border-white/[0.04] bg-white/[0.02] p-2.5 space-y-1 font-mono">
+            {rows.map(([k, v]) => (
+              <div key={k} className="flex gap-2 text-[9px] leading-relaxed">
+                <span className="text-muted-foreground/50 shrink-0 w-20">{k}</span>
+                <span className={cn(
+                  "break-all",
+                  urlType.includes("ERROR") || urlType === "GOOGLE_FILES_EXPIRED" ? "text-red-400/80"
+                  : urlType.includes("SUPABASE") ? "text-emerald-400/80"
+                  : urlType.includes("PENDING") ? "text-amber-400/80"
+                  : "text-muted-foreground/70",
+                )}>{v}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }

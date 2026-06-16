@@ -115,9 +115,12 @@ export async function assembleCompositeVideo(
       }
     }
 
-    // Ensure storage bucket exists
+    // Ensure storage bucket exists and is public
     await Promise.resolve(
       sb.storage.createBucket(STORAGE_BUCKET, { public: true })
+    ).catch(() => {});
+    await Promise.resolve(
+      sb.storage.updateBucket(STORAGE_BUCKET, { public: true })
     ).catch(() => {});
 
     // Upload final MP4
