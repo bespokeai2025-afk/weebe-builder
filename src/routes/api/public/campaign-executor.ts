@@ -18,6 +18,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { runCampaignTick } from "@/lib/campaign-scheduler/executor";
+import { runBlogDraftTick } from "@/lib/growthmind/blog-draft-tick";
 
 export const Route = createFileRoute("/api/public/campaign-executor")({
   server: {
@@ -38,19 +39,33 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
         }
 
         try {
-          const { results, error } = await runCampaignTick();
-          if (error) {
-            console.error("[campaign-executor] tick error:", error);
-            return Response.json({ error }, { status: 500 });
+          const [campaignTick, blogTick] = await Promise.all([
+            runCampaignTick(),
+            runBlogDraftTick(),
+          ]);
+
+          if (campaignTick.error) {
+            console.error("[campaign-executor] tick error:", campaignTick.error);
+            return Response.json({ error: campaignTick.error }, { status: 500 });
           }
 
-          const due = results.filter((r) => !r.skipped);
-          const skipped = results.filter((r) => r.skipped);
+          const due = campaignTick.results.filter((r) => !r.skipped);
+          const skipped = campaignTick.results.filter((r) => r.skipped);
+          if (blogTick.queued.length) {
+            console.log(
+              `[blog-draft-tick] queued=${blogTick.queued.length} skipped=${blogTick.skipped.length} failed=${blogTick.failed.length}`,
+            );
+          }
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );
 
-          return Response.json({ ran: due.length, skipped: skipped.length, results });
+          return Response.json({
+            ran: due.length,
+            skipped: skipped.length,
+            results: campaignTick.results,
+            blogDrafts: { queued: blogTick.queued.length, skipped: blogTick.skipped.length, failed: blogTick.failed.length },
+          });
         } catch (e: any) {
           console.error("[campaign-executor] unhandled error:", e);
           return Response.json(

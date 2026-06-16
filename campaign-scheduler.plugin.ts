@@ -10,6 +10,7 @@
  */
 import type { Plugin } from "vite";
 import { runCampaignTick } from "./src/lib/campaign-scheduler/executor";
+import { runBlogDraftTick } from "./src/lib/growthmind/blog-draft-tick";
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 45_000;
@@ -23,16 +24,33 @@ export function campaignSchedulerPlugin(): Plugin {
 
       async function tick() {
         try {
-          const { results, error } = await runCampaignTick();
+          const [{ results, error }, blogTick] = await Promise.all([
+            runCampaignTick(),
+            runBlogDraftTick(),
+          ]);
+
           if (error) {
             console.error("[campaign-scheduler] tick error:", error);
-            return;
+          } else {
+            const due = results.filter((r) => !r.skipped);
+            if (due.length) {
+              console.log(
+                `[campaign-scheduler] ran ${due.length} campaign(s):`,
+                due.map((r) => `${r.campaignName} (placed=${r.placed} failed=${r.failed})`).join(", "),
+              );
+            }
           }
-          const due = results.filter((r) => !r.skipped);
-          if (due.length) {
+
+          if (blogTick.queued.length) {
             console.log(
-              `[campaign-scheduler] ran ${due.length} campaign(s):`,
-              due.map((r) => `${r.campaignName} (placed=${r.placed} failed=${r.failed})`).join(", "),
+              `[blog-draft-tick] queued ${blogTick.queued.length} draft(s):`,
+              blogTick.queued.map((r) => r.title ?? r.workspaceId).join(", "),
+            );
+          }
+          if (blogTick.failed.length) {
+            console.warn(
+              `[blog-draft-tick] ${blogTick.failed.length} failed:`,
+              blogTick.failed.map((r) => `${r.workspaceId}: ${r.error}`).join(", "),
             );
           }
         } catch (e: any) {

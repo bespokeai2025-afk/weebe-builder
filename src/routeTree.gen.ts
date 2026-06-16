@@ -119,6 +119,7 @@ import { Route as AuthenticatedGrowthmindChatRouteImport } from './routes/_authe
 import { Route as AuthenticatedGrowthmindCampaignsRouteImport } from './routes/_authenticated/growthmind.campaigns'
 import { Route as AuthenticatedGrowthmindCampaignFactoryRouteImport } from './routes/_authenticated/growthmind.campaign-factory'
 import { Route as AuthenticatedGrowthmindBusinessDnaRouteImport } from './routes/_authenticated/growthmind.business-dna'
+import { Route as AuthenticatedGrowthmindBlogWriterRouteImport } from './routes/_authenticated/growthmind.blog-writer'
 import { Route as AuthenticatedGrowthmindAdsRouteImport } from './routes/_authenticated/growthmind.ads'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
@@ -787,6 +788,12 @@ const AuthenticatedGrowthmindBusinessDnaRoute =
     path: '/business-dna',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindBlogWriterRoute =
+  AuthenticatedGrowthmindBlogWriterRouteImport.update({
+    id: '/blog-writer',
+    path: '/blog-writer',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindAdsRoute =
   AuthenticatedGrowthmindAdsRouteImport.update({
     id: '/ads',
@@ -1110,6 +1117,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
+  '/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
   '/growthmind/business-dna': typeof AuthenticatedGrowthmindBusinessDnaRoute
   '/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
@@ -1265,6 +1273,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
+  '/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
   '/growthmind/business-dna': typeof AuthenticatedGrowthmindBusinessDnaRoute
   '/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
@@ -1427,6 +1436,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
   '/_authenticated/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
+  '/_authenticated/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
   '/_authenticated/growthmind/business-dna': typeof AuthenticatedGrowthmindBusinessDnaRoute
   '/_authenticated/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
   '/_authenticated/growthmind/campaigns': typeof AuthenticatedGrowthmindCampaignsRoute
@@ -1589,6 +1599,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/agents/new'
     | '/growthmind/ads'
+    | '/growthmind/blog-writer'
     | '/growthmind/business-dna'
     | '/growthmind/campaign-factory'
     | '/growthmind/campaigns'
@@ -1744,6 +1755,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/agents/new'
     | '/growthmind/ads'
+    | '/growthmind/blog-writer'
     | '/growthmind/business-dna'
     | '/growthmind/campaign-factory'
     | '/growthmind/campaigns'
@@ -1905,6 +1917,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
     | '/_authenticated/growthmind/ads'
+    | '/_authenticated/growthmind/blog-writer'
     | '/_authenticated/growthmind/business-dna'
     | '/_authenticated/growthmind/campaign-factory'
     | '/_authenticated/growthmind/campaigns'
@@ -2861,6 +2874,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindBusinessDnaRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/blog-writer': {
+      id: '/_authenticated/growthmind/blog-writer'
+      path: '/blog-writer'
+      fullPath: '/growthmind/blog-writer'
+      preLoaderRoute: typeof AuthenticatedGrowthmindBlogWriterRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/ads': {
       id: '/_authenticated/growthmind/ads'
       path: '/ads'
@@ -3229,6 +3249,7 @@ const AuthenticatedAdminRouteWithChildren =
 
 interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindAdsRoute: typeof AuthenticatedGrowthmindAdsRoute
+  AuthenticatedGrowthmindBlogWriterRoute: typeof AuthenticatedGrowthmindBlogWriterRoute
   AuthenticatedGrowthmindBusinessDnaRoute: typeof AuthenticatedGrowthmindBusinessDnaRoute
   AuthenticatedGrowthmindCampaignFactoryRoute: typeof AuthenticatedGrowthmindCampaignFactoryRoute
   AuthenticatedGrowthmindCampaignsRoute: typeof AuthenticatedGrowthmindCampaignsRoute
@@ -3255,6 +3276,8 @@ interface AuthenticatedGrowthmindRouteChildren {
 const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren =
   {
     AuthenticatedGrowthmindAdsRoute: AuthenticatedGrowthmindAdsRoute,
+    AuthenticatedGrowthmindBlogWriterRoute:
+      AuthenticatedGrowthmindBlogWriterRoute,
     AuthenticatedGrowthmindBusinessDnaRoute:
       AuthenticatedGrowthmindBusinessDnaRoute,
     AuthenticatedGrowthmindCampaignFactoryRoute:
