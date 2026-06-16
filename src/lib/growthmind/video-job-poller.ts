@@ -105,7 +105,7 @@ async function pollRunwayJob(
 
 const STORAGE_BUCKET = "gm-videos";
 
-async function archiveVideoToStorage(
+export async function archiveVideoToStorage(
   sb:          any,
   videoUrl:    string,
   workspaceId: string,
@@ -316,13 +316,21 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
       if ("videoUrl" in pollResult) {
         // Archive to permanent Supabase Storage before saving URL
         const accessToken = veoCfg.accessToken ?? "";
-        const permanentUrl = await archiveVideoToStorage(
+        const archived = await archiveVideoToStorage(
           sb,
           pollResult.videoUrl,
           row.workspace_id,
           row.id,
           accessToken,
         );
+
+        // If archive returned a raw gs:// (no access token available), mark as failed
+        // with a clear, actionable message so the user knows what to configure.
+        const permanentUrl = archived.startsWith("gs://")
+          ? `[error:Veo returned a Google Cloud Storage URI but no access token is configured to download it. ` +
+            `Add Vertex AI credentials (GCP Project + Access Token) in Settings → Providers → Video → Google Veo 3, ` +
+            `then retry this video.]`
+          : archived;
 
         const { error: updateErr } = await sb
           .from("growthmind_video_assets")
@@ -331,6 +339,9 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
 
         if (updateErr) {
           result.errors.push(`Failed to update ${row.id}: ${updateErr.message}`);
+        } else if (permanentUrl.startsWith("[error:")) {
+          result.failed++;
+          result.errors.push(`${row.id}: GCS URI with no access token`);
         } else {
           result.resolved++;
           if (permanentUrl !== pollResult.videoUrl) result.archived++;

@@ -1,9 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { routeGenerate } from "./model-router.server";
 import {
-  parseJobSentinel, isJobPending,
+  parseJobSentinel, isJobPending, archiveVideoToStorage,
 } from "./video-job-poller";
 import { optimiseVideoPrompt } from "./video-prompt-engine.server";
 import { VeoProvider, resolveVeoConfig } from "@/lib/video/providers/veo.provider";
@@ -1416,9 +1417,36 @@ export const pollVideoJob = createServerFn({ method: "POST" })
 
     if (!pollResult.done) return { status: "pending" as const, videoUrl };
 
-    const newUrl = "videoUrl" in pollResult
-      ? pollResult.videoUrl
-      : `[error:${"error" in pollResult ? pollResult.error : "Generation failed"}]`;
+    let newUrl: string;
+
+    if ("videoUrl" in pollResult) {
+      // Archive to permanent Supabase Storage before saving — same path as runVideoJobPoller.
+      // Use service-role client so storage writes bypass RLS (user-scoped client can't upload).
+      const archiveSb = createClient(
+        process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? "",
+      );
+      const accessToken = resolveVeoConfig(pollVeoCreds).accessToken ?? "";
+      const archived = await archiveVideoToStorage(
+        archiveSb,
+        pollResult.videoUrl,
+        workspaceId,
+        data.id,
+        accessToken,
+      );
+
+      // If archive returned a raw gs:// (no access token available), mark as failed with
+      // a clear, actionable message instead of storing an unplayable GCS URI.
+      if (archived.startsWith("gs://")) {
+        newUrl = `[error:Veo returned a Google Cloud Storage URI but no access token is configured to download it. ` +
+          `Add Vertex AI credentials (GCP Project + Access Token) in Settings → Providers → Video → Google Veo 3, ` +
+          `then retry this video.]`;
+      } else {
+        newUrl = archived;
+      }
+    } else {
+      newUrl = `[error:${"error" in pollResult ? pollResult.error : "Generation failed"}]`;
+    }
 
     const { error: updateErr } = await sb
       .from("growthmind_video_assets")
@@ -1431,9 +1459,48 @@ export const pollVideoJob = createServerFn({ method: "POST" })
     }
 
     return {
-      status: ("videoUrl" in pollResult ? "resolved" : "failed") as "resolved" | "failed",
+      status: (newUrl.startsWith("[error:") ? "failed" : "resolved") as "resolved" | "failed",
       videoUrl: newUrl,
     };
+  });
+
+// ── Bulk-delete unrecoverable video assets ─────────────────────────────────────
+// Deletes all assets whose video_url is an [error:…] sentinel (never had a real
+// Veo job) or a raw gs:// URI (unplayable without credentials). Safe: skips
+// any asset that has a real HTTPS/Supabase URL or a pending job sentinel.
+
+export const clearFailedVideoAssets = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: rows, error: fetchErr } = await sb
+      .from("growthmind_video_assets")
+      .select("id, video_url")
+      .eq("workspace_id", workspaceId);
+
+    if (fetchErr) throw new Error(fetchErr.message);
+
+    const toDelete: string[] = (rows ?? [])
+      .filter((r: any) => {
+        const u: string = r.video_url ?? "";
+        return u.startsWith("[error:") || u.startsWith("gs://");
+      })
+      .map((r: any) => r.id);
+
+    if (toDelete.length === 0) return { deleted: 0 };
+
+    const { error: delErr } = await sb
+      .from("growthmind_video_assets")
+      .delete()
+      .in("id", toDelete)
+      .eq("workspace_id", workspaceId);
+
+    if (delErr) throw new Error(delErr.message);
+
+    return { deleted: toDelete.length };
   });
 
 // ── Get a usable download URL for a GCS-hosted video ─────────────────────────

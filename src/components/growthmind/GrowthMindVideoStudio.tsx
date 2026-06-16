@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import {
   generateVideo, generateVideoFromPrompt, getVideoAssets, deleteVideoAsset,
   scheduleVideoAsset, getVideoCostStats, retryVideoJob, pollVideoJob, getVideoDownloadUrl,
-  generateVideoVariants, scoreVideoCreative, getVeoStatus,
+  generateVideoVariants, scoreVideoCreative, getVeoStatus, clearFailedVideoAssets,
   VIDEO_TYPE_LABELS, VIDEO_TYPE_CATEGORIES,
   type VideoType, type QualityMode, type VideoAsset, type StoryboardScene,
 } from "@/lib/growthmind/growthmind.video-studio";
@@ -779,6 +779,7 @@ export function GrowthMindVideoStudio() {
   const generateVariantsFn  = useServerFn(generateVideoVariants);
   const scoreFn             = useServerFn(scoreVideoCreative);
   const getDownloadResultFn = useServerFn(getVideoDownloadUrl);
+  const clearFailedFn       = useServerFn(clearFailedVideoAssets);
 
   const [resultPlayUrl,    setResultPlayUrl]    = useState<string | null>(null);
   const [resultPlayLoading, setResultPlayLoading] = useState(false);
@@ -884,6 +885,7 @@ export function GrowthMindVideoStudio() {
   // ── Creative score state ───────────────────────────────────────────────────
   const [creativeScore, setCreativeScore] = useState<{ overall: number; verdict: string; improvements: string[]; hook: number; clarity: number; emotion: number; cta: number; brand: number; platform: number } | null>(null);
   const [scoringId, setScoringId]         = useState<string | null>(null);
+  const [clearingFailed, setClearingFailed] = useState(false);
 
   const [filterType, setFilterType]       = useState<VideoType | "all">("all");
   const [scheduleAsset, setScheduleAsset] = useState<VideoAsset | null>(null);
@@ -1094,6 +1096,21 @@ export function GrowthMindVideoStudio() {
       qc.invalidateQueries({ queryKey: ["video-assets"] });
     } catch (e: any) {
       alert(`Retry failed: ${e?.message ?? "Unknown error"}`);
+    }
+  }
+
+  async function handleClearFailed() {
+    const failedCount = assets.filter(a => isJobError(a.videoUrl) || a.videoUrl?.startsWith("gs://")).length;
+    if (failedCount === 0) return;
+    if (!confirm(`Delete ${failedCount} failed/unplayable video asset${failedCount !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    setClearingFailed(true);
+    try {
+      await clearFailedFn();
+      qc.invalidateQueries({ queryKey: ["video-assets"] });
+    } catch (e: any) {
+      alert(`Clear failed: ${e?.message ?? "Unknown error"}`);
+    } finally {
+      setClearingFailed(false);
     }
   }
 
@@ -1892,16 +1909,30 @@ export function GrowthMindVideoStudio() {
 
           {/* Asset library */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold flex items-center gap-2">
-                <Film className="h-4 w-4 text-violet-400" />
-                Asset Library
-                {assets.length > 0 && (
-                  <span className="rounded-full bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-bold text-violet-400">
-                    {assets.length}
-                  </span>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Film className="h-4 w-4 text-violet-400" />
+                  Asset Library
+                  {assets.length > 0 && (
+                    <span className="rounded-full bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 text-[10px] font-bold text-violet-400">
+                      {assets.length}
+                    </span>
+                  )}
+                </p>
+                {assets.some(a => isJobError(a.videoUrl) || a.videoUrl?.startsWith("gs://")) && (
+                  <button
+                    onClick={handleClearFailed}
+                    disabled={clearingFailed}
+                    className="inline-flex items-center gap-1 rounded-lg border border-red-500/20 bg-red-500/[0.06] px-2 py-0.5 text-[10px] font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                  >
+                    {clearingFailed
+                      ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      : <Trash2 className="h-2.5 w-2.5" />}
+                    {clearingFailed ? "Clearing…" : "Clear all failed"}
+                  </button>
                 )}
-              </p>
+              </div>
 
               {/* Filter pills */}
               <div className="flex gap-1.5 flex-wrap">

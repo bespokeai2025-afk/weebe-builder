@@ -1,0 +1,201 @@
+FIX GROWTHMIND VIDEO LOADING FAILURE
+
+IMPORTANT
+
+Do not rebuild Video Studio.
+
+Do not modify Retell, HyperStream, VoxStream, Builder, CRM, WhatsApp, HexMail, HiveMind or GrowthMind systems outside the video loading path.
+
+Fix the existing video loading problem only.
+
+OBJECTIVE
+
+Generated videos are not loading in GrowthMind Video Studio.
+
+Audit confirmed the root causes:
+
+1. Existing video assets are unrecoverable because they contain:
+   [error:Veo 3 error: 400 durationSeconds needs to be a number]
+
+2. UI poller pollVideoJob writes raw Veo URLs directly to DB without archiveVideoToStorage.
+
+3. Background poller archives videos correctly, but UI poller runs every 10s and wins before the 30s background poller.
+
+4. gs:// URIs are unplayable on Gemini API key path unless archived to Supabase Storage.
+
+====================================================
+
+FIX 1 — DELETE UNRECOVERABLE VIDEO ASSETS
+
+Delete existing GrowthMind video assets where:
+
+video_url LIKE '[error:%'
+
+or status indicates unrecoverable Veo submit error.
+
+These assets cannot be recovered because no Veo job was ever created.
+
+Do not delete valid completed assets.
+
+====================================================
+
+FIX 2 — EXTRACT SHARED ARCHIVE FUNCTION
+
+Move or expose archiveVideoToStorage so both:
+
+runVideoJobPoller
+
+and
+
+pollVideoJob
+
+use the exact same permanent storage path.
+
+Avoid duplicate logic.
+
+====================================================
+
+FIX 3 — FIX pollVideoJob
+
+File:
+
+src/lib/growthmind/growthmind.video-studio.ts
+
+In the pollVideoJob server function:
+
+When pollResult.done === true and pollResult.videoUrl exists:
+
+Do NOT write raw pollResult.videoUrl directly to DB.
+
+Instead:
+
+call archiveVideoToStorage()
+
+Then write the permanent Supabase URL to:
+
+growthmind_video_assets.video_url
+
+====================================================
+
+FIX 4 — USE CORRECT CREDENTIALS
+
+In pollVideoJob:
+
+Load workspace Veo credentials from provider_settings using the same resolver used by the background poller.
+
+Use:
+
+resolveVeoConfig()
+
+Do not read from workspace_settings.google_cloud_access_token unless intentionally supported.
+
+====================================================
+
+FIX 5 — HANDLE gs:// SAFELY
+
+If Veo returns a gs:// URI:
+
+Do not store it directly as video_url.
+
+Attempt archiveVideoToStorage.
+
+If archive is impossible due to missing access token:
+
+Mark asset as failed with clear error:
+
+"Veo returned a Google Cloud Storage URI but no Google access token is available to archive it. Use Vertex credentials or configure storage-compatible output."
+
+Do not show it as playable.
+
+====================================================
+
+FIX 6 — HANDLE BASE64 OUTPUT SAFELY
+
+If Veo returns bytesBase64Encoded:
+
+Upload it to Supabase Storage.
+
+Save permanent Supabase URL.
+
+====================================================
+
+FIX 7 — HANDLE TEMP HTTPS OUTPUT SAFELY
+
+If Veo returns short-lived HTTPS URL:
+
+Download it immediately.
+
+Upload to Supabase Storage.
+
+Save permanent Supabase URL.
+
+====================================================
+
+FIX 8 — FRONTEND DISPLAY
+
+In GrowthMindVideoStudio:
+
+Only render video player when video_url is a real playable Supabase/HTTPS URL.
+
+Do not render player for:
+
+[error:...]
+
+[veo3_job:...]
+
+gs://...
+
+Instead show:
+
+Generating
+Failed
+Needs provider credentials
+Needs regeneration
+
+====================================================
+
+FIX 9 — REGENERATE PATH
+
+Add clear UI action:
+
+Delete Failed Asset
+
+Regenerate Video
+
+For assets with unrecoverable Veo submit errors.
+
+====================================================
+
+FIX 10 — VERIFICATION
+
+After implementing:
+
+Create or run tests for:
+
+1. Failed old asset ignored/deleted.
+2. New Veo job completes.
+3. UI poller archives completed video.
+4. Background poller archives completed video.
+5. DB stores permanent Supabase URL.
+6. Frontend plays video.
+7. gs:// without token does not show broken player.
+8. base64 output uploads successfully.
+9. temp HTTPS output uploads successfully.
+
+====================================================
+
+SUCCESS CRITERIA
+
+Old broken video assets are cleared safely.
+
+New generated videos store permanent Supabase URLs.
+
+UI poller and background poller behave consistently.
+
+No raw gs:// or temporary provider URLs are saved as playable video_url.
+
+GrowthMind Video Studio video player loads generated videos successfully.
+
+Generate implementation plan first.
+
+Then implement safely.
