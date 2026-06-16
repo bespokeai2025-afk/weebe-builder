@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-type StatusFilter = "all" | "approved" | "draft" | "rejected";
+type StatusFilter = "all" | "approved" | "draft" | "rejected" | "in_progress";
 
 const STATUS_META: Record<string, { label: string; icon: React.ElementType; className: string }> = {
   approved:    { label: "Approved",    icon: CheckCircle2, className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" },
@@ -342,10 +342,11 @@ function VideoCard({ proposal, onStatusChange, busy }: {
 }
 
 const FILTER_PILLS: { key: StatusFilter; label: string }[] = [
-  { key: "all",      label: "All" },
-  { key: "approved", label: "Approved" },
-  { key: "draft",    label: "Draft" },
-  { key: "rejected", label: "Dismissed" },
+  { key: "all",         label: "All" },
+  { key: "approved",    label: "Approved" },
+  { key: "in_progress", label: "In Progress" },
+  { key: "draft",       label: "Draft" },
+  { key: "rejected",    label: "Dismissed" },
 ];
 
 export function GrowthMindProposals() {
@@ -371,10 +372,11 @@ export function GrowthMindProposals() {
     : allProposals.filter(p => p.status === statusFilter);
 
   const counts = {
-    all:      allProposals.length,
-    approved: allProposals.filter(p => p.status === "approved").length,
-    draft:    allProposals.filter(p => p.status === "draft").length,
-    rejected: allProposals.filter(p => p.status === "rejected").length,
+    all:         allProposals.length,
+    approved:    allProposals.filter(p => p.status === "approved").length,
+    draft:       allProposals.filter(p => p.status === "draft").length,
+    rejected:    allProposals.filter(p => p.status === "rejected").length,
+    in_progress: allProposals.filter(p => p.status === "in_progress").length,
   };
 
   async function handleStatusChange(
@@ -422,7 +424,7 @@ export function GrowthMindProposals() {
 
         {/* Filter pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          {FILTER_PILLS.map(({ key, label }) => (
+          {FILTER_PILLS.filter(({ key }) => key !== "in_progress" || counts.in_progress > 0).map(({ key, label }) => (
             <button
               key={key}
               type="button"
@@ -430,7 +432,9 @@ export function GrowthMindProposals() {
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors border",
                 statusFilter === key
-                  ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
+                  ? key === "in_progress"
+                    ? "border-amber-500/30 bg-amber-500/15 text-amber-300"
+                    : "border-violet-500/30 bg-violet-500/15 text-violet-300"
                   : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/[0.14]",
               )}
             >
@@ -438,7 +442,9 @@ export function GrowthMindProposals() {
               <span className={cn(
                 "rounded-full text-[9px] font-bold px-1.5 py-0.5 leading-none",
                 statusFilter === key
-                  ? "bg-violet-500/25 text-violet-300"
+                  ? key === "in_progress"
+                    ? "bg-amber-500/25 text-amber-300"
+                    : "bg-violet-500/25 text-violet-300"
                   : "bg-white/[0.07] text-muted-foreground",
               )}>
                 {counts[key]}
@@ -459,7 +465,11 @@ export function GrowthMindProposals() {
               <p className="text-sm font-medium text-muted-foreground">
                 {statusFilter === "all"
                   ? "No proposals yet"
-                  : `No ${statusFilter === "rejected" ? "dismissed" : statusFilter} proposals`}
+                  : statusFilter === "rejected"
+                    ? "No dismissed proposals"
+                    : statusFilter === "in_progress"
+                      ? "No proposals in progress"
+                      : `No ${statusFilter} proposals`}
               </p>
               <p className="text-xs text-muted-foreground/60 mt-1">
                 {statusFilter === "all"
