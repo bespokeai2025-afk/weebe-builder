@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
@@ -362,6 +362,12 @@ function AnalyticsPage() {
                 >{r.label}</Button>
               ))}
             </div>
+            <Link
+              to="/analytics-marketing"
+              className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-card/40 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-card/70 transition-colors"
+            >
+              Marketing Analytics →
+            </Link>
           </div>
         }
       />
