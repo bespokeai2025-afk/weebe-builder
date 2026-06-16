@@ -118,9 +118,10 @@ async function upsertCampaigns(sb: ReturnType<typeof getAdminClient>, workspaceI
 
   if (error) {
     for (const row of rows) {
-      await sb.from("growthmind_ad_campaigns")
-        .upsert(row, { onConflict: "workspace_id,platform,external_id,date_start" })
-        .catch(() => {});
+      try {
+        await sb.from("growthmind_ad_campaigns")
+          .upsert(row, { onConflict: "workspace_id,platform,external_id,date_start" });
+      } catch { /* best effort — individual row */ }
     }
   }
 }
@@ -249,7 +250,7 @@ async function generateAlerts(
       .limit(1);
 
     if (!existing || existing.length === 0) {
-      await sb.from("growthmind_ad_budget_alerts").insert(alert).catch(() => {});
+      try { await sb.from("growthmind_ad_budget_alerts").insert(alert); } catch {}
     }
   }
 }
@@ -272,19 +273,21 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
         { spend: 0, impressions: 0, clicks: 0, conversions: 0 },
       );
 
-      await sb.from("growthmind_ad_performance_log").insert({
-        workspace_id: workspaceId, platform: "meta",
-        campaigns_synced: campaigns.length, spend_total: totals.spend,
-        impressions_total: totals.impressions, clicks_total: totals.clicks,
-        conversions_total: totals.conversions, status: "success",
-      }).catch(() => {});
+      try {
+        await sb.from("growthmind_ad_sync_log").insert({
+          workspace_id: workspaceId, platform: "meta",
+          campaigns_synced: campaigns.length, spend_total: totals.spend,
+          impressions_total: totals.impressions, clicks_total: totals.clicks,
+          conversions_total: totals.conversions, status: "success",
+        });
+      } catch {}
 
-      await generateAlerts(sb, workspaceId, "meta", campaigns).catch(() => {});
+      try { await generateAlerts(sb, workspaceId, "meta", campaigns); } catch {}
 
       results.push({ platform: "meta", workspaceId, campaignsSynced: campaigns.length, spendTotal: totals.spend, impressionsTotal: totals.impressions, clicksTotal: totals.clicks, conversionsTotal: totals.conversions, status: "success" });
     } catch (err: any) {
       const msg = err?.message ?? String(err);
-      await sb.from("growthmind_ad_performance_log").insert({ workspace_id: workspaceId, platform: "meta", status: "error", error_message: msg }).catch(() => {});
+      try { await sb.from("growthmind_ad_sync_log").insert({ workspace_id: workspaceId, platform: "meta", status: "error", error_message: msg }); } catch {}
       results.push({ platform: "meta", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "error", error: msg });
     }
   } else {
@@ -304,19 +307,21 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
         { spend: 0, impressions: 0, clicks: 0, conversions: 0 },
       );
 
-      await sb.from("growthmind_ad_performance_log").insert({
-        workspace_id: workspaceId, platform: "google",
-        campaigns_synced: campaigns.length, spend_total: totals.spend,
-        impressions_total: totals.impressions, clicks_total: totals.clicks,
-        conversions_total: totals.conversions, status: "success",
-      }).catch(() => {});
+      try {
+        await sb.from("growthmind_ad_sync_log").insert({
+          workspace_id: workspaceId, platform: "google",
+          campaigns_synced: campaigns.length, spend_total: totals.spend,
+          impressions_total: totals.impressions, clicks_total: totals.clicks,
+          conversions_total: totals.conversions, status: "success",
+        });
+      } catch {}
 
-      await generateAlerts(sb, workspaceId, "google", campaigns).catch(() => {});
+      try { await generateAlerts(sb, workspaceId, "google", campaigns); } catch {}
 
       results.push({ platform: "google", workspaceId, campaignsSynced: campaigns.length, spendTotal: totals.spend, impressionsTotal: totals.impressions, clicksTotal: totals.clicks, conversionsTotal: totals.conversions, status: "success" });
     } catch (err: any) {
       const msg = err?.message ?? String(err);
-      await sb.from("growthmind_ad_performance_log").insert({ workspace_id: workspaceId, platform: "google", status: "error", error_message: msg }).catch(() => {});
+      try { await sb.from("growthmind_ad_sync_log").insert({ workspace_id: workspaceId, platform: "google", status: "error", error_message: msg }); } catch {}
       results.push({ platform: "google", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "error", error: msg });
     }
   } else {

@@ -51,28 +51,32 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
       sb.from("growthmind_business_dna")
         .select("website,industry,updated_at").eq("workspace_id", workspaceId).maybeSingle(),
       // New: check provider_settings for advertising credentials
-      sb.from("provider_settings")
-        .select("provider_name,status,updated_at")
-        .eq("workspace_id", workspaceId)
-        .eq("provider_category", "advertising")
-        .in("status", ["connected", "partial"])
-        .limit(10)
-        .catch(() => ({ data: [] })),
+      Promise.resolve(
+        sb.from("provider_settings")
+          .select("provider_name,status,updated_at")
+          .eq("workspace_id", workspaceId)
+          .eq("provider_category", "advertising")
+          .in("status", ["connected", "partial"])
+          .limit(10),
+      ).catch(() => ({ data: [] })),
       // Dedicated ads campaigns table — synced within last 30 days only
-      sb.from("growthmind_ad_campaigns")
-        .select("platform,status,synced_at")
-        .eq("workspace_id", workspaceId)
-        .gte("synced_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .order("synced_at", { ascending: false })
-        .limit(100)
-        .catch(() => ({ data: [] })),
+      Promise.resolve(
+        sb.from("growthmind_ad_campaigns")
+          .select("platform,status,synced_at")
+          .eq("workspace_id", workspaceId)
+          .gte("synced_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+          .order("synced_at", { ascending: false })
+          .limit(100),
+      ).catch(() => ({ data: [] })),
       // Sync log: last sync attempt per platform (includes error status)
-      sb.from("growthmind_ad_performance_log")
-        .select("platform,status,error_message,synced_at,campaigns_synced")
-        .eq("workspace_id", workspaceId)
-        .order("synced_at", { ascending: false })
-        .limit(20)
-        .catch(() => ({ data: [] })),
+      // Uses growthmind_ad_sync_log — canonical table written by the sync engine
+      Promise.resolve(
+        sb.from("growthmind_ad_sync_log")
+          .select("platform,status,error_message,synced_at,campaigns_synced")
+          .eq("workspace_id", workspaceId)
+          .order("synced_at", { ascending: false })
+          .limit(20),
+      ).catch(() => ({ data: [] })),
       sb.from("wati_connections")
         .select("id,status,last_tested_at").eq("workspace_id", workspaceId).maybeSingle(),
       sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId),

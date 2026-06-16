@@ -89,35 +89,39 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
       wsRes,
       psRes,
     ] = await Promise.all([
-      sb.from("growthmind_ad_campaigns")
-        .select("id,platform,name,status,spend,impressions,clicks,conversions,roas,date_start,date_end,synced_at")
-        .eq("workspace_id", workspaceId)
-        .not("synced_at", "is", null)
-        .gte("synced_at", thirtyDaysAgo)
-        .order("spend", { ascending: false })
-        .limit(200)
-        .catch(() => ({ data: [] })),
+      Promise.resolve(
+        sb.from("growthmind_ad_campaigns")
+          .select("id,platform,name,status,spend,impressions,clicks,conversions,roas,date_start,date_end,synced_at")
+          .eq("workspace_id", workspaceId)
+          .not("synced_at", "is", null)
+          .gte("synced_at", thirtyDaysAgo)
+          .order("spend", { ascending: false })
+          .limit(200),
+      ).catch(() => ({ data: [] })),
 
-      sb.from("growthmind_ad_budget_alerts")
-        .select("id,platform,alert_type,current_value,threshold,message,created_at")
-        .eq("workspace_id", workspaceId)
-        .eq("acknowledged", false)
-        .order("created_at", { ascending: false })
-        .limit(20)
-        .catch(() => ({ data: [] })),
+      Promise.resolve(
+        sb.from("growthmind_ad_budget_alerts")
+          .select("id,platform,alert_type,current_value,threshold,message,created_at")
+          .eq("workspace_id", workspaceId)
+          .eq("acknowledged", false)
+          .order("created_at", { ascending: false })
+          .limit(20),
+      ).catch(() => ({ data: [] })),
 
-      sb.from("workspace_settings")
-        .select("meta_ads_access_token,meta_ads_account_id")
-        .eq("workspace_id", workspaceId)
-        .maybeSingle()
-        .catch(() => ({ data: null })),
+      Promise.resolve(
+        sb.from("workspace_settings")
+          .select("meta_ads_access_token,meta_ads_account_id")
+          .eq("workspace_id", workspaceId)
+          .maybeSingle(),
+      ).catch(() => ({ data: null })),
 
-      sb.from("provider_settings")
-        .select("provider_name,status")
-        .eq("workspace_id", workspaceId)
-        .eq("provider_category", "advertising")
-        .eq("status", "connected")
-        .catch(() => ({ data: [] })),
+      Promise.resolve(
+        sb.from("provider_settings")
+          .select("provider_name,status")
+          .eq("workspace_id", workspaceId)
+          .eq("provider_category", "advertising")
+          .eq("status", "connected"),
+      ).catch(() => ({ data: [] })),
     ]);
 
     const campaigns: any[] = campaignsRes.data ?? [];

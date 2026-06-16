@@ -257,37 +257,41 @@ export async function buildGrowthMindExecutiveSummary(
 
   // ── CMO Proactive Intelligence signals (best-effort; tables may not be migrated) ──
   const [serviceScoresRes, trendSignalsRes, campaignProposalsRes, videoProposalsRes] = await Promise.all([
-    sb.from("growthmind_service_scores")
-      .select("service_name, total_score, recommendation")
-      .eq("workspace_id", workspaceId)
-      .order("total_score", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .catch(() => ({ data: null })),
-    sb.from("growthmind_trend_signals")
-      .select("label, classification, insight, action_hint")
-      .eq("workspace_id", workspaceId)
-      .eq("classification", "Growing")
-      .order("computed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .catch(() => ({ data: null })),
-    sb.from("growthmind_campaign_proposals")
-      .select("title, reason, audience, channels, expected_outcome, budget_estimate")
-      .eq("workspace_id", workspaceId)
-      .eq("status", "draft")
-      .order("generated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .catch(() => ({ data: null })),
-    sb.from("growthmind_video_proposals")
-      .select("title, hook, platform, duration")
-      .eq("workspace_id", workspaceId)
-      .eq("status", "draft")
-      .order("generated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .catch(() => ({ data: null })),
+    Promise.resolve(
+      sb.from("growthmind_service_scores")
+        .select("service_name, total_score, recommendation")
+        .eq("workspace_id", workspaceId)
+        .order("total_score", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ).catch(() => ({ data: null })),
+    Promise.resolve(
+      sb.from("growthmind_trend_signals")
+        .select("label, classification, insight, action_hint")
+        .eq("workspace_id", workspaceId)
+        .eq("classification", "Growing")
+        .order("computed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ).catch(() => ({ data: null })),
+    Promise.resolve(
+      sb.from("growthmind_campaign_proposals")
+        .select("title, reason, audience, channels, expected_outcome, budget_estimate")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "draft")
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ).catch(() => ({ data: null })),
+    Promise.resolve(
+      sb.from("growthmind_video_proposals")
+        .select("title, hook, platform, duration")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "draft")
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ).catch(() => ({ data: null })),
   ]);
 
   const topServiceRaw    = (serviceScoresRes as any).data ?? null;
@@ -395,14 +399,14 @@ export async function buildGrowthMindExecutiveSummary(
   const adsData = (data as any).ads ?? {};
 
   // Unacknowledged budget alerts for CMO summary
-  const budgetAlertsRes = await sb
-    .from("growthmind_ad_budget_alerts")
-    .select("id,platform,alert_type,current_value,threshold,message,created_at")
-    .eq("workspace_id", workspaceId)
-    .eq("acknowledged", false)
-    .order("created_at", { ascending: false })
-    .limit(10)
-    .catch(() => ({ data: [] }));
+  const budgetAlertsRes = await Promise.resolve(
+    sb.from("growthmind_ad_budget_alerts")
+      .select("id,platform,alert_type,current_value,threshold,message,created_at")
+      .eq("workspace_id", workspaceId)
+      .eq("acknowledged", false)
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ).catch(() => ({ data: [] }));
 
   const unacknowledgedAlerts: Array<{
     id: string; platform: string; alertType: string;
