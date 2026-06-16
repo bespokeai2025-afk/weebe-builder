@@ -191,6 +191,50 @@ async function generateAlerts(
     }
   }
 
+  // Monthly budget cap alerts — check growthmind_ad_budget_caps for configured limits
+  try {
+    const { data: cap } = await sb
+      .from("growthmind_ad_budget_caps")
+      .select("monthly_budget_cap,alert_at_pct,currency")
+      .eq("workspace_id", workspaceId)
+      .eq("platform", platform)
+      .maybeSingle();
+
+    if (cap?.monthly_budget_cap) {
+      const monthlyCapNum  = Number(cap.monthly_budget_cap);
+      const alertAtPct     = Number(cap.alert_at_pct ?? 80) / 100;
+      const alertThreshold = monthlyCapNum * alertAtPct;
+      const currency       = cap.currency ?? "GBP";
+      const sym            = currency === "USD" ? "$" : "£";
+      const platformLabel  = platform === "meta" ? "Meta" : "Google";
+
+      if (totalSpend >= monthlyCapNum) {
+        // 100% — budget exceeded
+        alerts.push({
+          workspace_id: workspaceId,
+          platform,
+          alert_type: "budget_exceeded",
+          current_value: +totalSpend.toFixed(2),
+          threshold: +monthlyCapNum.toFixed(2),
+          message: `${platformLabel} Ads monthly budget of ${sym}${monthlyCapNum.toLocaleString()} has been reached (${sym}${totalSpend.toFixed(0)} spent). Pause campaigns or increase budget.`,
+          created_at: now,
+        });
+      } else if (totalSpend >= alertThreshold) {
+        // alert_at_pct threshold (default 80%)
+        const pctSpent = Math.round((totalSpend / monthlyCapNum) * 100);
+        alerts.push({
+          workspace_id: workspaceId,
+          platform,
+          alert_type: "budget_80pct",
+          current_value: +totalSpend.toFixed(2),
+          threshold: +alertThreshold.toFixed(2),
+          message: `${platformLabel} Ads has used ${pctSpent}% of the monthly budget (${sym}${totalSpend.toFixed(0)} of ${sym}${monthlyCapNum.toLocaleString()}). Monitor spend carefully.`,
+          created_at: now,
+        });
+      }
+    }
+  } catch {}
+
   // Deduplicate: only insert if there is no unacknowledged alert of this type in the last 24h
   for (const alert of alerts) {
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();

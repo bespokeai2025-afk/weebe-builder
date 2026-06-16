@@ -40,7 +40,7 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No workspace");
 
     const [
-      settingsRes, dnaRes, adsPsRes, adsCampaignsRes, watiRes,
+      settingsRes, dnaRes, adsPsRes, adsCampaignsRes, adsSyncLogRes, watiRes,
       leadsRes, callsRes, waContactsRes,
       competitorsRes, calendarRes, tasksRes,
       hexmailRes, bookingsRes, seoRes,
@@ -65,6 +65,13 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
         .order("synced_at", { ascending: false })
         .limit(100)
         .catch(() => ({ data: [] })),
+      // Sync log: last sync attempt per platform (includes error status)
+      sb.from("growthmind_ad_performance_log")
+        .select("platform,status,error_message,synced_at,campaigns_synced")
+        .eq("workspace_id", workspaceId)
+        .order("synced_at", { ascending: false })
+        .limit(20)
+        .catch(() => ({ data: [] })),
       sb.from("wati_connections")
         .select("id,status,last_tested_at").eq("workspace_id", workspaceId).maybeSingle(),
       sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId),
@@ -82,6 +89,7 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
     const dna         = dnaRes.data;
     const adsPsList: any[] = (adsPsRes as any).data ?? [];
     const adsCampaigns: any[] = (adsCampaignsRes as any).data ?? [];
+    const adsSyncLog: any[] = (adsSyncLogRes as any).data ?? [];
     const wati        = watiRes.data;
     const leadCount   = leadsRes.count    ?? 0;
     const callCount   = callsRes.count    ?? 0;
@@ -105,6 +113,12 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
     const googleLastSync  = googleSyncCamps[0]?.synced_at ?? null;
     const metaCampCount   = metaSyncCamps.length;
     const googleCampCount = googleSyncCamps.length;
+
+    // Sync log: most recent attempt per platform (errors surface even if campaigns table has data)
+    const metaSyncLogLast    = adsSyncLog.find((l: any) => l.platform === "meta") ?? null;
+    const googleSyncLogLast  = adsSyncLog.find((l: any) => l.platform === "google") ?? null;
+    const metaSyncError      = metaSyncLogLast?.status === "error" ? metaSyncLogLast.error_message : null;
+    const googleSyncError    = googleSyncLogLast?.status === "error" ? googleSyncLogLast.error_message : null;
 
     // Legacy growthmind_ads_accounts fallback (LinkedIn/TikTok only — they have no sync adapter yet)
     const linkedinAds = null;
@@ -144,26 +158,34 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
       // ── Ads ──────────────────────────────────────────────────────────────────
       {
         id: "google_ads", label: "Google Ads", category: "Paid Advertising",
-        status: googleCampCount > 0 ? "connected" : hasGoogleAdsCred ? "partial" : "not_connected",
-        detail: googleCampCount > 0
-          ? `${googleCampCount} campaign(s) synced via live API`
-          : hasGoogleAdsCred
-            ? "Credentials saved — sync pending (first tick in 90s)"
-            : "No Google Ads credentials. Add them in Provider Settings.",
-        lastSync: googleLastSync,
+        status: googleSyncError && googleCampCount === 0
+          ? "partial"
+          : googleCampCount > 0 ? "connected" : hasGoogleAdsCred ? "partial" : "not_connected",
+        detail: googleSyncError
+          ? `Last sync failed: ${googleSyncError.slice(0, 120)}`
+          : googleCampCount > 0
+            ? `${googleCampCount} campaign(s) synced — ${googleSyncLogLast?.campaigns_synced ?? googleCampCount} pulled last run`
+            : hasGoogleAdsCred
+              ? "Credentials saved — sync pending (first tick in 90s)"
+              : "No Google Ads credentials. Add them in Provider Settings.",
+        lastSync: googleSyncLogLast?.synced_at ?? googleLastSync,
         usedBy: ["Ads Performance", "Recommendations", "GrowthMind CMO"],
         setupHref: "/settings/providers",
         dataPoints: googleCampCount || null,
       },
       {
         id: "meta_ads", label: "Meta Ads", category: "Paid Advertising",
-        status: metaCampCount > 0 ? "connected" : hasMetaAdsCred ? "partial" : "not_connected",
-        detail: metaCampCount > 0
-          ? `${metaCampCount} campaign(s) synced via live API`
-          : hasMetaAdsCred
-            ? "Credentials saved — sync pending (first tick in 90s)"
-            : "No Meta Ads credentials. Add access token and account ID in Provider Settings.",
-        lastSync: metaLastSync,
+        status: metaSyncError && metaCampCount === 0
+          ? "partial"
+          : metaCampCount > 0 ? "connected" : hasMetaAdsCred ? "partial" : "not_connected",
+        detail: metaSyncError
+          ? `Last sync failed: ${metaSyncError.slice(0, 120)}`
+          : metaCampCount > 0
+            ? `${metaCampCount} campaign(s) synced — ${metaSyncLogLast?.campaigns_synced ?? metaCampCount} pulled last run`
+            : hasMetaAdsCred
+              ? "Credentials saved — sync pending (first tick in 90s)"
+              : "No Meta Ads credentials. Add access token and account ID in Provider Settings.",
+        lastSync: metaSyncLogLast?.synced_at ?? metaLastSync,
         usedBy: ["Ads Performance", "Recommendations", "GrowthMind CMO"],
         setupHref: "/settings/providers",
         dataPoints: metaCampCount || null,

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import {
@@ -297,6 +298,53 @@ const acknowledgeAlert = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ── Spend-by-platform bar chart ────────────────────────────────────────────────
+
+function SpendComparisonChart({ meta, google }: { meta: PlatformTotals; google: PlatformTotals }) {
+  const totalSpend = meta.spend + google.spend;
+  if (totalSpend === 0) return null;
+
+  const metaPct   = totalSpend > 0 ? (meta.spend   / totalSpend) * 100 : 0;
+  const googlePct = totalSpend > 0 ? (google.spend / totalSpend) * 100 : 0;
+
+  const items = [
+    { label: "Meta Ads",   spend: meta.spend,   pct: metaPct,   roas: meta.avgRoas,   color: "bg-blue-500", textColor: "text-blue-400" },
+    { label: "Google Ads", spend: google.spend, pct: googlePct, roas: google.avgRoas, color: "bg-emerald-500", textColor: "text-emerald-400" },
+  ];
+
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-card/40 p-5 space-y-4">
+      <h3 className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">Spend by Platform</h3>
+      <div className="space-y-3">
+        {items.map(item => (
+          <div key={item.label} className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className={item.textColor + " font-semibold"}>{item.label}</span>
+              <div className="flex items-center gap-3">
+                <span className="font-bold tabular-nums">£{item.spend.toFixed(2)}</span>
+                {item.roas !== null && (
+                  <span className={cn("text-[10px] tabular-nums", roasColor(item.roas))}>
+                    {item.roas.toFixed(2)}x ROAS
+                  </span>
+                )}
+                <span className="text-muted-foreground/50 text-[10px] tabular-nums w-8 text-right">
+                  {item.pct.toFixed(0)}%
+                </span>
+              </div>
+            </div>
+            <div className="h-2 w-full rounded-full bg-white/[0.05] overflow-hidden">
+              <div
+                className={cn("h-full rounded-full transition-all duration-500", item.color)}
+                style={{ width: `${item.pct}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function fmt(n: number, decimals = 0): string {
@@ -421,6 +469,39 @@ function Metric({
   );
 }
 
+// ── Sortable table header ──────────────────────────────────────────────────────
+
+type SortKey = "spend" | "impressions" | "clicks" | "ctr" | "conversions" | "roas" | "cpl";
+
+function SortTh({
+  label, sortKey, current, dir, onClick, align = "right",
+}: {
+  label: string; sortKey: SortKey; current: SortKey; dir: "asc" | "desc";
+  onClick: (k: SortKey) => void; align?: "left" | "right";
+}) {
+  const active = current === sortKey;
+  return (
+    <th
+      onClick={() => onClick(sortKey)}
+      className={cn(
+        "px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 cursor-pointer select-none hover:text-muted-foreground transition-colors",
+        align === "left" ? "text-left" : "text-right",
+      )}
+    >
+      <span className="inline-flex items-center gap-0.5">
+        {label}
+        {active ? (
+          dir === "desc"
+            ? <TrendingDown className="h-2.5 w-2.5 text-emerald-400" />
+            : <TrendingUp className="h-2.5 w-2.5 text-emerald-400" />
+        ) : (
+          <Minus className="h-2 w-2 opacity-30" />
+        )}
+      </span>
+    </th>
+  );
+}
+
 // ── Campaign row ───────────────────────────────────────────────────────────────
 
 function CampaignRow({ c }: { c: AdCampaign }) {
@@ -468,6 +549,9 @@ function AdsPerformancePage() {
   const syncFn    = useServerFn(triggerAdsSync);
   const ackFn     = useServerFn(acknowledgeAlert);
 
+  const [sortKey, setSortKey] = useState<SortKey>("spend");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
   const { data, isLoading } = useQuery({
     queryKey: ["ads-performance"],
     queryFn:  () => dataFn(),
@@ -494,9 +578,34 @@ function AdsPerformancePage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ads-performance"] }),
   });
 
+  function handleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir(d => d === "desc" ? "asc" : "desc");
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
   const hasAnyCreds = (data?.hasMetaCreds || data?.hasGoogleCreds) ?? false;
-  const campaigns   = data?.campaigns ?? [];
-  const alerts      = data?.alerts    ?? [];
+  const alerts      = data?.alerts ?? [];
+
+  const campaigns = [...(data?.campaigns ?? [])].sort((a, b) => {
+    function val(c: AdCampaign): number {
+      switch (sortKey) {
+        case "spend":       return c.spend;
+        case "impressions": return c.impressions;
+        case "clicks":      return c.clicks;
+        case "conversions": return c.conversions;
+        case "roas":        return c.roas ?? -Infinity;
+        case "ctr":         return c.impressions > 0 ? c.clicks / c.impressions : -Infinity;
+        case "cpl":         return c.conversions > 0 ? c.spend / c.conversions : Infinity;
+        default:            return 0;
+      }
+    }
+    const diff = val(a) - val(b);
+    return sortDir === "desc" ? -diff : diff;
+  });
 
   return (
     <GrowthMindShell>
@@ -584,6 +693,14 @@ function AdsPerformancePage() {
               </div>
             )}
 
+            {/* Spend-by-platform comparison chart */}
+            {(data?.meta.spend ?? 0) + (data?.google.spend ?? 0) > 0 && (
+              <SpendComparisonChart
+                meta={data?.meta   ?? { count: 0, spend: 0, impressions: 0, clicks: 0, conversions: 0, avgRoas: null, ctr: null, lastSyncedAt: null }}
+                google={data?.google ?? { count: 0, spend: 0, impressions: 0, clicks: 0, conversions: 0, avgRoas: null, ctr: null, lastSyncedAt: null }}
+              />
+            )}
+
             {/* Platform cards */}
             <div className="space-y-2">
               <h2 className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">Platform Overview</h2>
@@ -621,12 +738,14 @@ function AdsPerformancePage() {
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="border-b border-white/[0.06]">
-                          {["Campaign", "Spend", "Impressions", "Clicks", "CTR", "Conversions", "ROAS", "CPL"].map(h => (
-                            <th key={h} className={cn(
-                              "px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60",
-                              h === "Campaign" ? "text-left" : "text-right",
-                            )}>{h}</th>
-                          ))}
+                          <th className="px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 text-left">Campaign</th>
+                          <SortTh label="Spend"       sortKey="spend"       current={sortKey} dir={sortDir} onClick={handleSort} />
+                          <SortTh label="Impressions" sortKey="impressions" current={sortKey} dir={sortDir} onClick={handleSort} />
+                          <SortTh label="Clicks"      sortKey="clicks"      current={sortKey} dir={sortDir} onClick={handleSort} />
+                          <SortTh label="CTR"         sortKey="ctr"         current={sortKey} dir={sortDir} onClick={handleSort} />
+                          <SortTh label="Conversions" sortKey="conversions" current={sortKey} dir={sortDir} onClick={handleSort} />
+                          <SortTh label="ROAS"        sortKey="roas"        current={sortKey} dir={sortDir} onClick={handleSort} />
+                          <SortTh label="CPL"         sortKey="cpl"         current={sortKey} dir={sortDir} onClick={handleSort} />
                         </tr>
                       </thead>
                       <tbody>

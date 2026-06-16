@@ -9,8 +9,16 @@ export const Route = createFileRoute("/api/public/ads-sync")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const cronSecret = process.env.CRON_SECRET;
+        if (!cronSecret) {
+          // Fail-closed: if CRON_SECRET is not configured, reject all requests
+          return new Response(JSON.stringify({ error: "CRON_SECRET not configured on this server" }), {
+            status: 503,
+            headers: { "content-type": "application/json" },
+          });
+        }
         const secret = request.headers.get("x-cron-secret");
-        if (secret !== (process.env.CRON_SECRET ?? "")) {
+        if (secret !== cronSecret) {
           return new Response(JSON.stringify({ error: "Unauthorized" }), {
             status: 401,
             headers: { "content-type": "application/json" },

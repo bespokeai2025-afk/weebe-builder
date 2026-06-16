@@ -121,7 +121,7 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
     // been applied; fall back gracefully to an empty array).
     const adsCampaignsRes = await sb
       .from("growthmind_campaigns")
-      .select("id,platform,name,status,spend,impressions,clicks,conversions,roas,synced_at,date_start,date_end")
+      .select("id,platform,name,status,spend,impressions,clicks,conversions,roas,revenue,synced_at,date_start,date_end")
       .eq("workspace_id", workspaceId)
       .order("spend", { ascending: false })
       .limit(200)
