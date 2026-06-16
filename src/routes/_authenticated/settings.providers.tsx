@@ -81,8 +81,14 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "apiKey", label: "Runway API Key", type: "password", required: true, placeholder: "key_..." },
   ],
   "video:google_veo": [
-    { key: "gcpProject", label: "GCP Project ID", type: "text", required: true },
-    { key: "accessToken", label: "OAuth Access Token", type: "password", required: true },
+    { key: "geminiApiKey",  label: "Gemini API Key (recommended)", type: "password", required: false, placeholder: "AIzaSy…" },
+    { key: "gcpProject",    label: "GCP Project ID",               type: "text",     required: false, placeholder: "my-project-id" },
+    { key: "accessToken",   label: "GCP OAuth Access Token",       type: "password", required: false, placeholder: "ya29.…" },
+    { key: "refreshToken",  label: "OAuth Refresh Token",          type: "password", required: false, placeholder: "1//0g…" },
+    { key: "clientId",      label: "OAuth Client ID",              type: "text",     required: false, placeholder: "12345-abc.apps.googleusercontent.com" },
+    { key: "clientSecret",  label: "OAuth Client Secret",          type: "password", required: false, placeholder: "GOCSPX-…" },
+    { key: "location",      label: "GCP Location",                 type: "text",     required: false, placeholder: "us-central1" },
+    { key: "veoModel",      label: "Veo Model (leave blank for Veo 3 default)", type: "text", required: false, placeholder: "veo-3.0-generate-preview" },
   ],
   "image:imagen": [
     { key: "gcpProject", label: "GCP Project ID", type: "text", required: true },
