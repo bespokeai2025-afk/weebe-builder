@@ -668,3 +668,114 @@ export async function getEmailReadinessForWorkspace(workspaceId: string) {
   const score  = Math.min(health.score + (mailboxes.some((m: any) => m.status === "active") ? 10 : 0), 100);
   return { score, grade: score >= 90 ? "A" : score >= 75 ? "B" : score >= 55 ? "C" : "D", issues: health.warnings };
 }
+
+// ── Resend Webhook Registration ───────────────────────────────────────────────
+
+const RESEND_WEBHOOK_EVENTS = [
+  "email.bounced",
+  "email.complained",
+  "email.delivery_failed",
+  "email.delivered",
+];
+
+export const getResendWebhookStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: ws } = await sb
+      .from("workspace_settings")
+      .select("hexmail_resend_api_key")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    const apiKey = ws?.hexmail_resend_api_key ?? process.env.RESEND_API_KEY;
+    if (!apiKey) return { registered: false, webhooks: [], noApiKey: true };
+
+    const appUrl =
+      process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0].trim()}`
+        : process.env.APP_URL ?? "";
+
+    const webhookEndpoint = `${appUrl}/api/public/resend-webhook`;
+
+    try {
+      const res = await fetch("https://api.resend.com/webhooks", {
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      });
+      if (!res.ok) return { registered: false, webhooks: [], error: `Resend API error: ${res.status}` };
+      const json = await res.json() as any;
+      const webhooks: any[] = json?.data ?? json ?? [];
+      const existing = webhooks.find((w: any) => w.endpoint === webhookEndpoint);
+      return { registered: !!existing, webhooks, webhookEndpoint, existing };
+    } catch (err: any) {
+      return { registered: false, webhooks: [], error: err?.message };
+    }
+  });
+
+export const registerResendWebhook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: ws } = await sb
+      .from("workspace_settings")
+      .select("hexmail_resend_api_key")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    const apiKey = ws?.hexmail_resend_api_key ?? process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error("No Resend API key configured. Add it in HexMail → Settings.");
+
+    const appUrl =
+      process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0].trim()}`
+        : process.env.APP_URL ?? "";
+
+    if (!appUrl) throw new Error("App URL not detected. Set APP_URL in environment variables.");
+
+    const webhookEndpoint = `${appUrl}/api/public/resend-webhook`;
+
+    const res = await fetch("https://api.resend.com/webhooks", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: webhookEndpoint, events: RESEND_WEBHOOK_EVENTS }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Resend API error ${res.status}: ${err}`);
+    }
+
+    const data = await res.json();
+    return { ok: true, webhook: data, webhookEndpoint };
+  });
+
+export const deleteResendWebhook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({ webhookId: z.string() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const { data: ws } = await sb
+      .from("workspace_settings")
+      .select("hexmail_resend_api_key")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    const apiKey = ws?.hexmail_resend_api_key ?? process.env.RESEND_API_KEY;
+    if (!apiKey) throw new Error("No Resend API key configured.");
+
+    const res = await fetch(`https://api.resend.com/webhooks/${data.webhookId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) throw new Error(`Resend API error: ${res.status}`);
+    return { ok: true };
+  });

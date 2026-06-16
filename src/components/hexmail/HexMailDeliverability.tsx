@@ -1,12 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import {
   ShieldCheck, Globe, Inbox, Flame, AlertTriangle,
   CheckCircle, XCircle, TrendingUp, Mail, ArrowRight, RefreshCw,
+  Webhook, Loader2, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getDeliverabilityDashboard } from "@/lib/hexmail/deliverability.server";
+import {
+  getDeliverabilityDashboard,
+  getResendWebhookStatus,
+  registerResendWebhook,
+  deleteResendWebhook,
+} from "@/lib/hexmail/deliverability.server";
 
 function ScoreBadge({ score }: { score: number }) {
   const color = score >= 80 ? "text-emerald-400" : score >= 60 ? "text-amber-400" : "text-red-400";
@@ -41,6 +47,102 @@ const QUICK_LINKS = [
   { label: "Reputation",     sub: "Bounce & complaint tracking", icon: TrendingUp, to: "/hexmail/reputation" },
 ];
 
+function WebhookPanel() {
+  const qc = useQueryClient();
+  const getStatusFn   = useServerFn(getResendWebhookStatus);
+  const registerFn    = useServerFn(registerResendWebhook);
+  const deleteFn      = useServerFn(deleteResendWebhook);
+
+  const { data: wh, isLoading } = useQuery({
+    queryKey:  ["resend-webhook-status"],
+    queryFn:   () => getStatusFn(),
+    staleTime: 60_000,
+  });
+
+  const registerMut = useMutation({
+    mutationFn: () => registerFn(),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ["resend-webhook-status"] }),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { webhookId: id } }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ["resend-webhook-status"] }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center gap-2 text-xs text-muted-foreground/50">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking Resend webhook status…
+      </div>
+    );
+  }
+
+  if (wh?.noApiKey) {
+    return (
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Webhook className="h-4 w-4 text-muted-foreground/40" />
+          <div>
+            <p className="text-sm font-medium">Resend Webhook</p>
+            <p className="text-[11px] text-muted-foreground/50">Add your Resend API key in HexMail → Settings to auto-register the webhook.</p>
+          </div>
+        </div>
+        <Link to="/hexmail/settings" className="shrink-0 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs hover:bg-white/[0.06] transition-colors">
+          Add API Key
+        </Link>
+      </div>
+    );
+  }
+
+  if (wh?.registered && wh?.existing) {
+    return (
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-emerald-300">Resend Webhook Connected</p>
+            <p className="text-[11px] text-muted-foreground/60 font-mono mt-0.5 break-all">{wh.webhookEndpoint}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => deleteMut.mutate(wh.existing.id)}
+          disabled={deleteMut.isPending}
+          className="shrink-0 flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+        >
+          {deleteMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+          Remove
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 flex items-center justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <Webhook className="h-4 w-4 text-amber-400/70 shrink-0" />
+        <div>
+          <p className="text-sm font-medium">Resend Webhook</p>
+          <p className="text-[11px] text-muted-foreground/50">
+            Auto-register so bounces &amp; complaints flow into Reputation Monitor.
+          </p>
+          {wh?.error && <p className="text-[11px] text-red-400 mt-0.5">{wh.error}</p>}
+          {registerMut.error && (
+            <p className="text-[11px] text-red-400 mt-0.5">{(registerMut.error as Error).message}</p>
+          )}
+        </div>
+      </div>
+      <button
+        onClick={() => registerMut.mutate()}
+        disabled={registerMut.isPending}
+        className="shrink-0 flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+      >
+        {registerMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Webhook className="h-3 w-3" />}
+        {registerMut.isPending ? "Registering…" : "Register Webhook"}
+      </button>
+    </div>
+  );
+}
+
 export function HexMailDeliverability() {
   const getDashFn = useServerFn(getDeliverabilityDashboard);
   const { data, isLoading, refetch } = useQuery({
@@ -67,6 +169,9 @@ export function HexMailDeliverability() {
           <RefreshCw className="h-3.5 w-3.5" /> Refresh
         </button>
       </div>
+
+      {/* Resend Webhook Panel */}
+      <WebhookPanel />
 
       {/* Health Score */}
       <div className="rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.03] to-transparent p-6 flex flex-col sm:flex-row items-start sm:items-center gap-6">
