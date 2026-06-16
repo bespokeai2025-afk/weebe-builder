@@ -1,0 +1,158 @@
+GROWTHMIND STRATEGY CENTRE + COMMAND CHAIN AUDIT
+
+IMPORTANT
+
+Audit only.
+Do not modify code.
+Do not create files.
+Do not implement fixes.
+
+OBJECTIVE
+
+Check whether the new GrowthMind Strategy Centre and Prompt Engine Command Chain were built correctly and work end-to-end.
+
+VERIFY
+
+1. /growthmind/strategy-centre exists.
+2. HiveMind can request a strategy from GrowthMind.
+3. GrowthMind does not wait for the user to create the proposal.
+4. GrowthMind selects the best service to promote automatically.
+5. GrowthMind uses Business DNA.
+6. GrowthMind uses Knowledge Packs.
+7. GrowthMind uses Opportunity Engine.
+8. GrowthMind uses Value Point Engine.
+9. GrowthMind uses Channel Intelligence.
+10. GrowthMind uses Competitor Intelligence.
+11. GrowthMind uses CRM, calls, WhatsApp and HexMail data where available.
+12. Prompt Command Router exists.
+13. Correct prompt engine is selected per task.
+14. Multi-channel campaigns chain correctly.
+15. Generated strategies are saved to database.
+16. Strategy assets are saved.
+17. Strategy tasks are saved.
+18. HiveMind receives the proposal.
+19. HiveMind shows Approve / Edit / Reject.
+20. Nothing launches without approval.
+
+CHECK COMMAND CHAIN
+
+User asks HiveMind:
+"Create a marketing growth strategy."
+
+Expected chain:
+
+HiveMind
+→ GrowthMind
+→ Business DNA
+→ Opportunity Engine
+→ Value Point Engine
+→ Channel Intelligence
+→ Prompt Command Router
+→ Correct Prompt Engines
+→ Strategy + Assets
+→ HiveMind Approval Package
+
+For each step mark:
+
+WORKING
+PARTIAL
+MISSING
+
+CHECK PROMPT ROUTING
+
+SEO Campaign → SEO Prompt Engine
+Video Ad → Video Studio Prompt Engine
+Meta Campaign → Campaign Factory Prompt Engine
+WhatsApp Campaign → WhatsApp Prompt Engine
+HexMail Sequence → HexMail Prompt Engine
+AI Calling Script → Calling Script Prompt Engine
+Landing Page → Landing Page Prompt Engine
+Multi-Channel Campaign → Orchestrated chain
+
+For each mark:
+
+WORKING
+PARTIAL
+MISSING
+
+CHECK DATABASE
+
+Audit:
+
+growthmind_strategies
+growthmind_strategy_assets
+growthmind_strategy_tasks
+growthmind_prompt_runs
+
+For each:
+
+Exists?
+Has workspace_id?
+Has RLS?
+Is written to?
+Is read from?
+Used by UI?
+Used by HiveMind?
+
+CHECK UI
+
+Audit /growthmind/strategy-centre:
+
+Recommended Strategy
+Highest Opportunity Service
+Best Channel Mix
+Prompt Engines Used
+Generated Assets
+Approval Status
+HiveMind Handoff Status
+
+For each mark:
+
+WORKING
+PARTIAL
+MISSING
+
+REAL WORLD TEST
+
+Simulate:
+
+Business:
+WEBEE
+
+Goal:
+Get more customers in the next 30 days
+
+Budget:
+£1,500
+
+Expected GrowthMind should select:
+
+Best service to promote
+Best target audience
+Best channels
+Recommended campaign
+Video concept
+Content plan
+WhatsApp plan
+HexMail plan
+AI calling plan
+Landing page plan
+
+Do not generate fake metrics.
+Use available data and mark unavailable data clearly.
+
+FINAL OUTPUT
+
+Return:
+
+1. Overall Strategy Centre Completion %
+2. Command Chain Completion %
+3. HiveMind Integration %
+4. Prompt Routing Accuracy %
+5. What is working
+6. What is partial
+7. What is missing
+8. Top 10 fixes required
+9. Best next implementation prompt
+
+Audit only.
