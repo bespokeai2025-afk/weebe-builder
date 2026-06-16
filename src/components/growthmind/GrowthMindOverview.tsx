@@ -6,7 +6,7 @@ import {
   TrendingUp, TrendingDown, Loader2, RefreshCw, Target, Megaphone,
   ArrowRight, Lightbulb, AlertTriangle, Minus, BookOpen, CheckCircle2,
   BarChart3, Video, Image, Link2, XCircle, Clapperboard, Zap,
-  Star, DollarSign, Filter, Play, Users, Dna, Rocket, ChevronRight,
+  Star, DollarSign, Filter, Play, Users, Dna, Rocket, ChevronRight, Clock,
 } from "lucide-react";
 import { getProviderRegistryData } from "@/lib/providers/providers.functions";
 import { cn } from "@/lib/utils";
@@ -62,6 +62,23 @@ function StatCard({ label, value, sub, color = "emerald", wowPct, momPct }: {
       )}
     </div>
   );
+}
+
+function formatLastRun(date: Date): string {
+  const now      = new Date();
+  const diffMs   = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  const diffHrs  = Math.floor(diffMins / 60);
+  if (diffMins < 1)  return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHrs  < 24) return `${diffHrs}h ago`;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (date >= today) return `today at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (date >= yesterday) return `yesterday at ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 export function GrowthMindOverview() {
@@ -179,6 +196,25 @@ export function GrowthMindOverview() {
   const trendSignals      = cmo.trendSignals ?? [];
   const campaignProposals = cmo.campaignProposals ?? [];
   const videoProposals    = cmo.videoProposals ?? [];
+
+  // Derive last-run timestamp from the most recent computed_at/generatedAt across all CMO signal types
+  const cmoLastRunAt = React.useMemo<Date | null>(() => {
+    const timestamps: Date[] = [];
+    for (const s of serviceScores) {
+      if (s.computedAt) timestamps.push(new Date(s.computedAt));
+    }
+    for (const s of trendSignals) {
+      if (s.computedAt) timestamps.push(new Date(s.computedAt));
+    }
+    for (const p of campaignProposals) {
+      if (p.generatedAt) timestamps.push(new Date(p.generatedAt));
+    }
+    for (const p of videoProposals) {
+      if (p.generatedAt) timestamps.push(new Date(p.generatedAt));
+    }
+    if (timestamps.length === 0) return null;
+    return new Date(Math.max(...timestamps.map(d => d.getTime())));
+  }, [serviceScores, trendSignals, campaignProposals, videoProposals]);
 
   const topService     = serviceScores[0] ?? null;
   const growingTrend   = trendSignals.find((s: any) => s.classification === "Growing") ?? trendSignals[0] ?? null;
@@ -541,15 +577,25 @@ export function GrowthMindOverview() {
 
             {/* ── 7 CMO Intelligence Cards ─────────────────────────────── */}
             <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] overflow-hidden">
-              <div className="px-4 py-3 border-b border-violet-500/10 flex items-center justify-between">
-                <p className="text-sm font-semibold flex items-center gap-1.5">
-                  <Star className="h-4 w-4 text-violet-400" />
-                  Proactive CMO Intelligence
-                </p>
+              <div className="px-4 py-3 border-b border-violet-500/10 flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold flex items-center gap-1.5">
+                    <Star className="h-4 w-4 text-violet-400" />
+                    Proactive CMO Intelligence
+                  </p>
+                  {cmoLastRunAt ? (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Clock className="h-2.5 w-2.5 shrink-0" />
+                      Last refreshed: {formatLastRun(cmoLastRunAt)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground italic">Runs daily automatically</span>
+                  )}
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 text-[11px] border-violet-500/25 text-violet-300 hover:bg-violet-500/10"
+                  className="h-7 text-[11px] border-violet-500/25 text-violet-300 hover:bg-violet-500/10 shrink-0"
                   onClick={handleRunCMOAnalysis}
                   disabled={runningCMO}
                 >
@@ -557,7 +603,7 @@ export function GrowthMindOverview() {
                     ? <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                     : <RefreshCw className="mr-1 h-3 w-3" />
                   }
-                  {runningCMO ? "Analysing…" : "Run CMO Analysis"}
+                  {runningCMO ? "Analysing…" : "Refresh Now"}
                 </Button>
               </div>
               <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">

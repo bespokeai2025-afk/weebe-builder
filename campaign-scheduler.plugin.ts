@@ -11,6 +11,7 @@
 import type { Plugin } from "vite";
 import { runCampaignTick } from "./src/lib/campaign-scheduler/executor";
 import { runBlogDraftTick } from "./src/lib/growthmind/blog-draft-tick";
+import { runCMOAnalysisTick } from "./src/lib/growthmind/cmo-analysis-tick";
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 45_000;
@@ -24,9 +25,10 @@ export function campaignSchedulerPlugin(): Plugin {
 
       async function tick() {
         try {
-          const [{ results, error }, blogTick] = await Promise.all([
+          const [{ results, error }, blogTick, cmoTick] = await Promise.all([
             runCampaignTick(),
             runBlogDraftTick(),
+            runCMOAnalysisTick(),
           ]);
 
           if (error) {
@@ -51,6 +53,19 @@ export function campaignSchedulerPlugin(): Plugin {
             console.warn(
               `[blog-draft-tick] ${blogTick.failed.length} failed:`,
               blogTick.failed.map((r) => `${r.workspaceId}: ${r.error}`).join(", "),
+            );
+          }
+
+          if (cmoTick.ran.length) {
+            console.log(
+              `[cmo-analysis-tick] ran ${cmoTick.ran.length} workspace(s):`,
+              cmoTick.ran.map((r) => `${r.workspaceId} (svc=${r.services} trend=${r.trends} campaigns=${r.campaigns} videos=${r.videos})`).join(", "),
+            );
+          }
+          if (cmoTick.failed.length) {
+            console.warn(
+              `[cmo-analysis-tick] ${cmoTick.failed.length} failed:`,
+              cmoTick.failed.map((r) => `${r.workspaceId}: ${r.error}`).join(", "),
             );
           }
         } catch (e: any) {

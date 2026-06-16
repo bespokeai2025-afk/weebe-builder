@@ -19,6 +19,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { runCampaignTick } from "@/lib/campaign-scheduler/executor";
 import { runBlogDraftTick } from "@/lib/growthmind/blog-draft-tick";
+import { runCMOAnalysisTick } from "@/lib/growthmind/cmo-analysis-tick";
 
 export const Route = createFileRoute("/api/public/campaign-executor")({
   server: {
@@ -39,9 +40,10 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
         }
 
         try {
-          const [campaignTick, blogTick] = await Promise.all([
+          const [campaignTick, blogTick, cmoTick] = await Promise.all([
             runCampaignTick(),
             runBlogDraftTick(),
+            runCMOAnalysisTick(),
           ]);
 
           if (campaignTick.error) {
@@ -56,6 +58,11 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
               `[blog-draft-tick] queued=${blogTick.queued.length} skipped=${blogTick.skipped.length} failed=${blogTick.failed.length}`,
             );
           }
+          if (cmoTick.ran.length) {
+            console.log(
+              `[cmo-analysis-tick] ran=${cmoTick.ran.length} skipped=${cmoTick.skipped.length} failed=${cmoTick.failed.length}`,
+            );
+          }
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );
@@ -65,6 +72,7 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             skipped: skipped.length,
             results: campaignTick.results,
             blogDrafts: { queued: blogTick.queued.length, skipped: blogTick.skipped.length, failed: blogTick.failed.length },
+            cmoAnalysis: { ran: cmoTick.ran.length, skipped: cmoTick.skipped.length, failed: cmoTick.failed.length },
           });
         } catch (e: any) {
           console.error("[campaign-executor] unhandled error:", e);

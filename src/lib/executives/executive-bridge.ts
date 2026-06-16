@@ -61,6 +61,7 @@ export const getCMODashboardData = createServerFn({ method: "GET" })
       sb.from("growthmind_service_scores")
         .select("id, service_name, total_score, scores, recommendation, computed_at")
         .eq("workspace_id", workspaceId)
+        .neq("service_name", "__cmo_marker__")
         .order("total_score", { ascending: false })
         .limit(10)
         .catch(() => ({ data: [] })),
