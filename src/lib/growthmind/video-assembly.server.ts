@@ -81,6 +81,9 @@ export async function assembleCompositeVideo(
 
     // Concatenate clips
     let concatenatedPath: string;
+    const audioUrl = asset?.audio_url;
+    const hasVoiceover = !!(audioUrl && audioUrl.startsWith("http"));
+
     if (clipPaths.length === 1) {
       concatenatedPath = clipPaths[0];
     } else {
@@ -88,21 +91,22 @@ export async function assembleCompositeVideo(
       const listPath    = path.join(tmpDir, "concat_list.txt");
       await fs.writeFile(listPath, listContent);
       concatenatedPath = path.join(tmpDir, "concatenated.mp4");
+      // Preserve native AI audio unless a voiceover will replace it
+      const audioFlag = hasVoiceover ? "-an" : "-c:a aac";
       await execAsync(
-        `ffmpeg -y -f concat -safe 0 -i "${listPath}" -c:v copy -an "${concatenatedPath}"`,
+        `ffmpeg -y -f concat -safe 0 -i "${listPath}" -c:v copy ${audioFlag} "${concatenatedPath}"`,
         { timeout: ASSEMBLY_TIMEOUT_MS },
       );
     }
 
-    // Mux voiceover audio (if available)
+    // Mux voiceover audio (if available) — voiceover replaces any native clip audio
     let finalPath = concatenatedPath;
-    const audioUrl = asset?.audio_url;
 
-    if (audioUrl && audioUrl.startsWith("http")) {
-      const audioResp = await fetch(audioUrl);
+    if (hasVoiceover) {
+      const audioResp = await fetch(audioUrl!);
       if (audioResp.ok) {
         const audioBytes = await audioResp.arrayBuffer();
-        const ext        = audioUrl.includes(".mp3") ? "mp3" : "mp4";
+        const ext        = audioUrl!.includes(".mp3") ? "mp3" : "mp4";
         const audioPath  = path.join(tmpDir, `voiceover.${ext}`);
         await fs.writeFile(audioPath, Buffer.from(audioBytes));
 
