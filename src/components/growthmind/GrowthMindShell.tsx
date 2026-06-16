@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   TrendingUp, BarChart3, Lightbulb, FileText,
-  MessageSquareMore, Target, Megaphone,
+  MessageSquareMore, Target, Megaphone, Compass,
   BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
   CalendarDays, Rocket, Clapperboard, Dna, Database, Zap, Newspaper, Mail, Sparkles,
 } from "lucide-react";
@@ -22,6 +22,7 @@ const CORE_NAV = [
 ];
 
 const STRATEGY_NAV = [
+  { label: "Strategy Centre",    href: "/growthmind/strategy-centre",      icon: Compass,     highlight: true },
   { label: "Strategy",           href: "/growthmind/strategy",             icon: Target,      highlight: true },
   { label: "Campaign Factory",   href: "/growthmind/campaign-factory",     icon: Rocket,      highlight: true },
   { label: "Email Campaigns",    href: "/growthmind/email-campaigns",      icon: Mail,        highlight: true },

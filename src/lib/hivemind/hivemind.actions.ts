@@ -770,6 +770,46 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
       }
     } catch { /* graceful — prompt studio tables may not exist yet */ }
 
+    // ── Strategy Centre: pending approval ─────────────────────────────────────
+    try {
+      const { data: pendingStrategies } = await sb
+        .from("growthmind_strategy_centre")
+        .select("id, strategy_type, selected_service, confidence_score, created_at")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "proposed_to_hivemind")
+        .order("created_at", { ascending: false })
+        .limit(5)
+        .catch(() => ({ data: [] }));
+
+      for (const strat of (pendingStrategies ?? [])) {
+        const typeLabel = (strat.strategy_type as string).replace(/_/g, "-");
+        const service   = strat.selected_service ? ` — promoting "${strat.selected_service}"` : "";
+        const confidence = Math.round((strat.confidence_score ?? 0) * 100);
+
+        const existsCheck = await sb
+          .from("hivemind_actions")
+          .select("id")
+          .eq("workspace_id", workspaceId)
+          .eq("status", "pending")
+          .eq("action_type", "review_strategy")
+          .contains("action_payload", { strategy_id: strat.id })
+          .maybeSingle()
+          .catch(() => ({ data: null }));
+
+        if (!existsCheck.data) {
+          proposed.push({
+            workspace_id:   workspaceId,
+            title:          `GrowthMind Strategy Awaiting Approval: ${typeLabel}${service}`,
+            description:    `GrowthMind has prepared a ${typeLabel} strategy${service} with ${confidence}% confidence. Review the complete campaign plan, service selection rationale, channel recommendations, and approval actions in GrowthMind → Strategy Centre. Approve to create tasks and launch, or reject with a reason.`,
+            action_type:    "review_strategy",
+            action_payload: { strategy_id: strat.id, strategy_type: strat.strategy_type },
+            proposed_by:    "growthmind",
+            status:         "pending",
+          });
+        }
+      }
+    } catch { /* graceful — strategy centre tables may not exist yet */ }
+
     if (proposed.length > 0) {
       await sb.from("hivemind_actions").insert(proposed);
     }

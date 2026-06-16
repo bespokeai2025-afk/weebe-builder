@@ -167,6 +167,13 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     promptPerformance = await getPromptPerformanceSummary(sb, workspaceId);
   } catch {}
 
+  // Strategy Centre summary (graceful — migration may not be applied yet)
+  let strategyCentre: any = null;
+  try {
+    const { getStrategyCentreSummary } = await import("@/lib/growthmind/growthmind.strategy-centre");
+    strategyCentre = await getStrategyCentreSummary(sb, workspaceId);
+  } catch {}
+
   return {
     agents, agentScores, cfg,
     mode: cfg.hivemind_mode ?? "assistant",
@@ -418,6 +425,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
       };
     })(),
     promptPerformance,
+    strategyCentre,
   };
 }
 
@@ -733,6 +741,18 @@ function buildPlatformContext(d: any): string {
     if (pp.lowPerfCount > 0) lines.push(`  ⚠ ${pp.lowPerfCount} template${pp.lowPerfCount !== 1 ? "s" : ""} scoring below 3/10 — critically failing, immediate revision required`);
     if (pp.best?.length  > 0) lines.push(`  Best performers: ${pp.best.map((t: any)  => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
     if (pp.worst?.length > 0) lines.push(`  Worst performers: ${pp.worst.map((t: any) => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
+  }
+
+  // STRATEGY CENTRE
+  if (d.strategyCentre) {
+    const sc = d.strategyCentre;
+    lines.push(`\nGROWTHMIND STRATEGY CENTRE (${sc.total} strateg${sc.total !== 1 ? "ies" : "y"}):`);
+    if (sc.pending > 0) lines.push(`  ⚡ ${sc.pending} strateg${sc.pending !== 1 ? "ies" : "y"} AWAITING YOUR APPROVAL in GrowthMind → Strategy Centre`);
+    if (sc.approved > 0) lines.push(`  ${sc.approved} approved and ready to execute`);
+    if (sc.latest) {
+      const l = sc.latest;
+      lines.push(`  Latest: ${l.type.replace(/_/g, "-")} strategy${l.service ? ` — promoting "${l.service}"` : ""} (${Math.round(l.confidence * 100)}% confidence, status: ${l.status})`);
+    }
   }
 
   return lines.join("\n");

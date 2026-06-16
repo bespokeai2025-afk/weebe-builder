@@ -1,0 +1,326 @@
+BUILD GROWTHMIND STRATEGY CENTRE + PROMPT ENGINE COMMAND CHAIN
+
+IMPORTANT
+
+Do not replace HiveMind.
+Do not replace GrowthMind.
+Do not replace the existing Prompt Intelligence System.
+Do not break Content Studio, Video Studio, Campaign Factory, HexMail, WhatsApp, Builder, Retell or HyperStream.
+
+Extend the existing architecture safely.
+
+OBJECTIVE
+
+Build a GrowthMind Strategy Centre that creates complete business growth strategies, then routes the correct tasks to the correct prompt engines.
+
+HiveMind must remain the only executive the user speaks to.
+
+GrowthMind acts as the AI CMO.
+
+Prompt Intelligence decides which prompt engine is used for each task.
+
+====================================================
+
+TARGET COMMAND CHAIN
+
+User asks HiveMind:
+"Create a marketing growth strategy."
+
+HiveMind
+↓
+Requests GrowthMind analysis
+
+GrowthMind
+↓
+Reads Business DNA
+Reads Knowledge Packs
+Reads Competitors
+Reads Opportunities
+Reads Value Point Engine
+Reads Channel Intelligence
+Reads CRM / Calls / WhatsApp / HexMail data
+
+GrowthMind
+↓
+Creates Strategic Growth Plan
+
+Prompt Intelligence Layer
+↓
+Routes task to correct engine
+
+Engines:
+SEO Campaign Engine
+Content Studio Prompt Engine
+Video Studio Prompt Engine
+Campaign Factory Prompt Engine
+WhatsApp Campaign Prompt Engine
+HexMail Campaign Prompt Engine
+AI Calling Script Prompt Engine
+Landing Page Prompt Engine
+
+GrowthMind
+↓
+Creates drafts
+
+HiveMind
+↓
+Presents proposal to user
+
+User approves
+↓
+Drafts become executable actions
+
+====================================================
+
+CREATE ROUTE
+
+/growthmind/strategy-centre
+
+====================================================
+
+STRATEGY CENTRE FEATURES
+
+Allow user to generate:
+
+30-Day Growth Strategy
+60-Day Growth Strategy
+90-Day Growth Strategy
+SEO Campaign
+Meta Ads Campaign
+Google Ads Campaign
+LinkedIn Campaign
+WhatsApp Campaign
+HexMail Campaign
+Video Ad Campaign
+AI Calling Campaign
+Landing Page Campaign
+Full Multi-Channel Campaign
+
+====================================================
+
+STRATEGY INPUTS
+
+Use automatically where available:
+
+Business DNA
+Current Highest Value Point
+Opportunity Engine
+Channel Scores
+Knowledge Packs
+Competitor Intelligence
+Campaign Assets
+Website Data
+SEO Keywords
+CRM Leads
+Call Outcomes
+WhatsApp Engagement
+HexMail Performance
+Revenue Goals
+Marketing Budget
+
+Only ask the user for missing critical information.
+
+Do not ask the user to create the proposal manually.
+
+====================================================
+
+PROMPT ENGINE ROUTING
+
+Create or extend:
+
+src/lib/growthmind/prompt-command-router.server.ts
+
+Responsibilities:
+
+Given a strategy task, select the correct prompt engine.
+
+Rules:
+
+SEO Campaign
+→ SEO Prompt Engine
+
+Blog / Social / Email Copy
+→ Content Studio Prompt Engine
+
+Video Ad
+→ Video Studio Prompt Engine
+
+Meta / Google / LinkedIn Campaign
+→ Campaign Factory Prompt Engine
+
+WhatsApp Campaign
+→ WhatsApp Prompt Engine
+
+HexMail Sequence
+→ HexMail Prompt Engine
+
+AI Calling Script
+→ Builder / Calling Script Prompt Engine
+
+Landing Page
+→ Landing Page Prompt Engine
+
+Full Multi-Channel Campaign
+→ Orchestrate all relevant engines in sequence
+
+====================================================
+
+PROMPT CHAINING
+
+For multi-channel campaigns use this sequence:
+
+1. Strategy Brief
+2. Audience Definition
+3. Offer Positioning
+4. Channel Selection
+5. Campaign Plan
+6. Content Assets
+7. Video Assets
+8. WhatsApp Sequence
+9. Email Sequence
+10. AI Calling Script
+11. Landing Page Copy
+12. HiveMind Approval Package
+
+====================================================
+
+CREATE STRATEGY OUTPUT
+
+Each generated strategy must include:
+
+Executive Summary
+Primary Service To Promote
+Reason For Selection
+Target Audience
+Channel Recommendation
+Budget Recommendation
+Expected Outcome
+Campaign Plan
+Content Plan
+Video Plan
+SEO Plan
+WhatsApp Plan
+Email Plan
+AI Calling Plan
+Landing Page Plan
+KPIs
+Risks
+Required Assets
+Approval Actions
+
+====================================================
+
+SERVICE SELECTION
+
+GrowthMind must proactively choose which service to promote.
+
+Do not ask the user.
+
+Score services using:
+
+Market Demand
+Trend Strength
+Profit Potential
+Conversion Likelihood
+Existing Lead Signals
+Competitor Gaps
+Ease Of Delivery
+Strategic Fit
+
+Example output:
+
+Recommended service:
+AI Receptionist
+
+Reason:
+Highest margin, easiest onboarding, strongest current demand, clear estate agent use case.
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind must be able to say:
+
+"GrowthMind recommends promoting AI Receptionist to UK estate agents using Meta video ads, SEO content and AI calling follow-up."
+
+HiveMind should present:
+
+Approve
+Edit
+Reject
+Create Tasks
+Create Campaign Drafts
+
+GrowthMind must not directly execute campaigns without HiveMind approval.
+
+====================================================
+
+DATABASE
+
+Create or extend:
+
+growthmind_strategies
+growthmind_strategy_assets
+growthmind_strategy_tasks
+growthmind_prompt_runs
+
+Store:
+
+workspace_id
+strategy_type
+selected_service
+target_audience
+channels
+prompt_engines_used
+source_data_snapshot
+confidence_score
+status
+created_at
+updated_at
+
+====================================================
+
+STATUS FLOW
+
+draft
+proposed_to_hivemind
+approved
+in_progress
+executed
+archived
+
+====================================================
+
+UI
+
+Strategy Centre should show:
+
+Recommended Strategy
+Highest Opportunity Service
+Best Channel Mix
+Prompt Engines Used
+Generated Assets
+Approval Status
+HiveMind Handoff Status
+
+====================================================
+
+SUCCESS CRITERIA
+
+User can ask HiveMind for a growth plan.
+
+HiveMind requests GrowthMind.
+
+GrowthMind selects the best service, audience and channels.
+
+Prompt Intelligence routes each task to the correct prompt engine.
+
+GrowthMind creates a complete strategy and campaign asset drafts.
+
+HiveMind presents the plan for approval.
+
+No campaigns launch without approval.
+
+Generate implementation plan first.
+
+Then implement safely.

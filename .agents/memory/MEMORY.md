@@ -30,3 +30,4 @@
 - [Veo Gemini API endpoint](veo-gemini-endpoint.md) — v1beta + :predictLongRunning (not v1alpha or :generateVideo); getVeoStatus must query provider_settings not workspace_provider_settings.
 - [TanStack Start stale server-fn IDs](tanstack-stale-serverfn-ids.md) — after any server restart (code change), browser must hard-refresh or server fn calls fail with "Invalid server function ID" and TanStack returns HTML error page (not JSON), which appears as raw HTML in UI error messages.
 - [Prompt Studio architecture](prompt-studio-arch.md) — 5-table schema (manual migration); 12 library packs seeded per workspace; scoring via GPT-4o-mini (5 dims); getPromptPerformanceSummary is plain async (not server fn) for HiveMind use.
+- [GrowthMind Strategy Centre](strategy-centre-arch.md) — prompt engine routing, 4 DB tables, 13 strategy types, HiveMind approval via hivemind_actions.

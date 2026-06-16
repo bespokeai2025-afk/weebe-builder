@@ -100,6 +100,7 @@ import { Route as AuthenticatedHexmailMailboxesRouteImport } from './routes/_aut
 import { Route as AuthenticatedHexmailDomainWarmingRouteImport } from './routes/_authenticated/hexmail.domain-warming'
 import { Route as AuthenticatedHexmailDeliverabilityRouteImport } from './routes/_authenticated/hexmail.deliverability'
 import { Route as AuthenticatedGrowthmindVideoStudioRouteImport } from './routes/_authenticated/growthmind.video-studio'
+import { Route as AuthenticatedGrowthmindStrategyCentreRouteImport } from './routes/_authenticated/growthmind.strategy-centre'
 import { Route as AuthenticatedGrowthmindStrategyRouteImport } from './routes/_authenticated/growthmind.strategy'
 import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
 import { Route as AuthenticatedGrowthmindReportsRouteImport } from './routes/_authenticated/growthmind.reports'
@@ -677,6 +678,12 @@ const AuthenticatedGrowthmindVideoStudioRoute =
     path: '/video-studio',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindStrategyCentreRoute =
+  AuthenticatedGrowthmindStrategyCentreRouteImport.update({
+    id: '/strategy-centre',
+    path: '/strategy-centre',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindStrategyRoute =
   AuthenticatedGrowthmindStrategyRouteImport.update({
     id: '/strategy',
@@ -1161,6 +1168,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
+  '/growthmind/strategy-centre': typeof AuthenticatedGrowthmindStrategyCentreRoute
   '/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
   '/hexmail/deliverability': typeof AuthenticatedHexmailDeliverabilityRoute
   '/hexmail/domain-warming': typeof AuthenticatedHexmailDomainWarmingRoute
@@ -1320,6 +1328,7 @@ export interface FileRoutesByTo {
   '/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
+  '/growthmind/strategy-centre': typeof AuthenticatedGrowthmindStrategyCentreRoute
   '/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
   '/hexmail/deliverability': typeof AuthenticatedHexmailDeliverabilityRoute
   '/hexmail/domain-warming': typeof AuthenticatedHexmailDomainWarmingRoute
@@ -1486,6 +1495,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/reports': typeof AuthenticatedGrowthmindReportsRoute
   '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/_authenticated/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
+  '/_authenticated/growthmind/strategy-centre': typeof AuthenticatedGrowthmindStrategyCentreRoute
   '/_authenticated/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
   '/_authenticated/hexmail/deliverability': typeof AuthenticatedHexmailDeliverabilityRoute
   '/_authenticated/hexmail/domain-warming': typeof AuthenticatedHexmailDomainWarmingRoute
@@ -1652,6 +1662,7 @@ export interface FileRouteTypes {
     | '/growthmind/reports'
     | '/growthmind/seo'
     | '/growthmind/strategy'
+    | '/growthmind/strategy-centre'
     | '/growthmind/video-studio'
     | '/hexmail/deliverability'
     | '/hexmail/domain-warming'
@@ -1811,6 +1822,7 @@ export interface FileRouteTypes {
     | '/growthmind/reports'
     | '/growthmind/seo'
     | '/growthmind/strategy'
+    | '/growthmind/strategy-centre'
     | '/growthmind/video-studio'
     | '/hexmail/deliverability'
     | '/hexmail/domain-warming'
@@ -1976,6 +1988,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/reports'
     | '/_authenticated/growthmind/seo'
     | '/_authenticated/growthmind/strategy'
+    | '/_authenticated/growthmind/strategy-centre'
     | '/_authenticated/growthmind/video-studio'
     | '/_authenticated/hexmail/deliverability'
     | '/_authenticated/hexmail/domain-warming'
@@ -2780,6 +2793,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindVideoStudioRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/strategy-centre': {
+      id: '/_authenticated/growthmind/strategy-centre'
+      path: '/strategy-centre'
+      fullPath: '/growthmind/strategy-centre'
+      preLoaderRoute: typeof AuthenticatedGrowthmindStrategyCentreRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/strategy': {
       id: '/_authenticated/growthmind/strategy'
       path: '/strategy'
@@ -3332,6 +3352,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindReportsRoute: typeof AuthenticatedGrowthmindReportsRoute
   AuthenticatedGrowthmindSeoRoute: typeof AuthenticatedGrowthmindSeoRoute
   AuthenticatedGrowthmindStrategyRoute: typeof AuthenticatedGrowthmindStrategyRoute
+  AuthenticatedGrowthmindStrategyCentreRoute: typeof AuthenticatedGrowthmindStrategyCentreRoute
   AuthenticatedGrowthmindVideoStudioRoute: typeof AuthenticatedGrowthmindVideoStudioRoute
   AuthenticatedGrowthmindIndexRoute: typeof AuthenticatedGrowthmindIndexRoute
 }
@@ -3378,6 +3399,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindReportsRoute: AuthenticatedGrowthmindReportsRoute,
     AuthenticatedGrowthmindSeoRoute: AuthenticatedGrowthmindSeoRoute,
     AuthenticatedGrowthmindStrategyRoute: AuthenticatedGrowthmindStrategyRoute,
+    AuthenticatedGrowthmindStrategyCentreRoute:
+      AuthenticatedGrowthmindStrategyCentreRoute,
     AuthenticatedGrowthmindVideoStudioRoute:
       AuthenticatedGrowthmindVideoStudioRoute,
     AuthenticatedGrowthmindIndexRoute: AuthenticatedGrowthmindIndexRoute,

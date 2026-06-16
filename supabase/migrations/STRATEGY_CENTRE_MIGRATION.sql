@@ -1,0 +1,110 @@
+-- ── GrowthMind Strategy Centre ─────────────────────────────────────────────────
+-- Run this manually in the Supabase SQL Editor
+
+CREATE TABLE IF NOT EXISTS growthmind_strategy_centre (
+  id                     uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id           uuid        NOT NULL,
+  strategy_type          text        NOT NULL,
+  status                 text        NOT NULL DEFAULT 'draft',
+
+  -- Service selection (AI-scored)
+  selected_service       text,
+  service_selection_reason text,
+  service_scores         jsonb       DEFAULT '{}',
+
+  -- Core strategy content
+  executive_summary      text,
+  target_audience        text,
+  channel_recommendation text[]      DEFAULT '{}',
+  budget_recommendation  text,
+  expected_outcome       text,
+
+  -- Per-engine plans
+  campaign_plan          text,
+  content_plan           text,
+  video_plan             text,
+  seo_plan               text,
+  whatsapp_plan          text,
+  email_plan             text,
+  ai_calling_plan        text,
+  landing_page_plan      text,
+
+  -- Structured output
+  kpis                   jsonb       DEFAULT '[]',
+  risks                  text,
+  required_assets        jsonb       DEFAULT '[]',
+  approval_actions       jsonb       DEFAULT '[]',
+
+  -- Meta
+  prompt_engines_used    text[]      DEFAULT '{}',
+  source_data_snapshot   jsonb       DEFAULT '{}',
+  confidence_score       numeric(4,3) DEFAULT 0,
+  generated_by_model     text,
+  hivemind_action_id     uuid,
+  rejection_reason       text,
+
+  created_at             timestamptz DEFAULT now(),
+  updated_at             timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gm_strategy_centre_ws
+  ON growthmind_strategy_centre(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_gm_strategy_centre_status
+  ON growthmind_strategy_centre(workspace_id, status);
+CREATE INDEX IF NOT EXISTS idx_gm_strategy_centre_created
+  ON growthmind_strategy_centre(workspace_id, created_at DESC);
+
+-- ── Strategy Assets (per-engine generated drafts) ───────────────────────────────
+CREATE TABLE IF NOT EXISTS growthmind_strategy_assets (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid        NOT NULL,
+  strategy_id  uuid        NOT NULL REFERENCES growthmind_strategy_centre(id) ON DELETE CASCADE,
+  engine       text        NOT NULL,
+  asset_type   text        NOT NULL,
+  title        text,
+  content      text,
+  metadata     jsonb       DEFAULT '{}',
+  status       text        DEFAULT 'draft',
+  created_at   timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gm_strategy_assets_strategy
+  ON growthmind_strategy_assets(strategy_id);
+
+-- ── Strategy Tasks (created on approval) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS growthmind_strategy_tasks (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid        NOT NULL,
+  strategy_id  uuid        NOT NULL REFERENCES growthmind_strategy_centre(id) ON DELETE CASCADE,
+  title        text        NOT NULL,
+  description  text,
+  channel      text,
+  priority     text        DEFAULT 'medium',
+  week_number  integer,
+  status       text        DEFAULT 'pending',
+  created_at   timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gm_strategy_tasks_strategy
+  ON growthmind_strategy_tasks(strategy_id);
+
+-- ── Prompt Runs (engine execution log) ──────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS growthmind_prompt_runs (
+  id            uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id  uuid        NOT NULL,
+  strategy_id   uuid,
+  engine        text        NOT NULL,
+  prompt_type   text,
+  input_context jsonb       DEFAULT '{}',
+  output_text   text,
+  model_used    text,
+  tokens_used   integer,
+  duration_ms   integer,
+  status        text        DEFAULT 'success',
+  created_at    timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_gm_prompt_runs_ws
+  ON growthmind_prompt_runs(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_gm_prompt_runs_strategy
+  ON growthmind_prompt_runs(strategy_id);
