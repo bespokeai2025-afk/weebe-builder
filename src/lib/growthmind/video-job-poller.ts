@@ -106,11 +106,12 @@ async function pollRunwayJob(
 const STORAGE_BUCKET = "gm-videos";
 
 export async function archiveVideoToStorage(
-  sb:          any,
-  videoUrl:    string,
-  workspaceId: string,
-  assetId:     string,
-  accessToken: string = "",
+  sb:           any,
+  videoUrl:     string,
+  workspaceId:  string,
+  assetId:      string,
+  accessToken:  string = "",
+  geminiApiKey: string = "",
 ): Promise<string> {
   try {
     let bytes: Uint8Array | null = null;
@@ -134,9 +135,21 @@ export async function archiveVideoToStorage(
       bytes = new Uint8Array(await resp.arrayBuffer());
 
     } else if (videoUrl.startsWith("https://") || videoUrl.startsWith("http://")) {
-      // Runway / public HTTPS URL
-      const resp = await fetch(videoUrl);
-      if (!resp.ok) return videoUrl;
+      // Gemini Files API URLs (generativelanguage.googleapis.com/v1beta/files/…) require
+      // the API key to be appended — the browser cannot provide it, so we fetch server-side.
+      let fetchUrl = videoUrl;
+      if (
+        videoUrl.includes("generativelanguage.googleapis.com") &&
+        geminiApiKey
+      ) {
+        const sep = videoUrl.includes("?") ? "&" : "?";
+        fetchUrl = `${videoUrl}${sep}alt=media&key=${geminiApiKey}`;
+      }
+      const resp = await fetch(fetchUrl);
+      if (!resp.ok) {
+        console.warn(`[video-poller] Failed to download video (${resp.status}): ${fetchUrl.replace(geminiApiKey, "***")}`);
+        return videoUrl;
+      }
       bytes = new Uint8Array(await resp.arrayBuffer());
 
     } else {
@@ -144,6 +157,11 @@ export async function archiveVideoToStorage(
     }
 
     if (!bytes) return videoUrl;
+
+    // Ensure the bucket exists (idempotent — safe every call)
+    await Promise.resolve(
+      sb.storage.createBucket(STORAGE_BUCKET, { public: true })
+    ).catch(() => {/* already exists — ignore */});
 
     const storagePath = `${workspaceId}/${assetId}.mp4`;
 
@@ -249,20 +267,22 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
   await Promise.all(
     workspaceIds.map(async (wsId) => {
       const [veoRes, runwayRes] = await Promise.all([
-        sb.from("provider_settings")
-          .select("credentials")
-          .eq("workspace_id", wsId)
-          .eq("provider_category", "video")
-          .eq("provider_name", "google_veo")
-          .maybeSingle()
-          .catch(() => ({ data: null })),
-        sb.from("provider_settings")
-          .select("credentials")
-          .eq("workspace_id", wsId)
-          .eq("provider_category", "video")
-          .eq("provider_name", "runway")
-          .maybeSingle()
-          .catch(() => ({ data: null })),
+        Promise.resolve(
+          sb.from("provider_settings")
+            .select("credentials")
+            .eq("workspace_id", wsId)
+            .eq("provider_category", "video")
+            .eq("provider_name", "google_veo")
+            .maybeSingle()
+        ).catch(() => ({ data: null })),
+        Promise.resolve(
+          sb.from("provider_settings")
+            .select("credentials")
+            .eq("workspace_id", wsId)
+            .eq("provider_category", "video")
+            .eq("provider_name", "runway")
+            .maybeSingle()
+        ).catch(() => ({ data: null })),
       ]);
       const veoCreds  = (veoRes.data?.credentials  ?? {}) as Record<string, string>;
       const runwayKey = (runwayRes.data?.credentials as any)?.apiKey?.trim() || "";
@@ -315,13 +335,15 @@ export async function runVideoJobPoller(): Promise<PollerResult> {
 
       if ("videoUrl" in pollResult) {
         // Archive to permanent Supabase Storage before saving URL
-        const accessToken = veoCfg.accessToken ?? "";
+        const accessToken  = veoCfg.accessToken  ?? "";
+        const geminiApiKey = veoCfg.geminiApiKey ?? "";
         const archived = await archiveVideoToStorage(
           sb,
           pollResult.videoUrl,
           row.workspace_id,
           row.id,
           accessToken,
+          geminiApiKey,
         );
 
         // If archive returned a raw gs:// (no access token available), mark as failed

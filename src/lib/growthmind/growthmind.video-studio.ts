@@ -1426,13 +1426,16 @@ export const pollVideoJob = createServerFn({ method: "POST" })
         process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "",
         process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? "",
       );
-      const accessToken = resolveVeoConfig(pollVeoCreds).accessToken ?? "";
+      const veoCfgForArchive = resolveVeoConfig(pollVeoCreds);
+      const accessToken  = veoCfgForArchive.accessToken  ?? "";
+      const geminiApiKey = veoCfgForArchive.geminiApiKey ?? "";
       const archived = await archiveVideoToStorage(
         archiveSb,
         pollResult.videoUrl,
         workspaceId,
         data.id,
         accessToken,
+        geminiApiKey,
       );
 
       // If archive returned a raw gs:// (no access token available), mark as failed with
