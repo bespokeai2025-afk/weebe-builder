@@ -160,6 +160,13 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     twilio:      !!cfg.twilio_auth_token,
   };
 
+  // Prompt performance (graceful — migration may not be applied yet)
+  let promptPerformance: any = null;
+  try {
+    const { getPromptPerformanceSummary } = await import("@/lib/growthmind/growthmind.prompt-studio");
+    promptPerformance = await getPromptPerformanceSummary(sb, workspaceId);
+  } catch {}
+
   return {
     agents, agentScores, cfg,
     mode: cfg.hivemind_mode ?? "assistant",
@@ -410,6 +417,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
         videosLinkedToCampaign,
       };
     })(),
+    promptPerformance,
   };
 }
 
@@ -715,6 +723,15 @@ function buildPlatformContext(d: any): string {
     if ((vs.totalThisMonth ?? 0) > 0 && (vs.videosLinkedToCampaign ?? 0) === 0) {
       lines.push(`  ⚡ CMO insight: 0 videos are linked to campaigns — recommend connecting Video Studio to Campaign Factory for closed-loop attribution`);
     }
+  }
+
+  // PROMPT STUDIO performance
+  if (d.promptPerformance) {
+    const pp = d.promptPerformance;
+    lines.push(`\nPROMPT STUDIO (${pp.totalTemplates} templates with run data):`);
+    lines.push(`  Total runs: ${pp.totalUsage} | Overall avg score: ${pp.overallAvg ?? "n/a"}/10`);
+    if (pp.lowPerfCount > 0) lines.push(`  ⚠ ${pp.lowPerfCount} template${pp.lowPerfCount !== 1 ? "s" : ""} scoring below 6/10 — needs revision`);
+    if (pp.best?.length > 0) lines.push(`  Top templates: ${pp.best.map((t: any) => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
   }
 
   return lines.join("\n");

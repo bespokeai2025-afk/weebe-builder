@@ -723,6 +723,38 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
       }
     } catch { /* graceful */ }
 
+    // 11. Prompt Studio — low-scoring templates used in live flows
+    try {
+      const { data: poorPrompts } = await sb
+        .from("growthmind_prompt_stats")
+        .select("template_id, avg_score, usage_count, growthmind_prompt_templates(name, type)")
+        .eq("workspace_id", workspaceId)
+        .lt("avg_score", 6)
+        .gt("usage_count", 2)
+        .limit(5)
+        .catch(() => ({ data: [] }));
+
+      if ((poorPrompts ?? []).length > 0 && !pendingTypes.has("create_task")) {
+        const names = (poorPrompts ?? []).slice(0, 3)
+          .map((p: any) => `"${p.growthmind_prompt_templates?.name ?? "Unknown"}"`)
+          .join(", ");
+        proposed.push({
+          workspace_id:   workspaceId,
+          title:          `Improve ${(poorPrompts ?? []).length} low-scoring prompt template${(poorPrompts ?? []).length !== 1 ? "s" : ""} in Prompt Studio`,
+          description:    `${(poorPrompts ?? []).length} prompt template${(poorPrompts ?? []).length !== 1 ? "s are" : " is"} scoring below 6/10 but actively used: ${names}. Low-scoring prompts reduce content quality across campaigns, emails, and AI agents. Open Prompt Studio to revise and re-test these templates.`,
+          action_type:    "create_task",
+          action_payload: {
+            title:       "Revise low-scoring prompt templates in GrowthMind → Prompt Studio",
+            description: `Templates scoring below 6/10: ${names}. Open GrowthMind → Prompt Studio, edit the system and user prompts, then re-run the test runner to improve scores before using them in live campaigns.`,
+            priority:    "medium",
+            trigger_type:"low_prompt_score",
+          },
+          proposed_by: "hivemind",
+          status:      "pending",
+        });
+      }
+    } catch { /* graceful — prompt studio tables may not exist yet */ }
+
     if (proposed.length > 0) {
       await sb.from("hivemind_actions").insert(proposed);
     }
