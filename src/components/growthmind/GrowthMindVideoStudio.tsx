@@ -1597,39 +1597,62 @@ export function GrowthMindVideoStudio() {
 
               {/* Veo Audio toggle — Guided */}
               {(() => {
-                const audioSupported = !!veoStatus?.hasGeminiKey || !!veoStatus?.hasVertexCreds;
+                const credConnected  = !!veoStatus?.hasGeminiKey || !!veoStatus?.hasVertexCreds;
+                const audioCapable   = veoStatus?.audioCapable !== false;  // true when undefined (status not loaded yet)
+                const audioSupported = credConnected && audioCapable;
+                const modelLabel     = veoStatus?.veoModel ?? "veo-3.0-generate-preview";
+                const isVeo2         = credConnected && !audioCapable;
                 return (
-                  <div className={cn(
-                    "flex items-center justify-between rounded-xl border px-3 py-2.5",
-                    audioSupported
-                      ? "border-white/[0.06] bg-white/[0.02]"
-                      : "border-white/[0.03] bg-white/[0.01] opacity-60",
-                  )}>
-                    <div className="flex items-center gap-2">
-                      <Volume2 className={cn("h-3.5 w-3.5", audioSupported ? "text-amber-400/70" : "text-muted-foreground/30")} />
-                      <div>
-                        <span className="text-xs text-muted-foreground/70">Veo Native Sound</span>
-                        <p className="text-[10px] leading-tight text-muted-foreground/40">
-                          {audioSupported
-                            ? "AI-generated audio baked into video (Veo 3 — Gemini API or Vertex)"
-                            : "Add a Gemini API key or Vertex AI credentials in Settings → Providers → Video"}
+                  <div className="space-y-1.5">
+                    <div className={cn(
+                      "flex items-center justify-between rounded-xl border px-3 py-2.5",
+                      audioSupported
+                        ? "border-white/[0.06] bg-white/[0.02]"
+                        : isVeo2
+                          ? "border-red-500/20 bg-red-500/[0.03]"
+                          : "border-white/[0.03] bg-white/[0.01] opacity-60",
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <Volume2 className={cn(
+                          "h-3.5 w-3.5 shrink-0",
+                          isVeo2 ? "text-red-400/60" : audioSupported ? "text-amber-400/70" : "text-muted-foreground/30",
+                        )} />
+                        <div>
+                          <span className="text-xs text-muted-foreground/70">Veo Native Sound</span>
+                          <p className="text-[10px] leading-tight text-muted-foreground/40">
+                            {!credConnected
+                              ? "Add a Gemini API key or Vertex AI credentials in Settings → Providers → Video"
+                              : isVeo2
+                                ? `Model ${modelLabel} has no audio — change to veo-3.0-generate-preview in Settings → Providers → Video`
+                                : `AI-generated audio baked into video (${modelLabel})`}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => audioSupported && setVeoAudio(v => !v)}
+                        disabled={!audioSupported}
+                        className={cn(
+                          "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
+                          !audioSupported ? "cursor-not-allowed" : "cursor-pointer",
+                          veoAudio && audioSupported ? "bg-amber-500" : "bg-white/10",
+                        )}
+                      >
+                        <span className={cn(
+                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
+                          veoAudio && audioSupported ? "translate-x-4" : "translate-x-0",
+                        )} />
+                      </button>
+                    </div>
+                    {isVeo2 && (
+                      <div className="flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/[0.05] px-2.5 py-1.5">
+                        <AlertCircle className="h-3 w-3 text-red-400 shrink-0" />
+                        <p className="text-[10px] text-red-400/90">
+                          Veo 2 cannot produce audio. Go to{" "}
+                          <strong>Settings → Providers → Video → Google Veo 3</strong> and
+                          clear the "Veo Model" field (or set it to <code className="bg-white/[0.06] rounded px-1">veo-3.0-generate-preview</code>).
                         </p>
                       </div>
-                    </div>
-                    <button
-                      onClick={() => audioSupported && setVeoAudio(v => !v)}
-                      disabled={!audioSupported}
-                      className={cn(
-                        "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
-                        !audioSupported ? "cursor-not-allowed" : "cursor-pointer",
-                        veoAudio && audioSupported ? "bg-amber-500" : "bg-white/10",
-                      )}
-                    >
-                      <span className={cn(
-                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
-                        veoAudio && audioSupported ? "translate-x-4" : "translate-x-0",
-                      )} />
-                    </button>
+                    )}
                   </div>
                 );
               })()}
@@ -1885,39 +1908,62 @@ export function GrowthMindVideoStudio() {
 
               {/* Veo Audio toggle — Free-Form */}
               {(() => {
-                const audioSupported = !!veoStatus?.hasGeminiKey || !!veoStatus?.hasVertexCreds;
+                const credConnected  = !!veoStatus?.hasGeminiKey || !!veoStatus?.hasVertexCreds;
+                const audioCapable   = veoStatus?.audioCapable !== false;
+                const audioSupported = credConnected && audioCapable;
+                const modelLabel     = veoStatus?.veoModel ?? "veo-3.0-generate-preview";
+                const isVeo2         = credConnected && !audioCapable;
                 return (
-                  <div className={cn(
-                    "flex items-center justify-between rounded-xl border px-3 py-2.5",
-                    audioSupported
-                      ? "border-white/[0.06] bg-white/[0.02]"
-                      : "border-white/[0.03] bg-white/[0.01] opacity-60",
-                  )}>
-                    <div className="flex items-center gap-2">
-                      <Volume2 className={cn("h-3.5 w-3.5", audioSupported ? "text-amber-400/70" : "text-muted-foreground/30")} />
-                      <div>
-                        <span className="text-xs text-muted-foreground/70">Veo Native Sound</span>
-                        <p className="text-[10px] leading-tight text-muted-foreground/40">
-                          {audioSupported
-                            ? "AI-generated audio baked into video (Veo 3 — Gemini API or Vertex)"
-                            : "Add a Gemini API key or Vertex AI credentials in Settings → Providers → Video"}
+                  <div className="space-y-1.5">
+                    <div className={cn(
+                      "flex items-center justify-between rounded-xl border px-3 py-2.5",
+                      audioSupported
+                        ? "border-white/[0.06] bg-white/[0.02]"
+                        : isVeo2
+                          ? "border-red-500/20 bg-red-500/[0.03]"
+                          : "border-white/[0.03] bg-white/[0.01] opacity-60",
+                    )}>
+                      <div className="flex items-center gap-2">
+                        <Volume2 className={cn(
+                          "h-3.5 w-3.5 shrink-0",
+                          isVeo2 ? "text-red-400/60" : audioSupported ? "text-amber-400/70" : "text-muted-foreground/30",
+                        )} />
+                        <div>
+                          <span className="text-xs text-muted-foreground/70">Veo Native Sound</span>
+                          <p className="text-[10px] leading-tight text-muted-foreground/40">
+                            {!credConnected
+                              ? "Add a Gemini API key or Vertex AI credentials in Settings → Providers → Video"
+                              : isVeo2
+                                ? `Model ${modelLabel} has no audio — change to veo-3.0-generate-preview in Settings → Providers → Video`
+                                : `AI-generated audio baked into video (${modelLabel})`}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => audioSupported && setVeoAudio(v => !v)}
+                        disabled={!audioSupported}
+                        className={cn(
+                          "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
+                          !audioSupported ? "cursor-not-allowed" : "cursor-pointer",
+                          veoAudio && audioSupported ? "bg-amber-500" : "bg-white/10",
+                        )}
+                      >
+                        <span className={cn(
+                          "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
+                          veoAudio && audioSupported ? "translate-x-4" : "translate-x-0",
+                        )} />
+                      </button>
+                    </div>
+                    {isVeo2 && (
+                      <div className="flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/[0.05] px-2.5 py-1.5">
+                        <AlertCircle className="h-3 w-3 text-red-400 shrink-0" />
+                        <p className="text-[10px] text-red-400/90">
+                          Veo 2 cannot produce audio. Go to{" "}
+                          <strong>Settings → Providers → Video → Google Veo 3</strong> and
+                          clear the "Veo Model" field (or set it to <code className="bg-white/[0.06] rounded px-1">veo-3.0-generate-preview</code>).
                         </p>
                       </div>
-                    </div>
-                    <button
-                      onClick={() => audioSupported && setVeoAudio(v => !v)}
-                      disabled={!audioSupported}
-                      className={cn(
-                        "relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200",
-                        !audioSupported ? "cursor-not-allowed" : "cursor-pointer",
-                        veoAudio && audioSupported ? "bg-amber-500" : "bg-white/10",
-                      )}
-                    >
-                      <span className={cn(
-                        "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
-                        veoAudio && audioSupported ? "translate-x-4" : "translate-x-0",
-                      )} />
-                    </button>
+                    )}
                   </div>
                 );
               })()}

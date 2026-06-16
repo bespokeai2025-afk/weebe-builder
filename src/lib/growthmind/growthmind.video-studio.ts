@@ -1923,7 +1923,18 @@ export const getVeoStatus = createServerFn({ method: "GET" })
       !!(creds.gcpProject?.trim()) &&
       (!!(creds.accessToken?.trim()) || !!(creds.refreshToken?.trim()));
 
-    return { connected: hasGeminiKey || hasVertexCreds, hasGeminiKey, hasVertexCreds };
+    // Resolve the effective model (mirrors VeoProvider.model getter logic)
+    const storedModel   = creds.veoModel?.trim() || process.env.VEO_MODEL || "";
+    const effectiveModel = storedModel || "veo-3.0-generate-preview";  // default is always Veo 3
+    const audioCapable   = isAudioCapableModel(effectiveModel);
+
+    return {
+      connected: hasGeminiKey || hasVertexCreds,
+      hasGeminiKey,
+      hasVertexCreds,
+      veoModel:     effectiveModel,
+      audioCapable,
+    };
   });
 
 // ── Get clips for a composite video asset ─────────────────────────────────────
