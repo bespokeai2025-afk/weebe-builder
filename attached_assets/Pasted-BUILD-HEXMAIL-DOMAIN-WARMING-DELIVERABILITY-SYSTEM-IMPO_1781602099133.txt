@@ -1,0 +1,400 @@
+BUILD HEXMAIL DOMAIN WARMING + DELIVERABILITY SYSTEM
+
+IMPORTANT
+
+Do not create fake opens, fake replies, fake clicks, or artificial engagement.
+
+Do not send emails to non-consenting recipients.
+
+Do not build spam tools.
+
+Do not bypass provider rules.
+
+This system must be a legitimate email deliverability and domain reputation tool.
+
+OBJECTIVE
+
+Add a Domain Warming and Deliverability Centre directly inside the WeeBee Replit app.
+
+This should sit under HexMail and GrowthMind because it supports outbound email marketing.
+
+The purpose is to help users prepare new domains and mailboxes for safe email sending by:
+
+* verifying DNS
+* checking SPF, DKIM, DMARC
+* monitoring bounces
+* controlling daily send volume
+* gradually increasing sending limits
+* tracking reputation signals
+* warning users before risky sending
+
+====================================================
+
+CREATE ROUTES
+
+/hexmail/deliverability
+/hexmail/domain-warming
+/hexmail/sender-domains
+/hexmail/mailboxes
+/hexmail/reputation
+
+Also add GrowthMind visibility:
+
+/growthmind/email-readiness
+
+====================================================
+
+DATABASE TABLES
+
+Create:
+
+email_sender_domains
+
+Fields:
+
+id
+workspace_id
+domain
+provider
+status
+spf_status
+dkim_status
+dmarc_status
+mx_status
+tracking_domain_status
+verified_at
+created_at
+updated_at
+
+Create:
+
+email_mailboxes
+
+Fields:
+
+id
+workspace_id
+domain_id
+email_address
+provider
+status
+daily_send_limit
+warmup_stage
+last_sent_at
+created_at
+updated_at
+
+Create:
+
+email_warmup_plans
+
+Fields:
+
+id
+workspace_id
+domain_id
+mailbox_id
+name
+start_date
+current_day
+starting_daily_volume
+target_daily_volume
+increment_type
+increment_value
+status
+created_at
+updated_at
+
+Create:
+
+email_warmup_daily_targets
+
+Fields:
+
+id
+workspace_id
+warmup_plan_id
+day_number
+target_send_count
+actual_send_count
+bounce_count
+complaint_count
+reply_count
+open_count
+click_count
+status
+created_at
+
+Create:
+
+email_reputation_events
+
+Fields:
+
+id
+workspace_id
+domain_id
+mailbox_id
+event_type
+severity
+description
+source
+created_at
+
+Create:
+
+email_deliverability_checks
+
+Fields:
+
+id
+workspace_id
+domain_id
+check_type
+status
+details
+created_at
+
+====================================================
+
+DNS CHECKER
+
+Build DNS verification checks for:
+
+SPF
+DKIM
+DMARC
+MX
+Tracking Domain
+Return-Path if available
+
+Show:
+
+Pass
+Fail
+Warning
+Missing
+
+Provide exact instructions for fixing DNS records.
+
+====================================================
+
+WARMUP PLAN BUILDER
+
+Allow users to create safe warm-up schedules.
+
+Example:
+
+Week 1:
+5-10 emails/day
+
+Week 2:
+10-25 emails/day
+
+Week 3:
+25-50 emails/day
+
+Week 4:
+50-100 emails/day
+
+Week 5:
+100-200 emails/day
+
+Allow custom plans.
+
+IMPORTANT:
+
+Only send to opted-in contacts or internal/team test lists.
+
+====================================================
+
+SEND CONTROL ENGINE
+
+Before any HexMail campaign sends:
+
+Check:
+
+domain status
+mailbox status
+warmup stage
+daily send target
+bounce rate
+complaint rate
+unsubscribe rate
+provider limits
+
+If unsafe:
+
+Block or warn before sending.
+
+====================================================
+
+REPUTATION MONITORING
+
+Track:
+
+bounce rate
+complaint rate
+unsubscribe rate
+open rate
+click rate
+reply rate
+delivery failures
+provider errors
+
+Generate:
+
+Domain Health Score
+Mailbox Health Score
+Warmup Progress Score
+
+====================================================
+
+HEXMAIL INTEGRATION
+
+Before HexMail sends any campaign email:
+
+Validate sender domain and mailbox.
+
+Enforce warmup limits if active.
+
+Increment actual_send_count.
+
+Record bounces and failures when webhooks exist.
+
+====================================================
+
+RESEND INTEGRATION
+
+Use existing Resend setup.
+
+Track:
+
+sent
+delivered
+bounced
+complained
+opened
+clicked
+
+If Resend webhooks are not implemented, create endpoint:
+
+/api/public/resend-webhook
+
+Verify webhook signature if available.
+
+====================================================
+
+GROWTHMIND INTEGRATION
+
+GrowthMind should use deliverability data when recommending email campaigns.
+
+If domain is cold or unhealthy, GrowthMind should recommend:
+
+* slower warmup
+* WhatsApp instead of email
+* AI calling instead of email
+* fix DNS records
+* improve sender reputation
+
+Add:
+
+Email Readiness Score
+
+to GrowthMind.
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should report:
+
+domain health
+mailbox health
+warmup progress
+deliverability risks
+blocked campaigns
+recommended fixes
+
+HiveMind remains the only speaking assistant.
+
+====================================================
+
+SYSTEMMIND INTEGRATION
+
+SystemMind should monitor:
+
+DNS failures
+webhook failures
+provider errors
+Resend connection issues
+sender domain misconfiguration
+
+====================================================
+
+UI REQUIREMENTS
+
+Deliverability dashboard should show:
+
+Domains
+Mailboxes
+DNS Status
+Warmup Plans
+Today's Send Allowance
+Actual Sends Today
+Bounce Rate
+Complaint Rate
+Health Score
+Warnings
+Recommended Fixes
+
+====================================================
+
+SAFETY RULES
+
+Do not allow sending if:
+
+SPF fails
+DKIM fails
+DMARC missing or invalid
+bounce rate too high
+complaint rate too high
+mailbox exceeds daily limit
+domain is paused
+warmup plan is paused
+
+Allow admin override only with warning.
+
+====================================================
+
+NO FAKE ENGAGEMENT
+
+Do not implement:
+
+fake opens
+fake clicks
+fake replies
+artificial inbox placement
+auto back-and-forth warmup emails between fake accounts
+
+This is a deliverability readiness system, not a spam warmup network.
+
+====================================================
+
+SUCCESS CRITERIA
+
+User can:
+
+Add sender domain
+Verify DNS records
+Add mailbox
+Create warmup plan
+Track daily send limits
+Prevent unsafe campaigns
+Monitor reputation
+See GrowthMind email readiness
+See HiveMind deliverability warnings
+
+Generate implementation plan first.
+
+Then implement safely.

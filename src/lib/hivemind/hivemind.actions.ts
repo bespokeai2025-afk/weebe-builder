@@ -452,6 +452,64 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
       }
     }
 
+    // 6. Email deliverability risks — check sender domains and DNS health
+    try {
+      const { data: senderDomains } = await sb
+        .from("email_sender_domains")
+        .select("id,domain,spf_status,dkim_status,dmarc_status,mx_status,status")
+        .eq("workspace_id", workspaceId)
+        .limit(10);
+
+      const domains = senderDomains ?? [];
+
+      if (domains.length === 0 && hexCamps.length > 0 && !pendingTypes.has("create_task")) {
+        proposed.push({
+          workspace_id:   workspaceId,
+          title:          "Set up a verified sender domain before running email campaigns",
+          description:    "You have email campaigns configured but no verified sender domain. Without SPF, DKIM, and DMARC records, emails will likely land in spam or be rejected.",
+          action_type:    "create_task",
+          action_payload: {
+            title:       "Add and verify a sender domain in HexMail",
+            description: "Go to HexMail → Sender Domains → Add Domain to verify your DNS records (SPF, DKIM, DMARC).",
+            priority:    "high",
+            trigger_type: "email_deliverability",
+          },
+          proposed_by: "hivemind",
+          status:      "pending",
+        });
+      } else {
+        for (const dom of domains) {
+          const dnsFailing = dom.spf_status !== "pass" || dom.dmarc_status === "missing";
+          const suspended  = dom.status === "suspended" || dom.status === "paused";
+          if ((dnsFailing || suspended) && !pendingTypes.has("create_task")) {
+            proposed.push({
+              workspace_id:   workspaceId,
+              title:          `Fix deliverability issues on ${dom.domain}`,
+              description:    `Domain "${dom.domain}" has DNS issues: ${[
+                dom.spf_status !== "pass"   ? "SPF failing" : null,
+                dom.dkim_status !== "pass"  ? "DKIM not verified" : null,
+                dom.dmarc_status === "missing" ? "DMARC missing" : null,
+                suspended ? "domain paused" : null,
+              ].filter(Boolean).join(", ")}. Email campaigns from this domain may be blocked or land in spam.`,
+              action_type:    "create_task",
+              action_payload: {
+                title:       `Fix DNS records for ${dom.domain}`,
+                description: "Go to HexMail → Sender Domains and update the DNS records. Fix SPF, DKIM, and DMARC to protect your sender reputation.",
+                priority:    "high",
+                trigger_type: "email_deliverability",
+                entity_type: "sender_domain",
+                entity_id:   dom.id,
+                entity_name: dom.domain,
+              },
+              proposed_by: "hivemind",
+              status:      "pending",
+            });
+            break; // one action per scan
+          }
+        }
+      }
+    } catch { /* graceful — tables may not exist yet */ }
+
     if (proposed.length > 0) {
       await sb.from("hivemind_actions").insert(proposed);
     }

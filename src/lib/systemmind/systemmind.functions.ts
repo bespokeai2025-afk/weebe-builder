@@ -109,6 +109,46 @@ export async function computeSystemMindData(workspaceId: string): Promise<System
     }
   } catch { /* graceful — table not yet migrated */ }
 
+  // Email deliverability health — graceful; tables may not exist yet
+  let emailHealth: {
+    totalDomains: number;
+    dnsFailures: number;
+    missingDmarc: number;
+    activePlans: number;
+    recentBounces: number;
+    recentComplaints: number;
+    warnings: string[];
+  } | undefined;
+  try {
+    const [domRes, evRes] = await Promise.all([
+      sb.from("email_sender_domains").select("domain,spf_status,dkim_status,dmarc_status,mx_status,status")
+        .eq("workspace_id", workspaceId),
+      sb.from("email_reputation_events").select("event_type,severity")
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", new Date(Date.now() - 7 * 86400_000).toISOString()),
+    ]);
+    const doms = domRes.data ?? [];
+    const evs  = evRes.data ?? [];
+    if (doms.length > 0 || evs.length > 0) {
+      const dnsFailures  = doms.filter((d: any) => d.spf_status !== "pass" || d.mx_status !== "pass").length;
+      const missingDmarc = doms.filter((d: any) => d.dmarc_status === "missing").length;
+      const warnings: string[] = [];
+      if (dnsFailures  > 0) warnings.push(`${dnsFailures} domain(s) with DNS failures`);
+      if (missingDmarc > 0) warnings.push(`${missingDmarc} domain(s) missing DMARC`);
+      const criticalBounces = evs.filter((e: any) => e.event_type === "bounce" && e.severity === "warning").length;
+      if (criticalBounces > 5) warnings.push(`${criticalBounces} bounce events this week`);
+      emailHealth = {
+        totalDomains:    doms.length,
+        dnsFailures,
+        missingDmarc,
+        activePlans:     0,
+        recentBounces:   evs.filter((e: any) => e.event_type === "bounce").length,
+        recentComplaints:evs.filter((e: any) => e.event_type === "complaint").length,
+        warnings,
+      };
+    }
+  } catch { /* graceful */ }
+
   return {
     generatedAt: new Date().toISOString(),
     systemHealth,
@@ -130,6 +170,7 @@ export async function computeSystemMindData(workspaceId: string): Promise<System
       errors: r.errors,
     })),
     workflowHealth,
+    emailHealth,
   };
 }
 

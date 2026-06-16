@@ -55,6 +55,7 @@ import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webh
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
+import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/resend-webhook'
 import { Route as ApiPublicProviderHealthSweepRouteImport } from './routes/api/public/provider-health-sweep'
 import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
@@ -91,6 +92,11 @@ import { Route as AuthenticatedHivemindRecommendationsRouteImport } from './rout
 import { Route as AuthenticatedHivemindChatRouteImport } from './routes/_authenticated/hivemind.chat'
 import { Route as AuthenticatedHivemindBriefingRouteImport } from './routes/_authenticated/hivemind.briefing'
 import { Route as AuthenticatedHivemindActionsRouteImport } from './routes/_authenticated/hivemind.actions'
+import { Route as AuthenticatedHexmailSenderDomainsRouteImport } from './routes/_authenticated/hexmail.sender-domains'
+import { Route as AuthenticatedHexmailReputationRouteImport } from './routes/_authenticated/hexmail.reputation'
+import { Route as AuthenticatedHexmailMailboxesRouteImport } from './routes/_authenticated/hexmail.mailboxes'
+import { Route as AuthenticatedHexmailDomainWarmingRouteImport } from './routes/_authenticated/hexmail.domain-warming'
+import { Route as AuthenticatedHexmailDeliverabilityRouteImport } from './routes/_authenticated/hexmail.deliverability'
 import { Route as AuthenticatedGrowthmindVideoStudioRouteImport } from './routes/_authenticated/growthmind.video-studio'
 import { Route as AuthenticatedGrowthmindStrategyRouteImport } from './routes/_authenticated/growthmind.strategy'
 import { Route as AuthenticatedGrowthmindSeoRouteImport } from './routes/_authenticated/growthmind.seo'
@@ -102,6 +108,7 @@ import { Route as AuthenticatedGrowthmindGrowthSchedulerRouteImport } from './ro
 import { Route as AuthenticatedGrowthmindGoalsRouteImport } from './routes/_authenticated/growthmind.goals'
 import { Route as AuthenticatedGrowthmindFunnelsRouteImport } from './routes/_authenticated/growthmind.funnels'
 import { Route as AuthenticatedGrowthmindForecastRouteImport } from './routes/_authenticated/growthmind.forecast'
+import { Route as AuthenticatedGrowthmindEmailReadinessRouteImport } from './routes/_authenticated/growthmind.email-readiness'
 import { Route as AuthenticatedGrowthmindDataSourcesRouteImport } from './routes/_authenticated/growthmind.data-sources'
 import { Route as AuthenticatedGrowthmindContentStudioRouteImport } from './routes/_authenticated/growthmind.content-studio'
 import { Route as AuthenticatedGrowthmindContentCalendarRouteImport } from './routes/_authenticated/growthmind.content-calendar'
@@ -399,6 +406,11 @@ const ApiPublicRetellWebhookRoute = ApiPublicRetellWebhookRouteImport.update({
   path: '/api/public/retell-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicResendWebhookRoute = ApiPublicResendWebhookRouteImport.update({
+  id: '/api/public/resend-webhook',
+  path: '/api/public/resend-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicProviderHealthSweepRoute =
   ApiPublicProviderHealthSweepRouteImport.update({
     id: '/api/public/provider-health-sweep',
@@ -612,6 +624,36 @@ const AuthenticatedHivemindActionsRoute =
     path: '/actions',
     getParentRoute: () => AuthenticatedHivemindRoute,
   } as any)
+const AuthenticatedHexmailSenderDomainsRoute =
+  AuthenticatedHexmailSenderDomainsRouteImport.update({
+    id: '/sender-domains',
+    path: '/sender-domains',
+    getParentRoute: () => AuthenticatedHexmailRoute,
+  } as any)
+const AuthenticatedHexmailReputationRoute =
+  AuthenticatedHexmailReputationRouteImport.update({
+    id: '/reputation',
+    path: '/reputation',
+    getParentRoute: () => AuthenticatedHexmailRoute,
+  } as any)
+const AuthenticatedHexmailMailboxesRoute =
+  AuthenticatedHexmailMailboxesRouteImport.update({
+    id: '/mailboxes',
+    path: '/mailboxes',
+    getParentRoute: () => AuthenticatedHexmailRoute,
+  } as any)
+const AuthenticatedHexmailDomainWarmingRoute =
+  AuthenticatedHexmailDomainWarmingRouteImport.update({
+    id: '/domain-warming',
+    path: '/domain-warming',
+    getParentRoute: () => AuthenticatedHexmailRoute,
+  } as any)
+const AuthenticatedHexmailDeliverabilityRoute =
+  AuthenticatedHexmailDeliverabilityRouteImport.update({
+    id: '/deliverability',
+    path: '/deliverability',
+    getParentRoute: () => AuthenticatedHexmailRoute,
+  } as any)
 const AuthenticatedGrowthmindVideoStudioRoute =
   AuthenticatedGrowthmindVideoStudioRouteImport.update({
     id: '/video-studio',
@@ -676,6 +718,12 @@ const AuthenticatedGrowthmindForecastRoute =
   AuthenticatedGrowthmindForecastRouteImport.update({
     id: '/forecast',
     path: '/forecast',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindEmailReadinessRoute =
+  AuthenticatedGrowthmindEmailReadinessRouteImport.update({
+    id: '/email-readiness',
+    path: '/email-readiness',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
 const AuthenticatedGrowthmindDataSourcesRoute =
@@ -1025,7 +1073,7 @@ export interface FileRoutesByFullPath {
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/growthmind': typeof AuthenticatedGrowthmindRouteWithChildren
-  '/hexmail': typeof AuthenticatedHexmailRoute
+  '/hexmail': typeof AuthenticatedHexmailRouteWithChildren
   '/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRoute
@@ -1057,6 +1105,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/growthmind/data-sources': typeof AuthenticatedGrowthmindDataSourcesRoute
+  '/growthmind/email-readiness': typeof AuthenticatedGrowthmindEmailReadinessRoute
   '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
@@ -1068,6 +1117,11 @@ export interface FileRoutesByFullPath {
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
   '/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
+  '/hexmail/deliverability': typeof AuthenticatedHexmailDeliverabilityRoute
+  '/hexmail/domain-warming': typeof AuthenticatedHexmailDomainWarmingRoute
+  '/hexmail/mailboxes': typeof AuthenticatedHexmailMailboxesRoute
+  '/hexmail/reputation': typeof AuthenticatedHexmailReputationRoute
+  '/hexmail/sender-domains': typeof AuthenticatedHexmailSenderDomainsRoute
   '/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -1104,6 +1158,7 @@ export interface FileRoutesByFullPath {
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
+  '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -1174,7 +1229,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
-  '/hexmail': typeof AuthenticatedHexmailRoute
+  '/hexmail': typeof AuthenticatedHexmailRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -1203,6 +1258,7 @@ export interface FileRoutesByTo {
   '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/growthmind/data-sources': typeof AuthenticatedGrowthmindDataSourcesRoute
+  '/growthmind/email-readiness': typeof AuthenticatedGrowthmindEmailReadinessRoute
   '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
@@ -1214,6 +1270,11 @@ export interface FileRoutesByTo {
   '/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
   '/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
+  '/hexmail/deliverability': typeof AuthenticatedHexmailDeliverabilityRoute
+  '/hexmail/domain-warming': typeof AuthenticatedHexmailDomainWarmingRoute
+  '/hexmail/mailboxes': typeof AuthenticatedHexmailMailboxesRoute
+  '/hexmail/reputation': typeof AuthenticatedHexmailReputationRoute
+  '/hexmail/sender-domains': typeof AuthenticatedHexmailSenderDomainsRoute
   '/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -1250,6 +1311,7 @@ export interface FileRoutesByTo {
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
+  '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -1324,7 +1386,7 @@ export interface FileRoutesById {
   '/_authenticated/data': typeof AuthenticatedDataRoute
   '/_authenticated/follow-up': typeof AuthenticatedFollowUpRoute
   '/_authenticated/growthmind': typeof AuthenticatedGrowthmindRouteWithChildren
-  '/_authenticated/hexmail': typeof AuthenticatedHexmailRoute
+  '/_authenticated/hexmail': typeof AuthenticatedHexmailRouteWithChildren
   '/_authenticated/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/_authenticated/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
@@ -1356,6 +1418,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/_authenticated/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/_authenticated/growthmind/data-sources': typeof AuthenticatedGrowthmindDataSourcesRoute
+  '/_authenticated/growthmind/email-readiness': typeof AuthenticatedGrowthmindEmailReadinessRoute
   '/_authenticated/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/_authenticated/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/_authenticated/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
@@ -1367,6 +1430,11 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/seo': typeof AuthenticatedGrowthmindSeoRoute
   '/_authenticated/growthmind/strategy': typeof AuthenticatedGrowthmindStrategyRoute
   '/_authenticated/growthmind/video-studio': typeof AuthenticatedGrowthmindVideoStudioRoute
+  '/_authenticated/hexmail/deliverability': typeof AuthenticatedHexmailDeliverabilityRoute
+  '/_authenticated/hexmail/domain-warming': typeof AuthenticatedHexmailDomainWarmingRoute
+  '/_authenticated/hexmail/mailboxes': typeof AuthenticatedHexmailMailboxesRoute
+  '/_authenticated/hexmail/reputation': typeof AuthenticatedHexmailReputationRoute
+  '/_authenticated/hexmail/sender-domains': typeof AuthenticatedHexmailSenderDomainsRoute
   '/_authenticated/hivemind/actions': typeof AuthenticatedHivemindActionsRoute
   '/_authenticated/hivemind/briefing': typeof AuthenticatedHivemindBriefingRoute
   '/_authenticated/hivemind/chat': typeof AuthenticatedHivemindChatRoute
@@ -1403,6 +1471,7 @@ export interface FileRoutesById {
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
+  '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -1509,6 +1578,7 @@ export interface FileRouteTypes {
     | '/growthmind/content-calendar'
     | '/growthmind/content-studio'
     | '/growthmind/data-sources'
+    | '/growthmind/email-readiness'
     | '/growthmind/forecast'
     | '/growthmind/funnels'
     | '/growthmind/goals'
@@ -1520,6 +1590,11 @@ export interface FileRouteTypes {
     | '/growthmind/seo'
     | '/growthmind/strategy'
     | '/growthmind/video-studio'
+    | '/hexmail/deliverability'
+    | '/hexmail/domain-warming'
+    | '/hexmail/mailboxes'
+    | '/hexmail/reputation'
+    | '/hexmail/sender-domains'
     | '/hivemind/actions'
     | '/hivemind/briefing'
     | '/hivemind/chat'
@@ -1556,6 +1631,7 @@ export interface FileRouteTypes {
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/provider-health-sweep'
+    | '/api/public/resend-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
@@ -1655,6 +1731,7 @@ export interface FileRouteTypes {
     | '/growthmind/content-calendar'
     | '/growthmind/content-studio'
     | '/growthmind/data-sources'
+    | '/growthmind/email-readiness'
     | '/growthmind/forecast'
     | '/growthmind/funnels'
     | '/growthmind/goals'
@@ -1666,6 +1743,11 @@ export interface FileRouteTypes {
     | '/growthmind/seo'
     | '/growthmind/strategy'
     | '/growthmind/video-studio'
+    | '/hexmail/deliverability'
+    | '/hexmail/domain-warming'
+    | '/hexmail/mailboxes'
+    | '/hexmail/reputation'
+    | '/hexmail/sender-domains'
     | '/hivemind/actions'
     | '/hivemind/briefing'
     | '/hivemind/chat'
@@ -1702,6 +1784,7 @@ export interface FileRouteTypes {
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/provider-health-sweep'
+    | '/api/public/resend-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
@@ -1807,6 +1890,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/content-calendar'
     | '/_authenticated/growthmind/content-studio'
     | '/_authenticated/growthmind/data-sources'
+    | '/_authenticated/growthmind/email-readiness'
     | '/_authenticated/growthmind/forecast'
     | '/_authenticated/growthmind/funnels'
     | '/_authenticated/growthmind/goals'
@@ -1818,6 +1902,11 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/seo'
     | '/_authenticated/growthmind/strategy'
     | '/_authenticated/growthmind/video-studio'
+    | '/_authenticated/hexmail/deliverability'
+    | '/_authenticated/hexmail/domain-warming'
+    | '/_authenticated/hexmail/mailboxes'
+    | '/_authenticated/hexmail/reputation'
+    | '/_authenticated/hexmail/sender-domains'
     | '/_authenticated/hivemind/actions'
     | '/_authenticated/hivemind/briefing'
     | '/_authenticated/hivemind/chat'
@@ -1854,6 +1943,7 @@ export interface FileRouteTypes {
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/provider-health-sweep'
+    | '/api/public/resend-webhook'
     | '/api/public/retell-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
@@ -1929,6 +2019,7 @@ export interface RootRouteChildren {
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
   ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRouteWithChildren
   ApiPublicProviderHealthSweepRoute: typeof ApiPublicProviderHealthSweepRoute
+  ApiPublicResendWebhookRoute: typeof ApiPublicResendWebhookRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
@@ -2295,6 +2386,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRetellWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/resend-webhook': {
+      id: '/api/public/resend-webhook'
+      path: '/api/public/resend-webhook'
+      fullPath: '/api/public/resend-webhook'
+      preLoaderRoute: typeof ApiPublicResendWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/provider-health-sweep': {
       id: '/api/public/provider-health-sweep'
       path: '/api/public/provider-health-sweep'
@@ -2547,6 +2645,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHivemindActionsRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
     }
+    '/_authenticated/hexmail/sender-domains': {
+      id: '/_authenticated/hexmail/sender-domains'
+      path: '/sender-domains'
+      fullPath: '/hexmail/sender-domains'
+      preLoaderRoute: typeof AuthenticatedHexmailSenderDomainsRouteImport
+      parentRoute: typeof AuthenticatedHexmailRoute
+    }
+    '/_authenticated/hexmail/reputation': {
+      id: '/_authenticated/hexmail/reputation'
+      path: '/reputation'
+      fullPath: '/hexmail/reputation'
+      preLoaderRoute: typeof AuthenticatedHexmailReputationRouteImport
+      parentRoute: typeof AuthenticatedHexmailRoute
+    }
+    '/_authenticated/hexmail/mailboxes': {
+      id: '/_authenticated/hexmail/mailboxes'
+      path: '/mailboxes'
+      fullPath: '/hexmail/mailboxes'
+      preLoaderRoute: typeof AuthenticatedHexmailMailboxesRouteImport
+      parentRoute: typeof AuthenticatedHexmailRoute
+    }
+    '/_authenticated/hexmail/domain-warming': {
+      id: '/_authenticated/hexmail/domain-warming'
+      path: '/domain-warming'
+      fullPath: '/hexmail/domain-warming'
+      preLoaderRoute: typeof AuthenticatedHexmailDomainWarmingRouteImport
+      parentRoute: typeof AuthenticatedHexmailRoute
+    }
+    '/_authenticated/hexmail/deliverability': {
+      id: '/_authenticated/hexmail/deliverability'
+      path: '/deliverability'
+      fullPath: '/hexmail/deliverability'
+      preLoaderRoute: typeof AuthenticatedHexmailDeliverabilityRouteImport
+      parentRoute: typeof AuthenticatedHexmailRoute
+    }
     '/_authenticated/growthmind/video-studio': {
       id: '/_authenticated/growthmind/video-studio'
       path: '/video-studio'
@@ -2622,6 +2755,13 @@ declare module '@tanstack/react-router' {
       path: '/forecast'
       fullPath: '/growthmind/forecast'
       preLoaderRoute: typeof AuthenticatedGrowthmindForecastRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/email-readiness': {
+      id: '/_authenticated/growthmind/email-readiness'
+      path: '/email-readiness'
+      fullPath: '/growthmind/email-readiness'
+      preLoaderRoute: typeof AuthenticatedGrowthmindEmailReadinessRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
     '/_authenticated/growthmind/data-sources': {
@@ -3056,6 +3196,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindContentCalendarRoute: typeof AuthenticatedGrowthmindContentCalendarRoute
   AuthenticatedGrowthmindContentStudioRoute: typeof AuthenticatedGrowthmindContentStudioRoute
   AuthenticatedGrowthmindDataSourcesRoute: typeof AuthenticatedGrowthmindDataSourcesRoute
+  AuthenticatedGrowthmindEmailReadinessRoute: typeof AuthenticatedGrowthmindEmailReadinessRoute
   AuthenticatedGrowthmindForecastRoute: typeof AuthenticatedGrowthmindForecastRoute
   AuthenticatedGrowthmindFunnelsRoute: typeof AuthenticatedGrowthmindFunnelsRoute
   AuthenticatedGrowthmindGoalsRoute: typeof AuthenticatedGrowthmindGoalsRoute
@@ -3088,6 +3229,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindContentStudioRoute,
     AuthenticatedGrowthmindDataSourcesRoute:
       AuthenticatedGrowthmindDataSourcesRoute,
+    AuthenticatedGrowthmindEmailReadinessRoute:
+      AuthenticatedGrowthmindEmailReadinessRoute,
     AuthenticatedGrowthmindForecastRoute: AuthenticatedGrowthmindForecastRoute,
     AuthenticatedGrowthmindFunnelsRoute: AuthenticatedGrowthmindFunnelsRoute,
     AuthenticatedGrowthmindGoalsRoute: AuthenticatedGrowthmindGoalsRoute,
@@ -3111,6 +3254,28 @@ const AuthenticatedGrowthmindRouteWithChildren =
   AuthenticatedGrowthmindRoute._addFileChildren(
     AuthenticatedGrowthmindRouteChildren,
   )
+
+interface AuthenticatedHexmailRouteChildren {
+  AuthenticatedHexmailDeliverabilityRoute: typeof AuthenticatedHexmailDeliverabilityRoute
+  AuthenticatedHexmailDomainWarmingRoute: typeof AuthenticatedHexmailDomainWarmingRoute
+  AuthenticatedHexmailMailboxesRoute: typeof AuthenticatedHexmailMailboxesRoute
+  AuthenticatedHexmailReputationRoute: typeof AuthenticatedHexmailReputationRoute
+  AuthenticatedHexmailSenderDomainsRoute: typeof AuthenticatedHexmailSenderDomainsRoute
+}
+
+const AuthenticatedHexmailRouteChildren: AuthenticatedHexmailRouteChildren = {
+  AuthenticatedHexmailDeliverabilityRoute:
+    AuthenticatedHexmailDeliverabilityRoute,
+  AuthenticatedHexmailDomainWarmingRoute:
+    AuthenticatedHexmailDomainWarmingRoute,
+  AuthenticatedHexmailMailboxesRoute: AuthenticatedHexmailMailboxesRoute,
+  AuthenticatedHexmailReputationRoute: AuthenticatedHexmailReputationRoute,
+  AuthenticatedHexmailSenderDomainsRoute:
+    AuthenticatedHexmailSenderDomainsRoute,
+}
+
+const AuthenticatedHexmailRouteWithChildren =
+  AuthenticatedHexmailRoute._addFileChildren(AuthenticatedHexmailRouteChildren)
 
 interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindActionsRoute: typeof AuthenticatedHivemindActionsRoute
@@ -3235,7 +3400,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDataRoute: typeof AuthenticatedDataRoute
   AuthenticatedFollowUpRoute: typeof AuthenticatedFollowUpRoute
   AuthenticatedGrowthmindRoute: typeof AuthenticatedGrowthmindRouteWithChildren
-  AuthenticatedHexmailRoute: typeof AuthenticatedHexmailRoute
+  AuthenticatedHexmailRoute: typeof AuthenticatedHexmailRouteWithChildren
   AuthenticatedHivemindRoute: typeof AuthenticatedHivemindRouteWithChildren
   AuthenticatedKnowledgeCentreRoute: typeof AuthenticatedKnowledgeCentreRouteWithChildren
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
@@ -3270,7 +3435,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDataRoute: AuthenticatedDataRoute,
   AuthenticatedFollowUpRoute: AuthenticatedFollowUpRoute,
   AuthenticatedGrowthmindRoute: AuthenticatedGrowthmindRouteWithChildren,
-  AuthenticatedHexmailRoute: AuthenticatedHexmailRoute,
+  AuthenticatedHexmailRoute: AuthenticatedHexmailRouteWithChildren,
   AuthenticatedHivemindRoute: AuthenticatedHivemindRouteWithChildren,
   AuthenticatedKnowledgeCentreRoute:
     AuthenticatedKnowledgeCentreRouteWithChildren,
@@ -3416,6 +3581,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
   ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRouteWithChildren,
   ApiPublicProviderHealthSweepRoute: ApiPublicProviderHealthSweepRoute,
+  ApiPublicResendWebhookRoute: ApiPublicResendWebhookRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,

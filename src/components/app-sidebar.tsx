@@ -33,6 +33,7 @@ import {
   Server,
   BookOpen,
   Calculator,
+  Flame,
 } from "lucide-react";
 import {
   DndContext,
@@ -106,13 +107,15 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Calls",     url: "/calls",     icon: PhoneCall },
   { title: "Calendar",  url: "/calendar",  icon: CalendarDays },
   { title: "Template Studio", url: "/template-studio", icon: FileText },
-  { title: "HexMail",    url: "/hexmail",    icon: Mail },
-  { title: "Follow-Up",  url: "/follow-up",  icon: Zap },
+  { title: "HexMail",        url: "/hexmail",               icon: Mail },
+  { title: "Deliverability", url: "/hexmail/deliverability", icon: ShieldCheck },
+  { title: "Domain Warming", url: "/hexmail/domain-warming", icon: Flame },
+  { title: "Follow-Up",     url: "/follow-up",              icon: Zap },
   { title: "Buzzchat",  url: "/whatsapp",  icon: MessageSquare },
   { title: "Billing",   url: "/billing",   icon: CreditCard },
 ];
 
-const STORAGE_KEY = "sidebar-nav-order-v4";
+const STORAGE_KEY = "sidebar-nav-order-v5";
 
 function loadOrder(): NavItem[] {
   if (typeof window === "undefined") return DEFAULT_NAV_ITEMS;
