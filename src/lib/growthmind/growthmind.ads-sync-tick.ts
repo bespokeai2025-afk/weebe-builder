@@ -15,7 +15,7 @@ function getAdminClient() {
 }
 
 export interface AdsSyncResult {
-  platform:         "meta" | "google";
+  platform:         "meta" | "google" | "tiktok";
   workspaceId:      string;
   campaignsSynced:  number;
   spendTotal:       number;
@@ -87,6 +87,22 @@ async function getGoogleCreds(sb: ReturnType<typeof getAdminClient>, workspaceId
     clientId:       c.clientId,
     clientSecret:   c.clientSecret,
   };
+}
+
+async function getTikTokCreds(sb: ReturnType<typeof getAdminClient>, workspaceId: string): Promise<{ accessToken: string; advertiserId: string } | null> {
+  const { data: ps } = await sb
+    .from("provider_settings")
+    .select("credentials")
+    .eq("workspace_id", workspaceId)
+    .eq("provider_category", "advertising")
+    .eq("provider_name", "tiktok_ads")
+    .maybeSingle();
+
+  const c = (ps as any)?.credentials as Record<string, string> | undefined;
+  if (c?.accessToken && c?.advertiserId) {
+    return { accessToken: c.accessToken, advertiserId: c.advertiserId };
+  }
+  return null;
 }
 
 // ── Campaign upsert helper ─────────────────────────────────────────────────────
@@ -326,6 +342,38 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
     }
   } else {
     results.push({ platform: "google", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "skipped" });
+  }
+
+  // ── TikTok ──────────────────────────────────────────────────────────────────
+  const ttCreds = await getTikTokCreds(sb, workspaceId);
+  if (ttCreds) {
+    try {
+      const { syncTikTokAdsCampaigns } = await import("./ads-sync-tiktok.server");
+      const campaigns = await syncTikTokAdsCampaigns(ttCreds.accessToken, ttCreds.advertiserId);
+      await upsertCampaigns(sb, workspaceId, campaigns);
+
+      const totals = campaigns.reduce(
+        (a, c) => ({ spend: a.spend + c.spend, impressions: a.impressions + c.impressions, clicks: a.clicks + c.clicks, conversions: a.conversions + c.conversions }),
+        { spend: 0, impressions: 0, clicks: 0, conversions: 0 },
+      );
+
+      try {
+        await sb.from("growthmind_ad_sync_log").insert({
+          workspace_id: workspaceId, platform: "tiktok",
+          campaigns_synced: campaigns.length, spend_total: totals.spend,
+          impressions_total: totals.impressions, clicks_total: totals.clicks,
+          conversions_total: totals.conversions, status: "success",
+        });
+      } catch {}
+
+      results.push({ platform: "tiktok", workspaceId, campaignsSynced: campaigns.length, spendTotal: totals.spend, impressionsTotal: totals.impressions, clicksTotal: totals.clicks, conversionsTotal: totals.conversions, status: "success" });
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      try { await sb.from("growthmind_ad_sync_log").insert({ workspace_id: workspaceId, platform: "tiktok", status: "error", error_message: msg }); } catch {}
+      results.push({ platform: "tiktok", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "error", error: msg });
+    }
+  } else {
+    results.push({ platform: "tiktok", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "skipped" });
   }
 
   return results;

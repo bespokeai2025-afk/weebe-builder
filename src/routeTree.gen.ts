@@ -42,6 +42,7 @@ import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedCalendarRouteImport } from './routes/_authenticated/calendar'
 import { Route as AuthenticatedBuilderRouteImport } from './routes/_authenticated/builder'
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
+import { Route as AuthenticatedAnalyticsMarketingRouteImport } from './routes/_authenticated/analytics-marketing'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedSystemmindIndexRouteImport } from './routes/_authenticated/systemmind.index'
@@ -345,6 +346,12 @@ const AuthenticatedBillingRoute = AuthenticatedBillingRouteImport.update({
   path: '/billing',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAnalyticsMarketingRoute =
+  AuthenticatedAnalyticsMarketingRouteImport.update({
+    id: '/analytics-marketing',
+    path: '/analytics-marketing',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -1124,6 +1131,7 @@ export interface FileRoutesByFullPath {
   '/unsubscribe': typeof UnsubscribeRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/analytics-marketing': typeof AuthenticatedAnalyticsMarketingRoute
   '/billing': typeof AuthenticatedBillingRoute
   '/builder': typeof AuthenticatedBuilderRoute
   '/calendar': typeof AuthenticatedCalendarRoute
@@ -1290,6 +1298,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/unsubscribe': typeof UnsubscribeRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/analytics-marketing': typeof AuthenticatedAnalyticsMarketingRoute
   '/billing': typeof AuthenticatedBillingRoute
   '/builder': typeof AuthenticatedBuilderRoute
   '/calendar': typeof AuthenticatedCalendarRoute
@@ -1455,6 +1464,7 @@ export interface FileRoutesById {
   '/unsubscribe': typeof UnsubscribeRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
+  '/_authenticated/analytics-marketing': typeof AuthenticatedAnalyticsMarketingRoute
   '/_authenticated/billing': typeof AuthenticatedBillingRoute
   '/_authenticated/builder': typeof AuthenticatedBuilderRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
@@ -1624,6 +1634,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/admin'
     | '/analytics'
+    | '/analytics-marketing'
     | '/billing'
     | '/builder'
     | '/calendar'
@@ -1790,6 +1801,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/unsubscribe'
     | '/analytics'
+    | '/analytics-marketing'
     | '/billing'
     | '/builder'
     | '/calendar'
@@ -1954,6 +1966,7 @@ export interface FileRouteTypes {
     | '/unsubscribe'
     | '/_authenticated/admin'
     | '/_authenticated/analytics'
+    | '/_authenticated/analytics-marketing'
     | '/_authenticated/billing'
     | '/_authenticated/builder'
     | '/_authenticated/calendar'
@@ -2411,6 +2424,13 @@ declare module '@tanstack/react-router' {
       path: '/billing'
       fullPath: '/billing'
       preLoaderRoute: typeof AuthenticatedBillingRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/analytics-marketing': {
+      id: '/_authenticated/analytics-marketing'
+      path: '/analytics-marketing'
+      fullPath: '/analytics-marketing'
+      preLoaderRoute: typeof AuthenticatedAnalyticsMarketingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/analytics': {
@@ -3589,6 +3609,7 @@ const AuthenticatedSettingsProvidersRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
+  AuthenticatedAnalyticsMarketingRoute: typeof AuthenticatedAnalyticsMarketingRoute
   AuthenticatedBillingRoute: typeof AuthenticatedBillingRoute
   AuthenticatedBuilderRoute: typeof AuthenticatedBuilderRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
@@ -3624,6 +3645,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
+  AuthenticatedAnalyticsMarketingRoute: AuthenticatedAnalyticsMarketingRoute,
   AuthenticatedBillingRoute: AuthenticatedBillingRoute,
   AuthenticatedBuilderRoute: AuthenticatedBuilderRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
