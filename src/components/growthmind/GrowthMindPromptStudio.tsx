@@ -1,19 +1,20 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Sparkles, Plus, Save, Trash2, Copy, Play, Clock, BarChart2,
   Star, StarOff, ChevronRight, Search, X, FlaskConical, Tag, Wand2,
   RotateCcw, CheckCircle2, AlertCircle, Loader2, Info, Eye,
-  Columns2, Trophy, GitCompare,
+  Columns2, Trophy, GitCompare, Link2, GripVertical, ChevronDown, ChevronUp,
+  ListOrdered, Zap, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
 import {
   getPromptTemplates, savePromptTemplate, deletePromptTemplate,
   testPromptTemplate, seedLibraryPacks, restorePromptVersion, togglePromptFavorite, getPromptTemplate,
-  getWorkspaceContext, setPromptWinner,
-  type PromptTemplate, type PromptVariable, type PromptVersion,
+  getWorkspaceContext, setPromptWinner, runPromptChain,
+  type PromptTemplate, type PromptVariable, type PromptVersion, type PromptChainStep, type ChainStepMapping,
 } from "@/lib/growthmind/growthmind.prompt-studio";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -322,6 +323,245 @@ function HighlightedTextarea({
   );
 }
 
+// ── ChainBuilderEditor ─────────────────────────────────────────────────────────
+// Drag-to-reorder list of chain steps. Each step picks a template and maps
+// the previous step's output text into one or more of its input variables.
+
+function ChainBuilderEditor({
+  steps,
+  onChange,
+  templates,
+  readOnly,
+}: {
+  steps:     PromptChainStep[];
+  onChange:  (steps: PromptChainStep[]) => void;
+  templates: PromptTemplate[];
+  readOnly:  boolean;
+}) {
+  const dragIdx    = useRef<number | null>(null);
+  const dragOverIdx = useRef<number | null>(null);
+
+  const sorted = useMemo(() => [...steps].sort((a, b) => a.order - b.order), [steps]);
+
+  function reorder(from: number, to: number) {
+    if (from === to) return;
+    const next = [...sorted];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onChange(next.map((s, i) => ({ ...s, order: i + 1 })));
+  }
+
+  function addStep() {
+    const maxOrder = sorted.reduce((m, s) => Math.max(m, s.order), 0);
+    onChange([...steps, { order: maxOrder + 1, templateId: null, label: `Step ${maxOrder + 1}`, description: "", inputMappings: [] }]);
+  }
+
+  function removeStep(idx: number) {
+    const next = sorted.filter((_, i) => i !== idx);
+    onChange(next.map((s, i) => ({ ...s, order: i + 1 })));
+  }
+
+  function updateStep(idx: number, patch: Partial<PromptChainStep>) {
+    const next = sorted.map((s, i) => i === idx ? { ...s, ...patch } : s);
+    onChange(next);
+  }
+
+  function updateMapping(stepIdx: number, varName: string, fromStep: number) {
+    const step     = sorted[stepIdx];
+    const existing = step.inputMappings.filter(m => m.toVar !== varName);
+    const mappings: ChainStepMapping[] = fromStep === 0
+      ? existing // fromStep=0 is the default (use test inputs), so no explicit mapping needed
+      : [...existing, { toVar: varName, fromStep }];
+    updateStep(stepIdx, { inputMappings: mappings });
+  }
+
+  function getMappingFromStep(step: PromptChainStep, varName: string): number {
+    return step.inputMappings.find(m => m.toVar === varName)?.fromStep ?? 0;
+  }
+
+  // Collect variables from a template
+  function templateVars(tplId: string | null): string[] {
+    if (!tplId) return [];
+    const tpl = templates.find(t => t.id === tplId);
+    if (!tpl) return [];
+    const fromSystem = (tpl.systemPrompt.match(/\{\{(\w+)\}\}/g) ?? []).map((m: string) => m.slice(2, -2));
+    const fromUser   = (tpl.userPromptTemplate.match(/\{\{(\w+)\}\}/g) ?? []).map((m: string) => m.slice(2, -2));
+    return [...new Set([...fromSystem, ...fromUser])];
+  }
+
+  if (sorted.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+        <div className="h-10 w-10 rounded-xl bg-violet-500/10 ring-1 ring-violet-500/20 flex items-center justify-center">
+          <Link2 className="h-5 w-5 text-violet-400" />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-foreground">No chain steps yet</p>
+          <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+            Add steps to build a multi-step pipeline. The output of each step feeds into the next.
+          </p>
+        </div>
+        {!readOnly && (
+          <button
+            onClick={addStep}
+            className="flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/[0.08] hover:bg-violet-500/15 text-violet-300 px-4 py-2 text-xs font-medium transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add First Step
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {sorted.map((step, idx) => {
+        const vars        = templateVars(step.templateId);
+        const tplName     = templates.find(t => t.id === step.templateId)?.name ?? null;
+
+        return (
+          <div
+            key={`${step.order}-${idx}`}
+            draggable={!readOnly}
+            onDragStart={() => { dragIdx.current = idx; }}
+            onDragOver={e => { e.preventDefault(); dragOverIdx.current = idx; }}
+            onDrop={() => {
+              if (dragIdx.current !== null && dragOverIdx.current !== null) {
+                reorder(dragIdx.current, dragOverIdx.current);
+              }
+              dragIdx.current = null;
+              dragOverIdx.current = null;
+            }}
+            className="rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden"
+          >
+            {/* Step header */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.02] border-b border-white/[0.04]">
+              {!readOnly && (
+                <span className="cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground/60 shrink-0">
+                  <GripVertical className="h-3.5 w-3.5" />
+                </span>
+              )}
+              <span className="h-5 w-5 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0">
+                {idx + 1}
+              </span>
+              {readOnly ? (
+                <span className="text-xs font-medium text-foreground flex-1">{step.label || `Step ${idx + 1}`}</span>
+              ) : (
+                <input
+                  value={step.label}
+                  onChange={e => updateStep(idx, { label: e.target.value })}
+                  className="flex-1 bg-transparent text-xs font-medium outline-none placeholder:text-muted-foreground/40 min-w-0"
+                  placeholder={`Step ${idx + 1} label`}
+                />
+              )}
+              {!readOnly && (
+                <button
+                  onClick={() => removeStep(idx)}
+                  className="ml-auto p-1 rounded hover:bg-red-500/10 text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="p-3 space-y-2.5">
+              {/* Template picker */}
+              <div>
+                <label className="text-[10px] text-muted-foreground/70 uppercase tracking-widest">Template</label>
+                {readOnly ? (
+                  <p className="mt-1 text-xs text-foreground">{tplName ?? <span className="text-muted-foreground/50 italic">None selected</span>}</p>
+                ) : (
+                  <select
+                    value={step.templateId ?? ""}
+                    onChange={e => updateStep(idx, { templateId: e.target.value || null, inputMappings: [] })}
+                    className="mt-1 w-full rounded-md bg-white/[0.04] border border-white/[0.08] px-2 py-1.5 text-xs text-foreground outline-none focus:border-violet-500/40 [&>option]:bg-[#1a1a2e]"
+                  >
+                    <option value="">— select template —</option>
+                    {templates.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Input mappings — for each variable in the selected template */}
+              {vars.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <ArrowRight className="h-3 w-3 text-muted-foreground/40" />
+                    <label className="text-[10px] text-muted-foreground/70 uppercase tracking-widest">Input Variable Sources</label>
+                  </div>
+                  <div className="space-y-1.5">
+                    {vars.map(varName => {
+                      const currentFromStep = getMappingFromStep(step, varName);
+                      return (
+                        <div key={varName} className="flex items-center gap-2">
+                          <code className="text-[10px] font-mono text-emerald-400/80 shrink-0 w-28 truncate">{`{{${varName}}}`}</code>
+                          <span className="text-[10px] text-muted-foreground/40 shrink-0">←</span>
+                          {readOnly ? (
+                            <span className="text-[10px] text-muted-foreground">
+                              {currentFromStep === 0 ? "Test inputs" : `Step ${currentFromStep} output`}
+                            </span>
+                          ) : (
+                            <select
+                              value={currentFromStep}
+                              onChange={e => updateMapping(idx, varName, Number(e.target.value))}
+                              className="flex-1 rounded bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[10px] text-foreground outline-none focus:border-violet-500/40 [&>option]:bg-[#1a1a2e]"
+                            >
+                              <option value={0}>From test inputs</option>
+                              {sorted.slice(0, idx).map((prevStep, prevIdx) => (
+                                <option key={prevIdx} value={prevIdx + 1}>
+                                  Step {prevIdx + 1} output ({prevStep.label || `Step ${prevIdx + 1}`})
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Step description */}
+              {!readOnly && (
+                <div>
+                  <label className="text-[10px] text-muted-foreground/70 uppercase tracking-widest">Notes <span className="normal-case text-muted-foreground/40">(optional)</span></label>
+                  <input
+                    value={step.description}
+                    onChange={e => updateStep(idx, { description: e.target.value })}
+                    className="mt-1 w-full bg-transparent border border-white/[0.06] rounded px-2 py-1 text-[11px] text-muted-foreground outline-none focus:border-white/[0.12]"
+                    placeholder="Describe what this step does…"
+                  />
+                </div>
+              )}
+              {readOnly && step.description && (
+                <p className="text-[11px] text-muted-foreground/60 italic">{step.description}</p>
+              )}
+            </div>
+
+            {/* Arrow connector between steps */}
+            {idx < sorted.length - 1 && (
+              <div className="flex items-center justify-center py-0.5 bg-white/[0.01]">
+                <ChevronDown className="h-3 w-3 text-violet-400/40" />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {!readOnly && (
+        <button
+          onClick={addStep}
+          className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/[0.1] hover:border-violet-500/30 text-muted-foreground hover:text-violet-300 py-2 text-xs font-medium transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add Step
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export function GrowthMindPromptStudio() {
@@ -338,6 +578,7 @@ export function GrowthMindPromptStudio() {
   const toggleFavoriteFn  = useServerFn(togglePromptFavorite);
   const getWorkspaceCtxFn = useServerFn(getWorkspaceContext);
   const setWinnerFn       = useServerFn(setPromptWinner);
+  const runChainFn        = useServerFn(runPromptChain);
 
   // State
   const [selectedId,     setSelectedId]     = useState<string | null>(null);
@@ -345,6 +586,7 @@ export function GrowthMindPromptStudio() {
   const [isDirty,        setIsDirty]        = useState(false);
   const [isSaving,       setIsSaving]       = useState(false);
   const [isDeleting,     setIsDeleting]     = useState(false);
+  const [centerTab,      setCenterTab]      = useState<"prompts" | "chain">("prompts");
   const [rightTab,       setRightTab]       = useState<"test" | "preview" | "versions" | "stats">("test");
   const [libTab,         setLibTab]         = useState<"library" | "custom">("library");
   const [searchQuery,    setSearchQuery]    = useState("");
@@ -352,6 +594,9 @@ export function GrowthMindPromptStudio() {
   const [testInputs,     setTestInputs]     = useState<Record<string, string>>({});
   const [testOutput,     setTestOutput]     = useState<any>(null);
   const [isRunning,      setIsRunning]      = useState(false);
+  const [chainOutput,    setChainOutput]    = useState<any>(null);
+  const [isRunningChain, setIsRunningChain] = useState(false);
+  const [expandedChainStep, setExpandedChainStep] = useState<number | null>(null);
   const [abEnabled,      setAbEnabled]      = useState(false);
   const [variantBSys,    setVariantBSys]    = useState("");
   const [variantBUser,   setVariantBUser]   = useState("");
@@ -471,6 +716,7 @@ export function GrowthMindPromptStudio() {
     });
     setIsDirty(false);
     setTestOutput(null);
+    setChainOutput(null);
     setVersions([]);
     setAbEnabled(false);
     setVariantBSys("");
@@ -617,6 +863,31 @@ export function GrowthMindPromptStudio() {
       console.error("Set winner failed:", e);
     } finally {
       setIsSettingWinner(false);
+    }
+  };
+
+  const handleRunChain = async () => {
+    const activeSteps = editState.chainSteps.filter(s => s.templateId);
+    if (activeSteps.length === 0) return;
+    setIsRunningChain(true);
+    setChainOutput(null);
+    setExpandedChainStep(null);
+    try {
+      const result = await runChainFn({ data: {
+        chainSteps:       editState.chainSteps,
+        inputVariables:   testInputs,
+        parentTemplateId: selectedId ?? undefined,
+      }});
+      setChainOutput(result);
+      // Auto-expand the last step
+      if (result.steps?.length > 0) {
+        setExpandedChainStep(result.steps[result.steps.length - 1].stepOrder);
+      }
+      qc.invalidateQueries({ queryKey: ["prompt-templates"] });
+    } catch (e: any) {
+      setChainOutput({ error: e?.message ?? "Chain run failed" });
+    } finally {
+      setIsRunningChain(false);
     }
   };
 
@@ -797,6 +1068,45 @@ export function GrowthMindPromptStudio() {
                   </button>
                 </div>
               ) : (
+                <>
+                {/* Center tab bar: Prompts | Chain */}
+                <div className="flex border-b border-white/[0.06] shrink-0">
+                  <button
+                    onClick={() => setCenterTab("prompts")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors border-b-2",
+                      centerTab === "prompts"
+                        ? "text-emerald-300 border-emerald-400"
+                        : "text-muted-foreground hover:text-foreground border-transparent",
+                    )}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Prompts
+                  </button>
+                  <button
+                    onClick={() => setCenterTab("chain")}
+                    className={cn(
+                      "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors border-b-2",
+                      centerTab === "chain"
+                        ? "text-violet-300 border-violet-400"
+                        : "text-muted-foreground hover:text-foreground border-transparent",
+                    )}
+                  >
+                    <Link2 className="h-3 w-3" />
+                    Chain
+                    {editState.chainSteps.length > 0 && (
+                      <span className={cn(
+                        "ml-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none",
+                        centerTab === "chain" ? "bg-violet-500/20 text-violet-300" : "bg-white/[0.08] text-muted-foreground",
+                      )}>
+                        {editState.chainSteps.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* ── Prompts tab ── */}
+                {centerTab === "prompts" && (
                 <div className="p-4 space-y-4">
                   {/* Read-only notice for library packs */}
                   {isReadOnly && (
@@ -968,6 +1278,56 @@ export function GrowthMindPromptStudio() {
                     )}
                   </div>
                 </div>
+                )}
+
+                {/* ── Chain tab ── */}
+                {centerTab === "chain" && (
+                  <div className="p-4 space-y-4">
+                    {isReadOnly && (
+                      <div className="flex items-center gap-2 rounded-lg bg-blue-500/[0.08] border border-blue-500/20 px-3 py-2">
+                        <Info className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                        <p className="text-xs text-blue-300">Library pack — read-only. Duplicate to create an editable chain.</p>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Chain Pipeline</p>
+                        <p className="text-[11px] text-muted-foreground/60 mt-0.5">Output of each step feeds into the next. Run the chain from the Test panel.</p>
+                      </div>
+                      {editState.chainSteps.length > 0 && !isReadOnly && (
+                        <button
+                          onClick={() => { setRightTab("test"); }}
+                          className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 hover:bg-violet-500/20 text-violet-300 px-2.5 py-1.5 text-xs font-medium transition-colors"
+                        >
+                          <Zap className="h-3 w-3" />
+                          Run Chain
+                        </button>
+                      )}
+                    </div>
+
+                    <ChainBuilderEditor
+                      steps={editState.chainSteps}
+                      onChange={steps => { setEditState(s => ({ ...s, chainSteps: steps })); setIsDirty(true); }}
+                      templates={templates}
+                      readOnly={isReadOnly}
+                    />
+
+                    {/* Toolbar */}
+                    {!isReadOnly && editState.chainSteps.length > 0 && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-white/[0.06]">
+                        <button
+                          onClick={handleSave}
+                          disabled={isSaving || !editState.name.trim()}
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-300 px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
+                        >
+                          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                          {isSaving ? "Saving…" : isDirty ? "Save*" : "Saved"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                </>
               )}
             </div>
 
@@ -1095,12 +1455,155 @@ export function GrowthMindPromptStudio() {
 
                         <button
                           onClick={handleTest}
-                          disabled={isRunning}
+                          disabled={isRunning || isRunningChain}
                           className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-300 py-2 text-xs font-medium transition-colors disabled:opacity-50"
                         >
                           {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : abEnabled ? <Columns2 className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                           {isRunning ? (abEnabled ? "Running comparison…" : "Running…") : abEnabled ? "Run Side-by-Side Comparison" : "Run Generation"}
                         </button>
+
+                        {/* Chain runner — only shown when chain steps exist */}
+                        {editState.chainSteps.length > 0 && (
+                          <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.05] p-2.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Link2 className="h-3 w-3 text-violet-400 shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Chain Pipeline</p>
+                                <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                                  {editState.chainSteps.filter(s => s.templateId).length} of {editState.chainSteps.length} step{editState.chainSteps.length !== 1 ? "s" : ""} configured
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => setCenterTab("chain")}
+                                className="text-[10px] text-violet-400/70 hover:text-violet-300 transition-colors"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                            <button
+                              onClick={handleRunChain}
+                              disabled={isRunning || isRunningChain || editState.chainSteps.filter(s => s.templateId).length === 0}
+                              className="w-full flex items-center justify-center gap-2 rounded-lg bg-violet-500/15 hover:bg-violet-500/25 text-violet-300 py-2 text-xs font-medium transition-colors disabled:opacity-50"
+                            >
+                              {isRunningChain
+                                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Running chain…</>
+                                : <><Zap className="h-3.5 w-3.5" /> Run Chain ({editState.chainSteps.length} steps)</>
+                              }
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Chain output — per-step expandable results */}
+                        {chainOutput && (
+                          <div className="space-y-2">
+                            {chainOutput.error ? (
+                              <div className="rounded-lg border border-red-500/30 bg-red-500/[0.08] p-3">
+                                <p className="text-xs text-red-300">{chainOutput.error}</p>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <ListOrdered className="h-3 w-3 text-violet-400" />
+                                  <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Chain Results</p>
+                                  {chainOutput.totalCostUsd != null && (
+                                    <span className="ml-auto text-[9px] text-muted-foreground/50">${chainOutput.totalCostUsd.toFixed(5)} total</span>
+                                  )}
+                                </div>
+
+                                {/* Per-step cards */}
+                                {(chainOutput.steps ?? []).map((step: any) => {
+                                  const isExpanded = expandedChainStep === step.stepOrder;
+                                  const hasError   = !!step.error;
+                                  return (
+                                    <div
+                                      key={step.stepOrder}
+                                      className={cn(
+                                        "rounded-lg border overflow-hidden",
+                                        hasError
+                                          ? "border-red-500/20 bg-red-500/[0.04]"
+                                          : "border-violet-500/15 bg-violet-500/[0.04]",
+                                      )}
+                                    >
+                                      {/* Step header — click to expand/collapse */}
+                                      <button
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.02] transition-colors"
+                                        onClick={() => setExpandedChainStep(isExpanded ? null : step.stepOrder)}
+                                      >
+                                        <span className="h-4 w-4 rounded-full bg-violet-500/20 text-violet-300 text-[9px] font-bold flex items-center justify-center shrink-0">
+                                          {step.stepOrder}
+                                        </span>
+                                        <span className="flex-1 text-[11px] font-medium text-foreground truncate">{step.stepLabel || `Step ${step.stepOrder}`}</span>
+                                        <span className="text-[10px] text-muted-foreground/60 shrink-0">{step.templateName}</span>
+                                        {!hasError && (
+                                          <span className={cn("text-xs font-bold shrink-0 ml-1", scoreColor(step.scores?.overall ?? 0))}>
+                                            {(step.scores?.overall ?? 0).toFixed(1)}
+                                          </span>
+                                        )}
+                                        {isExpanded
+                                          ? <ChevronUp className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                                          : <ChevronDown className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                                        }
+                                      </button>
+
+                                      {/* Expanded step content */}
+                                      {isExpanded && (
+                                        <div className="border-t border-white/[0.04] px-3 py-2 space-y-2">
+                                          {hasError ? (
+                                            <p className="text-xs text-red-300">{step.error}</p>
+                                          ) : (
+                                            <>
+                                              {/* Score bars */}
+                                              <div className="space-y-1">
+                                                {Object.entries(SCORE_LABELS).map(([key, slabel]) => {
+                                                  const val = step.scores?.[key] ?? 0;
+                                                  return (
+                                                    <div key={key}>
+                                                      <div className="flex items-center justify-between mb-0.5">
+                                                        <span className="text-[9px] text-muted-foreground">{slabel}</span>
+                                                        <span className={cn("text-[9px] font-medium", scoreColor(val))}>{val}/10</span>
+                                                      </div>
+                                                      <div className="h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                                                        <div className={cn("h-full rounded-full", scoreBg(val))} style={{ width: `${val * 10}%` }} />
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+
+                                              {/* Output text */}
+                                              <div>
+                                                <div className="flex items-center justify-between mb-1">
+                                                  <p className="text-[9px] text-muted-foreground uppercase tracking-widest">Output</p>
+                                                  <span className="text-[9px] text-muted-foreground/50">{step.provider ?? "—"}/{step.model ?? "—"}</span>
+                                                </div>
+                                                <div className="rounded border border-white/[0.06] bg-black/20 p-2 max-h-40 overflow-y-auto">
+                                                  <p className="text-[10px] text-foreground/80 whitespace-pre-wrap leading-relaxed">{step.outputText}</p>
+                                                </div>
+                                                {step.costUsd != null && (
+                                                  <p className="text-[9px] text-muted-foreground/40 mt-0.5">${step.costUsd.toFixed(5)}</p>
+                                                )}
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Final output summary */}
+                                {chainOutput.finalOutput && (
+                                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] p-2.5">
+                                    <p className="text-[10px] text-emerald-400/70 uppercase tracking-widest font-medium mb-1.5">Final Output</p>
+                                    <div className="rounded border border-white/[0.06] bg-black/20 p-2 max-h-48 overflow-y-auto">
+                                      <p className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed">{chainOutput.finalOutput}</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
 
                         {/* Winner set confirmation */}
                         {winnerSet && !testOutput && (

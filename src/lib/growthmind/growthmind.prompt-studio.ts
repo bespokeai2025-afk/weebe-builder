@@ -16,11 +16,17 @@ export type PromptVariable = {
   defaultValue: string;
 };
 
+export type ChainStepMapping = {
+  toVar:    string; // variable name in this step's template
+  fromStep: number; // 0 = initial test inputs; N≥1 = full text output of step N
+};
+
 export type PromptChainStep = {
-  order:       number;
-  templateId:  string | null;
-  label:       string;
-  description: string;
+  order:         number;
+  templateId:    string | null;
+  label:         string;
+  description:   string;
+  inputMappings: ChainStepMapping[];
 };
 
 export type PromptTemplate = {
@@ -1382,6 +1388,225 @@ export const recordPromptTemplateUsage = createServerFn({ method: "POST" })
     }, { onConflict: "template_id,workspace_id" });
 
     return { ok: true };
+  });
+
+// ── runPromptChain ─────────────────────────────────────────────────────────────
+// Executes a multi-step prompt chain in sequence. The output of each step can
+// be fed as input to variables in the next step via inputMappings.
+
+export const runPromptChain = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      chainSteps: z.array(z.object({
+        order:         z.number(),
+        templateId:    z.string().uuid().nullable(),
+        label:         z.string(),
+        description:   z.string().default(""),
+        inputMappings: z.array(z.object({
+          toVar:    z.string(),
+          fromStep: z.number(),
+        })).default([]),
+      })),
+      inputVariables:   z.record(z.string()).default({}),
+      parentTemplateId: z.string().uuid().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    const settings    = (context as any).settings ?? {};
+    if (!workspaceId) throw new Error("No workspace");
+
+    // Fetch workspace context for variable hydration (best-effort)
+    let workspaceCtx: Record<string, string> = {};
+    try {
+      const { data: ws } = await sb
+        .from("workspace_settings")
+        .select("business_name, industry, target_audience, brand_voice, location, company_name")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (ws) {
+        workspaceCtx = {
+          business_name:   ws.business_name   ?? ws.company_name ?? "",
+          industry:        ws.industry        ?? "",
+          target_audience: ws.target_audience ?? "",
+          brand_voice:     ws.brand_voice     ?? "",
+          location:        ws.location        ?? "",
+        };
+      }
+    } catch { /* workspace_settings may not have all columns */ }
+
+    function fillVars(text: string, vars: Record<string, string>): string {
+      return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `[${key}]`);
+    }
+
+    const defaultScores = { quality: 7, completeness: 7, audience_fit: 7, brand_fit: 7, conversion_potential: 7, overall: 7 };
+
+    const sortedSteps = [...data.chainSteps].sort((a, b) => a.order - b.order);
+    const stepOutputTexts: string[] = []; // index 0 = step 1 output, etc.
+
+    const stepResults: Array<{
+      stepOrder:    number;
+      stepLabel:    string;
+      templateId:   string | null;
+      templateName: string;
+      outputText:   string;
+      outputId:     string | null;
+      scores:       typeof defaultScores;
+      model:        string | null;
+      provider:     string | null;
+      costUsd:      number | null;
+      error:        string | null;
+    }> = [];
+
+    for (const step of sortedSteps) {
+      if (!step.templateId) {
+        stepResults.push({
+          stepOrder: step.order, stepLabel: step.label,
+          templateId: null, templateName: "(no template)",
+          outputText: "", outputId: null, scores: { ...defaultScores },
+          model: null, provider: null, costUsd: null,
+          error: "No template selected for this step",
+        });
+        stepOutputTexts.push("");
+        continue;
+      }
+
+      const { data: tpl, error: te } = await sb
+        .from("growthmind_prompt_templates")
+        .select("*")
+        .eq("id", step.templateId)
+        .eq("workspace_id", workspaceId)
+        .single();
+
+      if (te) {
+        stepResults.push({
+          stepOrder: step.order, stepLabel: step.label,
+          templateId: step.templateId, templateName: "(error loading template)",
+          outputText: "", outputId: null, scores: { ...defaultScores },
+          model: null, provider: null, costUsd: null,
+          error: te.message,
+        });
+        stepOutputTexts.push("");
+        continue;
+      }
+
+      // Build this step's variable set: workspace ctx + initial inputs + mapped step outputs
+      const stepVars: Record<string, string> = { ...workspaceCtx, ...data.inputVariables };
+      for (const mapping of (step.inputMappings ?? [])) {
+        if (mapping.fromStep === 0) {
+          // fromStep 0 = use user's initial test inputs (already merged above)
+          stepVars[mapping.toVar] = data.inputVariables[mapping.toVar] ?? stepVars[mapping.toVar] ?? "";
+        } else {
+          // fromStep N (1-indexed) = full text output of step N
+          const prevText = stepOutputTexts[mapping.fromStep - 1];
+          if (prevText !== undefined) {
+            stepVars[mapping.toVar] = prevText;
+          }
+        }
+      }
+
+      let outputText = "";
+      let scores = { ...defaultScores };
+      let genModel: string | null   = null;
+      let genProvider: string | null = null;
+      let genCostUsd: number | null  = null;
+      let stepError: string | null   = null;
+
+      try {
+        const filledSystem = fillVars(tpl.system_prompt        ?? "", stepVars);
+        const filledUser   = fillVars(tpl.user_prompt_template ?? "", stepVars);
+
+        const genResult = await routeGenerate({
+          system:      filledSystem,
+          user:        filledUser,
+          contentType: tpl.type,
+          maxTokens:   1200,
+          mode:        "smart",
+          settings,
+          workspaceId,
+          sb,
+        });
+
+        outputText  = genResult.text;
+        genModel    = genResult.model;
+        genProvider = genResult.provider;
+        genCostUsd  = genResult.costUsd;
+
+        // Score the output
+        try {
+          const scoringResult = await routeGenerate({
+            system: `You are a prompt output evaluator. Score the provided AI output on 5 dimensions from 1-10. Return ONLY valid JSON.`,
+            user: `Score this AI output. Context: type="${tpl.type}"
+
+OUTPUT TO SCORE:
+${outputText.slice(0, 2000)}
+
+Return this JSON (integers 1-10 only):
+{"quality":0,"completeness":0,"audience_fit":0,"brand_fit":0,"conversion_potential":0,"overall":0}`,
+            contentType: "scoring",
+            maxTokens:   120,
+            mode:        "manual",
+            provider:    "openai",
+            model:       "gpt-4o-mini",
+            settings,
+            workspaceId,
+            sb,
+          });
+          const cleaned = scoringResult.text.replace(/```json|```/g, "").trim();
+          const parsed  = JSON.parse(cleaned);
+          scores = {
+            quality:              Math.min(10, Math.max(1, Number(parsed.quality)              || 7)),
+            completeness:         Math.min(10, Math.max(1, Number(parsed.completeness)         || 7)),
+            audience_fit:         Math.min(10, Math.max(1, Number(parsed.audience_fit)         || 7)),
+            brand_fit:            Math.min(10, Math.max(1, Number(parsed.brand_fit)            || 7)),
+            conversion_potential: Math.min(10, Math.max(1, Number(parsed.conversion_potential) || 7)),
+            overall:              Math.min(10, Math.max(1, Number(parsed.overall)              || 7)),
+          };
+        } catch { /* use default scores */ }
+      } catch (err: any) {
+        stepError  = err?.message ?? "Generation failed";
+        outputText = "";
+      }
+
+      // Persist in growthmind_prompt_test_outputs
+      const now = new Date().toISOString();
+      const { data: outputRow } = await sb.from("growthmind_prompt_test_outputs").insert({
+        workspace_id:    workspaceId,
+        template_id:     step.templateId,
+        variant_label:   `Chain-Step-${step.order}`,
+        input_variables: { ...stepVars, __chain_step_order__: String(step.order), __chain_step_label__: step.label, __parent_template_id__: data.parentTemplateId ?? "" },
+        output_text:     outputText.slice(0, 10000),
+        scores,
+        model_used:      genModel,
+        provider_used:   genProvider,
+        cost_usd:        genCostUsd,
+        created_at:      now,
+      }).select("id").maybeSingle();
+
+      stepOutputTexts.push(outputText);
+      stepResults.push({
+        stepOrder:    step.order,
+        stepLabel:    step.label,
+        templateId:   step.templateId,
+        templateName: tpl.name ?? "",
+        outputText,
+        outputId:     outputRow?.id ?? null,
+        scores,
+        model:        genModel,
+        provider:     genProvider,
+        costUsd:      genCostUsd,
+        error:        stepError,
+      });
+    }
+
+    const totalCost = stepResults.reduce((s, r) => s + (r.costUsd ?? 0), 0);
+    return {
+      steps:       stepResults,
+      finalOutput: stepOutputTexts[stepOutputTexts.length - 1] ?? "",
+      totalCostUsd: totalCost > 0 ? totalCost : null,
+    };
   });
 
 // ── getPromptPerformanceSummary ───────────────────────────────────────────────
