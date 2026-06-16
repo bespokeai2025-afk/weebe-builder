@@ -152,9 +152,14 @@ export function HexMailSettings() {
           postmark: { serverToken: postmark.apiKey, fromEmail: postmark.fromEmail, fromName: postmark.fromName },
         },
       }),
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       qc.invalidateQueries({ queryKey: ["hexmail-settings"] });
-      toast.success("Settings saved");
+      qc.invalidateQueries({ queryKey: ["resend-webhook-status"] });
+      if (result?.webhookRegistered) {
+        toast.success("Settings saved — Resend webhook registered automatically");
+      } else {
+        toast.success("Settings saved");
+      }
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed to save"),
   });

@@ -102,7 +102,18 @@ export const saveHexmailSettings = createServerFn({ method: "POST" })
       { onConflict: "workspace_id" },
     );
     if (error) throw new Error(error.message);
-    return { ok: true };
+
+    // Auto-register Resend webhook when a Resend API key is saved
+    let webhookRegistered = false;
+    if (data.resend.apiKey) {
+      try {
+        const { registerResendWebhookForWorkspace } = await import("@/lib/hexmail/deliverability.server");
+        const result = await registerResendWebhookForWorkspace(workspaceId);
+        webhookRegistered = !!(result as any)?.ok;
+      } catch { /* non-fatal — user can register manually from Deliverability */ }
+    }
+
+    return { ok: true, webhookRegistered };
   });
 
 export const testHexmailProvider = createServerFn({ method: "POST" })
