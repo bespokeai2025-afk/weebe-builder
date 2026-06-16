@@ -21,28 +21,30 @@ export const CAMPAIGN_TYPES = [
 export type CampaignTypeId = typeof CAMPAIGN_TYPES[number]["id"];
 
 export type CampaignDraft = {
-  id:               string;
-  workspaceId:      string;
-  campaignType:     string;
-  name:             string;
-  description:      string;
-  targetAudience:   string;
-  coreOffer:        string;
-  budget:           number | null;
-  goal:             string;
-  channels:         string[];
-  copyBlocks:       CopyCopyBlock[];
-  adStructure:      Record<string, unknown>;
-  sequence:         SequenceStep[];
-  kpis:             string[];
-  expectedOutcome:  string;
-  confidenceScore:  number;
-  evidence:         string;
-  hivemindActionId: string | null;
-  status:           "draft" | "sent_for_approval" | "approved" | "rejected";
-  generatedByModel: string | null;
-  lastCalculatedAt: string;
-  createdAt:        string;
+  id:                 string;
+  workspaceId:        string;
+  campaignType:       string;
+  name:               string;
+  description:        string;
+  targetAudience:     string;
+  coreOffer:          string;
+  budget:             number | null;
+  goal:               string;
+  channels:           string[];
+  copyBlocks:         CopyCopyBlock[];
+  adStructure:        Record<string, unknown>;
+  sequence:           SequenceStep[];
+  kpis:               string[];
+  expectedOutcome:    string;
+  confidenceScore:    number;
+  evidence:           string;
+  hivemindActionId:   string | null;
+  status:             "draft" | "sent_for_approval" | "approved" | "rejected";
+  generatedByModel:   string | null;
+  lastCalculatedAt:   string;
+  createdAt:          string;
+  sourceProposalId:   string | null;
+  sourceProposalTitle: string | null;
 };
 
 export type CopyCopyBlock = {
@@ -154,29 +156,32 @@ Write real, specific copy — not placeholders. Tailor everything to the busines
 }
 
 function mapRow(r: any): CampaignDraft {
+  const adStructure: Record<string, unknown> = r.ad_structure ?? {};
   return {
-    id:               r.id,
-    workspaceId:      r.workspace_id,
-    campaignType:     r.campaign_type,
-    name:             r.name,
-    description:      r.description,
-    targetAudience:   r.target_audience,
-    coreOffer:        r.core_offer,
-    budget:           r.budget != null ? Number(r.budget) : null,
-    goal:             r.goal,
-    channels:         r.channels ?? [],
-    copyBlocks:       r.copy_blocks ?? [],
-    adStructure:      r.ad_structure ?? {},
-    sequence:         r.sequence ?? [],
-    kpis:             r.kpis ?? [],
-    expectedOutcome:  r.expected_outcome,
-    confidenceScore:  Number(r.confidence_score),
-    evidence:         r.evidence,
-    hivemindActionId: r.hivemind_action_id ?? null,
-    status:           r.status ?? "draft",
-    generatedByModel: r.generated_by_model ?? null,
-    lastCalculatedAt: r.last_calculated_at,
-    createdAt:        r.created_at,
+    id:                  r.id,
+    workspaceId:         r.workspace_id,
+    campaignType:        r.campaign_type,
+    name:                r.name,
+    description:         r.description,
+    targetAudience:      r.target_audience,
+    coreOffer:           r.core_offer,
+    budget:              r.budget != null ? Number(r.budget) : null,
+    goal:                r.goal,
+    channels:            r.channels ?? [],
+    copyBlocks:          r.copy_blocks ?? [],
+    adStructure,
+    sequence:            r.sequence ?? [],
+    kpis:                r.kpis ?? [],
+    expectedOutcome:     r.expected_outcome,
+    confidenceScore:     Number(r.confidence_score),
+    evidence:            r.evidence,
+    hivemindActionId:    r.hivemind_action_id ?? null,
+    status:              r.status ?? "draft",
+    generatedByModel:    r.generated_by_model ?? null,
+    lastCalculatedAt:    r.last_calculated_at,
+    createdAt:           r.created_at,
+    sourceProposalId:    (adStructure.source_proposal_id as string) ?? null,
+    sourceProposalTitle: (adStructure.source_proposal_title as string) ?? null,
   };
 }
 
@@ -203,13 +208,14 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
     z.object({
-      campaignType:        z.string(),
-      budget:              z.number().nullable().default(null),
-      goal:                z.string().default(""),
-      sourceProposalId:    z.string().uuid().nullable().optional(),
-      proposalAudience:    z.string().optional(),
-      proposalChannels:    z.array(z.string()).optional(),
-      proposalContentPlan: z.string().optional(),
+      campaignType:         z.string(),
+      budget:               z.number().nullable().default(null),
+      goal:                 z.string().default(""),
+      sourceProposalId:     z.string().uuid().nullable().optional(),
+      sourceProposalTitle:  z.string().optional(),
+      proposalAudience:     z.string().optional(),
+      proposalChannels:     z.array(z.string()).optional(),
+      proposalContentPlan:  z.string().optional(),
     }).parse(data),
   )
   .handler(async ({ context, data: input }) => {
@@ -305,6 +311,7 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
       const adStructure = {
         ...(raw.ad_structure ?? {}),
         ...(input.sourceProposalId ? { source_proposal_id: input.sourceProposalId } : {}),
+        ...(input.sourceProposalTitle ? { source_proposal_title: input.sourceProposalTitle } : {}),
       };
 
       const { data: saved, error: insertErr } = await sb

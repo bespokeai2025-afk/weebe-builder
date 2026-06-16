@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   Rocket, Loader2, Send, Trash2, ChevronDown, ChevronUp,
   RefreshCw, DollarSign, Target, Copy, CheckCheck, Clapperboard,
-  ArrowLeftCircle, Megaphone,
+  ArrowLeftCircle, Megaphone, FileText,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,18 @@ function DraftCard({ draft, onDelete, onSend }: {
             <span className="text-[10px] text-muted-foreground/50">
               {Math.round(draft.confidenceScore * 100)}% confidence
             </span>
+            {draft.sourceProposalId && (
+              <button
+                type="button"
+                onClick={() => window.location.assign(`/growthmind/proposals?highlight=${draft.sourceProposalId}`)}
+                className="inline-flex items-center gap-1 text-[10px] rounded border border-amber-500/25 bg-amber-500/[0.08] text-amber-300 px-1.5 py-0.5 hover:bg-amber-500/[0.15] transition-colors"
+              >
+                <FileText className="h-2.5 w-2.5 shrink-0" />
+                {draft.sourceProposalTitle
+                  ? `From Proposal: ${draft.sourceProposalTitle.length > 28 ? draft.sourceProposalTitle.slice(0, 28) + "…" : draft.sourceProposalTitle}`
+                  : "From Proposal"}
+              </button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -270,13 +282,14 @@ function CampaignFactoryPage() {
     setGenerating(true);
     try {
       await generateFn({ data: {
-        campaignType:        selected,
-        budget:              budget ? Number(budget) : null,
+        campaignType:         selected,
+        budget:               budget ? Number(budget) : null,
         goal,
-        sourceProposalId:    proposal?.proposalId ?? null,
-        proposalAudience:    proposal?.audience   || undefined,
-        proposalChannels:    proposal?.channels.length ? proposal.channels : undefined,
-        proposalContentPlan: proposal?.contentPlan || undefined,
+        sourceProposalId:     proposal?.proposalId ?? null,
+        sourceProposalTitle:  proposal?.title || undefined,
+        proposalAudience:     proposal?.audience   || undefined,
+        proposalChannels:     proposal?.channels.length ? proposal.channels : undefined,
+        proposalContentPlan:  proposal?.contentPlan || undefined,
       }});
       await qc.invalidateQueries({ queryKey: ["growthmind-campaign-drafts"] });
       await qc.invalidateQueries({ queryKey: ["growthmind-all-proposals"] });

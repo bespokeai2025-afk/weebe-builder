@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -48,12 +48,23 @@ type VideoProposal = {
 
 type AnyProposal = CampaignProposal | VideoProposal;
 
-function CampaignCard({ proposal, onStatusChange, busy }: {
+function CampaignCard({ proposal, onStatusChange, busy, highlighted }: {
   proposal: CampaignProposal;
   onStatusChange: (id: string, type: "campaign" | "video", status: "approved" | "rejected" | "draft") => void;
   busy: boolean;
+  highlighted?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [isHighlighted, setIsHighlighted] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!highlighted) return;
+    setIsHighlighted(true);
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setIsHighlighted(false), 2000);
+    return () => clearTimeout(t);
+  }, [highlighted]);
 
   function launchInFactory() {
     const params = new URLSearchParams({ proposal: proposal.id, title: proposal.title });
@@ -64,8 +75,9 @@ function CampaignCard({ proposal, onStatusChange, busy }: {
   }
 
   return (
-    <div className={cn(
-      "rounded-xl border overflow-hidden transition-colors",
+    <div ref={cardRef} className={cn(
+      "rounded-xl border overflow-hidden transition-all duration-300",
+      isHighlighted && "ring-2 ring-amber-400/60",
       proposal.status === "approved"
         ? "border-emerald-500/20 bg-emerald-500/[0.02]"
         : proposal.status === "in_progress"
@@ -197,12 +209,23 @@ function CampaignCard({ proposal, onStatusChange, busy }: {
   );
 }
 
-function VideoCard({ proposal, onStatusChange, busy }: {
+function VideoCard({ proposal, onStatusChange, busy, highlighted }: {
   proposal: VideoProposal;
   onStatusChange: (id: string, type: "campaign" | "video", status: "approved" | "rejected" | "draft") => void;
   busy: boolean;
+  highlighted?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [isHighlighted, setIsHighlighted] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!highlighted) return;
+    setIsHighlighted(true);
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setIsHighlighted(false), 2000);
+    return () => clearTimeout(t);
+  }, [highlighted]);
 
   function openInVideoStudio() {
     const params = new URLSearchParams({
@@ -215,8 +238,9 @@ function VideoCard({ proposal, onStatusChange, busy }: {
   }
 
   return (
-    <div className={cn(
-      "rounded-xl border overflow-hidden transition-colors",
+    <div ref={cardRef} className={cn(
+      "rounded-xl border overflow-hidden transition-all duration-300",
+      isHighlighted && "ring-2 ring-amber-400/60",
       proposal.status === "approved"
         ? "border-pink-500/20 bg-pink-500/[0.02]"
         : proposal.status === "rejected"
@@ -355,12 +379,26 @@ export function GrowthMindProposals() {
   const qc                 = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const highlightConsumed  = useRef(false);
+
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const id = sp.get("highlight");
+    if (id) setHighlightId(id);
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["growthmind-all-proposals"],
     queryFn:  () => getProposalsFn(),
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (!highlightId || !data || highlightConsumed.current) return;
+    highlightConsumed.current = true;
+    setStatusFilter("all");
+  }, [highlightId, data]);
 
   const allProposals: AnyProposal[] = [
     ...(data?.campaigns ?? []),
@@ -487,6 +525,7 @@ export function GrowthMindProposals() {
                   proposal={proposal}
                   onStatusChange={handleStatusChange}
                   busy={busyIds.has(proposal.id)}
+                  highlighted={proposal.id === highlightId}
                 />
               ) : (
                 <VideoCard
@@ -494,6 +533,7 @@ export function GrowthMindProposals() {
                   proposal={proposal}
                   onStatusChange={handleStatusChange}
                   busy={busyIds.has(proposal.id)}
+                  highlighted={proposal.id === highlightId}
                 />
               )
             )}
