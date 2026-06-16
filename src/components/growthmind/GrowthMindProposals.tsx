@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   CheckCircle2, XCircle, Clock, Megaphone, Clapperboard, Rocket,
   Video, ChevronDown, ChevronUp, Loader2, Filter, Users, Target,
-  DollarSign, RotateCcw,
+  DollarSign, RotateCcw, Hammer,
 } from "lucide-react";
 import { GrowthMindShell } from "./GrowthMindShell";
 import { getAllProposals, updateProposalStatus } from "@/lib/executives/executive-bridge";
@@ -15,9 +15,10 @@ import { toast } from "sonner";
 type StatusFilter = "all" | "approved" | "draft" | "rejected";
 
 const STATUS_META: Record<string, { label: string; icon: React.ElementType; className: string }> = {
-  approved: { label: "Approved",  icon: CheckCircle2, className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" },
-  draft:    { label: "Draft",     icon: Clock,        className: "bg-slate-500/15 text-slate-400 border-slate-500/20" },
-  rejected: { label: "Dismissed", icon: XCircle,      className: "bg-red-500/15 text-red-400 border-red-500/20" },
+  approved:    { label: "Approved",    icon: CheckCircle2, className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20" },
+  draft:       { label: "Draft",       icon: Clock,        className: "bg-slate-500/15 text-slate-400 border-slate-500/20" },
+  rejected:    { label: "Dismissed",   icon: XCircle,      className: "bg-red-500/15 text-red-400 border-red-500/20" },
+  in_progress: { label: "In Progress", icon: Hammer,       className: "bg-amber-500/15 text-amber-400 border-amber-500/20" },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -35,7 +36,7 @@ type CampaignProposal = {
   id: string; type: "campaign"; title: string; reason: string; evidence: string;
   audience: string; expectedOutcome: string; budgetEstimate: string | null;
   contentPlan: string | null; videoPlan: string | null; channels: string[];
-  status: "draft" | "approved" | "rejected"; generatedAt: string;
+  status: "draft" | "approved" | "rejected" | "in_progress"; generatedAt: string;
 };
 
 type VideoProposal = {
@@ -55,10 +56,10 @@ function CampaignCard({ proposal, onStatusChange, busy }: {
   const [expanded, setExpanded] = useState(false);
 
   function launchInFactory() {
-    const params = new URLSearchParams({
-      proposal: proposal.id,
-      title: proposal.title,
-    });
+    const params = new URLSearchParams({ proposal: proposal.id, title: proposal.title });
+    if (proposal.audience)    params.set("audience",    proposal.audience.slice(0, 200));
+    if (proposal.contentPlan) params.set("contentPlan", proposal.contentPlan.slice(0, 400));
+    if (proposal.channels?.length) params.set("channels", proposal.channels.join(","));
     window.location.assign(`/growthmind/campaign-factory?${params.toString()}`);
   }
 
@@ -67,9 +68,11 @@ function CampaignCard({ proposal, onStatusChange, busy }: {
       "rounded-xl border overflow-hidden transition-colors",
       proposal.status === "approved"
         ? "border-emerald-500/20 bg-emerald-500/[0.02]"
-        : proposal.status === "rejected"
-          ? "border-red-500/10 bg-red-500/[0.01] opacity-75"
-          : "border-white/[0.06] bg-card/60",
+        : proposal.status === "in_progress"
+          ? "border-amber-500/20 bg-amber-500/[0.02]"
+          : proposal.status === "rejected"
+            ? "border-red-500/10 bg-red-500/[0.01] opacity-75"
+            : "border-white/[0.06] bg-card/60",
     )}>
       <div className="px-4 py-3.5 flex items-start gap-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 ring-1 ring-amber-500/20 mt-0.5">
@@ -142,10 +145,20 @@ function CampaignCard({ proposal, onStatusChange, busy }: {
               onClick={launchInFactory}
             >
               <Rocket className="h-3 w-3" />
-              Launch in Campaign Factory
+              Build in Campaign Factory
             </Button>
           )}
-          {proposal.status !== "approved" && (
+          {proposal.status === "in_progress" && (
+            <Button
+              size="sm" variant="outline"
+              className="h-7 text-[11px] gap-1.5 border-amber-500/25 text-amber-300 hover:bg-amber-500/10"
+              onClick={launchInFactory}
+            >
+              <Hammer className="h-3 w-3" />
+              View in Campaign Factory
+            </Button>
+          )}
+          {proposal.status !== "approved" && proposal.status !== "in_progress" && (
             <Button
               size="sm" variant="ghost"
               disabled={busy}
@@ -156,7 +169,7 @@ function CampaignCard({ proposal, onStatusChange, busy }: {
               Approve
             </Button>
           )}
-          {proposal.status === "approved" && (
+          {(proposal.status === "approved" || proposal.status === "in_progress") && (
             <Button
               size="sm" variant="ghost"
               disabled={busy}
@@ -167,7 +180,7 @@ function CampaignCard({ proposal, onStatusChange, busy }: {
               Move to Draft
             </Button>
           )}
-          {proposal.status !== "rejected" && (
+          {proposal.status !== "rejected" && proposal.status !== "in_progress" && (
             <Button
               size="sm" variant="ghost"
               disabled={busy}

@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import {
   Rocket, Loader2, Send, Trash2, ChevronDown, ChevronUp,
   RefreshCw, DollarSign, Target, Copy, CheckCheck, Clapperboard,
+  ArrowLeftCircle, Megaphone,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,31 @@ export const Route = createFileRoute("/_authenticated/growthmind/campaign-factor
   head: () => ({ meta: [{ title: "Campaign Factory — GrowthMind" }] }),
   component: CampaignFactoryPage,
 });
+
+type ProposalParams = {
+  proposalId:  string;
+  title:       string;
+  audience:    string;
+  channels:    string[];
+  contentPlan: string;
+};
+
+function useProposalParams(): ProposalParams | null {
+  const [params, setParams] = useState<ProposalParams | null>(null);
+  useEffect(() => {
+    const sp         = new URLSearchParams(window.location.search);
+    const proposalId = sp.get("proposal");
+    if (!proposalId) return;
+    setParams({
+      proposalId,
+      title:       sp.get("title") ?? "",
+      audience:    sp.get("audience") ?? "",
+      channels:    sp.get("channels") ? sp.get("channels")!.split(",").filter(Boolean) : [],
+      contentPlan: sp.get("contentPlan") ?? "",
+    });
+  }, []);
+  return params;
+}
 
 const STATUS_BADGE: Record<CampaignDraft["status"], { label: string; className: string }> = {
   draft:              { label: "Draft",         className: "bg-slate-500/15 text-slate-400" },
@@ -220,10 +246,16 @@ function CampaignFactoryPage() {
   const sendFn       = useServerFn(sendCampaignToHiveMind);
   const qc           = useQueryClient();
 
+  const proposal     = useProposalParams();
+
   const [selected,   setSelected]   = useState<CampaignTypeId | null>(null);
   const [budget,     setBudget]     = useState<string>("");
   const [goal,       setGoal]       = useState<string>("");
   const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    if (proposal?.contentPlan && !goal) setGoal(proposal.contentPlan.slice(0, 120));
+  }, [proposal]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["growthmind-campaign-drafts"],
@@ -238,11 +270,16 @@ function CampaignFactoryPage() {
     setGenerating(true);
     try {
       await generateFn({ data: {
-        campaignType: selected,
-        budget: budget ? Number(budget) : null,
+        campaignType:        selected,
+        budget:              budget ? Number(budget) : null,
         goal,
+        sourceProposalId:    proposal?.proposalId ?? null,
+        proposalAudience:    proposal?.audience   || undefined,
+        proposalChannels:    proposal?.channels.length ? proposal.channels : undefined,
+        proposalContentPlan: proposal?.contentPlan || undefined,
       }});
       await qc.invalidateQueries({ queryKey: ["growthmind-campaign-drafts"] });
+      await qc.invalidateQueries({ queryKey: ["growthmind-all-proposals"] });
       toast.success("Campaign draft generated");
     } catch (err: any) {
       toast.error(err.message ?? "Generation failed");
@@ -285,6 +322,41 @@ function CampaignFactoryPage() {
             <p className="text-xs text-muted-foreground">Generate campaign plans from your Business DNA · Drafts only — nothing auto-launches</p>
           </div>
         </div>
+
+        {/* From-proposal banner */}
+        {proposal && (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] px-4 py-3 flex items-start gap-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 ring-1 ring-amber-500/20 mt-0.5">
+              <Megaphone className="h-3.5 w-3.5 text-amber-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-amber-300 leading-snug">
+                Building from approved proposal
+              </p>
+              {proposal.title && (
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug truncate">{proposal.title}</p>
+              )}
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {proposal.audience && (
+                  <span className="text-[9px] rounded border border-amber-500/20 bg-amber-500/[0.06] text-amber-300 px-1.5 py-0.5">
+                    Audience: {proposal.audience.slice(0, 40)}{proposal.audience.length > 40 ? "…" : ""}
+                  </span>
+                )}
+                {proposal.channels.map(ch => (
+                  <span key={ch} className="text-[9px] rounded border border-amber-500/20 bg-amber-500/[0.06] text-amber-300 px-1.5 py-0.5">{ch}</span>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.location.assign("/growthmind/proposals")}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors shrink-0 mt-0.5"
+            >
+              <ArrowLeftCircle className="h-3.5 w-3.5" />
+              Proposals
+            </button>
+          </div>
+        )}
 
         {/* Generator panel */}
         <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-4">

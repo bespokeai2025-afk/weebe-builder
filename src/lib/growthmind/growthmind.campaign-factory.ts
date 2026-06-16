@@ -87,8 +87,21 @@ function buildCampaignPrompt(
   budget: number | null,
   goal: string,
   snapshot: Record<string, unknown>,
+  proposalContext?: {
+    audience?:    string;
+    channels?:    string[];
+    contentPlan?: string;
+  },
 ): string {
   const typeLabel = CAMPAIGN_TYPES.find(t => t.id === campaignType)?.label ?? campaignType;
+
+  const proposalSection = proposalContext && (proposalContext.audience || proposalContext.contentPlan || proposalContext.channels?.length)
+    ? `\n## Pre-Approved Proposal Context (use as primary guidance)
+${proposalContext.audience    ? `- Target Audience: ${proposalContext.audience}` : ""}
+${proposalContext.channels?.length ? `- Approved Channels: ${proposalContext.channels.join(", ")}` : ""}
+${proposalContext.contentPlan ? `- Content Plan Direction:\n${proposalContext.contentPlan}` : ""}
+`
+    : "";
 
   return `You are GrowthMind, an expert AI CMO. Generate a complete ${typeLabel} campaign draft.
 
@@ -98,7 +111,7 @@ ${dnaContext}
 - Total leads: ${snapshot.totalLeads ?? 0}
 - Conversion rate: ${((Number(snapshot.convRate ?? 0)) * 100).toFixed(1)}%
 - Avg deal value: ${snapshot.averageDealValue ?? "Unknown"}
-${valuePoint ? `\n## Current Highest Value Point\n${valuePoint}` : ""}
+${valuePoint ? `\n## Current Highest Value Point\n${valuePoint}` : ""}${proposalSection}
 
 ## Campaign Request
 - Type: ${typeLabel}
@@ -190,9 +203,13 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
     z.object({
-      campaignType: z.string(),
-      budget:       z.number().nullable().default(null),
-      goal:         z.string().default(""),
+      campaignType:        z.string(),
+      budget:              z.number().nullable().default(null),
+      goal:                z.string().default(""),
+      sourceProposalId:    z.string().uuid().nullable().optional(),
+      proposalAudience:    z.string().optional(),
+      proposalChannels:    z.array(z.string()).optional(),
+      proposalContentPlan: z.string().optional(),
     }).parse(data),
   )
   .handler(async ({ context, data: input }) => {
@@ -254,7 +271,14 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
       }) : "## Business DNA\nNot yet configured.";
 
       const valuePoint = (valuePointRes.data as any)?.current_highest_value ?? null;
-      const prompt = buildCampaignPrompt(input.campaignType, dnaContext, valuePoint, input.budget, input.goal, snapshot);
+      const proposalContext = (input.proposalAudience || input.proposalChannels?.length || input.proposalContentPlan)
+        ? {
+            audience:    input.proposalAudience,
+            channels:    input.proposalChannels,
+            contentPlan: input.proposalContentPlan,
+          }
+        : undefined;
+      const prompt = buildCampaignPrompt(input.campaignType, dnaContext, valuePoint, input.budget, input.goal, snapshot, proposalContext);
 
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -278,6 +302,11 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
       const inputTokens  = json.usage?.prompt_tokens     ?? 0;
       const outputTokens = json.usage?.completion_tokens ?? 0;
 
+      const adStructure = {
+        ...(raw.ad_structure ?? {}),
+        ...(input.sourceProposalId ? { source_proposal_id: input.sourceProposalId } : {}),
+      };
+
       const { data: saved, error: insertErr } = await sb
         .from("growthmind_campaign_drafts")
         .insert({
@@ -291,7 +320,7 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
           goal:               input.goal,
           channels:           raw.channels           ?? [],
           copy_blocks:        raw.copy_blocks        ?? [],
-          ad_structure:       raw.ad_structure       ?? {},
+          ad_structure:       adStructure,
           sequence:           raw.sequence           ?? [],
           kpis:               raw.kpis               ?? [],
           expected_outcome:   raw.expected_outcome   ?? "",
@@ -306,6 +335,15 @@ export const generateCampaignDraft = createServerFn({ method: "POST" })
         .single();
 
       if (insertErr) throw new Error(insertErr.message);
+
+      if (input.sourceProposalId) {
+        await sb
+          .from("growthmind_campaign_proposals")
+          .update({ status: "in_progress" })
+          .eq("id", input.sourceProposalId)
+          .eq("workspace_id", workspaceId)
+          .catch(() => {});
+      }
 
       await logAudit(sb, workspaceId, input.campaignType, "success", Date.now() - t0, model, inputTokens, outputTokens);
       return { draft: mapRow(saved) };

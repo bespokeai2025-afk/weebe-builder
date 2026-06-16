@@ -219,7 +219,7 @@ export const updateProposalStatus = createServerFn({ method: "POST" })
     z.object({
       proposalType: z.enum(["campaign", "video"]),
       proposalId:   z.string().uuid(),
-      status:       z.enum(["approved", "rejected", "draft"]),
+      status:       z.enum(["approved", "rejected", "draft", "in_progress"]),
     }).parse(input)
   )
   .handler(async ({ context, data }) => {
@@ -264,7 +264,7 @@ export const getAllProposals = createServerFn({ method: "GET" })
       id: r.id, type: "campaign" as const, title: r.title, reason: r.reason,
       evidence: r.evidence, audience: r.audience, expectedOutcome: r.expected_outcome,
       budgetEstimate: r.budget_estimate, contentPlan: r.content_plan, videoPlan: r.video_plan,
-      channels: r.channels ?? [], status: r.status as "draft" | "approved" | "rejected",
+      channels: r.channels ?? [], status: r.status as "draft" | "approved" | "rejected" | "in_progress",
       generatedAt: r.generated_at,
     }));
 
@@ -277,7 +277,7 @@ export const getAllProposals = createServerFn({ method: "GET" })
       generatedAt: r.generated_at,
     }));
 
-    const approvedCount = [...campaigns, ...videos].filter(p => p.status === "approved").length;
+    const approvedCount = [...campaigns, ...videos].filter(p => p.status === "approved" || p.status === "in_progress").length;
 
     return { campaigns, videos, approvedCount };
   });
