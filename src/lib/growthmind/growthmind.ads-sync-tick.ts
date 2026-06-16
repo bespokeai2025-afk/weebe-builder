@@ -15,7 +15,7 @@ function getAdminClient() {
 }
 
 export interface AdsSyncResult {
-  platform:         "meta" | "google" | "tiktok";
+  platform:         "meta" | "google" | "tiktok" | "linkedin";
   workspaceId:      string;
   campaignsSynced:  number;
   spendTotal:       number;
@@ -91,6 +91,22 @@ async function getGoogleCreds(sb: ReturnType<typeof getAdminClient>, workspaceId
   };
 }
 
+async function getLinkedInCreds(sb: ReturnType<typeof getAdminClient>, workspaceId: string): Promise<{ accessToken: string; accountId: string } | null> {
+  const { data: ps } = await sb
+    .from("provider_settings")
+    .select("credentials")
+    .eq("workspace_id", workspaceId)
+    .eq("provider_category", "advertising")
+    .eq("provider_name", "linkedin_ads")
+    .maybeSingle();
+
+  const c = (ps as any)?.credentials as Record<string, string> | undefined;
+  if (c?.accessToken && c?.accountId) {
+    return { accessToken: c.accessToken, accountId: c.accountId };
+  }
+  return null;
+}
+
 async function getTikTokCreds(sb: ReturnType<typeof getAdminClient>, workspaceId: string): Promise<{ accessToken: string; advertiserId: string } | null> {
   const { data: ps } = await sb
     .from("provider_settings")
@@ -149,7 +165,7 @@ async function upsertCampaigns(sb: ReturnType<typeof getAdminClient>, workspaceI
 async function generateAlerts(
   sb: ReturnType<typeof getAdminClient>,
   workspaceId: string,
-  platform: "meta" | "google" | "tiktok",
+  platform: "meta" | "google" | "tiktok" | "linkedin",
   campaigns: any[],
 ): Promise<void> {
   if (campaigns.length === 0) return;
@@ -168,7 +184,7 @@ async function generateAlerts(
   const blendedRoas      = totalSpend > 0 && totalRevenue > 0
     ? +(totalRevenue / totalSpend).toFixed(3) : 0;
 
-  const platformLabel = platform === "meta" ? "Meta" : platform === "tiktok" ? "TikTok" : "Google";
+  const platformLabel = platform === "meta" ? "Meta" : platform === "tiktok" ? "TikTok" : platform === "linkedin" ? "LinkedIn" : "Google";
 
   // ROAS drop alert — spending more than earning back
   if (totalSpend >= 10 && blendedRoas < 1) {
@@ -378,6 +394,39 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
     }
   } else {
     results.push({ platform: "tiktok", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "skipped" });
+  }
+
+  // ── LinkedIn ─────────────────────────────────────────────────────────────────
+  const liCreds = await getLinkedInCreds(sb, workspaceId);
+  if (liCreds) {
+    try {
+      const { syncLinkedInAdsCampaigns } = await import("./ads-sync-linkedin.server");
+      const campaigns = await syncLinkedInAdsCampaigns(liCreds.accessToken, liCreds.accountId);
+      await upsertCampaigns(sb, workspaceId, campaigns);
+
+      const totals = campaigns.reduce(
+        (a, c) => ({ spend: a.spend + c.spend, impressions: a.impressions + c.impressions, clicks: a.clicks + c.clicks, conversions: a.conversions + c.conversions }),
+        { spend: 0, impressions: 0, clicks: 0, conversions: 0 },
+      );
+
+      try {
+        await sb.from("growthmind_ad_sync_log").insert({
+          workspace_id: workspaceId, platform: "linkedin",
+          campaigns_synced: campaigns.length, spend_total: totals.spend,
+          impressions_total: totals.impressions, clicks_total: totals.clicks,
+          conversions_total: totals.conversions, status: "success",
+        });
+      } catch {}
+
+      try { await generateAlerts(sb, workspaceId, "linkedin", campaigns); } catch {}
+      results.push({ platform: "linkedin", workspaceId, campaignsSynced: campaigns.length, spendTotal: totals.spend, impressionsTotal: totals.impressions, clicksTotal: totals.clicks, conversionsTotal: totals.conversions, status: "success" });
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      try { await sb.from("growthmind_ad_sync_log").insert({ workspace_id: workspaceId, platform: "linkedin", status: "error", error_message: msg }); } catch {}
+      results.push({ platform: "linkedin", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "error", error: msg });
+    }
+  } else {
+    results.push({ platform: "linkedin", workspaceId, campaignsSynced: 0, spendTotal: 0, impressionsTotal: 0, clicksTotal: 0, conversionsTotal: 0, status: "skipped" });
   }
 
   return results;

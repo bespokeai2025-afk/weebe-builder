@@ -111,6 +111,10 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
     { key: "accessToken",  label: "Access Token",  type: "password", required: true, placeholder: "Your TikTok Marketing API long-lived access token" },
     { key: "advertiserId", label: "Advertiser ID", type: "text",     required: true, placeholder: "1234567890123" },
   ],
+  "advertising:linkedin_ads": [
+    { key: "accessToken", label: "OAuth Access Token",   type: "password", required: true, placeholder: "AQV..." },
+    { key: "accountId",   label: "Sponsored Account ID", type: "text",     required: true, placeholder: "123456789 (from Campaign Manager URL)" },
+  ],
   "knowledge:pinecone": [
     { key: "apiKey", label: "Pinecone API Key", type: "password", required: true },
     { key: "indexName", label: "Index Name", type: "text", required: true },
