@@ -3,7 +3,7 @@ import {
   TrendingUp, BarChart3, Lightbulb, FileText,
   MessageSquareMore, Target, Megaphone,
   BarChart2, Filter, BookOpen, Search, Swords, LineChart, Flag, Wand2,
-  CalendarDays, Rocket, Clapperboard, Dna, Database, Zap, Newspaper,
+  CalendarDays, Rocket, Clapperboard, Dna, Database, Zap, Newspaper, Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,7 @@ const CORE_NAV = [
 const STRATEGY_NAV = [
   { label: "Strategy",           href: "/growthmind/strategy",             icon: Target,      highlight: true },
   { label: "Campaign Factory",   href: "/growthmind/campaign-factory",     icon: Rocket,      highlight: true },
+  { label: "Email Campaigns",    href: "/growthmind/email-campaigns",      icon: Mail,        highlight: true },
   { label: "Data Sources",       href: "/growthmind/data-sources",         icon: Database },
   { label: "Campaigns",          href: "/growthmind/campaigns",            icon: Megaphone },
   { label: "Content Calendar",   href: "/growthmind/content-calendar",     icon: CalendarDays },

@@ -625,3 +625,445 @@ export const syncGscToKeywords = createServerFn({ method: "POST" })
 
     return { matched, total: keywords.length };
   });
+
+// ── SEO Briefs ────────────────────────────────────────────────────────────────
+
+export type SeoBrief = {
+  id:           string;
+  url:          string;
+  pageTitle:    string | null;
+  brief:        string;
+  targetKws:    string[];
+  wordCount:    number | null;
+  metaTitle:    string | null;
+  metaDesc:     string | null;
+  score:        number | null;
+  generatedAt:  string;
+  createdAt:    string;
+};
+
+export const listSeoBriefs = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data, error } = await sb
+      .from("growthmind_seo_briefs")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("generated_at", { ascending: false })
+      .limit(100);
+
+    if (error && error.code !== "42P01") throw new Error(error.message);
+    const briefs: SeoBrief[] = (data ?? []).map((r: any) => ({
+      id:          r.id,
+      url:         r.url,
+      pageTitle:   r.page_title ?? null,
+      brief:       r.brief,
+      targetKws:   r.target_kws ?? [],
+      wordCount:   r.word_count ?? null,
+      metaTitle:   r.meta_title ?? null,
+      metaDesc:    r.meta_desc ?? null,
+      score:       r.score ?? null,
+      generatedAt: r.generated_at,
+      createdAt:   r.created_at,
+    }));
+    return { briefs };
+  });
+
+export const generateSeoBrief = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      url:        z.string().url(),
+      pageTitle:  z.string().max(300).default(""),
+      targetKws:  z.array(z.string()).default([]),
+      wordCount:  z.number().int().nullable().default(null),
+    }).parse(input)
+  )
+  .handler(async ({ context, data: input }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+
+    const dnaRes = await sb
+      .from("growthmind_business_dna")
+      .select("company_name, industry, services, products, unique_selling_points, ideal_customer_profiles, brand_voice")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle()
+      .catch(() => ({ data: null }));
+
+    const dna = dnaRes?.data;
+    const dnaCtx = dna
+      ? [
+          dna.company_name ? `Company: ${dna.company_name}` : "",
+          dna.industry     ? `Industry: ${dna.industry}` : "",
+          dna.services     ? `Services: ${dna.services}` : "",
+          dna.products     ? `Products: ${dna.products}` : "",
+          dna.unique_selling_points ? `USPs: ${dna.unique_selling_points}` : "",
+          dna.ideal_customer_profiles ? `Ideal Customers: ${dna.ideal_customer_profiles}` : "",
+          dna.brand_voice  ? `Brand Voice: ${dna.brand_voice}` : "",
+        ].filter(Boolean).join("\n")
+      : "No business DNA configured.";
+
+    const kwList = input.targetKws.length > 0 ? input.targetKws.join(", ") : "Not specified";
+
+    const prompt = `You are GrowthMind, an expert SEO strategist and content architect.
+
+## Business Context
+${dnaCtx}
+
+## Page Details
+- URL: ${input.url}
+- Page Title: ${input.pageTitle || "Not specified"}
+- Target Keywords: ${kwList}
+- Target Word Count: ${input.wordCount ? `~${input.wordCount} words` : "Not specified"}
+
+## Instructions
+Generate a detailed on-page SEO brief. Respond ONLY with valid JSON (no markdown):
+{
+  "brief": "Full SEO brief with: purpose of page, content strategy, H1/H2/H3 structure, internal linking suggestions, semantic keywords to include, E-E-A-T signals to add, conversion intent alignment",
+  "metaTitle": "Optimised meta title (50-60 chars)",
+  "metaDesc": "Optimised meta description (140-160 chars)",
+  "score": 75,
+  "improvements": ["improvement 1", "improvement 2", "improvement 3"]
+}
+
+The brief should be specific, actionable, and tailored to the business above.`;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model:       "gpt-4o-mini",
+        messages:    [{ role: "user", content: prompt }],
+        temperature: 0.5,
+        max_tokens:  1500,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+    }
+
+    const json = await res.json() as any;
+    const raw  = json.choices?.[0]?.message?.content ?? "{}";
+    let parsed: any = {};
+    try {
+      const clean = raw.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+      parsed = JSON.parse(clean);
+    } catch {
+      parsed = { brief: raw, metaTitle: "", metaDesc: "", score: null, improvements: [] };
+    }
+
+    const now = new Date().toISOString();
+    const { data: row, error: insErr } = await sb
+      .from("growthmind_seo_briefs")
+      .insert({
+        workspace_id: workspaceId,
+        url:          input.url,
+        page_title:   input.pageTitle || null,
+        brief:        parsed.brief ?? "",
+        target_kws:   input.targetKws,
+        word_count:   input.wordCount,
+        meta_title:   parsed.metaTitle ?? null,
+        meta_desc:    parsed.metaDesc ?? null,
+        score:        parsed.score ?? null,
+        generated_at: now,
+        created_at:   now,
+      })
+      .select("*")
+      .single();
+
+    if (insErr) throw new Error(insErr.message);
+
+    return {
+      brief: {
+        id:          row.id,
+        url:         row.url,
+        pageTitle:   row.page_title ?? null,
+        brief:       row.brief,
+        targetKws:   row.target_kws ?? [],
+        wordCount:   row.word_count ?? null,
+        metaTitle:   row.meta_title ?? null,
+        metaDesc:    row.meta_desc ?? null,
+        score:       row.score ?? null,
+        generatedAt: row.generated_at,
+        createdAt:   row.created_at,
+      } as SeoBrief,
+      improvements: (parsed.improvements ?? []) as string[],
+    };
+  });
+
+export const deleteSeoBrief = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ id: z.string().uuid() }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { error } = await sb
+      .from("growthmind_seo_briefs")
+      .delete()
+      .eq("id", data.id)
+      .eq("workspace_id", workspaceId);
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ── Content Gap Analysis ──────────────────────────────────────────────────────
+
+export type ContentGapResult = {
+  generatedAt:   string;
+  gaps:          ContentGap[];
+  quickWins:     string[];
+  opportunities: string[];
+};
+
+export type ContentGap = {
+  topic:       string;
+  keywords:    string[];
+  intent:      "informational" | "navigational" | "transactional" | "commercial";
+  priority:    "high" | "medium" | "low";
+  rationale:   string;
+};
+
+export const generateContentGap = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+
+    const [dnaRes, siteRes, competitorsRes] = await Promise.all([
+      sb.from("growthmind_business_dna")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle()
+        .catch(() => ({ data: null })),
+      sb.from("growthmind_seo_sites")
+        .select("keywords, content_ideas")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .catch(() => ({ data: null })),
+      sb.from("growthmind_competitors")
+        .select("name, website, services, positioning")
+        .eq("workspace_id", workspaceId)
+        .limit(10)
+        .catch(() => ({ data: [] })),
+    ]);
+
+    const dna = dnaRes?.data;
+    const site = siteRes?.data;
+    const competitors = competitorsRes?.data ?? [];
+
+    const dnaCtx = dna
+      ? [
+          dna.company_name ? `Company: ${dna.company_name}` : "",
+          dna.industry     ? `Industry: ${dna.industry}` : "",
+          dna.services     ? `Services: ${dna.services}` : "",
+          dna.products     ? `Products: ${dna.products}` : "",
+          dna.unique_selling_points ? `USPs: ${dna.unique_selling_points}` : "",
+          dna.ideal_customer_profiles ? `Ideal Customers: ${dna.ideal_customer_profiles}` : "",
+          dna.target_markets ? `Target Markets: ${dna.target_markets}` : "",
+          dna.competitors_summary ? `Competitor Notes: ${dna.competitors_summary}` : "",
+        ].filter(Boolean).join("\n")
+      : "No business DNA configured.";
+
+    const trackedKws = ((site?.keywords ?? []) as any[]).map((k: any) => k.term).join(", ") || "None tracked";
+    const contentIdeas = ((site?.content_ideas ?? []) as any[]).map((c: any) => c.title).join(", ") || "None";
+    const competitorCtx = competitors.length > 0
+      ? competitors.map((c: any) => `- ${c.name} (${c.website}): ${c.services || ""} ${c.positioning || ""}`).join("\n")
+      : "No competitors tracked.";
+
+    const prompt = `You are GrowthMind, an expert SEO strategist.
+
+## Business Context
+${dnaCtx}
+
+## Current SEO State
+- Tracked keywords: ${trackedKws}
+- Existing content ideas: ${contentIdeas}
+
+## Competitors
+${competitorCtx}
+
+## Instructions
+Identify content gaps — topics and keywords the business should be ranking for but isn't targeting. Respond ONLY with valid JSON (no markdown):
+{
+  "gaps": [
+    {
+      "topic": "Topic/content page idea",
+      "keywords": ["primary keyword", "secondary kw"],
+      "intent": "informational|navigational|transactional|commercial",
+      "priority": "high|medium|low",
+      "rationale": "Why this gap matters for this business"
+    }
+  ],
+  "quickWins": ["3-5 quick win opportunities the business can act on this week"],
+  "opportunities": ["3-5 bigger strategic opportunities"]
+}
+
+Return 8-12 gaps. Focus on topics that directly support the business's revenue goals and ideal customer profile.`;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model:       "gpt-4o-mini",
+        messages:    [{ role: "user", content: prompt }],
+        temperature: 0.6,
+        max_tokens:  2000,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+    }
+
+    const json = await res.json() as any;
+    const raw  = json.choices?.[0]?.message?.content ?? "{}";
+    let parsed: any = {};
+    try {
+      const clean = raw.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+      parsed = JSON.parse(clean);
+    } catch {
+      throw new Error("Failed to parse AI content gap response");
+    }
+
+    return {
+      generatedAt:   new Date().toISOString(),
+      gaps:          (parsed.gaps          ?? []) as ContentGap[],
+      quickWins:     (parsed.quickWins     ?? []) as string[],
+      opportunities: (parsed.opportunities ?? []) as string[],
+    } as ContentGapResult;
+  });
+
+// ── Meta Tag Generator ────────────────────────────────────────────────────────
+
+export type MetaTagResult = {
+  url:         string;
+  metaTitle:   string;
+  metaDesc:    string;
+  ogTitle:     string;
+  ogDesc:      string;
+  slug:        string;
+  h1:          string;
+  schema:      string;
+};
+
+export const generateMetaTags = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      url:        z.string().url(),
+      pageTitle:  z.string().max(300).default(""),
+      targetKw:   z.string().max(200).default(""),
+      pageType:   z.enum(["homepage","service","product","blog","about","contact","landing"]).default("service"),
+    }).parse(input)
+  )
+  .handler(async ({ context, data: input }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw new Error("OPENAI_API_KEY not set");
+
+    const dnaRes = await sb
+      .from("growthmind_business_dna")
+      .select("company_name, industry, services, unique_selling_points, brand_voice, locations")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle()
+      .catch(() => ({ data: null }));
+
+    const dna = dnaRes?.data;
+    const dnaCtx = dna
+      ? [
+          dna.company_name ? `Company: ${dna.company_name}` : "",
+          dna.industry     ? `Industry: ${dna.industry}` : "",
+          dna.services     ? `Services: ${dna.services}` : "",
+          dna.unique_selling_points ? `USPs: ${dna.unique_selling_points}` : "",
+          dna.brand_voice  ? `Brand Voice: ${dna.brand_voice}` : "",
+          dna.locations    ? `Locations: ${dna.locations}` : "",
+        ].filter(Boolean).join("\n")
+      : "No business DNA configured.";
+
+    const prompt = `You are GrowthMind, an expert technical SEO specialist.
+
+## Business Context
+${dnaCtx}
+
+## Page Request
+- URL: ${input.url}
+- Page Title/Topic: ${input.pageTitle || "Not specified"}
+- Primary Target Keyword: ${input.targetKw || "Not specified"}
+- Page Type: ${input.pageType}
+
+## Instructions
+Generate optimised meta tags and page SEO elements. Respond ONLY with valid JSON (no markdown):
+{
+  "metaTitle": "Meta title 50-60 chars, include primary keyword near start",
+  "metaDesc": "Meta description 140-160 chars, compelling, include keyword naturally",
+  "ogTitle": "Open Graph title for social sharing (can be slightly more engaging)",
+  "ogDesc": "OG description for social sharing",
+  "slug": "url-friendly-slug-for-this-page",
+  "h1": "H1 heading for the page",
+  "schema": "JSON-LD schema markup as a string (LocalBusiness or Service schema appropriate for this page)"
+}
+
+Optimise for both search engines and click-through rate. Make the meta description a genuine value proposition.`;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model:       "gpt-4o-mini",
+        messages:    [{ role: "user", content: prompt }],
+        temperature: 0.4,
+        max_tokens:  1000,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI error: ${err.slice(0, 200)}`);
+    }
+
+    const json = await res.json() as any;
+    const raw  = json.choices?.[0]?.message?.content ?? "{}";
+    let parsed: any = {};
+    try {
+      const clean = raw.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+      parsed = JSON.parse(clean);
+    } catch {
+      throw new Error("Failed to parse AI meta tag response");
+    }
+
+    return {
+      url:       input.url,
+      metaTitle: parsed.metaTitle ?? "",
+      metaDesc:  parsed.metaDesc  ?? "",
+      ogTitle:   parsed.ogTitle   ?? "",
+      ogDesc:    parsed.ogDesc    ?? "",
+      slug:      parsed.slug      ?? "",
+      h1:        parsed.h1        ?? "",
+      schema:    parsed.schema    ?? "",
+    } as MetaTagResult;
+  });

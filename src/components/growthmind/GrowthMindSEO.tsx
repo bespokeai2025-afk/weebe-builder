@@ -6,7 +6,7 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   Search, Loader2, RefreshCw, Plus, Trash2,
   Sparkles, ExternalLink, Check, X, Edit2, Globe,
-  Upload, FileText, AlertCircle,
+  Upload, FileText, AlertCircle, Copy,
   Link2, Link2Off, BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,9 +28,17 @@ import {
   saveGscProperty,
   fetchGscQueries,
   syncGscToKeywords,
+  listSeoBriefs,
+  generateSeoBrief,
+  deleteSeoBrief,
+  generateContentGap,
+  generateMetaTags,
   type SeoKeyword,
   type ContentIdea,
   type GscQuery,
+  type SeoBrief,
+  type ContentGapResult,
+  type MetaTagResult,
 } from "@/lib/growthmind/growthmind.seo";
 import { HiveMindReportBanner } from "./HiveMindReportBanner";
 
@@ -1120,7 +1128,481 @@ function findBestGscMatch(siteUrl: string, properties: string[]): string | null 
   return null;
 }
 
+// ── SEO Briefs Tab ────────────────────────────────────────────────────────────
+
+function SeoBriefsSection() {
+  const listFn     = useServerFn(listSeoBriefs);
+  const genFn      = useServerFn(generateSeoBrief);
+  const deleteFn   = useServerFn(deleteSeoBrief);
+  const qc         = useQueryClient();
+
+  const [url,       setUrl]       = useState("");
+  const [pageTitle, setPageTitle] = useState("");
+  const [kwInput,   setKwInput]   = useState("");
+  const [wordCount, setWordCount] = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+  const [expanded,  setExpanded]  = useState<string | null>(null);
+  const [deleting,  setDeleting]  = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey:  ["seo-briefs"],
+    queryFn:   () => listFn(),
+    staleTime: 60_000,
+  });
+
+  const briefs: SeoBrief[] = data?.briefs ?? [];
+
+  async function generate() {
+    setLoading(true);
+    setError(null);
+    try {
+      const kws = kwInput.split(",").map(k => k.trim()).filter(Boolean);
+      await genFn({ data: { url, pageTitle, targetKws: kws, wordCount: wordCount ? parseInt(wordCount) : null } });
+      qc.invalidateQueries({ queryKey: ["seo-briefs"] });
+      setUrl(""); setPageTitle(""); setKwInput(""); setWordCount("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Generation failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setDeleting(id);
+    try {
+      await deleteFn({ data: { id } });
+      qc.invalidateQueries({ queryKey: ["seo-briefs"] });
+    } catch {
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  const scoreColor = (s: number | null) =>
+    s == null ? "text-muted-foreground" :
+    s >= 80   ? "text-emerald-400" :
+    s >= 60   ? "text-amber-400"   : "text-red-400";
+
+  return (
+    <div className="space-y-5">
+      {/* Generate form */}
+      <div className="rounded-xl border border-white/[0.08] bg-card/60 p-5 space-y-4">
+        <p className="text-sm font-semibold flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-emerald-400" />
+          Generate SEO Brief
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Page URL *</Label>
+            <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yoursite.com/service-page" className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Page Title / Topic *</Label>
+            <Input value={pageTitle} onChange={e => setPageTitle(e.target.value)} placeholder="e.g. Solar Panel Installation Services" className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Target Keywords (comma-separated)</Label>
+            <Input value={kwInput} onChange={e => setKwInput(e.target.value)} placeholder="solar installation, solar panels Sydney" className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Target Word Count</Label>
+            <Input type="number" value={wordCount} onChange={e => setWordCount(e.target.value)} placeholder="e.g. 1500" className="h-8 text-xs" />
+          </div>
+        </div>
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-400">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            {error}
+          </div>
+        )}
+        <Button
+          size="sm"
+          onClick={generate}
+          disabled={loading || !url || !pageTitle}
+          className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          {loading ? "Generating brief…" : "Generate Brief"}
+        </Button>
+      </div>
+
+      {/* Briefs list */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
+          <span className="text-sm">Loading briefs…</span>
+        </div>
+      ) : briefs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+          <FileText className="h-8 w-8 text-muted-foreground/30 mb-3" />
+          <p className="text-sm">No SEO briefs yet. Generate your first one above.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {briefs.map(b => (
+            <div key={b.id} className="rounded-xl border border-white/[0.06] bg-card/40 overflow-hidden">
+              <div className="flex items-start gap-3 p-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium truncate">{b.pageTitle || b.url}</p>
+                    {b.score != null && (
+                      <span className={cn("text-[11px] font-semibold", scoreColor(b.score))}>{b.score}/100</span>
+                    )}
+                  </div>
+                  <a href={b.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-emerald-400/70 hover:text-emerald-400 flex items-center gap-1 mt-0.5">
+                    {b.url}
+                    <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                  </a>
+                  {b.targetKws.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {b.targetKws.map(k => (
+                        <span key={k} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground/60">{k}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => setExpanded(expanded === b.id ? null : b.id)}
+                    className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                    title="View brief"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(b.id)}
+                    disabled={deleting === b.id}
+                    className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+                  >
+                    {deleting === b.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+              {expanded === b.id && (
+                <div className="px-4 pb-4 border-t border-white/[0.04] pt-3 space-y-3">
+                  {b.metaTitle && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-1">Meta Title</p>
+                      <p className="text-xs font-medium text-emerald-300">{b.metaTitle}</p>
+                    </div>
+                  )}
+                  {b.metaDesc && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-1">Meta Description</p>
+                      <p className="text-xs text-muted-foreground/80">{b.metaDesc}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-1">SEO Brief</p>
+                    <p className="text-xs text-muted-foreground/70 whitespace-pre-line">{b.brief}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Content Gap Tab ───────────────────────────────────────────────────────────
+
+function ContentGapSection() {
+  const genFn   = useServerFn(generateContentGap);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
+  const [result,  setResult]  = useState<ContentGapResult | null>(null);
+
+  async function generate() {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await genFn();
+      setResult(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Analysis failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const INTENT_COLORS: Record<string, string> = {
+    informational: "border-blue-500/30 bg-blue-500/10 text-blue-400",
+    navigational:  "border-slate-500/30 bg-slate-500/10 text-slate-400",
+    transactional: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    commercial:    "border-amber-500/30 bg-amber-500/10 text-amber-400",
+  };
+
+  const PRIORITY_COLORS: Record<string, string> = {
+    high:   "text-red-400",
+    medium: "text-amber-400",
+    low:    "text-muted-foreground",
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-white/[0.08] bg-card/60 p-5 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">AI Content Gap Analysis</p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">Discover topics and keywords you should be targeting but aren't</p>
+        </div>
+        <Button
+          size="sm"
+          onClick={generate}
+          disabled={loading}
+          className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 shrink-0"
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          {loading ? "Analysing…" : result ? "Re-analyse" : "Analyse Gaps"}
+        </Button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-400">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {!result && !loading && (
+        <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+          <BarChart2 className="h-8 w-8 text-muted-foreground/30 mb-3" />
+          <p className="text-sm">Run an analysis to uncover your content gaps</p>
+          <p className="text-xs text-muted-foreground/50 mt-1">Uses your Business DNA, tracked keywords, and competitor data</p>
+        </div>
+      )}
+
+      {result && (
+        <div className="space-y-5">
+          {/* Quick wins */}
+          {result.quickWins.length > 0 && (
+            <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-4 space-y-2">
+              <p className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                <Check className="h-3.5 w-3.5" />
+                Quick Wins This Week
+              </p>
+              <ul className="space-y-1">
+                {result.quickWins.map((w, i) => (
+                  <li key={i} className="text-xs text-muted-foreground/80 flex items-start gap-2">
+                    <span className="text-emerald-400/60 shrink-0">→</span>
+                    {w}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Gaps grid */}
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground/50 uppercase tracking-[0.08em] mb-3">Content Gaps ({result.gaps.length})</h3>
+            <div className="space-y-2.5">
+              {result.gaps.map((gap, i) => (
+                <div key={i} className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-2.5">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{gap.topic}</p>
+                        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize", INTENT_COLORS[gap.intent] ?? "border-white/10 text-muted-foreground")}>
+                          {gap.intent}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground/60 mt-0.5">{gap.rationale}</p>
+                    </div>
+                    <span className={cn("text-xs font-semibold capitalize shrink-0", PRIORITY_COLORS[gap.priority])}>
+                      {gap.priority}
+                    </span>
+                  </div>
+                  {gap.keywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {gap.keywords.map(k => (
+                        <span key={k} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-muted-foreground/60">{k}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Opportunities */}
+          {result.opportunities.length > 0 && (
+            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-2">
+              <p className="text-xs font-semibold text-foreground/60 uppercase tracking-widest">Strategic Opportunities</p>
+              <ul className="space-y-1">
+                {result.opportunities.map((o, i) => (
+                  <li key={i} className="text-xs text-muted-foreground/80 flex items-start gap-2">
+                    <span className="text-amber-400/60 shrink-0">→</span>
+                    {o}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Meta Tags Tab ─────────────────────────────────────────────────────────────
+
+function MetaTagsSection() {
+  const genFn = useServerFn(generateMetaTags);
+  const [url,       setUrl]       = useState("");
+  const [pageTitle, setPageTitle] = useState("");
+  const [targetKw,  setTargetKw]  = useState("");
+  const [pageType,  setPageType]  = useState<"homepage"|"service"|"product"|"blog"|"about"|"contact"|"landing">("service");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
+  const [result,    setResult]    = useState<MetaTagResult | null>(null);
+  const [copied,    setCopied]    = useState<string | null>(null);
+
+  async function generate() {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await genFn({ data: { url, pageTitle, targetKw, pageType } });
+      setResult(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Generation failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copy(text: string, key: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  function CopyButton({ value, id }: { value: string; id: string }) {
+    return (
+      <button
+        onClick={() => copy(value, id)}
+        className="rounded border border-white/[0.06] p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
+        title="Copy"
+      >
+        {copied === id ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+      </button>
+    );
+  }
+
+  function ResultField({ label, value, id, mono }: { label: string; value: string; id: string; mono?: boolean }) {
+    const len = value.length;
+    const isSubj = id === "metaTitle";
+    const isMeta = id === "metaDesc";
+    const warn = (isSubj && len > 60) || (isMeta && len > 160);
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">{label}</p>
+          <div className="flex items-center gap-2">
+            {(isSubj || isMeta) && (
+              <span className={cn("text-[10px]", warn ? "text-amber-400" : "text-muted-foreground/40")}>
+                {len}/{isSubj ? "60" : "160"}
+              </span>
+            )}
+            <CopyButton value={value} id={id} />
+          </div>
+        </div>
+        <p className={cn("text-xs rounded-lg bg-white/[0.02] border border-white/[0.06] px-3 py-2", mono && "font-mono text-[11px]")}>{value}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-white/[0.08] bg-card/60 p-5 space-y-4">
+        <p className="text-sm font-semibold flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-emerald-400" />
+          Generate Meta Tags
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Page URL *</Label>
+            <Input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yoursite.com/page" className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Page Title / Topic</Label>
+            <Input value={pageTitle} onChange={e => setPageTitle(e.target.value)} placeholder="e.g. Emergency Plumber Sydney" className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Primary Target Keyword</Label>
+            <Input value={targetKw} onChange={e => setTargetKw(e.target.value)} placeholder="e.g. emergency plumber sydney" className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Page Type</Label>
+            <select
+              value={pageType}
+              onChange={e => setPageType(e.target.value as typeof pageType)}
+              className="w-full h-8 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 text-xs focus:outline-none focus:border-emerald-500/40"
+            >
+              {(["homepage","service","product","blog","about","contact","landing"] as const).map(t => (
+                <option key={t} value={t} className="bg-[#0f1117] capitalize">{t}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {error && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-400">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            {error}
+          </div>
+        )}
+        <Button
+          size="sm"
+          onClick={generate}
+          disabled={loading || !url}
+          className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
+        >
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          {loading ? "Generating…" : "Generate Meta Tags"}
+        </Button>
+      </div>
+
+      {!result && !loading && (
+        <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+          <Link2 className="h-8 w-8 text-muted-foreground/30 mb-3" />
+          <p className="text-sm">Generate AI-optimised meta tags for any page</p>
+          <p className="text-xs text-muted-foreground/50 mt-1">Includes meta title, description, OG tags, H1, URL slug, and JSON-LD schema</p>
+        </div>
+      )}
+
+      {result && (
+        <div className="rounded-xl border border-white/[0.06] bg-card/40 p-5 space-y-4">
+          <ResultField label="Meta Title"        value={result.metaTitle}  id="metaTitle" />
+          <ResultField label="Meta Description"  value={result.metaDesc}   id="metaDesc" />
+          <ResultField label="OG Title"          value={result.ogTitle}    id="ogTitle" />
+          <ResultField label="OG Description"    value={result.ogDesc}     id="ogDesc" />
+          <ResultField label="H1 Heading"        value={result.h1}         id="h1" />
+          <ResultField label="URL Slug"          value={result.slug}       id="slug" mono />
+          {result.schema && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">JSON-LD Schema</p>
+                <button
+                  onClick={() => copy(result.schema, "schema")}
+                  className="rounded border border-white/[0.06] p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
+                >
+                  {copied === "schema" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                </button>
+              </div>
+              <pre className="text-[10px] font-mono rounded-lg bg-white/[0.02] border border-white/[0.06] px-3 py-2 overflow-x-auto text-muted-foreground/60 whitespace-pre-wrap">{result.schema}</pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
+
+type SeoTab = "keywords" | "briefs" | "gap" | "metatags";
 
 export function GrowthMindSEO() {
   const qc            = useQueryClient();
@@ -1138,6 +1620,8 @@ export function GrowthMindSEO() {
   const savePropFn    = useServerFn(saveGscProperty);
   const syncGscFn     = useServerFn(syncGscToKeywords);
   const navigate      = useNavigate();
+
+  const [seoTab, setSeoTab] = useState<SeoTab>("keywords");
 
   const [urlInput, setUrlInput]         = useState("");
   const [saving, setSaving]             = useState(false);
@@ -1559,6 +2043,31 @@ export function GrowthMindSEO() {
           </div>
         </div>
 
+        {/* SEO Tab bar */}
+        <div className="flex gap-1 mb-5 border-b border-white/[0.06]">
+          {([
+            { id: "keywords" as SeoTab, label: "Keywords & Tracking", icon: Search },
+            { id: "briefs"   as SeoTab, label: "SEO Briefs",          icon: FileText },
+            { id: "gap"      as SeoTab, label: "Content Gap",         icon: BarChart2 },
+            { id: "metatags" as SeoTab, label: "Meta Tags",           icon: Link2 },
+          ]).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setSeoTab(t.id)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+                seoTab === t.id
+                  ? "border-emerald-400 text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <t.icon className="h-3.5 w-3.5" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {seoTab === "keywords" && (<>
         <HiveMindReportBanner domain="SEO" briefing={aiInsight} />
 
         {isLoading ? (
@@ -1982,6 +2491,11 @@ export function GrowthMindSEO() {
             )}
           </div>
         )}
+        </>)}
+
+        {seoTab === "briefs"   && <SeoBriefsSection />}
+        {seoTab === "gap"      && <ContentGapSection />}
+        {seoTab === "metatags" && <MetaTagsSection />}
       </div>
 
       {/* CSV import modal */}

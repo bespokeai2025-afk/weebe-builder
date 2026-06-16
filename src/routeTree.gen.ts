@@ -111,6 +111,7 @@ import { Route as AuthenticatedGrowthmindGoalsRouteImport } from './routes/_auth
 import { Route as AuthenticatedGrowthmindFunnelsRouteImport } from './routes/_authenticated/growthmind.funnels'
 import { Route as AuthenticatedGrowthmindForecastRouteImport } from './routes/_authenticated/growthmind.forecast'
 import { Route as AuthenticatedGrowthmindEmailReadinessRouteImport } from './routes/_authenticated/growthmind.email-readiness'
+import { Route as AuthenticatedGrowthmindEmailCampaignsRouteImport } from './routes/_authenticated/growthmind.email-campaigns'
 import { Route as AuthenticatedGrowthmindDataSourcesRouteImport } from './routes/_authenticated/growthmind.data-sources'
 import { Route as AuthenticatedGrowthmindContentStudioRouteImport } from './routes/_authenticated/growthmind.content-studio'
 import { Route as AuthenticatedGrowthmindContentCalendarRouteImport } from './routes/_authenticated/growthmind.content-calendar'
@@ -740,6 +741,12 @@ const AuthenticatedGrowthmindEmailReadinessRoute =
     path: '/email-readiness',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindEmailCampaignsRoute =
+  AuthenticatedGrowthmindEmailCampaignsRouteImport.update({
+    id: '/email-campaigns',
+    path: '/email-campaigns',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindDataSourcesRoute =
   AuthenticatedGrowthmindDataSourcesRouteImport.update({
     id: '/data-sources',
@@ -1126,6 +1133,7 @@ export interface FileRoutesByFullPath {
   '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/growthmind/data-sources': typeof AuthenticatedGrowthmindDataSourcesRoute
+  '/growthmind/email-campaigns': typeof AuthenticatedGrowthmindEmailCampaignsRoute
   '/growthmind/email-readiness': typeof AuthenticatedGrowthmindEmailReadinessRoute
   '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
@@ -1282,6 +1290,7 @@ export interface FileRoutesByTo {
   '/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/growthmind/data-sources': typeof AuthenticatedGrowthmindDataSourcesRoute
+  '/growthmind/email-campaigns': typeof AuthenticatedGrowthmindEmailCampaignsRoute
   '/growthmind/email-readiness': typeof AuthenticatedGrowthmindEmailReadinessRoute
   '/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
@@ -1445,6 +1454,7 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/content-calendar': typeof AuthenticatedGrowthmindContentCalendarRoute
   '/_authenticated/growthmind/content-studio': typeof AuthenticatedGrowthmindContentStudioRoute
   '/_authenticated/growthmind/data-sources': typeof AuthenticatedGrowthmindDataSourcesRoute
+  '/_authenticated/growthmind/email-campaigns': typeof AuthenticatedGrowthmindEmailCampaignsRoute
   '/_authenticated/growthmind/email-readiness': typeof AuthenticatedGrowthmindEmailReadinessRoute
   '/_authenticated/growthmind/forecast': typeof AuthenticatedGrowthmindForecastRoute
   '/_authenticated/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
@@ -1608,6 +1618,7 @@ export interface FileRouteTypes {
     | '/growthmind/content-calendar'
     | '/growthmind/content-studio'
     | '/growthmind/data-sources'
+    | '/growthmind/email-campaigns'
     | '/growthmind/email-readiness'
     | '/growthmind/forecast'
     | '/growthmind/funnels'
@@ -1764,6 +1775,7 @@ export interface FileRouteTypes {
     | '/growthmind/content-calendar'
     | '/growthmind/content-studio'
     | '/growthmind/data-sources'
+    | '/growthmind/email-campaigns'
     | '/growthmind/email-readiness'
     | '/growthmind/forecast'
     | '/growthmind/funnels'
@@ -1926,6 +1938,7 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/content-calendar'
     | '/_authenticated/growthmind/content-studio'
     | '/_authenticated/growthmind/data-sources'
+    | '/_authenticated/growthmind/email-campaigns'
     | '/_authenticated/growthmind/email-readiness'
     | '/_authenticated/growthmind/forecast'
     | '/_authenticated/growthmind/funnels'
@@ -2818,6 +2831,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindEmailReadinessRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/email-campaigns': {
+      id: '/_authenticated/growthmind/email-campaigns'
+      path: '/email-campaigns'
+      fullPath: '/growthmind/email-campaigns'
+      preLoaderRoute: typeof AuthenticatedGrowthmindEmailCampaignsRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/data-sources': {
       id: '/_authenticated/growthmind/data-sources'
       path: '/data-sources'
@@ -3258,6 +3278,7 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindContentCalendarRoute: typeof AuthenticatedGrowthmindContentCalendarRoute
   AuthenticatedGrowthmindContentStudioRoute: typeof AuthenticatedGrowthmindContentStudioRoute
   AuthenticatedGrowthmindDataSourcesRoute: typeof AuthenticatedGrowthmindDataSourcesRoute
+  AuthenticatedGrowthmindEmailCampaignsRoute: typeof AuthenticatedGrowthmindEmailCampaignsRoute
   AuthenticatedGrowthmindEmailReadinessRoute: typeof AuthenticatedGrowthmindEmailReadinessRoute
   AuthenticatedGrowthmindForecastRoute: typeof AuthenticatedGrowthmindForecastRoute
   AuthenticatedGrowthmindFunnelsRoute: typeof AuthenticatedGrowthmindFunnelsRoute
@@ -3293,6 +3314,8 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
       AuthenticatedGrowthmindContentStudioRoute,
     AuthenticatedGrowthmindDataSourcesRoute:
       AuthenticatedGrowthmindDataSourcesRoute,
+    AuthenticatedGrowthmindEmailCampaignsRoute:
+      AuthenticatedGrowthmindEmailCampaignsRoute,
     AuthenticatedGrowthmindEmailReadinessRoute:
       AuthenticatedGrowthmindEmailReadinessRoute,
     AuthenticatedGrowthmindForecastRoute: AuthenticatedGrowthmindForecastRoute,
