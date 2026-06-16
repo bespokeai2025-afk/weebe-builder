@@ -354,21 +354,24 @@ export const toggleFavourite = createServerFn({ method: "POST" })
   });
 
 const briefSchema = z.object({
-  contentType:    z.string().min(1),
-  businessType:   z.string().default(""),
-  targetAudience: z.string().default(""),
-  offer:          z.string().default(""),
-  goal:           z.string().default("awareness"),
-  keyword:        z.string().default(""),
-  location:       z.string().default(""),
-  platform:       z.string().default(""),
-  tone:           z.string().default("professional"),
-  cta:            z.string().default(""),
-  campaignType:   z.string().default(""),
-  length:         z.string().default("medium"),
-  aiMode:         z.enum(["smart", "manual"]).default("smart"),
-  provider:       z.string().optional(),
-  model:          z.string().optional(),
+  contentType:          z.string().min(1),
+  businessType:         z.string().default(""),
+  targetAudience:       z.string().default(""),
+  offer:                z.string().default(""),
+  goal:                 z.string().default("awareness"),
+  keyword:              z.string().default(""),
+  location:             z.string().default(""),
+  platform:             z.string().default(""),
+  tone:                 z.string().default("professional"),
+  cta:                  z.string().default(""),
+  campaignType:         z.string().default(""),
+  length:               z.string().default("medium"),
+  aiMode:               z.enum(["smart", "manual"]).default("smart"),
+  provider:             z.string().optional(),
+  model:                z.string().optional(),
+  systemPromptOverride: z.string().optional(),
+  userPromptOverride:   z.string().optional(),
+  promptTemplateId:     z.string().uuid().optional(),
 });
 
 export const generateContent = createServerFn({ method: "POST" })
@@ -434,20 +437,31 @@ export const generateContent = createServerFn({ method: "POST" })
       length:         data.length,
     };
 
-    const { system, user } = buildContentPrompt(brief, {
-      companyName:   dnaCompany || companyName,
-      industry:      dnaIndustry || industry,
-      siteUrl,
-      keywords,
-      competitors,
-      activePlaybook,
-      dnaUsp:        dnaUsp        || undefined,
-      dnaOffer:      dnaOffer      || undefined,
-      dnaIcp:        dnaIcp        || undefined,
-      dnaBrandVoice: dnaBrandVoice || undefined,
-      dnaCompliance: dnaCompliance || undefined,
-      dnaCurrentVp:  dnaCurrentVp  || undefined,
-    });
+    // Use Prompt Studio template overrides when provided; otherwise build from brief
+    let system: string;
+    let user: string;
+
+    if (data.systemPromptOverride && data.userPromptOverride) {
+      system = data.systemPromptOverride;
+      user   = data.userPromptOverride;
+    } else {
+      const built = buildContentPrompt(brief, {
+        companyName:   dnaCompany || companyName,
+        industry:      dnaIndustry || industry,
+        siteUrl,
+        keywords,
+        competitors,
+        activePlaybook,
+        dnaUsp:        dnaUsp        || undefined,
+        dnaOffer:      dnaOffer      || undefined,
+        dnaIcp:        dnaIcp        || undefined,
+        dnaBrandVoice: dnaBrandVoice || undefined,
+        dnaCompliance: dnaCompliance || undefined,
+        dnaCurrentVp:  dnaCurrentVp  || undefined,
+      });
+      system = built.system;
+      user   = built.user;
+    }
 
     const maxTokens = maxTokensForType(data.contentType as ContentType, data.length);
 

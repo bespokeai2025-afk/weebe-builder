@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -10,6 +10,7 @@ import {
   Plus, MoreHorizontal, Edit2, ArrowLeft, BarChart3, ExternalLink,
   Zap, SlidersHorizontal, Cpu, AlertCircle, Facebook, Send,
   Link, DollarSign, Settings2, ShieldCheck, Upload, Clapperboard,
+  BookMarked, FlaskConical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -28,6 +29,36 @@ import {
   getSmartRoute, MODEL_META, PROVIDERS,
   type Provider, type ModelId,
 } from "@/lib/growthmind/model-router.shared";
+import {
+  getPromptTemplates, getWorkspaceContext, recordPromptTemplateUsage,
+  type PromptTemplate,
+} from "@/lib/growthmind/growthmind.prompt-studio";
+
+// ── ContentType → relevant PromptTypes mapping ─────────────────────────────────
+// Used to filter Prompt Studio templates by the active content type category.
+
+const CONTENT_TYPE_TO_PROMPT_TYPES: Record<string, string[]> = {
+  blog_article:            ["content"],
+  landing_page:            ["landing_pages", "content", "funnels"],
+  lead_magnet:             ["content"],
+  case_study:              ["content"],
+  sales_letter:            ["sales", "content"],
+  google_ad:               ["google_ads"],
+  meta_ad:                 ["meta_ads"],
+  linkedin_post:           ["content", "campaign"],
+  facebook_post:           ["content", "campaign"],
+  instagram_caption:       ["content", "campaign"],
+  x_post:                  ["content", "campaign"],
+  email_campaign:          ["email", "campaign"],
+  whatsapp_campaign:       ["whatsapp", "campaign"],
+  follow_up_sequence:      ["campaign"],
+  review_request_campaign: ["campaign"],
+  referral_campaign:       ["campaign"],
+  video_script:            ["video"],
+  vsl_script:              ["video", "sales"],
+  podcast_script:          ["video"],
+  ai_call_script:          ["ai_calling", "agent_scripts"],
+};
 
 // ── Content type definitions ──────────────────────────────────────────────────
 
@@ -918,13 +949,16 @@ function MetaPublishFromOutput({ content, title }: { content: string; title: str
 type Tab = "generate" | "library" | "calendar";
 
 export function GrowthMindContentStudio() {
-  const qc               = useQueryClient();
-  const generateFn       = useServerFn(generateContent);
-  const getAssetsFn      = useServerFn(getContentAssets);
-  const saveAssetFn      = useServerFn(saveContentAsset);
-  const deleteAssetFn    = useServerFn(deleteContentAsset);
-  const toggleFavFn      = useServerFn(toggleFavourite);
-  const getStatsFn       = useServerFn(getContentStats);
+  const qc                    = useQueryClient();
+  const generateFn            = useServerFn(generateContent);
+  const getAssetsFn           = useServerFn(getContentAssets);
+  const saveAssetFn           = useServerFn(saveContentAsset);
+  const deleteAssetFn         = useServerFn(deleteContentAsset);
+  const toggleFavFn           = useServerFn(toggleFavourite);
+  const getStatsFn            = useServerFn(getContentStats);
+  const getTemplatesFn        = useServerFn(getPromptTemplates);
+  const getWorkspaceCtxFn     = useServerFn(getWorkspaceContext);
+  const recordUsageFn         = useServerFn(recordPromptTemplateUsage);
 
   const [tab, setTab]                             = useState<Tab>("generate");
   const [selectedType, setSelectedType]           = useState<ContentType | null>(null);
@@ -936,6 +970,7 @@ export function GrowthMindContentStudio() {
   const [output, setOutput]                       = useState<{
     content: string; seoData: Partial<SeoData>; assetId: string; title: string;
     provider?: string; model?: string; usedFallback?: boolean; fallbackFrom?: string | null;
+    promptTemplateId?: string;
   } | null>(null);
   const [aiMode, setAiMode]                       = useState<"smart" | "manual">("smart");
   const [manualProvider, setManualProvider]       = useState<Provider>("gemini");
@@ -944,6 +979,11 @@ export function GrowthMindContentStudio() {
 
   const [libraryFilter, setLibraryFilter]         = useState("all");
   const [viewingAsset, setViewingAsset]           = useState<ContentAsset | null>(null);
+
+  // ── Prompt Studio template state ────────────────────────────────────────────
+  const [promptSource, setPromptSource]           = useState<"brief" | "template">("brief");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateVars, setTemplateVars]           = useState<Record<string, string>>({});
 
   const { data: assetsData, isLoading: assetsLoading } = useQuery({
     queryKey: ["growthmind-content-assets", libraryFilter],
@@ -965,6 +1005,61 @@ export function GrowthMindContentStudio() {
     staleTime: 60_000,
     enabled: tab === "library",
   });
+
+  // ── Prompt Studio template queries ─────────────────────────────────────────
+  const { data: promptTemplatesData } = useQuery({
+    queryKey: ["content-studio-prompt-templates"],
+    queryFn:  () => getTemplatesFn(),
+    staleTime: 60_000,
+    enabled:  tab === "generate" && promptSource === "template",
+  });
+
+  const { data: workspaceCtx } = useQuery({
+    queryKey: ["content-studio-workspace-ctx"],
+    queryFn:  () => getWorkspaceCtxFn(),
+    staleTime: 120_000,
+    enabled:  tab === "generate" && promptSource === "template",
+  });
+
+  // Filter templates to those relevant to the selected content type
+  const relevantTemplates = useMemo<PromptTemplate[]>(() => {
+    const templates = promptTemplatesData?.templates ?? [];
+    if (!selectedType) return templates;
+    const relevant = CONTENT_TYPE_TO_PROMPT_TYPES[selectedType] ?? [];
+    if (relevant.length === 0) return templates;
+    return templates.filter(t => relevant.includes(t.type));
+  }, [promptTemplatesData, selectedType]);
+
+  const selectedTemplate = useMemo<PromptTemplate | null>(
+    () => relevantTemplates.find(t => t.id === selectedTemplateId) ?? null,
+    [relevantTemplates, selectedTemplateId],
+  );
+
+  // Auto-hydrate template variables from workspace context + brief fields
+  useEffect(() => {
+    if (!selectedTemplate) { setTemplateVars({}); return; }
+    const ctx = workspaceCtx ?? {};
+    const briefHints: Record<string, string> = {
+      business_name:   brief.businessType   ?? ctx.business_name   ?? "",
+      target_audience: brief.targetAudience ?? ctx.target_audience ?? "",
+      offer:           brief.offer          ?? "",
+      call_to_action:  brief.cta            ?? "",
+      brand_voice:     brief.tone           ?? ctx.brand_voice      ?? "",
+      location:        brief.location       ?? ctx.location        ?? "",
+      industry:        ctx.industry         ?? "",
+    };
+    const defaults: Record<string, string> = {};
+    for (const v of selectedTemplate.variables) {
+      defaults[v.name] = briefHints[v.name] || v.defaultValue || "";
+    }
+    setTemplateVars(defaults);
+  }, [selectedTemplateId, workspaceCtx]);
+
+  // Reset selected template when content type changes
+  useEffect(() => {
+    setSelectedTemplateId(null);
+    setTemplateVars({});
+  }, [selectedType]);
 
   // Derive filtered assets client-side for instant response
   const allAssets = assetsData?.assets ?? [];
@@ -992,6 +1087,22 @@ export function GrowthMindContentStudio() {
     setGenerating(true);
     setGenError(null);
     setOutput(null);
+
+    // Capture template info at call time (state may change during async)
+    const usingTemplate  = promptSource === "template" && !!selectedTemplate;
+    const capturedTplId  = usingTemplate ? selectedTemplate!.id   : undefined;
+    const capturedTplVars: Record<string, string> = usingTemplate ? { ...templateVars } : {};
+
+    // Compile template prompts if in template mode
+    let systemPromptOverride: string | undefined;
+    let userPromptOverride:   string | undefined;
+    if (usingTemplate && selectedTemplate) {
+      const fill = (text: string) =>
+        text.replace(/\{\{(\w+)\}\}/g, (_, k) => capturedTplVars[k] ?? `[${k}]`);
+      systemPromptOverride = fill(selectedTemplate.systemPrompt);
+      userPromptOverride   = fill(selectedTemplate.userPromptTemplate);
+    }
+
     try {
       const result = await generateFn({ data: {
         contentType:    selectedType,
@@ -1007,12 +1118,27 @@ export function GrowthMindContentStudio() {
         campaignType:   brief.campaignType   ?? "",
         length:         brief.length         ?? "medium",
         aiMode,
-        provider:       aiMode === "manual" ? manualProvider : undefined,
-        model:          aiMode === "manual" ? manualModel    : undefined,
+        provider:            aiMode === "manual" ? manualProvider : undefined,
+        model:               aiMode === "manual" ? manualModel    : undefined,
+        systemPromptOverride,
+        userPromptOverride,
+        promptTemplateId:    capturedTplId,
       }});
-      setOutput(result);
+      setOutput({ ...result, promptTemplateId: capturedTplId });
       qc.invalidateQueries({ queryKey: ["growthmind-content-assets"] });
       qc.invalidateQueries({ queryKey: ["growthmind-content-stats"] });
+
+      // Record usage in Prompt Studio when a template was used
+      if (usingTemplate && capturedTplId) {
+        recordUsageFn({ data: {
+          templateId:     capturedTplId,
+          inputVariables: capturedTplVars,
+          outputText:     result.content,
+          model:          result.model,
+          provider:       result.provider,
+        } }).catch(() => {});
+        qc.invalidateQueries({ queryKey: ["content-studio-prompt-templates"] });
+      }
     } catch (e: any) {
       setGenError(e.message ?? "Generation failed");
     } finally {
@@ -1290,78 +1416,209 @@ export function GrowthMindContentStudio() {
                     );
                   })()}
 
-                  {/* Step 3: Brief form */}
+                  {/* Step 3: Brief / Template */}
                   {selectedType && (
                     <div>
-                      <p className="text-sm font-semibold mb-3">3. Fill your brief</p>
-                      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <TextField
-                            label="Business Type"
-                            value={brief.businessType ?? ""}
-                            placeholder="e.g. Solar installation company"
-                            onChange={v => setB("businessType", v)}
-                          />
-                          <TextField
-                            label="Target Audience"
-                            value={brief.targetAudience ?? ""}
-                            placeholder="e.g. Homeowners aged 35–60 in Manchester"
-                            onChange={v => setB("targetAudience", v)}
-                          />
-                          <TextField
-                            label="Offer"
-                            value={brief.offer ?? ""}
-                            placeholder="e.g. Free solar survey — save £1,200/yr"
-                            onChange={v => setB("offer", v)}
-                          />
-                          <SelectField
-                            label="Goal"
-                            value={brief.goal ?? ""}
-                            options={GOAL_OPTIONS}
-                            onChange={v => setB("goal", v)}
-                          />
-                          <TextField
-                            label="Primary Keyword"
-                            value={brief.keyword ?? ""}
-                            placeholder="e.g. solar panels Manchester"
-                            onChange={v => setB("keyword", v)}
-                          />
-                          <TextField
-                            label="Location"
-                            value={brief.location ?? ""}
-                            placeholder="e.g. Manchester, UK"
-                            onChange={v => setB("location", v)}
-                          />
-                          <TextField
-                            label="Call to Action"
-                            value={brief.cta ?? ""}
-                            placeholder="e.g. Book your free survey today"
-                            onChange={v => setB("cta", v)}
-                          />
-                          <SelectField
-                            label="Tone of Voice"
-                            value={brief.tone ?? "professional"}
-                            options={TONE_OPTIONS}
-                            onChange={v => setB("tone", v)}
-                          />
-                          <TextField
-                            label="Campaign Type (optional)"
-                            value={brief.campaignType ?? ""}
-                            placeholder="e.g. Spring promotion, Lead gen"
-                            onChange={v => setB("campaignType", v)}
-                          />
-                          <SelectField
-                            label="Length"
-                            value={brief.length ?? "medium"}
-                            options={LENGTH_OPTIONS}
-                            onChange={v => setB("length", v)}
-                          />
+                      {/* Step header + prompt source toggle */}
+                      <div className="flex items-center gap-3 mb-3 flex-wrap">
+                        <p className="text-sm font-semibold">3. Content brief</p>
+                        <div className="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5 ml-auto">
+                          <button
+                            onClick={() => setPromptSource("brief")}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                              promptSource === "brief"
+                                ? "bg-emerald-500/15 text-emerald-300"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            <FileText className="h-3 w-3" />
+                            Standard Brief
+                          </button>
+                          <button
+                            onClick={() => setPromptSource("template")}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                              promptSource === "template"
+                                ? "bg-violet-500/15 text-violet-300"
+                                : "text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            <BookMarked className="h-3 w-3" />
+                            Prompt Studio Template
+                          </button>
                         </div>
+                      </div>
 
+                      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-5 space-y-4">
+
+                        {/* ── Standard Brief ── */}
+                        {promptSource === "brief" && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <TextField
+                              label="Business Type"
+                              value={brief.businessType ?? ""}
+                              placeholder="e.g. Solar installation company"
+                              onChange={v => setB("businessType", v)}
+                            />
+                            <TextField
+                              label="Target Audience"
+                              value={brief.targetAudience ?? ""}
+                              placeholder="e.g. Homeowners aged 35–60 in Manchester"
+                              onChange={v => setB("targetAudience", v)}
+                            />
+                            <TextField
+                              label="Offer"
+                              value={brief.offer ?? ""}
+                              placeholder="e.g. Free solar survey — save £1,200/yr"
+                              onChange={v => setB("offer", v)}
+                            />
+                            <SelectField
+                              label="Goal"
+                              value={brief.goal ?? ""}
+                              options={GOAL_OPTIONS}
+                              onChange={v => setB("goal", v)}
+                            />
+                            <TextField
+                              label="Primary Keyword"
+                              value={brief.keyword ?? ""}
+                              placeholder="e.g. solar panels Manchester"
+                              onChange={v => setB("keyword", v)}
+                            />
+                            <TextField
+                              label="Location"
+                              value={brief.location ?? ""}
+                              placeholder="e.g. Manchester, UK"
+                              onChange={v => setB("location", v)}
+                            />
+                            <TextField
+                              label="Call to Action"
+                              value={brief.cta ?? ""}
+                              placeholder="e.g. Book your free survey today"
+                              onChange={v => setB("cta", v)}
+                            />
+                            <SelectField
+                              label="Tone of Voice"
+                              value={brief.tone ?? "professional"}
+                              options={TONE_OPTIONS}
+                              onChange={v => setB("tone", v)}
+                            />
+                            <TextField
+                              label="Campaign Type (optional)"
+                              value={brief.campaignType ?? ""}
+                              placeholder="e.g. Spring promotion, Lead gen"
+                              onChange={v => setB("campaignType", v)}
+                            />
+                            <SelectField
+                              label="Length"
+                              value={brief.length ?? "medium"}
+                              options={LENGTH_OPTIONS}
+                              onChange={v => setB("length", v)}
+                            />
+                          </div>
+                        )}
+
+                        {/* ── Prompt Studio Template ── */}
+                        {promptSource === "template" && (
+                          <div className="space-y-4">
+                            {/* Template picker */}
+                            <div className="space-y-1.5">
+                              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                                Select a Prompt Studio template
+                              </Label>
+                              {relevantTemplates.length === 0 && !promptTemplatesData && (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-400" />
+                                  Loading templates…
+                                </div>
+                              )}
+                              {promptTemplatesData && relevantTemplates.length === 0 && (
+                                <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.04] px-4 py-3 text-xs text-muted-foreground">
+                                  No Prompt Studio templates match this content type yet. Create templates in{" "}
+                                  <span className="text-violet-300 font-medium">Prompt Studio</span> and they'll appear here.
+                                </div>
+                              )}
+                              {relevantTemplates.length > 0 && (
+                                <select
+                                  value={selectedTemplateId ?? ""}
+                                  onChange={e => setSelectedTemplateId(e.target.value || null)}
+                                  className="w-full h-8 rounded-md border border-input bg-transparent px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  <option value="">— choose a template —</option>
+                                  {relevantTemplates.map(t => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name}
+                                      {t.stats?.usageCount ? ` (used ${t.stats.usageCount}×)` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+
+                            {/* Template details + variables */}
+                            {selectedTemplate && (
+                              <>
+                                {/* Template info badge */}
+                                <div className="flex items-start gap-3 rounded-lg border border-violet-500/20 bg-violet-500/[0.04] p-3">
+                                  <FlaskConical className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-violet-200 mb-0.5">{selectedTemplate.name}</p>
+                                    {selectedTemplate.description && (
+                                      <p className="text-[11px] text-muted-foreground leading-relaxed">{selectedTemplate.description}</p>
+                                    )}
+                                    {(selectedTemplate.stats?.usageCount ?? 0) > 0 && (
+                                      <p className="text-[10px] text-violet-400/70 mt-1">
+                                        Used {selectedTemplate.stats!.usageCount}× ·{" "}
+                                        avg score {selectedTemplate.stats!.avgScore?.toFixed(1) ?? "—"}/10
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Variable inputs */}
+                                {selectedTemplate.variables.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-2.5">
+                                      Template Variables
+                                      <span className="ml-1.5 text-muted-foreground/40 normal-case tracking-normal">
+                                        — pre-filled from your workspace, edit as needed
+                                      </span>
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      {selectedTemplate.variables.map(v => (
+                                        <div key={v.name} className="space-y-1">
+                                          <Label className="text-[10px] uppercase tracking-wider text-muted-foreground/70 flex items-center gap-1.5">
+                                            {v.name.replace(/_/g, " ")}
+                                            {templateVars[v.name] ? (
+                                              <span className="text-emerald-400/60 font-normal normal-case tracking-normal">✓ filled</span>
+                                            ) : (
+                                              <span className="text-amber-400/60 font-normal normal-case tracking-normal">empty</span>
+                                            )}
+                                          </Label>
+                                          <Input
+                                            value={templateVars[v.name] ?? ""}
+                                            onChange={e => setTemplateVars(prev => ({ ...prev, [v.name]: e.target.value }))}
+                                            placeholder={v.description || v.defaultValue || v.name}
+                                            className="h-8 text-xs"
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Generate button — shared for both modes */}
                         <div className="pt-2 flex items-center gap-3 flex-wrap">
                           <Button
                             onClick={handleGenerate}
-                            disabled={generating || !selectedType}
+                            disabled={
+                              generating || !selectedType ||
+                              (promptSource === "template" && !selectedTemplate)
+                            }
                             className="h-9"
                           >
                             {generating
@@ -1369,9 +1626,14 @@ export function GrowthMindContentStudio() {
                               : <><Wand2 className="mr-2 h-4 w-4" />Generate {typeDef(selectedType!).label}</>
                             }
                           </Button>
+                          {promptSource === "template" && !selectedTemplate && !generating && (
+                            <p className="text-xs text-muted-foreground/60">Select a template above to continue</p>
+                          )}
                           {generating && (
                             <p className="text-xs text-muted-foreground animate-pulse">
-                              GrowthMind is creating your content using company knowledge, keywords, and competitor data…
+                              {promptSource === "template"
+                                ? "GrowthMind is generating using your Prompt Studio template…"
+                                : "GrowthMind is creating your content using company knowledge, keywords, and competitor data…"}
                             </p>
                           )}
                         </div>
@@ -1395,6 +1657,16 @@ export function GrowthMindContentStudio() {
                         {typeDef(selectedType!).label} · Saved to Library automatically
                         <Check className="inline ml-1 h-3 w-3 text-emerald-400" />
                       </p>
+                      {output.promptTemplateId && selectedTemplate && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <BookMarked className="h-3 w-3 text-violet-400 shrink-0" />
+                          <span className="text-[10px] text-muted-foreground/60">
+                            Generated using Prompt Studio template{" "}
+                            <span className="text-violet-300 font-medium">{selectedTemplate.name}</span>
+                            {" "}· usage recorded
+                          </span>
+                        </div>
+                      )}
                       {output.model && (
                         <div className="flex items-center gap-1.5 mt-1.5">
                           <Cpu className="h-3 w-3 text-muted-foreground/50 shrink-0" />

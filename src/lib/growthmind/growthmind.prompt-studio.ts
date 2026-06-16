@@ -1215,6 +1215,69 @@ export const seedLibraryPacks = createServerFn({ method: "POST" })
     return { seeded: toInsert.length, alreadyExisted: existingNames.size };
   });
 
+// ── recordPromptTemplateUsage ─────────────────────────────────────────────────
+// Called by Content Studio after generation to log the output and update stats.
+
+export const recordPromptTemplateUsage = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      templateId:     z.string().uuid(),
+      inputVariables: z.record(z.string()).default({}),
+      outputText:     z.string(),
+      model:          z.string().optional(),
+      provider:       z.string().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const now          = new Date().toISOString();
+    const defaultScore = 7;
+    const scores = {
+      quality: defaultScore, completeness: defaultScore, audience_fit: defaultScore,
+      brand_fit: defaultScore, conversion_potential: defaultScore, overall: defaultScore,
+    };
+
+    await sb.from("growthmind_prompt_test_outputs").insert({
+      workspace_id:    workspaceId,
+      template_id:     data.templateId,
+      variant_label:   "ContentStudio",
+      input_variables: data.inputVariables,
+      output_text:     data.outputText.slice(0, 10000),
+      scores,
+      model_used:      data.model    ?? null,
+      provider_used:   data.provider ?? null,
+      cost_usd:        null,
+      created_at:      now,
+    });
+
+    const { data: existing } = await sb.from("growthmind_prompt_stats")
+      .select("usage_count, avg_score")
+      .eq("template_id", data.templateId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    const prevCount = existing?.usage_count ?? 0;
+    const newCount  = prevCount + 1;
+    const prevAvg   = existing?.avg_score   ?? defaultScore;
+    const newAvg    = Math.round(((prevAvg * prevCount) + defaultScore) / newCount * 100) / 100;
+
+    await sb.from("growthmind_prompt_stats").upsert({
+      template_id:  data.templateId,
+      workspace_id: workspaceId,
+      usage_count:  newCount,
+      avg_score:    newAvg,
+      success_rate: Math.round((defaultScore / 10) * 100 * 100) / 100,
+      last_used_at: now,
+      updated_at:   now,
+    }, { onConflict: "template_id,workspace_id" });
+
+    return { ok: true };
+  });
+
 // ── getPromptPerformanceSummary ───────────────────────────────────────────────
 // Used by HiveMind to show prompt performance insights.
 
