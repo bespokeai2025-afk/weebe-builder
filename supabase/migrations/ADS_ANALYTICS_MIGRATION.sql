@@ -2,6 +2,15 @@
 -- Ads Analytics Migration — campaign metrics sync, performance log, budget alerts
 -- Apply in Supabase SQL Editor: https://app.supabase.com → SQL Editor
 -- Safe to re-run (all IF NOT EXISTS / ADD COLUMN IF NOT EXISTS)
+--
+-- Applied: 2026-06-16 (dev database)
+-- Tables created: growthmind_ad_campaigns (16 cols), growthmind_ad_sync_log (11 cols),
+--   growthmind_ad_performance_log (11 cols), growthmind_ad_budget_alerts (9 cols),
+--   growthmind_ad_budget_caps (7 cols), growthmind_ad_webhook_events (7 cols)
+-- Verification query (run to confirm):
+--   SELECT table_name FROM information_schema.tables
+--   WHERE table_schema = 'public' AND table_name LIKE 'growthmind_ad%'
+--   ORDER BY table_name;
 -- ──────────────────────────────────────────────────────────────────────────────
 
 -- 1. Dedicated ads campaign metrics table — separate from growthmind_campaigns

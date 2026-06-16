@@ -147,7 +147,7 @@ async function upsertCampaigns(sb: ReturnType<typeof getAdminClient>, workspaceI
 async function generateAlerts(
   sb: ReturnType<typeof getAdminClient>,
   workspaceId: string,
-  platform: "meta" | "google",
+  platform: "meta" | "google" | "tiktok",
   campaigns: any[],
 ): Promise<void> {
   if (campaigns.length === 0) return;
@@ -166,6 +166,8 @@ async function generateAlerts(
   const blendedRoas      = totalSpend > 0 && totalRevenue > 0
     ? +(totalRevenue / totalSpend).toFixed(3) : 0;
 
+  const platformLabel = platform === "meta" ? "Meta" : platform === "tiktok" ? "TikTok" : "Google";
+
   // ROAS drop alert — spending more than earning back
   if (totalSpend >= 10 && blendedRoas < 1) {
     alerts.push({
@@ -174,7 +176,7 @@ async function generateAlerts(
       alert_type: "roas_drop",
       current_value: blendedRoas,
       threshold: 1,
-      message: `${platform === "meta" ? "Meta" : "Google"} Ads ROAS is ${blendedRoas.toFixed(2)}x — spending more than revenue generated. Review and optimise underperforming campaigns.`,
+      message: `${platformLabel} Ads ROAS is ${blendedRoas.toFixed(2)}x — spending more than revenue generated. Review and optimise underperforming campaigns.`,
       created_at: now,
     });
   }
@@ -187,7 +189,7 @@ async function generateAlerts(
       alert_type: "zero_spend",
       current_value: 0,
       threshold: 0,
-      message: `${platform === "meta" ? "Meta" : "Google"} Ads has ${campaigns.length} campaign(s) but zero spend recorded — campaigns may be paused or budgets exhausted.`,
+      message: `${platformLabel} Ads has ${campaigns.length} campaign(s) but zero spend recorded — campaigns may be paused or budgets exhausted.`,
       created_at: now,
     });
   }
@@ -202,7 +204,7 @@ async function generateAlerts(
         alert_type: "high_cpl",
         current_value: +avgCpl.toFixed(2),
         threshold: 500,
-        message: `${platform === "meta" ? "Meta" : "Google"} Ads average cost-per-lead is £${avgCpl.toFixed(0)} — above the £500 alert threshold. Narrow targeting or pause high-cost campaigns.`,
+        message: `${platformLabel} Ads average cost-per-lead is £${avgCpl.toFixed(0)} — above the £500 alert threshold. Narrow targeting or pause high-cost campaigns.`,
         created_at: now,
       });
     }
@@ -223,7 +225,6 @@ async function generateAlerts(
       const alertThreshold = monthlyCapNum * alertAtPct;
       const currency       = cap.currency ?? "GBP";
       const sym            = currency === "USD" ? "$" : "£";
-      const platformLabel  = platform === "meta" ? "Meta" : "Google";
 
       if (totalSpend >= monthlyCapNum) {
         // 100% — budget exceeded
@@ -366,6 +367,7 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
         });
       } catch {}
 
+      try { await generateAlerts(sb, workspaceId, "tiktok", campaigns); } catch {}
       results.push({ platform: "tiktok", workspaceId, campaignsSynced: campaigns.length, spendTotal: totals.spend, impressionsTotal: totals.impressions, clicksTotal: totals.clicks, conversionsTotal: totals.conversions, status: "success" });
     } catch (err: any) {
       const msg = err?.message ?? String(err);
