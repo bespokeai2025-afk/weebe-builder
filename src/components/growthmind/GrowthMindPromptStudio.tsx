@@ -11,6 +11,7 @@ import { GrowthMindShell } from "./GrowthMindShell";
 import {
   getPromptTemplates, savePromptTemplate, deletePromptTemplate,
   testPromptTemplate, seedLibraryPacks, restorePromptVersion, togglePromptFavorite, getPromptTemplate,
+  getWorkspaceContext,
   type PromptTemplate, type PromptVariable, type PromptVersion,
 } from "@/lib/growthmind/growthmind.prompt-studio";
 
@@ -248,6 +249,9 @@ function VariableEditor({
   );
 }
 
+// Stable empty workspace context — avoids infinite render loop when query hasn't resolved yet
+const EMPTY_WS_CTX: Record<string, string> = {};
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export function GrowthMindPromptStudio() {
@@ -262,6 +266,7 @@ export function GrowthMindPromptStudio() {
   const seedPacksFn       = useServerFn(seedLibraryPacks);
   const restoreVersionFn  = useServerFn(restorePromptVersion);
   const toggleFavoriteFn  = useServerFn(togglePromptFavorite);
+  const getWorkspaceCtxFn = useServerFn(getWorkspaceContext);
 
   // State
   const [selectedId,  setSelectedId]  = useState<string | null>(null);
@@ -284,6 +289,12 @@ export function GrowthMindPromptStudio() {
   const { data: templatesData, isLoading } = useQuery({
     queryKey: ["prompt-templates"],
     queryFn:  () => getTemplatesFn(),
+  });
+
+  const { data: workspaceCtx = EMPTY_WS_CTX } = useQuery({
+    queryKey: ["workspace-context"],
+    queryFn:  () => getWorkspaceCtxFn(),
+    staleTime: 5 * 60 * 1000,
   });
 
   const templates    = templatesData?.templates ?? [];
@@ -333,21 +344,22 @@ export function GrowthMindPromptStudio() {
     }
   }, [detectedVarNames.join(",")]);
 
-  // Populate test inputs from variables
+  // Populate test inputs from variables — priority: existing user input > workspace context > variable default
   useEffect(() => {
     const inputs: Record<string, string> = {};
     for (const v of editState.variables) {
-      inputs[v.name] = testInputs[v.name] ?? v.defaultValue ?? "";
+      inputs[v.name] = testInputs[v.name] || (workspaceCtx as Record<string,string>)[v.name] || v.defaultValue || "";
     }
     setTestInputs(inputs);
-  }, [editState.variables]);
+  }, [editState.variables, workspaceCtx]);
 
   // Live preview — resolved prompts with current test inputs substituted
+  // Priority: test input > workspace context > variable default > [name]
   const resolveVars = useCallback((text: string) =>
     text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
       const v = editState.variables.find(v => v.name === key);
-      return testInputs[key] || v?.defaultValue || `[${key}]`;
-    }), [editState.variables, testInputs]);
+      return testInputs[key] || (workspaceCtx as Record<string,string>)[key] || v?.defaultValue || `[${key}]`;
+    }), [editState.variables, testInputs, workspaceCtx]);
 
   const livePreviewSystem = useMemo(() => resolveVars(editState.systemPrompt),       [editState.systemPrompt, resolveVars]);
   const livePreviewUser   = useMemo(() => resolveVars(editState.userPromptTemplate), [editState.userPromptTemplate, resolveVars]);
@@ -489,13 +501,27 @@ export function GrowthMindPromptStudio() {
     if (!confirm("Restore this version? The current prompt will be overwritten.")) return;
     try {
       await restoreVersionFn({ data: { versionId, templateId: selectedId } });
-      const tpl = templates.find(t => t.id === selectedId);
-      if (tpl) {
-        const res = await getTemplateFn({ data: { id: selectedId } });
-        const updated = templates.find(t => t.id === selectedId);
-        if (updated) loadTemplate(updated);
-        setVersions(res.versions);
+      // Fetch fresh data from the server — don't rely on stale in-memory templates array
+      const res = await getTemplateFn({ data: { id: selectedId } });
+      if (res.template) {
+        setSelectedId(res.template.id);
+        setEditState({
+          name:               res.template.name,
+          description:        res.template.description,
+          type:               res.template.type,
+          category:           res.template.category,
+          systemPrompt:       res.template.systemPrompt,
+          userPromptTemplate: res.template.userPromptTemplate,
+          variables:          res.template.variables,
+          chainSteps:         res.template.chainSteps,
+          tags:               res.template.tags,
+          isActive:           res.template.isActive,
+          isFavorite:         res.template.isFavorite,
+        });
+        setIsDirty(false);
+        setTestOutput(null);
       }
+      setVersions(res.versions);
       qc.invalidateQueries({ queryKey: ["prompt-templates"] });
     } catch {}
   };

@@ -723,30 +723,45 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
       }
     } catch { /* graceful */ }
 
-    // 11. Prompt Studio — low-scoring templates used in live flows
+    // 11. Prompt Studio — very low-scoring templates (critically poor performance)
     try {
-      const { data: poorPrompts } = await sb
-        .from("growthmind_prompt_stats")
-        .select("template_id, avg_score, usage_count, growthmind_prompt_templates(name, type)")
-        .eq("workspace_id", workspaceId)
-        .lt("avg_score", 6)
-        .gt("usage_count", 2)
-        .limit(5)
-        .catch(() => ({ data: [] }));
+      const [worstRes, bestRes] = await Promise.all([
+        sb.from("growthmind_prompt_stats")
+          .select("template_id, avg_score, usage_count, growthmind_prompt_templates(name, type)")
+          .eq("workspace_id", workspaceId)
+          .lt("avg_score", 4)
+          .gt("usage_count", 0)
+          .order("avg_score", { ascending: true })
+          .limit(5),
+        sb.from("growthmind_prompt_stats")
+          .select("template_id, avg_score, usage_count, growthmind_prompt_templates(name, type)")
+          .eq("workspace_id", workspaceId)
+          .gt("usage_count", 0)
+          .order("avg_score", { ascending: false })
+          .limit(3),
+      ]);
 
-      if ((poorPrompts ?? []).length > 0 && !pendingTypes.has("create_task")) {
-        const names = (poorPrompts ?? []).slice(0, 3)
-          .map((p: any) => `"${p.growthmind_prompt_templates?.name ?? "Unknown"}"`)
+      const poorPrompts = worstRes.data ?? [];
+      const topPrompts  = bestRes.data  ?? [];
+
+      if (poorPrompts.length > 0 && !pendingTypes.has("create_task")) {
+        const worstNames = poorPrompts.slice(0, 3)
+          .map((p: any) => `"${p.growthmind_prompt_templates?.name ?? "Unknown"}" (${(p.avg_score ?? 0).toFixed(1)}/10)`)
           .join(", ");
+        const bestNames = topPrompts.slice(0, 2)
+          .map((p: any) => `"${p.growthmind_prompt_templates?.name ?? "Unknown"}" (${(p.avg_score ?? 0).toFixed(1)}/10)`)
+          .join(", ");
+        const bestHint = bestNames ? ` Best performers: ${bestNames}.` : "";
+
         proposed.push({
           workspace_id:   workspaceId,
-          title:          `Improve ${(poorPrompts ?? []).length} low-scoring prompt template${(poorPrompts ?? []).length !== 1 ? "s" : ""} in Prompt Studio`,
-          description:    `${(poorPrompts ?? []).length} prompt template${(poorPrompts ?? []).length !== 1 ? "s are" : " is"} scoring below 6/10 but actively used: ${names}. Low-scoring prompts reduce content quality across campaigns, emails, and AI agents. Open Prompt Studio to revise and re-test these templates.`,
+          title:          `Critically low-scoring prompt templates need urgent revision in Prompt Studio`,
+          description:    `${poorPrompts.length} prompt template${poorPrompts.length !== 1 ? "s are" : " is"} scoring below 4/10 — these are producing poor-quality AI outputs that may be hurting content and campaign results. Worst performers: ${worstNames}.${bestHint} Open Prompt Studio to rewrite the system and user prompts, then re-run the scoring test.`,
           action_type:    "create_task",
           action_payload: {
-            title:       "Revise low-scoring prompt templates in GrowthMind → Prompt Studio",
-            description: `Templates scoring below 6/10: ${names}. Open GrowthMind → Prompt Studio, edit the system and user prompts, then re-run the test runner to improve scores before using them in live campaigns.`,
-            priority:    "medium",
+            title:       "Revise critically poor prompt templates in GrowthMind → Prompt Studio",
+            description: `Templates scoring below 4/10: ${worstNames}. Open GrowthMind → Prompt Studio, select each template, rewrite the system and user prompts using the best-performer templates as reference${bestNames ? ` (${bestNames})` : ""}, then re-run the test runner until scores exceed 7/10.`,
+            priority:    "high",
             trigger_type:"low_prompt_score",
           },
           proposed_by: "hivemind",

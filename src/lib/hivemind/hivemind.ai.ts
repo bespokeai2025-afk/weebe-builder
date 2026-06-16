@@ -730,8 +730,9 @@ function buildPlatformContext(d: any): string {
     const pp = d.promptPerformance;
     lines.push(`\nPROMPT STUDIO (${pp.totalTemplates} templates with run data):`);
     lines.push(`  Total runs: ${pp.totalUsage} | Overall avg score: ${pp.overallAvg ?? "n/a"}/10`);
-    if (pp.lowPerfCount > 0) lines.push(`  ⚠ ${pp.lowPerfCount} template${pp.lowPerfCount !== 1 ? "s" : ""} scoring below 6/10 — needs revision`);
-    if (pp.best?.length > 0) lines.push(`  Top templates: ${pp.best.map((t: any) => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
+    if (pp.lowPerfCount > 0) lines.push(`  ⚠ ${pp.lowPerfCount} template${pp.lowPerfCount !== 1 ? "s" : ""} scoring below 4/10 — critically poor, urgent revision needed`);
+    if (pp.best?.length  > 0) lines.push(`  Best performers: ${pp.best.map((t: any)  => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
+    if (pp.worst?.length > 0) lines.push(`  Worst performers: ${pp.worst.map((t: any) => `"${t.name}" (${t.avgScore}/10)`).join(", ")}`);
   }
 
   return lines.join("\n");

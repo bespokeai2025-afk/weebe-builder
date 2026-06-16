@@ -686,6 +686,38 @@ Deliver:
   },
 ];
 
+// ── getWorkspaceContext ────────────────────────────────────────────────────────
+// Returns known workspace variables that can pre-fill prompt template inputs.
+
+export const getWorkspaceContext = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) return {} as Record<string, string>;
+
+    try {
+      const { data: ws } = await sb
+        .from("workspace_settings")
+        .select("business_name, industry, target_audience, brand_voice, location, company_name")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+
+      if (!ws) return {} as Record<string, string>;
+
+      const ctx: Record<string, string> = {};
+      const bn = ws.business_name ?? ws.company_name ?? "";
+      if (bn)                ctx.business_name   = bn;
+      if (ws.industry)       ctx.industry        = ws.industry;
+      if (ws.target_audience)ctx.target_audience = ws.target_audience;
+      if (ws.brand_voice)    ctx.brand_voice     = ws.brand_voice;
+      if (ws.location)       ctx.location        = ws.location;
+      return ctx as Record<string, string>;
+    } catch {
+      return {} as Record<string, string>;
+    }
+  });
+
 // ── getPromptTemplates ─────────────────────────────────────────────────────────
 
 export const getPromptTemplates = createServerFn({ method: "GET" })
@@ -1177,7 +1209,7 @@ export async function getPromptPerformanceSummary(sb: any, workspaceId: string) 
     const overallAvg   = all.length > 0
       ? Math.round(all.reduce((s, r) => s + (r.avg_score ?? 0), 0) / all.length * 10) / 10
       : null;
-    const lowPerfCount = all.filter(r => (r.avg_score ?? 10) < 6).length;
+    const lowPerfCount = all.filter(r => (r.avg_score ?? 10) < 4).length;
 
     return { best, worst, totalUsage, overallAvg, totalTemplates: all.length, lowPerfCount };
   } catch {
