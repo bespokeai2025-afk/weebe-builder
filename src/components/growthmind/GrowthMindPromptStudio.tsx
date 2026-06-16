@@ -6,7 +6,7 @@ import {
   Star, StarOff, ChevronRight, Search, X, FlaskConical, Tag, Wand2,
   RotateCcw, CheckCircle2, AlertCircle, Loader2, Info, Eye,
   Columns2, Trophy, GitCompare, Link2, GripVertical, ChevronDown, ChevronUp,
-  ListOrdered, Zap, ArrowRight,
+  ListOrdered, Zap, ArrowRight, Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -120,13 +120,17 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function TemplateCard({
-  template, isSelected, onSelect, onFavorite,
+  template, isSelected, onSelect, onFavorite, onRun,
 }: {
   template: PromptTemplate;
   isSelected: boolean;
   onSelect: () => void;
   onFavorite: (val: boolean) => void;
+  onRun?: () => void;
 }) {
+  const isWorkflow = template.category === "workflow";
+  const hasSteps   = template.chainSteps.length > 0;
+
   return (
     <button
       onClick={onSelect}
@@ -149,17 +153,33 @@ function TemplateCard({
                 Library
               </span>
             )}
+            {isWorkflow && (
+              <span className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-none bg-violet-500/15 text-violet-300">
+                {hasSteps ? `${template.chainSteps.length} steps` : "Workflow"}
+              </span>
+            )}
           </div>
         </div>
-        <button
-          onClick={e => { e.stopPropagation(); onFavorite(!template.isFavorite); }}
-          className={cn("opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5", template.isFavorite && "opacity-100")}
-        >
-          {template.isFavorite
-            ? <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
-            : <StarOff className="h-3 w-3 text-muted-foreground" />
-          }
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
+          {isWorkflow && hasSteps && onRun && (
+            <button
+              onClick={e => { e.stopPropagation(); onRun(); }}
+              title="Run workflow"
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-violet-500/15 text-muted-foreground hover:text-violet-300"
+            >
+              <Play className="h-3 w-3" />
+            </button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onFavorite(!template.isFavorite); }}
+            className={cn("opacity-0 group-hover:opacity-100 transition-opacity", template.isFavorite && "opacity-100")}
+          >
+            {template.isFavorite
+              ? <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+              : <StarOff className="h-3 w-3 text-muted-foreground" />
+            }
+          </button>
+        </div>
       </div>
 
       {template.stats && (
@@ -667,7 +687,7 @@ export function GrowthMindPromptStudio() {
   const [isDeleting,     setIsDeleting]     = useState(false);
   const [centerTab,      setCenterTab]      = useState<"prompts" | "chain">("prompts");
   const [rightTab,       setRightTab]       = useState<"test" | "preview" | "versions" | "stats">("test");
-  const [libTab,         setLibTab]         = useState<"library" | "custom">("library");
+  const [libTab,         setLibTab]         = useState<"library" | "custom" | "workflow">("library");
   const [searchQuery,    setSearchQuery]    = useState("");
   const [typeFilter,     setTypeFilter]     = useState("all");
   const [testInputs,     setTestInputs]     = useState<Record<string, string>>({});
@@ -720,6 +740,8 @@ export function GrowthMindPromptStudio() {
       return true;
     });
   }, [templates, libTab, typeFilter, searchQuery]);
+
+  const workflowCount = useMemo(() => templates.filter(t => t.category === "workflow").length, [templates]);
 
   // Detected variables from current prompts
   const detectedVarNames = useMemo(() => {
@@ -802,6 +824,11 @@ export function GrowthMindPromptStudio() {
     setVariantBUser("");
     setWinnerSet(null);
 
+    // Workflow templates open directly on the chain builder
+    if (template.category === "workflow") {
+      setCenterTab("chain");
+    }
+
     // Load versions
     try {
       const res = await getTemplateFn({ data: { id: template.id } });
@@ -815,7 +842,23 @@ export function GrowthMindPromptStudio() {
     setIsDirty(true);   // must be true so the editor panel renders (gate: !selectedId && !isDirty)
     setTestOutput(null);
     setVersions([]);
+    setCenterTab("prompts");
     setLibTab("custom");
+  };
+
+  const handleNewWorkflow = () => {
+    setSelectedId(null);
+    setEditState({
+      ...DEFAULT_EDIT,
+      name:     "Untitled Workflow",
+      category: "workflow",
+    });
+    setIsDirty(true);
+    setTestOutput(null);
+    setChainOutput(null);
+    setVersions([]);
+    setCenterTab("chain");   // chain builder is the primary editor for workflows
+    setLibTab("workflow");
   };
 
   const handleSave = async () => {
@@ -827,6 +870,7 @@ export function GrowthMindPromptStudio() {
         name:               editState.name,
         description:        editState.description,
         type:               editState.type,
+        category:           editState.category === "library" ? "custom" : editState.category as "custom" | "workflow",
         systemPrompt:       editState.systemPrompt,
         userPromptTemplate: editState.userPromptTemplate,
         variables:          editState.variables,
@@ -846,11 +890,13 @@ export function GrowthMindPromptStudio() {
 
   const handleDuplicate = async () => {
     setIsSaving(true);
+    const dupCategory: "custom" | "workflow" = editState.category === "workflow" ? "workflow" : "custom";
     try {
       const res = await saveTemplateFn({ data: {
         name:               `${editState.name} (Copy)`,
         description:        editState.description,
         type:               editState.type,
+        category:           dupCategory,
         systemPrompt:       editState.systemPrompt,
         userPromptTemplate: editState.userPromptTemplate,
         variables:          editState.variables,
@@ -859,13 +905,21 @@ export function GrowthMindPromptStudio() {
         isFavorite:         false,
       }});
       setSelectedId(res.id);
-      setEditState(s => ({ ...s, name: `${s.name} (Copy)`, category: "custom", isFavorite: false }));
+      setEditState(s => ({ ...s, name: `${s.name} (Copy)`, category: dupCategory, isFavorite: false }));
       setIsDirty(false);
       await qc.invalidateQueries({ queryKey: ["prompt-templates"] });
-      setLibTab("custom");
+      setLibTab(dupCategory);
     } catch {}
     finally { setIsSaving(false); }
   };
+
+  const handleRunWorkflow = useCallback(async (template: PromptTemplate) => {
+    await loadTemplate(template);
+    // Give React a tick to apply state before triggering the chain run
+    setTimeout(() => {
+      setRightTab("test");
+    }, 50);
+  }, [loadTemplate]);
 
   const handleDelete = async () => {
     if (!selectedId || editState.category === "library") return;
@@ -1019,13 +1073,22 @@ export function GrowthMindPromptStudio() {
               <p className="text-[11px] text-muted-foreground leading-none mt-0.5">Build, test and score AI prompt templates</p>
             </div>
           </div>
-          <button
-            onClick={handleNewTemplate}
-            className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-300 px-3 py-1.5 text-xs font-medium transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New Template
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleNewWorkflow}
+              className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 hover:bg-violet-500/20 text-violet-300 px-3 py-1.5 text-xs font-medium transition-colors"
+            >
+              <Workflow className="h-3.5 w-3.5" />
+              New Workflow
+            </button>
+            <button
+              onClick={handleNewTemplate}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/20 text-emerald-300 px-3 py-1.5 text-xs font-medium transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Template
+            </button>
+          </div>
         </div>
 
         {migrationNeeded && (
@@ -1060,22 +1123,41 @@ export function GrowthMindPromptStudio() {
                 </div>
               </div>
 
-              {/* Library / Custom tabs */}
+              {/* Library / Custom / Workflows tabs */}
               <div className="flex border-b border-white/[0.06]">
-                {(["library", "custom"] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setLibTab(tab)}
-                    className={cn(
-                      "flex-1 py-2 text-xs font-medium transition-colors",
-                      libTab === tab
-                        ? "text-emerald-300 border-b-2 border-emerald-400"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {tab === "library" ? `Library (${templates.filter(t => t.category === "library").length})` : `My Templates (${templates.filter(t => t.category === "custom").length})`}
-                  </button>
-                ))}
+                <button
+                  onClick={() => setLibTab("library")}
+                  className={cn(
+                    "flex-1 py-2 text-xs font-medium transition-colors",
+                    libTab === "library"
+                      ? "text-emerald-300 border-b-2 border-emerald-400"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Library ({templates.filter(t => t.category === "library").length})
+                </button>
+                <button
+                  onClick={() => setLibTab("custom")}
+                  className={cn(
+                    "flex-1 py-2 text-xs font-medium transition-colors",
+                    libTab === "custom"
+                      ? "text-emerald-300 border-b-2 border-emerald-400"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Mine ({templates.filter(t => t.category === "custom").length})
+                </button>
+                <button
+                  onClick={() => setLibTab("workflow")}
+                  className={cn(
+                    "flex-1 py-2 text-xs font-medium transition-colors",
+                    libTab === "workflow"
+                      ? "text-violet-300 border-b-2 border-violet-400"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Workflows ({workflowCount})
+                </button>
               </div>
 
               {/* Type filter pills */}
@@ -1106,12 +1188,20 @@ export function GrowthMindPromptStudio() {
                 )}
                 {!isLoading && filteredTemplates.length === 0 && (
                   <div className="py-8 text-center">
-                    <FlaskConical className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+                    {libTab === "workflow"
+                      ? <Workflow className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+                      : <FlaskConical className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+                    }
                     <p className="text-xs text-muted-foreground">
-                      {libTab === "custom" ? "No custom templates yet." : "No library templates found."}
+                      {libTab === "custom"   ? "No custom templates yet."
+                      : libTab === "workflow" ? "No workflows yet."
+                      : "No library templates found."}
                     </p>
                     {libTab === "custom" && (
                       <button onClick={handleNewTemplate} className="mt-2 text-xs text-emerald-400 hover:text-emerald-300">Create one</button>
+                    )}
+                    {libTab === "workflow" && (
+                      <button onClick={handleNewWorkflow} className="mt-2 text-xs text-violet-400 hover:text-violet-300">Build a workflow</button>
                     )}
                   </div>
                 )}
@@ -1122,6 +1212,7 @@ export function GrowthMindPromptStudio() {
                     isSelected={selectedId === t.id}
                     onSelect={() => loadTemplate(t)}
                     onFavorite={val => handleToggleFavorite(t.id, val)}
+                    onRun={t.category === "workflow" ? () => handleRunWorkflow(t) : undefined}
                   />
                 ))}
               </div>
@@ -1136,15 +1227,24 @@ export function GrowthMindPromptStudio() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm font-medium">Select a template to edit</p>
-                    <p className="text-xs text-muted-foreground mt-1">Choose from the library or create a new template</p>
+                    <p className="text-xs text-muted-foreground mt-1">Choose from the library, create a template, or build a reusable workflow</p>
                   </div>
-                  <button
-                    onClick={handleNewTemplate}
-                    className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.08] hover:bg-emerald-500/15 text-emerald-300 px-4 py-2 text-sm transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    New Template
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleNewWorkflow}
+                      className="flex items-center gap-2 rounded-lg border border-violet-500/30 bg-violet-500/[0.08] hover:bg-violet-500/15 text-violet-300 px-4 py-2 text-sm transition-colors"
+                    >
+                      <Workflow className="h-4 w-4" />
+                      New Workflow
+                    </button>
+                    <button
+                      onClick={handleNewTemplate}
+                      className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.08] hover:bg-emerald-500/15 text-emerald-300 px-4 py-2 text-sm transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      New Template
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -1368,18 +1468,42 @@ export function GrowthMindPromptStudio() {
                         <p className="text-xs text-blue-300">Library pack — read-only. Duplicate to create an editable chain.</p>
                       </div>
                     )}
+
+                    {/* Workflow name editor (shown when it's a workflow template) */}
+                    {editState.category === "workflow" && !isReadOnly && (
+                      <div>
+                        <label className="text-[10px] text-muted-foreground uppercase tracking-widest">Workflow Name</label>
+                        <input
+                          value={editState.name}
+                          onChange={e => { setEditState(s => ({ ...s, name: e.target.value })); setIsDirty(true); }}
+                          className="mt-1 w-full bg-transparent border border-white/[0.08] rounded-lg px-3 py-2 text-sm font-medium outline-none focus:border-violet-500/40"
+                          placeholder="Workflow name"
+                        />
+                        {editState.description !== undefined && (
+                          <input
+                            value={editState.description}
+                            onChange={e => { setEditState(s => ({ ...s, description: e.target.value })); setIsDirty(true); }}
+                            className="mt-1.5 w-full bg-transparent border border-white/[0.08] rounded-lg px-3 py-2 text-xs outline-none focus:border-violet-500/40"
+                            placeholder="Brief description (optional)"
+                          />
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Chain Pipeline</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                          {editState.category === "workflow" ? "Workflow Steps" : "Chain Pipeline"}
+                        </p>
                         <p className="text-[11px] text-muted-foreground/60 mt-0.5">Output of each step feeds into the next. Run the chain from the Test panel.</p>
                       </div>
-                      {editState.chainSteps.length > 0 && !isReadOnly && (
+                      {editState.chainSteps.length > 0 && (
                         <button
                           onClick={() => { setRightTab("test"); }}
                           className="flex items-center gap-1.5 rounded-lg bg-violet-500/15 hover:bg-violet-500/20 text-violet-300 px-2.5 py-1.5 text-xs font-medium transition-colors"
                         >
-                          <Zap className="h-3 w-3" />
-                          Run Chain
+                          <Play className="h-3 w-3" />
+                          {editState.category === "workflow" ? "Run Workflow" : "Run Chain"}
                         </button>
                       )}
                     </div>
@@ -1391,8 +1515,8 @@ export function GrowthMindPromptStudio() {
                       readOnly={isReadOnly}
                     />
 
-                    {/* Toolbar */}
-                    {!isReadOnly && editState.chainSteps.length > 0 && (
+                    {/* Toolbar — always shown for non-read-only */}
+                    {!isReadOnly && (
                       <div className="flex items-center gap-2 pt-2 border-t border-white/[0.06]">
                         <button
                           onClick={handleSave}
@@ -1402,6 +1526,24 @@ export function GrowthMindPromptStudio() {
                           {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                           {isSaving ? "Saving…" : isDirty ? "Save*" : "Saved"}
                         </button>
+                        <button
+                          onClick={handleDuplicate}
+                          disabled={isSaving}
+                          className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.07] text-muted-foreground hover:text-foreground px-3 py-1.5 text-xs font-medium transition-colors"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Duplicate
+                        </button>
+                        {selectedId && (
+                          <button
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="flex items-center gap-1.5 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-400 px-3 py-1.5 text-xs font-medium transition-colors ml-auto"
+                          >
+                            {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            Delete
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

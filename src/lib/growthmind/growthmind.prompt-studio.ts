@@ -37,7 +37,7 @@ export type PromptTemplate = {
   name:               string;
   description:        string;
   type:               PromptType;
-  category:           "library" | "custom";
+  category:           "library" | "custom" | "workflow";
   systemPrompt:       string;
   userPromptTemplate: string;
   variables:          PromptVariable[];
@@ -816,6 +816,7 @@ const saveTemplateSchema = z.object({
   name:               z.string().min(1).max(200),
   description:        z.string().default(""),
   type:               z.string().default("content"),
+  category:           z.enum(["custom", "workflow"]).default("custom"),
   systemPrompt:       z.string().default(""),
   userPromptTemplate: z.string().default(""),
   variables:          z.array(z.object({
@@ -867,7 +868,7 @@ export const savePromptTemplate = createServerFn({ method: "POST" })
       })
         .eq("id", templateId)
         .eq("workspace_id", workspaceId)
-        .eq("category", "custom");
+        .neq("category", "library");
       if (error) throw new Error(error.message);
     } else {
       const { data: inserted, error } = await sb.from("growthmind_prompt_templates").insert({
@@ -875,7 +876,7 @@ export const savePromptTemplate = createServerFn({ method: "POST" })
         name:                 data.name,
         description:          data.description,
         type:                 data.type,
-        category:             "custom",
+        category:             data.category ?? "custom",
         system_prompt:        data.systemPrompt,
         user_prompt_template: data.userPromptTemplate,
         variables:            data.variables,
@@ -931,7 +932,7 @@ export const deletePromptTemplate = createServerFn({ method: "POST" })
       .delete()
       .eq("id", data.id)
       .eq("workspace_id", workspaceId)
-      .eq("category", "custom");
+      .neq("category", "library");
 
     if (error) throw new Error(error.message);
     return { ok: true };
