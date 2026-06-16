@@ -125,6 +125,91 @@ async function upsertCampaigns(sb: ReturnType<typeof getAdminClient>, workspaceI
   }
 }
 
+// ── Budget alert generation ────────────────────────────────────────────────────
+
+async function generateAlerts(
+  sb: ReturnType<typeof getAdminClient>,
+  workspaceId: string,
+  platform: "meta" | "google",
+  campaigns: any[],
+): Promise<void> {
+  if (campaigns.length === 0) return;
+
+  const now = new Date().toISOString();
+  const alerts: Array<{
+    workspace_id: string; platform: string; alert_type: string;
+    current_value: number; threshold: number; message: string;
+    created_at: string;
+  }> = [];
+
+  // Total spend and revenue across all synced campaigns (last 30 days window)
+  const totalSpend       = campaigns.reduce((a, c) => a + Number(c.spend ?? 0), 0);
+  const totalRevenue     = campaigns.reduce((a, c) => a + Number(c.revenue ?? 0), 0);
+  const totalConversions = campaigns.reduce((a, c) => a + Number(c.conversions ?? 0), 0);
+  const blendedRoas      = totalSpend > 0 && totalRevenue > 0
+    ? +(totalRevenue / totalSpend).toFixed(3) : 0;
+
+  // ROAS drop alert — spending more than earning back
+  if (totalSpend >= 10 && blendedRoas < 1) {
+    alerts.push({
+      workspace_id: workspaceId,
+      platform,
+      alert_type: "roas_drop",
+      current_value: blendedRoas,
+      threshold: 1,
+      message: `${platform === "meta" ? "Meta" : "Google"} Ads ROAS is ${blendedRoas.toFixed(2)}x — spending more than revenue generated. Review and optimise underperforming campaigns.`,
+      created_at: now,
+    });
+  }
+
+  // Zero spend despite campaigns being present
+  if (totalSpend === 0 && campaigns.length > 0) {
+    alerts.push({
+      workspace_id: workspaceId,
+      platform,
+      alert_type: "zero_spend",
+      current_value: 0,
+      threshold: 0,
+      message: `${platform === "meta" ? "Meta" : "Google"} Ads has ${campaigns.length} campaign(s) but zero spend recorded — campaigns may be paused or budgets exhausted.`,
+      created_at: now,
+    });
+  }
+
+  // High CPL alert — conversions exist but CPL is very high
+  if (totalConversions > 0 && totalSpend > 0) {
+    const avgCpl = totalSpend / totalConversions;
+    if (avgCpl > 500) {
+      alerts.push({
+        workspace_id: workspaceId,
+        platform,
+        alert_type: "high_cpl",
+        current_value: +avgCpl.toFixed(2),
+        threshold: 500,
+        message: `${platform === "meta" ? "Meta" : "Google"} Ads average cost-per-lead is £${avgCpl.toFixed(0)} — above the £500 alert threshold. Narrow targeting or pause high-cost campaigns.`,
+        created_at: now,
+      });
+    }
+  }
+
+  // Deduplicate: only insert if there is no unacknowledged alert of this type in the last 24h
+  for (const alert of alerts) {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: existing } = await sb
+      .from("growthmind_ad_budget_alerts")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("platform", platform)
+      .eq("alert_type", alert.alert_type)
+      .eq("acknowledged", false)
+      .gte("created_at", cutoff)
+      .limit(1);
+
+    if (!existing || existing.length === 0) {
+      await sb.from("growthmind_ad_budget_alerts").insert(alert).catch(() => {});
+    }
+  }
+}
+
 // ── Per-workspace sync ─────────────────────────────────────────────────────────
 
 async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId: string): Promise<AdsSyncResult[]> {
@@ -149,6 +234,8 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
         impressions_total: totals.impressions, clicks_total: totals.clicks,
         conversions_total: totals.conversions, status: "success",
       }).catch(() => {});
+
+      await generateAlerts(sb, workspaceId, "meta", campaigns).catch(() => {});
 
       results.push({ platform: "meta", workspaceId, campaignsSynced: campaigns.length, spendTotal: totals.spend, impressionsTotal: totals.impressions, clicksTotal: totals.clicks, conversionsTotal: totals.conversions, status: "success" });
     } catch (err: any) {
@@ -179,6 +266,8 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
         impressions_total: totals.impressions, clicks_total: totals.clicks,
         conversions_total: totals.conversions, status: "success",
       }).catch(() => {});
+
+      await generateAlerts(sb, workspaceId, "google", campaigns).catch(() => {});
 
       results.push({ platform: "google", workspaceId, campaignsSynced: campaigns.length, spendTotal: totals.spend, impressionsTotal: totals.impressions, clicksTotal: totals.clicks, conversionsTotal: totals.conversions, status: "success" });
     } catch (err: any) {

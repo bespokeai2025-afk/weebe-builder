@@ -281,6 +281,42 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
         action: { href: "/growthmind/ads-performance", label: "View Ads" },
       });
     }
+
+    // Best / worst channel insight — if both platforms have data, surface the cheaper one
+    const metaCpl   = ads.meta?.avgCpl ?? null;
+    const googleCpl = ads.google?.avgCpl ?? null;
+    if (metaCpl !== null && googleCpl !== null && totalConversions > 0) {
+      const bestPlatform  = metaCpl <= googleCpl ? "Meta"   : "Google";
+      const worstPlatform = metaCpl <= googleCpl ? "Google" : "Meta";
+      const bestCpl       = Math.min(metaCpl, googleCpl);
+      const worstCpl      = Math.max(metaCpl, googleCpl);
+      const cplDiffPct    = worstCpl > 0 ? Math.round(((worstCpl - bestCpl) / worstCpl) * 100) : 0;
+      if (cplDiffPct >= 25) {
+        recs.push({
+          id: "ads-channel-cpl-gap",
+          category: "Paid Ads",
+          priority: "medium",
+          problem: `${worstPlatform} Ads CPL is ${cplDiffPct}% higher than ${bestPlatform} Ads (£${worstCpl.toFixed(0)} vs £${bestCpl.toFixed(0)})`,
+          impact: `Shifting budget from ${worstPlatform} to ${bestPlatform} could lower your average cost-per-conversion by up to ${cplDiffPct}%.`,
+          fix: `Reallocate a portion of your ${worstPlatform} daily budget to ${bestPlatform} and compare weekly performance.`,
+          action: { href: "/growthmind/ads-performance", label: "Compare Channels" },
+        });
+      }
+    }
+
+    // High CPL vs a reasonable baseline (>£200 per conversion = flag)
+    const blendedCpl = totalConversions > 0 ? totalSpend / totalConversions : null;
+    if (blendedCpl !== null && blendedCpl > 200 && totalSpend > 100) {
+      recs.push({
+        id: "ads-high-cpl",
+        category: "Paid Ads",
+        priority: "medium",
+        problem: `Blended cost-per-lead is £${blendedCpl.toFixed(0)} — above the £200 efficiency baseline`,
+        impact: "High acquisition costs compress margin. Reducing CPL by 20% on the same budget delivers 25% more leads.",
+        fix: "Pause campaigns with CPL >3× your average, tighten audience targeting, and test lower-cost ad formats.",
+        action: { href: "/growthmind/ads-performance", label: "Review Campaigns" },
+      });
+    }
   } else if (!(ads?.hasSyncedData) && (leads?.total ?? 0) > 20) {
     // Large lead volume but no ads connected
     recs.push({

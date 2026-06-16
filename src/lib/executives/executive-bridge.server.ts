@@ -393,18 +393,50 @@ export async function buildGrowthMindExecutiveSummary(
 
   // Ads analytics snapshot — best-effort from synced growthmind_campaigns
   const adsData = (data as any).ads ?? {};
+
+  // Unacknowledged budget alerts for CMO summary
+  const budgetAlertsRes = await sb
+    .from("growthmind_ad_budget_alerts")
+    .select("id,platform,alert_type,current_value,threshold,message,created_at")
+    .eq("workspace_id", workspaceId)
+    .eq("acknowledged", false)
+    .order("created_at", { ascending: false })
+    .limit(10)
+    .catch(() => ({ data: [] }));
+
+  const unacknowledgedAlerts: Array<{
+    id: string; platform: string; alertType: string;
+    currentValue: number | null; threshold: number | null;
+    message: string; createdAt: string;
+  }> = ((budgetAlertsRes as any).data ?? []).map((a: any) => ({
+    id:           a.id,
+    platform:     a.platform,
+    alertType:    a.alert_type,
+    currentValue: a.current_value !== null ? Number(a.current_value) : null,
+    threshold:    a.threshold !== null ? Number(a.threshold) : null,
+    message:      a.message ?? "",
+    createdAt:    a.created_at,
+  }));
+
   const adsSummary = adsData.hasSyncedData ? {
-    totalCampaigns:  adsData.totalCampaigns ?? 0,
-    totalSpend:      adsData.totalSpend     ?? 0,
-    meta:  adsData.meta  ?? null,
-    google: adsData.google ?? null,
-    topCampaign: adsData.topCampaigns?.[0] ?? null,
+    totalCampaigns:     adsData.totalCampaigns  ?? 0,
+    activeCampaigns:    adsData.activeCampaigns  ?? 0,
+    totalSpend:         adsData.totalSpend       ?? 0,
+    totalRevenue:       adsData.totalRevenue     ?? 0,
+    blendedRoas:        adsData.blendedRoas      ?? null,
+    bestPlatformByCpl:  adsData.bestPlatformByCpl  ?? null,
+    worstPlatformByCpl: adsData.worstPlatformByCpl ?? null,
+    meta:               adsData.meta   ?? null,
+    google:             adsData.google ?? null,
+    topCampaign:        adsData.topCampaigns?.[0] ?? null,
+    budgetAlerts:       unacknowledgedAlerts,
     insight: adsData.totalSpend > 0
-      ? `£${(adsData.totalSpend as number).toLocaleString()} total ad spend across ${adsData.totalCampaigns} campaign(s). ` +
-        (adsData.meta?.avgRoas != null ? `Meta ROAS: ${(adsData.meta.avgRoas as number).toFixed(2)}x. ` : "") +
-        (adsData.google?.avgRoas != null ? `Google ROAS: ${(adsData.google.avgRoas as number).toFixed(2)}x.` : "")
+      ? `£${(adsData.totalSpend as number).toLocaleString()} total ad spend across ${adsData.activeCampaigns ?? adsData.totalCampaigns} active campaign(s). ` +
+        (adsData.blendedRoas != null ? `Blended ROAS: ${(adsData.blendedRoas as number).toFixed(2)}x. ` : "") +
+        (adsData.bestPlatformByCpl ? `Best-value channel by CPL: ${adsData.bestPlatformByCpl === "meta" ? "Meta" : "Google"} Ads. ` : "") +
+        (unacknowledgedAlerts.length > 0 ? `${unacknowledgedAlerts.length} unacknowledged budget alert(s).` : "")
       : "Ads data synced but no spend recorded yet.",
-  } : null;
+  } : (unacknowledgedAlerts.length > 0 ? { budgetAlerts: unacknowledgedAlerts } : null);
 
   return {
     source: "growthmind",

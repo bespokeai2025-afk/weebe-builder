@@ -40,18 +40,31 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No workspace");
 
     const [
-      settingsRes, dnaRes, adsRes, watiRes,
+      settingsRes, dnaRes, adsPsRes, adsCampaignsRes, watiRes,
       leadsRes, callsRes, waContactsRes,
       competitorsRes, calendarRes, tasksRes,
       hexmailRes, bookingsRes, seoRes,
     ] = await Promise.all([
       sb.from("workspace_settings")
-        .select("calcom_api_key,whatsapp_phone_id,gsc_access_token,gsc_property_url,hexmail_active_provider,meta_phone_number_id,retell_workspace_id")
+        .select("calcom_api_key,whatsapp_phone_id,gsc_access_token,gsc_property_url,hexmail_active_provider,meta_phone_number_id,retell_workspace_id,meta_ads_access_token,meta_ads_account_id")
         .eq("workspace_id", workspaceId).maybeSingle(),
       sb.from("growthmind_business_dna")
         .select("website,industry,updated_at").eq("workspace_id", workspaceId).maybeSingle(),
-      sb.from("growthmind_ads_accounts")
-        .select("id,platform,status,updated_at").eq("workspace_id", workspaceId).limit(20),
+      // New: check provider_settings for advertising credentials
+      sb.from("provider_settings")
+        .select("provider_name,status,updated_at")
+        .eq("workspace_id", workspaceId)
+        .eq("provider_category", "advertising")
+        .in("status", ["connected", "partial"])
+        .limit(10)
+        .catch(() => ({ data: [] })),
+      // New: check growthmind_campaigns for synced data
+      sb.from("growthmind_campaigns")
+        .select("platform,status,synced_at")
+        .eq("workspace_id", workspaceId)
+        .order("synced_at", { ascending: false })
+        .limit(100)
+        .catch(() => ({ data: [] })),
       sb.from("wati_connections")
         .select("id,status,last_tested_at").eq("workspace_id", workspaceId).maybeSingle(),
       sb.from("leads").select("id", { count: "exact", head: true }).eq("workspace_id", workspaceId),
@@ -67,7 +80,8 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
 
     const settings    = settingsRes.data;
     const dna         = dnaRes.data;
-    const ads: any[]  = adsRes.data ?? [];
+    const adsPsList: any[] = (adsPsRes as any).data ?? [];
+    const adsCampaigns: any[] = (adsCampaignsRes as any).data ?? [];
     const wati        = watiRes.data;
     const leadCount   = leadsRes.count    ?? 0;
     const callCount   = callsRes.count    ?? 0;
@@ -80,10 +94,21 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
     const seoSites: any[] = seoRes.data ?? [];
     const seoKeywords = seoSites.reduce((a: number, s: any) => a + ((s.keywords as any[])?.length ?? 0), 0);
 
-    const googleAds  = ads.find(a => a.platform === "google");
-    const metaAds    = ads.find(a => a.platform === "meta");
-    const linkedinAds = ads.find(a => a.platform === "linkedin");
-    const tiktokAds  = ads.find(a => a.platform === "tiktok");
+    // Derive ads connection status from provider_settings + workspace_settings token + synced campaigns
+    const hasMetaAdsCred = !!(settings?.meta_ads_access_token && settings?.meta_ads_account_id)
+      || adsPsList.some((p: any) => p.provider_name === "meta_ads");
+    const hasGoogleAdsCred = adsPsList.some((p: any) => p.provider_name === "google_ads");
+
+    const metaSyncCamps   = adsCampaigns.filter((c: any) => c.platform === "meta");
+    const googleSyncCamps = adsCampaigns.filter((c: any) => c.platform === "google");
+    const metaLastSync    = metaSyncCamps[0]?.synced_at ?? null;
+    const googleLastSync  = googleSyncCamps[0]?.synced_at ?? null;
+    const metaCampCount   = metaSyncCamps.length;
+    const googleCampCount = googleSyncCamps.length;
+
+    // Legacy growthmind_ads_accounts fallback (LinkedIn/TikTok only — they have no sync adapter yet)
+    const linkedinAds = null;
+    const tiktokAds   = null;
 
     const hasWhatsapp = !!(settings?.whatsapp_phone_id || settings?.meta_phone_number_id || wati?.status === "connected");
     const hasWati     = wati?.status === "connected";
@@ -119,38 +144,46 @@ const getDataSourceStatus = createServerFn({ method: "GET" })
       // ── Ads ──────────────────────────────────────────────────────────────────
       {
         id: "google_ads", label: "Google Ads", category: "Paid Advertising",
-        status: googleAds ? (googleAds.status === "active" ? "connected" : "partial") : "not_connected",
-        detail: googleAds ? `Account connected (${googleAds.status})` : "No Google Ads account connected.",
-        lastSync: googleAds?.updated_at ?? null,
-        usedBy: ["Ads", "Campaign Factory", "Forecasts"],
-        setupHref: "/growthmind/ads",
-        dataPoints: null,
+        status: googleCampCount > 0 ? "connected" : hasGoogleAdsCred ? "partial" : "not_connected",
+        detail: googleCampCount > 0
+          ? `${googleCampCount} campaign(s) synced via live API`
+          : hasGoogleAdsCred
+            ? "Credentials saved — sync pending (first tick in 90s)"
+            : "No Google Ads credentials. Add them in Provider Settings.",
+        lastSync: googleLastSync,
+        usedBy: ["Ads Performance", "Recommendations", "GrowthMind CMO"],
+        setupHref: "/settings/providers",
+        dataPoints: googleCampCount || null,
       },
       {
         id: "meta_ads", label: "Meta Ads", category: "Paid Advertising",
-        status: metaAds ? (metaAds.status === "active" ? "connected" : "partial") : "not_connected",
-        detail: metaAds ? `Account connected (${metaAds.status})` : "No Meta Ads account connected.",
-        lastSync: metaAds?.updated_at ?? null,
-        usedBy: ["Ads", "Campaign Factory"],
-        setupHref: "/growthmind/ads",
-        dataPoints: null,
+        status: metaCampCount > 0 ? "connected" : hasMetaAdsCred ? "partial" : "not_connected",
+        detail: metaCampCount > 0
+          ? `${metaCampCount} campaign(s) synced via live API`
+          : hasMetaAdsCred
+            ? "Credentials saved — sync pending (first tick in 90s)"
+            : "No Meta Ads credentials. Add access token and account ID in Provider Settings.",
+        lastSync: metaLastSync,
+        usedBy: ["Ads Performance", "Recommendations", "GrowthMind CMO"],
+        setupHref: "/settings/providers",
+        dataPoints: metaCampCount || null,
       },
       {
         id: "linkedin_ads", label: "LinkedIn Ads", category: "Paid Advertising",
-        status: linkedinAds ? (linkedinAds.status === "active" ? "connected" : "partial") : "not_connected",
-        detail: linkedinAds ? `Account connected (${linkedinAds.status})` : "No LinkedIn Ads account connected.",
-        lastSync: linkedinAds?.updated_at ?? null,
+        status: linkedinAds ? "partial" : "not_connected",
+        detail: "LinkedIn Ads sync coming soon. Not yet supported.",
+        lastSync: null,
         usedBy: ["Campaign Factory"],
-        setupHref: "/growthmind/ads",
+        setupHref: null,
         dataPoints: null,
       },
       {
         id: "tiktok_ads", label: "TikTok Ads", category: "Paid Advertising",
-        status: tiktokAds ? (tiktokAds.status === "active" ? "connected" : "partial") : "not_connected",
-        detail: tiktokAds ? `Account connected (${tiktokAds.status})` : "No TikTok Ads account connected.",
-        lastSync: tiktokAds?.updated_at ?? null,
+        status: tiktokAds ? "partial" : "not_connected",
+        detail: "TikTok Ads sync coming soon. Not yet supported.",
+        lastSync: null,
         usedBy: ["Campaign Factory"],
-        setupHref: "/growthmind/ads",
+        setupHref: null,
         dataPoints: null,
       },
 

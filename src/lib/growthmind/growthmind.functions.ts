@@ -134,20 +134,35 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
     const googleCamps = adsCampaigns.filter(c => c.platform === "google");
 
     function adsTotals(camps: any[]) {
+      const totalSpend       = +camps.reduce((a, c) => a + Number(c.spend   ?? 0), 0).toFixed(2);
+      const totalImpressions =  camps.reduce((a, c) => a + Number(c.impressions ?? 0), 0);
+      const totalClicks      =  camps.reduce((a, c) => a + Number(c.clicks   ?? 0), 0);
+      const totalConversions =  camps.reduce((a, c) => a + Number(c.conversions ?? 0), 0);
+      const totalRevenue     =  camps.reduce((a, c) => a + Number((c as any).revenue ?? 0), 0);
+      const activeCampaigns  =  camps.filter(c => c.status === "active").length;
+
+      // Blended ROAS: total revenue / total spend (more accurate than avg of per-campaign ROAS)
+      const blendedRoas = totalSpend > 0 && totalRevenue > 0
+        ? +(totalRevenue / totalSpend).toFixed(3) : null;
+
+      // Average CPL: total spend / total conversions
+      const avgCpl = totalConversions > 0
+        ? +(totalSpend / totalConversions).toFixed(2) : null;
+
       return {
-        count:       camps.length,
-        spend:       +camps.reduce((a, c) => a + Number(c.spend   ?? 0), 0).toFixed(2),
-        impressions: camps.reduce((a, c) => a + Number(c.impressions ?? 0), 0),
-        clicks:      camps.reduce((a, c) => a + Number(c.clicks   ?? 0), 0),
-        conversions: camps.reduce((a, c) => a + Number(c.conversions ?? 0), 0),
-        avgRoas:     camps.filter(c => c.roas != null).length > 0
-          ? +( camps.filter(c => c.roas != null).reduce((a, c) => a + Number(c.roas), 0)
-             / camps.filter(c => c.roas != null).length ).toFixed(3)
-          : null,
-        ctr: camps.reduce((a, c) => a + Number(c.impressions ?? 0), 0) > 0
-          ? +( camps.reduce((a, c) => a + Number(c.clicks ?? 0), 0)
-             / camps.reduce((a, c) => a + Number(c.impressions ?? 0), 0) * 100 ).toFixed(2)
-          : null,
+        count:          camps.length,
+        activeCampaigns,
+        spend:          totalSpend,
+        impressions:    totalImpressions,
+        clicks:         totalClicks,
+        conversions:    totalConversions,
+        revenue:        +totalRevenue.toFixed(2),
+        blendedRoas,
+        avgCpl,
+        // Legacy field: per-campaign avgRoas (weighted mean)
+        avgRoas:        blendedRoas,
+        ctr: totalImpressions > 0
+          ? +(totalClicks / totalImpressions * 100).toFixed(2) : null,
         lastSyncedAt: camps.reduce((latest: string | null, c) => {
           if (!c.synced_at) return latest;
           if (!latest) return c.synced_at;
@@ -156,7 +171,20 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
       };
     }
 
-    const totalAdSpend = +adsCampaigns.reduce((a, c) => a + Number(c.spend ?? 0), 0).toFixed(2);
+    const totalAdSpend   = +adsCampaigns.reduce((a, c) => a + Number(c.spend   ?? 0), 0).toFixed(2);
+    const totalAdRevenue =  adsCampaigns.reduce((a, c) => a + Number((c as any).revenue ?? 0), 0);
+    const blendedRoasAll = totalAdSpend > 0 && totalAdRevenue > 0
+      ? +(totalAdRevenue / totalAdSpend).toFixed(3) : null;
+
+    // Best / worst platform by CPL (lower CPL = better)
+    const metaTotals   = adsTotals(metaCamps);
+    const googleTotals = adsTotals(googleCamps);
+    let bestPlatformByCpl:  "meta" | "google" | null = null;
+    let worstPlatformByCpl: "meta" | "google" | null = null;
+    if (metaTotals.avgCpl !== null && googleTotals.avgCpl !== null) {
+      bestPlatformByCpl  = metaTotals.avgCpl <= googleTotals.avgCpl ? "meta" : "google";
+      worstPlatformByCpl = bestPlatformByCpl === "meta" ? "google" : "meta";
+    }
 
     const agents: any[]          = agentsRes.data          ?? [];
     const calls: any[]           = callsRes.data           ?? [];
@@ -547,11 +575,16 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
       systemHealth,
       // Paid ads analytics (from synced growthmind_campaigns rows)
       ads: {
-        hasSyncedData:  adsCampaigns.length > 0,
-        totalCampaigns: adsCampaigns.length,
-        totalSpend:     totalAdSpend,
-        meta:           adsTotals(metaCamps),
-        google:         adsTotals(googleCamps),
+        hasSyncedData:     adsCampaigns.length > 0,
+        totalCampaigns:    adsCampaigns.length,
+        activeCampaigns:   adsCampaigns.filter(c => c.status === "active").length,
+        totalSpend:        totalAdSpend,
+        totalRevenue:      +totalAdRevenue.toFixed(2),
+        blendedRoas:       blendedRoasAll,
+        bestPlatformByCpl,
+        worstPlatformByCpl,
+        meta:              metaTotals,
+        google:            googleTotals,
         topCampaigns:   adsCampaigns.slice(0, 10).map(c => ({
           id:          c.id,
           name:        c.name,

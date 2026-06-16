@@ -102,7 +102,8 @@ export async function syncGoogleAdsCampaigns(credentials: {
     throw new Error(`Google Ads API ${res.status}: ${errText.slice(0, 300)}`);
   }
 
-  // searchStream returns newline-delimited JSON objects
+  // searchStream may return newline-delimited JSON objects OR a JSON array.
+  // Try line-by-line (NDJSON) first; fall back to parsing full body as array.
   const text = await res.text();
   const rows: GoogleAdsRow[] = [];
 
@@ -112,6 +113,22 @@ export async function syncGoogleAdsCampaigns(credentials: {
     try {
       const parsed = JSON.parse(trimmed.replace(/,$/, "")) as any;
       if (parsed.results) rows.push(...(parsed.results as GoogleAdsRow[]));
+      // Some API versions wrap results in response.results (non-stream endpoint)
+      else if (parsed.response?.results) rows.push(...(parsed.response.results as GoogleAdsRow[]));
+    } catch {}
+  }
+
+  // Fallback: if nothing extracted, try treating the whole response as a single JSON
+  if (rows.length === 0) {
+    try {
+      const parsed = JSON.parse(text) as any;
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          if (item?.results) rows.push(...(item.results as GoogleAdsRow[]));
+        }
+      } else if (parsed?.results) {
+        rows.push(...(parsed.results as GoogleAdsRow[]));
+      }
     } catch {}
   }
 
