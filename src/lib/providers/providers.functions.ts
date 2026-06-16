@@ -301,6 +301,7 @@ export const saveProviderCredentials = createServerFn({ method: "POST" })
 
     await requireWorkspaceAdmin(context.supabase, context.userId, workspaceId);
 
+    const sb = context.supabase as any;
     const { category, providerName, credentials } = data;
 
     // Determine connected status: at least one non-empty credential value
@@ -313,6 +314,66 @@ export const saveProviderCredentials = createServerFn({ method: "POST" })
       status: hasCredentials ? "connected" : "disconnected",
       credentials,
     });
+
+    // ── Bridge credentials to workspace_settings / legacy tables ─────────────
+    // The runtime reads from workspace_settings columns (not provider_settings.credentials),
+    // so we must mirror the key values there too whenever they are saved here.
+    const wsUpdate: Record<string, string> = {};
+    const key = `${category}:${providerName}`;
+
+    if (key === "llm:openai" && credentials.apiKey)
+      wsUpdate.openai_api_key = credentials.apiKey;
+
+    if (key === "voice:openai" && credentials.apiKey)
+      wsUpdate.openai_api_key = credentials.apiKey;
+
+    if (key === "image:gpt_image" && credentials.apiKey)
+      wsUpdate.openai_api_key = credentials.apiKey;
+
+    if (key === "voice:retell" && credentials.apiKey)
+      wsUpdate.retell_workspace_id = credentials.apiKey;
+
+    if (key === "voice:elevenlabs" && credentials.apiKey)
+      wsUpdate.elevenlabs_api_key = credentials.apiKey;
+
+    if ((key === "telephony:twilio" || key === "whatsapp:twilio")) {
+      if (credentials.accountSid) wsUpdate.twilio_account_sid = credentials.accountSid;
+      if (credentials.authToken)  wsUpdate.twilio_auth_token  = credentials.authToken;
+    }
+
+    if (key === "email:resend" && credentials.apiKey)
+      wsUpdate.resend_api_key = credentials.apiKey;
+
+    if (key === "crm:hubspot" && credentials.apiKey)
+      wsUpdate.hubspot_api_key = credentials.apiKey;
+
+    if (key === "crm:gohighlevel" && credentials.apiKey)
+      wsUpdate.ghl_api_key = credentials.apiKey;
+
+    if (key === "calendar:calcom" && credentials.apiKey)
+      wsUpdate.calcom_api_key = credentials.apiKey;
+
+    if (Object.keys(wsUpdate).length > 0) {
+      await sb.from("workspace_settings").upsert(
+        { workspace_id: workspaceId, ...wsUpdate, updated_at: new Date().toISOString() },
+        { onConflict: "workspace_id" },
+      ).catch(() => {/* graceful — column may not exist yet */});
+    }
+
+    // ── WATI uses a dedicated table, not workspace_settings ───────────────────
+    if (key === "whatsapp:wati" && credentials.apiKey && credentials.tenantId) {
+      await sb.from("wati_connections").upsert(
+        {
+          workspace_id:   workspaceId,
+          api_key:        credentials.apiKey,
+          tenant_id:      credentials.tenantId,
+          webhook_secret: credentials.webhookSecret ?? null,
+          status:         "connected",
+          updated_at:     new Date().toISOString(),
+        },
+        { onConflict: "workspace_id" },
+      ).catch(() => {/* graceful — table may not exist yet */});
+    }
 
     return { ok: true };
   });

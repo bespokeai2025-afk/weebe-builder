@@ -46,6 +46,7 @@ interface CredField {
 }
 
 const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
+  "llm:openai": [{ key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." }],
   "llm:claude": [{ key: "apiKey", label: "Anthropic API Key", type: "password", required: true, placeholder: "sk-ant-api03-..." }],
   "llm:gemini": [{ key: "apiKey", label: "Gemini API Key", type: "password", required: true, placeholder: "AIzaSy..." }],
   "llm:openrouter": [{ key: "apiKey", label: "OpenRouter API Key", type: "password", required: true, placeholder: "sk-or-v1-..." }],
@@ -103,6 +104,18 @@ const CREDENTIAL_FIELDS: Record<string, CredField[]> = {
   "telephony:twilio": [
     { key: "accountSid", label: "Account SID", type: "text", required: true, placeholder: "ACxxxx" },
     { key: "authToken", label: "Auth Token", type: "password", required: true },
+  ],
+  "whatsapp:wati": [
+    { key: "apiKey",        label: "WATI API Key",      type: "password", required: true,  placeholder: "your_wati_api_key" },
+    { key: "tenantId",      label: "WATI Tenant URL",   type: "text",     required: true,  placeholder: "yourcompany.wati.io" },
+    { key: "webhookSecret", label: "Webhook Secret",    type: "password", required: false, placeholder: "optional secret string" },
+  ],
+  "whatsapp:twilio": [
+    { key: "accountSid", label: "Twilio Account SID", type: "text",     required: true, placeholder: "ACxxxx" },
+    { key: "authToken",  label: "Twilio Auth Token",  type: "password", required: true },
+  ],
+  "calendar:calcom": [
+    { key: "apiKey", label: "Cal.com API Key", type: "password", required: true, placeholder: "cal_live_..." },
   ],
   "image:gpt_image": [{ key: "apiKey", label: "OpenAI API Key", type: "password", required: true, placeholder: "sk-..." }],
   "crm:hubspot": [{ key: "apiKey", label: "HubSpot Access Token", type: "password", required: true, placeholder: "pat-na1-..." }],
