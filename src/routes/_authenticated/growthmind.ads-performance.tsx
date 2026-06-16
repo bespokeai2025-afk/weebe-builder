@@ -63,6 +63,13 @@ interface BudgetAlert {
   created_at:   string;
 }
 
+interface BudgetCapSummary {
+  platform:          "meta" | "google";
+  monthly_budget_cap: number | null;
+  alert_at_pct:      number;
+  currency:          string;
+}
+
 interface AdsPerformanceData {
   hasSyncedData:  boolean;
   hasMetaCreds:   boolean;
@@ -73,6 +80,7 @@ interface AdsPerformanceData {
   google:         PlatformTotals;
   campaigns:      AdCampaign[];
   alerts:         BudgetAlert[];
+  caps:           BudgetCapSummary[];
   lastSyncedAt:   string | null;
 }
 
@@ -93,6 +101,7 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
       alertsRes,
       wsRes,
       psRes,
+      capsRes,
     ] = await Promise.all([
       Promise.resolve(
         sb.from("growthmind_ad_campaigns")
@@ -127,12 +136,20 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
           .eq("provider_category", "advertising")
           .eq("status", "connected"),
       ).catch(() => ({ data: [] })),
+
+      Promise.resolve(
+        sb.from("growthmind_ad_budget_caps")
+          .select("platform,monthly_budget_cap,alert_at_pct,currency")
+          .eq("workspace_id", workspaceId)
+          .in("platform", ["meta", "google"]),
+      ).catch(() => ({ data: [] })),
     ]);
 
     const campaigns: any[] = campaignsRes.data ?? [];
     const alerts:    any[] = alertsRes.data    ?? [];
     const ws               = wsRes.data;
     const connectedAds     = new Set((psRes.data ?? []).map((r: any) => r.provider_name as string));
+    const capsRaw: any[]   = capsRes.data ?? [];
 
     const hasMetaCreds   = !!(ws?.meta_ads_access_token && ws?.meta_ads_account_id) || connectedAds.has("meta_ads");
     const hasGoogleCreds = connectedAds.has("google_ads");
@@ -198,6 +215,12 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
         threshold:    a.threshold ? Number(a.threshold) : null,
         message:      a.message,
         created_at:   a.created_at,
+      })),
+      caps: capsRaw.map((r: any) => ({
+        platform:           r.platform as "meta" | "google",
+        monthly_budget_cap: r.monthly_budget_cap ? Number(r.monthly_budget_cap) : null,
+        alert_at_pct:       Number(r.alert_at_pct ?? 80),
+        currency:           r.currency ?? "GBP",
       })),
       lastSyncedAt,
     };
@@ -611,7 +634,7 @@ const PLATFORM_CAP_CONFIG = [
   { platform: "google" as const, label: "Google Ads", color: "text-emerald-400" },
 ];
 
-function BudgetCapsPanel() {
+function BudgetCapsPanel({ hasAnyCap }: { hasAnyCap: boolean }) {
   const qc          = useQueryClient();
   const getCapsFn   = useServerFn(getBudgetCaps);
   const saveCapFn   = useServerFn(saveBudgetCap);
@@ -625,7 +648,7 @@ function BudgetCapsPanel() {
   type DraftCap = { monthly_budget_cap: string; alert_at_pct: string; currency: string };
   const [drafts,  setDrafts]  = useState<Record<string, DraftCap>>({});
   const [saving,  setSaving]  = useState<Record<string, boolean>>({});
-  const [open,    setOpen]    = useState(false);
+  const [open,    setOpen]    = useState(!hasAnyCap);
 
   function getDraft(platform: string): DraftCap {
     if (drafts[platform]) return drafts[platform];
@@ -650,10 +673,16 @@ function BudgetCapsPanel() {
       await saveCapFn({ data: { platform, monthly_budget_cap: cap, alert_at_pct: pct, currency: draft.currency || "GBP" } });
       toast.success(`${platform === "meta" ? "Meta" : "Google"} Ads budget cap saved`);
       qc.invalidateQueries({ queryKey: ["budget-caps"] });
+      qc.invalidateQueries({ queryKey: ["ads-performance"] });
       setDrafts(d => { const n = { ...d }; delete n[platform]; return n; });
     } catch (e: any) { toast.error(e.message); }
     setSaving(s => ({ ...s, [platform]: false }));
   }
+
+  const configuredCaps = PLATFORM_CAP_CONFIG.filter(({ platform }) => {
+    const existing = caps.find(c => c.platform === platform);
+    return existing?.monthly_budget_cap != null;
+  });
 
   return (
     <div className="rounded-xl border border-white/[0.06] bg-card/40">
@@ -663,10 +692,22 @@ function BudgetCapsPanel() {
       >
         <Settings2 className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
         <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/60 flex-1">
-          Budget Alert Thresholds
+          Budget Caps & Alert Thresholds
         </span>
-        <Bell className="h-3 w-3 text-muted-foreground/40" />
-        <span className="text-[10px] text-muted-foreground/40">{open ? "Hide" : "Configure"}</span>
+        {!open && configuredCaps.length > 0 && (
+          <span className="text-[10px] text-emerald-400/80 font-medium">
+            {configuredCaps.map(({ platform, label }) => {
+              const cap = caps.find(c => c.platform === platform);
+              const sym = cap?.currency === "USD" ? "$" : cap?.currency === "EUR" ? "€" : "£";
+              return `${label}: ${sym}${(cap?.monthly_budget_cap ?? 0).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
+            }).join(" · ")}
+          </span>
+        )}
+        {!open && configuredCaps.length === 0 && !isLoading && (
+          <span className="text-[10px] text-amber-400/70">No caps set — click to configure</span>
+        )}
+        <Bell className="h-3 w-3 text-muted-foreground/40 ml-1" />
+        <span className="text-[10px] text-muted-foreground/40 ml-1">{open ? "Hide" : "Edit"}</span>
       </button>
 
       {open && (
@@ -1025,15 +1066,81 @@ function alertTypeLabel(type: string): string {
   }
 }
 
+// ── Budget utilization bar ─────────────────────────────────────────────────────
+
+function BudgetUtilizationBar({
+  spend, cap, alertAtPct, currency,
+}: {
+  spend: number;
+  cap: number;
+  alertAtPct: number;
+  currency: string;
+}) {
+  const pct         = Math.min((spend / cap) * 100, 100);
+  const alertPct    = Math.min(alertAtPct, 100);
+  const sym         = currency === "USD" ? "$" : currency === "EUR" ? "€" : "£";
+  const isExceeded  = spend >= cap;
+  const isWarning   = !isExceeded && spend >= cap * (alertAtPct / 100);
+
+  const barColor = isExceeded
+    ? "bg-red-500"
+    : isWarning
+      ? "bg-amber-500"
+      : "bg-emerald-500";
+
+  const labelColor = isExceeded
+    ? "text-red-400"
+    : isWarning
+      ? "text-amber-400"
+      : "text-muted-foreground/70";
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-[10px]">
+        <span className="text-muted-foreground/60 font-medium uppercase tracking-wider">Monthly Budget</span>
+        <span className={cn("font-semibold tabular-nums", labelColor)}>
+          {sym}{spend.toLocaleString("en-GB", { maximumFractionDigits: 0 })}
+          {" / "}
+          {sym}{cap.toLocaleString("en-GB", { maximumFractionDigits: 0 })}
+          {" "}
+          <span className="font-normal opacity-70">({pct.toFixed(0)}%)</span>
+        </span>
+      </div>
+      <div className="relative h-2 w-full rounded-full bg-white/[0.05] overflow-hidden">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", barColor)}
+          style={{ width: `${pct}%` }}
+        />
+        {alertPct < 100 && (
+          <div
+            className="absolute top-0 bottom-0 w-px bg-white/20"
+            style={{ left: `${alertPct}%` }}
+            title={`Alert threshold: ${alertPct}%`}
+          />
+        )}
+      </div>
+      {isExceeded && (
+        <p className="text-[10px] text-red-400 font-medium">Monthly budget exceeded — review campaigns</p>
+      )}
+      {isWarning && !isExceeded && (
+        <p className="text-[10px] text-amber-400">
+          {Math.round(pct)}% used — approaching {sym}{cap.toLocaleString("en-GB", { maximumFractionDigits: 0 })} cap
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Platform summary card ──────────────────────────────────────────────────────
 
 function PlatformCard({
-  name, logo, totals, hasCreds,
+  name, logo, totals, hasCreds, cap,
 }: {
   name: string;
   logo: React.ReactNode;
   totals: PlatformTotals;
   hasCreds: boolean;
+  cap?: BudgetCapSummary | null;
 }) {
   if (!hasCreds) {
     return (
@@ -1073,6 +1180,15 @@ function PlatformCard({
           {totals.count} campaign{totals.count !== 1 ? "s" : ""}
         </span>
       </div>
+
+      {cap?.monthly_budget_cap ? (
+        <BudgetUtilizationBar
+          spend={totals.spend}
+          cap={cap.monthly_budget_cap}
+          alertAtPct={cap.alert_at_pct}
+          currency={cap.currency}
+        />
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3">
         <Metric label="Spend" value={fmtCurrency(totals.spend)} icon={DollarSign} />
@@ -1357,6 +1473,7 @@ function AdsPerformancePage() {
                   name="Meta Ads"
                   hasCreds={data?.hasMetaCreds ?? false}
                   totals={data?.meta ?? { count: 0, spend: 0, impressions: 0, clicks: 0, conversions: 0, avgRoas: null, ctr: null, lastSyncedAt: null }}
+                  cap={(data?.caps ?? []).find(c => c.platform === "meta") ?? null}
                   logo={<div className="h-5 w-5 rounded bg-blue-600/20 flex items-center justify-center shrink-0">
                     <span className="text-[9px] font-bold text-blue-400">M</span>
                   </div>}
@@ -1365,6 +1482,7 @@ function AdsPerformancePage() {
                   name="Google Ads"
                   hasCreds={data?.hasGoogleCreds ?? false}
                   totals={data?.google ?? { count: 0, spend: 0, impressions: 0, clicks: 0, conversions: 0, avgRoas: null, ctr: null, lastSyncedAt: null }}
+                  cap={(data?.caps ?? []).find(c => c.platform === "google") ?? null}
                   logo={<div className="h-5 w-5 rounded bg-emerald-600/20 flex items-center justify-center shrink-0">
                     <span className="text-[9px] font-bold text-emerald-400">G</span>
                   </div>}
@@ -1439,7 +1557,7 @@ function AdsPerformancePage() {
             <SyncHistoryPanel />
 
             {/* Budget alert threshold configuration */}
-            <BudgetCapsPanel />
+            <BudgetCapsPanel hasAnyCap={(data?.caps ?? []).some(c => c.monthly_budget_cap != null)} />
 
             {/* Connect more platforms */}
             {!(data?.hasMetaCreds && data?.hasGoogleCreds) && (
