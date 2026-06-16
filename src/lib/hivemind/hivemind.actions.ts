@@ -11,7 +11,9 @@ export type ActionType     =
   | "enroll_leads_in_campaign"
   | "move_pipeline_stage"
   | "assign_knowledge_base"
-  | "launch_broadcast";
+  | "launch_broadcast"
+  | "growthmind_video_campaign"
+  | "growthmind_growth_campaign";
 
 export interface HiveMindAction {
   id:             string;
@@ -115,6 +117,31 @@ async function executeAction(sb: any, workspaceId: string, action: HiveMindActio
         .eq("workspace_id", workspaceId);
       if (error) throw error;
       return { agent_id: p.agent_id };
+    }
+
+    case "growthmind_video_campaign": {
+      const { dispatchVideoGeneration } = await import("@/lib/growthmind/growthmind.dispatch.server");
+      const result = await dispatchVideoGeneration(sb, workspaceId, {
+        video_type:      String(p.video_type      ?? "meta_video_ad"),
+        quality_mode:    String(p.quality_mode     ?? "fast"),
+        target_audience: String(p.target_audience  ?? ""),
+        offer:           String(p.offer            ?? ""),
+        tone:            String(p.tone             ?? "professional"),
+        cta:             String(p.cta              ?? ""),
+        voice_id:        p.voice_id  ? String(p.voice_id)  : undefined,
+        campaign_id:     p.campaign_id ? String(p.campaign_id) : undefined,
+      });
+      return result;
+    }
+
+    case "growthmind_growth_campaign": {
+      const { dispatchGrowthCampaign } = await import("@/lib/growthmind/growthmind.dispatch.server");
+      const result = await dispatchGrowthCampaign(sb, workspaceId, {
+        campaign_type: p.campaign_type ? String(p.campaign_type) : undefined,
+        budget:        p.budget != null ? Number(p.budget) : null,
+        goal:          p.goal   ? String(p.goal)   : undefined,
+      });
+      return result;
     }
 
     default:
@@ -376,6 +403,53 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
         proposed_by: "hivemind",
         status:      "pending",
       });
+    }
+
+    // 5. Marketing opportunity gap → propose GrowthMind video campaign
+    // Triggered when there are active leads but no video assets this month
+    if (
+      !pendingTypes.has("growthmind_video_campaign") &&
+      leads.filter((l: any) => ["need_to_call","calling","interested","qualified","contact_made"].includes(l.status)).length > 5
+    ) {
+      // Check if any video assets exist this month
+      const monthStart = new Date(now); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+      const { data: recentVideos } = await sb
+        .from("growthmind_video_assets")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", monthStart.toISOString())
+        .limit(1)
+        .catch(() => ({ data: [] }));
+
+      if (!recentVideos || recentVideos.length === 0) {
+        // Check GrowthMind opportunities for high-score finding
+        const { data: topOpp } = await sb
+          .from("growthmind_opportunities")
+          .select("title,urgency")
+          .eq("workspace_id", workspaceId)
+          .in("urgency", ["critical","high"])
+          .order("confidence_score", { ascending: false })
+          .limit(1)
+          .catch(() => ({ data: [] }));
+
+        const oppTitle = topOpp?.[0]?.title;
+        proposed.push({
+          workspace_id:   workspaceId,
+          title:          "Create a video marketing campaign via GrowthMind",
+          description:    `Your pipeline has active leads but no video content this month.${oppTitle ? ` Top opportunity: ${oppTitle}.` : ""} A short video ad can significantly boost engagement and conversion.`,
+          action_type:    "growthmind_video_campaign",
+          action_payload: {
+            video_type:      "meta_video_ad",
+            quality_mode:    "fast",
+            target_audience: "active leads and prospects",
+            offer:           "",
+            tone:            "professional",
+            cta:             "Book a call today",
+          },
+          proposed_by: "hivemind",
+          status:      "pending",
+        });
+      }
     }
 
     if (proposed.length > 0) {

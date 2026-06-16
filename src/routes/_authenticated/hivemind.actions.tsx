@@ -6,6 +6,7 @@ import {
   Zap, CheckCircle2, XCircle, Clock, Loader2, Plus, RefreshCw,
   ChevronDown, ChevronUp, Trash2, AlertTriangle, Play, X,
   Mail, Users, ArrowRight, BookOpen, Megaphone, ClipboardList,
+  Film, TrendingUp, ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindShell";
@@ -24,28 +25,60 @@ export const Route = createFileRoute("/_authenticated/hivemind/actions")({
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const ACTION_STYLES: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  create_task:              { label: "Create Task",      color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20",    icon: ClipboardList },
-  create_followup_campaign: { label: "Create Campaign",  color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",icon: Mail },
-  enroll_leads_in_campaign: { label: "Enroll Leads",     color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20",icon: Users },
-  move_pipeline_stage:      { label: "Move Pipeline",    color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20",  icon: ArrowRight },
-  assign_knowledge_base:    { label: "Assign KB",        color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20",icon: BookOpen },
-  launch_broadcast:         { label: "Broadcast",        color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20",icon: Megaphone },
+  create_task:                { label: "Create Task",        color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20",    icon: ClipboardList },
+  create_followup_campaign:   { label: "Create Campaign",    color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",icon: Mail },
+  enroll_leads_in_campaign:   { label: "Enroll Leads",       color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20",icon: Users },
+  move_pipeline_stage:        { label: "Move Pipeline",      color: "text-amber-400",   bg: "bg-amber-500/10 border-amber-500/20",  icon: ArrowRight },
+  assign_knowledge_base:      { label: "Assign KB",          color: "text-indigo-400",  bg: "bg-indigo-500/10 border-indigo-500/20",icon: BookOpen },
+  launch_broadcast:           { label: "Broadcast",          color: "text-orange-400",  bg: "bg-orange-500/10 border-orange-500/20",icon: Megaphone },
+  growthmind_video_campaign:  { label: "GrowthMind Video",   color: "text-pink-400",    bg: "bg-pink-500/10 border-pink-500/20",    icon: Film },
+  growthmind_growth_campaign: { label: "GrowthMind Campaign",color: "text-violet-400",  bg: "bg-violet-500/10 border-violet-500/20",icon: TrendingUp },
 };
 
 function getActionStyle(type: string) {
   return ACTION_STYLES[type] ?? { label: type, color: "text-muted-foreground", bg: "bg-white/[0.04] border-white/[0.08]", icon: Zap };
 }
 
+const VIDEO_TYPE_LABELS_SHORT: Record<string, string> = {
+  meta_video_ad: "Meta Video Ad", linkedin_video: "LinkedIn Video", tiktok_video: "TikTok Video",
+  explainer_video: "Explainer Video", ugc_ad: "UGC Ad", product_demo: "Product Demo",
+  youtube_short: "YouTube Short", youtube_ad: "YouTube Ad", case_study_video: "Case Study",
+  testimonial_video: "Testimonial", webinar_clip: "Webinar Clip", podcast_clip: "Podcast Clip",
+};
+
+const CAMPAIGN_TYPE_LABELS_SHORT: Record<string, string> = {
+  google_ads: "Google Ads", meta_ads: "Meta Ads", linkedin_ads: "LinkedIn Ads",
+  seo_content: "SEO Content", whatsapp_broadcast: "WhatsApp Broadcast",
+  hexmail_sequence: "HexMail Sequence", ai_calling: "AI Calling",
+  referral: "Referral Campaign", reactivation: "Reactivation", launch: "Launch Campaign",
+};
+
 function PayloadSummary({ type, payload }: { type: string; payload: Record<string, unknown> }) {
   const items: string[] = [];
-  if (payload.name)            items.push(`Name: "${payload.name}"`);
-  if (payload.lead_ids && Array.isArray(payload.lead_ids))
-                               items.push(`${(payload.lead_ids as string[]).length} leads`);
-  if (payload.title)           items.push(`Title: "${payload.title}"`);
-  if (payload.priority)        items.push(`Priority: ${payload.priority}`);
-  if (payload.new_status)      items.push(`→ ${payload.new_status}`);
-  if (payload.agent_id)        items.push(`Agent: ${payload.agent_id}`);
-  if (items.length === 0)      return null;
+
+  if (type === "growthmind_video_campaign") {
+    const vt = payload.video_type as string | undefined;
+    if (vt)                       items.push(VIDEO_TYPE_LABELS_SHORT[vt] ?? vt);
+    if (payload.quality_mode)     items.push(`Quality: ${payload.quality_mode}`);
+    if (payload.target_audience)  items.push(`Audience: ${String(payload.target_audience).slice(0, 40)}`);
+    if (payload.tone)             items.push(`Tone: ${payload.tone}`);
+    if (payload.cta)              items.push(`CTA: ${String(payload.cta).slice(0, 30)}`);
+  } else if (type === "growthmind_growth_campaign") {
+    const ct = payload.campaign_type as string | undefined;
+    if (ct)                       items.push(CAMPAIGN_TYPE_LABELS_SHORT[ct] ?? ct);
+    if (payload.budget != null)   items.push(`Budget: £${payload.budget}/mo`);
+    if (payload.goal)             items.push(`Goal: ${String(payload.goal).slice(0, 50)}`);
+  } else {
+    if (payload.name)             items.push(`Name: "${payload.name}"`);
+    if (payload.lead_ids && Array.isArray(payload.lead_ids))
+                                  items.push(`${(payload.lead_ids as string[]).length} leads`);
+    if (payload.title)            items.push(`Title: "${payload.title}"`);
+    if (payload.priority)         items.push(`Priority: ${payload.priority}`);
+    if (payload.new_status)       items.push(`→ ${payload.new_status}`);
+    if (payload.agent_id)         items.push(`Agent: ${payload.agent_id}`);
+  }
+
+  if (items.length === 0)         return null;
   return (
     <div className="flex flex-wrap gap-1.5 mt-2">
       {items.map((item, i) => (
@@ -55,6 +88,41 @@ function PayloadSummary({ type, payload }: { type: string; payload: Record<strin
       ))}
     </div>
   );
+}
+
+// ── GrowthMind result deep-link ───────────────────────────────────────────────
+function GrowthMindResultLink({ action }: { action: HiveMindAction }) {
+  if (action.status !== "executed" || !action.result) return null;
+
+  const r = action.result as Record<string, unknown>;
+
+  if (action.action_type === "growthmind_video_campaign" && r.video_asset_id) {
+    return (
+      <a
+        href="/growthmind/video-studio"
+        className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-pink-400 hover:text-pink-300 transition-colors"
+      >
+        <Film className="h-3 w-3" />
+        Video job queued — see Video Studio
+        <ExternalLink className="h-3 w-3" />
+      </a>
+    );
+  }
+
+  if (action.action_type === "growthmind_growth_campaign" && r.campaign_draft_id) {
+    return (
+      <a
+        href="/growthmind/campaign-factory"
+        className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-violet-400 hover:text-violet-300 transition-colors"
+      >
+        <TrendingUp className="h-3 w-3" />
+        Campaign draft ready — see Campaign Factory
+        <ExternalLink className="h-3 w-3" />
+      </a>
+    );
+  }
+
+  return null;
 }
 
 // ── Action card ───────────────────────────────────────────────────────────────
@@ -117,6 +185,7 @@ function ActionCard({
             <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{action.description}</p>
           )}
           <PayloadSummary type={action.action_type} payload={action.action_payload} />
+          <GrowthMindResultLink action={action} />
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
