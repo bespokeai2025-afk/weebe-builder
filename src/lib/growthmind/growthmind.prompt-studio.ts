@@ -798,6 +798,18 @@ export const savePromptTemplate = createServerFn({ method: "POST" })
     let templateId = data.id;
 
     if (templateId) {
+      // Server-side enforcement: library templates are immutable
+      const { data: existing, error: checkErr } = await sb
+        .from("growthmind_prompt_templates")
+        .select("category")
+        .eq("id", templateId)
+        .eq("workspace_id", workspaceId)
+        .single();
+      if (checkErr) throw new Error(checkErr.message);
+      if (existing?.category === "library") {
+        throw new Error("Library templates are read-only. Use Duplicate to create an editable copy.");
+      }
+
       const { error } = await sb.from("growthmind_prompt_templates").update({
         name:                 data.name,
         description:          data.description,
@@ -811,7 +823,8 @@ export const savePromptTemplate = createServerFn({ method: "POST" })
         updated_at:           now,
       })
         .eq("id", templateId)
-        .eq("workspace_id", workspaceId);
+        .eq("workspace_id", workspaceId)
+        .eq("category", "custom");
       if (error) throw new Error(error.message);
     } else {
       const { data: inserted, error } = await sb.from("growthmind_prompt_templates").insert({
@@ -960,13 +973,33 @@ export const testPromptTemplate = createServerFn({ method: "POST" })
       .single();
     if (te) throw new Error(te.message);
 
-    // Substitute variables
+    // Fetch workspace context for variable hydration (best-effort)
+    let workspaceCtx: Record<string, string> = {};
+    try {
+      const { data: ws } = await sb
+        .from("workspace_settings")
+        .select("business_name, industry, target_audience, brand_voice, location, company_name")
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (ws) {
+        workspaceCtx = {
+          business_name:   ws.business_name   ?? ws.company_name ?? "",
+          industry:        ws.industry        ?? "",
+          target_audience: ws.target_audience ?? "",
+          brand_voice:     ws.brand_voice     ?? "",
+          location:        ws.location        ?? "",
+        };
+      }
+    } catch { /* workspace_settings may not have all columns */ }
+
+    // Substitute variables — user-supplied inputs override workspace context
     function fillVars(text: string, vars: Record<string, string>): string {
       return text.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `[${key}]`);
     }
 
-    const filledSystem = fillVars(tpl.system_prompt, data.inputVariables);
-    const filledUser   = fillVars(tpl.user_prompt_template, data.inputVariables);
+    const mergedVars   = { ...workspaceCtx, ...data.inputVariables };
+    const filledSystem = fillVars(tpl.system_prompt, mergedVars);
+    const filledUser   = fillVars(tpl.user_prompt_template, mergedVars);
 
     // Run generation
     const genResult = await routeGenerate({
@@ -1114,25 +1147,39 @@ export const seedLibraryPacks = createServerFn({ method: "POST" })
 
 export async function getPromptPerformanceSummary(sb: any, workspaceId: string) {
   try {
-    const { data, error } = await sb
-      .from("growthmind_prompt_stats")
-      .select("template_id, usage_count, avg_score, success_rate, last_used_at, template:growthmind_prompt_templates(name, type, category)")
-      .eq("workspace_id", workspaceId)
-      .gt("usage_count", 0)
-      .order("avg_score", { ascending: false })
-      .limit(20);
+    const statsSelect = "template_id, usage_count, avg_score, success_rate, last_used_at, template:growthmind_prompt_templates(name, type, category)";
+    const base = () =>
+      sb.from("growthmind_prompt_stats")
+        .select(statsSelect)
+        .eq("workspace_id", workspaceId)
+        .gt("usage_count", 0);
 
-    if (error) return null;
+    const [bestRes, worstRes, allRes] = await Promise.all([
+      base().order("avg_score", { ascending: false }).limit(3),
+      base().order("avg_score", { ascending: true  }).limit(3),
+      base().order("avg_score", { ascending: false }).limit(200),
+    ]);
 
-    const rows = (data ?? []) as any[];
-    const best  = rows.slice(0, 3).map((r: any) => ({ name: r.template?.name ?? "Unknown", type: r.template?.type, avgScore: r.avg_score, usageCount: r.usage_count }));
-    const worst = [...rows].sort((a: any, b: any) => (a.avg_score ?? 0) - (b.avg_score ?? 0)).slice(0, 3).map((r: any) => ({ name: r.template?.name ?? "Unknown", type: r.template?.type, avgScore: r.avg_score, usageCount: r.usage_count }));
+    if (bestRes.error) return null;
 
-    const totalUsage    = rows.reduce((s: number, r: any) => s + (r.usage_count ?? 0), 0);
-    const overallAvg    = rows.length > 0 ? Math.round(rows.reduce((s: number, r: any) => s + (r.avg_score ?? 0), 0) / rows.length * 10) / 10 : null;
-    const lowPerfCount  = rows.filter((r: any) => (r.avg_score ?? 10) < 6).length;
+    const mapRow = (r: any) => ({
+      name:       r.template?.name ?? "Unknown",
+      type:       r.template?.type ?? "content",
+      avgScore:   r.avg_score,
+      usageCount: r.usage_count,
+    });
 
-    return { best, worst, totalUsage, overallAvg, totalTemplates: rows.length, lowPerfCount };
+    const best  = (bestRes.data  ?? []).map(mapRow);
+    const worst = (worstRes.data ?? []).map(mapRow);
+    const all   = (allRes.data   ?? []) as any[];
+
+    const totalUsage   = all.reduce((s, r) => s + (r.usage_count ?? 0), 0);
+    const overallAvg   = all.length > 0
+      ? Math.round(all.reduce((s, r) => s + (r.avg_score ?? 0), 0) / all.length * 10) / 10
+      : null;
+    const lowPerfCount = all.filter(r => (r.avg_score ?? 10) < 6).length;
+
+    return { best, worst, totalUsage, overallAvg, totalTemplates: all.length, lowPerfCount };
   } catch {
     return null;
   }

@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Sparkles, Plus, Save, Trash2, Copy, Play, Clock, BarChart2,
   Star, StarOff, ChevronRight, Search, X, FlaskConical, Tag, Wand2,
-  RotateCcw, CheckCircle2, AlertCircle, Loader2, Info,
+  RotateCcw, CheckCircle2, AlertCircle, Loader2, Info, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -269,7 +269,7 @@ export function GrowthMindPromptStudio() {
   const [isDirty,     setIsDirty]     = useState(false);
   const [isSaving,    setIsSaving]    = useState(false);
   const [isDeleting,  setIsDeleting]  = useState(false);
-  const [rightTab,    setRightTab]    = useState<"test" | "versions" | "stats">("test");
+  const [rightTab,    setRightTab]    = useState<"test" | "preview" | "versions" | "stats">("test");
   const [libTab,      setLibTab]      = useState<"library" | "custom">("library");
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter,  setTypeFilter]  = useState("all");
@@ -278,6 +278,7 @@ export function GrowthMindPromptStudio() {
   const [isRunning,   setIsRunning]   = useState(false);
   const [versions,    setVersions]    = useState<PromptVersion[]>([]);
   const [seedDone,    setSeedDone]    = useState(false);
+  const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Queries
   const { data: templatesData, isLoading } = useQuery({
@@ -340,6 +341,29 @@ export function GrowthMindPromptStudio() {
     }
     setTestInputs(inputs);
   }, [editState.variables]);
+
+  // Live preview — resolved prompts with current test inputs substituted
+  const resolveVars = useCallback((text: string) =>
+    text.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+      const v = editState.variables.find(v => v.name === key);
+      return testInputs[key] || v?.defaultValue || `[${key}]`;
+    }), [editState.variables, testInputs]);
+
+  const livePreviewSystem = useMemo(() => resolveVars(editState.systemPrompt),       [editState.systemPrompt, resolveVars]);
+  const livePreviewUser   = useMemo(() => resolveVars(editState.userPromptTemplate), [editState.userPromptTemplate, resolveVars]);
+
+  // Debounced autosave — triggers 5 s after last change when dirty + not read-only
+  useEffect(() => {
+    if (!isDirty || isReadOnly || !editState.name.trim() || !selectedId) return;
+    if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+    autoSaveRef.current = setTimeout(() => {
+      handleSave();
+    }, 5000);
+    return () => {
+      if (autoSaveRef.current) clearTimeout(autoSaveRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty, editState.systemPrompt, editState.userPromptTemplate, editState.name, editState.variables, selectedId]);
 
   // Load a template into the editor
   const loadTemplate = useCallback(async (template: PromptTemplate) => {
@@ -801,22 +825,23 @@ export function GrowthMindPromptStudio() {
             <aside className="w-80 shrink-0 border-l border-white/[0.06] flex flex-col min-h-0">
               {/* Tab bar */}
               <div className="flex border-b border-white/[0.06]">
-                {(["test", "versions", "stats"] as const).map(tab => {
-                  const icons = { test: FlaskConical, versions: Clock, stats: BarChart2 };
+                {(["test", "preview", "versions", "stats"] as const).map(tab => {
+                  const icons = { test: FlaskConical, preview: Eye, versions: Clock, stats: BarChart2 };
+                  const labels = { test: "Test", preview: "Preview", versions: "History", stats: "Stats" };
                   const Icon = icons[tab];
                   return (
                     <button
                       key={tab}
                       onClick={() => setRightTab(tab)}
                       className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors",
+                        "flex-1 flex items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition-colors",
                         rightTab === tab
                           ? "text-emerald-300 border-b-2 border-emerald-400"
                           : "text-muted-foreground hover:text-foreground",
                       )}
                     >
                       <Icon className="h-3 w-3" />
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                      {labels[tab]}
                     </button>
                   );
                 })}
@@ -912,6 +937,63 @@ export function GrowthMindPromptStudio() {
                             )}
                           </div>
                         )}
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Preview tab ── */}
+                {rightTab === "preview" && (
+                  <div className="p-3 space-y-3">
+                    {!selectedId ? (
+                      <p className="text-xs text-muted-foreground text-center py-6">Select a template to see a live preview</p>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <Eye className="h-3 w-3 text-emerald-400" />
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Live Preview</p>
+                          <span className="ml-auto text-[9px] text-muted-foreground/50">Variables resolved from test inputs</span>
+                        </div>
+
+                        {editState.variables.length > 0 && (
+                          <div className="space-y-1.5">
+                            <p className="text-[10px] text-muted-foreground/70">Substituting {editState.variables.length} variable{editState.variables.length !== 1 ? "s" : ""} — edit values in the Test tab</p>
+                            <div className="flex flex-wrap gap-1">
+                              {editState.variables.map(v => (
+                                <span key={v.name} className={cn(
+                                  "text-[9px] font-mono px-1.5 py-0.5 rounded-full",
+                                  testInputs[v.name]
+                                    ? "bg-emerald-500/15 text-emerald-300"
+                                    : "bg-white/[0.06] text-muted-foreground/60"
+                                )}>
+                                  {`{{${v.name}}}`} = {testInputs[v.name] ? `"${testInputs[v.name].slice(0, 12)}${testInputs[v.name].length > 12 ? "…" : ""}"` : "empty"}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          <div className="rounded-lg border border-white/[0.06] bg-white/[0.015] p-2.5">
+                            <p className="text-[9px] text-emerald-400/60 uppercase tracking-widest font-medium mb-1.5">System Prompt</p>
+                            <p className="text-[11px] text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono">
+                              {livePreviewSystem || <span className="text-muted-foreground/50 italic">No system prompt</span>}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg border border-white/[0.06] bg-white/[0.015] p-2.5">
+                            <p className="text-[9px] text-blue-400/60 uppercase tracking-widest font-medium mb-1.5">User Prompt</p>
+                            <p className="text-[11px] text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono">
+                              {livePreviewUser || <span className="text-muted-foreground/50 italic">No user prompt template</span>}
+                            </p>
+                          </div>
+                        </div>
+
+                        {editState.systemPrompt.includes("{{") || editState.userPromptTemplate.includes("{{") ? (
+                          <p className="text-[9px] text-muted-foreground/40 text-center">
+                            Unresolved variables shown as <code className="text-orange-400/60">[name]</code>
+                          </p>
+                        ) : null}
                       </>
                     )}
                   </div>
