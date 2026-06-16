@@ -18,7 +18,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-  const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes, videoAssetsRes, videoScheduledRes] = await Promise.all([
+  const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes, videoAssetsRes, videoScheduledRes, adAccountsRes, adCampsRes, adAlertsRes, seoSiteRes] = await Promise.all([
     sb.from("agents").select("id,name,retell_agent_id,inbound_phone_number,settings").eq("workspace_id", workspaceId),
     sb.from("calls").select("id,agent_id,call_successful,duration_seconds,call_type,started_at").eq("workspace_id", workspaceId).gte("started_at", s60.toISOString()).limit(1000),
     sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(3000),
@@ -37,6 +37,12 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     Promise.resolve(sb.from("growthmind_generation_logs").select("provider,model,estimated_cost_usd,status,created_at").eq("workspace_id", workspaceId).gte("created_at", weekStart.toISOString()).limit(1000)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_video_assets").select("id,video_type,provider,quality_mode,cost_estimate,video_url,campaign_id,created_at").eq("workspace_id", workspaceId).gte("created_at", monthStart.toISOString()).limit(200)).catch(() => ({ data: [] })),
     Promise.resolve(sb.from("growthmind_content_calendar").select("id").eq("workspace_id", workspaceId).eq("content_type", "Video Script").gte("scheduled_date", new Date().toISOString().slice(0, 10)).limit(20)).catch(() => ({ data: [] })),
+    // Ads accounts + campaigns + alerts
+    Promise.resolve(sb.from("growthmind_ads_accounts").select("id,platform,label,status,monthly_budget,total_spend_synced,sync_status,last_synced_at").eq("workspace_id", workspaceId).eq("status","active").limit(20)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_campaigns").select("id,name,platform,status,spend,impressions,clicks,conversions,roas,budget,updated_at").eq("workspace_id", workspaceId).gte("updated_at", s30.toISOString()).limit(100)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_ad_budget_alerts").select("id,platform,alert_type,message,current_value,threshold,created_at").eq("workspace_id", workspaceId).eq("acknowledged", false).order("created_at", { ascending: false }).limit(10)).catch(() => ({ data: [] })),
+    // SEO
+    Promise.resolve(sb.from("growthmind_seo_sites").select("id,url,keywords,ai_recs,updated_at").eq("workspace_id", workspaceId).limit(5)).catch(() => ({ data: [] })),
   ]);
 
   if (le.error)   console.error("[HiveMind] leads query error:",   le.error.message);
@@ -63,6 +69,10 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const gmGenLogsArr   = gmGenLogsRes.data ?? [];
   const videoAssetsArr = videoAssetsRes.data   ?? [];
   const videoScheduledArr = videoScheduledRes.data ?? [];
+  const adAccountsArr  = adAccountsRes.data  ?? [];
+  const adCampsArr     = adCampsRes.data     ?? [];
+  const adAlertsArr    = adAlertsRes.data    ?? [];
+  const seoSitesArr    = seoSiteRes.data     ?? [];
 
   const todayStr     = todayStart.toISOString();
   const weekStr      = weekStart.toISOString();
@@ -277,6 +287,76 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
         topProvider,
       };
     })(),
+    adEfficiency: (() => {
+      if (adAccountsArr.length === 0) return null;
+      const totalSpend       = adAccountsArr.reduce((s: number, a: any) => s + Number(a.total_spend_synced ?? 0), 0);
+      const byPlatform       = adAccountsArr.map((a: any) => ({
+        platform:    a.platform,
+        label:       a.label,
+        spend:       Number(a.total_spend_synced ?? 0),
+        budget:      Number(a.monthly_budget ?? 0),
+        syncStatus:  a.sync_status,
+        lastSynced:  a.last_synced_at,
+        pctUsed:     a.monthly_budget > 0 ? Math.round((a.total_spend_synced / a.monthly_budget) * 100) : null,
+      }));
+      const activeCampaigns  = adCampsArr.filter((c: any) => c.status === "active" || c.status === "enabled");
+      const totalImpressions = adCampsArr.reduce((s: number, c: any) => s + Number(c.impressions ?? 0), 0);
+      const totalClicks      = adCampsArr.reduce((s: number, c: any) => s + Number(c.clicks ?? 0), 0);
+      const totalConversions = adCampsArr.reduce((s: number, c: any) => s + Number(c.conversions ?? 0), 0);
+      const avgRoas          = adCampsArr.length > 0
+        ? Math.round(adCampsArr.filter((c: any) => c.roas).reduce((s: number, c: any) => s + Number(c.roas ?? 0), 0) / Math.max(1, adCampsArr.filter((c: any) => c.roas).length) * 100) / 100
+        : null;
+      const ctr              = totalImpressions > 0 ? Math.round((totalClicks / totalImpressions) * 10000) / 100 : null;
+      const cpl              = totalConversions > 0 && totalSpend > 0 ? Math.round((totalSpend / totalConversions) * 100) / 100 : null;
+      const lowRoasCamps     = adCampsArr.filter((c: any) => c.roas !== null && Number(c.roas) < 1 && Number(c.spend ?? 0) > 50);
+      const staleAccounts    = adAccountsArr.filter((a: any) => {
+        if (!a.last_synced_at) return false;
+        return (Date.now() - new Date(a.last_synced_at).getTime()) > 24 * 60 * 60 * 1000;
+      });
+      const openAlerts       = adAlertsArr.map((al: any) => ({ type: al.alert_type, platform: al.platform, message: al.message }));
+      return {
+        connectedAccounts: adAccountsArr.length,
+        totalSpend,
+        byPlatform,
+        campaigns: {
+          total:   adCampsArr.length,
+          active:  activeCampaigns.length,
+          lowRoas: lowRoasCamps.map((c: any) => ({ name: c.name, roas: c.roas, spend: c.spend })),
+        },
+        metrics: { totalImpressions, totalClicks, totalConversions, avgRoas, ctr, cpl },
+        staleAccounts: staleAccounts.map((a: any) => ({ platform: a.platform, label: a.label })),
+        openAlerts,
+      };
+    })(),
+    seoHealth: (() => {
+      if (seoSitesArr.length === 0) return null;
+      const site         = seoSitesArr[0];
+      const keywords     = (site.keywords ?? []) as any[];
+      const tracked      = keywords.length;
+      const withPosition = keywords.filter((k: any) => k.gsc_position != null);
+      const avgPosition  = withPosition.length > 0
+        ? Math.round(withPosition.reduce((s: number, k: any) => s + Number(k.gsc_position), 0) / withPosition.length * 10) / 10
+        : null;
+      const top10        = withPosition.filter((k: any) => Number(k.gsc_position) <= 10).length;
+      const dropping     = keywords.filter((k: any) => {
+        const trend = k.trend ?? k.position_trend;
+        return trend === "dropping" || trend === "down";
+      });
+      const highVolLowPos = keywords.filter((k: any) =>
+        (k.volume ?? 0) > 100 && k.gsc_position != null && Number(k.gsc_position) > 20
+      );
+      return {
+        siteUrl:   site.url,
+        tracked,
+        withPosition: withPosition.length,
+        avgPosition,
+        top10,
+        dropping:      dropping.map((k: any) => k.keyword),
+        opportunities: highVolLowPos.slice(0, 5).map((k: any) => ({ keyword: k.keyword, volume: k.volume, position: k.gsc_position })),
+        hasAiRecs: !!(site.ai_recs && site.ai_recs.length > 0),
+        lastUpdated: site.updated_at,
+      };
+    })(),
     videoSummary: (() => {
       if (!videoAssetsArr.length && !videoScheduledArr.length) return null;
       const ALL_KEY_TYPES = ["meta_video_ad", "explainer_video", "ugc_ad", "product_demo", "testimonial_video"];
@@ -411,6 +491,26 @@ function buildHiveMindRetrievalQuery(d: any): string {
     if (gaps.length) parts.push(`Provider issues requiring resolution: ${gaps.join(", ")}`);
   }
 
+  // Paid ads efficiency
+  if (d.adEfficiency) {
+    const ae = d.adEfficiency;
+    parts.push(`Paid ads: ${ae.connectedAccounts} account${ae.connectedAccounts !== 1 ? "s" : ""} connected, £${ae.totalSpend.toFixed(0)} total spend, ${ae.campaigns.active} active campaigns`);
+    if (ae.metrics.avgRoas !== null) parts.push(`Ads performance: ROAS ${ae.metrics.avgRoas}x, CTR ${ae.metrics.ctr}%, CPL £${ae.metrics.cpl}`);
+    if (ae.campaigns.lowRoas.length > 0) parts.push(`${ae.campaigns.lowRoas.length} campaign${ae.campaigns.lowRoas.length !== 1 ? "s" : ""} with ROAS below 1x while spending — requires ad optimisation and creative testing`);
+    if (ae.openAlerts.length > 0) parts.push(`${ae.openAlerts.length} budget alert${ae.openAlerts.length !== 1 ? "s" : ""} active — budget management and spend pacing strategies`);
+    if (ae.staleAccounts.length > 0) parts.push("ad accounts not synced in 24h — ad account reconnection and token refresh");
+  }
+
+  // SEO health
+  if (d.seoHealth) {
+    const s = d.seoHealth;
+    parts.push(`SEO: ${s.tracked} keywords tracked for ${s.siteUrl}${s.avgPosition !== null ? `, avg position ${s.avgPosition}, ${s.top10} in top 10` : ""}`);
+    if (s.dropping.length > 0) parts.push(`${s.dropping.length} keyword${s.dropping.length !== 1 ? "s" : ""} dropping in search rankings — content refresh and SEO remediation strategies`);
+    if (s.opportunities.length > 0) parts.push(`${s.opportunities.length} high-volume keyword${s.opportunities.length !== 1 ? "s" : ""} ranking below position 20 — SEO content opportunities and quick-win optimisations`);
+  } else {
+    parts.push("no SEO site configured — search engine optimisation strategy and keyword research");
+  }
+
   // Anchor to operational KB topics
   parts.push("operational workflows, lead management best practices, pipeline optimisation, provider configuration, and platform decisions");
 
@@ -527,6 +627,47 @@ function buildPlatformContext(d: any): string {
         lines.push(`    • [${r.priority.toUpperCase()}] ${r.problem} → ${r.fix?.slice(0, 80)}`);
       }
     }
+  }
+
+  // ADS PERFORMANCE
+  if (d.adEfficiency) {
+    const ae = d.adEfficiency;
+    lines.push(`\nPAID ADS PERFORMANCE (live sync):`);
+    lines.push(`  Connected accounts: ${ae.connectedAccounts} | Total spend synced: £${ae.totalSpend.toFixed(2)}`);
+    lines.push(`  Campaigns: ${ae.campaigns.total} total | ${ae.campaigns.active} active`);
+    if (ae.metrics.avgRoas !== null) lines.push(`  Avg ROAS: ${ae.metrics.avgRoas}x | CTR: ${ae.metrics.ctr ?? "n/a"}% | CPL: £${ae.metrics.cpl ?? "n/a"} | Impressions: ${ae.metrics.totalImpressions.toLocaleString()} | Clicks: ${ae.metrics.totalClicks.toLocaleString()} | Conversions: ${ae.metrics.totalConversions}`);
+    for (const p of ae.byPlatform) {
+      const budgetNote = p.budget > 0 ? ` (${p.pctUsed}% of £${p.budget} budget)` : "";
+      const syncNote   = p.syncStatus === "synced" ? "" : ` ⚠ ${p.syncStatus}`;
+      lines.push(`  • ${p.platform.toUpperCase()} "${p.label}": £${p.spend.toFixed(2)} spend${budgetNote}${syncNote}`);
+    }
+    if (ae.campaigns.lowRoas.length > 0) {
+      lines.push(`  ⚠ LOW ROAS CAMPAIGNS (< 1x, spending >£50):`);
+      for (const c of ae.campaigns.lowRoas) lines.push(`    – "${c.name}": ROAS ${c.roas}x | spend £${c.spend}`);
+    }
+    if (ae.openAlerts.length > 0) {
+      lines.push(`  ⚠ BUDGET ALERTS (${ae.openAlerts.length}):`);
+      for (const al of ae.openAlerts.slice(0, 4)) lines.push(`    – [${al.type}] ${al.platform}: ${al.message}`);
+    }
+    if (ae.staleAccounts.length > 0) lines.push(`  ⚠ Stale sync (>24h): ${ae.staleAccounts.map((a: any) => `${a.platform} "${a.label}"`).join(", ")}`);
+  } else {
+    lines.push(`\nPAID ADS: no accounts connected`);
+  }
+
+  // SEO HEALTH
+  if (d.seoHealth) {
+    const s = d.seoHealth;
+    lines.push(`\nSEO HEALTH:`);
+    lines.push(`  Site: ${s.siteUrl} | Keywords tracked: ${s.tracked} | With GSC position: ${s.withPosition}`);
+    if (s.avgPosition !== null) lines.push(`  Avg position: ${s.avgPosition} | In top 10: ${s.top10} keyword${s.top10 !== 1 ? "s" : ""}`);
+    if (s.dropping.length > 0) lines.push(`  ⚠ DROPPING keywords: ${s.dropping.slice(0, 6).join(", ")}`);
+    if (s.opportunities.length > 0) {
+      lines.push(`  High-volume opportunities (pos >20):`);
+      for (const o of s.opportunities) lines.push(`    – "${o.keyword}" | vol ${o.volume} | pos ${o.position}`);
+    }
+    if (!s.hasAiRecs) lines.push(`  AI recommendations not yet generated — run "Generate Recommendations" in GrowthMind → SEO`);
+  } else {
+    lines.push(`\nSEO: no site configured in GrowthMind`);
   }
 
   // GROWTHMIND CONTENT STUDIO AI USAGE (this week)

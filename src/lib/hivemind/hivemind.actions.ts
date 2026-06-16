@@ -553,7 +553,160 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
       }
     } catch { /* graceful */ }
 
-    // 8. Resend webhook not registered — auto-propose for workspaces with Resend API key
+    // 8. Ad efficiency checks — low ROAS, budget alerts, stale data
+    try {
+      const { data: adCamps } = await sb
+        .from("growthmind_campaigns")
+        .select("id,name,platform,roas,spend,status,updated_at")
+        .eq("workspace_id", workspaceId)
+        .gte("updated_at", s7.toISOString())
+        .limit(100)
+        .catch(() => ({ data: [] }));
+
+      const { data: adAlerts } = await sb
+        .from("growthmind_ad_budget_alerts")
+        .select("id,platform,alert_type,message")
+        .eq("workspace_id", workspaceId)
+        .eq("acknowledged", false)
+        .limit(10)
+        .catch(() => ({ data: [] }));
+
+      // 8a. Low ROAS campaigns spending real money
+      const lowRoasCamps = (adCamps ?? []).filter(
+        (c: any) => c.roas !== null && Number(c.roas) < 1 && Number(c.spend ?? 0) > 50
+          && (c.status === "active" || c.status === "enabled")
+      );
+      if (lowRoasCamps.length > 0 && !pendingTypes.has("create_task")) {
+        const names = lowRoasCamps.slice(0, 3).map((c: any) => `"${c.name}"`).join(", ");
+        proposed.push({
+          workspace_id:   workspaceId,
+          title:          `Optimise ${lowRoasCamps.length} ad campaign${lowRoasCamps.length !== 1 ? "s" : ""} with ROAS below 1x`,
+          description:    `${lowRoasCamps.length > 1 ? `${lowRoasCamps.length} campaigns are` : "A campaign is"} spending money but returning less than £1 for every £1 spent: ${names}. Review targeting, creative, and bid strategy to improve return on ad spend.`,
+          action_type:    "create_task",
+          action_payload: {
+            title:        `Review and optimise low-ROAS ad campaigns`,
+            description:  `Campaigns with ROAS < 1x: ${names}. Check audience targeting, ad creative, landing pages, and bid strategy. Consider pausing until optimised.`,
+            priority:     "high",
+            trigger_type: "low_roas",
+          },
+          proposed_by: "hivemind",
+          status:      "pending",
+        });
+      }
+
+      // 8b. Unacknowledged budget alerts
+      if ((adAlerts ?? []).length > 0 && !pendingTypes.has("create_task")) {
+        const alertMsg = (adAlerts ?? []).slice(0, 2).map((a: any) => a.message).join("; ");
+        proposed.push({
+          workspace_id:   workspaceId,
+          title:          `Review ${(adAlerts ?? []).length} ad budget alert${(adAlerts ?? []).length !== 1 ? "s" : ""}`,
+          description:    `Unacknowledged budget alerts detected across your ad accounts: ${alertMsg}. Review spend pacing and adjust budgets or bids as needed.`,
+          action_type:    "create_task",
+          action_payload: {
+            title:        "Review ad budget alerts in GrowthMind → Ads",
+            description:  `Go to GrowthMind → Ads to view and dismiss budget alerts. Consider adjusting monthly budgets or pausing overspending campaigns. Alerts: ${alertMsg}`,
+            priority:     "medium",
+            trigger_type: "budget_alert",
+          },
+          proposed_by: "hivemind",
+          status:      "pending",
+        });
+      }
+    } catch { /* graceful */ }
+
+    // 9. SEO health checks — no keywords tracked, dropping rankings, no GSC
+    try {
+      const { data: seoSites } = await sb
+        .from("growthmind_seo_sites")
+        .select("id,url,keywords,ai_recs,updated_at")
+        .eq("workspace_id", workspaceId)
+        .limit(3)
+        .catch(() => ({ data: [] }));
+
+      if ((seoSites ?? []).length === 0) {
+        // No SEO site configured at all
+        if (!pendingTypes.has("create_task")) {
+          proposed.push({
+            workspace_id:   workspaceId,
+            title:          "Set up SEO tracking in GrowthMind",
+            description:    "No site is configured for SEO monitoring. Setting up keyword tracking and connecting Google Search Console gives HiveMind visibility into organic traffic and search rankings alongside your paid ads.",
+            action_type:    "create_task",
+            action_payload: {
+              title:       "Configure SEO tracking in GrowthMind → SEO",
+              description: "Go to GrowthMind → SEO, add your site URL, import keywords, and connect Google Search Console to start tracking rankings and organic traffic.",
+              priority:    "medium",
+              trigger_type:"seo_not_configured",
+            },
+            proposed_by: "hivemind",
+            status:      "pending",
+          });
+        }
+      } else {
+        const site     = (seoSites ?? [])[0];
+        const keywords = (site.keywords ?? []) as any[];
+
+        // No keywords tracked
+        if (keywords.length === 0 && !pendingTypes.has("create_task")) {
+          proposed.push({
+            workspace_id:   workspaceId,
+            title:          `Add keywords to track for ${site.url}`,
+            description:    `Your SEO site "${site.url}" has no keywords configured. Adding target keywords lets HiveMind monitor rankings and alert you to drops or opportunities.`,
+            action_type:    "create_task",
+            action_payload: {
+              title:       `Add target keywords in GrowthMind → SEO`,
+              description: `Open GrowthMind → SEO for ${site.url} and add the keywords you want to rank for. Then connect Google Search Console to pull live position data.`,
+              priority:    "medium",
+              trigger_type:"seo_no_keywords",
+            },
+            proposed_by: "hivemind",
+            status:      "pending",
+          });
+        }
+
+        // Keywords dropping in rank
+        const dropping = keywords.filter((k: any) => {
+          const trend = k.trend ?? k.position_trend;
+          return trend === "dropping" || trend === "down";
+        });
+        if (dropping.length > 0 && !pendingTypes.has("create_task")) {
+          const kList = dropping.slice(0, 3).map((k: any) => `"${k.keyword}"`).join(", ");
+          proposed.push({
+            workspace_id:   workspaceId,
+            title:          `Investigate ${dropping.length} dropping keyword${dropping.length !== 1 ? "s" : ""} on ${site.url}`,
+            description:    `Search rankings are falling for ${dropping.length} keyword${dropping.length !== 1 ? "s" : ""}: ${kList}. Review the affected pages for content quality, technical SEO issues, and competitor activity.`,
+            action_type:    "create_task",
+            action_payload: {
+              title:       `Fix dropping keyword rankings — ${site.url}`,
+              description: `Investigate pages ranking for: ${kList}. Check for thin content, missing meta tags, slow page speed, or new competitor pages. Refresh content and build supporting internal links.`,
+              priority:    "high",
+              trigger_type:"seo_rank_drop",
+            },
+            proposed_by: "hivemind",
+            status:      "pending",
+          });
+        }
+
+        // No AI recommendations generated
+        if (keywords.length > 0 && !site.ai_recs && !pendingTypes.has("create_task")) {
+          proposed.push({
+            workspace_id:   workspaceId,
+            title:          `Generate SEO recommendations for ${site.url}`,
+            description:    `You're tracking ${keywords.length} SEO keyword${keywords.length !== 1 ? "s" : ""} but haven't generated AI recommendations yet. These give you prioritised fixes for rankings, content gaps, and technical issues.`,
+            action_type:    "create_task",
+            action_payload: {
+              title:       "Generate AI SEO recommendations in GrowthMind → SEO",
+              description: `Open GrowthMind → SEO → "${site.url}" and click "Generate Recommendations" to get a prioritised SEO action plan from the AI.`,
+              priority:    "low",
+              trigger_type:"seo_no_ai_recs",
+            },
+            proposed_by: "hivemind",
+            status:      "pending",
+          });
+        }
+      }
+    } catch { /* graceful */ }
+
+    // 10. Resend webhook not registered — auto-propose for workspaces with Resend API key
     try {
       const { checkResendWebhookStatusForWorkspace } = await import("@/lib/hexmail/deliverability.server");
       const whStatus = await checkResendWebhookStatusForWorkspace(workspaceId);
