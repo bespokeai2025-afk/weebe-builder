@@ -27,6 +27,7 @@ export type VeoGenerateParams = {
   aspectRatio?:     "16:9" | "9:16" | "1:1" | "4:5";
   durationSeconds?: number;
   referenceUrl?:    string;
+  generateAudio?:   boolean;  // Request native AI-generated audio (Veo 3 Vertex only)
 };
 
 export type VeoJobResult =
@@ -157,7 +158,7 @@ export class VeoProvider {
             aspectRatio:     params.aspectRatio     ?? "16:9",
             durationSeconds: params.durationSeconds ?? 8,  // integer on Vertex AI
             sampleCount:     1,
-            generateAudio:   true,  // Veo 3 supports native AI audio generation
+            generateAudio:   params.generateAudio ?? true,  // Veo 3 native AI audio (user-controllable)
           },
         };
         console.log("[veo-provider] Vertex AI request →", endpoint, JSON.stringify(body).slice(0, 300));

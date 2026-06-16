@@ -1004,6 +1004,7 @@ export function GrowthMindVideoStudio() {
 
   // ── Shared state ──────────────────────────────────────────────────────────
   const [includeKb, setIncludeKb] = useState(true);
+  const [veoAudio,  setVeoAudio]  = useState(true);
   const [voiceId, setVoiceId]     = useState(DEFAULT_VOICE_ID);
   const [voiceName, setVoiceName] = useState(DEFAULT_VOICE_NAME);
   const [voices, setVoices]       = useState<{ id: string; name: string; category: string }[]>([]);
@@ -1156,6 +1157,7 @@ export function GrowthMindVideoStudio() {
         voiceId,
         campaignId,
         includeKb,
+        generateVeoAudio: veoAudio,
       }});
       setStep("saving");
       setLastResult({
@@ -1205,6 +1207,7 @@ export function GrowthMindVideoStudio() {
         voiceId,
         campaignId,
         includeKb,
+        generateVeoAudio:  veoAudio,
       }});
       setStep("saving");
       setLastResult({
@@ -1587,6 +1590,29 @@ export function GrowthMindVideoStudio() {
                 </button>
               </div>
 
+              {/* Veo Audio toggle — Guided */}
+              <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="h-3.5 w-3.5 text-amber-400/70" />
+                  <div>
+                    <span className="text-xs text-muted-foreground/70">Veo Native Sound</span>
+                    <p className="text-[10px] text-muted-foreground/40 leading-tight">AI-generated audio alongside video (Veo 3 / Vertex only)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setVeoAudio(v => !v)}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
+                    veoAudio ? "bg-amber-500" : "bg-white/10",
+                  )}
+                >
+                  <span className={cn(
+                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
+                    veoAudio ? "translate-x-4" : "translate-x-0",
+                  )} />
+                </button>
+              </div>
+
               {/* Generate button — Guided */}
               <div className="flex items-center gap-3">
                 <Button
@@ -1832,6 +1858,29 @@ export function GrowthMindVideoStudio() {
                   <span className={cn(
                     "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
                     includeKb ? "translate-x-4" : "translate-x-0",
+                  )} />
+                </button>
+              </div>
+
+              {/* Veo Audio toggle — Free-Form */}
+              <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="h-3.5 w-3.5 text-amber-400/70" />
+                  <div>
+                    <span className="text-xs text-muted-foreground/70">Veo Native Sound</span>
+                    <p className="text-[10px] text-muted-foreground/40 leading-tight">AI-generated audio alongside video (Veo 3 / Vertex only)</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setVeoAudio(v => !v)}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200",
+                    veoAudio ? "bg-amber-500" : "bg-white/10",
+                  )}
+                >
+                  <span className={cn(
+                    "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition duration-200",
+                    veoAudio ? "translate-x-4" : "translate-x-0",
                   )} />
                 </button>
               </div>

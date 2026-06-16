@@ -309,15 +309,16 @@ Strategy: Use the company context to make this specific and differentiated.`;
 // ── Generate video ─────────────────────────────────────────────────────────────
 
 const generateVideoSchema = z.object({
-  videoType:     z.string().min(1),
-  qualityMode:   z.enum(["fast", "balanced", "premium"]),
-  targetAudience: z.string().default(""),
-  offer:         z.string().default(""),
-  tone:          z.string().default("professional"),
-  cta:           z.string().default(""),
-  voiceId:       z.string().default("21m00Tcm4TlvDq8ikWAM"),
-  campaignId:    z.string().uuid().nullish(),
-  includeKb:     z.boolean().default(true),
+  videoType:        z.string().min(1),
+  qualityMode:      z.enum(["fast", "balanced", "premium"]),
+  targetAudience:   z.string().default(""),
+  offer:            z.string().default(""),
+  tone:             z.string().default("professional"),
+  cta:              z.string().default(""),
+  voiceId:          z.string().default("21m00Tcm4TlvDq8ikWAM"),
+  campaignId:       z.string().uuid().nullish(),
+  includeKb:        z.boolean().default(true),
+  generateVeoAudio: z.boolean().default(true),
 });
 
 export const generateVideo = createServerFn({ method: "POST" })
@@ -512,7 +513,7 @@ export const generateVideo = createServerFn({ method: "POST" })
           return false;
         }
         try {
-          const veoResult = await veoProvider.generateVideo({ prompt, aspectRatio: "16:9", durationSeconds: 8 });
+          const veoResult = await veoProvider.generateVideo({ prompt, aspectRatio: "16:9", durationSeconds: 8, generateAudio: data.generateVeoAudio });
           videoUrl = `[veo3_job:${veoResult.jobId}]`;
           provider = "veo3";
           return true;
@@ -706,6 +707,7 @@ const generateVideoFromPromptSchema = z.object({
   variantGroupId:    z.string().uuid().nullish(),
   variantType:       z.string().nullish(),
   includeKb:         z.boolean().default(true),
+  generateVeoAudio:  z.boolean().default(true),
 });
 
 export const generateVideoFromPrompt = createServerFn({ method: "POST" })
@@ -844,6 +846,7 @@ export const generateVideoFromPrompt = createServerFn({ method: "POST" })
             prompt:          masterPrompt,
             aspectRatio:     data.aspectRatio,
             durationSeconds: Math.min(data.videoLength, 8),
+            generateAudio:   data.generateVeoAudio,
           });
           videoUrl = `[veo3_job:${veoResult.jobId}]`;
           provider = "veo3";
