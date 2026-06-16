@@ -353,7 +353,7 @@ function ChainBuilderEditor({
 
   function addStep() {
     const maxOrder = sorted.reduce((m, s) => Math.max(m, s.order), 0);
-    onChange([...steps, { order: maxOrder + 1, templateId: null, label: `Step ${maxOrder + 1}`, description: "", inputMappings: [] }]);
+    onChange([...steps, { order: maxOrder + 1, templateId: null, label: `Step ${maxOrder + 1}`, description: "", outputSections: [], inputMappings: [] }]);
   }
 
   function removeStep(idx: number) {
@@ -366,17 +366,32 @@ function ChainBuilderEditor({
     onChange(next);
   }
 
-  function updateMapping(stepIdx: number, varName: string, fromStep: number) {
+  function updateMapping(stepIdx: number, varName: string, encodedValue: string) {
+    // encodedValue format: "<fromStep>:<fromSection>" e.g. "0:", "1:", "1:Headline"
+    const colonIdx   = encodedValue.indexOf(":");
+    const fromStep   = Number(encodedValue.slice(0, colonIdx));
+    const fromSection = encodedValue.slice(colonIdx + 1) || undefined;
+
     const step     = sorted[stepIdx];
     const existing = step.inputMappings.filter(m => m.toVar !== varName);
     const mappings: ChainStepMapping[] = fromStep === 0
       ? existing // fromStep=0 is the default (use test inputs), so no explicit mapping needed
-      : [...existing, { toVar: varName, fromStep }];
+      : [...existing, { toVar: varName, fromStep, ...(fromSection ? { fromSection } : {}) }];
     updateStep(stepIdx, { inputMappings: mappings });
   }
 
-  function getMappingFromStep(step: PromptChainStep, varName: string): number {
-    return step.inputMappings.find(m => m.toVar === varName)?.fromStep ?? 0;
+  function getMappingEncoded(step: PromptChainStep, varName: string): string {
+    const m = step.inputMappings.find(mp => mp.toVar === varName);
+    if (!m) return "0:";
+    return `${m.fromStep}:${m.fromSection ?? ""}`;
+  }
+
+  function getMappingLabel(step: PromptChainStep, varName: string): string {
+    const m = step.inputMappings.find(mp => mp.toVar === varName);
+    if (!m || m.fromStep === 0) return "Test inputs";
+    const prevStep = sorted[m.fromStep - 1];
+    const label = prevStep?.label || `Step ${m.fromStep}`;
+    return m.fromSection ? `Step ${m.fromStep} › ${m.fromSection}` : `Step ${m.fromStep} output (${label})`;
   }
 
   // Collect variables from a template
@@ -484,6 +499,60 @@ function ChainBuilderEditor({
                 )}
               </div>
 
+              {/* Output sections — named headings this step will produce */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <ListOrdered className="h-3 w-3 text-muted-foreground/40" />
+                  <label className="text-[10px] text-muted-foreground/70 uppercase tracking-widest">Output Sections</label>
+                  {!readOnly && (
+                    <span className="text-[10px] text-muted-foreground/40 normal-case ml-1">(named sections downstream steps can extract)</span>
+                  )}
+                </div>
+                {readOnly ? (
+                  step.outputSections?.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {step.outputSections.map((sec, si) => (
+                        <span key={si} className="rounded px-1.5 py-0.5 text-[9px] font-mono bg-violet-500/10 text-violet-300 border border-violet-500/20">{sec}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground/40 italic">No sections defined — downstream steps will use full output</p>
+                  )
+                ) : (
+                  <div className="space-y-1">
+                    {(step.outputSections ?? []).map((sec, si) => (
+                      <div key={si} className="flex items-center gap-1.5">
+                        <input
+                          value={sec}
+                          onChange={e => {
+                            const next = [...(step.outputSections ?? [])];
+                            next[si] = e.target.value;
+                            updateStep(idx, { outputSections: next });
+                          }}
+                          className="flex-1 bg-transparent border border-white/[0.06] rounded px-1.5 py-0.5 text-[10px] font-mono text-violet-300 outline-none focus:border-violet-500/40 placeholder:text-muted-foreground/30"
+                          placeholder="e.g. Headline, Summary, CTA"
+                        />
+                        <button
+                          onClick={() => {
+                            const next = (step.outputSections ?? []).filter((_, j) => j !== si);
+                            updateStep(idx, { outputSections: next });
+                          }}
+                          className="p-0.5 rounded hover:bg-red-500/10 text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => updateStep(idx, { outputSections: [...(step.outputSections ?? []), ""] })}
+                      className="flex items-center gap-1 text-[10px] text-violet-400/70 hover:text-violet-300 transition-colors"
+                    >
+                      <Plus className="h-2.5 w-2.5" /> Add section
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Input mappings — for each variable in the selected template */}
               {vars.length > 0 && (
                 <div>
@@ -493,27 +562,37 @@ function ChainBuilderEditor({
                   </div>
                   <div className="space-y-1.5">
                     {vars.map(varName => {
-                      const currentFromStep = getMappingFromStep(step, varName);
+                      const currentEncoded = getMappingEncoded(step, varName);
                       return (
                         <div key={varName} className="flex items-center gap-2">
                           <code className="text-[10px] font-mono text-emerald-400/80 shrink-0 w-28 truncate">{`{{${varName}}}`}</code>
                           <span className="text-[10px] text-muted-foreground/40 shrink-0">←</span>
                           {readOnly ? (
                             <span className="text-[10px] text-muted-foreground">
-                              {currentFromStep === 0 ? "Test inputs" : `Step ${currentFromStep} output`}
+                              {getMappingLabel(step, varName)}
                             </span>
                           ) : (
                             <select
-                              value={currentFromStep}
-                              onChange={e => updateMapping(idx, varName, Number(e.target.value))}
+                              value={currentEncoded}
+                              onChange={e => updateMapping(idx, varName, e.target.value)}
                               className="flex-1 rounded bg-white/[0.04] border border-white/[0.06] px-1.5 py-0.5 text-[10px] text-foreground outline-none focus:border-violet-500/40 [&>option]:bg-[#1a1a2e]"
                             >
-                              <option value={0}>From test inputs</option>
-                              {sorted.slice(0, idx).map((prevStep, prevIdx) => (
-                                <option key={prevIdx} value={prevIdx + 1}>
-                                  Step {prevIdx + 1} output ({prevStep.label || `Step ${prevIdx + 1}`})
-                                </option>
-                              ))}
+                              <option value="0:">From test inputs</option>
+                              {sorted.slice(0, idx).map((prevStep, prevIdx) => {
+                                const stepNum = prevIdx + 1;
+                                const stepLabel = prevStep.label || `Step ${stepNum}`;
+                                const sections = prevStep.outputSections ?? [];
+                                return (
+                                  <optgroup key={prevIdx} label={`Step ${stepNum} — ${stepLabel}`}>
+                                    <option value={`${stepNum}:`}>Full output</option>
+                                    {sections.filter(s => s.trim()).map((sec, si) => (
+                                      <option key={si} value={`${stepNum}:${sec}`}>
+                                        Section: {sec}
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                );
+                              })}
                             </select>
                           )}
                         </div>

@@ -17,16 +17,18 @@ export type PromptVariable = {
 };
 
 export type ChainStepMapping = {
-  toVar:    string; // variable name in this step's template
-  fromStep: number; // 0 = initial test inputs; N≥1 = full text output of step N
+  toVar:        string;  // variable name in this step's template
+  fromStep:     number;  // 0 = initial test inputs; N≥1 = full text output of step N
+  fromSection?: string;  // optional: extract a named heading section from step N's output
 };
 
 export type PromptChainStep = {
-  order:         number;
-  templateId:    string | null;
-  label:         string;
-  description:   string;
-  inputMappings: ChainStepMapping[];
+  order:          number;
+  templateId:     string | null;
+  label:          string;
+  description:    string;
+  outputSections: string[];  // named sections this step will produce (for downstream mapping)
+  inputMappings:  ChainStepMapping[];
 };
 
 export type PromptTemplate = {
@@ -96,7 +98,10 @@ function mapTemplate(r: any): PromptTemplate {
     systemPrompt:       r.system_prompt ?? "",
     userPromptTemplate: r.user_prompt_template ?? "",
     variables:          r.variables ?? [],
-    chainSteps:         r.chain_steps ?? [],
+    chainSteps:         (r.chain_steps ?? []).map((s: any) => ({
+      ...s,
+      outputSections: s.outputSections ?? s.output_sections ?? [],
+    })),
     tags:               r.tags ?? [],
     isActive:           r.is_active ?? true,
     isFavorite:         r.is_favorite ?? false,
@@ -1390,6 +1395,36 @@ export const recordPromptTemplateUsage = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ── extractSection ─────────────────────────────────────────────────────────────
+// Pulls the text under a named heading/section from a multi-section output.
+// Supports Markdown headings (#/##/###), bold headings (**Name**), and
+// "Name:" label patterns. Falls back to the full text when no match is found.
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractSection(text: string, sectionName: string): string {
+  const esc = escapeRegex(sectionName);
+  const patterns = [
+    // Markdown headings: ## Section Name\ncontent\n## Next
+    new RegExp(`(?:^|\\n)#{1,4}\\s*${esc}\\s*\\n([\\s\\S]*?)(?=\\n#{1,4}\\s|$)`, "i"),
+    // Bold headings: **Section Name**\ncontent
+    new RegExp(`(?:^|\\n)\\*\\*${esc}\\*\\*\\s*\\n([\\s\\S]*?)(?=\\n\\*\\*\\w|$)`, "i"),
+    // Numbered + heading: 1. Section Name\ncontent
+    new RegExp(`(?:^|\\n)\\d+\\.\\s*${esc}\\s*\\n([\\s\\S]*?)(?=\\n\\d+\\.|$)`, "i"),
+    // Colon-label: Section Name:\ncontent
+    new RegExp(`(?:^|\\n)${esc}:\\s*\\n([\\s\\S]*?)(?=\\n[A-Z][^\\n]+:\\s*\\n|$)`, "i"),
+    // Inline colon: **Section Name:** content (single-line value)
+    new RegExp(`\\*\\*${esc}:\\*\\*\\s*([^\\n]+)`, "i"),
+  ];
+  for (const re of patterns) {
+    const match = text.match(re);
+    if (match?.[1]?.trim()) return match[1].trim();
+  }
+  return text; // graceful fallback — return full output
+}
+
 // ── runPromptChain ─────────────────────────────────────────────────────────────
 // Executes a multi-step prompt chain in sequence. The output of each step can
 // be fed as input to variables in the next step via inputMappings.
@@ -1399,13 +1434,15 @@ export const runPromptChain = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({
       chainSteps: z.array(z.object({
-        order:         z.number(),
-        templateId:    z.string().uuid().nullable(),
-        label:         z.string(),
-        description:   z.string().default(""),
-        inputMappings: z.array(z.object({
-          toVar:    z.string(),
-          fromStep: z.number(),
+        order:          z.number(),
+        templateId:     z.string().uuid().nullable(),
+        label:          z.string(),
+        description:    z.string().default(""),
+        outputSections: z.array(z.string()).default([]),
+        inputMappings:  z.array(z.object({
+          toVar:       z.string(),
+          fromStep:    z.number(),
+          fromSection: z.string().optional(),
         })).default([]),
       })),
       inputVariables:   z.record(z.string()).default({}),
@@ -1502,7 +1539,10 @@ export const runPromptChain = createServerFn({ method: "POST" })
           // fromStep N (1-indexed) = full text output of step N
           const prevText = stepOutputTexts[mapping.fromStep - 1];
           if (prevText !== undefined) {
-            stepVars[mapping.toVar] = prevText;
+            // If a named section is specified, extract just that section; else use full output
+            stepVars[mapping.toVar] = mapping.fromSection
+              ? extractSection(prevText, mapping.fromSection)
+              : prevText;
           }
         }
       }
