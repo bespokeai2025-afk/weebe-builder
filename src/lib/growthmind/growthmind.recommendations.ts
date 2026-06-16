@@ -18,7 +18,7 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
   if (!data) return [];
 
   const recs: GrowthRecommendation[] = [];
-  const { calls, leads, bookings, campaigns, whatsapp, email, marketing, systemHealth } = data;
+  const { calls, leads, bookings, campaigns, whatsapp, email, marketing, systemHealth, ads } = data;
 
   // ── CAMPAIGN READINESS ────────────────────────────────────────────────────
   if (!systemHealth?.campaigns && (leads?.total ?? 0) > 5) {
@@ -220,6 +220,77 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
       impact: "Without competitive intelligence you may be missing positioning opportunities or pricing insights.",
       fix: "Add your top competitors in GrowthMind to track their moves and benchmark your performance.",
       action: { href: "/growthmind/competitors", label: "Track Competitors" },
+    });
+  }
+
+  // ── PAID ADS ──────────────────────────────────────────────────────────────
+  if (ads?.hasSyncedData) {
+    const totalSpend  = ads.totalSpend ?? 0;
+    const metaRoas    = ads.meta?.avgRoas;
+    const googleRoas  = ads.google?.avgRoas;
+
+    // Zero-spend alert
+    if (totalSpend === 0 && ads.totalCampaigns > 0) {
+      recs.push({
+        id: "ads-zero-spend",
+        category: "Paid Ads",
+        priority: "high",
+        problem: "No ad spend recorded across connected ad accounts",
+        impact: "Your ad accounts are connected but show zero spend — campaigns may be paused or not set up.",
+        fix: "Check your Meta and Google Ads accounts for paused campaigns and activate them.",
+        action: { href: "/growthmind/ads-performance", label: "View Ads" },
+      });
+    }
+
+    // Low ROAS — Meta
+    if (metaRoas !== null && metaRoas !== undefined && metaRoas < 1 && (ads.meta?.spend ?? 0) > 10) {
+      recs.push({
+        id: "meta-low-roas",
+        category: "Paid Ads",
+        priority: "high",
+        problem: `Meta Ads ROAS is ${metaRoas.toFixed(2)}x — spending more than you're earning back`,
+        impact: "Every £1 spent on Meta Ads is returning less than £1. Continuing without optimising wastes budget.",
+        fix: "Pause underperforming ad sets, narrow your audience targeting, and A/B test new creatives.",
+        action: { href: "/growthmind/ads-performance", label: "Review Meta Ads" },
+      });
+    }
+
+    // Low ROAS — Google
+    if (googleRoas !== null && googleRoas !== undefined && googleRoas < 1 && (ads.google?.spend ?? 0) > 10) {
+      recs.push({
+        id: "google-low-roas",
+        category: "Paid Ads",
+        priority: "high",
+        problem: `Google Ads ROAS is ${googleRoas.toFixed(2)}x — below break-even`,
+        impact: "You're losing money on Google Ads. Without optimisation this compounds quickly.",
+        fix: "Review keyword match types, add negative keywords, and tighten ad scheduling.",
+        action: { href: "/growthmind/ads-performance", label: "Review Google Ads" },
+      });
+    }
+
+    // No conversions tracked
+    const totalConversions = (ads.meta?.conversions ?? 0) + (ads.google?.conversions ?? 0);
+    if (totalConversions === 0 && totalSpend > 50) {
+      recs.push({
+        id: "ads-no-conversions",
+        category: "Paid Ads",
+        priority: "medium",
+        problem: "No conversions tracked despite active ad spend",
+        impact: "Without conversion tracking you cannot measure ROI or optimise campaigns for profitability.",
+        fix: "Set up conversion tracking in Meta Ads Manager and Google Ads — at minimum track form submissions and calls.",
+        action: { href: "/growthmind/ads-performance", label: "View Ads" },
+      });
+    }
+  } else if (!(ads?.hasSyncedData) && (leads?.total ?? 0) > 20) {
+    // Large lead volume but no ads connected
+    recs.push({
+      id: "ads-not-connected",
+      category: "Paid Ads",
+      priority: "low",
+      problem: "No ad platforms connected — unable to measure paid acquisition cost",
+      impact: "Without ads data, GrowthMind cannot calculate your cost-per-lead or advise on budget allocation.",
+      fix: "Connect your Meta Ads or Google Ads account in provider settings to unlock paid analytics.",
+      action: { href: "/settings/providers", label: "Connect Ads" },
     });
   }
 

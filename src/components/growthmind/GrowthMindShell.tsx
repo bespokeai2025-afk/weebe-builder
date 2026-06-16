@@ -38,6 +38,7 @@ const INTELLIGENCE_NAV = [
   { label: "Prompt Studio",   href: "/growthmind/prompt-studio",   icon: Sparkles,     highlight: true },
   { label: "Blog Writer",     href: "/growthmind/blog-writer",     icon: Newspaper,    highlight: true },
   { label: "Ads",             href: "/growthmind/ads",            icon: BarChart2 },
+  { label: "Ads Performance",href: "/growthmind/ads-performance",icon: BarChart2, highlight: true },
   { label: "Funnels",         href: "/growthmind/funnels",        icon: Filter },
   { label: "Forecast",        href: "/growthmind/forecast",       icon: LineChart },
   { label: "Playbooks",       href: "/growthmind/playbooks",      icon: BookOpen },

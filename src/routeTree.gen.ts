@@ -62,6 +62,7 @@ import { Route as ApiPublicMetaAdsWebhookRouteImport } from './routes/api/public
 import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
+import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
 import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
 import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/builder/script-template'
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
@@ -124,6 +125,7 @@ import { Route as AuthenticatedGrowthmindCampaignsRouteImport } from './routes/_
 import { Route as AuthenticatedGrowthmindCampaignFactoryRouteImport } from './routes/_authenticated/growthmind.campaign-factory'
 import { Route as AuthenticatedGrowthmindBusinessDnaRouteImport } from './routes/_authenticated/growthmind.business-dna'
 import { Route as AuthenticatedGrowthmindBlogWriterRouteImport } from './routes/_authenticated/growthmind.blog-writer'
+import { Route as AuthenticatedGrowthmindAdsPerformanceRouteImport } from './routes/_authenticated/growthmind.ads-performance'
 import { Route as AuthenticatedGrowthmindAdsRouteImport } from './routes/_authenticated/growthmind.ads'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
@@ -450,6 +452,11 @@ const ApiPublicCampaignExecutorRoute =
 const ApiPublicApproveUserRoute = ApiPublicApproveUserRouteImport.update({
   id: '/api/public/approve-user',
   path: '/api/public/approve-user',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAdsSyncRoute = ApiPublicAdsSyncRouteImport.update({
+  id: '/api/public/ads-sync',
+  path: '/api/public/ads-sync',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDashboardLiveCallsSseRoute =
@@ -822,6 +829,12 @@ const AuthenticatedGrowthmindBlogWriterRoute =
     path: '/blog-writer',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindAdsPerformanceRoute =
+  AuthenticatedGrowthmindAdsPerformanceRouteImport.update({
+    id: '/ads-performance',
+    path: '/ads-performance',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindAdsRoute =
   AuthenticatedGrowthmindAdsRouteImport.update({
     id: '/ads',
@@ -1145,6 +1158,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
+  '/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
   '/growthmind/business-dna': typeof AuthenticatedGrowthmindBusinessDnaRoute
   '/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
@@ -1207,6 +1221,7 @@ export interface FileRoutesByFullPath {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
@@ -1305,6 +1320,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
+  '/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
   '/growthmind/business-dna': typeof AuthenticatedGrowthmindBusinessDnaRoute
   '/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
@@ -1367,6 +1383,7 @@ export interface FileRoutesByTo {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
@@ -1472,6 +1489,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
   '/_authenticated/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
+  '/_authenticated/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/_authenticated/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
   '/_authenticated/growthmind/business-dna': typeof AuthenticatedGrowthmindBusinessDnaRoute
   '/_authenticated/growthmind/campaign-factory': typeof AuthenticatedGrowthmindCampaignFactoryRoute
@@ -1534,6 +1552,7 @@ export interface FileRoutesById {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
@@ -1639,6 +1658,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/agents/new'
     | '/growthmind/ads'
+    | '/growthmind/ads-performance'
     | '/growthmind/blog-writer'
     | '/growthmind/business-dna'
     | '/growthmind/campaign-factory'
@@ -1701,6 +1721,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
@@ -1799,6 +1820,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/agents/new'
     | '/growthmind/ads'
+    | '/growthmind/ads-performance'
     | '/growthmind/blog-writer'
     | '/growthmind/business-dna'
     | '/growthmind/campaign-factory'
@@ -1861,6 +1883,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
@@ -1965,6 +1988,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/users'
     | '/_authenticated/agents/new'
     | '/_authenticated/growthmind/ads'
+    | '/_authenticated/growthmind/ads-performance'
     | '/_authenticated/growthmind/blog-writer'
     | '/_authenticated/growthmind/business-dna'
     | '/_authenticated/growthmind/campaign-factory'
@@ -2027,6 +2051,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
     | '/api/public/elevenlabs-webhook'
@@ -2105,6 +2130,7 @@ export interface RootRouteChildren {
   ApiBuilderScanPdfRoute: typeof ApiBuilderScanPdfRoute
   ApiBuilderScriptTemplateRoute: typeof ApiBuilderScriptTemplateRoute
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
+  ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
   ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRouteWithChildren
@@ -2525,6 +2551,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/approve-user'
       fullPath: '/api/public/approve-user'
       preLoaderRoute: typeof ApiPublicApproveUserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ads-sync': {
+      id: '/api/public/ads-sync'
+      path: '/api/public/ads-sync'
+      fullPath: '/api/public/ads-sync'
+      preLoaderRoute: typeof ApiPublicAdsSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/dashboard/live-calls-sse': {
@@ -2961,6 +2994,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindBlogWriterRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/ads-performance': {
+      id: '/_authenticated/growthmind/ads-performance'
+      path: '/ads-performance'
+      fullPath: '/growthmind/ads-performance'
+      preLoaderRoute: typeof AuthenticatedGrowthmindAdsPerformanceRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/ads': {
       id: '/_authenticated/growthmind/ads'
       path: '/ads'
@@ -3329,6 +3369,7 @@ const AuthenticatedAdminRouteWithChildren =
 
 interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindAdsRoute: typeof AuthenticatedGrowthmindAdsRoute
+  AuthenticatedGrowthmindAdsPerformanceRoute: typeof AuthenticatedGrowthmindAdsPerformanceRoute
   AuthenticatedGrowthmindBlogWriterRoute: typeof AuthenticatedGrowthmindBlogWriterRoute
   AuthenticatedGrowthmindBusinessDnaRoute: typeof AuthenticatedGrowthmindBusinessDnaRoute
   AuthenticatedGrowthmindCampaignFactoryRoute: typeof AuthenticatedGrowthmindCampaignFactoryRoute
@@ -3360,6 +3401,8 @@ interface AuthenticatedGrowthmindRouteChildren {
 const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren =
   {
     AuthenticatedGrowthmindAdsRoute: AuthenticatedGrowthmindAdsRoute,
+    AuthenticatedGrowthmindAdsPerformanceRoute:
+      AuthenticatedGrowthmindAdsPerformanceRoute,
     AuthenticatedGrowthmindBlogWriterRoute:
       AuthenticatedGrowthmindBlogWriterRoute,
     AuthenticatedGrowthmindBusinessDnaRoute:
@@ -3733,6 +3776,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBuilderScanPdfRoute: ApiBuilderScanPdfRoute,
   ApiBuilderScriptTemplateRoute: ApiBuilderScriptTemplateRoute,
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
+  ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
   ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRouteWithChildren,

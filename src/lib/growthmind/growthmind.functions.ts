@@ -116,6 +116,48 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
         .maybeSingle(),
     ]);
 
+    // Ads campaign metrics (best-effort — growthmind_campaigns may not have
+    // synced_at / external_id columns yet if the ADS_ANALYTICS_MIGRATION hasn't
+    // been applied; fall back gracefully to an empty array).
+    const adsCampaignsRes = await sb
+      .from("growthmind_campaigns")
+      .select("id,platform,name,status,spend,impressions,clicks,conversions,roas,synced_at,date_start,date_end")
+      .eq("workspace_id", workspaceId)
+      .order("spend", { ascending: false })
+      .limit(200)
+      .catch(() => ({ data: [] }));
+
+    const adsCampaigns: any[] = adsCampaignsRes.data ?? [];
+
+    // Aggregate by platform
+    const metaCamps   = adsCampaigns.filter(c => c.platform === "meta");
+    const googleCamps = adsCampaigns.filter(c => c.platform === "google");
+
+    function adsTotals(camps: any[]) {
+      return {
+        count:       camps.length,
+        spend:       +camps.reduce((a, c) => a + Number(c.spend   ?? 0), 0).toFixed(2),
+        impressions: camps.reduce((a, c) => a + Number(c.impressions ?? 0), 0),
+        clicks:      camps.reduce((a, c) => a + Number(c.clicks   ?? 0), 0),
+        conversions: camps.reduce((a, c) => a + Number(c.conversions ?? 0), 0),
+        avgRoas:     camps.filter(c => c.roas != null).length > 0
+          ? +( camps.filter(c => c.roas != null).reduce((a, c) => a + Number(c.roas), 0)
+             / camps.filter(c => c.roas != null).length ).toFixed(3)
+          : null,
+        ctr: camps.reduce((a, c) => a + Number(c.impressions ?? 0), 0) > 0
+          ? +( camps.reduce((a, c) => a + Number(c.clicks ?? 0), 0)
+             / camps.reduce((a, c) => a + Number(c.impressions ?? 0), 0) * 100 ).toFixed(2)
+          : null,
+        lastSyncedAt: camps.reduce((latest: string | null, c) => {
+          if (!c.synced_at) return latest;
+          if (!latest) return c.synced_at;
+          return c.synced_at > latest ? c.synced_at : latest;
+        }, null),
+      };
+    }
+
+    const totalAdSpend = +adsCampaigns.reduce((a, c) => a + Number(c.spend ?? 0), 0).toFixed(2);
+
     const agents: any[]          = agentsRes.data          ?? [];
     const calls: any[]           = callsRes.data           ?? [];
     const leads: any[]           = leadsRes.data           ?? [];
@@ -503,6 +545,28 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
         hasWaContacts,
       },
       systemHealth,
+      // Paid ads analytics (from synced growthmind_campaigns rows)
+      ads: {
+        hasSyncedData:  adsCampaigns.length > 0,
+        totalCampaigns: adsCampaigns.length,
+        totalSpend:     totalAdSpend,
+        meta:           adsTotals(metaCamps),
+        google:         adsTotals(googleCamps),
+        topCampaigns:   adsCampaigns.slice(0, 10).map(c => ({
+          id:          c.id,
+          name:        c.name,
+          platform:    c.platform,
+          status:      c.status,
+          spend:       Number(c.spend ?? 0),
+          impressions: Number(c.impressions ?? 0),
+          clicks:      Number(c.clicks ?? 0),
+          conversions: Number(c.conversions ?? 0),
+          roas:        c.roas ? Number(c.roas) : null,
+          dateStart:   c.date_start,
+          dateEnd:     c.date_end,
+          syncedAt:    c.synced_at,
+        })),
+      },
       // No `settings` key — credentials never leave the server
     };
 }

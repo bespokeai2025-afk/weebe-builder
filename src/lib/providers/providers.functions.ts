@@ -353,6 +353,13 @@ export const saveProviderCredentials = createServerFn({ method: "POST" })
     if (key === "calendar:calcom" && credentials.apiKey)
       wsUpdate.calcom_api_key = credentials.apiKey;
 
+    // Mirror Meta Ads token+account to workspace_settings so the sync engine
+    // can read them without a provider_settings join.
+    if (key === "advertising:meta_ads") {
+      if (credentials.accessToken) wsUpdate.meta_ads_access_token = credentials.accessToken;
+      if (credentials.accountId)   wsUpdate.meta_ads_account_id   = credentials.accountId;
+    }
+
     if (Object.keys(wsUpdate).length > 0) {
       await sb.from("workspace_settings").upsert(
         { workspace_id: workspaceId, ...wsUpdate, updated_at: new Date().toISOString() },

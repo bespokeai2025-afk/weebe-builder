@@ -391,6 +391,21 @@ export async function buildGrowthMindExecutiveSummary(
     `${topOpportunities.length} live opportunit${topOpportunities.length === 1 ? "y" : "ies"}, ` +
     `${topRisks.length} risk${topRisks.length === 1 ? "" : "s"}.${dnaNote}${cmoNote}`;
 
+  // Ads analytics snapshot — best-effort from synced growthmind_campaigns
+  const adsData = (data as any).ads ?? {};
+  const adsSummary = adsData.hasSyncedData ? {
+    totalCampaigns:  adsData.totalCampaigns ?? 0,
+    totalSpend:      adsData.totalSpend     ?? 0,
+    meta:  adsData.meta  ?? null,
+    google: adsData.google ?? null,
+    topCampaign: adsData.topCampaigns?.[0] ?? null,
+    insight: adsData.totalSpend > 0
+      ? `£${(adsData.totalSpend as number).toLocaleString()} total ad spend across ${adsData.totalCampaigns} campaign(s). ` +
+        (adsData.meta?.avgRoas != null ? `Meta ROAS: ${(adsData.meta.avgRoas as number).toFixed(2)}x. ` : "") +
+        (adsData.google?.avgRoas != null ? `Google ROAS: ${(adsData.google.avgRoas as number).toFixed(2)}x.` : "")
+      : "Ads data synced but no spend recorded yet.",
+  } : null;
+
   return {
     source: "growthmind",
     role: "CMO",
@@ -414,6 +429,7 @@ export async function buildGrowthMindExecutiveSummary(
     recommendedBudget,
     recommendedNextAction,
     recommendedFunnel,
+    adsSummary,
   };
 }
 
