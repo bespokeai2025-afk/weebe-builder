@@ -93,21 +93,22 @@ async function collectBusinessContext(sb: any, workspaceId: string) {
   const [
     dnaRes, settingsRes, valuePointRes, opportunityRes, competitorRes,
     leadsRes, callsRes, bookingsRes,
-    seoRes, waRes, hexmailRes, adsRes, contentRes,
+    seoRes, waRes, hexmailRes, adsRes, contentRes, kbRes,
   ] = await Promise.all([
     sb.from("growthmind_business_dna").select("*").eq("workspace_id", workspaceId).maybeSingle(),
     sb.from("workspace_settings").select("revenue_goals, monthly_marketing_budget, business_name, industry").eq("workspace_id", workspaceId).maybeSingle(),
     sb.from("growthmind_value_points").select("current_highest_value").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     sb.from("growthmind_opportunities").select("title, recommended_action, urgency, score").eq("workspace_id", workspaceId).order("score", { ascending: false }).limit(5),
-    sb.from("growthmind_competitors").select("name, website").eq("workspace_id", workspaceId).limit(10),
+    sb.from("growthmind_competitors").select("name, website, positioning").eq("workspace_id", workspaceId).limit(10),
     sb.from("leads").select("id, status").eq("workspace_id", workspaceId).limit(2000),
     sb.from("calls").select("id, call_successful").eq("workspace_id", workspaceId).gte("started_at", since90).limit(3000),
     sb.from("calendar_bookings").select("id").eq("workspace_id", workspaceId).limit(500),
     sb.from("growthmind_seo_sites").select("keywords").eq("workspace_id", workspaceId).limit(10),
     sb.from("whatsapp_contacts").select("id").eq("workspace_id", workspaceId).limit(1),
-    sb.from("hexmail_campaigns").select("status").eq("workspace_id", workspaceId).limit(50),
-    sb.from("growthmind_ads_accounts").select("status").eq("workspace_id", workspaceId).limit(20),
+    sb.from("hexmail_campaigns").select("status, open_rate, click_rate").eq("workspace_id", workspaceId).limit(50),
+    sb.from("growthmind_ads_accounts").select("status, platform").eq("workspace_id", workspaceId).limit(20),
     sb.from("growthmind_content_assets").select("status").eq("workspace_id", workspaceId).gte("created_at", since30).limit(100),
+    sb.from("weebee_kb").select("title, content").or(`workspace_id.eq.${workspaceId},scope.eq.platform`).limit(5).order("created_at", { ascending: false }),
   ].map(p => p.catch(() => ({ data: null }))));
 
   const dna         = dnaRes.data;
@@ -122,28 +123,41 @@ async function collectBusinessContext(sb: any, workspaceId: string) {
   const opportunities: any[] = opportunityRes.data ?? [];
   const competitors: any[]   = competitorRes.data  ?? [];
 
+  const kbDocs: any[] = kbRes.data ?? [];
+  const kbContext = kbDocs.length > 0
+    ? "\n## Knowledge Base\n" + kbDocs.map((r: any) =>
+        `### ${r.title ?? "Document"}\n${String(r.content ?? "").slice(0, 500)}`
+      ).join("\n\n")
+    : "";
+
   const totalLeads   = leads.length;
   const wonLeads     = leads.filter(l => l.status === "sale" || l.status === "won").length;
   const convRate     = totalLeads > 0 ? wonLeads / totalLeads : 0;
   const callSuccRate = calls.length > 0 ? calls.filter(c => c.call_successful).length / calls.length : 0;
   const seoKeywords  = seoSites.reduce((a: number, s: any) => a + ((s.keywords as any[])?.length ?? 0), 0);
+  const activeHexmail = hexmail.filter((h: any) => h.status === "active");
+  const hexOpenRate  = activeHexmail.filter((h: any) => h.open_rate != null).length > 0
+    ? Math.round(activeHexmail.reduce((a: number, h: any) => a + (h.open_rate ?? 0), 0) / activeHexmail.filter((h: any) => h.open_rate != null).length)
+    : null;
 
   const snapshot = {
     totalLeads,
     wonLeads,
-    conversionRate:       Math.round(convRate * 100) + "%",
-    totalBookings:        bookings.length,
-    callSuccessRate:      Math.round(callSuccRate * 100) + "%",
-    totalCalls90d:        calls.length,
-    seoKeywordsTracked:   seoKeywords,
-    publishedContent30d:  contentAssets.filter((a: any) => a.status === "published").length,
-    hasWhatsApp:          (waRes.data ?? []).length > 0,
-    hasActiveAds:         adsAccounts.some((a: any) => a.status === "active"),
-    activeHexmailCampaigns: hexmail.filter((h: any) => h.status === "active").length,
-    topOpportunities:     opportunities.map((o: any) => ({ title: o.title, urgency: o.urgency })),
-    competitors:          competitors.map((c: any) => c.name).filter(Boolean),
-    revenueGoal:          settings?.revenue_goals ?? null,
-    monthlyBudget:        settings?.monthly_marketing_budget ?? null,
+    conversionRate:         Math.round(convRate * 100) + "%",
+    totalBookings:          bookings.length,
+    callSuccessRate:        Math.round(callSuccRate * 100) + "%",
+    totalCalls90d:          calls.length,
+    seoKeywordsTracked:     seoKeywords,
+    publishedContent30d:    contentAssets.filter((a: any) => a.status === "published").length,
+    hasWhatsApp:            (waRes.data ?? []).length > 0,
+    hasActiveAds:           adsAccounts.some((a: any) => a.status === "active"),
+    activeAdPlatforms:      adsAccounts.filter((a: any) => a.status === "active").map((a: any) => a.platform).filter(Boolean),
+    activeHexmailCampaigns: activeHexmail.length,
+    hexmailAvgOpenRate:     hexOpenRate != null ? hexOpenRate + "%" : "N/A",
+    topOpportunities:       opportunities.map((o: any) => ({ title: o.title, urgency: o.urgency, score: o.score })),
+    competitors:            competitors.map((c: any) => ({ name: c.name, website: c.website ?? null, positioning: c.positioning ?? null })).filter((c: any) => c.name),
+    revenueGoal:            settings?.revenue_goals ?? null,
+    monthlyBudget:          settings?.monthly_marketing_budget ?? null,
   };
 
   const dnaContext = dna ? formatDnaAsContext({
@@ -176,7 +190,7 @@ async function collectBusinessContext(sb: any, workspaceId: string) {
 
   const valuePoint = (valuePointRes.data as any)?.current_highest_value ?? null;
 
-  return { dnaContext, snapshot, valuePoint };
+  return { dnaContext, snapshot, valuePoint, kbContext };
 }
 
 // ── generateStrategyCentre ──────────────────────────────────────────────────────
@@ -192,6 +206,8 @@ export const generateStrategyCentre = createServerFn({ method: "POST" })
         "video_ad", "ai_calling_campaign", "landing_page_campaign",
         "full_multi_channel",
       ]),
+      budget: z.string().optional(),
+      goal:   z.string().optional(),
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -206,10 +222,13 @@ export const generateStrategyCentre = createServerFn({ method: "POST" })
     const engines = routeToEngines(data.strategyType);
     const t0      = Date.now();
 
-    const { dnaContext, snapshot, valuePoint } = await collectBusinessContext(sb, workspaceId);
+    const { dnaContext, snapshot, valuePoint, kbContext } = await collectBusinessContext(sb, workspaceId);
 
-    const valueContext = valuePoint ? `\n## Current Highest-Value Offer\n${valuePoint}` : "";
-    const fullContext  = dnaContext + valueContext;
+    const valueContext  = valuePoint ? `\n## Current Highest-Value Offer\n${valuePoint}` : "";
+    const campaignBrief = (data.budget || data.goal)
+      ? `\n## Campaign Brief (User-Specified)\nGoal: ${data.goal ?? "Grow the business"}\nBudget: ${data.budget ?? "See DNA"}`
+      : "";
+    const fullContext   = dnaContext + valueContext + kbContext + campaignBrief;
 
     const prompt = buildStrategyGenerationPrompt(
       data.strategyType, engines, fullContext, snapshot,
@@ -301,13 +320,113 @@ export const generateStrategyCentre = createServerFn({ method: "POST" })
       status:        "success",
     }).catch(() => {/* non-critical */});
 
+    // ── Generate per-engine campaign assets (single consolidated LLM call) ─────
+    try {
+      const assetEngineList = engines.join(", ");
+      const assetLabels     = engines.map(e => ENGINE_LABELS[e]).join(", ");
+      const assetsPrompt    = `You are GrowthMind. Generate specific, ready-to-use marketing deliverables for: ${assetLabels}.
+
+BUSINESS: ${raw.selected_service ?? "the business"} | AUDIENCE: ${raw.target_audience ?? "target audience"}
+STRATEGY: ${raw.executive_summary ? String(raw.executive_summary).slice(0, 300) : "See strategy above"}
+
+Return ONLY valid JSON with one key per engine from [${assetEngineList}]. Each value must be a detailed, specific deliverable (100-300 words):
+- seo: Top 10 priority keywords + content cluster brief
+- content_studio: 3 blog post outlines with hooks and structure  
+- video_studio: Complete 60-second ad script with hook, body, and CTA
+- campaign_factory: 3 ad headlines + 3 descriptions + targeting brief
+- whatsapp: 3-message sequence with exact copy
+- hexmail: 3-email sequence with subject lines + preview text + body angles
+- ai_calling: Full call script with opener, 3 qualification questions, 3 objections + responses
+- landing_page: Full page structure with headline, 5 bullet benefits, social proof, CTA copy
+
+Only include keys from: [${assetEngineList}]`;
+
+      const assetsApiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages:        [{ role: "user", content: assetsPrompt }],
+          max_tokens:      3500,
+          temperature:     0.65,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (assetsApiRes.ok) {
+        const assetsJson = await assetsApiRes.json() as any;
+        const assetsRaw  = JSON.parse(assetsJson.choices?.[0]?.message?.content ?? "{}");
+        const assetRows  = Object.entries(assetsRaw)
+          .filter(([, v]) => typeof v === "string" && (v as string).trim().length > 0)
+          .map(([engineKey, content]) => ({
+            workspace_id: workspaceId,
+            strategy_id:  inserted.id,
+            engine:       engineKey,
+            asset_type:   "plan_deliverable",
+            title:        ENGINE_LABELS[engineKey as PromptEngine] ?? engineKey,
+            content:      content as string,
+            status:       "draft",
+          }));
+        if (assetRows.length > 0) {
+          await sb.from("growthmind_strategy_assets").insert(assetRows).catch(() => {});
+        }
+      }
+    } catch { /* non-critical — asset generation is best-effort */ }
+
+    // ── Auto-send to HiveMind for approval ──────────────────────────────────
+    let hivemindActionId: string | null = null;
+    try {
+      const typeLabel2    = STRATEGY_TYPE_LABELS[data.strategyType];
+      const engineList2   = engines.map(e => ENGINE_LABELS[e]).join(", ");
+      const hmDescription = [
+        `**Strategy:** ${typeLabel2}`,
+        raw.selected_service ? `**Service to Promote:** ${raw.selected_service}` : null,
+        raw.service_selection_reason
+          ? `**Why:** ${String(raw.service_selection_reason ?? "").slice(0, 250)}`
+          : null,
+        `**Target Audience:** ${raw.target_audience ?? ""}`,
+        `**Channels:** ${(raw.channel_recommendation as string[] ?? []).join(", ")}`,
+        `**Budget:** ${raw.budget_recommendation ?? ""}`,
+        `**Expected Outcome:** ${raw.expected_outcome ?? ""}`,
+        `**Engines Used:** ${engineList2}`,
+        `**Confidence:** ${Math.round(Math.min(1, Math.max(0, Number(raw.confidence_score) || 0.75)) * 100)}%`,
+        (raw.approval_actions as string[] ?? []).length > 0
+          ? `\n**Actions Required:**\n${(raw.approval_actions as string[]).map((a: string, i: number) => `${i + 1}. ${a}`).join("\n")}`
+          : null,
+      ].filter(Boolean).join("\n");
+
+      const { data: hmAction } = await sb.from("hivemind_actions").insert({
+        workspace_id:   workspaceId,
+        title:          `GrowthMind ${typeLabel2}: ${raw.selected_service ?? "Growth Strategy"}`,
+        description:    hmDescription,
+        action_type:    "review_strategy",
+        action_payload: {
+          strategy_id:   inserted.id,
+          strategy_type: data.strategyType,
+          channels:      raw.channel_recommendation ?? [],
+          engines,
+        },
+        proposed_by: "growthmind",
+        status:      "pending",
+      }).select("id").single();
+
+      if (hmAction?.id) {
+        hivemindActionId = hmAction.id;
+        await sb.from("growthmind_strategy_centre").update({
+          status:             "proposed_to_hivemind",
+          hivemind_action_id: hmAction.id,
+          updated_at:         new Date().toISOString(),
+        }).eq("id", inserted.id).eq("workspace_id", workspaceId);
+      }
+    } catch { /* non-critical — HiveMind tables may not exist in all environments */ }
+
+    // Re-read final state (may be proposed_to_hivemind if auto-send succeeded)
     const { data: full } = await sb
       .from("growthmind_strategy_centre")
       .select("*")
       .eq("id", inserted.id)
       .single();
 
-    return { strategy: mapStrategy(full) };
+    return { strategy: mapStrategy(full), autoSentToHiveMind: !!hivemindActionId };
   });
 
 // ── listStrategyCentre ──────────────────────────────────────────────────────────
@@ -555,3 +674,85 @@ export async function getStrategyCentreSummary(sb: any, workspaceId: string) {
     return null;
   }
 }
+
+// ── updateStrategyCentre ─────────────────────────────────────────────────────────
+
+export const updateStrategyCentre = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      strategyId:            z.string().uuid(),
+      executiveSummary:      z.string().optional(),
+      selectedService:       z.string().optional(),
+      targetAudience:        z.string().optional(),
+      channelRecommendation: z.array(z.string()).optional(),
+      budgetRecommendation:  z.string().optional(),
+      expectedOutcome:       z.string().optional(),
+    }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { strategyId, ...fields } = data;
+    const update: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (fields.executiveSummary      !== undefined) update.executive_summary       = fields.executiveSummary;
+    if (fields.selectedService       !== undefined) update.selected_service        = fields.selectedService;
+    if (fields.targetAudience        !== undefined) update.target_audience         = fields.targetAudience;
+    if (fields.channelRecommendation !== undefined) update.channel_recommendation  = fields.channelRecommendation;
+    if (fields.budgetRecommendation  !== undefined) update.budget_recommendation   = fields.budgetRecommendation;
+    if (fields.expectedOutcome       !== undefined) update.expected_outcome        = fields.expectedOutcome;
+
+    const { error } = await sb
+      .from("growthmind_strategy_centre")
+      .update(update)
+      .eq("id", strategyId)
+      .eq("workspace_id", workspaceId);
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+// ── getStrategyTasks ─────────────────────────────────────────────────────────────
+
+export const getStrategyTasks = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: rows } = await sb
+      .from("growthmind_strategy_tasks")
+      .select("id, title, description, channel, priority, week_number, status, created_at")
+      .eq("strategy_id", data.strategyId)
+      .eq("workspace_id", workspaceId)
+      .order("week_number", { ascending: true })
+      .order("priority", { ascending: true })
+      .catch(() => ({ data: [] }));
+
+    return { tasks: rows ?? [] };
+  });
+
+// ── getStrategyAssets ─────────────────────────────────────────────────────────────
+
+export const getStrategyAssets = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ strategyId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    const sb          = context.supabase as any;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No workspace");
+
+    const { data: rows } = await sb
+      .from("growthmind_strategy_assets")
+      .select("id, engine, asset_type, title, content, status, created_at")
+      .eq("strategy_id", data.strategyId)
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: true })
+      .catch(() => ({ data: [] }));
+
+    return { assets: rows ?? [] };
+  });

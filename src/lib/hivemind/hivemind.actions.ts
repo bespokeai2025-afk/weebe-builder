@@ -772,31 +772,35 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
 
     // ── Strategy Centre: pending approval ─────────────────────────────────────
     try {
+      // Only pick up strategies that were proposed without auto-send creating the action
+      // (hivemind_action_id IS NULL means no action was linked yet)
       const { data: pendingStrategies } = await sb
         .from("growthmind_strategy_centre")
-        .select("id, strategy_type, selected_service, confidence_score, created_at")
+        .select("id, strategy_type, selected_service, confidence_score, created_at, hivemind_action_id")
         .eq("workspace_id", workspaceId)
         .eq("status", "proposed_to_hivemind")
+        .is("hivemind_action_id", null)
         .order("created_at", { ascending: false })
         .limit(5)
         .catch(() => ({ data: [] }));
 
       for (const strat of (pendingStrategies ?? [])) {
-        const typeLabel = (strat.strategy_type as string).replace(/_/g, "-");
-        const service   = strat.selected_service ? ` — promoting "${strat.selected_service}"` : "";
+        const typeLabel  = (strat.strategy_type as string).replace(/_/g, "-");
+        const service    = strat.selected_service ? ` — promoting "${strat.selected_service}"` : "";
         const confidence = Math.round((strat.confidence_score ?? 0) * 100);
 
-        const existsCheck = await sb
+        // Final guard: verify no pending action already exists for this strategy_id
+        const { data: existingAction } = await sb
           .from("hivemind_actions")
           .select("id")
           .eq("workspace_id", workspaceId)
-          .eq("status", "pending")
           .eq("action_type", "review_strategy")
-          .contains("action_payload", { strategy_id: strat.id })
+          .in("status", ["pending", "in_review"])
+          .eq("action_payload->>strategy_id", strat.id)
           .maybeSingle()
           .catch(() => ({ data: null }));
 
-        if (!existsCheck.data) {
+        if (!existingAction) {
           proposed.push({
             workspace_id:   workspaceId,
             title:          `GrowthMind Strategy Awaiting Approval: ${typeLabel}${service}`,

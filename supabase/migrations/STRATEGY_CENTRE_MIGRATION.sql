@@ -108,3 +108,33 @@ CREATE INDEX IF NOT EXISTS idx_gm_prompt_runs_ws
   ON growthmind_prompt_runs(workspace_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_gm_prompt_runs_strategy
   ON growthmind_prompt_runs(strategy_id);
+
+-- ── Row-Level Security ───────────────────────────────────────────────────────────
+ALTER TABLE growthmind_strategy_centre   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE growthmind_strategy_assets   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE growthmind_strategy_tasks    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE growthmind_prompt_runs       ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN CREATE POLICY "gm_sc_select"  ON growthmind_strategy_centre FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "gm_sc_insert"  ON growthmind_strategy_centre FOR INSERT WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "gm_sc_update"  ON growthmind_strategy_centre FOR UPDATE USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "gm_sc_delete"  ON growthmind_strategy_centre FOR DELETE USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+GRANT SELECT, INSERT, UPDATE, DELETE ON growthmind_strategy_centre TO authenticated;
+GRANT ALL ON growthmind_strategy_centre TO service_role;
+
+DO $$ BEGIN CREATE POLICY "gm_sa_select"  ON growthmind_strategy_assets FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "gm_sa_insert"  ON growthmind_strategy_assets FOR INSERT WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "gm_sa_delete"  ON growthmind_strategy_assets FOR DELETE USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+GRANT SELECT, INSERT, UPDATE, DELETE ON growthmind_strategy_assets TO authenticated;
+GRANT ALL ON growthmind_strategy_assets TO service_role;
+
+DO $$ BEGIN CREATE POLICY "gm_st_select"  ON growthmind_strategy_tasks FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "gm_st_insert"  ON growthmind_strategy_tasks FOR INSERT WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "gm_st_update"  ON growthmind_strategy_tasks FOR UPDATE USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+GRANT SELECT, INSERT, UPDATE, DELETE ON growthmind_strategy_tasks TO authenticated;
+GRANT ALL ON growthmind_strategy_tasks TO service_role;
+
+DO $$ BEGIN CREATE POLICY "gm_pr_select"  ON growthmind_prompt_runs FOR SELECT USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE POLICY "gm_pr_insert"  ON growthmind_prompt_runs FOR INSERT WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+GRANT SELECT, INSERT ON growthmind_prompt_runs TO authenticated;
+GRANT ALL ON growthmind_prompt_runs TO service_role;

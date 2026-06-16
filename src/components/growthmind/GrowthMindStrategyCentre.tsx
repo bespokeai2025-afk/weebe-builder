@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, Target, Megaphone, BarChart3, Globe, Video,
   Search, Mail, Phone, FileText, Layers, Zap, TrendingUp, DollarSign,
   AlertTriangle, Package, Trophy, Users, Clock, Sparkles, PlayCircle,
-  CalendarDays, Star, ArrowRight, Shield,
+  CalendarDays, Star, ArrowRight, Shield, Edit2, Save,
 } from "lucide-react";
 import { GrowthMindShell } from "./GrowthMindShell";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ import {
   generateStrategyCentre, listStrategyCentre,
   sendStrategyCentreToHiveMind, approveStrategyCentre,
   rejectStrategyCentre, deleteStrategyCentre,
+  updateStrategyCentre, getStrategyTasks, getStrategyAssets,
   type StrategyCentre,
 } from "@/lib/growthmind/growthmind.strategy-centre";
 
@@ -128,8 +129,16 @@ function ScorePill({ score }: { score: number }) {
 
 // ── Full strategy display ────────────────────────────────────────────────────────
 
+type EditableFields = {
+  executiveSummary:    string;
+  selectedService:     string;
+  targetAudience:      string;
+  budgetRecommendation: string;
+  expectedOutcome:     string;
+};
+
 function StrategyDisplay({
-  strategy, onApprove, onReject, onSend, onDelete, onRegenerate,
+  strategy, onApprove, onReject, onSend, onDelete, onRegenerate, onEdit,
 }: {
   strategy: StrategyCentre;
   onApprove: () => void;
@@ -137,12 +146,40 @@ function StrategyDisplay({
   onSend: () => void;
   onDelete: () => void;
   onRegenerate: () => void;
+  onEdit: (fields: Partial<EditableFields>) => Promise<void>;
 }) {
+  const tasksFn  = useServerFn(getStrategyTasks);
+  const assetsFn = useServerFn(getStrategyAssets);
+
+  const { data: tasksData } = useQuery({
+    queryKey:  ["strategy-tasks", strategy.id],
+    queryFn:   () => tasksFn({ data: { strategyId: strategy.id } }),
+    enabled:   strategy.status === "approved",
+    staleTime: 30_000,
+  });
+  const { data: assetsData } = useQuery({
+    queryKey:  ["strategy-assets", strategy.id],
+    queryFn:   () => assetsFn({ data: { strategyId: strategy.id } }),
+    staleTime: 60_000,
+  });
+
+  const tasks  = tasksData?.tasks  ?? [];
+  const assets = assetsData?.assets ?? [];
+
   const [sending,      setSending]      = useState(false);
   const [approving,    setApproving]    = useState(false);
   const [rejecting,    setRejecting]    = useState(false);
   const [deleting,     setDeleting]     = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [editing,      setEditing]      = useState(false);
+  const [saving,       setSaving]       = useState(false);
+  const [editFields,   setEditFields]   = useState<EditableFields>({
+    executiveSummary:    strategy.executiveSummary ?? "",
+    selectedService:     strategy.selectedService  ?? "",
+    targetAudience:      strategy.targetAudience   ?? "",
+    budgetRecommendation: strategy.budgetRecommendation ?? "",
+    expectedOutcome:     strategy.expectedOutcome  ?? "",
+  });
 
   const typeLabel = STRATEGY_TYPES.find(t => t.id === strategy.strategyType)?.label ?? strategy.strategyType;
 
@@ -235,6 +272,18 @@ function StrategyDisplay({
             Regenerate
           </button>
           <button
+            onClick={() => setEditing(v => !v)}
+            title="Edit key fields"
+            className={cn(
+              "p-1.5 rounded transition-colors",
+              editing
+                ? "text-blue-400 bg-blue-500/10"
+                : "text-muted-foreground hover:text-blue-400",
+            )}
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+          </button>
+          <button
             onClick={wrap(onDelete, setDeleting)}
             disabled={deleting}
             className="p-1.5 rounded text-muted-foreground hover:text-red-400 transition-colors disabled:opacity-50"
@@ -243,6 +292,63 @@ function StrategyDisplay({
           </button>
         </div>
       </div>
+
+      {/* Inline Edit Panel */}
+      {editing && (
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.04] p-4 space-y-3">
+          <p className="text-[10px] text-blue-400 uppercase tracking-widest font-semibold flex items-center gap-1.5">
+            <Edit2 className="h-3 w-3" /> Edit Strategy
+          </p>
+          {(
+            [
+              { label: "Service to Promote",  field: "selectedService"     as const },
+              { label: "Target Audience",      field: "targetAudience"      as const },
+              { label: "Budget",               field: "budgetRecommendation" as const },
+              { label: "Expected Outcome",     field: "expectedOutcome"     as const },
+            ] as { label: string; field: keyof EditableFields }[]
+          ).map(({ label, field }) => (
+            <div key={field}>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
+              <input
+                className="w-full bg-black/20 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500/50"
+                value={editFields[field]}
+                onChange={e => setEditFields(prev => ({ ...prev, [field]: e.target.value }))}
+              />
+            </div>
+          ))}
+          <div>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-1">Executive Summary</p>
+            <textarea
+              rows={3}
+              className="w-full bg-black/20 border border-white/[0.08] rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:border-blue-500/50 resize-none"
+              value={editFields.executiveSummary}
+              onChange={e => setEditFields(prev => ({ ...prev, executiveSummary: e.target.value }))}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-white/[0.05] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setSaving(true);
+                try { await onEdit(editFields); setEditing(false); }
+                finally { setSaving(false); }
+              }}
+              disabled={saving}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              Save Changes
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Service Selection Card */}
       {strategy.selectedService && (
@@ -417,7 +523,69 @@ function StrategyDisplay({
       {strategy.status === "proposed_to_hivemind" && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-4 py-3 flex items-center gap-3">
           <Send className="h-4 w-4 text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-300">Awaiting HiveMind approval. Approve or reject above.</p>
+          <p className="text-sm text-amber-300">Strategy auto-sent to HiveMind — review is pending. Approve or reject above, or wait for HiveMind COO to act.</p>
+        </div>
+      )}
+
+      {/* Generated Assets */}
+      {assets.length > 0 && (
+        <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+          <div className="px-4 py-3 bg-white/[0.02] flex items-center gap-2">
+            <Package className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Generated Campaign Assets</p>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 ml-auto">
+              {assets.length} deliverable{assets.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="p-3 space-y-2">
+            {(assets as any[]).map((asset: any) => {
+              const EIcon = ENGINE_ICONS[asset.engine as string] ?? Sparkles;
+              return (
+                <Section key={asset.id} title={asset.title ?? asset.engine} icon={EIcon} defaultOpen={false}>
+                  {asset.content}
+                </Section>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Strategy Tasks */}
+      {tasks.length > 0 && (
+        <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+          <div className="px-4 py-3 bg-white/[0.02] flex items-center gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Strategy Tasks</p>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 ml-auto">
+              {tasks.length} task{tasks.length !== 1 ? "s" : ""} created
+            </span>
+          </div>
+          <div className="p-3 space-y-1.5">
+            {(tasks as any[]).map((task: any) => (
+              <div key={task.id} className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground/30 mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium leading-snug">{task.title}</p>
+                  {task.description && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">{task.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                  {task.channel && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.05] text-muted-foreground/60 uppercase tracking-widest">{task.channel}</span>
+                  )}
+                  <span className={cn(
+                    "text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase tracking-widest",
+                    task.priority === "high"
+                      ? "bg-red-500/10 text-red-400"
+                      : "bg-blue-500/10 text-blue-400",
+                  )}>
+                    {task.priority}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -434,10 +602,13 @@ export function GrowthMindStrategyCentre() {
   const approveFn       = useServerFn(approveStrategyCentre);
   const rejectFn        = useServerFn(rejectStrategyCentre);
   const deleteFn        = useServerFn(deleteStrategyCentre);
+  const updateFn        = useServerFn(updateStrategyCentre);
 
   const [selectedType,       setSelectedType]       = useState<StrategyCentreType>("30_day");
   const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null);
   const [generating,         setGenerating]         = useState(false);
+  const [budget,             setBudget]             = useState("");
+  const [goal,               setGoal]               = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey:  ["strategy-centre"],
@@ -459,10 +630,24 @@ export function GrowthMindStrategyCentre() {
     return g;
   }, []);
 
+  async function handleEdit(strategyId: string, fields: Partial<EditableFields>) {
+    try {
+      await updateFn({ data: { strategyId, ...fields } });
+      await qc.invalidateQueries({ queryKey: ["strategy-centre"] });
+      toast.success("Strategy updated");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to update");
+    }
+  }
+
   async function handleGenerate() {
     setGenerating(true);
     try {
-      const res = await generateFn({ data: { strategyType: selectedType } });
+      const res = await generateFn({ data: {
+        strategyType: selectedType,
+        budget:       budget.trim() || undefined,
+        goal:         goal.trim()   || undefined,
+      } });
       await qc.invalidateQueries({ queryKey: ["strategy-centre"] });
       setSelectedStrategyId(res.strategy.id);
       toast.success("Strategy generated");
@@ -575,6 +760,30 @@ export function GrowthMindStrategyCentre() {
               ))}
             </div>
 
+            <div className="mt-3 space-y-2">
+              <div>
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1 px-0.5">
+                  Goal <span className="normal-case font-normal">(optional)</span>
+                </p>
+                <input
+                  className="w-full bg-black/20 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-emerald-500/40 transition-colors"
+                  placeholder="e.g. Get 20 new clients in 30 days"
+                  value={goal}
+                  onChange={e => setGoal(e.target.value)}
+                />
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground/60 uppercase tracking-widest font-semibold mb-1 px-0.5">
+                  Budget <span className="normal-case font-normal">(optional)</span>
+                </p>
+                <input
+                  className="w-full bg-black/20 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-emerald-500/40 transition-colors"
+                  placeholder="e.g. £1,500/month"
+                  value={budget}
+                  onChange={e => setBudget(e.target.value)}
+                />
+              </div>
+            </div>
             <button
               onClick={handleGenerate}
               disabled={generating}
@@ -651,10 +860,12 @@ export function GrowthMindStrategyCentre() {
               </div>
               <div className="space-y-2 text-center text-xs text-muted-foreground/60 max-w-xs">
                 {[
-                  "Reading Business DNA…",
+                  "Reading Business DNA & Knowledge Base…",
                   "Scoring service opportunities…",
                   "Routing to prompt engines…",
                   "Compiling strategy…",
+                  "Generating campaign assets…",
+                  "Sending to HiveMind for review…",
                 ].map((step, i) => (
                   <p key={i} className="animate-pulse" style={{ animationDelay: `${i * 0.3}s` }}>
                     {step}
@@ -670,6 +881,7 @@ export function GrowthMindStrategyCentre() {
               onSend={() => handleSend(selectedStrategy.id)}
               onDelete={() => handleDelete(selectedStrategy.id)}
               onRegenerate={() => handleRegenerate(selectedStrategy.strategyType as StrategyCentreType, selectedStrategy.id)}
+              onEdit={(fields) => handleEdit(selectedStrategy.id, fields)}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full gap-6">
