@@ -171,6 +171,41 @@ export type RevenueOpportunity = {
   note:             string;   // always labelled as an estimate
 };
 
+export type CmoServiceScore = {
+  name:           string;
+  score:          number;
+  recommendation: string;
+};
+
+export type CmoTrendSignal = {
+  label:          string;
+  classification: string;
+  insight:        string;
+  actionHint:     string;
+};
+
+export type CmoCampaignProposal = {
+  title:           string;
+  reason:          string;
+  audience:        string;
+  channels:        string[];
+  expectedOutcome: string;
+  budgetEstimate:  string;
+};
+
+export type CmoVideoProposal = {
+  title:    string;
+  hook:     string;
+  platform: string;
+  duration: string;
+};
+
+export type CmoFunnelInsight = {
+  stage:    string;
+  dropOff:  number;
+  hint:     string;
+};
+
 export type GrowthMindExecutiveSummary = {
   source:                 "growthmind";
   role:                   "CMO";
@@ -186,6 +221,15 @@ export type GrowthMindExecutiveSummary = {
   recommendedActions:     ExecRecommendedAction[];
   recentMarketingReports: ExecMarketingReport[];
   headline:               string;   // one-line spoken/printed summary
+  // ── CMO Proactive Intelligence (Phase 2) ──────────────────────────────────
+  topService?:             CmoServiceScore | null;
+  fastestGrowingSegment?:  CmoTrendSignal | null;
+  topCampaignProposal?:    CmoCampaignProposal | null;
+  topVideoProposal?:       CmoVideoProposal | null;
+  growthForecastSummary?:  string | null;
+  recommendedBudget?:      string | null;
+  recommendedNextAction?:  string | null;
+  recommendedFunnel?:      CmoFunnelInsight | null;
 };
 
 export type SystemMindExecutiveSummary = {

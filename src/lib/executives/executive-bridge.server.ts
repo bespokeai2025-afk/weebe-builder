@@ -31,6 +31,11 @@ import {
   type ExecutiveCouncilSummary,
   type ExecutiveEvent,
   type ExecSource,
+  type CmoServiceScore,
+  type CmoTrendSignal,
+  type CmoCampaignProposal,
+  type CmoVideoProposal,
+  type CmoFunnelInsight,
 } from "@/lib/executives/executive-council";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -250,16 +255,141 @@ export async function buildGrowthMindExecutiveSummary(
         : `${recoverableLeads} dormant lead(s) and ${hotLeads} hot lead(s) are re-engageable. Set a deal value in the forecast for a monetary estimate.`,
   };
 
+  // ── CMO Proactive Intelligence signals (best-effort; tables may not be migrated) ──
+  const [serviceScoresRes, trendSignalsRes, campaignProposalsRes, videoProposalsRes] = await Promise.all([
+    sb.from("growthmind_service_scores")
+      .select("service_name, total_score, recommendation")
+      .eq("workspace_id", workspaceId)
+      .order("total_score", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .catch(() => ({ data: null })),
+    sb.from("growthmind_trend_signals")
+      .select("label, classification, insight, action_hint")
+      .eq("workspace_id", workspaceId)
+      .eq("classification", "Growing")
+      .order("computed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .catch(() => ({ data: null })),
+    sb.from("growthmind_campaign_proposals")
+      .select("title, reason, audience, channels, expected_outcome, budget_estimate")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "draft")
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .catch(() => ({ data: null })),
+    sb.from("growthmind_video_proposals")
+      .select("title, hook, platform, duration")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "draft")
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .catch(() => ({ data: null })),
+  ]);
+
+  const topServiceRaw    = (serviceScoresRes as any).data ?? null;
+  const topTrendRaw      = (trendSignalsRes as any).data ?? null;
+  const topCampaignRaw   = (campaignProposalsRes as any).data ?? null;
+  const topVideoRaw      = (videoProposalsRes as any).data ?? null;
+
+  const topService: CmoServiceScore | null = topServiceRaw ? {
+    name:           topServiceRaw.service_name,
+    score:          topServiceRaw.total_score,
+    recommendation: topServiceRaw.recommendation ?? "",
+  } : null;
+
+  const fastestGrowingSegment: CmoTrendSignal | null = topTrendRaw ? {
+    label:          topTrendRaw.label,
+    classification: topTrendRaw.classification,
+    insight:        topTrendRaw.insight ?? "",
+    actionHint:     topTrendRaw.action_hint ?? "",
+  } : null;
+
+  const topCampaignProposal: CmoCampaignProposal | null = topCampaignRaw ? {
+    title:           topCampaignRaw.title,
+    reason:          topCampaignRaw.reason ?? "",
+    audience:        topCampaignRaw.audience ?? "",
+    channels:        topCampaignRaw.channels ?? [],
+    expectedOutcome: topCampaignRaw.expected_outcome ?? "",
+    budgetEstimate:  topCampaignRaw.budget_estimate ?? "",
+  } : null;
+
+  const topVideoProposal: CmoVideoProposal | null = topVideoRaw ? {
+    title:    topVideoRaw.title,
+    hook:     topVideoRaw.hook ?? "",
+    platform: topVideoRaw.platform ?? "",
+    duration: topVideoRaw.duration ?? "",
+  } : null;
+
+  // Recommended funnel insight — find stage with highest lead count (proxy for drop-off)
+  let recommendedFunnel: CmoFunnelInsight | null = null;
+  {
+    const d = data as any;
+    const stageCounts: Record<string, number> = {};
+    const leads: any[] = d.leads?.staleLeadDetail ?? [];
+    for (const l of (d as any).leads?.stalledPipeline ?? []) {
+      stageCounts[l.pipeline_stage ?? l.status ?? "unknown"] = (stageCounts[l.pipeline_stage ?? l.status ?? "unknown"] ?? 0) + 1;
+    }
+    const topStage = Object.entries(stageCounts).sort((a, b) => b[1] - a[1])[0];
+    if (topStage) {
+      recommendedFunnel = {
+        stage:   topStage[0],
+        dropOff: topStage[1],
+        hint:    `${topStage[1]} leads stalled at "${topStage[0]}" stage — add a re-engagement sequence here.`,
+      };
+    }
+  }
+
+  // Recommended budget estimate
+  const d = data as any;
+  const budgetBase    = dna?.monthly_marketing_budget ?? null;
+  const recommendedBudget: string | null = budgetBase
+    ? `£${Math.round(budgetBase * 0.6).toLocaleString()} of £${budgetBase.toLocaleString()} monthly budget recommended for top-3 channels`
+    : score.total < 40
+      ? "Start with £200–500/month on 1 channel; scale when conversion rate exceeds 5%"
+      : score.total < 70
+        ? "£500–1,500/month split across AI calling, WhatsApp, and 1 paid channel"
+        : "£1,500+/month — diversify across 3+ channels; strong readiness score supports scale";
+
+  // Recommended next action — single CTA
+  const criticalRec = recs.find(r => r.priority === "critical");
+  const highRec     = recs.find(r => r.priority === "high");
+  const primaryRec  = criticalRec ?? highRec;
+  const recommendedNextAction: string | null = topCampaignProposal
+    ? `Run Campaign: "${topCampaignProposal.title}" — ${topCampaignProposal.expectedOutcome}`
+    : primaryRec
+      ? `${primaryRec.fix}`
+      : topService
+        ? `Focus on "${topService.name}" (score ${topService.score}/100): ${topService.recommendation}`
+        : null;
+
+  // Growth forecast summary
+  const latestForecast = forecasts[0];
+  const growthForecastSummary: string | null = latestForecast
+    ? `${(latestForecast.scenario ?? "base").replace(/^\w/, (c: string) => c.toUpperCase())} scenario: ${latestForecast.currency ?? ""}${latestForecast.deal_value ? Number(latestForecast.deal_value).toLocaleString() : "—"} est. deal value`
+    : topService && topService.score >= 70
+      ? `Highest-opportunity service "${topService.name}" scores ${topService.score}/100 — strong growth potential`
+      : null;
+
   const dnaNote = valuePoint
     ? ` Current value point: "${valuePoint.current_highest_value}".`
     : dna?.company_name
       ? ` Business DNA configured for ${dna.company_name}.`
       : " Business DNA not yet configured.";
 
+  const cmoNote = topCampaignProposal
+    ? ` CMO proposal: "${topCampaignProposal.title}".`
+    : topService
+      ? ` Top service: ${topService.name} (${topService.score}/100).`
+      : "";
+
   const headline =
     `Marketing readiness ${score.total}/100 (${score.label}). ` +
     `${topOpportunities.length} live opportunit${topOpportunities.length === 1 ? "y" : "ies"}, ` +
-    `${topRisks.length} risk${topRisks.length === 1 ? "" : "s"}.${dnaNote}`;
+    `${topRisks.length} risk${topRisks.length === 1 ? "" : "s"}.${dnaNote}${cmoNote}`;
 
   return {
     source: "growthmind",
@@ -276,6 +406,14 @@ export async function buildGrowthMindExecutiveSummary(
     recommendedActions,
     recentMarketingReports,
     headline,
+    topService,
+    fastestGrowingSegment,
+    topCampaignProposal,
+    topVideoProposal,
+    growthForecastSummary,
+    recommendedBudget,
+    recommendedNextAction,
+    recommendedFunnel,
   };
 }
 

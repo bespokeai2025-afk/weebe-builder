@@ -9,7 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Loader2, Megaphone, TrendingUp, AlertTriangle, Lightbulb,
-  DollarSign, FileText, ArrowUpRight,
+  DollarSign, FileText, ArrowUpRight, Clapperboard, Star,
+  Zap, Target, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getGrowthMindExecutiveSummary } from "@/lib/executives/executive-bridge";
@@ -203,6 +204,95 @@ export function MarketingExecutiveSummary({
               ))}
             </div>
           </Section>
+        )}
+
+        {/* ── CMO Proactive Intelligence Section ──────────────────────────── */}
+        {(gm.topService || gm.fastestGrowingSegment || gm.topCampaignProposal || gm.topVideoProposal || gm.recommendedNextAction) && (
+          <div className="rounded-lg border border-violet-500/15 bg-violet-500/[0.03] px-3 py-3 space-y-3">
+            <p className="text-[11px] text-violet-300/70 uppercase tracking-wide font-semibold flex items-center gap-1.5">
+              <Star className="h-3 w-3 text-violet-400" />
+              Proactive CMO Intelligence
+            </p>
+
+            {/* Top Service */}
+            {gm.topService && (
+              <div className="flex items-start gap-2">
+                <Target className="h-3.5 w-3.5 text-emerald-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-emerald-200">
+                    Highest Opportunity: <span className="font-bold">{gm.topService.name}</span>
+                    <span className="ml-1.5 text-[10px] rounded bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5">{gm.topService.score}/100</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{gm.topService.recommendation}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Fastest Growing Segment */}
+            {gm.fastestGrowingSegment && (
+              <div className="flex items-start gap-2">
+                <TrendingUp className="h-3.5 w-3.5 text-sky-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-sky-200">
+                    Growing Signal: <span className="font-bold">{gm.fastestGrowingSegment.label}</span>
+                    <span className="ml-1.5 text-[10px] rounded bg-sky-500/15 text-sky-400 px-1.5 py-0.5">{gm.fastestGrowingSegment.classification}</span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{gm.fastestGrowingSegment.insight}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Top Campaign Proposal */}
+            {gm.topCampaignProposal && (
+              <div className="flex items-start gap-2">
+                <Zap className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-amber-200">Campaign Proposal</p>
+                  <p className="text-[11px] font-semibold text-foreground mt-0.5 leading-snug">{gm.topCampaignProposal.title}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{gm.topCampaignProposal.reason.slice(0, 100)}{gm.topCampaignProposal.reason.length > 100 ? "…" : ""}</p>
+                  {gm.topCampaignProposal.channels.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {gm.topCampaignProposal.channels.map(ch => (
+                        <span key={ch} className="text-[9px] rounded border border-amber-500/25 bg-amber-500/[0.06] text-amber-300 px-1.5 py-0.5">{ch}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Top Video Proposal */}
+            {gm.topVideoProposal && (
+              <div className="flex items-start gap-2">
+                <Clapperboard className="h-3.5 w-3.5 text-pink-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-pink-200">Video Concept</p>
+                  <p className="text-[11px] font-semibold text-foreground mt-0.5">{gm.topVideoProposal.title.split("—")[0].trim()}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 italic">{gm.topVideoProposal.hook.slice(0, 90)}{gm.topVideoProposal.hook.length > 90 ? "…" : ""}</p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">{gm.topVideoProposal.platform} · {gm.topVideoProposal.duration}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Recommended Next Action */}
+            {gm.recommendedNextAction && (
+              <div className="rounded-md bg-violet-500/[0.08] border border-violet-500/20 px-2.5 py-2 flex items-start gap-2">
+                <ArrowRight className="h-3.5 w-3.5 text-violet-400 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-violet-300/70 uppercase tracking-wide font-semibold mb-0.5">Recommended Next Action</p>
+                  <p className="text-xs text-violet-200 leading-snug">{gm.recommendedNextAction}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Growth Forecast Summary */}
+            {gm.growthForecastSummary && (
+              <p className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+                <TrendingUp className="h-3 w-3 shrink-0" />
+                {gm.growthForecastSummary}
+              </p>
+            )}
+          </div>
         )}
 
         {/* Missing assets */}

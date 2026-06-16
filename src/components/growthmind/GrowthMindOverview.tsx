@@ -5,7 +5,8 @@ import { Link } from "@tanstack/react-router";
 import {
   TrendingUp, TrendingDown, Loader2, RefreshCw, Target, Megaphone,
   ArrowRight, Lightbulb, AlertTriangle, Minus, BookOpen, CheckCircle2,
-  BarChart3, Video, Image, Link2, XCircle,
+  BarChart3, Video, Image, Link2, XCircle, Clapperboard, Zap,
+  Star, DollarSign, Filter, Play, Users, Dna, Rocket, ChevronRight,
 } from "lucide-react";
 import { getProviderRegistryData } from "@/lib/providers/providers.functions";
 import { cn } from "@/lib/utils";
@@ -18,8 +19,8 @@ import { Button } from "@/components/ui/button";
 import { getBusinessDna, computeDnaCompletionScore } from "@/lib/growthmind/growthmind.business-dna";
 import { getCurrentValuePoint } from "@/lib/growthmind/trending-value-engine.server";
 import { getOpportunities, runOpportunityEngine } from "@/lib/growthmind/opportunity-engine.server";
+import { getCMODashboardData, runCMOAnalysis } from "@/lib/executives/executive-bridge";
 import { toast } from "sonner";
-import { Dna, Zap, Rocket } from "lucide-react";
 
 function TrendPill({ pct, label = "wow" }: { pct: number | null; label?: string }) {
   if (pct === null) return null;
@@ -69,9 +70,12 @@ export function GrowthMindOverview() {
   const providerRegistryFn = useServerFn(getProviderRegistryData);
   const getDnaFn           = useServerFn(getBusinessDna);
   const getValuePointFn    = useServerFn(getCurrentValuePoint);
-  const getOpportunitiesFn = useServerFn(getOpportunities);
-  const runOppEngineFn     = useServerFn(runOpportunityEngine);
+  const getOpportunitiesFn  = useServerFn(getOpportunities);
+  const runOppEngineFn      = useServerFn(runOpportunityEngine);
+  const getCMODashboardFn   = useServerFn(getCMODashboardData);
+  const runCMOAnalysisFn    = useServerFn(runCMOAnalysis);
   const [runningOppEngine, setRunningOppEngine] = React.useState(false);
+  const [runningCMO, setRunningCMO] = React.useState(false);
   const qc = useQueryClient();
 
   const { data: providerData } = useQuery({
@@ -109,10 +113,19 @@ export function GrowthMindOverview() {
     staleTime: 120_000,
   });
 
+  const { data: cmoData, refetch: refetchCMO } = useQuery({
+    queryKey: ["growthmind-cmo-dashboard"],
+    queryFn:  () => getCMODashboardFn(),
+    staleTime: 300_000,
+  });
+
   const dna        = (dnaData as any)?.dna ?? null;
   const dnaScore   = dna ? computeDnaCompletionScore(dna) : null;
   const valuePoint = (valuePointData as any)?.valuePoint ?? null;
   const storedOpps = (oppsData as any)?.opportunities ?? [];
+
+  const score = computeGrowthScore(data);
+  const recs  = generateGrowthRecommendations(data);
 
   async function handleRunOppEngine() {
     try {
@@ -127,8 +140,56 @@ export function GrowthMindOverview() {
     }
   }
 
-  const score = computeGrowthScore(data);
-  const recs  = generateGrowthRecommendations(data);
+  async function handleRunCMOAnalysis() {
+    try {
+      setRunningCMO(true);
+      await runCMOAnalysisFn();
+      await refetchCMO();
+      toast.success("CMO Analysis complete — all signals refreshed");
+    } catch {
+      toast.error("CMO Analysis failed — try again");
+    } finally {
+      setRunningCMO(false);
+    }
+  }
+
+  const cmo = cmoData as any ?? {};
+  const serviceScores     = cmo.serviceScores ?? [];
+  const trendSignals      = cmo.trendSignals ?? [];
+  const campaignProposals = cmo.campaignProposals ?? [];
+  const videoProposals    = cmo.videoProposals ?? [];
+
+  const topService     = serviceScores[0] ?? null;
+  const growingTrend   = trendSignals.find((s: any) => s.classification === "Growing") ?? trendSignals[0] ?? null;
+  const topCampaign    = campaignProposals.find((p: any) => p.status === "draft") ?? campaignProposals[0] ?? null;
+  const topVideo       = videoProposals.find((p: any) => p.status === "draft") ?? videoProposals[0] ?? null;
+
+  // Recommended funnel — stage with most stalled leads
+  const stalledPipeline: any[] = (data as any)?.leads?.stalledPipeline ?? [];
+  const stageCounts: Record<string, number> = {};
+  for (const l of stalledPipeline) {
+    const stage = l.pipeline_stage ?? l.status ?? "unknown";
+    stageCounts[stage] = (stageCounts[stage] ?? 0) + 1;
+  }
+  const topStage = Object.entries(stageCounts).sort((a, b) => b[1] - a[1])[0] ?? null;
+
+  // Recommended budget
+  const budget = dna?.monthly_marketing_budget ?? null;
+  const score60 = score.total;
+  const recommendedBudget = budget
+    ? `£${Math.round(budget * 0.6).toLocaleString()} of £${budget.toLocaleString()}/mo budget`
+    : score60 < 40
+      ? "£200–500/month on 1 channel"
+      : score60 < 70
+        ? "£500–1,500/month across 3 channels"
+        : "£1,500+/month — scale across 4+ channels";
+
+  // Recommended next action
+  const criticalRec = recs.find(r => r.priority === "critical");
+  const highRec     = recs.find(r => r.priority === "high");
+  const nextAction  = topCampaign
+    ? `Run: "${topCampaign.title}"`
+    : criticalRec?.fix ?? highRec?.fix ?? topService?.recommendation ?? "Run CMO Analysis to generate recommendations";
 
   const activePlaybookId = playbookData?.activePlaybook?.industry ?? null;
   const activePlaybook   = PLAYBOOKS.find(p => p.id === activePlaybookId) ?? null;
@@ -454,6 +515,156 @@ export function GrowthMindOverview() {
                     </Link>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* ── 7 CMO Intelligence Cards ─────────────────────────────── */}
+            <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] overflow-hidden">
+              <div className="px-4 py-3 border-b border-violet-500/10 flex items-center justify-between">
+                <p className="text-sm font-semibold flex items-center gap-1.5">
+                  <Star className="h-4 w-4 text-violet-400" />
+                  Proactive CMO Intelligence
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[11px] border-violet-500/25 text-violet-300 hover:bg-violet-500/10"
+                  onClick={handleRunCMOAnalysis}
+                  disabled={runningCMO}
+                >
+                  {runningCMO
+                    ? <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    : <RefreshCw className="mr-1 h-3 w-3" />
+                  }
+                  {runningCMO ? "Analysing…" : "Run CMO Analysis"}
+                </Button>
+              </div>
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+
+                {/* Card 1 — Highest Opportunity Service */}
+                <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/[0.03] p-3 space-y-1.5">
+                  <p className="text-[10px] text-emerald-300/70 uppercase tracking-wide font-semibold flex items-center gap-1">
+                    <Target className="h-3 w-3" /> Top Service
+                  </p>
+                  {topService ? (
+                    <>
+                      <p className="text-sm font-bold text-emerald-200 leading-snug">{topService.serviceName}</p>
+                      <p className="text-[10px] text-muted-foreground leading-snug">{topService.recommendation}</p>
+                      <div className="flex items-center gap-1">
+                        <div className="flex-1 h-1 rounded-full bg-white/[0.06]">
+                          <div className="h-full rounded-full bg-emerald-500" style={{ width: `${topService.totalScore}%` }} />
+                        </div>
+                        <span className="text-[10px] text-emerald-400 font-semibold">{topService.totalScore}/100</span>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">Run CMO Analysis to score your services</p>
+                  )}
+                </div>
+
+                {/* Card 2 — Fastest Growing Audience */}
+                <div className="rounded-lg border border-sky-500/15 bg-sky-500/[0.03] p-3 space-y-1.5">
+                  <p className="text-[10px] text-sky-300/70 uppercase tracking-wide font-semibold flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" /> Fastest Growing Signal
+                  </p>
+                  {growingTrend ? (
+                    <>
+                      <p className="text-sm font-bold text-sky-200 leading-snug">{growingTrend.label}</p>
+                      <span className={cn(
+                        "inline-block text-[9px] rounded px-1.5 py-0.5 font-semibold",
+                        growingTrend.classification === "Growing" ? "bg-emerald-500/15 text-emerald-400" :
+                        growingTrend.classification === "Declining" ? "bg-red-500/15 text-red-400" :
+                        "bg-amber-500/15 text-amber-400"
+                      )}>{growingTrend.classification} {growingTrend.changePercent != null ? `${growingTrend.changePercent > 0 ? "+" : ""}${growingTrend.changePercent}%` : ""}</span>
+                      <p className="text-[10px] text-muted-foreground leading-snug">{growingTrend.actionHint}</p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">No trend signals yet — run CMO Analysis</p>
+                  )}
+                </div>
+
+                {/* Card 3 — Top Campaign Proposal */}
+                <div className="rounded-lg border border-amber-500/15 bg-amber-500/[0.03] p-3 space-y-1.5">
+                  <p className="text-[10px] text-amber-300/70 uppercase tracking-wide font-semibold flex items-center gap-1">
+                    <Zap className="h-3 w-3" /> Campaign Proposal
+                  </p>
+                  {topCampaign ? (
+                    <>
+                      <p className="text-sm font-bold text-amber-200 leading-snug line-clamp-2">{topCampaign.title}</p>
+                      <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2">{topCampaign.reason}</p>
+                      <div className="flex flex-wrap gap-1 pt-0.5">
+                        {(topCampaign.channels ?? []).slice(0, 3).map((ch: string) => (
+                          <span key={ch} className="text-[9px] rounded border border-amber-500/20 bg-amber-500/[0.06] text-amber-300 px-1 py-0.5">{ch}</span>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">No campaign proposals yet — run CMO Analysis</p>
+                  )}
+                </div>
+
+                {/* Card 4 — Top Video Campaign Proposal */}
+                <div className="rounded-lg border border-pink-500/15 bg-pink-500/[0.03] p-3 space-y-1.5">
+                  <p className="text-[10px] text-pink-300/70 uppercase tracking-wide font-semibold flex items-center gap-1">
+                    <Clapperboard className="h-3 w-3" /> Video Concept
+                  </p>
+                  {topVideo ? (
+                    <>
+                      <p className="text-sm font-bold text-pink-200 leading-snug line-clamp-2">{topVideo.title}</p>
+                      <p className="text-[10px] text-muted-foreground italic leading-snug line-clamp-2">{topVideo.hook}</p>
+                      <p className="text-[10px] text-muted-foreground/70">{topVideo.platform} · {topVideo.duration}</p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">No video concepts yet — run CMO Analysis</p>
+                  )}
+                </div>
+
+                {/* Card 5 — Funnel Drop-Off */}
+                <div className="rounded-lg border border-orange-500/15 bg-orange-500/[0.03] p-3 space-y-1.5">
+                  <p className="text-[10px] text-orange-300/70 uppercase tracking-wide font-semibold flex items-center gap-1">
+                    <Filter className="h-3 w-3" /> Funnel Priority
+                  </p>
+                  {topStage ? (
+                    <>
+                      <p className="text-sm font-bold text-orange-200 leading-snug capitalize">{topStage[0]}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {topStage[1]} lead{topStage[1] !== 1 ? "s" : ""} stalled at this stage
+                      </p>
+                      <p className="text-[10px] text-orange-300/70">Add a re-engagement sequence here</p>
+                    </>
+                  ) : stalledPipeline.length === 0 ? (
+                    <p className="text-[11px] text-emerald-400">No stalled leads — pipeline healthy!</p>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">Pipeline data loading…</p>
+                  )}
+                </div>
+
+                {/* Card 6 — Recommended Budget */}
+                <div className="rounded-lg border border-violet-500/15 bg-violet-500/[0.03] p-3 space-y-1.5">
+                  <p className="text-[10px] text-violet-300/70 uppercase tracking-wide font-semibold flex items-center gap-1">
+                    <DollarSign className="h-3 w-3" /> Budget Guidance
+                  </p>
+                  <p className="text-sm font-bold text-violet-200 leading-snug">{recommendedBudget.split(" ")[0]}</p>
+                  <p className="text-[10px] text-muted-foreground leading-snug">{recommendedBudget.split(" ").slice(1).join(" ")}</p>
+                  {topCampaign?.budgetEstimate && (
+                    <p className="text-[10px] text-violet-300/70">Top campaign: {topCampaign.budgetEstimate}</p>
+                  )}
+                </div>
+
+                {/* Card 7 — Recommended Next Action */}
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] p-3 space-y-1.5 col-span-1 sm:col-span-2 lg:col-span-1">
+                  <p className="text-[10px] text-emerald-300/70 uppercase tracking-wide font-semibold flex items-center gap-1">
+                    <ChevronRight className="h-3 w-3" /> Next Action
+                  </p>
+                  <p className="text-xs font-semibold text-emerald-200 leading-snug">{nextAction}</p>
+                  {topCampaign && (
+                    <div className="pt-1 space-y-1">
+                      <p className="text-[10px] text-muted-foreground">Audience: {topCampaign.audience}</p>
+                      <p className="text-[10px] text-muted-foreground">Expected: {topCampaign.expectedOutcome}</p>
+                    </div>
+                  )}
+                </div>
+
               </div>
             </div>
 
