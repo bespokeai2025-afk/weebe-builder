@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -174,12 +174,22 @@ function StrategyDisplay({
   const [editing,      setEditing]      = useState(false);
   const [saving,       setSaving]       = useState(false);
   const [editFields,   setEditFields]   = useState<EditableFields>({
-    executiveSummary:    strategy.executiveSummary ?? "",
-    selectedService:     strategy.selectedService  ?? "",
-    targetAudience:      strategy.targetAudience   ?? "",
+    executiveSummary:     strategy.executiveSummary     ?? "",
+    selectedService:      strategy.selectedService      ?? "",
+    targetAudience:       strategy.targetAudience       ?? "",
     budgetRecommendation: strategy.budgetRecommendation ?? "",
-    expectedOutcome:     strategy.expectedOutcome  ?? "",
+    expectedOutcome:      strategy.expectedOutcome      ?? "",
   });
+
+  useEffect(() => {
+    setEditFields({
+      executiveSummary:     strategy.executiveSummary     ?? "",
+      selectedService:      strategy.selectedService      ?? "",
+      targetAudience:       strategy.targetAudience       ?? "",
+      budgetRecommendation: strategy.budgetRecommendation ?? "",
+      expectedOutcome:      strategy.expectedOutcome      ?? "",
+    });
+  }, [strategy.id, strategy.updatedAt]);
 
   const typeLabel = STRATEGY_TYPES.find(t => t.id === strategy.strategyType)?.label ?? strategy.strategyType;
 
@@ -650,7 +660,13 @@ export function GrowthMindStrategyCentre() {
       } });
       await qc.invalidateQueries({ queryKey: ["strategy-centre"] });
       setSelectedStrategyId(res.strategy.id);
-      toast.success("Strategy generated");
+      setBudget("");
+      setGoal("");
+      const autoSent = (res as any).autoSentToHiveMind;
+      toast.success(autoSent
+        ? "Strategy generated & sent to HiveMind for approval"
+        : "Strategy generated"
+      );
     } catch (e: any) {
       toast.error(e.message ?? "Generation failed");
     } finally {
@@ -672,6 +688,7 @@ export function GrowthMindStrategyCentre() {
     try {
       const res = await approveFn({ data: { strategyId } });
       await qc.invalidateQueries({ queryKey: ["strategy-centre"] });
+      await qc.invalidateQueries({ queryKey: ["strategy-tasks", strategyId] });
       toast.success(`Strategy approved — ${(res as any).tasksCreated ?? 0} tasks created`);
     } catch (e: any) {
       toast.error(e.message ?? "Failed");
@@ -705,10 +722,18 @@ export function GrowthMindStrategyCentre() {
     setSelectedStrategyId(null);
     setGenerating(true);
     try {
-      const res = await generateFn({ data: { strategyType } });
+      const res = await generateFn({ data: {
+        strategyType,
+        budget: budget.trim() || undefined,
+        goal:   goal.trim()   || undefined,
+      } });
       await qc.invalidateQueries({ queryKey: ["strategy-centre"] });
       setSelectedStrategyId(res.strategy.id);
-      toast.success("Strategy regenerated");
+      const autoSent = (res as any).autoSentToHiveMind;
+      toast.success(autoSent
+        ? "Strategy regenerated & sent to HiveMind"
+        : "Strategy regenerated"
+      );
     } catch (e: any) {
       toast.error(e.message ?? "Generation failed");
     } finally {

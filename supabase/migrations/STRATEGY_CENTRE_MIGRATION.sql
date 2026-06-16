@@ -138,3 +138,19 @@ DO $$ BEGIN CREATE POLICY "gm_pr_select"  ON growthmind_prompt_runs FOR SELECT U
 DO $$ BEGIN CREATE POLICY "gm_pr_insert"  ON growthmind_prompt_runs FOR INSERT WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 GRANT SELECT, INSERT ON growthmind_prompt_runs TO authenticated;
 GRANT ALL ON growthmind_prompt_runs TO service_role;
+
+-- ── Missing policies (added post-audit) ─────────────────────────────────────────
+
+-- growthmind_strategy_assets: UPDATE policy was missing (needed for status changes)
+DO $$ BEGIN CREATE POLICY "gm_sa_update"  ON growthmind_strategy_assets FOR UPDATE USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- growthmind_strategy_tasks: DELETE policy was missing
+DO $$ BEGIN CREATE POLICY "gm_st_delete"  ON growthmind_strategy_tasks FOR DELETE USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ── Missing indexes (added post-audit) ──────────────────────────────────────────
+
+-- workspace_id indexes on assets and tasks for direct workspace-scoped queries
+CREATE INDEX IF NOT EXISTS idx_gm_strategy_assets_ws
+  ON growthmind_strategy_assets(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_gm_strategy_tasks_ws
+  ON growthmind_strategy_tasks(workspace_id);

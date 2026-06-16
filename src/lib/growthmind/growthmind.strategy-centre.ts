@@ -240,7 +240,7 @@ export const generateStrategyCentre = createServerFn({ method: "POST" })
       body: JSON.stringify({
         model,
         messages:        [{ role: "user", content: prompt }],
-        max_tokens:      3500,
+        max_tokens:      data.strategyType === "full_multi_channel" ? 5500 : 3500,
         temperature:     0.7,
         response_format: { type: "json_object" },
       }),
@@ -347,7 +347,7 @@ Only include keys from: [${assetEngineList}]`;
         body: JSON.stringify({
           model,
           messages:        [{ role: "user", content: assetsPrompt }],
-          max_tokens:      3500,
+          max_tokens:      data.strategyType === "full_multi_channel" ? 4500 : 3000,
           temperature:     0.65,
           response_format: { type: "json_object" },
         }),
@@ -489,6 +489,12 @@ export const sendStrategyCentreToHiveMind = createServerFn({ method: "POST" })
     if (se) throw new Error(se.message);
 
     const strategy = mapStrategy(s);
+
+    // Guard: already proposed — return existing action instead of creating a duplicate
+    if (strategy.hivemindActionId) {
+      return { actionId: strategy.hivemindActionId };
+    }
+
     const typeLabel = STRATEGY_TYPE_LABELS[strategy.strategyType];
     const engines   = strategy.promptEnginesUsed.map(e => ENGINE_LABELS[e as PromptEngine]).join(", ");
 
@@ -554,15 +560,16 @@ export const approveStrategyCentre = createServerFn({ method: "POST" })
 
     const strategy = mapStrategy(s);
 
-    // Create tasks from approval actions
+    // Create tasks from approval actions — distribute across weeks, smart priority
+    const channels = strategy.channelRecommendation;
     const taskRows = strategy.approvalActions.map((action, i) => ({
       workspace_id: workspaceId,
       strategy_id:  data.strategyId,
       title:        action,
       description:  `From ${STRATEGY_TYPE_LABELS[strategy.strategyType]}`,
-      channel:      strategy.channelRecommendation[i] ?? "general",
-      priority:     i < 2 ? "high" : "medium",
-      week_number:  1,
+      channel:      channels.length > 0 ? channels[i % channels.length] : "general",
+      priority:     i === 0 ? "high" : i < 3 ? "medium" : "low",
+      week_number:  Math.floor(i / 2) + 1,
       status:       "pending",
     }));
 
@@ -630,6 +637,22 @@ export const deleteStrategyCentre = createServerFn({ method: "POST" })
     const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
+
+    // Dismiss linked hivemind_action before deleting so it doesn't stay pending
+    const { data: forDelete } = await sb
+      .from("growthmind_strategy_centre")
+      .select("hivemind_action_id")
+      .eq("id", data.strategyId)
+      .eq("workspace_id", workspaceId)
+      .single()
+      .catch(() => ({ data: null }));
+
+    if (forDelete?.hivemind_action_id) {
+      await sb.from("hivemind_actions")
+        .update({ status: "dismissed", updated_at: new Date().toISOString() })
+        .eq("id", forDelete.hivemind_action_id)
+        .catch(() => {});
+    }
 
     const { error } = await sb
       .from("growthmind_strategy_centre")
