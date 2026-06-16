@@ -174,8 +174,8 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
   { category: "analytics", name: "mixpanel",          label: "Mixpanel",         description: "Event-driven product analytics",                 status: "coming_soon", priority: 3 },
 
   // Advertising
-  { category: "advertising", name: "google_ads",  label: "Google Ads",  description: "Google Ads campaign management",   status: "coming_soon", isDefault: true, priority: 1 },
-  { category: "advertising", name: "meta_ads",    label: "Meta Ads",    description: "Meta Ads (Facebook & Instagram)",   status: "coming_soon", priority: 2 },
+  { category: "advertising", name: "google_ads",  label: "Google Ads",  description: "Google Ads campaign management",   status: "disconnected", isDefault: true, priority: 1 },
+  { category: "advertising", name: "meta_ads",    label: "Meta Ads",    description: "Meta Ads (Facebook & Instagram)",   status: "disconnected", priority: 2 },
   { category: "advertising", name: "tiktok_ads",  label: "TikTok Ads",  description: "TikTok Ads platform",              status: "coming_soon", priority: 3 },
   { category: "advertising", name: "linkedin_ads", label: "LinkedIn Ads", description: "LinkedIn Campaign Manager",      status: "coming_soon", priority: 4 },
 ];

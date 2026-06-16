@@ -857,19 +857,6 @@ function ProvidersSettingsPage() {
               );
             })}
 
-            {/* Migration hint */}
-            <div className="rounded-xl border border-white/[0.06] bg-card/40 p-4 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">One-time database setup required</p>
-              <p>Run both migrations below in your Supabase SQL editor to enable persistent provider settings, usage tracking, and cost rates:</p>
-              <div className="mt-2 space-y-1">
-                <code className="block rounded bg-muted px-3 py-2 font-mono text-[10px] break-all">
-                  supabase/migrations/20260705000000_provider_framework.sql
-                </code>
-                <code className="block rounded bg-muted px-3 py-2 font-mono text-[10px] break-all">
-                  supabase/migrations/20260720000000_provider_cost_extension.sql
-                </code>
-              </div>
-            </div>
 
           </div>
         )}
