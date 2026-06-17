@@ -35,7 +35,6 @@ import {
   Calculator,
   Flame,
   Code2,
-  Lock,
   Globe,
   FormInput,
   Package,
@@ -189,11 +188,6 @@ function SortableNavItem({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const lockedButtonClass = cn(
-    buttonClass,
-    "opacity-50 cursor-not-allowed pointer-events-none",
-  );
-
   if (isLocked) {
     return (
       <SidebarMenuItem
@@ -201,21 +195,33 @@ function SortableNavItem({
         style={style}
         className="group/item group-data-[collapsible=icon]:w-auto"
       >
-        <SidebarMenuButton
-          tooltip={`${item.title} — Upgrade to unlock`}
-          className={cn(lockedButtonClass, "pointer-events-auto cursor-pointer")}
-          onClick={() => onLockedClick(item)}
-        >
-          <div className="flex items-center gap-3 w-full">
-            <div className="relative shrink-0">
-              <item.icon className="h-[18px] w-[18px] text-muted-foreground/50" />
-              <Lock className="absolute -bottom-1 -right-1 h-2.5 w-2.5 text-muted-foreground/60" />
-            </div>
-            <span className="truncate group-data-[collapsible=icon]:hidden text-muted-foreground/60">
-              {item.title}
-            </span>
-          </div>
-        </SidebarMenuButton>
+        <div className="relative flex items-center">
+          <button
+            {...attributes}
+            {...listeners}
+            tabIndex={-1}
+            className="absolute -left-4 flex items-center justify-center opacity-0 group-hover/item:opacity-40 hover:!opacity-80 transition-opacity cursor-grab active:cursor-grabbing"
+            aria-label="Drag to reorder"
+          >
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          <SidebarMenuButton asChild tooltip={item.title} className={buttonClass}>
+            <Link to={item.url} className="flex items-center gap-3">
+              <item.icon
+                className={cn(
+                  "h-[18px] w-[18px] shrink-0 transition-colors",
+                  active ? "text-primary" : "text-muted-foreground group-hover/nav:text-foreground",
+                )}
+              />
+              <span className="truncate group-data-[collapsible=icon]:hidden flex items-center gap-2">
+                {item.title}
+                <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-500/80 bg-amber-500/10 px-1 py-0.5 rounded">
+                  Pro
+                </span>
+              </span>
+            </Link>
+          </SidebarMenuButton>
+        </div>
       </SidebarMenuItem>
     );
   }
