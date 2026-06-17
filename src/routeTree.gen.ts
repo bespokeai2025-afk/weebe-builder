@@ -76,6 +76,7 @@ import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/
 import { Route as ApiPublicProviderHealthSweepRouteImport } from './routes/api/public/provider-health-sweep'
 import { Route as ApiPublicMetaAdsWebhookRouteImport } from './routes/api/public/meta-ads-webhook'
 import { Route as ApiPublicElevenlabsWebhookRouteImport } from './routes/api/public/elevenlabs-webhook'
+import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
@@ -105,6 +106,7 @@ import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/
 import { Route as AuthenticatedSettingsDeveloperRouteImport } from './routes/_authenticated/settings.developer'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
+import { Route as AuthenticatedLeadsWebformsRouteImport } from './routes/_authenticated/leads.webforms'
 import { Route as AuthenticatedKnowledgeCentreSlugRouteImport } from './routes/_authenticated/knowledge-centre.$slug'
 import { Route as AuthenticatedHivemindTasksRouteImport } from './routes/_authenticated/hivemind.tasks'
 import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/_authenticated/hivemind.system-health'
@@ -177,6 +179,7 @@ import { Route as ApiV1AgentsArchiveRouteImport } from './routes/api/v1/agents.a
 import { Route as ApiRuntimeAgentIdRouteImport } from './routes/api/runtime/agent.$id'
 import { Route as ApiPublicWhatsappWebhookHealthRouteImport } from './routes/api/public/whatsapp-webhook.health'
 import { Route as ApiPublicWhatsappWebhookWorkspaceIdRouteImport } from './routes/api/public/whatsapp-webhook.$workspaceId'
+import { Route as ApiPublicWebformsFormTokenRouteImport } from './routes/api/public/webforms.$formToken'
 import { Route as ApiPublicVoiceWebhookHealthRouteImport } from './routes/api/public/voice-webhook.health'
 import { Route as ApiPublicTelephonyStatusRouteImport } from './routes/api/public/telephony/status'
 import { Route as ApiPublicTelephonyRecordingRouteImport } from './routes/api/public/telephony/recording'
@@ -568,6 +571,11 @@ const ApiPublicElevenlabsWebhookRoute =
     path: '/api/public/elevenlabs-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
+  id: '/api/public/contact',
+  path: '/api/public/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCampaignExecutorRoute =
   ApiPublicCampaignExecutorRouteImport.update({
     id: '/api/public/campaign-executor',
@@ -737,6 +745,12 @@ const AuthenticatedSettingsCalendarRoute =
     id: '/settings/calendar',
     path: '/settings/calendar',
     getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedLeadsWebformsRoute =
+  AuthenticatedLeadsWebformsRouteImport.update({
+    id: '/webforms',
+    path: '/webforms',
+    getParentRoute: () => AuthenticatedLeadsRoute,
   } as any)
 const AuthenticatedKnowledgeCentreSlugRoute =
   AuthenticatedKnowledgeCentreSlugRouteImport.update({
@@ -1158,6 +1172,12 @@ const ApiPublicWhatsappWebhookWorkspaceIdRoute =
     path: '/api/public/whatsapp-webhook/$workspaceId',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicWebformsFormTokenRoute =
+  ApiPublicWebformsFormTokenRouteImport.update({
+    id: '/api/public/webforms/$formToken',
+    path: '/api/public/webforms/$formToken',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicVoiceWebhookHealthRoute =
   ApiPublicVoiceWebhookHealthRouteImport.update({
     id: '/health',
@@ -1426,7 +1446,7 @@ export interface FileRoutesByFullPath {
   '/hexmail': typeof AuthenticatedHexmailRouteWithChildren
   '/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
-  '/leads': typeof AuthenticatedLeadsRoute
+  '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -1495,6 +1515,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
+  '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
@@ -1524,6 +1545,7 @@ export interface FileRoutesByFullPath {
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
@@ -1590,6 +1612,7 @@ export interface FileRoutesByFullPath {
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRouteWithChildren
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
+  '/api/public/webforms/$formToken': typeof ApiPublicWebformsFormTokenRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
@@ -1633,7 +1656,7 @@ export interface FileRoutesByTo {
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/hexmail': typeof AuthenticatedHexmailRouteWithChildren
-  '/leads': typeof AuthenticatedLeadsRoute
+  '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -1700,6 +1723,7 @@ export interface FileRoutesByTo {
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
+  '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
@@ -1729,6 +1753,7 @@ export interface FileRoutesByTo {
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
@@ -1795,6 +1820,7 @@ export interface FileRoutesByTo {
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRouteWithChildren
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
+  '/api/public/webforms/$formToken': typeof ApiPublicWebformsFormTokenRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
@@ -1844,7 +1870,7 @@ export interface FileRoutesById {
   '/_authenticated/hexmail': typeof AuthenticatedHexmailRouteWithChildren
   '/_authenticated/hivemind': typeof AuthenticatedHivemindRouteWithChildren
   '/_authenticated/knowledge-centre': typeof AuthenticatedKnowledgeCentreRouteWithChildren
-  '/_authenticated/leads': typeof AuthenticatedLeadsRoute
+  '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/_authenticated/my-agents': typeof AuthenticatedMyAgentsRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
@@ -1913,6 +1939,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/_authenticated/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
   '/_authenticated/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
+  '/_authenticated/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
   '/_authenticated/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
@@ -1942,6 +1969,7 @@ export interface FileRoutesById {
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/api/public/elevenlabs-webhook': typeof ApiPublicElevenlabsWebhookRouteWithChildren
   '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
@@ -2008,6 +2036,7 @@ export interface FileRoutesById {
   '/api/public/telephony/recording': typeof ApiPublicTelephonyRecordingRoute
   '/api/public/telephony/status': typeof ApiPublicTelephonyStatusRouteWithChildren
   '/api/public/voice-webhook/health': typeof ApiPublicVoiceWebhookHealthRoute
+  '/api/public/webforms/$formToken': typeof ApiPublicWebformsFormTokenRoute
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
@@ -2126,6 +2155,7 @@ export interface FileRouteTypes {
     | '/hivemind/system-health'
     | '/hivemind/tasks'
     | '/knowledge-centre/$slug'
+    | '/leads/webforms'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/developer'
@@ -2155,6 +2185,7 @@ export interface FileRouteTypes {
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
+    | '/api/public/contact'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
@@ -2221,6 +2252,7 @@ export interface FileRouteTypes {
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
+    | '/api/public/webforms/$formToken'
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
@@ -2331,6 +2363,7 @@ export interface FileRouteTypes {
     | '/hivemind/system-health'
     | '/hivemind/tasks'
     | '/knowledge-centre/$slug'
+    | '/leads/webforms'
     | '/settings/calendar'
     | '/settings/crm'
     | '/settings/developer'
@@ -2360,6 +2393,7 @@ export interface FileRouteTypes {
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
+    | '/api/public/contact'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
@@ -2426,6 +2460,7 @@ export interface FileRouteTypes {
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
+    | '/api/public/webforms/$formToken'
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
@@ -2543,6 +2578,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/system-health'
     | '/_authenticated/hivemind/tasks'
     | '/_authenticated/knowledge-centre/$slug'
+    | '/_authenticated/leads/webforms'
     | '/_authenticated/settings/calendar'
     | '/_authenticated/settings/crm'
     | '/_authenticated/settings/developer'
@@ -2572,6 +2608,7 @@ export interface FileRouteTypes {
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
+    | '/api/public/contact'
     | '/api/public/elevenlabs-webhook'
     | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
@@ -2638,6 +2675,7 @@ export interface FileRouteTypes {
     | '/api/public/telephony/recording'
     | '/api/public/telephony/status'
     | '/api/public/voice-webhook/health'
+    | '/api/public/webforms/$formToken'
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
@@ -2683,6 +2721,7 @@ export interface RootRouteChildren {
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
+  ApiPublicContactRoute: typeof ApiPublicContactRoute
   ApiPublicElevenlabsWebhookRoute: typeof ApiPublicElevenlabsWebhookRouteWithChildren
   ApiPublicMetaAdsWebhookRoute: typeof ApiPublicMetaAdsWebhookRoute
   ApiPublicProviderHealthSweepRoute: typeof ApiPublicProviderHealthSweepRoute
@@ -2733,6 +2772,7 @@ export interface RootRouteChildren {
   ApiPublicTelephonyInboundRoute: typeof ApiPublicTelephonyInboundRouteWithChildren
   ApiPublicTelephonyRecordingRoute: typeof ApiPublicTelephonyRecordingRoute
   ApiPublicTelephonyStatusRoute: typeof ApiPublicTelephonyStatusRouteWithChildren
+  ApiPublicWebformsFormTokenRoute: typeof ApiPublicWebformsFormTokenRoute
   ApiPublicWhatsappWebhookWorkspaceIdRoute: typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   ApiPublicWhatsappWebhookHealthRoute: typeof ApiPublicWhatsappWebhookHealthRoute
   ApiRuntimeAgentIdRoute: typeof ApiRuntimeAgentIdRouteWithChildren
@@ -3215,6 +3255,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicElevenlabsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/contact': {
+      id: '/api/public/contact'
+      path: '/api/public/contact'
+      fullPath: '/api/public/contact'
+      preLoaderRoute: typeof ApiPublicContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/campaign-executor': {
       id: '/api/public/campaign-executor'
       path: '/api/public/campaign-executor'
@@ -3417,6 +3464,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/calendar'
       preLoaderRoute: typeof AuthenticatedSettingsCalendarRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/leads/webforms': {
+      id: '/_authenticated/leads/webforms'
+      path: '/webforms'
+      fullPath: '/leads/webforms'
+      preLoaderRoute: typeof AuthenticatedLeadsWebformsRouteImport
+      parentRoute: typeof AuthenticatedLeadsRoute
     }
     '/_authenticated/knowledge-centre/$slug': {
       id: '/_authenticated/knowledge-centre/$slug'
@@ -3920,6 +3974,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/whatsapp-webhook/$workspaceId'
       fullPath: '/api/public/whatsapp-webhook/$workspaceId'
       preLoaderRoute: typeof ApiPublicWhatsappWebhookWorkspaceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webforms/$formToken': {
+      id: '/api/public/webforms/$formToken'
+      path: '/api/public/webforms/$formToken'
+      fullPath: '/api/public/webforms/$formToken'
+      preLoaderRoute: typeof ApiPublicWebformsFormTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/voice-webhook/health': {
@@ -4449,6 +4510,17 @@ const AuthenticatedKnowledgeCentreRouteWithChildren =
     AuthenticatedKnowledgeCentreRouteChildren,
   )
 
+interface AuthenticatedLeadsRouteChildren {
+  AuthenticatedLeadsWebformsRoute: typeof AuthenticatedLeadsWebformsRoute
+}
+
+const AuthenticatedLeadsRouteChildren: AuthenticatedLeadsRouteChildren = {
+  AuthenticatedLeadsWebformsRoute: AuthenticatedLeadsWebformsRoute,
+}
+
+const AuthenticatedLeadsRouteWithChildren =
+  AuthenticatedLeadsRoute._addFileChildren(AuthenticatedLeadsRouteChildren)
+
 interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindArchitectureRoute: typeof AuthenticatedSystemmindArchitectureRoute
   AuthenticatedSystemmindAuditsRoute: typeof AuthenticatedSystemmindAuditsRoute
@@ -4533,7 +4605,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedHexmailRoute: typeof AuthenticatedHexmailRouteWithChildren
   AuthenticatedHivemindRoute: typeof AuthenticatedHivemindRouteWithChildren
   AuthenticatedKnowledgeCentreRoute: typeof AuthenticatedKnowledgeCentreRouteWithChildren
-  AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
+  AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
   AuthenticatedMyAgentsRoute: typeof AuthenticatedMyAgentsRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
@@ -4571,7 +4643,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedHivemindRoute: AuthenticatedHivemindRouteWithChildren,
   AuthenticatedKnowledgeCentreRoute:
     AuthenticatedKnowledgeCentreRouteWithChildren,
-  AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
+  AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
   AuthenticatedMyAgentsRoute: AuthenticatedMyAgentsRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
@@ -4781,6 +4853,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,
+  ApiPublicContactRoute: ApiPublicContactRoute,
   ApiPublicElevenlabsWebhookRoute: ApiPublicElevenlabsWebhookRouteWithChildren,
   ApiPublicMetaAdsWebhookRoute: ApiPublicMetaAdsWebhookRoute,
   ApiPublicProviderHealthSweepRoute: ApiPublicProviderHealthSweepRoute,
@@ -4834,6 +4907,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTelephonyInboundRoute: ApiPublicTelephonyInboundRouteWithChildren,
   ApiPublicTelephonyRecordingRoute: ApiPublicTelephonyRecordingRoute,
   ApiPublicTelephonyStatusRoute: ApiPublicTelephonyStatusRouteWithChildren,
+  ApiPublicWebformsFormTokenRoute: ApiPublicWebformsFormTokenRoute,
   ApiPublicWhatsappWebhookWorkspaceIdRoute:
     ApiPublicWhatsappWebhookWorkspaceIdRoute,
   ApiPublicWhatsappWebhookHealthRoute: ApiPublicWhatsappWebhookHealthRoute,
