@@ -12,6 +12,7 @@ import {
   BarChart2, RefreshCw, TrendingUp, TrendingDown, Minus,
   AlertTriangle, CheckCircle2, XCircle, ExternalLink, MousePointerClick,
   Eye, ShoppingCart, DollarSign, Loader2, Zap, Bell, Settings2,
+  Activity, Clock, X,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,22 @@ interface WeekDeltas {
   conversionsPct: number | null;
 }
 
+interface SyncHealthEntry {
+  id:           string;
+  platform:     string;
+  status:       string;
+  errorMessage: string | null;
+  syncedAt:     string;
+}
+
+interface SyncHealth {
+  overallStatus:    "success" | "partial" | "error" | "never";
+  lastSyncedAt:     string | null;
+  minutesSinceSync: number | null;
+  healthLevel:      "green" | "amber" | "red";
+  recentErrors:     SyncHealthEntry[];
+}
+
 interface AdsPerformanceData {
   hasSyncedData:  boolean;
   hasMetaCreds:   boolean;
@@ -90,6 +107,7 @@ interface AdsPerformanceData {
   caps:           BudgetCapSummary[];
   lastSyncedAt:   string | null;
   deltas:         WeekDeltas;
+  syncHealth:     SyncHealth;
 }
 
 // ── Server fns ─────────────────────────────────────────────────────────────────
@@ -115,6 +133,7 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
       deltaLogRes,
       deltaRoasRes,
       latestSyncRes,
+      allSyncLogRes,
     ] = await Promise.all([
       Promise.resolve(
         sb.from("growthmind_ad_campaigns")
@@ -195,6 +214,15 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
           .order("synced_at", { ascending: false })
           .limit(1),
       ).catch(() => ({ data: [] })),
+
+      // All recent rows (any status) for health badge + error banners.
+      Promise.resolve(
+        sb.from("growthmind_ad_sync_log")
+          .select("id,platform,status,error_message,synced_at")
+          .eq("workspace_id", workspaceId)
+          .order("synced_at", { ascending: false })
+          .limit(20),
+      ).catch(() => ({ data: [] })),
     ]);
 
     const campaigns: any[]   = campaignsRes.data  ?? [];
@@ -205,6 +233,51 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
     const deltaLogRows: any[] = deltaLogRes.data  ?? [];
     const deltaRoasRows: any[] = deltaRoasRes.data ?? [];
     const latestSyncRow: any = (latestSyncRes.data as any[])?.[0] ?? null;
+    const allSyncRows: any[] = allSyncLogRes.data ?? [];
+
+    // ── Sync health ────────────────────────────────────────────────────────────
+    function deriveSyncHealth(): SyncHealth {
+      if (allSyncRows.length === 0) {
+        return { overallStatus: "never", lastSyncedAt: null, minutesSinceSync: null, healthLevel: "red", recentErrors: [] };
+      }
+      const sorted = [...allSyncRows].sort((a, b) => (b.synced_at > a.synced_at ? 1 : -1));
+      const latest = sorted[0];
+      const latestAt: string = latest.synced_at;
+      const minutesSinceSync = Math.floor((Date.now() - new Date(latestAt).getTime()) / 60_000);
+      const overallStatus: SyncHealth["overallStatus"] =
+        latest.status === "success" ? "success"
+        : latest.status === "error"   ? "error"
+        : "partial";
+
+      let healthLevel: SyncHealth["healthLevel"];
+      if (overallStatus === "error") {
+        healthLevel = "red";
+      } else if (overallStatus === "partial") {
+        healthLevel = "amber";
+      } else if (minutesSinceSync > 60) {
+        healthLevel = "red";
+      } else if (minutesSinceSync > 30) {
+        healthLevel = "amber";
+      } else {
+        healthLevel = "green";
+      }
+
+      const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const recentErrors: SyncHealthEntry[] = sorted
+        .filter(r => r.status !== "success" && r.synced_at >= cutoff && r.error_message)
+        .slice(0, 5)
+        .map(r => ({
+          id:           r.id as string,
+          platform:     r.platform as string,
+          status:       r.status as string,
+          errorMessage: r.error_message as string | null,
+          syncedAt:     r.synced_at as string,
+        }));
+
+      return { overallStatus, lastSyncedAt: latestAt, minutesSinceSync, healthLevel, recentErrors };
+    }
+
+    const syncHealth = deriveSyncHealth();
 
     const hasMetaCreds   = !!(ws?.meta_ads_access_token && ws?.meta_ads_account_id) || connectedAds.has("meta_ads");
     const hasGoogleCreds = connectedAds.has("google_ads");
@@ -339,6 +412,7 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
       })),
       lastSyncedAt,
       deltas,
+      syncHealth,
     };
   });
 
@@ -1471,8 +1545,13 @@ function AdsPerformancePage() {
   const syncFn    = useServerFn(triggerAdsSync);
   const ackFn     = useServerFn(acknowledgeAlert);
 
-  const [sortKey, setSortKey] = useState<SortKey>("spend");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [sortKey, setSortKey]               = useState<SortKey>("spend");
+  const [sortDir, setSortDir]               = useState<"asc" | "desc">("desc");
+  const [dismissedErrorIds, setDismissedErrorIds] = useState<Set<string>>(new Set());
+
+  function dismissSyncError(id: string) {
+    setDismissedErrorIds(prev => new Set([...prev, id]));
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["ads-performance"],
@@ -1544,11 +1623,38 @@ function AdsPerformancePage() {
             <p className="text-xs text-muted-foreground">Live campaign metrics from Meta & Google Ads</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {data?.lastSyncedAt && (
-              <span className="text-[10px] text-muted-foreground/60">
-                Last synced {timeAgo(data.lastSyncedAt)}
-              </span>
-            )}
+            {/* Sync health badge */}
+            {data?.syncHealth && (() => {
+              const h = data.syncHealth;
+              const dotCls =
+                h.healthLevel === "green" ? "bg-emerald-400 shadow-[0_0_5px_1px_rgba(52,211,153,0.45)]" :
+                h.healthLevel === "amber" ? "bg-amber-400  shadow-[0_0_5px_1px_rgba(251,191,36,0.35)]"  :
+                                            "bg-red-400    shadow-[0_0_5px_1px_rgba(248,113,113,0.35)]";
+              const textCls =
+                h.healthLevel === "green" ? "text-emerald-400" :
+                h.healthLevel === "amber" ? "text-amber-400"   :
+                                            "text-red-400";
+              const statusLabel =
+                h.overallStatus === "success" ? "Healthy" :
+                h.overallStatus === "partial" ? "Partial" :
+                h.overallStatus === "error"   ? "Error"   : "No data";
+              return (
+                <div className="flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5">
+                  <Activity className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                  <span className={cn("inline-flex items-center gap-1 text-[10px] font-semibold", textCls)}>
+                    <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", dotCls)} />
+                    {statusLabel}
+                  </span>
+                  {h.lastSyncedAt && (
+                    <>
+                      <span className="h-2.5 w-px bg-white/10 shrink-0" />
+                      <Clock className="h-2.5 w-2.5 text-muted-foreground/40 shrink-0" />
+                      <span className="text-[10px] text-muted-foreground/60">{timeAgo(h.lastSyncedAt)}</span>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             <Button
               size="sm"
               variant="outline"
@@ -1561,6 +1667,49 @@ function AdsPerformancePage() {
             </Button>
           </div>
         </div>
+
+        {/* Sync error banners (separate from budget alerts — dismissible, from sync log) */}
+        {(() => {
+          const visibleErrors = (data?.syncHealth?.recentErrors ?? []).filter(e => !dismissedErrorIds.has(e.id));
+          if (visibleErrors.length === 0) return null;
+          return (
+            <div className="space-y-2">
+              {visibleErrors.map(err => (
+                <div
+                  key={err.id}
+                  className={cn(
+                    "flex items-start justify-between gap-3 rounded-xl border px-4 py-2.5",
+                    err.status === "error"
+                      ? "border-red-500/20 bg-red-500/[0.05]"
+                      : "border-amber-500/20 bg-amber-500/[0.05]",
+                  )}
+                >
+                  <div className="flex items-start gap-2 min-w-0">
+                    {err.status === "error"
+                      ? <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                      : <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />}
+                    <div className="min-w-0">
+                      <p className={cn("text-xs font-semibold", err.status === "error" ? "text-red-300" : "text-amber-300")}>
+                        {err.status === "error" ? "Sync error" : "Partial sync"} · {err.platform} · {timeAgo(err.syncedAt)}
+                      </p>
+                      {err.errorMessage && (
+                        <p className="text-[11px] text-muted-foreground/70 mt-0.5 truncate max-w-lg" title={err.errorMessage}>
+                          {err.errorMessage}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => dismissSyncError(err.id)}
+                    className="shrink-0 p-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-0.5"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Loading state */}
         {isLoading && (

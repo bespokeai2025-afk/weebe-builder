@@ -423,6 +423,68 @@ export const syncSingleAdAccount = createServerFn({ method: "POST" })
     return result;
   });
 
+// ── Sync health status derived from growthmind_ad_sync_log ───────────────────
+export interface AdsSyncHealth {
+  /** Derived from the most recent log row(s) across all platforms. */
+  overallStatus: "success" | "partial" | "error" | "never";
+  /** ISO timestamp of the most recent successful or attempted sync. */
+  lastSyncedAt: string | null;
+  /** Minutes since the last sync (null if never). */
+  minutesSinceSync: number | null;
+  /** Green / amber / red badge level. */
+  healthLevel: "green" | "amber" | "red";
+  /** Recent error/partial rows that should surface as warning banners. */
+  recentErrors: Array<{ id: string; platform: string; errorMessage: string | null; syncedAt: string; status: string }>;
+}
+
+function deriveHealth(rows: any[]): AdsSyncHealth {
+  if (!rows || rows.length === 0) {
+    return { overallStatus: "never", lastSyncedAt: null, minutesSinceSync: null, healthLevel: "red", recentErrors: [] };
+  }
+
+  // Sort descending by synced_at (already ordered from DB, but be safe)
+  const sorted = [...rows].sort((a, b) => (b.synced_at > a.synced_at ? 1 : -1));
+  const latest = sorted[0];
+  const lastSyncedAt: string = latest.synced_at;
+  const minutesSinceSync = Math.floor((Date.now() - new Date(lastSyncedAt).getTime()) / 60_000);
+
+  // Overall status: if the newest row is error/partial treat that as the status
+  const overallStatus: "success" | "partial" | "error" =
+    latest.status === "success" ? "success"
+    : latest.status === "error" ? "error"
+    : "partial";
+
+  let healthLevel: "green" | "amber" | "red";
+  if (overallStatus === "error") {
+    healthLevel = "red";
+  } else if (overallStatus === "partial") {
+    healthLevel = "amber";
+  } else if (minutesSinceSync > 60) {
+    // Success but very stale — cron runs every 15 min, >60 min is unusual
+    healthLevel = "red";
+  } else if (minutesSinceSync > 30) {
+    // Slightly late
+    healthLevel = "amber";
+  } else {
+    healthLevel = "green";
+  }
+
+  // Surface any error/partial rows from the last 2 hours as banners
+  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const recentErrors = sorted
+    .filter(r => r.status !== "success" && r.synced_at >= cutoff && r.error_message)
+    .slice(0, 5)
+    .map(r => ({
+      id:           r.id as string,
+      platform:     r.platform as string,
+      errorMessage: r.error_message as string | null,
+      syncedAt:     r.synced_at as string,
+      status:       r.status as string,
+    }));
+
+  return { overallStatus, lastSyncedAt, minutesSinceSync, healthLevel, recentErrors };
+}
+
 export const getAdSyncStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -430,7 +492,7 @@ export const getAdSyncStatus = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No workspace");
     const sb = supabase as any;
 
-    const [accsRes, alertsRes] = await Promise.all([
+    const [accsRes, alertsRes, syncLogRes] = await Promise.all([
       sb.from("growthmind_ads_accounts")
         .select("id, platform, label, sync_status, last_synced_at, sync_error, total_spend_synced, monthly_budget, currency")
         .eq("workspace_id", workspaceId)
@@ -441,13 +503,20 @@ export const getAdSyncStatus = createServerFn({ method: "GET" })
         .eq("acknowledged", false)
         .order("created_at", { ascending: false })
         .limit(20),
+      sb.from("growthmind_ad_sync_log")
+        .select("id, platform, status, error_message, synced_at")
+        .eq("workspace_id", workspaceId)
+        .order("synced_at", { ascending: false })
+        .limit(20),
     ]);
 
-    const accounts = accsRes.data ?? [];
-    const alerts   = alertsRes.data ?? [];
+    const accounts   = accsRes.data    ?? [];
+    const alerts     = alertsRes.data  ?? [];
+    const syncLogRows: any[] = syncLogRes.data ?? [];
     const totalSpend = accounts.reduce((s: number, a: any) => s + Number(a.total_spend_synced ?? 0), 0);
+    const syncHealth = deriveHealth(syncLogRows);
 
-    return { accounts, alerts, totalSpend };
+    return { accounts, alerts, totalSpend, syncHealth };
   });
 
 export const acknowledgeAdAlert = createServerFn({ method: "POST" })

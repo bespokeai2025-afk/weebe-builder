@@ -5,7 +5,7 @@ import {
   BarChart2, Plus, Loader2, RefreshCw, Trash2, Edit2,
   X, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2,
   Eye, EyeOff, Lightbulb, TrendingUp, Link as LinkIcon,
-  Zap, Bell, BellOff, DollarSign, Clock,
+  Zap, Bell, BellOff, DollarSign, Clock, XCircle, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -663,6 +663,115 @@ function SyncBadge({ status, lastSynced }: { status: string; lastSynced?: string
   return null;
 }
 
+// ── Sync health bar ────────────────────────────────────────────────────────────
+interface SyncHealthData {
+  overallStatus: "success" | "partial" | "error" | "never";
+  lastSyncedAt: string | null;
+  minutesSinceSync: number | null;
+  healthLevel: "green" | "amber" | "red";
+  recentErrors: Array<{ id: string; platform: string; errorMessage: string | null; syncedAt: string; status: string }>;
+}
+
+function SyncHealthBar({
+  health,
+  dismissedIds,
+  onDismiss,
+}: {
+  health: SyncHealthData;
+  dismissedIds: Set<string>;
+  onDismiss: (id: string) => void;
+}) {
+  const { healthLevel, lastSyncedAt, minutesSinceSync, overallStatus, recentErrors } = health;
+
+  function lastSyncedLabel() {
+    if (!lastSyncedAt || minutesSinceSync === null) return "Never synced";
+    if (minutesSinceSync < 1) return "Synced just now";
+    if (minutesSinceSync < 60) return `Last synced ${minutesSinceSync}m ago`;
+    const hrs = Math.floor(minutesSinceSync / 60);
+    return `Last synced ${hrs}h ago`;
+  }
+
+  const dotCls =
+    healthLevel === "green" ? "bg-emerald-400 shadow-[0_0_6px_1px_rgba(52,211,153,0.5)]" :
+    healthLevel === "amber" ? "bg-amber-400  shadow-[0_0_6px_1px_rgba(251,191,36,0.4)]"  :
+                              "bg-red-400    shadow-[0_0_6px_1px_rgba(248,113,113,0.4)]";
+
+  const textCls =
+    healthLevel === "green" ? "text-emerald-400" :
+    healthLevel === "amber" ? "text-amber-400"   :
+                              "text-red-400";
+
+  const statusLabel =
+    overallStatus === "success" ? "Healthy" :
+    overallStatus === "partial" ? "Partial" :
+    overallStatus === "error"   ? "Error"   :
+                                  "No data";
+
+  const visibleErrors = recentErrors.filter(e => !dismissedIds.has(e.id));
+
+  return (
+    <>
+      {/* Health indicator row */}
+      <div className="mb-4 flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
+        <Activity className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+        <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mr-1">Sync Status</span>
+        <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-medium", textCls)}>
+          <span className={cn("h-2 w-2 rounded-full shrink-0", dotCls)} />
+          {statusLabel}
+        </span>
+        <span className="mx-2 h-3 w-px bg-white/10 shrink-0" />
+        <Clock className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+        <span className="text-[11px] text-muted-foreground/70">{lastSyncedLabel()}</span>
+        {minutesSinceSync !== null && minutesSinceSync <= 30 && overallStatus === "success" && (
+          <>
+            <span className="mx-2 h-3 w-px bg-white/10 shrink-0" />
+            <span className="text-[10px] text-muted-foreground/40">Next sync ~{15 - (minutesSinceSync % 15)}m</span>
+          </>
+        )}
+      </div>
+
+      {/* Error/partial banners */}
+      {visibleErrors.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {visibleErrors.map(err => (
+            <div
+              key={err.id}
+              className={cn(
+                "flex items-start justify-between gap-3 rounded-xl border px-4 py-2.5",
+                err.status === "error"
+                  ? "border-red-500/20 bg-red-500/[0.05]"
+                  : "border-amber-500/20 bg-amber-500/[0.05]",
+              )}
+            >
+              <div className="flex items-start gap-2 min-w-0">
+                {err.status === "error"
+                  ? <XCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                  : <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />}
+                <div className="min-w-0">
+                  <p className={cn("text-xs font-semibold", err.status === "error" ? "text-red-300" : "text-amber-300")}>
+                    {err.status === "error" ? "Sync error" : "Partial sync"} · {err.platform}
+                  </p>
+                  {err.errorMessage && (
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5 truncate max-w-md" title={err.errorMessage}>
+                      {err.errorMessage}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => onDismiss(err.id)}
+                className="shrink-0 p-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-0.5"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Main Component ──────────────────────────────────────────────────────────────
 
 export function GrowthMindAds() {
@@ -676,6 +785,7 @@ export function GrowthMindAds() {
 
   const [accountModal,  setAccountModal]  = useState<{ open: boolean; editing: AdsAccount | null; defaultPlatform?: AdsPlatform }>({ open: false, editing: null });
   const [savingAccount, setSavingAccount] = useState(false);
+  const [dismissedErrorIds, setDismissedErrorIds] = useState<Set<string>>(new Set());
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["ads-accounts"],
@@ -750,6 +860,11 @@ export function GrowthMindAds() {
   const totalConnected = accounts.length;
   const totalSpend     = syncData?.totalSpend ?? 0;
   const hasToken       = accounts.some((a: any) => a.has_token);
+  const syncHealth     = syncData?.syncHealth ?? null;
+
+  function handleDismissError(id: string) {
+    setDismissedErrorIds(prev => new Set([...prev, id]));
+  }
 
   return (
     <GrowthMindShell>
@@ -801,6 +916,15 @@ export function GrowthMindAds() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* Sync health status bar */}
+        {syncHealth && (
+          <SyncHealthBar
+            health={syncHealth}
+            dismissedIds={dismissedErrorIds}
+            onDismiss={handleDismissError}
+          />
         )}
 
         {/* Budget alerts */}
