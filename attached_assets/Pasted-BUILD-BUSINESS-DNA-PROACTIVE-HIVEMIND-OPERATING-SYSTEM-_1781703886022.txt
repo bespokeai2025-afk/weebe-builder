@@ -1,0 +1,442 @@
+BUILD BUSINESS DNA + PROACTIVE HIVEMIND OPERATING SYSTEM
+
+IMPORTANT
+
+This is not a chatbot enhancement.
+
+This is a core platform capability.
+
+Do not break existing HiveMind, GrowthMind, SystemMind, AccountsMind, Builder, Smart Dash, Analytics, Campaign Factory, Content Studio, WhatsApp Centre, HexMail or Video Studio.
+
+Extend existing functionality.
+
+====================================================
+
+OBJECTIVE
+
+Transform HiveMind from a reactive assistant into a proactive executive operating system.
+
+HiveMind should understand the business automatically and continuously.
+
+GrowthMind should no longer require the user to tell it what campaigns to create.
+
+Instead:
+
+HiveMind learns the business.
+
+GrowthMind uses that knowledge.
+
+Campaigns, content, ads, videos, email sequences and WhatsApp campaigns are proactively proposed.
+
+====================================================
+
+CREATE
+
+BUSINESS DNA ENGINE
+
+Purpose:
+
+Create a permanent understanding of each company.
+
+HiveMind, GrowthMind, SystemMind and AccountsMind should all use the same Business DNA profile.
+
+====================================================
+
+NEW SECTION
+
+/settings/business-dna
+
+or
+
+/hivemind/business-dna
+
+====================================================
+
+BUSINESS DNA PROFILE
+
+Store:
+
+Company Name
+
+Industry
+
+Sub Industry
+
+Country
+
+Target Countries
+
+Services
+
+Products
+
+Average Deal Value
+
+Lead Sources
+
+Ideal Customer Profile
+
+Target Job Titles
+
+Target Company Sizes
+
+Target Industries
+
+Sales Process
+
+Qualification Criteria
+
+Unique Selling Points
+
+Competitors
+
+Business Goals
+
+Marketing Goals
+
+Revenue Goals
+
+Current Marketing Channels
+
+Current CRM
+
+Current Calendar System
+
+Current Telephony Setup
+
+Current Ad Platforms
+
+Current Analytics Platforms
+
+Current Knowledge Bases
+
+Tone Of Voice
+
+Brand Style
+
+Risk Tolerance
+
+Growth Targets
+
+====================================================
+
+AUTOMATIC BUSINESS DNA DISCOVERY
+
+HiveMind should continuously learn from:
+
+Knowledge Bases
+
+Website content
+
+Uploaded documents
+
+Call transcripts
+
+Call outcomes
+
+Campaign performance
+
+Lead data
+
+Qualified data
+
+Pipeline data
+
+Emails
+
+WhatsApp conversations
+
+GrowthMind campaigns
+
+Video Studio assets
+
+Content Studio assets
+
+CRM data
+
+====================================================
+
+BUSINESS DNA CONFIDENCE
+
+Every Business DNA field should have:
+
+value
+
+confidence_score
+
+source
+
+last_updated
+
+Example:
+
+Target Audience
+
+Value:
+Property Investors
+
+Confidence:
+94%
+
+Source:
+Website + Call Transcripts + Lead Data
+
+====================================================
+
+HIVEMIND EXECUTIVE MODE
+
+HiveMind should no longer wait for prompts.
+
+Daily:
+
+Analyse business.
+
+Analyse trends.
+
+Analyse campaigns.
+
+Analyse lead quality.
+
+Analyse pipeline.
+
+Analyse call outcomes.
+
+Analyse marketing channels.
+
+Analyse CRM data.
+
+Analyse website traffic.
+
+Analyse ad performance.
+
+Analyse content performance.
+
+Generate recommendations automatically.
+
+====================================================
+
+GROWTHMIND CAMPAIGN GENERATION
+
+GrowthMind should automatically propose:
+
+Google Ads campaigns
+
+Meta campaigns
+
+LinkedIn campaigns
+
+TikTok campaigns
+
+SEO campaigns
+
+Email campaigns
+
+WhatsApp campaigns
+
+Video campaigns
+
+Content campaigns
+
+Lead generation campaigns
+
+Qualification campaigns
+
+====================================================
+
+AUTO-GENERATED CAMPAIGN PACKAGE
+
+Every recommendation should include:
+
+Campaign Name
+
+Business Objective
+
+Target Audience
+
+Target Geography
+
+Budget Recommendation
+
+Estimated Leads
+
+Estimated Cost Per Lead
+
+Expected ROI
+
+Landing Page Recommendation
+
+Video Prompt
+
+Image Prompt
+
+Ad Copy
+
+Email Sequence
+
+WhatsApp Sequence
+
+Follow-Up Campaign
+
+Call Campaign
+
+Measurement Strategy
+
+====================================================
+
+MARKETING INTELLIGENCE ENGINE
+
+GrowthMind should monitor:
+
+Google Trends
+
+Search Console
+
+Google Analytics
+
+Meta Ads
+
+Google Ads
+
+LinkedIn Ads
+
+TikTok Ads
+
+Website traffic
+
+Lead sources
+
+Conversion rates
+
+Campaign performance
+
+Call outcomes
+
+====================================================
+
+OPPORTUNITY DETECTION
+
+GrowthMind should identify:
+
+Underperforming channels
+
+High-performing channels
+
+New market opportunities
+
+New service opportunities
+
+Seasonal opportunities
+
+Competitor opportunities
+
+Content gaps
+
+SEO opportunities
+
+Lead generation opportunities
+
+====================================================
+
+EXECUTIVE BRIEFINGS
+
+Daily Briefing
+
+Weekly Briefing
+
+Monthly Briefing
+
+Should include:
+
+What happened
+
+What changed
+
+What worked
+
+What failed
+
+What should happen next
+
+Recommended actions
+
+====================================================
+
+ACTION CENTRE
+
+HiveMind should create:
+
+Draft campaigns
+
+Draft videos
+
+Draft images
+
+Draft content
+
+Draft WhatsApp sequences
+
+Draft HexMail campaigns
+
+Draft lead generation campaigns
+
+Draft qualification campaigns
+
+Nothing should execute automatically.
+
+Everything should require approval.
+
+====================================================
+
+SYSTEMMIND INTEGRATION
+
+SystemMind should determine:
+
+Can the recommendation be executed?
+
+Are integrations connected?
+
+Are providers available?
+
+Are workflows available?
+
+If not:
+
+Create implementation task.
+
+====================================================
+
+ACCOUNTSMIND INTEGRATION
+
+AccountsMind should determine:
+
+Expected cost
+
+Expected ROI
+
+Budget impact
+
+Profitability impact
+
+Before recommendations are approved.
+
+====================================================
+
+SUCCESS CRITERIA
+
+HiveMind understands the business without repeated prompting.
+
+GrowthMind proactively proposes campaigns.
+
+Campaign recommendations are based on real business data.
+
+Video prompts, image prompts, ad copy and follow-up sequences are generated automatically.
+
+Executive briefings are generated without user requests.
+
+The platform begins to operate like an executive team rather than a collection of tools.
+
+Generate implementation plan first.
+
+Audit all existing HiveMind, GrowthMind, Knowledge Base, Analytics, Campaign Factory and Smart Dash capabilities before coding.
+
+Reuse existing systems wherever possible.
