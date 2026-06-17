@@ -1,202 +1,89 @@
-name: Deploy to App Runner
+name: Deploy to EC2
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# One deploy at a time — never cancel a live deployment mid-flight.
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
 permissions:
   contents: read
-  id-token: write   # required for OIDC auth (if you switch to OIDC later)
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 1. VERIFY — typecheck + build locally to catch errors before touching prod.
-  # ─────────────────────────────────────────────────────────────────────────────
-  verify:
-    name: Typecheck & verify build
+  build:
+    name: Verify production build
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
 
-      - uses: actions/setup-node@49933ed225e2b7595cf9aa897e8c42cd19c353ca # v4.4.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ed225e2b7595cf9aa897e8c42cd19c353ca # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm install
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build (verify VITE_* values resolve)
+      - name: Build
         run: npm run build
         env:
-          VITE_SUPABASE_URL:             ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_SUPABASE_ANON_KEY:        ${{ vars.VITE_SUPABASE_ANON_KEY }}
-          VITE_PAYMENTS_CLIENT_TOKEN:    ${{ vars.VITE_PAYMENTS_CLIENT_TOKEN }}
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
+          VITE_PAYMENTS_CLIENT_TOKEN: pk_test_placeholder
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 2. BUILD & PUSH — build the Docker image with real VITE_* values and push
-  #    to Amazon ECR. The image is the deployable artifact.
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-and-push:
-    name: Build Docker image & push to ECR
-    needs: verify
+  deploy:
+    name: Deploy to EC2
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
 
-    outputs:
-      image_uri: ${{ steps.push.outputs.image_uri }}
-
     steps:
-      - uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ vars.AWS_REGION }}
-
-      - name: Log in to Amazon ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-
-      - name: Build and push Docker image
-        id: push
+      - name: Configure SSH
         env:
-          REGISTRY:   ${{ steps.ecr-login.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-          IMAGE_TAG:  ${{ github.sha }}
-          # Public values — safe as Docker build args (baked into client bundle)
-          VITE_SUPABASE_URL:             ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_SUPABASE_ANON_KEY:        ${{ vars.VITE_SUPABASE_ANON_KEY }}
-          VITE_PAYMENTS_CLIENT_TOKEN:    ${{ vars.VITE_PAYMENTS_CLIENT_TOKEN }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           set -euo pipefail
-          IMAGE_URI="${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
-          LATEST_URI="${REGISTRY}/${REPOSITORY}:latest"
+          if [[ -z "${EC2_HOST}" || -z "${EC2_SSH_KEY}" ]]; then
+            echo "Missing required secrets: EC2_HOST and EC2_SSH_KEY" >&2
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${EC2_SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${EC2_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
 
-          docker build \
-            --build-arg VITE_SUPABASE_URL="${VITE_SUPABASE_URL}" \
-            --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY}" \
-            --build-arg VITE_SUPABASE_ANON_KEY="${VITE_SUPABASE_ANON_KEY}" \
-            --build-arg VITE_PAYMENTS_CLIENT_TOKEN="${VITE_PAYMENTS_CLIENT_TOKEN:-}" \
-            --label "git.sha=${IMAGE_TAG}" \
-            --label "built.at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -t "${IMAGE_URI}" \
-            -t "${LATEST_URI}" \
-            .
-
-          docker push "${IMAGE_URI}"
-          docker push "${LATEST_URI}"
-
-          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
-          echo "Pushed: ${IMAGE_URI}"
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # 3. DEPLOY — trigger App Runner to pull the new image and deploy it.
-  #    App Runner does a blue/green swap with built-in health checks and
-  #    automatic rollback if the new container fails to start.
-  # ─────────────────────────────────────────────────────────────────────────────
-  deploy:
-    name: Deploy to App Runner
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: production
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ vars.AWS_REGION }}
-
-      - name: Trigger App Runner deployment
+      - name: Run remote deploy
         env:
-          SERVICE_ARN: ${{ secrets.APP_RUNNER_SERVICE_ARN }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_PORT: ${{ secrets.EC2_SSH_PORT }}
+          EC2_DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
+          GIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          echo "Triggering deployment for: ${SERVICE_ARN}"
-          OPERATION_ID=$(aws apprunner start-deployment \
-            --service-arn "${SERVICE_ARN}" \
-            --query 'OperationId' \
-            --output text)
-          echo "Deployment started. Operation ID: ${OPERATION_ID}"
+          EC2_USER="${EC2_USER:-deploy}"
+          EC2_SSH_PORT="${EC2_SSH_PORT:-22}"
+          EC2_DEPLOY_PATH="${EC2_DEPLOY_PATH:-/var/www/html/webespoke}"
 
-      - name: Wait for deployment to complete
-        env:
-          SERVICE_ARN: ${{ secrets.APP_RUNNER_SERVICE_ARN }}
-        run: |
-          set -euo pipefail
-          echo "Waiting for App Runner to reach RUNNING state…"
+          ssh -i ~/.ssh/deploy_key -p "${EC2_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "${EC2_USER}@${EC2_HOST}" \
+            "DEPLOY_PATH='${EC2_DEPLOY_PATH}' GIT_SHA='${GIT_SHA}' bash -s" < scripts/deploy-remote.sh
 
-          for attempt in $(seq 1 40); do
-            STATUS=$(aws apprunner describe-service \
-              --service-arn "${SERVICE_ARN}" \
-              --query 'Service.Status' \
-              --output text 2>/dev/null || echo "UNKNOWN")
-
-            echo "  [${attempt}/40] Status: ${STATUS}"
-
-            if [[ "${STATUS}" == "RUNNING" ]]; then
-              echo "✓ Deployment complete."
-              break
-            fi
-
-            if [[ "${STATUS}" == "CREATE_FAILED" || "${STATUS}" == "UPDATE_FAILED" || "${STATUS}" == "DELETED" ]]; then
-              echo "::error::App Runner deployment failed with status: ${STATUS}"
-              exit 1
-            fi
-
-            if [[ "${attempt}" -eq 40 ]]; then
-              echo "::error::Timed out waiting for App Runner (last status: ${STATUS})"
-              exit 1
-            fi
-
-            sleep 15
-          done
-
-      - name: Verify health check
-        env:
-          SERVICE_ARN: ${{ secrets.APP_RUNNER_SERVICE_ARN }}
-        run: |
-          set -euo pipefail
-          SERVICE_URL=$(aws apprunner describe-service \
-            --service-arn "${SERVICE_ARN}" \
-            --query 'Service.ServiceUrl' \
-            --output text)
-
-          HEALTH_URL="https://${SERVICE_URL}/api/health"
-          echo "Health check: ${HEALTH_URL}"
-
-          for attempt in $(seq 1 6); do
-            HTTP_CODE=$(curl -o /dev/null -w "%{http_code}" -fsS \
-              --max-time 15 "${HEALTH_URL}" 2>/dev/null || echo "000")
-
-            if [[ "${HTTP_CODE}" == "200" ]]; then
-              echo "✓ Health check passed (HTTP 200)"
-              echo ""
-              echo "Live at: https://${SERVICE_URL}"
-              exit 0
-            fi
-
-            echo "  [${attempt}/6] HTTP ${HTTP_CODE} — retrying in 10s…"
-            sleep 10
-          done
-
-          echo "::error::Health check failed after deployment (last HTTP ${HTTP_CODE})"
-          exit 1
+      - name: Remove deploy key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
