@@ -6,12 +6,32 @@
  *   https://<your-app>/api/public/meta-ads-webhook
  *   Subscriptions: lead_gen, ads_management
  *
- * Set META_WEBHOOK_VERIFY_TOKEN in your environment secrets.
+ * Set META_WEBHOOK_VERIFY_TOKEN and META_APP_SECRET in your environment secrets.
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const VERIFY_TOKEN = process.env.META_WEBHOOK_VERIFY_TOKEN ?? "webee-meta-verify";
+const META_APP_SECRET = process.env.META_APP_SECRET ?? "";
+
+/**
+ * Verify Meta X-Hub-Signature-256 header.
+ * https://developers.facebook.com/docs/graph-api/webhooks/getting-started#verification-requests
+ */
+function verifyMetaSignature(rawBody: string, header: string | null): boolean {
+  if (!META_APP_SECRET) return true; // Skip if secret not configured — log only
+  if (!header) {
+    console.warn("[meta-ads-webhook] Missing X-Hub-Signature-256 header");
+    return false;
+  }
+  const sig = header.startsWith("sha256=") ? header.slice(7) : header;
+  const expected = createHmac("sha256", META_APP_SECRET).update(rawBody).digest("hex");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  try { return timingSafeEqual(a, b); } catch { return false; }
+}
 
 export const Route = createFileRoute("/api/public/meta-ads-webhook")({
   server: {
@@ -30,8 +50,15 @@ export const Route = createFileRoute("/api/public/meta-ads-webhook")({
       },
 
       POST: async ({ request }) => {
+        const rawBody = await request.text().catch(() => "");
+        const sigHeader = request.headers.get("X-Hub-Signature-256");
+        if (!verifyMetaSignature(rawBody, sigHeader)) {
+          console.warn("[meta-ads-webhook] Invalid X-Hub-Signature-256 — rejected");
+          return Response.json({ error: "Invalid signature" }, { status: 403 });
+        }
+
         let payload: any;
-        try { payload = await request.json(); }
+        try { payload = JSON.parse(rawBody); }
         catch { return Response.json({ error: "Bad JSON" }, { status: 400 }); }
 
         const object = payload?.object ?? "";

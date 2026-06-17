@@ -133,6 +133,9 @@ const NODE_LABELS: Record<NodeKind, string> = {
   wa_extract_var: "WA Extract Var",
   wa_tag:         "WA Tag",
   wa_template:    "WA Template",
+  check_documents:   "Check Documents",
+  send_upload_link:  "Send Upload Link",
+  http_request:      "HTTP Request",
 };
 
 const makeNode = (

@@ -161,6 +161,13 @@ const STYLES: Record<NodeKind, Style> = {
     ringClass:
       "!ring-2 !ring-sky-500/70 !border-sky-500/70 shadow-[0_0_24px_-4px_rgba(14,165,233,0.55)] dark:shadow-[0_0_28px_-4px_rgba(56,189,248,0.6)]",
   },
+  http_request: {
+    badge: "HTTP Request",
+    badgeClass: "bg-blue-600 text-white shadow-sm",
+    headerClass: "bg-blue-100 border-blue-300 dark:bg-blue-500/20 dark:border-blue-400/40",
+    ringClass:
+      "!ring-2 !ring-blue-500/70 !border-blue-500/70 shadow-[0_0_24px_-4px_rgba(59,130,246,0.55)] dark:shadow-[0_0_28px_-4px_rgba(96,165,250,0.6)]",
+  },
 };
 
 /**

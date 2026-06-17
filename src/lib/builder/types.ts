@@ -27,7 +27,8 @@ export type NodeKind =
   | "wa_tag"
   | "wa_template"
   | "check_documents"
-  | "send_upload_link";
+  | "send_upload_link"
+  | "http_request";
 
 export interface Transition {
   id: string;
@@ -138,6 +139,24 @@ export interface FlowNodeData {
   codeSource?: string;
   /** For ending */
   endingPrompt?: string;
+  /** For http_request — the target URL */
+  httpUrl?: string;
+  /** For http_request — HTTP method */
+  httpMethod?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** For http_request — request headers as JSON string */
+  httpHeaders?: string;
+  /** For http_request — request body as JSON string (for POST/PUT/PATCH) */
+  httpBody?: string;
+  /** For http_request — timeout in milliseconds */
+  httpTimeoutMs?: number;
+  /** For http_request — number of retries on failure */
+  httpRetryCount?: number;
+  /** For http_request — response field mappings: "response.field -> {{variable}}" per line */
+  httpResponseMapping?: string;
+  /** For http_request — tool name exposed to the LLM */
+  httpToolName?: string;
+  /** For http_request — tool description for the LLM */
+  httpToolDescription?: string;
   /** Outgoing transitions */
   transitions: Transition[];
   /** Dashboard `is_global` — allow other nodes to jump here without an explicit edge. */

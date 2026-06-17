@@ -6,8 +6,21 @@
  * WebhookEventResponse schema from their OpenAPI spec.
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { CallState } from "@/lib/telephony/types";
+
+const FREJUN_WEBHOOK_SECRET = process.env.FREJUN_WEBHOOK_SECRET ?? "";
+
+function verifyFreJunSecret(request: Request): boolean {
+  if (!FREJUN_WEBHOOK_SECRET) return true;
+  const header = request.headers.get("x-frejun-secret") ?? request.headers.get("x-webhook-secret") ?? "";
+  if (!header) return false;
+  const a = Buffer.from(header);
+  const b = Buffer.from(FREJUN_WEBHOOK_SECRET);
+  if (a.length !== b.length) return false;
+  try { return timingSafeEqual(a, b); } catch { return false; }
+}
 
 function jsonOk(body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -31,6 +44,13 @@ export const Route = createFileRoute("/api/public/frejun/status")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        if (!verifyFreJunSecret(request)) {
+          return new Response(JSON.stringify({ ok: false, reason: "unauthorized" }), {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
         let body: Record<string, unknown>;
         try {
           body = (await request.json()) as Record<string, unknown>;

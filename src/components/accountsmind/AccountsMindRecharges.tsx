@@ -22,7 +22,7 @@ const PROVIDERS = [
   { cat: "llm",       name: "Anthropic" },
   { cat: "llm",       name: "Gemini" },
   { cat: "voice",     name: "ElevenLabs" },
-  { cat: "voice",     name: "Retell" },
+  { cat: "voice",     name: "WEBEE Voice" },
   { cat: "telephony", name: "Twilio" },
   { cat: "telephony", name: "FreJun" },
   { cat: "whatsapp",  name: "WATI" },

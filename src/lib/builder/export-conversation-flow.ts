@@ -978,6 +978,37 @@ function mapNode(n: FlowNode, edges: FlowEdge[]): Record<string, unknown> & { id
             "End the call",
         },
       });
+
+    case "http_request": {
+      // HTTP Request nodes export as function nodes with a webhook URL.
+      // At runtime, the voice engine calls the URL and maps the response
+      // into variables the agent can reference.
+      const toolId = `http_${n.id}`;
+      return orderNode({
+        ...base,
+        type: "function",
+        tool_id: toolId,
+        tool_type: "webhook",
+        name: d.httpToolName ?? d.label ?? "http_request",
+        description: d.httpToolDescription ?? d.dialogue ?? "Make an HTTP request to an external API",
+        url: d.httpUrl ?? "",
+        timeout: d.httpTimeoutMs ?? 10000,
+        speak_during_execution: d.speakDuringExecution ?? true,
+        execution_message_description: d.dialogue || "Making an external API call…",
+        parameters: {
+          type: "object",
+          properties: {
+            payload: {
+              type: "string",
+              description: "Optional JSON payload string to merge into the request body",
+            },
+          },
+          required: [],
+        },
+        edges,
+      });
+    }
+
     default: {
       // Backward-compat: legacy "start" nodes (kind removed) compile as conversation.
       if ((d.kind as string) === "start") {

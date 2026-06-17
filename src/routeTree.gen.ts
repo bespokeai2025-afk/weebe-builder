@@ -53,6 +53,12 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
+import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
+import { Route as ApiV1LeadsRouteImport } from './routes/api/v1/leads'
+import { Route as ApiV1KnowledgeRouteImport } from './routes/api/v1/knowledge'
+import { Route as ApiV1CampaignsRouteImport } from './routes/api/v1/campaigns'
+import { Route as ApiV1CallsRouteImport } from './routes/api/v1/calls'
+import { Route as ApiV1AgentsRouteImport } from './routes/api/v1/agents'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
 import { Route as ApiPublicTiktokAdsWebhookRouteImport } from './routes/api/public/tiktok-ads-webhook'
@@ -87,6 +93,7 @@ import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './route
 import { Route as AuthenticatedSettingsProvidersRouteImport } from './routes/_authenticated/settings.providers'
 import { Route as AuthenticatedSettingsProductionReadinessRouteImport } from './routes/_authenticated/settings.production-readiness'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings.integrations'
+import { Route as AuthenticatedSettingsDeveloperRouteImport } from './routes/_authenticated/settings.developer'
 import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenticated/settings.crm'
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
 import { Route as AuthenticatedKnowledgeCentreSlugRouteImport } from './routes/_authenticated/knowledge-centre.$slug'
@@ -420,6 +427,36 @@ const ApiWebhookCustomTelemetryRoute =
     path: '/api/webhook/custom-telemetry',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1WebhooksRoute = ApiV1WebhooksRouteImport.update({
+  id: '/api/v1/webhooks',
+  path: '/api/v1/webhooks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1LeadsRoute = ApiV1LeadsRouteImport.update({
+  id: '/api/v1/leads',
+  path: '/api/v1/leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1KnowledgeRoute = ApiV1KnowledgeRouteImport.update({
+  id: '/api/v1/knowledge',
+  path: '/api/v1/knowledge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1CampaignsRoute = ApiV1CampaignsRouteImport.update({
+  id: '/api/v1/campaigns',
+  path: '/api/v1/campaigns',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1CallsRoute = ApiV1CallsRouteImport.update({
+  id: '/api/v1/calls',
+  path: '/api/v1/calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1AgentsRoute = ApiV1AgentsRouteImport.update({
+  id: '/api/v1/agents',
+  path: '/api/v1/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicVoiceWebhookRoute = ApiPublicVoiceWebhookRouteImport.update({
   id: '/api/public/voice-webhook',
   path: '/api/public/voice-webhook',
@@ -613,6 +650,12 @@ const AuthenticatedSettingsIntegrationsRoute =
   AuthenticatedSettingsIntegrationsRouteImport.update({
     id: '/settings/integrations',
     path: '/settings/integrations',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsDeveloperRoute =
+  AuthenticatedSettingsDeveloperRouteImport.update({
+    id: '/settings/developer',
+    path: '/settings/developer',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSettingsCrmRoute =
@@ -1302,6 +1345,7 @@ export interface FileRoutesByFullPath {
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
+  '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
@@ -1336,6 +1380,12 @@ export interface FileRoutesByFullPath {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/v1/agents': typeof ApiV1AgentsRoute
+  '/api/v1/calls': typeof ApiV1CallsRoute
+  '/api/v1/campaigns': typeof ApiV1CampaignsRoute
+  '/api/v1/knowledge': typeof ApiV1KnowledgeRoute
+  '/api/v1/leads': typeof ApiV1LeadsRoute
+  '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -1477,6 +1527,7 @@ export interface FileRoutesByTo {
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/settings/crm': typeof AuthenticatedSettingsCrmRoute
+  '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
@@ -1511,6 +1562,12 @@ export interface FileRoutesByTo {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/v1/agents': typeof ApiV1AgentsRoute
+  '/api/v1/calls': typeof ApiV1CallsRoute
+  '/api/v1/campaigns': typeof ApiV1CampaignsRoute
+  '/api/v1/knowledge': typeof ApiV1KnowledgeRoute
+  '/api/v1/leads': typeof ApiV1LeadsRoute
+  '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -1660,6 +1717,7 @@ export interface FileRoutesById {
   '/_authenticated/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
   '/_authenticated/settings/crm': typeof AuthenticatedSettingsCrmRoute
+  '/_authenticated/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/production-readiness': typeof AuthenticatedSettingsProductionReadinessRoute
   '/_authenticated/settings/providers': typeof AuthenticatedSettingsProvidersRouteWithChildren
@@ -1694,6 +1752,12 @@ export interface FileRoutesById {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
+  '/api/v1/agents': typeof ApiV1AgentsRoute
+  '/api/v1/calls': typeof ApiV1CallsRoute
+  '/api/v1/campaigns': typeof ApiV1CampaignsRoute
+  '/api/v1/knowledge': typeof ApiV1KnowledgeRoute
+  '/api/v1/leads': typeof ApiV1LeadsRoute
+  '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
@@ -1843,6 +1907,7 @@ export interface FileRouteTypes {
     | '/knowledge-centre/$slug'
     | '/settings/calendar'
     | '/settings/crm'
+    | '/settings/developer'
     | '/settings/integrations'
     | '/settings/production-readiness'
     | '/settings/providers'
@@ -1877,6 +1942,12 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/v1/agents'
+    | '/api/v1/calls'
+    | '/api/v1/campaigns'
+    | '/api/v1/knowledge'
+    | '/api/v1/leads'
+    | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
@@ -2018,6 +2089,7 @@ export interface FileRouteTypes {
     | '/knowledge-centre/$slug'
     | '/settings/calendar'
     | '/settings/crm'
+    | '/settings/developer'
     | '/settings/integrations'
     | '/settings/production-readiness'
     | '/settings/providers'
@@ -2052,6 +2124,12 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/v1/agents'
+    | '/api/v1/calls'
+    | '/api/v1/campaigns'
+    | '/api/v1/knowledge'
+    | '/api/v1/leads'
+    | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
@@ -2200,6 +2278,7 @@ export interface FileRouteTypes {
     | '/_authenticated/knowledge-centre/$slug'
     | '/_authenticated/settings/calendar'
     | '/_authenticated/settings/crm'
+    | '/_authenticated/settings/developer'
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/production-readiness'
     | '/_authenticated/settings/providers'
@@ -2234,6 +2313,12 @@ export interface FileRouteTypes {
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
+    | '/api/v1/agents'
+    | '/api/v1/calls'
+    | '/api/v1/campaigns'
+    | '/api/v1/knowledge'
+    | '/api/v1/leads'
+    | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
     | '/lovable/email/suppression'
@@ -2321,6 +2406,12 @@ export interface RootRouteChildren {
   ApiPublicTiktokAdsWebhookRoute: typeof ApiPublicTiktokAdsWebhookRoute
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
+  ApiV1AgentsRoute: typeof ApiV1AgentsRoute
+  ApiV1CallsRoute: typeof ApiV1CallsRoute
+  ApiV1CampaignsRoute: typeof ApiV1CampaignsRoute
+  ApiV1KnowledgeRoute: typeof ApiV1KnowledgeRoute
+  ApiV1LeadsRoute: typeof ApiV1LeadsRoute
+  ApiV1WebhooksRoute: typeof ApiV1WebhooksRoute
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
   ApiWebhookWatiInboundRoute: typeof ApiWebhookWatiInboundRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
@@ -2670,6 +2761,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhookCustomTelemetryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/webhooks': {
+      id: '/api/v1/webhooks'
+      path: '/api/v1/webhooks'
+      fullPath: '/api/v1/webhooks'
+      preLoaderRoute: typeof ApiV1WebhooksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/leads': {
+      id: '/api/v1/leads'
+      path: '/api/v1/leads'
+      fullPath: '/api/v1/leads'
+      preLoaderRoute: typeof ApiV1LeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/knowledge': {
+      id: '/api/v1/knowledge'
+      path: '/api/v1/knowledge'
+      fullPath: '/api/v1/knowledge'
+      preLoaderRoute: typeof ApiV1KnowledgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/campaigns': {
+      id: '/api/v1/campaigns'
+      path: '/api/v1/campaigns'
+      fullPath: '/api/v1/campaigns'
+      preLoaderRoute: typeof ApiV1CampaignsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/calls': {
+      id: '/api/v1/calls'
+      path: '/api/v1/calls'
+      fullPath: '/api/v1/calls'
+      preLoaderRoute: typeof ApiV1CallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/agents': {
+      id: '/api/v1/agents'
+      path: '/api/v1/agents'
+      fullPath: '/api/v1/agents'
+      preLoaderRoute: typeof ApiV1AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/voice-webhook': {
       id: '/api/public/voice-webhook'
       path: '/api/public/voice-webhook'
@@ -2906,6 +3039,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/integrations'
       fullPath: '/settings/integrations'
       preLoaderRoute: typeof AuthenticatedSettingsIntegrationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings/developer': {
+      id: '/_authenticated/settings/developer'
+      path: '/settings/developer'
+      fullPath: '/settings/developer'
+      preLoaderRoute: typeof AuthenticatedSettingsDeveloperRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings/crm': {
@@ -3943,6 +4083,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAgentsNewRoute: typeof AuthenticatedAgentsNewRoute
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
   AuthenticatedSettingsCrmRoute: typeof AuthenticatedSettingsCrmRoute
+  AuthenticatedSettingsDeveloperRoute: typeof AuthenticatedSettingsDeveloperRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
   AuthenticatedSettingsProductionReadinessRoute: typeof AuthenticatedSettingsProductionReadinessRoute
   AuthenticatedSettingsProvidersRoute: typeof AuthenticatedSettingsProvidersRouteWithChildren
@@ -3980,6 +4121,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAgentsNewRoute: AuthenticatedAgentsNewRoute,
   AuthenticatedSettingsCalendarRoute: AuthenticatedSettingsCalendarRoute,
   AuthenticatedSettingsCrmRoute: AuthenticatedSettingsCrmRoute,
+  AuthenticatedSettingsDeveloperRoute: AuthenticatedSettingsDeveloperRoute,
   AuthenticatedSettingsIntegrationsRoute:
     AuthenticatedSettingsIntegrationsRoute,
   AuthenticatedSettingsProductionReadinessRoute:
@@ -4115,6 +4257,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTiktokAdsWebhookRoute: ApiPublicTiktokAdsWebhookRoute,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
+  ApiV1AgentsRoute: ApiV1AgentsRoute,
+  ApiV1CallsRoute: ApiV1CallsRoute,
+  ApiV1CampaignsRoute: ApiV1CampaignsRoute,
+  ApiV1KnowledgeRoute: ApiV1KnowledgeRoute,
+  ApiV1LeadsRoute: ApiV1LeadsRoute,
+  ApiV1WebhooksRoute: ApiV1WebhooksRoute,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
   ApiWebhookWatiInboundRoute: ApiWebhookWatiInboundRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,

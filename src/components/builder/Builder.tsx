@@ -111,6 +111,7 @@ const VOICE_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; c
   { kind: "note", label: "Note", icon: StickyNote, color: "text-yellow-700" },
   { kind: "check_documents", label: "Check Documents", icon: FolderOpen, color: "text-teal-600" },
   { kind: "send_upload_link", label: "Send Upload Link", icon: Link, color: "text-sky-600" },
+  { kind: "http_request", label: "HTTP Request", icon: Globe, color: "text-blue-600" },
 ];
 
 const WA_PALETTE: { kind: NodeKind; label: string; icon: React.ElementType; color: string }[] = [

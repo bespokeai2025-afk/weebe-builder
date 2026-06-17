@@ -734,6 +734,111 @@ export function NodeEditorDialog() {
             </div>
           )}
 
+          {d.kind === "http_request" && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-semibold">Tool Name (shown to AI)</Label>
+                <Input
+                  placeholder="fetch_availability"
+                  value={d.httpToolName ?? ""}
+                  onChange={(e) => updateNode(node.id, { httpToolName: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-semibold">Tool Description</Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Describe when the AI should call this endpoint…"
+                  value={d.httpToolDescription ?? d.dialogue ?? ""}
+                  onChange={(e) => updateNode(node.id, { httpToolDescription: e.target.value, dialogue: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-2">
+                <div className="w-28 shrink-0">
+                  <Label className="text-sm font-semibold">Method</Label>
+                  <Select
+                    value={d.httpMethod ?? "POST"}
+                    onValueChange={(v) => updateNode(node.id, { httpMethod: v as "GET" | "POST" | "PUT" | "PATCH" | "DELETE" })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["GET","POST","PUT","PATCH","DELETE"].map(m => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Label className="text-sm font-semibold">URL <span className="text-rose-500">*</span></Label>
+                  <Input
+                    placeholder="https://api.yourapp.com/endpoint"
+                    value={d.httpUrl ?? ""}
+                    onChange={(e) => updateNode(node.id, { httpUrl: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold">Headers (JSON)</Label>
+                <Textarea
+                  rows={2}
+                  className="font-mono text-xs"
+                  placeholder={'{"Authorization": "Bearer token", "X-Api-Key": "key"}'}
+                  value={d.httpHeaders ?? ""}
+                  onChange={(e) => updateNode(node.id, { httpHeaders: e.target.value })}
+                />
+              </div>
+              {(d.httpMethod ?? "POST") !== "GET" && (
+                <div>
+                  <Label className="text-sm font-semibold">Request Body (JSON)</Label>
+                  <Textarea
+                    rows={3}
+                    className="font-mono text-xs"
+                    placeholder={'{"key": "{{variable}}"}'}
+                    value={d.httpBody ?? ""}
+                    onChange={(e) => updateNode(node.id, { httpBody: e.target.value })}
+                  />
+                </div>
+              )}
+              <div>
+                <Label className="text-sm font-semibold">Response Variable Mapping</Label>
+                <Textarea
+                  rows={3}
+                  className="font-mono text-xs"
+                  placeholder={"response.status -> {{booking_status}}\nresponse.slots[0] -> {{first_slot}}"}
+                  value={d.httpResponseMapping ?? ""}
+                  onChange={(e) => updateNode(node.id, { httpResponseMapping: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Map response fields to agent variables. One mapping per line.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Label className="text-sm font-semibold">Timeout (ms)</Label>
+                  <Input
+                    type="number"
+                    min={1000}
+                    max={30000}
+                    value={d.httpTimeoutMs ?? 10000}
+                    onChange={(e) => updateNode(node.id, { httpTimeoutMs: parseInt(e.target.value) || 10000 })}
+                  />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-sm font-semibold">Retries</Label>
+                  <Select
+                    value={String(d.httpRetryCount ?? 0)}
+                    onValueChange={(v) => updateNode(node.id, { httpRetryCount: parseInt(v) })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[0,1,2,3].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
           {d.kind === "note" && (
             <div>
               <Label>Note</Label>

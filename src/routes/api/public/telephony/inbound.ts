@@ -2,17 +2,38 @@
  * Public Twilio inbound-call webhook.
  *
  * Twilio hits this URL when a call comes in to one of our registered numbers.
- * No user auth — but we validate the request via Twilio signature when
- * TWILIO_AUTH_TOKEN is present.
+ * Validates the Twilio signature when TWILIO_AUTH_TOKEN is set.
  *
  * Flow:
- *  1. Parse To / From / CallSid from form body
- *  2. Look up workspace + agent from phone_numbers table
- *  3. Create telephony_calls row
- *  4. Respond with TwiML  <Connect><Stream …/>  to open the audio bridge
+ *  1. Verify Twilio signature (when auth token present)
+ *  2. Parse To / From / CallSid from form body
+ *  3. Look up workspace + agent from phone_numbers table
+ *  4. Create telephony_calls row
+ *  5. Respond with TwiML  <Connect><Stream …/>  to open the audio bridge
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+
+/**
+ * Verify a Twilio request signature.
+ * https://www.twilio.com/docs/usage/webhooks/webhooks-security
+ */
+function verifyTwilioSignature(
+  authToken: string,
+  twilioSignature: string | null,
+  url: string,
+  params: Record<string, string>,
+): boolean {
+  if (!twilioSignature) return false;
+  const sortedKeys = Object.keys(params).sort();
+  const data = sortedKeys.reduce((acc, k) => acc + k + params[k], url);
+  const expected = createHmac("sha1", authToken).update(data).digest("base64");
+  const a = Buffer.from(twilioSignature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  try { return timingSafeEqual(a, b); } catch { return false; }
+}
 
 function twimlResponse(xml: string) {
   return new Response(xml, {
@@ -31,18 +52,28 @@ export const Route = createFileRoute("/api/public/telephony/inbound")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        let formData: FormData;
+        // Read raw body for Twilio signature verification
+        const rawBody = await request.text().catch(() => "");
+        const params: Record<string, string> = {};
         try {
-          formData = await request.formData();
-        } catch {
-          return twimlResponse(
-            `<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`,
-          );
+          new URLSearchParams(rawBody).forEach((v, k) => { params[k] = v; });
+        } catch {}
+
+        const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN ?? "";
+        if (twilioAuthToken) {
+          const sigHeader  = request.headers.get("X-Twilio-Signature");
+          const proto      = request.headers.get("x-forwarded-proto") ?? "https";
+          const host       = request.headers.get("host") ?? "";
+          const fullUrl    = `${proto}://${host}/api/public/telephony/inbound`;
+          if (!verifyTwilioSignature(twilioAuthToken, sigHeader, fullUrl, params)) {
+            console.warn("[telephony/inbound] Invalid Twilio signature — rejected");
+            return new Response("Forbidden", { status: 403 });
+          }
         }
 
-        const callSid = (formData.get("CallSid") as string) ?? "";
-        const to = (formData.get("To") as string) ?? "";
-        const from = (formData.get("From") as string) ?? "";
+        const callSid = params["CallSid"] ?? "";
+        const to      = params["To"]      ?? "";
+        const from    = params["From"]    ?? "";
 
         if (!callSid || !to) return rejectTwiml();
 

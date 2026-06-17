@@ -34,6 +34,7 @@ import {
   BookOpen,
   Calculator,
   Flame,
+  Code2,
 } from "lucide-react";
 import {
   DndContext,
@@ -588,6 +589,10 @@ export function AppSidebar() {
             <DropdownMenuItem onClick={() => navigate({ to: "/settings/providers" })}>
               <Database className="mr-2 h-4 w-4" />
               Provider Registry
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate({ to: "/settings/developer" })}>
+              <Code2 className="mr-2 h-4 w-4" />
+              Developer API
             </DropdownMenuItem>
             {isAdmin && (
               <DropdownMenuItem onClick={() => navigate({ to: "/settings/production-readiness" })}>

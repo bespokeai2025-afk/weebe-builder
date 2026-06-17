@@ -480,7 +480,7 @@ function CalendarSettingsPage() {
               </li>
               <li>
                 <code>POST /book</code> — body{" "}
-                <code>{`{ agent_id, start, name, email, phone?, notes?, timezone?, retell_call_id? }`}</code>
+                <code>{`{ agent_id, start, name, email, phone?, notes?, timezone?, call_id? }`}</code>
               </li>
               <li>
                 <code>POST /cancel</code> — body <code>{`{ booking_id, reason? }`}</code>
@@ -490,8 +490,8 @@ function CalendarSettingsPage() {
               </li>
             </ul>
             <p className="text-xs text-muted-foreground">
-              Header <code>x-retell-signature</code>: HMAC-SHA256 hex of the raw body using the
-              configured <code>RETELL_WEBHOOK_SECRET</code>. See{" "}
+              Header <code>x-webee-signature</code>: HMAC-SHA256 hex of the raw body using your
+              webhook secret. See{" "}
               <Link to="/settings/integrations" className="underline underline-offset-2">
                 Integration Settings
               </Link>{" "}

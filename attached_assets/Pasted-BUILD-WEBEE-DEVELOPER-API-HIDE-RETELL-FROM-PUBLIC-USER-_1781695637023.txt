@@ -1,0 +1,518 @@
+BUILD WEBEE DEVELOPER API + HIDE RETELL FROM PUBLIC USER VIEW
+
+IMPORTANT
+
+Do not break Retell functionality.
+
+Do not remove Retell internally.
+
+Do not break existing agents, calls, webhooks, provider framework or billing.
+
+Retell must remain available internally as infrastructure, but normal customers should not see “Retell” as the provider brand.
+
+OBJECTIVE
+
+1. Add customer-facing API endpoints so external systems can connect to WEBEE.
+2. Build a developer/API access layer.
+3. Hide Retell from public/customer UI and replace it with WEBEE-branded voice infrastructure.
+
+====================================================
+
+PART 1 — HIDE RETELL FROM CUSTOMER VIEW
+
+Retell should be treated as internal infrastructure.
+
+Customer-facing label should become:
+
+WEBEE Voice
+
+or
+
+WEBEE OmniVoice
+
+or
+
+WEBEE Voice Engine
+
+Do not show:
+
+Retell
+Retell AI
+Retell Provider
+Retell Agent ID
+Retell Workspace ID
+
+to normal workspace users.
+
+====================================================
+
+ADMIN VISIBILITY
+
+Platform admins may still see:
+
+Retell
+Retell Agent ID
+Retell Workspace ID
+Retell API Key
+Retell webhook status
+
+Normal users should only see:
+
+WEBEE Voice Connected
+WEBEE Voice Agent
+WEBEE Voice Call Engine
+WEBEE Voice Status
+
+====================================================
+
+FILES TO AUDIT
+
+Search all frontend and customer-facing UI for:
+
+Retell
+retell
+retell_agent_id
+retell_workspace_id
+RetellProvider
+Retell API Key
+
+Replace customer-facing references with WEBEE Voice wording.
+
+Do not rename internal database columns unless required.
+
+====================================================
+
+PROVIDER SETTINGS
+
+In provider settings:
+
+For normal users:
+
+Show:
+
+Voice Provider:
+WEBEE Voice
+
+Hide:
+
+Retell
+
+For platform admins:
+
+Show internal provider details in advanced/admin mode only.
+
+====================================================
+
+AGENT BUILDER
+
+In Builder and My Agents:
+
+Replace:
+
+Deploy to Retell
+Retell Agent
+Retell Call
+Retell Voice
+
+with:
+
+Deploy to WEBEE Voice
+WEBEE Voice Agent
+WEBEE Call
+WEBEE Voice
+
+====================================================
+
+CALL LOGS
+
+Replace customer-facing provider display:
+
+retell
+
+with:
+
+WEBEE Voice
+
+Internally still store provider = retell if required.
+
+Use display mapping:
+
+retell -> WEBEE Voice
+openai_realtime -> HyperStream
+elevenlabs -> VoxStream
+twilio -> WEBEE Telephony / Twilio only in admin mode
+frejun -> WEBEE Regional Telephony / FreJun only in admin mode
+
+====================================================
+
+PART 2 — BUILD CUSTOMER DEVELOPER API
+
+Create route group:
+
+/settings/developer
+/settings/api-keys
+/settings/webhooks
+
+Create API docs page:
+
+/docs/api
+
+or authenticated:
+
+/settings/developer/docs
+
+====================================================
+
+API KEY SYSTEM
+
+Use existing workspace_api_tokens if available.
+
+If missing, create:
+
+workspace_api_tokens
+
+Fields:
+
+id
+workspace_id
+name
+token_prefix
+token_hash
+permissions_json
+last_used_at
+expires_at
+created_by
+created_at
+revoked_at
+
+Token format:
+
+wb_live_xxxxx
+
+or keep existing lvb_ if already implemented, but display as WEBEE API Key.
+
+Never store raw token.
+
+Show raw token only once.
+
+====================================================
+
+CUSTOMER-FACING API ENDPOINTS
+
+Create public API endpoints:
+
+POST /api/v1/leads
+
+Create lead/contact in WEBEE.
+
+POST /api/v1/calls/trigger
+
+Trigger an AI call using a selected WEBEE agent.
+
+POST /api/v1/campaigns/trigger
+
+Trigger a campaign or enrol a lead into a campaign.
+
+POST /api/v1/agents/{agentId}/call
+
+Trigger outbound call for a specific agent.
+
+GET /api/v1/agents
+
+List workspace agents.
+
+GET /api/v1/calls
+
+List call logs.
+
+GET /api/v1/leads
+
+List leads.
+
+POST /api/v1/knowledge/upload
+
+Upload knowledge document.
+
+POST /api/v1/webhooks/test
+
+Send test webhook.
+
+====================================================
+
+AUTHENTICATION
+
+All /api/v1/* endpoints require:
+
+Authorization: Bearer <WEBEE_API_KEY>
+
+Validate:
+
+token exists
+not revoked
+not expired
+workspace scoped
+permissions allow action
+
+====================================================
+
+PERMISSIONS
+
+Support API key scopes:
+
+leads:read
+leads:write
+calls:read
+calls:trigger
+agents:read
+campaigns:trigger
+knowledge:write
+webhooks:manage
+
+====================================================
+
+RATE LIMITING
+
+Add basic rate limits per workspace API key:
+
+Default:
+
+60 requests/minute
+
+Configurable by admin.
+
+Return:
+
+429 Too Many Requests
+
+when exceeded.
+
+====================================================
+
+WEBHOOK BUILDER
+
+Allow customers to configure outbound webhooks.
+
+Create:
+
+workspace_webhooks
+
+Fields:
+
+id
+workspace_id
+name
+event_type
+target_url
+secret
+active
+created_at
+updated_at
+
+Events:
+
+lead.created
+lead.updated
+call.started
+call.completed
+call.failed
+booking.created
+campaign.completed
+document.uploaded
+agent.deployed
+
+====================================================
+
+WEBHOOK DELIVERY
+
+Create:
+
+webhook_deliveries
+
+Fields:
+
+id
+workspace_id
+webhook_id
+event_type
+payload
+status
+response_code
+response_body
+attempt_count
+next_retry_at
+created_at
+delivered_at
+
+Retry failed webhooks.
+
+Sign outgoing webhooks with:
+
+X-WEBEE-Signature
+
+using HMAC SHA256.
+
+====================================================
+
+DEVELOPER DOCS
+
+Create docs for:
+
+Authentication
+Create Lead
+Trigger Call
+Trigger Campaign
+List Calls
+Upload Knowledge
+Webhook Events
+Webhook Signature Verification
+
+Include example curl requests.
+
+Do not expose Retell in docs.
+
+Docs should refer only to:
+
+WEBEE Voice
+WEBEE Agents
+WEBEE Campaigns
+WEBEE Smart Dash
+
+====================================================
+
+PART 3 — GENERIC WEBHOOK / HTTP NODE IN BUILDER
+
+Add Builder node:
+
+HTTP Request
+
+Purpose:
+
+Allow agents to call external customer APIs.
+
+Fields:
+
+Method
+URL
+Headers
+Body JSON
+Timeout
+Retry count
+Response variable mapping
+
+Support:
+
+GET
+POST
+PUT
+PATCH
+DELETE
+
+====================================================
+
+RESPONSE MAPPING
+
+Allow mapping response fields into variables:
+
+Example:
+
+response.available_slots -> {{available_slots}}
+
+response.status -> {{booking_status}}
+
+====================================================
+
+SECURITY
+
+Block unsafe URLs:
+
+localhost
+127.0.0.1
+private IP ranges
+metadata IPs
+
+Require HTTPS in production.
+
+====================================================
+
+SYSTEMMIND INTEGRATION
+
+SystemMind should monitor:
+
+API failures
+Webhook delivery failures
+Invalid API keys
+High rate limit usage
+Broken webhook nodes
+Unsafe endpoint attempts
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should report:
+
+New API integrations
+Failed webhook deliveries
+High API usage
+External system errors
+Recommended fixes
+
+====================================================
+
+PART 4 — SECURITY FIXES FROM API AUDIT
+
+Also fix highest-risk public endpoints:
+
+1. Add Twilio signature verification to:
+
+/api/public/telephony/inbound
+/api/public/telephony/status
+/api/public/telephony/recording
+
+2. Add FreJun webhook authentication to:
+
+/api/public/frejun/flow
+/api/public/frejun/status
+
+3. Add Meta X-Hub-Signature-256 verification to:
+
+Meta WhatsApp POST
+Meta Ads POST
+
+4. Add TikTok POST signature verification where supported.
+
+5. Make RESEND_WEBHOOK_SECRET mandatory in production.
+
+6. Add global rate limiting for public webhook endpoints.
+
+7. Add OAuth token refresh for Google and Meta providers.
+
+====================================================
+
+SUCCESS CRITERIA
+
+Customers can connect external systems to WEBEE using API keys.
+
+Customers can create leads through API.
+
+Customers can trigger AI calls through API.
+
+Customers can trigger campaigns through API.
+
+Customers can receive WEBEE webhooks.
+
+Builder agents can call external APIs using HTTP Request node.
+
+Retell is fully hidden from normal user/customer UI.
+
+Retell remains available internally for platform admins.
+
+WEBEE appears as the provider, not Retell.
+
+Webhook security gaps from the audit are fixed.
+
+Generate implementation plan first.
+
+Audit existing API tokens, provider labels and Retell references before coding.
+
+Then implement safely in phases.
