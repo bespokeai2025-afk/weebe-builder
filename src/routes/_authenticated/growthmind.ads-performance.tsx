@@ -70,6 +70,13 @@ interface BudgetCapSummary {
   currency:          string;
 }
 
+interface WeekDeltas {
+  spendPct:       number | null;
+  roasPct:        number | null;
+  impressionsPct: number | null;
+  conversionsPct: number | null;
+}
+
 interface AdsPerformanceData {
   hasSyncedData:  boolean;
   hasMetaCreds:   boolean;
@@ -82,6 +89,7 @@ interface AdsPerformanceData {
   alerts:         BudgetAlert[];
   caps:           BudgetCapSummary[];
   lastSyncedAt:   string | null;
+  deltas:         WeekDeltas;
 }
 
 // ── Server fns ─────────────────────────────────────────────────────────────────
@@ -94,7 +102,9 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No workspace");
 
     // 30-day rolling window — prevents stale snapshots from inflating aggregates
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysAgo    = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const fourteenDaysAgo  = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgo     = new Date(Date.now() -  7 * 24 * 60 * 60 * 1000).toISOString();
 
     const [
       campaignsRes,
@@ -102,6 +112,8 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
       wsRes,
       psRes,
       capsRes,
+      deltaLogRes,
+      deltaRoasRes,
     ] = await Promise.all([
       Promise.resolve(
         sb.from("growthmind_ad_campaigns")
@@ -143,13 +155,44 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
           .eq("workspace_id", workspaceId)
           .in("platform", ["meta", "google"]),
       ).catch(() => ({ data: [] })),
+
+      // Sync log for the last 14 days — used for WoW spend/impressions/conversions deltas.
+      // Scoped to meta+google only to match the hero card totals.
+      // Values are cumulative snapshots; we compare latest-per-platform in each
+      // 7-day window rather than summing across days to avoid distortion.
+      Promise.resolve(
+        sb.from("growthmind_ad_sync_log")
+          .select("platform,spend_total,impressions_total,conversions_total,synced_at")
+          .eq("workspace_id", workspaceId)
+          .eq("status", "success")
+          .gte("synced_at", fourteenDaysAgo)
+          .in("platform", ["meta", "google"])
+          .order("synced_at", { ascending: true })
+          .limit(5_000),
+      ).catch(() => ({ data: [] })),
+
+      // Campaign ROAS for the last 14 days — used for WoW ROAS delta.
+      // Scoped to meta+google only to match Blended ROAS on hero cards.
+      Promise.resolve(
+        sb.from("growthmind_ad_campaigns")
+          .select("platform,roas,synced_at")
+          .eq("workspace_id", workspaceId)
+          .not("roas", "is", null)
+          .gt("roas", 0)
+          .gte("synced_at", fourteenDaysAgo)
+          .in("platform", ["meta", "google"])
+          .order("synced_at", { ascending: true })
+          .limit(5_000),
+      ).catch(() => ({ data: [] })),
     ]);
 
-    const campaigns: any[] = campaignsRes.data ?? [];
-    const alerts:    any[] = alertsRes.data    ?? [];
-    const ws               = wsRes.data;
-    const connectedAds     = new Set((psRes.data ?? []).map((r: any) => r.provider_name as string));
-    const capsRaw: any[]   = capsRes.data ?? [];
+    const campaigns: any[]   = campaignsRes.data  ?? [];
+    const alerts:    any[]   = alertsRes.data     ?? [];
+    const ws                 = wsRes.data;
+    const connectedAds       = new Set((psRes.data ?? []).map((r: any) => r.provider_name as string));
+    const capsRaw: any[]     = capsRes.data       ?? [];
+    const deltaLogRows: any[] = deltaLogRes.data  ?? [];
+    const deltaRoasRows: any[] = deltaRoasRes.data ?? [];
 
     const hasMetaCreds   = !!(ws?.meta_ads_access_token && ws?.meta_ads_account_id) || connectedAds.has("meta_ads");
     const hasGoogleCreds = connectedAds.has("google_ads");
@@ -182,6 +225,67 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
       .filter(Boolean)
       .sort()
       .pop() ?? null;
+
+    // ── Week-over-week deltas ──────────────────────────────────────────────────
+    // sync_log rows are cumulative snapshots — each row reflects the platform's
+    // running total at sync time. Correct WoW comparison: compare the LATEST
+    // snapshot per platform in the current 7-day window vs the latest in the
+    // prior 7-14 day window, then sum across platforms. Summing across multiple
+    // days in a window would add up cumulative totals, which is incorrect.
+    function pctChange(curr: number, prev: number): number | null {
+      if (prev <= 0) return null;
+      return +((curr - prev) / prev * 100).toFixed(1);
+    }
+
+    type PlatformKey = "meta" | "google";
+    type Snap = { spend: number; impressions: number; conversions: number };
+
+    // Ascending order → later rows overwrite; keyed by platform only so the
+    // map retains the single latest entry per platform per window.
+    const currLatest = new Map<PlatformKey, Snap>();
+    const prevLatest = new Map<PlatformKey, Snap>();
+
+    for (const r of deltaLogRows) {
+      const platform = r.platform as PlatformKey;
+      if (platform !== "meta" && platform !== "google") continue;
+      const snap: Snap = {
+        spend:       Number(r.spend_total        ?? 0),
+        impressions: Number(r.impressions_total  ?? 0),
+        conversions: Number(r.conversions_total  ?? 0),
+      };
+      if (r.synced_at >= sevenDaysAgo) {
+        currLatest.set(platform, snap);
+      } else {
+        prevLatest.set(platform, snap);
+      }
+    }
+
+    function sumLatest(m: Map<PlatformKey, Snap>): Snap {
+      let spend = 0, impressions = 0, conversions = 0;
+      for (const v of m.values()) { spend += v.spend; impressions += v.impressions; conversions += v.conversions; }
+      return { spend, impressions, conversions };
+    }
+
+    const currPeriod = sumLatest(currLatest);
+    const prevPeriod = sumLatest(prevLatest);
+
+    // ROAS delta — average across campaign rows per period (campaigns table,
+    // keyed by synced_at range; meta+google only, matching Blended ROAS).
+    const currRoasRows = deltaRoasRows.filter((r: any) => r.synced_at >= sevenDaysAgo);
+    const prevRoasRows = deltaRoasRows.filter((r: any) => r.synced_at < sevenDaysAgo);
+    const avgRoasFn = (rows: any[]) =>
+      rows.length > 0 ? rows.reduce((a: number, r: any) => a + Number(r.roas), 0) / rows.length : 0;
+    const currAvgRoas = avgRoasFn(currRoasRows);
+    const prevAvgRoas = avgRoasFn(prevRoasRows);
+
+    const deltas: WeekDeltas = {
+      spendPct:       pctChange(currPeriod.spend,       prevPeriod.spend),
+      impressionsPct: pctChange(currPeriod.impressions, prevPeriod.impressions),
+      conversionsPct: pctChange(currPeriod.conversions, prevPeriod.conversions),
+      roasPct:        currRoasRows.length > 0 && prevRoasRows.length > 0
+                        ? pctChange(currAvgRoas, prevAvgRoas)
+                        : null,
+    };
 
     const mapped: AdCampaign[] = campaigns.map(c => ({
       id:          c.id,
@@ -223,6 +327,7 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
         currency:           r.currency ?? "GBP",
       })),
       lastSyncedAt,
+      deltas,
     };
   });
 
@@ -487,6 +592,20 @@ const saveBudgetCap = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+// ── Delta badge ────────────────────────────────────────────────────────────────
+
+function DeltaBadge({ pct }: { pct: number }) {
+  const up   = pct >= 0;
+  const Icon = up ? TrendingUp : TrendingDown;
+  return (
+    <div className={cn("flex items-center gap-0.5 text-[9px] font-semibold leading-none", up ? "text-emerald-400" : "text-red-400")}>
+      <Icon className="h-2.5 w-2.5 shrink-0" />
+      <span>{up ? "+" : ""}{pct.toFixed(1)}%</span>
+      <span className="text-muted-foreground/40 font-normal ml-0.5">vs last wk</span>
+    </div>
+  );
+}
+
 // ── Hero aggregate stats ────────────────────────────────────────────────────────
 
 function HeroStats({ data }: { data: AdsPerformanceData }) {
@@ -503,13 +622,15 @@ function HeroStats({ data }: { data: AdsPerformanceData }) {
     ? +(totalClicks / totalImpressions * 100).toFixed(2)
     : null;
 
+  const d = data.deltas;
+
   const stats = [
-    { label: "Total Spend",    value: fmtCurrency(data.totalSpend),                     icon: DollarSign,       cls: "text-foreground"  },
-    { label: "Blended ROAS",   value: blendedRoas !== null ? `${blendedRoas.toFixed(2)}x` : "—", icon: TrendingUp, cls: roasColor(blendedRoas) },
-    { label: "Impressions",    value: fmt(totalImpressions),                              icon: Eye,              cls: "text-foreground"  },
-    { label: "Clicks",         value: fmt(totalClicks),                                  icon: MousePointerClick,cls: "text-foreground"  },
-    { label: "CTR",            value: overallCtr !== null ? `${overallCtr}%` : "—",      icon: TrendingUp,       cls: "text-foreground"  },
-    { label: "Conversions",    value: fmt(totalConversions),                             icon: ShoppingCart,     cls: "text-foreground"  },
+    { label: "Total Spend",    value: fmtCurrency(data.totalSpend),                                   icon: DollarSign,        cls: "text-foreground",     delta: d.spendPct       },
+    { label: "Blended ROAS",   value: blendedRoas !== null ? `${blendedRoas.toFixed(2)}x` : "—",      icon: TrendingUp,        cls: roasColor(blendedRoas),delta: d.roasPct        },
+    { label: "Impressions",    value: fmt(totalImpressions),                                           icon: Eye,               cls: "text-foreground",     delta: d.impressionsPct },
+    { label: "Clicks",         value: fmt(totalClicks),                                               icon: MousePointerClick, cls: "text-foreground",     delta: null             },
+    { label: "CTR",            value: overallCtr !== null ? `${overallCtr}%` : "—",                   icon: TrendingUp,        cls: "text-foreground",     delta: null             },
+    { label: "Conversions",    value: fmt(totalConversions),                                          icon: ShoppingCart,      cls: "text-foreground",     delta: d.conversionsPct },
   ];
 
   return (
@@ -521,6 +642,7 @@ function HeroStats({ data }: { data: AdsPerformanceData }) {
             <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">{s.label}</span>
           </div>
           <p className={cn("text-lg font-bold tabular-nums leading-none", s.cls)}>{s.value}</p>
+          {s.delta !== null && <DeltaBadge pct={s.delta} />}
         </div>
       ))}
     </div>
