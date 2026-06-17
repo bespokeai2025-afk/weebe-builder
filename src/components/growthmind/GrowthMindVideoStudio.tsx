@@ -1789,9 +1789,6 @@ export function GrowthMindVideoStudio() {
               />
 
               {/* Veo Audio toggle — Guided */}
-              <pre className="text-[9px] text-yellow-400/70 bg-black/30 rounded p-1 overflow-auto max-h-12">
-                DBG veoStatus={JSON.stringify(veoStatus ?? null)}
-              </pre>
               {(() => {
                 const credConnected  = !!veoStatus?.hasGeminiKey || !!veoStatus?.hasVertexCreds;
                 const audioCapable   = veoStatus?.audioCapable !== false;  // true when undefined (status not loaded yet)

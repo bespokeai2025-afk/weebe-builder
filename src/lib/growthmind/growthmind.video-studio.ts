@@ -8,7 +8,7 @@ import {
   parseJobSentinel, isJobPending, archiveVideoToStorage,
 } from "./video-job-poller";
 import { optimiseVideoPrompt } from "./video-prompt-engine.server";
-import { VeoProvider, resolveVeoConfig, type VeoConfig } from "@/lib/video/providers/veo.provider";
+import { VeoProvider, resolveVeoConfig, isAudioCapableModel, type VeoConfig } from "@/lib/video/providers/veo.provider";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -2139,15 +2139,13 @@ export const getVeoStatus = createServerFn({ method: "POST" })
     if (!workspaceId) return { connected: false };
 
     // Use supabaseAdmin (service role) to bypass RLS — credentials are server-side secrets
-    const { data, error } = await (supabaseAdmin as any)
+    const { data } = await (supabaseAdmin as any)
       .from("provider_settings")
       .select("credentials")
       .eq("workspace_id", workspaceId)
       .eq("provider_category", "video")
       .eq("provider_name", "google_veo")
       .maybeSingle();
-
-    console.log("[getVeoStatus] workspaceId=", workspaceId, "data=", JSON.stringify(data), "error=", error);
 
     const creds = data?.credentials ?? {};
     const hasGeminiKey =
@@ -2157,19 +2155,17 @@ export const getVeoStatus = createServerFn({ method: "POST" })
       (!!(creds.accessToken?.trim()) || !!(creds.refreshToken?.trim()));
 
     // Resolve the effective model (mirrors VeoProvider.model getter logic)
-    const storedModel   = creds.veoModel?.trim() || process.env.VEO_MODEL || "";
-    const effectiveModel = storedModel || "veo-3.0-generate-preview";  // default is always Veo 3
+    const storedModel    = creds.veoModel?.trim() || process.env.VEO_MODEL || "";
+    const effectiveModel = storedModel || "veo-3.0-generate-preview";
     const audioCapable   = isAudioCapableModel(effectiveModel);
 
-    const result = {
+    return {
       connected: hasGeminiKey || hasVertexCreds,
       hasGeminiKey,
       hasVertexCreds,
-      veoModel:     effectiveModel,
+      veoModel:  effectiveModel,
       audioCapable,
     };
-    console.log("[getVeoStatus] returning=", JSON.stringify(result));
-    return result;
   });
 
 // ── Get clips for a composite video asset ─────────────────────────────────────
