@@ -1,0 +1,264 @@
+BUILD SYSTEMMIND WORKFLOW GENERATOR FOR BUILDER DRAFTS
+
+IMPORTANT
+
+Do not allow SystemMind to modify live deployed agents automatically.
+
+Do not allow SystemMind to deploy agents without user approval.
+
+Do not break existing Builder functionality.
+
+Extend SystemMind and Builder safely.
+
+OBJECTIVE
+
+Allow users to describe a new conversational workflow in natural language and have SystemMind generate a Builder-compatible draft workflow.
+
+Example user request:
+
+"Create a rebooking workflow. If the caller wants a callback, collect preferred date and time, check calendar availability, confirm the slot, update CRM, and schedule the callback."
+
+====================================================
+
+COMMAND FLOW
+
+User
+↓
+HiveMind Chat
+↓
+SystemMind Workflow Generator
+↓
+Builder Draft Workflow
+↓
+User Review
+↓
+Test Call
+↓
+Approve
+↓
+Deploy
+
+====================================================
+
+SYSTEMMIND RESPONSIBILITIES
+
+SystemMind must:
+
+1. Understand user workflow description.
+2. Identify required workflow type.
+3. Search Workflow Knowledge Base.
+4. Search existing Builder templates.
+5. Check available node types.
+6. Check available tools/webhooks.
+7. Detect missing capabilities.
+8. Generate a workflow draft.
+9. Generate variables.
+10. Generate tool definitions.
+11. Generate validation checklist.
+12. Send draft to Builder, not production.
+
+====================================================
+
+CREATE ROUTES
+
+/systemmind/workflow-generator
+/systemmind/workflow-drafts
+
+====================================================
+
+CREATE DATABASE TABLES
+
+systemmind_workflow_drafts
+
+Fields:
+
+id
+workspace_id
+title
+description
+workflow_type
+status
+nodes_json
+edges_json
+variables_json
+tools_json
+required_integrations_json
+missing_capabilities_json
+validation_results_json
+created_by
+created_at
+updated_at
+
+Statuses:
+
+draft
+needs_review
+approved
+sent_to_builder
+rejected
+archived
+
+====================================================
+
+BUILDER INTEGRATION
+
+Add Builder action:
+
+Import SystemMind Draft
+
+This should import:
+
+nodes_json
+edges_json
+variables_json
+tools_json
+
+into the existing Builder canvas.
+
+Do not overwrite current canvas without confirmation.
+
+====================================================
+
+SUPPORTED WORKFLOW TYPES
+
+Receptionist
+Lead Qualification
+Rebooking
+Appointment Booking
+Callback Scheduling
+Document Collection
+Call Transfer
+WhatsApp Follow-up
+CRM Update
+Post-call Summary
+Client Intake
+Complaint Handling
+Sales Enquiry
+Custom Workflow
+
+====================================================
+
+REBOOKING WORKFLOW TEMPLATE
+
+SystemMind should support rebooking workflows.
+
+Required flow:
+
+1. Detect callback or rebooking intent.
+2. Ask for preferred date.
+3. Ask for preferred time.
+4. Extract date/time variables.
+5. Confirm date/time back to caller.
+6. Check calendar availability if connected.
+7. If available, create booking or callback task.
+8. If unavailable, offer alternatives.
+9. Update lead/contact status.
+10. Add CRM note.
+11. Trigger follow-up message.
+12. End call politely or return to main flow.
+
+Required variables:
+
+customer_name
+phone_number
+preferred_date
+preferred_time
+timezone
+callback_reason
+booking_status
+calendar_event_id
+crm_record_id
+
+Required tools:
+
+check_availability
+create_booking_or_callback
+update_lead_status
+create_crm_note
+send_confirmation_message
+
+====================================================
+
+MISSING CAPABILITY DETECTION
+
+If a required tool does not exist, SystemMind must output:
+
+Missing Tool:
+create_booking_or_callback
+
+Suggested Fix:
+Create generic callback scheduling tool using existing calendar and CRM services.
+
+Risk:
+Medium
+
+Approval Required:
+Yes
+
+====================================================
+
+APPROVAL RULES
+
+SystemMind may create draft workflows.
+
+SystemMind may not:
+
+Deploy agents
+Modify live agents
+Change phone routing
+Start outbound campaigns
+Change production webhooks
+
+without HiveMind approval.
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should be able to say:
+
+"SystemMind created a rebooking workflow draft. It includes 12 nodes, 5 variables and 4 tools. Two capabilities need approval before deployment."
+
+Actions:
+
+View Draft
+Send To Builder
+Approve
+Reject
+
+====================================================
+
+VALIDATION
+
+Before sending to Builder, validate:
+
+Start node exists
+End node exists
+All nodes connected
+All variables defined
+All tool parameters mapped
+No broken handles
+No missing required integrations
+No unsupported node types
+
+====================================================
+
+SUCCESS CRITERIA
+
+User can describe a workflow in plain English.
+
+SystemMind converts it into a Builder-compatible draft.
+
+Draft appears in Builder.
+
+User can test and edit before deployment.
+
+SystemMind identifies missing tools or integrations.
+
+HiveMind controls approval.
+
+No live agent is modified automatically.
+
+Generate implementation plan first.
+
+Then implement safely.

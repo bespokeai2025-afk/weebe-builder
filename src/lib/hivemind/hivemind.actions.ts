@@ -15,7 +15,8 @@ export type ActionType     =
   | "growthmind_video_campaign"
   | "growthmind_growth_campaign"
   | "register_resend_webhook"
-  | "sync_ad_stats";
+  | "sync_ad_stats"
+  | "send_workflow_draft_to_builder";
 
 export interface HiveMindAction {
   id:             string;
@@ -159,6 +160,16 @@ async function executeAction(sb: any, workspaceId: string, action: HiveMindActio
       const failed = results.filter((r: any) => !r.ok).length;
       const totalSpend = results.reduce((s: number, r: any) => s + (r.spend ?? 0), 0);
       return { synced, failed, totalSpend, results };
+    }
+
+    case "send_workflow_draft_to_builder": {
+      const draftId = String(p.draft_id ?? "");
+      if (!draftId) throw new Error("draft_id required");
+      const { updateWorkflowDraftStatusServer } = await import(
+        "@/lib/systemmind/systemmind-workflow-generator.server"
+      );
+      await updateWorkflowDraftStatusServer(workspaceId, draftId, "sent_to_builder");
+      return { draft_id: draftId, status: "sent_to_builder" };
     }
 
     default:

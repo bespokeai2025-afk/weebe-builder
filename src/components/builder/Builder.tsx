@@ -78,6 +78,7 @@ import { NodeEditorDialog } from "./NodeEditorDialog";
 import { ExportJsonDialog } from "./ExportJsonDialog";
 import { ImportJsonDialog } from "./ImportJsonDialog";
 import { ImportPDFDialog } from "./ImportPDFDialog";
+import { ImportSystemMindDraftDialog } from "./ImportSystemMindDraftDialog";
 import { RetellDeployDialog, type TxEntry, type CallEndMeta } from "./RetellDeployDialog";
 import { VoiceCopilotButton } from "./VoiceCopilot";
 import { PlatformGuideDrawer } from "./PlatformGuideDrawer";
@@ -650,6 +651,7 @@ export function Builder({
   const [guideOpen, setGuideOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importPdfOpen, setImportPdfOpen] = useState(false);
+  const [importSMDraftOpen, setImportSMDraftOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
   const setNumericSetting = (key: keyof BuilderSettings, value: string, fallback: number) => {
@@ -832,6 +834,9 @@ export function Builder({
                     <FileUp className="mr-2 h-3.5 w-3.5" /> Upload Script (PDF)
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onSelect={() => setImportSMDraftOpen(true)}>
+                  <GitBranch className="mr-2 h-3.5 w-3.5 text-sky-400" /> Import SystemMind Draft
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   Export
@@ -877,6 +882,7 @@ export function Builder({
           <ImportJsonDialog open={importOpen} onOpenChange={setImportOpen} hideTrigger />
           <ImportPDFDialog open={importPdfOpen} onOpenChange={setImportPdfOpen} />
           <ExportJsonDialog open={exportOpen} onOpenChange={setExportOpen} hideTrigger />
+          <ImportSystemMindDraftDialog open={importSMDraftOpen} onOpenChange={setImportSMDraftOpen} />
 
           {/* Engine-switch confirmation dialog */}
           <AlertDialog open={pendingEngine !== null} onOpenChange={(open) => { if (!open) setPendingEngine(null); }}>

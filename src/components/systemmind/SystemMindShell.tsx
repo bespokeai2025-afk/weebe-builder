@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield,
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
-  CheckSquare, FileText, Layers, MessageSquare, Settings2,
+  CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,10 +25,12 @@ const NAV_GROUPS: Array<{ title?: string; items: NavItem[] }> = [
   {
     title: "Improve",
     items: [
-      { label: "Recommendations", href: "/systemmind/recommendations",  icon: Lightbulb     },
-      { label: "Fix Plans",       href: "/systemmind/fix-plans",        icon: Wrench        },
-      { label: "Workflows",       href: "/systemmind/workflows",        icon: GitBranch     },
-      { label: "Playbooks",       href: "/systemmind/playbooks",        icon: Shield        },
+      { label: "Recommendations",     href: "/systemmind/recommendations",     icon: Lightbulb  },
+      { label: "Fix Plans",           href: "/systemmind/fix-plans",           icon: Wrench     },
+      { label: "Workflows",           href: "/systemmind/workflows",           icon: GitBranch  },
+      { label: "Workflow Generator",  href: "/systemmind/workflow-generator",  icon: Wand2      },
+      { label: "Workflow Drafts",     href: "/systemmind/workflow-drafts",     icon: Layers     },
+      { label: "Playbooks",           href: "/systemmind/playbooks",           icon: Shield     },
     ],
   },
   {

@@ -70,6 +70,8 @@ import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
 import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admin/test-retell-webhook'
 import { Route as AuthenticatedSystemmindWorkflowsRouteImport } from './routes/_authenticated/systemmind.workflows'
+import { Route as AuthenticatedSystemmindWorkflowGeneratorRouteImport } from './routes/_authenticated/systemmind.workflow-generator'
+import { Route as AuthenticatedSystemmindWorkflowDraftsRouteImport } from './routes/_authenticated/systemmind.workflow-drafts'
 import { Route as AuthenticatedSystemmindTasksRouteImport } from './routes/_authenticated/systemmind.tasks'
 import { Route as AuthenticatedSystemmindSettingsRouteImport } from './routes/_authenticated/systemmind.settings'
 import { Route as AuthenticatedSystemmindReportsRouteImport } from './routes/_authenticated/systemmind.reports'
@@ -500,6 +502,18 @@ const AuthenticatedSystemmindWorkflowsRoute =
   AuthenticatedSystemmindWorkflowsRouteImport.update({
     id: '/workflows',
     path: '/workflows',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindWorkflowGeneratorRoute =
+  AuthenticatedSystemmindWorkflowGeneratorRouteImport.update({
+    id: '/workflow-generator',
+    path: '/workflow-generator',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindWorkflowDraftsRoute =
+  AuthenticatedSystemmindWorkflowDraftsRouteImport.update({
+    id: '/workflow-drafts',
+    path: '/workflow-drafts',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindTasksRoute =
@@ -1239,6 +1253,8 @@ export interface FileRoutesByFullPath {
   '/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
+  '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
+  '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -1404,6 +1420,8 @@ export interface FileRoutesByTo {
   '/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
+  '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
+  '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -1576,6 +1594,8 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/reports': typeof AuthenticatedSystemmindReportsRoute
   '/_authenticated/systemmind/settings': typeof AuthenticatedSystemmindSettingsRoute
   '/_authenticated/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
+  '/_authenticated/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
+  '/_authenticated/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/_authenticated/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -1748,6 +1768,8 @@ export interface FileRouteTypes {
     | '/systemmind/reports'
     | '/systemmind/settings'
     | '/systemmind/tasks'
+    | '/systemmind/workflow-drafts'
+    | '/systemmind/workflow-generator'
     | '/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -1913,6 +1935,8 @@ export interface FileRouteTypes {
     | '/systemmind/reports'
     | '/systemmind/settings'
     | '/systemmind/tasks'
+    | '/systemmind/workflow-drafts'
+    | '/systemmind/workflow-generator'
     | '/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -2084,6 +2108,8 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/reports'
     | '/_authenticated/systemmind/settings'
     | '/_authenticated/systemmind/tasks'
+    | '/_authenticated/systemmind/workflow-drafts'
+    | '/_authenticated/systemmind/workflow-generator'
     | '/_authenticated/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -2646,6 +2672,20 @@ declare module '@tanstack/react-router' {
       path: '/workflows'
       fullPath: '/systemmind/workflows'
       preLoaderRoute: typeof AuthenticatedSystemmindWorkflowsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/workflow-generator': {
+      id: '/_authenticated/systemmind/workflow-generator'
+      path: '/workflow-generator'
+      fullPath: '/systemmind/workflow-generator'
+      preLoaderRoute: typeof AuthenticatedSystemmindWorkflowGeneratorRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/workflow-drafts': {
+      id: '/_authenticated/systemmind/workflow-drafts'
+      path: '/workflow-drafts'
+      fullPath: '/systemmind/workflow-drafts'
+      preLoaderRoute: typeof AuthenticatedSystemmindWorkflowDraftsRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/tasks': {
@@ -3604,6 +3644,8 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindReportsRoute: typeof AuthenticatedSystemmindReportsRoute
   AuthenticatedSystemmindSettingsRoute: typeof AuthenticatedSystemmindSettingsRoute
   AuthenticatedSystemmindTasksRoute: typeof AuthenticatedSystemmindTasksRoute
+  AuthenticatedSystemmindWorkflowDraftsRoute: typeof AuthenticatedSystemmindWorkflowDraftsRoute
+  AuthenticatedSystemmindWorkflowGeneratorRoute: typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   AuthenticatedSystemmindWorkflowsRoute: typeof AuthenticatedSystemmindWorkflowsRoute
   AuthenticatedSystemmindIndexRoute: typeof AuthenticatedSystemmindIndexRoute
 }
@@ -3627,6 +3669,10 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
     AuthenticatedSystemmindReportsRoute: AuthenticatedSystemmindReportsRoute,
     AuthenticatedSystemmindSettingsRoute: AuthenticatedSystemmindSettingsRoute,
     AuthenticatedSystemmindTasksRoute: AuthenticatedSystemmindTasksRoute,
+    AuthenticatedSystemmindWorkflowDraftsRoute:
+      AuthenticatedSystemmindWorkflowDraftsRoute,
+    AuthenticatedSystemmindWorkflowGeneratorRoute:
+      AuthenticatedSystemmindWorkflowGeneratorRoute,
     AuthenticatedSystemmindWorkflowsRoute:
       AuthenticatedSystemmindWorkflowsRoute,
     AuthenticatedSystemmindIndexRoute: AuthenticatedSystemmindIndexRoute,
