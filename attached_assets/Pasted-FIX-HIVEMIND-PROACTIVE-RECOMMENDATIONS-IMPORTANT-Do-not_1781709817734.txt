@@ -1,0 +1,384 @@
+FIX HIVEMIND PROACTIVE RECOMMENDATIONS
+
+IMPORTANT
+
+Do not rebuild HiveMind.
+
+Do not rebuild GrowthMind.
+
+Do not break existing HiveMind chat, briefing, tasks, recommendations, actions, GrowthMind, SystemMind, Builder, Smart Dash, Campaign Factory, Content Studio, Video Studio, WhatsApp or HexMail.
+
+Fix the proactive recommendation behaviour only.
+
+OBJECTIVE
+
+HiveMind is not suggesting actions to the user.
+
+HiveMind should proactively recommend what to do next, even when services are not connected yet.
+
+Currently, it appears HiveMind may only respond when asked or may return nothing when data is missing.
+
+Target behaviour:
+
+HiveMind should always generate useful next-step recommendations based on the current workspace state.
+
+====================================================
+
+EXPECTED BEHAVIOUR
+
+HiveMind should recommend actions in three situations:
+
+1. No setup / empty workspace
+2. Partial setup
+3. Fully connected active workspace
+
+====================================================
+
+CASE 1 — EMPTY OR NEW WORKSPACE
+
+If Business DNA is incomplete:
+
+Recommend:
+
+Complete Business DNA
+
+Upload knowledge base
+
+Choose onboarding path
+
+Create first AI agent
+
+Connect calendar if using Receptionist
+
+Connect marketing platforms if using GrowthMind
+
+Create first campaign draft
+
+Show these as setup recommendations.
+
+Do not return empty state.
+
+====================================================
+
+CASE 2 — PARTIAL SETUP
+
+If Business DNA exists but integrations are missing:
+
+Recommend:
+
+Connect Google Analytics
+
+Connect Search Console
+
+Connect Meta Ads
+
+Connect Google Ads
+
+Connect WhatsApp
+
+Connect Email
+
+Connect Calendar
+
+Connect CRM or choose WEBEE Smart Dash
+
+Create first campaign
+
+Create first receptionist agent
+
+====================================================
+
+CASE 3 — ACTIVE WORKSPACE
+
+If data exists:
+
+Recommend based on:
+
+Calls
+
+Leads
+
+Bookings
+
+Pipeline
+
+Campaigns
+
+WhatsApp
+
+HexMail
+
+Ads
+
+Analytics
+
+Costs
+
+Provider health
+
+====================================================
+
+CHECK HIVEMIND MODE
+
+Audit:
+
+workspace_settings.hivemind_mode
+
+Modes:
+
+observe
+
+recommend
+
+assistant
+
+operator
+
+If mode = observe:
+
+HiveMind may not be showing recommendations.
+
+Add UI explanation:
+
+"Observe mode monitors only. Switch to Recommend mode to receive proactive recommendations."
+
+Provide button:
+
+Enable Recommendations
+
+====================================================
+
+RECOMMENDATION ENGINE
+
+Audit and fix:
+
+hivemind.recommendations.ts
+
+hivemind.tasks.ts
+
+hivemind.bi.ts
+
+hivemind.chat.tsx
+
+hivemind.index.tsx
+
+executive-bridge.server.ts
+
+GrowthMind executive bridge
+
+Ensure recommendations are generated and surfaced.
+
+====================================================
+
+GROWTHMIND HANDOFF
+
+HiveMind should consume:
+
+GrowthMind recommendations
+
+GrowthMind opportunities
+
+GrowthMind campaign proposals
+
+GrowthMind strategy suggestions
+
+GrowthMind setup gaps
+
+If GrowthMind has no campaign data:
+
+It should still recommend setup actions.
+
+====================================================
+
+SYSTEMMIND HANDOFF
+
+HiveMind should consume:
+
+SystemMind provider health
+
+Missing credentials
+
+Broken integrations
+
+Webhook issues
+
+Production readiness gaps
+
+If providers are disconnected:
+
+HiveMind should say:
+
+"SystemMind has detected missing provider connections."
+
+====================================================
+
+ACCOUNTSMIND HANDOFF
+
+If AccountsMind exists:
+
+HiveMind should consume:
+
+Cost warnings
+
+Margin risks
+
+Usage warnings
+
+Missing pricing data
+
+If no cost data exists:
+
+Recommend setting client monthly charges and cost rates.
+
+====================================================
+
+UI REQUIREMENTS
+
+On HiveMind Overview:
+
+Add:
+
+Recommended Next Actions
+
+Cards should show:
+
+Title
+
+Reason
+
+Impact
+
+Required effort
+
+Source:
+
+HiveMind
+
+GrowthMind
+
+SystemMind
+
+AccountsMind
+
+Status:
+
+new
+
+in_progress
+
+completed
+
+dismissed
+
+====================================================
+
+DAILY BRIEFING FALLBACK
+
+If workspace has no connected services:
+
+Daily briefing should not say nothing.
+
+It should say:
+
+"Your workspace is not fully connected yet. Here are the highest-priority setup steps."
+
+====================================================
+
+CHAT INTENT ROUTING
+
+If user asks:
+
+"What should I do next?"
+
+"How do I get more customers?"
+
+"What needs fixing?"
+
+"What should I set up?"
+
+HiveMind should call the recommendation generator instead of replying generically.
+
+====================================================
+
+DATA GAP RECOMMENDATIONS
+
+If HiveMind cannot generate a data-driven recommendation because data is missing:
+
+It must generate a data-gap recommendation.
+
+Example:
+
+"I cannot analyse ad performance yet because Meta Ads is not connected. Recommended action: connect Meta Ads."
+
+====================================================
+
+NOTIFICATIONS
+
+Create dashboard notifications when:
+
+New recommendation generated
+
+GrowthMind campaign proposal ready
+
+SystemMind issue found
+
+Provider disconnected
+
+Business DNA incomplete
+
+First campaign not launched
+
+====================================================
+
+VALIDATION TESTS
+
+Test these scenarios:
+
+1. Brand new workspace, no data.
+   Expected:
+   Setup recommendations appear.
+
+2. Business DNA complete, no integrations.
+   Expected:
+   Connection recommendations appear.
+
+3. GrowthMind connected, no campaigns.
+   Expected:
+   Create campaign recommendation appears.
+
+4. Calendar missing but Receptionist selected.
+   Expected:
+   Connect calendar recommendation appears.
+
+5. Meta Ads disconnected but user wants marketing.
+   Expected:
+   Connect Meta Ads recommendation appears.
+
+6. User asks HiveMind chat:
+   "How do I get more customers?"
+   Expected:
+   HiveMind triggers GrowthMind strategy/recommendation generation.
+
+7. HiveMind mode = observe.
+   Expected:
+   Show explanation and enable recommendations button.
+
+====================================================
+
+SUCCESS CRITERIA
+
+HiveMind always suggests useful next steps.
+
+Missing data creates setup recommendations, not silence.
+
+GrowthMind recommendations appear in HiveMind.
+
+SystemMind issues appear in HiveMind.
+
+HiveMind chat can trigger the recommendation engine.
+
+Users see clear recommended actions immediately after signup.
+
+Generate implementation plan first.
+
+Then implement the smallest safe fix.

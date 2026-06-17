@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect, useRef } from "react";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -8,6 +8,7 @@ import {
   CheckCircle2, Loader2, RefreshCw, Clock,
   ChevronDown, Settings2, ArrowRight, Timer, Bot,
   Zap, MailOpen, XCircle, EyeOff, Brain, Bell, X, Newspaper,
+  Lightbulb, Eye,
 } from "lucide-react";
 import { HiveMindProviderHealth } from "@/components/hivemind/HiveMindProviderHealth";
 import { Link } from "@tanstack/react-router";
@@ -21,6 +22,7 @@ import {
   runHiveMindScan, getHiveMindTasksAndEvents, markHiveMindEventsRead,
   type HiveMindEvent,
 } from "@/lib/hivemind/hivemind.tasks";
+import { setHiveMindMode } from "@/lib/hivemind/hivemind.actions";
 
 export const Route = createFileRoute("/_authenticated/hivemind/")({
   head: () => ({ meta: [{ title: "HiveMind — Webee" }] }),
@@ -268,12 +270,19 @@ function OverviewEventStrip({ events, onMarkRead }: { events: HiveMindEvent[]; o
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 function HiveMindOverview() {
-  const mode       = useHiveMindMode();
-  const briefingFn = useServerFn(getHiveMindBriefing);
-  const platformFn = useServerFn(getHiveMindPlatformData);
-  const scanFn     = useServerFn(runHiveMindScan);
-  const getTasksFn = useServerFn(getHiveMindTasksAndEvents);
-  const markReadFn = useServerFn(markHiveMindEventsRead);
+  const mode          = useHiveMindMode();
+  const qc            = useQueryClient();
+  const briefingFn    = useServerFn(getHiveMindBriefing);
+  const platformFn    = useServerFn(getHiveMindPlatformData);
+  const scanFn        = useServerFn(runHiveMindScan);
+  const getTasksFn    = useServerFn(getHiveMindTasksAndEvents);
+  const markReadFn    = useServerFn(markHiveMindEventsRead);
+  const setModeFn     = useServerFn(setHiveMindMode);
+
+  async function enableRecommendations() {
+    await setModeFn({ data: { mode: "recommend" } });
+    qc.setQueryData(["hivemind-mode"], { mode: "recommend" });
+  }
 
   const [prefs, setPrefs]       = useState<BriefingPrefs>(DEFAULT_PREFS);
   const [staleDays, setStaleDays] = useState(7);
@@ -453,8 +462,85 @@ function HiveMindOverview() {
           </div>
         </Link>
 
+        {/* OBSERVE MODE BANNER */}
+        {mode === "observe" && (
+          <div className="rounded-xl border border-slate-500/20 bg-slate-500/[0.04] px-4 py-3 flex items-start gap-3">
+            <Eye className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-slate-300">Observe mode — monitoring only</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                HiveMind is watching your platform but is not surfacing proactive recommendations.
+                Switch to <strong>Recommend</strong> or <strong>Assistant</strong> mode to see next-step suggestions.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs shrink-0 gap-1"
+              onClick={enableRecommendations}
+            >
+              <Lightbulb className="h-3 w-3" /> Enable Recommendations
+            </Button>
+          </div>
+        )}
+
         {/* MARKETING — CMO ADVISORY */}
         <MarketingExecutiveSummary />
+
+        {/* RECOMMENDED NEXT ACTIONS — always visible when recs exist and not in observe mode */}
+        {mode !== "observe" && sysRecs.length > 0 && (
+          <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.05]">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-3.5 w-3.5 text-violet-400" />
+                <span className="text-xs font-semibold">Recommended Next Actions</span>
+                <Count n={sysRecs.length} color="violet" />
+              </div>
+              <Link
+                to="/hivemind/recommendations"
+                className="text-[11px] text-violet-400/60 hover:text-violet-300 transition-colors"
+              >
+                View all →
+              </Link>
+            </div>
+            <div className="divide-y divide-white/[0.04]">
+              {sysRecs.slice(0, 5).map(r => (
+                <div key={r.id} className="flex items-start gap-3 px-4 py-3">
+                  <div className={cn(
+                    "h-2 w-2 rounded-full shrink-0 mt-1.5",
+                    r.priority === "critical" ? "bg-red-400" :
+                    r.priority === "high"     ? "bg-amber-400" :
+                    r.priority === "medium"   ? "bg-blue-400" : "bg-slate-400",
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold leading-snug">{r.problem}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{r.fix}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[9px] text-muted-foreground bg-white/[0.04] rounded px-1.5 py-0.5 hidden sm:block">
+                      {r.category}
+                    </span>
+                    {r.action && (
+                      <Button asChild size="sm" variant="outline" className="h-6 px-2 text-[11px]">
+                        <Link to={r.action.href}>{r.action.label}</Link>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {sysRecs.length > 5 && (
+              <div className="px-4 py-2 border-t border-white/[0.04]">
+                <Link
+                  to="/hivemind/recommendations"
+                  className="text-[11px] text-violet-400/60 hover:text-violet-300 transition-colors"
+                >
+                  + {sysRecs.length - 5} more recommendation{sysRecs.length - 5 !== 1 ? "s" : ""} →
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* CONFIGURE PANEL */}
         <div className="rounded-xl border border-white/[0.07] bg-card/50 overflow-hidden">
@@ -831,7 +917,19 @@ function HiveMindOverview() {
                 )}
 
                 {businessCount === 0 && !briefingQ.isLoading && (
-                  <AllClear text={`Nothing new across leads, bookings or pipeline ${sinceLabel.toLowerCase()}.`} />
+                  mode !== "observe" && sysRecs.length > 0 ? (
+                    <div className="rounded-xl border border-dashed border-white/[0.06] px-4 py-5 text-center space-y-1.5">
+                      <CheckCircle2 className="h-6 w-6 text-emerald-400/50 mx-auto" />
+                      <p className="text-sm font-semibold">Nothing new in the pipeline {sinceLabel.toLowerCase()}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sysRecs.length} recommended action{sysRecs.length !== 1 ? "s" : ""}{" "}
+                        {sysRecs.length === 1 ? "is" : "are"} waiting above — check{" "}
+                        <strong>Recommended Next Actions</strong> to get started.
+                      </p>
+                    </div>
+                  ) : (
+                    <AllClear text={`Nothing new across leads, bookings or pipeline ${sinceLabel.toLowerCase()}.`} />
+                  )
                 )}
               </div>
             )}

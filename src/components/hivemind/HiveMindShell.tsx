@@ -180,7 +180,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
 
           {/* Nav items */}
           <nav className="flex flex-col gap-0.5 px-2 flex-1">
-            {nav.map(({ label, href, icon: Icon, highlight, tasks, actions }) => {
+            {nav.map(({ label, href, icon: Icon, highlight, tasks, actions, briefings }) => {
               const active = href === "/hivemind" ? path === "/hivemind" : path.startsWith(href);
               return (
                 <Link

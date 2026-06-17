@@ -21,6 +21,10 @@ export function generateRecommendations(data: any): Recommendation[] {
   } = data;
 
   // ── SETUP ──
+
+  // Brand-new workspace: no agents, no leads, no calls → provide a full onboarding path
+  const isNewWorkspace = agents.length === 0 && (leads?.total ?? 0) === 0 && (calls?.total ?? 0) === 0;
+
   if (agents.length === 0) {
     recs.push({
       id: "no-agents", category: "Setup", priority: "critical",
@@ -31,12 +35,23 @@ export function generateRecommendations(data: any): Recommendation[] {
     });
   }
 
+  // Business DNA not configured (settings.businessName is a proxy for DNA completion)
+  if (isNewWorkspace || !settings?.businessName) {
+    recs.push({
+      id: "no-business-dna", category: "Setup", priority: "critical",
+      problem: "Business DNA is not configured",
+      impact: "HiveMind cannot personalise recommendations, generate strategies, or brief your AI agents without knowing your business profile.",
+      fix: "Complete your Business DNA in HiveMind → Business DNA to unlock personalised insights.",
+      action: { label: "Business DNA", href: "/hivemind/business-dna" },
+    });
+  }
+
   if (!systemHealth.retell && agents.length > 0) {
     recs.push({
       id: "no-retell", category: "Setup", priority: "critical",
-      problem: "Retell workspace API key is not configured",
+      problem: "Voice platform API key is not configured",
       impact: "No agent can be deployed or make any calls. The entire voice layer is non-functional.",
-      fix: "Add your Retell workspace key in Settings → Integrations.",
+      fix: "Add your OmniVoice workspace key in Settings → Integrations.",
       action: { label: "Settings → Integrations", href: "/settings/integrations" },
     });
   }
@@ -44,10 +59,34 @@ export function generateRecommendations(data: any): Recommendation[] {
   if (!systemHealth.calcom) {
     recs.push({
       id: "no-calcom", category: "Setup", priority: "high",
-      problem: "Cal.com is not connected",
+      problem: "Calendar (Cal.com) is not connected",
       impact: "Agents cannot auto-book appointments. Every booking must be done manually, losing conversion rate.",
       fix: "Add your Cal.com API key in Settings → Calendar.",
       action: { label: "Settings → Calendar", href: "/settings/calendar" },
+    });
+  }
+
+  // WhatsApp not connected at all (not just idle)
+  if (!systemHealth.whatsapp) {
+    recs.push({
+      id: "no-whatsapp", category: "Setup", priority: "medium",
+      problem: "WhatsApp is not connected",
+      impact: "You cannot reach leads via WhatsApp. Many prospects prefer messaging over voice calls.",
+      fix: "Connect WhatsApp in Settings → Integrations → WhatsApp.",
+      action: { label: "Connect WhatsApp", href: "/settings/integrations" },
+    });
+  }
+
+  // No marketing integrations — recommend GrowthMind setup
+  const hasAnyMarketingIntegration = systemHealth?.googleAnalytics || systemHealth?.metaAds ||
+    systemHealth?.googleAds || systemHealth?.whatsapp || systemHealth?.email;
+  if (!hasAnyMarketingIntegration && agents.length === 0) {
+    recs.push({
+      id: "no-marketing-setup", category: "Setup", priority: "medium",
+      problem: "No marketing channels are connected",
+      impact: "GrowthMind cannot analyse ad performance, web traffic, or campaign ROI without connected data sources.",
+      fix: "Connect Google Analytics, Meta Ads, or Google Ads in Settings → Integrations, then open GrowthMind.",
+      action: { label: "Open GrowthMind", href: "/growthmind" },
     });
   }
 
