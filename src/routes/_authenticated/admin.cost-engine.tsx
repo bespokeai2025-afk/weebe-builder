@@ -105,7 +105,7 @@ const SIDEBAR_SECTIONS = [
     title: "ENGINES",
     items: [
       { id: "hyperstream",     label: "HyperStream",       icon: Zap },
-      { id: "retell",          label: "Retell",            icon: Phone },
+      { id: "retell",          label: "OmniVoice",         icon: Phone },
     ],
   },
   {
@@ -276,8 +276,8 @@ function OverviewTab({ data, analytics }: { data: CostEngineData; analytics: Cos
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard label="HyperStream Cost/min" value={fmtCurrency(hsTotal)} sub="Calculated from components" />
         <StatCard label="HyperStream Selling/min" value={fmtCurrency(hsSelling)} sub={`${fmtPct(hsMargin)} margin`} accent="text-emerald-600" />
-        <StatCard label="Retell Cost/min" value={fmtCurrency(retellTotal)} sub="From Retell settings" />
-        <StatCard label="Retell Selling/min" value={fmtCurrency(rtSelling)} sub={`${fmtPct(rtMargin)} margin`} accent="text-emerald-600" />
+        <StatCard label="OmniVoice Cost/min" value={fmtCurrency(retellTotal)} sub="From OmniVoice settings" />
+        <StatCard label="OmniVoice Selling/min" value={fmtCurrency(rtSelling)} sub={`${fmtPct(rtMargin)} margin`} accent="text-emerald-600" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -633,9 +633,9 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
         <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveInfrastructureCost(infra), "Infrastructure")}>Save</Button>
       </div>
 
-      {/* Retell */}
+      {/* OmniVoice */}
       <div className="rounded-lg border p-4">
-        <SectionHeader icon={Zap} title="Retell Costs" subtitle="Retell-specific billing components" />
+        <SectionHeader icon={Zap} title="OmniVoice Costs" subtitle="OmniVoice-specific billing components" />
         <div className="grid grid-cols-2 gap-2">
           <NumInput label="Subscription /mo" value={retell.subscription_cost_monthly} onChange={v => setRetell(f => ({ ...f, subscription_cost_monthly: v }))} step="0.01" />
           <NumInput label="Per minute" value={retell.minute_cost} onChange={v => setRetell(f => ({ ...f, minute_cost: v }))} />
@@ -645,7 +645,7 @@ function FixedCostsTab({ data, onSaved }: { data: CostEngineData; onSaved: () =>
           <div><Label className="text-xs">Notes</Label><Input className="h-7 text-xs" value={retell.notes} onChange={e => setRetell(f => ({ ...f, notes: e.target.value }))} /></div>
         </div>
         <div className="mt-2 text-xs text-muted-foreground">Total cost /min: <span className="font-medium text-foreground">{fmtCurrency(n(retell.minute_cost) + n(retell.voice_cost_per_min))}</span></div>
-        <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveRetellCost(retell), "Retell")}>Save</Button>
+        <Button size="sm" className="mt-2 h-7 text-xs" disabled={busy} onClick={() => act(() => saveRetellCost(retell), "OmniVoice")}>Save</Button>
       </div>
     </div>
   );
@@ -714,27 +714,27 @@ function HyperstreamTab({ data }: { data: CostEngineData }) {
         </div>
 
         <div className="rounded-lg border p-4">
-          <p className="text-sm font-semibold mb-3">Retell Comparison</p>
-          <Row label="Retell Cost / min" value={fmtCurrency(retellTotal)} />
+          <p className="text-sm font-semibold mb-3">OmniVoice Comparison</p>
+          <Row label="OmniVoice Cost / min" value={fmtCurrency(retellTotal)} />
           <Row label="Selling Price / min" value={fmtCurrency(rtMk.selling)} />
           <Row label="Profit / min" value={fmtCurrency(rtMk.profit)} />
           <Row label="Margin" value={fmtPct(rtMk.margin)} />
           <div className="mt-4 p-3 rounded bg-muted/40 text-xs space-y-2">
-            <p className="font-medium">Direct vs Retell Bundle — Cost Comparison</p>
+            <p className="font-medium">Direct vs OmniVoice Bundle — Cost Comparison</p>
             <p className="text-muted-foreground">
               {total < retellTotal
-                ? <>Your direct cost is <span className="text-emerald-600 font-medium">{fmtCurrency(Math.abs(total - retellTotal))}/min lower</span> than the Retell bundle.</>
-                : <>Your direct cost is <span className="font-medium">{fmtCurrency(Math.abs(total - retellTotal))}/min higher</span> than the Retell bundle — typically offset by greater control, quality, and margins on high-volume plans.</>
+                ? <>Your direct cost is <span className="text-emerald-600 font-medium">{fmtCurrency(Math.abs(total - retellTotal))}/min lower</span> than the OmniVoice bundle.</>
+                : <>Your direct cost is <span className="font-medium">{fmtCurrency(Math.abs(total - retellTotal))}/min higher</span> than the OmniVoice bundle — typically offset by greater control, quality, and margins on high-volume plans.</>
               }
             </p>
             <p className="text-muted-foreground">
               Profit advantage:{" "}
               {hsMk.profit > rtMk.profit
                 ? <span className="text-emerald-600 font-medium">Direct yields {fmtCurrency(Math.abs(hsMk.profit - rtMk.profit))}/min more profit</span>
-                : <span className="font-medium">Retell bundle yields {fmtCurrency(Math.abs(hsMk.profit - rtMk.profit))}/min more profit at current markup</span>
+                : <span className="font-medium">OmniVoice bundle yields {fmtCurrency(Math.abs(hsMk.profit - rtMk.profit))}/min more profit at current markup</span>
               }
             </p>
-            <p className="text-muted-foreground/70 italic">Note: Retell's bundled rate includes LLM + voice. Adjust the Retell cost in Fixed Costs to match your actual contracted rate.</p>
+            <p className="text-muted-foreground/70 italic">Note: OmniVoice's bundled rate includes LLM + voice. Adjust the OmniVoice cost in Fixed Costs to match your actual contracted rate.</p>
           </div>
         </div>
       </div>
@@ -742,7 +742,7 @@ function HyperstreamTab({ data }: { data: CostEngineData }) {
   );
 }
 
-// ── Retell Calculator Tab ─────────────────────────────────────────────────────
+// ── OmniVoice Calculator Tab ──────────────────────────────────────────────────
 
 function RetellCalculatorTab({ data }: { data: CostEngineData }) {
   const realtimeLlm = data.llm.find(l => l.audio_input_cost > 0) ?? data.llm[0] ?? null;
@@ -799,12 +799,12 @@ function RetellCalculatorTab({ data }: { data: CostEngineData }) {
 
   return (
     <div className="space-y-6">
-      <SectionHeader icon={Zap} title="Retell Full Cost Calculator"
+      <SectionHeader icon={Zap} title="OmniVoice Full Cost Calculator"
         subtitle="All-in cost per minute: platform + LLM + voice + telephony + amortised fixed fees" />
 
       {noRetell && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700">
-          No Retell cost config found — add it under <strong>Fixed Costs → Retell</strong> to populate platform, subscription and number rental rates.
+          No OmniVoice cost config found — add it under <strong>Fixed Costs → OmniVoice</strong> to populate platform, subscription and number rental rates.
         </div>
       )}
 
@@ -814,7 +814,7 @@ function RetellCalculatorTab({ data }: { data: CostEngineData }) {
           value={llmId}
           onChange={setLlmId}
           opts={[
-            { id: "__bundled__", label: "— Retell bundled (no extra LLM cost)" },
+            { id: "__bundled__", label: "— OmniVoice bundled (no extra LLM cost)" },
             ...data.llm.map(l => ({ id: l.id, label: `${l.provider} — ${l.model}` })),
           ]}
         />
@@ -822,7 +822,7 @@ function RetellCalculatorTab({ data }: { data: CostEngineData }) {
           value={voiceId}
           onChange={setVoiceId}
           opts={[
-            { id: "__bundled__", label: "— Retell bundled voice (use Retell rate)" },
+            { id: "__bundled__", label: "— OmniVoice bundled voice (use OmniVoice rate)" },
             ...data.voice.map(v => ({ id: v.id, label: `${v.provider} — ${v.voice_name}` })),
           ]}
         />
@@ -830,7 +830,7 @@ function RetellCalculatorTab({ data }: { data: CostEngineData }) {
           value={telId}
           onChange={setTelId}
           opts={[
-            { id: "__bundled__", label: "— Retell transfer rate (use Retell config)" },
+            { id: "__bundled__", label: "— OmniVoice transfer rate (use OmniVoice config)" },
             ...data.telephony.map(t => ({ id: t.id, label: `${t.provider} — ${t.country}` })),
           ]}
         />
@@ -854,7 +854,7 @@ function RetellCalculatorTab({ data }: { data: CostEngineData }) {
         <div className="rounded-lg border p-4 space-y-0">
           <p className="text-sm font-semibold mb-3">Cost Breakdown / minute</p>
 
-          <Row label="Retell platform fee"
+          <Row label="OmniVoice platform fee"
             value={fmtCurrency(bd.platform)}
             sub={data.retell ? `$${n(data.retell.minute_cost).toFixed(4)}/min · ${pct(bd.platform)} of total` : "not configured"} />
 
@@ -866,11 +866,11 @@ function RetellCalculatorTab({ data }: { data: CostEngineData }) {
                   : `~150 tok/min · ${pct(bd.llm)} of total`)
               : "no additional LLM cost"} />
 
-          <Row label={selVoice ? `Voice — ${selVoice.voice_name}` : "Voice (Retell bundled)"}
+          <Row label={selVoice ? `Voice — ${selVoice.voice_name}` : "Voice (OmniVoice bundled)"}
             value={fmtCurrency(bd.voice)}
             sub={selVoice ? `$${n(selVoice.cost_per_minute).toFixed(4)}/min · ${pct(bd.voice)} of total` : data.retell ? `$${n(data.retell.voice_cost_per_min).toFixed(4)}/min` : "not configured"} />
 
-          <Row label={selTel ? `Telephony — ${selTel.provider} ${selTel.country}` : "Telephony (Retell transfer rate)"}
+          <Row label={selTel ? `Telephony — ${selTel.provider} ${selTel.country}` : "Telephony (OmniVoice transfer rate)"}
             value={fmtCurrency(bd.telephony)}
             sub={selTel
               ? `${direction} $${(direction === "inbound" ? n(selTel.inbound_cost_per_min) : n(selTel.outbound_cost_per_min)).toFixed(4)}/min · ${pct(bd.telephony)} of total`
@@ -912,18 +912,18 @@ function RetellCalculatorTab({ data }: { data: CostEngineData }) {
 
           <div className="rounded-lg border p-4">
             <p className="text-sm font-semibold mb-3">vs HyperStream (direct stack)</p>
-            <Row label="Retell all-in / min"     value={fmtCurrency(bd.total)} />
+            <Row label="OmniVoice all-in / min"   value={fmtCurrency(bd.total)} />
             <Row label="HyperStream / min"        value={fmtCurrency(hsTotal)} />
             <Row label="Difference"
               value={`${bd.total > hsTotal ? "+" : ""}${fmtCurrency(bd.total - hsTotal)}`}
-              sub={bd.total > hsTotal ? "Retell costs more" : "Retell costs less"} />
+              sub={bd.total > hsTotal ? "OmniVoice costs more" : "OmniVoice costs less"} />
             <div className="mt-3 pt-3 border-t text-xs text-muted-foreground space-y-1.5">
-              <p>Retell margin: <span className={mk.margin > 0 ? "text-emerald-600 font-medium" : "text-red-500 font-medium"}>{fmtPct(mk.margin)}</span></p>
+              <p>OmniVoice margin: <span className={mk.margin > 0 ? "text-emerald-600 font-medium" : "text-red-500 font-medium"}>{fmtPct(mk.margin)}</span></p>
               <p>HyperStream margin: <span className="text-emerald-600 font-medium">{fmtPct(hsMk.margin)}</span></p>
               <p className="italic pt-1 text-muted-foreground/70">
                 {bd.total <= hsTotal
-                  ? "Retell's bundle is competitive — good for rapid deployment without managing your own stack."
-                  : "Direct stack is cheaper at scale — Retell's value is in speed-to-market and reduced ops overhead."}
+                  ? "OmniVoice's bundle is competitive — good for rapid deployment without managing your own stack."
+                  : "Direct stack is cheaper at scale — OmniVoice's value is in speed-to-market and reduced ops overhead."}
               </p>
             </div>
           </div>
@@ -949,7 +949,7 @@ function RetellCalculatorTab({ data }: { data: CostEngineData }) {
                 </div>
               </div>
             ))}
-            {bd.total === 0 && <p className="text-xs text-muted-foreground">Configure Retell costs in Fixed Costs to see breakdown.</p>}
+            {bd.total === 0 && <p className="text-xs text-muted-foreground">Configure OmniVoice costs in Fixed Costs to see breakdown.</p>}
           </div>
         </div>
       </div>
@@ -1017,7 +1017,7 @@ function ProfitTab({ data, onSaved }: { data: CostEngineData; onSaved: () => voi
             <p>Margin: {fmtPct(hsPreview.margin)}</p>
           </div>
           <div className="rounded bg-muted/40 p-3 text-xs space-y-1">
-            <p className="font-medium mb-2">Retell Preview</p>
+            <p className="font-medium mb-2">OmniVoice Preview</p>
             <p>Cost: {fmtCurrency(calcRetellCostPerMin(data.retell))}/min</p>
             <p>Selling: <span className="text-emerald-600">{fmtCurrency(retellPreview.selling)}/min</span></p>
             <p>Profit: {fmtCurrency(retellPreview.profit)}/min</p>
