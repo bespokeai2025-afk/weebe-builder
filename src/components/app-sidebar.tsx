@@ -39,6 +39,7 @@ import {
   Globe,
   Package,
   ArrowRight,
+  ClipboardList,
 } from "lucide-react";
 import {
   DndContext,
@@ -670,6 +671,27 @@ export function AppSidebar() {
                         />
                         <span className="truncate group-data-[collapsible=icon]:hidden">
                           White Label
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="Change Requests"
+                      className={navButtonClasses(isActive("/admin/change-requests"))}
+                    >
+                      <Link to="/admin/change-requests" className="flex items-center gap-3">
+                        <ClipboardList
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/change-requests")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">
+                          Change Requests
                         </span>
                       </Link>
                     </SidebarMenuButton>

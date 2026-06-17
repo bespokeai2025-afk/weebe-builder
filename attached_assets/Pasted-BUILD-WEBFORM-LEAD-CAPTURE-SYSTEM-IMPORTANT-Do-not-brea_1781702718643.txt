@@ -1,0 +1,432 @@
+BUILD WEBFORM LEAD CAPTURE SYSTEM
+
+IMPORTANT
+
+Do not break existing Leads, Admin, CRM, Smart Dash, GrowthMind, HiveMind, Builder, WhatsApp, HexMail, Retell or provider integrations.
+
+Extend the current lead capture system safely.
+
+OBJECTIVE
+
+Create a webform lead capture system so leads from website forms can land directly inside WEBEE.
+
+There are two use cases:
+
+1. WEBEE's own website "Talk to us" form should create leads inside the WEBEE internal/admin workspace.
+
+2. Customer websites should be able to connect their own forms and send leads into their own WEBEE Leads section.
+
+====================================================
+
+PART 1 — WEBEE INTERNAL TALK TO US FORM
+
+When someone clicks:
+
+Talk to us
+
+on WEBEE website/app marketing pages:
+
+Show a webform.
+
+Fields:
+
+Name
+Email
+Phone
+Company Name
+Website
+Interested In
+Message
+Preferred Contact Method
+Source Page
+UTM Source
+UTM Campaign
+UTM Medium
+
+On submit:
+
+Create a lead in the WEBEE internal/admin workspace.
+
+Assign source_type:
+
+webee_website_form
+
+Assign source_detail:
+
+talk_to_us
+
+Assign lead_status:
+
+new
+
+Assign owner/email notification to:
+
+[admin@webespokeai.com](mailto:admin@webespokeai.com)
+
+Do not send this lead into the submitting user's workspace unless they are already a logged-in customer submitting from their own workspace.
+
+====================================================
+
+PART 2 — CUSTOMER WEBFORM CONNECTOR
+
+Create a section inside WEBEE:
+
+/settings/webforms
+
+or:
+
+/leads/webforms
+
+Purpose:
+
+Allow users to connect their own website forms to WEBEE.
+
+Users should be able to create:
+
+Webform Endpoint
+
+Each endpoint gets a unique URL like:
+
+https://webeebuilder.com/api/public/webforms/{form_token}
+
+The customer can paste this URL into:
+
+Website form
+WordPress
+Webflow
+Wix
+Framer
+GoHighLevel
+Zapier
+Make
+Custom website
+
+====================================================
+
+DATABASE
+
+Create:
+
+webform_sources
+
+Fields:
+
+id
+workspace_id
+name
+form_token
+status
+allowed_domains
+default_source_type
+default_source_detail
+field_mapping_json
+notify_email
+created_by
+created_at
+updated_at
+
+Create:
+
+webform_submissions
+
+Fields:
+
+id
+workspace_id
+webform_source_id
+lead_id
+source_type
+source_detail
+raw_payload
+mapped_payload
+utm_source
+utm_medium
+utm_campaign
+referrer
+ip_address
+user_agent
+status
+created_at
+
+====================================================
+
+LEADS TABLE EXTENSION
+
+If missing, add fields to leads:
+
+source_type
+source_detail
+source_page
+utm_source
+utm_medium
+utm_campaign
+referrer
+external_source_id
+
+Do not break existing leads.
+
+====================================================
+
+PUBLIC ENDPOINT
+
+Create:
+
+POST /api/public/webforms/:formToken
+
+Accept:
+
+JSON
+
+application/x-www-form-urlencoded
+
+multipart/form-data if simple fields only
+
+Validate:
+
+form token exists
+
+status = active
+
+allowed domain if configured
+
+====================================================
+
+FIELD MAPPING
+
+Allow users to map incoming fields.
+
+Example:
+
+Incoming field:
+full_name
+
+Maps to:
+lead.name
+
+Incoming field:
+mobile
+
+Maps to:
+lead.phone
+
+Incoming field:
+email_address
+
+Maps to:
+lead.email
+
+Incoming field:
+message
+
+Maps to:
+lead.notes
+
+Support default mappings:
+
+name
+full_name
+first_name + last_name
+email
+phone
+mobile
+company
+website
+message
+
+====================================================
+
+SOURCE TYPE
+
+Every lead must include source_type.
+
+Examples:
+
+website_form
+
+webee_website_form
+
+landing_page
+
+facebook_lead_form
+
+google_ads_lead_form
+
+tiktok_lead_form
+
+linkedin_lead_form
+
+manual_import
+
+api
+
+webhook
+
+zapier
+
+make
+
+custom_form
+
+Also store:
+
+source_detail
+
+Examples:
+
+talk_to_us
+
+contact_page
+
+pricing_page
+
+demo_request
+
+client_website_homepage
+
+====================================================
+
+LEAD CREATION LOGIC
+
+On valid submission:
+
+1. Map fields.
+2. Create or update lead by email/phone duplicate check.
+3. Store raw payload.
+4. Store mapped payload.
+5. Add entity note:
+   "Lead created from webform: {form name}"
+6. Trigger notification if configured.
+7. Optionally trigger GrowthMind/HiveMind event.
+
+====================================================
+
+NOTIFICATIONS
+
+For WEBEE internal Talk to Us:
+
+Notify:
+
+[admin@webespokeai.com](mailto:admin@webespokeai.com)
+
+For customer forms:
+
+Notify workspace-configured email.
+
+Also show in dashboard notification strip:
+
+"New webform lead received."
+
+====================================================
+
+UI FOR CUSTOMER WEBFORMS
+
+Add page:
+
+/leads/webforms
+
+Features:
+
+Create Webform Source
+View Endpoint URL
+Copy Endpoint URL
+Set Allowed Domains
+Set Source Type
+Set Notification Email
+Map Fields
+View Recent Submissions
+Test Form Submission
+
+Show simple instructions:
+
+"Paste this endpoint into your website form action or connect through Zapier/Make."
+
+====================================================
+
+WEBFORM EMBED OPTION
+
+Optional but useful:
+
+Generate embeddable HTML form snippet.
+
+Fields:
+
+Name
+Email
+Phone
+Message
+
+Snippet posts to the generated endpoint.
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should report:
+
+New webform leads
+Source performance
+High-performing pages
+Uncontacted webform leads
+
+Example:
+
+"5 new leads came from your pricing page this week. 3 have not been contacted."
+
+====================================================
+
+GROWTHMIND INTEGRATION
+
+GrowthMind should use source_type and UTM data to understand:
+
+Which campaigns generate leads
+Which pages convert
+Which sources perform best
+
+Use this data in:
+
+Campaign recommendations
+Channel intelligence
+Attribution engine
+Live optimisation
+
+====================================================
+
+SECURITY
+
+Do not expose workspace IDs in public form URLs.
+
+Use unguessable form_token.
+
+Rate-limit submissions.
+
+Spam protection:
+
+honeypot field
+
+optional turnstile/captcha later
+
+allowed domains
+
+Do not store passwords or sensitive payment fields.
+
+====================================================
+
+SUCCESS CRITERIA
+
+WEBEE Talk to Us form creates leads in WEBEE internal/admin workspace.
+
+Customer webforms create leads in the correct customer workspace.
+
+Every lead has source_type and source_detail.
+
+UTM data is captured.
+
+Users can create and manage webform endpoints.
+
+HiveMind and GrowthMind understand webform leads.
+
+Admin receives notifications for WEBEE website enquiries.
+
+Generate implementation plan first.
+
+Then implement safely.

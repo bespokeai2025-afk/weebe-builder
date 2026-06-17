@@ -87,6 +87,7 @@ import { PostCallAnalysis } from "./PostCallAnalysis";
 import { BookingConfigSection } from "./BookingConfigSection";
 import { LeadGenSection } from "./LeadGenSection";
 import { ClientQualificationSection } from "./ClientQualificationSection";
+import { CustomAgentPanel } from "./CustomAgentPanel";
 import type { BuilderSettings, NodeKind } from "@/lib/builder/types";
 import { cn } from "@/lib/utils";
 import { MODELS, HYPERSTREAM_MODELS } from "@/lib/builder/pricing";
@@ -1958,6 +1959,7 @@ export function Builder({
                     <SelectItem value="receptionist">Receptionist</SelectItem>
                     <SelectItem value="lead_generation">Lead Generation</SelectItem>
                     <SelectItem value="client_qualification">Client Qualification</SelectItem>
+                    <SelectItem value="custom">Custom</SelectItem>
                   </SelectContent>
                 </Select>
                 {settings.agentType === "lead_generation" && (
@@ -1966,11 +1968,23 @@ export function Builder({
                 {settings.agentType === "client_qualification" && (
                   <p className="text-[10px] text-blue-500 dark:text-blue-400">Client Qualification sections active ↓</p>
                 )}
+                {settings.agentType === "custom" && (
+                  <p className="text-[10px] text-emerald-500 dark:text-emerald-400">Custom workflow builder active ↓</p>
+                )}
               </CollapsibleContent>
             </Collapsible>
 
             {settings.agentType === "lead_generation" && <LeadGenSection />}
             {settings.agentType === "client_qualification" && <ClientQualificationSection />}
+            {settings.agentType === "custom" && (
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] px-2.5 pb-2.5 pt-2">
+                <p className="text-[10px] font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                  Custom Agent Config
+                </p>
+                <CustomAgentPanel />
+              </div>
+            )}
 
             <Collapsible className="rounded-lg border border-white/[0.06] bg-white/[0.01]">
               <CollapsibleTrigger className="group flex w-full min-h-[44px] items-center justify-between px-2.5 py-0 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">

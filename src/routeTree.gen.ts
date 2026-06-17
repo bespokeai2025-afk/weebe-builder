@@ -155,6 +155,7 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
 import { Route as AuthenticatedAdminPlatformKnowledgeRouteImport } from './routes/_authenticated/admin.platform-knowledge'
 import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
+import { Route as AuthenticatedAdminChangeRequestsRouteImport } from './routes/_authenticated/admin.change-requests'
 import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin.accounts'
 import { Route as AuthenticatedAdminAccountsIndexRouteImport } from './routes/_authenticated/admin.accounts.index'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -1033,6 +1034,12 @@ const AuthenticatedAdminCostEngineRoute =
     path: '/cost-engine',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminChangeRequestsRoute =
+  AuthenticatedAdminChangeRequestsRouteImport.update({
+    id: '/change-requests',
+    path: '/change-requests',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminAccountsRoute =
   AuthenticatedAdminAccountsRouteImport.update({
     id: '/accounts',
@@ -1421,6 +1428,7 @@ export interface FileRoutesByFullPath {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/upload/$token': typeof UploadTokenRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
+  '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
@@ -1623,6 +1631,7 @@ export interface FileRoutesByTo {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/upload/$token': typeof UploadTokenRoute
+  '/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
@@ -1833,6 +1842,7 @@ export interface FileRoutesById {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/upload/$token': typeof UploadTokenRoute
   '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
+  '/_authenticated/admin/change-requests': typeof AuthenticatedAdminChangeRequestsRoute
   '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/_authenticated/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
@@ -2043,6 +2053,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/upload/$token'
     | '/admin/accounts'
+    | '/admin/change-requests'
     | '/admin/cost-engine'
     | '/admin/platform-knowledge'
     | '/admin/user-activity'
@@ -2245,6 +2256,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/upload/$token'
+    | '/admin/change-requests'
     | '/admin/cost-engine'
     | '/admin/platform-knowledge'
     | '/admin/user-activity'
@@ -2454,6 +2466,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/upload/$token'
     | '/_authenticated/admin/accounts'
+    | '/_authenticated/admin/change-requests'
     | '/_authenticated/admin/cost-engine'
     | '/_authenticated/admin/platform-knowledge'
     | '/_authenticated/admin/user-activity'
@@ -3729,6 +3742,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCostEngineRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/change-requests': {
+      id: '/_authenticated/admin/change-requests'
+      path: '/change-requests'
+      fullPath: '/admin/change-requests'
+      preLoaderRoute: typeof AuthenticatedAdminChangeRequestsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/accounts': {
       id: '/_authenticated/admin/accounts'
       path: '/accounts'
@@ -4195,6 +4215,7 @@ const AuthenticatedAdminAccountsRouteWithChildren =
 
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAccountsRoute: typeof AuthenticatedAdminAccountsRouteWithChildren
+  AuthenticatedAdminChangeRequestsRoute: typeof AuthenticatedAdminChangeRequestsRoute
   AuthenticatedAdminCostEngineRoute: typeof AuthenticatedAdminCostEngineRoute
   AuthenticatedAdminPlatformKnowledgeRoute: typeof AuthenticatedAdminPlatformKnowledgeRoute
   AuthenticatedAdminUserActivityRoute: typeof AuthenticatedAdminUserActivityRoute
@@ -4206,6 +4227,7 @@ interface AuthenticatedAdminRouteChildren {
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAccountsRoute: AuthenticatedAdminAccountsRouteWithChildren,
+  AuthenticatedAdminChangeRequestsRoute: AuthenticatedAdminChangeRequestsRoute,
   AuthenticatedAdminCostEngineRoute: AuthenticatedAdminCostEngineRoute,
   AuthenticatedAdminPlatformKnowledgeRoute:
     AuthenticatedAdminPlatformKnowledgeRoute,

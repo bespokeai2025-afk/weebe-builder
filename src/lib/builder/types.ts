@@ -308,7 +308,7 @@ export interface BuilderSettings {
    * Intended deployment type — controls which builder sections are visible.
    * Set here in the builder and mirrored as dashboardAgentType on Go Live.
    */
-  agentType?: "lead_generation" | "receptionist" | "client_qualification";
+  agentType?: "lead_generation" | "receptionist" | "client_qualification" | "custom";
   /**
    * Voice infrastructure provider. Defaults to "RETELL" for all new agents.
    * "OPENAI_REALTIME" routes through the in-house OpenAI Realtime microservice.
