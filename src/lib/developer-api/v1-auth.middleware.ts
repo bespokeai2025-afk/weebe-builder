@@ -8,12 +8,17 @@ import { createClient } from "@supabase/supabase-js";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type ApiPermission =
-  | "leads:read"  | "leads:write"
-  | "calls:read"  | "calls:trigger"
-  | "agents:read"
-  | "campaigns:trigger"
+  | "leads:read"    | "leads:write"
+  | "calls:read"    | "calls:trigger"  | "calls:analytics"
+  | "agents:read"   | "agents:deploy"  | "agents:archive"
+  | "contacts:read" | "contacts:write"
+  | "bookings:read" | "bookings:write"
+  | "analytics:read"
+  | "campaigns:trigger" | "campaigns:read"
   | "knowledge:write"
   | "webhooks:manage"
+  | "billing:read"
+  | "growthmind:read"
   | "*";
 
 export interface AuthenticatedApiRequest {

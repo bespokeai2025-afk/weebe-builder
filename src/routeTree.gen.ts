@@ -54,10 +54,17 @@ import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/em
 import { Route as ApiWebhookWatiInboundRouteImport } from './routes/api/webhook/wati-inbound'
 import { Route as ApiWebhookCustomTelemetryRouteImport } from './routes/api/webhook/custom-telemetry'
 import { Route as ApiV1WebhooksRouteImport } from './routes/api/v1/webhooks'
+import { Route as ApiV1ProviderUsageRouteImport } from './routes/api/v1/provider-usage'
+import { Route as ApiV1ProfitabilityRouteImport } from './routes/api/v1/profitability'
 import { Route as ApiV1LeadsRouteImport } from './routes/api/v1/leads'
 import { Route as ApiV1KnowledgeRouteImport } from './routes/api/v1/knowledge'
+import { Route as ApiV1CostsRouteImport } from './routes/api/v1/costs'
+import { Route as ApiV1ContactsRouteImport } from './routes/api/v1/contacts'
 import { Route as ApiV1CampaignsRouteImport } from './routes/api/v1/campaigns'
 import { Route as ApiV1CallsRouteImport } from './routes/api/v1/calls'
+import { Route as ApiV1BookingsRouteImport } from './routes/api/v1/bookings'
+import { Route as ApiV1BillingRouteImport } from './routes/api/v1/billing'
+import { Route as ApiV1AnalyticsRouteImport } from './routes/api/v1/analytics'
 import { Route as ApiV1AgentsRouteImport } from './routes/api/v1/agents'
 import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/voice-webhook'
 import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
@@ -151,6 +158,14 @@ import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/l
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
+import { Route as ApiV1GrowthmindRecommendationsRouteImport } from './routes/api/v1/growthmind.recommendations'
+import { Route as ApiV1ContactsIdRouteImport } from './routes/api/v1/contacts.$id'
+import { Route as ApiV1CampaignsPerformanceRouteImport } from './routes/api/v1/campaigns.performance'
+import { Route as ApiV1CallsAnalyticsRouteImport } from './routes/api/v1/calls.analytics'
+import { Route as ApiV1BookingsIdRouteImport } from './routes/api/v1/bookings.$id'
+import { Route as ApiV1AgentsTestRouteImport } from './routes/api/v1/agents.test'
+import { Route as ApiV1AgentsDeployRouteImport } from './routes/api/v1/agents.deploy'
+import { Route as ApiV1AgentsArchiveRouteImport } from './routes/api/v1/agents.archive'
 import { Route as ApiRuntimeAgentIdRouteImport } from './routes/api/runtime/agent.$id'
 import { Route as ApiPublicWhatsappWebhookHealthRouteImport } from './routes/api/public/whatsapp-webhook.health'
 import { Route as ApiPublicWhatsappWebhookWorkspaceIdRouteImport } from './routes/api/public/whatsapp-webhook.$workspaceId'
@@ -432,6 +447,16 @@ const ApiV1WebhooksRoute = ApiV1WebhooksRouteImport.update({
   path: '/api/v1/webhooks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1ProviderUsageRoute = ApiV1ProviderUsageRouteImport.update({
+  id: '/api/v1/provider-usage',
+  path: '/api/v1/provider-usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ProfitabilityRoute = ApiV1ProfitabilityRouteImport.update({
+  id: '/api/v1/profitability',
+  path: '/api/v1/profitability',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1LeadsRoute = ApiV1LeadsRouteImport.update({
   id: '/api/v1/leads',
   path: '/api/v1/leads',
@@ -442,6 +467,16 @@ const ApiV1KnowledgeRoute = ApiV1KnowledgeRouteImport.update({
   path: '/api/v1/knowledge',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1CostsRoute = ApiV1CostsRouteImport.update({
+  id: '/api/v1/costs',
+  path: '/api/v1/costs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1ContactsRoute = ApiV1ContactsRouteImport.update({
+  id: '/api/v1/contacts',
+  path: '/api/v1/contacts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1CampaignsRoute = ApiV1CampaignsRouteImport.update({
   id: '/api/v1/campaigns',
   path: '/api/v1/campaigns',
@@ -450,6 +485,21 @@ const ApiV1CampaignsRoute = ApiV1CampaignsRouteImport.update({
 const ApiV1CallsRoute = ApiV1CallsRouteImport.update({
   id: '/api/v1/calls',
   path: '/api/v1/calls',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1BookingsRoute = ApiV1BookingsRouteImport.update({
+  id: '/api/v1/bookings',
+  path: '/api/v1/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1BillingRoute = ApiV1BillingRouteImport.update({
+  id: '/api/v1/billing',
+  path: '/api/v1/billing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1AnalyticsRoute = ApiV1AnalyticsRouteImport.update({
+  id: '/api/v1/analytics',
+  path: '/api/v1/analytics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1AgentsRoute = ApiV1AgentsRouteImport.update({
@@ -996,6 +1046,48 @@ const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
   path: '/lovable/email/auth/preview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1GrowthmindRecommendationsRoute =
+  ApiV1GrowthmindRecommendationsRouteImport.update({
+    id: '/api/v1/growthmind/recommendations',
+    path: '/api/v1/growthmind/recommendations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1ContactsIdRoute = ApiV1ContactsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiV1ContactsRoute,
+} as any)
+const ApiV1CampaignsPerformanceRoute =
+  ApiV1CampaignsPerformanceRouteImport.update({
+    id: '/performance',
+    path: '/performance',
+    getParentRoute: () => ApiV1CampaignsRoute,
+  } as any)
+const ApiV1CallsAnalyticsRoute = ApiV1CallsAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => ApiV1CallsRoute,
+} as any)
+const ApiV1BookingsIdRoute = ApiV1BookingsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiV1BookingsRoute,
+} as any)
+const ApiV1AgentsTestRoute = ApiV1AgentsTestRouteImport.update({
+  id: '/test',
+  path: '/test',
+  getParentRoute: () => ApiV1AgentsRoute,
+} as any)
+const ApiV1AgentsDeployRoute = ApiV1AgentsDeployRouteImport.update({
+  id: '/deploy',
+  path: '/deploy',
+  getParentRoute: () => ApiV1AgentsRoute,
+} as any)
+const ApiV1AgentsArchiveRoute = ApiV1AgentsArchiveRouteImport.update({
+  id: '/archive',
+  path: '/archive',
+  getParentRoute: () => ApiV1AgentsRoute,
+} as any)
 const ApiRuntimeAgentIdRoute = ApiRuntimeAgentIdRouteImport.update({
   id: '/api/runtime/agent/$id',
   path: '/api/runtime/agent/$id',
@@ -1380,11 +1472,18 @@ export interface FileRoutesByFullPath {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
-  '/api/v1/agents': typeof ApiV1AgentsRoute
-  '/api/v1/calls': typeof ApiV1CallsRoute
-  '/api/v1/campaigns': typeof ApiV1CampaignsRoute
+  '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
+  '/api/v1/analytics': typeof ApiV1AnalyticsRoute
+  '/api/v1/billing': typeof ApiV1BillingRoute
+  '/api/v1/bookings': typeof ApiV1BookingsRouteWithChildren
+  '/api/v1/calls': typeof ApiV1CallsRouteWithChildren
+  '/api/v1/campaigns': typeof ApiV1CampaignsRouteWithChildren
+  '/api/v1/contacts': typeof ApiV1ContactsRouteWithChildren
+  '/api/v1/costs': typeof ApiV1CostsRoute
   '/api/v1/knowledge': typeof ApiV1KnowledgeRoute
   '/api/v1/leads': typeof ApiV1LeadsRoute
+  '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
+  '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -1434,6 +1533,14 @@ export interface FileRoutesByFullPath {
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
+  '/api/v1/agents/archive': typeof ApiV1AgentsArchiveRoute
+  '/api/v1/agents/deploy': typeof ApiV1AgentsDeployRoute
+  '/api/v1/agents/test': typeof ApiV1AgentsTestRoute
+  '/api/v1/bookings/$id': typeof ApiV1BookingsIdRoute
+  '/api/v1/calls/analytics': typeof ApiV1CallsAnalyticsRoute
+  '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
+  '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
+  '/api/v1/growthmind/recommendations': typeof ApiV1GrowthmindRecommendationsRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -1562,11 +1669,18 @@ export interface FileRoutesByTo {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
-  '/api/v1/agents': typeof ApiV1AgentsRoute
-  '/api/v1/calls': typeof ApiV1CallsRoute
-  '/api/v1/campaigns': typeof ApiV1CampaignsRoute
+  '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
+  '/api/v1/analytics': typeof ApiV1AnalyticsRoute
+  '/api/v1/billing': typeof ApiV1BillingRoute
+  '/api/v1/bookings': typeof ApiV1BookingsRouteWithChildren
+  '/api/v1/calls': typeof ApiV1CallsRouteWithChildren
+  '/api/v1/campaigns': typeof ApiV1CampaignsRouteWithChildren
+  '/api/v1/contacts': typeof ApiV1ContactsRouteWithChildren
+  '/api/v1/costs': typeof ApiV1CostsRoute
   '/api/v1/knowledge': typeof ApiV1KnowledgeRoute
   '/api/v1/leads': typeof ApiV1LeadsRoute
+  '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
+  '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -1616,6 +1730,14 @@ export interface FileRoutesByTo {
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
+  '/api/v1/agents/archive': typeof ApiV1AgentsArchiveRoute
+  '/api/v1/agents/deploy': typeof ApiV1AgentsDeployRoute
+  '/api/v1/agents/test': typeof ApiV1AgentsTestRoute
+  '/api/v1/bookings/$id': typeof ApiV1BookingsIdRoute
+  '/api/v1/calls/analytics': typeof ApiV1CallsAnalyticsRoute
+  '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
+  '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
+  '/api/v1/growthmind/recommendations': typeof ApiV1GrowthmindRecommendationsRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -1752,11 +1874,18 @@ export interface FileRoutesById {
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
   '/api/public/voice-webhook': typeof ApiPublicVoiceWebhookRouteWithChildren
-  '/api/v1/agents': typeof ApiV1AgentsRoute
-  '/api/v1/calls': typeof ApiV1CallsRoute
-  '/api/v1/campaigns': typeof ApiV1CampaignsRoute
+  '/api/v1/agents': typeof ApiV1AgentsRouteWithChildren
+  '/api/v1/analytics': typeof ApiV1AnalyticsRoute
+  '/api/v1/billing': typeof ApiV1BillingRoute
+  '/api/v1/bookings': typeof ApiV1BookingsRouteWithChildren
+  '/api/v1/calls': typeof ApiV1CallsRouteWithChildren
+  '/api/v1/campaigns': typeof ApiV1CampaignsRouteWithChildren
+  '/api/v1/contacts': typeof ApiV1ContactsRouteWithChildren
+  '/api/v1/costs': typeof ApiV1CostsRoute
   '/api/v1/knowledge': typeof ApiV1KnowledgeRoute
   '/api/v1/leads': typeof ApiV1LeadsRoute
+  '/api/v1/profitability': typeof ApiV1ProfitabilityRoute
+  '/api/v1/provider-usage': typeof ApiV1ProviderUsageRoute
   '/api/v1/webhooks': typeof ApiV1WebhooksRoute
   '/api/webhook/custom-telemetry': typeof ApiWebhookCustomTelemetryRoute
   '/api/webhook/wati-inbound': typeof ApiWebhookWatiInboundRoute
@@ -1806,6 +1935,14 @@ export interface FileRoutesById {
   '/api/public/whatsapp-webhook/$workspaceId': typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   '/api/public/whatsapp-webhook/health': typeof ApiPublicWhatsappWebhookHealthRoute
   '/api/runtime/agent/$id': typeof ApiRuntimeAgentIdRouteWithChildren
+  '/api/v1/agents/archive': typeof ApiV1AgentsArchiveRoute
+  '/api/v1/agents/deploy': typeof ApiV1AgentsDeployRoute
+  '/api/v1/agents/test': typeof ApiV1AgentsTestRoute
+  '/api/v1/bookings/$id': typeof ApiV1BookingsIdRoute
+  '/api/v1/calls/analytics': typeof ApiV1CallsAnalyticsRoute
+  '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
+  '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
+  '/api/v1/growthmind/recommendations': typeof ApiV1GrowthmindRecommendationsRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -1943,10 +2080,17 @@ export interface FileRouteTypes {
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/v1/agents'
+    | '/api/v1/analytics'
+    | '/api/v1/billing'
+    | '/api/v1/bookings'
     | '/api/v1/calls'
     | '/api/v1/campaigns'
+    | '/api/v1/contacts'
+    | '/api/v1/costs'
     | '/api/v1/knowledge'
     | '/api/v1/leads'
+    | '/api/v1/profitability'
+    | '/api/v1/provider-usage'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -1996,6 +2140,14 @@ export interface FileRouteTypes {
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
+    | '/api/v1/agents/archive'
+    | '/api/v1/agents/deploy'
+    | '/api/v1/agents/test'
+    | '/api/v1/bookings/$id'
+    | '/api/v1/calls/analytics'
+    | '/api/v1/campaigns/performance'
+    | '/api/v1/contacts/$id'
+    | '/api/v1/growthmind/recommendations'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -2125,10 +2277,17 @@ export interface FileRouteTypes {
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/v1/agents'
+    | '/api/v1/analytics'
+    | '/api/v1/billing'
+    | '/api/v1/bookings'
     | '/api/v1/calls'
     | '/api/v1/campaigns'
+    | '/api/v1/contacts'
+    | '/api/v1/costs'
     | '/api/v1/knowledge'
     | '/api/v1/leads'
+    | '/api/v1/profitability'
+    | '/api/v1/provider-usage'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -2178,6 +2337,14 @@ export interface FileRouteTypes {
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
+    | '/api/v1/agents/archive'
+    | '/api/v1/agents/deploy'
+    | '/api/v1/agents/test'
+    | '/api/v1/bookings/$id'
+    | '/api/v1/calls/analytics'
+    | '/api/v1/campaigns/performance'
+    | '/api/v1/contacts/$id'
+    | '/api/v1/growthmind/recommendations'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -2314,10 +2481,17 @@ export interface FileRouteTypes {
     | '/api/public/video-job-poller'
     | '/api/public/voice-webhook'
     | '/api/v1/agents'
+    | '/api/v1/analytics'
+    | '/api/v1/billing'
+    | '/api/v1/bookings'
     | '/api/v1/calls'
     | '/api/v1/campaigns'
+    | '/api/v1/contacts'
+    | '/api/v1/costs'
     | '/api/v1/knowledge'
     | '/api/v1/leads'
+    | '/api/v1/profitability'
+    | '/api/v1/provider-usage'
     | '/api/v1/webhooks'
     | '/api/webhook/custom-telemetry'
     | '/api/webhook/wati-inbound'
@@ -2367,6 +2541,14 @@ export interface FileRouteTypes {
     | '/api/public/whatsapp-webhook/$workspaceId'
     | '/api/public/whatsapp-webhook/health'
     | '/api/runtime/agent/$id'
+    | '/api/v1/agents/archive'
+    | '/api/v1/agents/deploy'
+    | '/api/v1/agents/test'
+    | '/api/v1/bookings/$id'
+    | '/api/v1/calls/analytics'
+    | '/api/v1/campaigns/performance'
+    | '/api/v1/contacts/$id'
+    | '/api/v1/growthmind/recommendations'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/queue/process'
@@ -2406,11 +2588,18 @@ export interface RootRouteChildren {
   ApiPublicTiktokAdsWebhookRoute: typeof ApiPublicTiktokAdsWebhookRoute
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
   ApiPublicVoiceWebhookRoute: typeof ApiPublicVoiceWebhookRouteWithChildren
-  ApiV1AgentsRoute: typeof ApiV1AgentsRoute
-  ApiV1CallsRoute: typeof ApiV1CallsRoute
-  ApiV1CampaignsRoute: typeof ApiV1CampaignsRoute
+  ApiV1AgentsRoute: typeof ApiV1AgentsRouteWithChildren
+  ApiV1AnalyticsRoute: typeof ApiV1AnalyticsRoute
+  ApiV1BillingRoute: typeof ApiV1BillingRoute
+  ApiV1BookingsRoute: typeof ApiV1BookingsRouteWithChildren
+  ApiV1CallsRoute: typeof ApiV1CallsRouteWithChildren
+  ApiV1CampaignsRoute: typeof ApiV1CampaignsRouteWithChildren
+  ApiV1ContactsRoute: typeof ApiV1ContactsRouteWithChildren
+  ApiV1CostsRoute: typeof ApiV1CostsRoute
   ApiV1KnowledgeRoute: typeof ApiV1KnowledgeRoute
   ApiV1LeadsRoute: typeof ApiV1LeadsRoute
+  ApiV1ProfitabilityRoute: typeof ApiV1ProfitabilityRoute
+  ApiV1ProviderUsageRoute: typeof ApiV1ProviderUsageRoute
   ApiV1WebhooksRoute: typeof ApiV1WebhooksRoute
   ApiWebhookCustomTelemetryRoute: typeof ApiWebhookCustomTelemetryRoute
   ApiWebhookWatiInboundRoute: typeof ApiWebhookWatiInboundRoute
@@ -2444,6 +2633,7 @@ export interface RootRouteChildren {
   ApiPublicWhatsappWebhookWorkspaceIdRoute: typeof ApiPublicWhatsappWebhookWorkspaceIdRoute
   ApiPublicWhatsappWebhookHealthRoute: typeof ApiPublicWhatsappWebhookHealthRoute
   ApiRuntimeAgentIdRoute: typeof ApiRuntimeAgentIdRouteWithChildren
+  ApiV1GrowthmindRecommendationsRoute: typeof ApiV1GrowthmindRecommendationsRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -2768,6 +2958,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1WebhooksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/provider-usage': {
+      id: '/api/v1/provider-usage'
+      path: '/api/v1/provider-usage'
+      fullPath: '/api/v1/provider-usage'
+      preLoaderRoute: typeof ApiV1ProviderUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/profitability': {
+      id: '/api/v1/profitability'
+      path: '/api/v1/profitability'
+      fullPath: '/api/v1/profitability'
+      preLoaderRoute: typeof ApiV1ProfitabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/leads': {
       id: '/api/v1/leads'
       path: '/api/v1/leads'
@@ -2782,6 +2986,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1KnowledgeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/costs': {
+      id: '/api/v1/costs'
+      path: '/api/v1/costs'
+      fullPath: '/api/v1/costs'
+      preLoaderRoute: typeof ApiV1CostsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/contacts': {
+      id: '/api/v1/contacts'
+      path: '/api/v1/contacts'
+      fullPath: '/api/v1/contacts'
+      preLoaderRoute: typeof ApiV1ContactsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/campaigns': {
       id: '/api/v1/campaigns'
       path: '/api/v1/campaigns'
@@ -2794,6 +3012,27 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/calls'
       fullPath: '/api/v1/calls'
       preLoaderRoute: typeof ApiV1CallsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/bookings': {
+      id: '/api/v1/bookings'
+      path: '/api/v1/bookings'
+      fullPath: '/api/v1/bookings'
+      preLoaderRoute: typeof ApiV1BookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/billing': {
+      id: '/api/v1/billing'
+      path: '/api/v1/billing'
+      fullPath: '/api/v1/billing'
+      preLoaderRoute: typeof ApiV1BillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/analytics': {
+      id: '/api/v1/analytics'
+      path: '/api/v1/analytics'
+      fullPath: '/api/v1/analytics'
+      preLoaderRoute: typeof ApiV1AnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/agents': {
@@ -3446,6 +3685,62 @@ declare module '@tanstack/react-router' {
       fullPath: '/lovable/email/auth/preview'
       preLoaderRoute: typeof LovableEmailAuthPreviewRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/growthmind/recommendations': {
+      id: '/api/v1/growthmind/recommendations'
+      path: '/api/v1/growthmind/recommendations'
+      fullPath: '/api/v1/growthmind/recommendations'
+      preLoaderRoute: typeof ApiV1GrowthmindRecommendationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/contacts/$id': {
+      id: '/api/v1/contacts/$id'
+      path: '/$id'
+      fullPath: '/api/v1/contacts/$id'
+      preLoaderRoute: typeof ApiV1ContactsIdRouteImport
+      parentRoute: typeof ApiV1ContactsRoute
+    }
+    '/api/v1/campaigns/performance': {
+      id: '/api/v1/campaigns/performance'
+      path: '/performance'
+      fullPath: '/api/v1/campaigns/performance'
+      preLoaderRoute: typeof ApiV1CampaignsPerformanceRouteImport
+      parentRoute: typeof ApiV1CampaignsRoute
+    }
+    '/api/v1/calls/analytics': {
+      id: '/api/v1/calls/analytics'
+      path: '/analytics'
+      fullPath: '/api/v1/calls/analytics'
+      preLoaderRoute: typeof ApiV1CallsAnalyticsRouteImport
+      parentRoute: typeof ApiV1CallsRoute
+    }
+    '/api/v1/bookings/$id': {
+      id: '/api/v1/bookings/$id'
+      path: '/$id'
+      fullPath: '/api/v1/bookings/$id'
+      preLoaderRoute: typeof ApiV1BookingsIdRouteImport
+      parentRoute: typeof ApiV1BookingsRoute
+    }
+    '/api/v1/agents/test': {
+      id: '/api/v1/agents/test'
+      path: '/test'
+      fullPath: '/api/v1/agents/test'
+      preLoaderRoute: typeof ApiV1AgentsTestRouteImport
+      parentRoute: typeof ApiV1AgentsRoute
+    }
+    '/api/v1/agents/deploy': {
+      id: '/api/v1/agents/deploy'
+      path: '/deploy'
+      fullPath: '/api/v1/agents/deploy'
+      preLoaderRoute: typeof ApiV1AgentsDeployRouteImport
+      parentRoute: typeof ApiV1AgentsRoute
+    }
+    '/api/v1/agents/archive': {
+      id: '/api/v1/agents/archive'
+      path: '/archive'
+      fullPath: '/api/v1/agents/archive'
+      preLoaderRoute: typeof ApiV1AgentsArchiveRouteImport
+      parentRoute: typeof ApiV1AgentsRoute
     }
     '/api/runtime/agent/$id': {
       id: '/api/runtime/agent/$id'
@@ -4178,6 +4473,70 @@ const ApiPublicVoiceWebhookRouteWithChildren =
     ApiPublicVoiceWebhookRouteChildren,
   )
 
+interface ApiV1AgentsRouteChildren {
+  ApiV1AgentsArchiveRoute: typeof ApiV1AgentsArchiveRoute
+  ApiV1AgentsDeployRoute: typeof ApiV1AgentsDeployRoute
+  ApiV1AgentsTestRoute: typeof ApiV1AgentsTestRoute
+}
+
+const ApiV1AgentsRouteChildren: ApiV1AgentsRouteChildren = {
+  ApiV1AgentsArchiveRoute: ApiV1AgentsArchiveRoute,
+  ApiV1AgentsDeployRoute: ApiV1AgentsDeployRoute,
+  ApiV1AgentsTestRoute: ApiV1AgentsTestRoute,
+}
+
+const ApiV1AgentsRouteWithChildren = ApiV1AgentsRoute._addFileChildren(
+  ApiV1AgentsRouteChildren,
+)
+
+interface ApiV1BookingsRouteChildren {
+  ApiV1BookingsIdRoute: typeof ApiV1BookingsIdRoute
+}
+
+const ApiV1BookingsRouteChildren: ApiV1BookingsRouteChildren = {
+  ApiV1BookingsIdRoute: ApiV1BookingsIdRoute,
+}
+
+const ApiV1BookingsRouteWithChildren = ApiV1BookingsRoute._addFileChildren(
+  ApiV1BookingsRouteChildren,
+)
+
+interface ApiV1CallsRouteChildren {
+  ApiV1CallsAnalyticsRoute: typeof ApiV1CallsAnalyticsRoute
+}
+
+const ApiV1CallsRouteChildren: ApiV1CallsRouteChildren = {
+  ApiV1CallsAnalyticsRoute: ApiV1CallsAnalyticsRoute,
+}
+
+const ApiV1CallsRouteWithChildren = ApiV1CallsRoute._addFileChildren(
+  ApiV1CallsRouteChildren,
+)
+
+interface ApiV1CampaignsRouteChildren {
+  ApiV1CampaignsPerformanceRoute: typeof ApiV1CampaignsPerformanceRoute
+}
+
+const ApiV1CampaignsRouteChildren: ApiV1CampaignsRouteChildren = {
+  ApiV1CampaignsPerformanceRoute: ApiV1CampaignsPerformanceRoute,
+}
+
+const ApiV1CampaignsRouteWithChildren = ApiV1CampaignsRoute._addFileChildren(
+  ApiV1CampaignsRouteChildren,
+)
+
+interface ApiV1ContactsRouteChildren {
+  ApiV1ContactsIdRoute: typeof ApiV1ContactsIdRoute
+}
+
+const ApiV1ContactsRouteChildren: ApiV1ContactsRouteChildren = {
+  ApiV1ContactsIdRoute: ApiV1ContactsIdRoute,
+}
+
+const ApiV1ContactsRouteWithChildren = ApiV1ContactsRoute._addFileChildren(
+  ApiV1ContactsRouteChildren,
+)
+
 interface ApiPublicPaymentsWebhookRouteChildren {
   ApiPublicPaymentsWebhookHealthRoute: typeof ApiPublicPaymentsWebhookHealthRoute
 }
@@ -4257,11 +4616,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTiktokAdsWebhookRoute: ApiPublicTiktokAdsWebhookRoute,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,
   ApiPublicVoiceWebhookRoute: ApiPublicVoiceWebhookRouteWithChildren,
-  ApiV1AgentsRoute: ApiV1AgentsRoute,
-  ApiV1CallsRoute: ApiV1CallsRoute,
-  ApiV1CampaignsRoute: ApiV1CampaignsRoute,
+  ApiV1AgentsRoute: ApiV1AgentsRouteWithChildren,
+  ApiV1AnalyticsRoute: ApiV1AnalyticsRoute,
+  ApiV1BillingRoute: ApiV1BillingRoute,
+  ApiV1BookingsRoute: ApiV1BookingsRouteWithChildren,
+  ApiV1CallsRoute: ApiV1CallsRouteWithChildren,
+  ApiV1CampaignsRoute: ApiV1CampaignsRouteWithChildren,
+  ApiV1ContactsRoute: ApiV1ContactsRouteWithChildren,
+  ApiV1CostsRoute: ApiV1CostsRoute,
   ApiV1KnowledgeRoute: ApiV1KnowledgeRoute,
   ApiV1LeadsRoute: ApiV1LeadsRoute,
+  ApiV1ProfitabilityRoute: ApiV1ProfitabilityRoute,
+  ApiV1ProviderUsageRoute: ApiV1ProviderUsageRoute,
   ApiV1WebhooksRoute: ApiV1WebhooksRoute,
   ApiWebhookCustomTelemetryRoute: ApiWebhookCustomTelemetryRoute,
   ApiWebhookWatiInboundRoute: ApiWebhookWatiInboundRoute,
@@ -4299,6 +4665,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicWhatsappWebhookWorkspaceIdRoute,
   ApiPublicWhatsappWebhookHealthRoute: ApiPublicWhatsappWebhookHealthRoute,
   ApiRuntimeAgentIdRoute: ApiRuntimeAgentIdRouteWithChildren,
+  ApiV1GrowthmindRecommendationsRoute: ApiV1GrowthmindRecommendationsRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

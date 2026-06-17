@@ -280,96 +280,129 @@ function DeveloperPage() {
             </CardContent>
           </Card>
 
-          {/* Endpoints */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Endpoints</h3>
-
-            {[
-              {
-                method: "GET", path: "/agents",
-                desc: "List all WEBEE agents in your workspace.",
-                perm: "agents:read",
-                example: `curl -X GET "${API_BASE}/agents" \\
-  -H "Authorization: Bearer YOUR_KEY"`,
-              },
-              {
-                method: "GET", path: "/leads",
-                desc: "List leads. Query params: ?limit=50&offset=0&status=new",
-                perm: "leads:read",
-                example: `curl -X GET "${API_BASE}/leads?limit=20" \\
-  -H "Authorization: Bearer YOUR_KEY"`,
-              },
-              {
-                method: "POST", path: "/leads",
-                desc: "Create a new lead / contact.",
-                perm: "leads:write",
-                example: `curl -X POST "${API_BASE}/leads" \\
-  -H "Authorization: Bearer YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"full_name":"Jane Smith","phone":"+15005550001","email":"jane@example.com","source":"crm"}'`,
-              },
-              {
-                method: "POST", path: "/calls",
-                desc: "Trigger an AI call from a WEBEE agent to a phone number.",
-                perm: "calls:trigger",
-                example: `curl -X POST "${API_BASE}/calls" \\
-  -H "Authorization: Bearer YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"agent_id":"<agent-uuid>","to_number":"+15005550001"}'`,
-              },
-              {
-                method: "GET", path: "/calls",
-                desc: "List call logs. Query params: ?limit=50&since=2026-01-01",
-                perm: "calls:read",
-                example: `curl -X GET "${API_BASE}/calls?limit=10" \\
-  -H "Authorization: Bearer YOUR_KEY"`,
-              },
-              {
-                method: "POST", path: "/campaigns",
-                desc: "Enrol a lead into a campaign by campaign_id + lead_id or phone.",
-                perm: "campaigns:trigger",
-                example: `curl -X POST "${API_BASE}/campaigns" \\
-  -H "Authorization: Bearer YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"campaign_id":"<uuid>","phone":"+15005550001","name":"Jane Smith"}'`,
-              },
-              {
-                method: "POST", path: "/knowledge",
-                desc: "Upload a knowledge document (text or URL) to a WEBEE agent.",
-                perm: "knowledge:write",
-                example: `curl -X POST "${API_BASE}/knowledge" \\
-  -H "Authorization: Bearer YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"agent_id":"<uuid>","title":"Company FAQ","content":"Q: What are your hours?\\nA: 9-5 Mon-Fri"}'`,
-              },
-              {
-                method: "POST", path: "/webhooks",
-                desc: "Create a webhook subscription for a specific event type.",
-                perm: "webhooks:manage",
-                example: `curl -X POST "${API_BASE}/webhooks" \\
-  -H "Authorization: Bearer YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"name":"Lead Sync","event_type":"lead.created","target_url":"https://your-app.com/webhooks/webee"}'`,
-              },
-            ].map(ep => (
-              <Card key={ep.path}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={
-                      ep.method === "GET" ? "border-blue-500 text-blue-600" :
-                      ep.method === "POST" ? "border-green-500 text-green-600" : ""
-                    }>{ep.method}</Badge>
-                    <code className="text-sm font-mono font-semibold">{ep.path}</code>
-                    <Badge variant="secondary" className="text-[10px] ml-auto">{ep.perm}</Badge>
-                  </div>
-                  <CardDescription className="mt-1">{ep.desc}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <CodeBlock code={ep.example} />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {/* Endpoint Groups */}
+          {[
+            {
+              group: "Agents",
+              endpoints: [
+                { method: "GET",  path: "/agents",         perm: "agents:read",    desc: "List all agents in your workspace.",
+                  example: `curl "${API_BASE}/agents" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "POST", path: "/agents/deploy",  perm: "agents:deploy",  desc: "Request deployment for an agent. Returns current deploy status.",
+                  example: `curl -X POST "${API_BASE}/agents/deploy" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"agent_id":"<uuid>"}'` },
+                { method: "POST", path: "/agents/test",    perm: "calls:trigger",  desc: "Initiate a test outbound call from a deployed agent.",
+                  example: `curl -X POST "${API_BASE}/agents/test" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"agent_id":"<uuid>","to_number":"+15005550001"}'` },
+                { method: "POST", path: "/agents/archive", perm: "agents:archive", desc: "Archive (soft-delete) an agent.",
+                  example: `curl -X POST "${API_BASE}/agents/archive" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"agent_id":"<uuid>"}'` },
+              ],
+            },
+            {
+              group: "Leads",
+              endpoints: [
+                { method: "GET",  path: "/leads",      perm: "leads:read",  desc: "List leads. Query: ?limit=50&offset=0&status=new",
+                  example: `curl "${API_BASE}/leads?limit=20&status=new" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "POST", path: "/leads",      perm: "leads:write", desc: "Create a new lead.",
+                  example: `curl -X POST "${API_BASE}/leads" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"full_name":"Jane Smith","phone":"+15005550001","email":"jane@acme.com"}'` },
+              ],
+            },
+            {
+              group: "Contacts",
+              endpoints: [
+                { method: "GET",   path: "/contacts",     perm: "contacts:read",  desc: "List contacts. Query: ?limit=50&q=search&tag=vip",
+                  example: `curl "${API_BASE}/contacts?q=Jane" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "POST",  path: "/contacts",     perm: "contacts:write", desc: "Create a contact.",
+                  example: `curl -X POST "${API_BASE}/contacts" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"full_name":"Jane Smith","phone":"+15005550001","tags":["vip"]}'` },
+                { method: "PATCH", path: "/contacts/:id", perm: "contacts:write", desc: "Update a contact by ID.",
+                  example: `curl -X PATCH "${API_BASE}/contacts/<id>" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"status":"qualified","pipeline_stage":"Demo Scheduled"}'` },
+              ],
+            },
+            {
+              group: "Calls",
+              endpoints: [
+                { method: "GET",  path: "/calls",           perm: "calls:read",      desc: "List call logs. Query: ?limit=50&since=2026-01-01",
+                  example: `curl "${API_BASE}/calls?limit=10" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "POST", path: "/calls",           perm: "calls:trigger",   desc: "Trigger an AI outbound call.",
+                  example: `curl -X POST "${API_BASE}/calls" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"agent_id":"<uuid>","to_number":"+15005550001"}'` },
+                { method: "GET",  path: "/calls/analytics", perm: "calls:analytics", desc: "Detailed call metrics with time-series and per-agent breakdown. Query: ?days=30&bucket=day|week&agent_id=",
+                  example: `curl "${API_BASE}/calls/analytics?days=30&bucket=day" -H "Authorization: Bearer YOUR_KEY"` },
+              ],
+            },
+            {
+              group: "Bookings",
+              endpoints: [
+                { method: "GET",   path: "/bookings",     perm: "bookings:read",  desc: "List bookings. Query: ?limit=50&status=confirmed&since=2026-01-01&until=2026-12-31",
+                  example: `curl "${API_BASE}/bookings?status=confirmed" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "POST",  path: "/bookings",     perm: "bookings:write", desc: "Create a booking.",
+                  example: `curl -X POST "${API_BASE}/bookings" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"attendee_name":"Jane Smith","attendee_email":"jane@acme.com","start_at":"2026-07-01T10:00:00Z"}'` },
+                { method: "PATCH", path: "/bookings/:id", perm: "bookings:write", desc: "Update a booking (status, time, notes).",
+                  example: `curl -X PATCH "${API_BASE}/bookings/<id>" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"status":"cancelled"}'` },
+              ],
+            },
+            {
+              group: "Campaigns",
+              endpoints: [
+                { method: "POST", path: "/campaigns",             perm: "campaigns:trigger", desc: "Enrol a lead/phone into a campaign.",
+                  example: `curl -X POST "${API_BASE}/campaigns" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"campaign_id":"<uuid>","phone":"+15005550001","name":"Jane Smith"}'` },
+                { method: "GET",  path: "/campaigns/performance", perm: "campaigns:read",    desc: "Per-campaign stats: enrolled, completed, pending, completion rate. Query: ?days=30&campaign_id=",
+                  example: `curl "${API_BASE}/campaigns/performance?days=30" -H "Authorization: Bearer YOUR_KEY"` },
+              ],
+            },
+            {
+              group: "Analytics",
+              endpoints: [
+                { method: "GET", path: "/analytics", perm: "analytics:read", desc: "Workspace-level overview: call totals, lead counts, booking counts. Query: ?days=30",
+                  example: `curl "${API_BASE}/analytics?days=30" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "GET", path: "/growthmind/recommendations", perm: "growthmind:read", desc: "Active AI growth recommendations and opportunities. Query: ?limit=20&category=&priority=high",
+                  example: `curl "${API_BASE}/growthmind/recommendations" -H "Authorization: Bearer YOUR_KEY"` },
+              ],
+            },
+            {
+              group: "Billing & Costs",
+              endpoints: [
+                { method: "GET", path: "/billing",        perm: "billing:read", desc: "Workspace billing plan, included limits, and last 3 months of cost history.",
+                  example: `curl "${API_BASE}/billing" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "GET", path: "/costs",          perm: "billing:read", desc: "Provider cost breakdown for a calendar month. Query: ?month=2026-06",
+                  example: `curl "${API_BASE}/costs?month=2026-06" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "GET", path: "/profitability",  perm: "billing:read", desc: "Per-call profitability: cost, revenue, profit margin. Query: ?days=30&agent_id=",
+                  example: `curl "${API_BASE}/profitability?days=30" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "GET", path: "/provider-usage", perm: "billing:read", desc: "Aggregated requests, errors, and cost per provider. Query: ?days=30&category=voice",
+                  example: `curl "${API_BASE}/provider-usage?days=30&category=voice" -H "Authorization: Bearer YOUR_KEY"` },
+              ],
+            },
+            {
+              group: "Knowledge & Webhooks",
+              endpoints: [
+                { method: "POST", path: "/knowledge", perm: "knowledge:write",  desc: "Upload a knowledge document to a WEBEE agent.",
+                  example: `curl -X POST "${API_BASE}/knowledge" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"agent_id":"<uuid>","title":"FAQ","content":"Q: Hours?\\nA: 9-5 Mon-Fri"}'` },
+                { method: "GET",  path: "/webhooks",  perm: "webhooks:manage", desc: "List webhook subscriptions.",
+                  example: `curl "${API_BASE}/webhooks" -H "Authorization: Bearer YOUR_KEY"` },
+                { method: "POST", path: "/webhooks",  perm: "webhooks:manage", desc: "Create a webhook subscription.",
+                  example: `curl -X POST "${API_BASE}/webhooks" -H "Authorization: Bearer YOUR_KEY" -H "Content-Type: application/json" -d '{"name":"Lead Sync","event_type":"lead.created","target_url":"https://your-app.com/webhooks/webee"}'` },
+              ],
+            },
+          ].map(group => (
+            <div key={group.group} className="space-y-3">
+              <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground pt-2">{group.group}</h3>
+              {group.endpoints.map(ep => (
+                <Card key={`${ep.method}-${ep.path}`}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className={
+                        ep.method === "GET"   ? "border-blue-500 text-blue-600" :
+                        ep.method === "POST"  ? "border-green-500 text-green-600" :
+                        ep.method === "PATCH" ? "border-amber-500 text-amber-600" : ""
+                      }>{ep.method}</Badge>
+                      <code className="text-sm font-mono font-semibold">{ep.path}</code>
+                      <Badge variant="secondary" className="text-[10px] ml-auto">{ep.perm}</Badge>
+                    </div>
+                    <CardDescription className="mt-1 text-xs">{ep.desc}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <CodeBlock code={ep.example} />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ))}
 
           {/* Webhook Events */}
           <Card>
@@ -379,9 +412,10 @@ function DeveloperPage() {
             <CardContent>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {[
-                  "lead.created","lead.updated","call.started","call.completed",
-                  "call.failed","booking.created","campaign.completed",
-                  "document.uploaded","agent.deployed",
+                  "lead.created","lead.updated",
+                  "call.started","call.completed","call.failed",
+                  "booking.created","booking.updated","booking.cancelled",
+                  "campaign.completed","document.uploaded","agent.deployed",
                 ].map(e => (
                   <code key={e} className="bg-muted px-2 py-1 rounded text-xs font-mono">{e}</code>
                 ))}
