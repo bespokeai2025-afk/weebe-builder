@@ -626,6 +626,16 @@ function TourCard({
             Skip Guide
           </button>
           <div className="flex items-center gap-1.5">
+            {/* Fast-track button: after naming the agent, offer to skip configuration */}
+            {step === 3 && state.agentNameSet && (
+              <button
+                onClick={() => setState({ step: 8 })}
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold bg-slate-800 text-amber-400 hover:bg-slate-700 border border-amber-500/30 transition-all"
+                title="Skip agent configuration and go straight to saving"
+              >
+                ⚡ Skip to Save
+              </button>
+            )}
             {!unlocked && (
               <span className="text-[8px] text-slate-600 max-w-[100px] text-right leading-tight">
                 Complete step above

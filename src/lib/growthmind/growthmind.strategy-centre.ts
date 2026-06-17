@@ -373,7 +373,7 @@ Only include keys from: [${assetEngineList}]`;
             status:       "draft",
           }));
         if (assetRows.length > 0) {
-          await sb.from("growthmind_strategy_assets").insert(assetRows).catch(() => {});
+          await Promise.resolve(sb.from("growthmind_strategy_assets").insert(assetRows)).catch(() => {});
         }
       }
     } catch { /* non-critical — asset generation is best-effort */ }
@@ -580,7 +580,7 @@ export const approveStrategyCentre = createServerFn({ method: "POST" })
     }));
 
     if (taskRows.length > 0) {
-      await sb.from("growthmind_strategy_tasks").insert(taskRows).catch(() => {/* graceful */});
+      await Promise.resolve(sb.from("growthmind_strategy_tasks").insert(taskRows)).catch(() => {/* graceful */});
     }
 
     // Update hivemind_action if it exists

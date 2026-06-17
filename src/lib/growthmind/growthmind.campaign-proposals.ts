@@ -493,7 +493,7 @@ export const runCampaignProposalEngine = createServerFn({ method: "POST" })
 
     if (proposals.length === 0) return { ok: true, count: 0, aiGenerated };
 
-    await sb.from("growthmind_campaign_proposals").delete().eq("workspace_id", workspaceId).catch(() => {});
+    await Promise.resolve(sb.from("growthmind_campaign_proposals").delete().eq("workspace_id", workspaceId)).catch(() => {});
 
     const rows = proposals.map(p => ({
       workspace_id:    workspaceId,
@@ -510,7 +510,7 @@ export const runCampaignProposalEngine = createServerFn({ method: "POST" })
       generated_at:    p.generatedAt,
     }));
 
-    await sb.from("growthmind_campaign_proposals").insert(rows).catch(() => {});
+    await Promise.resolve(sb.from("growthmind_campaign_proposals").insert(rows)).catch(() => {});
 
     await createAutonomousDrafts(sb, workspaceId, proposals);
 

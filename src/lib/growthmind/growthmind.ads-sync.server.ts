@@ -317,9 +317,10 @@ export async function syncAdAccountById(
       updated_at:     now,
     };
     // Try upsert by external_id+account
-    await sb.from("growthmind_campaigns")
-      .upsert({ ...row, created_at: now }, { onConflict: "ads_account_id,external_id", ignoreDuplicates: false })
-      .catch(() => sb.from("growthmind_campaigns").insert({ ...row, created_at: now }).catch(() => {}));
+    await Promise.resolve(
+      sb.from("growthmind_campaigns")
+        .upsert({ ...row, created_at: now }, { onConflict: "ads_account_id,external_id", ignoreDuplicates: false })
+    ).catch(() => Promise.resolve(sb.from("growthmind_campaigns").insert({ ...row, created_at: now })).catch(() => {}));
   }
 
   // Update account sync status

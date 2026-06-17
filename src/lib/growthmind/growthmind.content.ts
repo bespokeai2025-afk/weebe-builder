@@ -389,8 +389,8 @@ export const generateContent = createServerFn({ method: "POST" })
       sb.from("growthmind_seo_sites").select("keywords").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       sb.from("growthmind_competitors").select("name, positioning").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(10),
       sb.from("growthmind_playbooks").select("industry").eq("workspace_id", workspaceId).eq("status", "active").maybeSingle(),
-      sb.from("growthmind_business_dna").select("company_name,industry,products,services,unique_selling_points,ideal_customer_profiles,offers,brand_voice,compliance_notes,target_markets,competitors_summary").eq("workspace_id", workspaceId).maybeSingle().catch(() => ({ data: null })),
-      sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
+      Promise.resolve(sb.from("growthmind_business_dna").select("company_name,industry,products,services,unique_selling_points,ideal_customer_profiles,offers,brand_voice,compliance_notes,target_markets,competitors_summary").eq("workspace_id", workspaceId).maybeSingle()).catch(() => ({ data: null })),
+      Promise.resolve(sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
     ]);
 
     const ws         = wsRes.data;

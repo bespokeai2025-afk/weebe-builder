@@ -127,7 +127,7 @@ export const runCMOAnalysis = createServerFn({ method: "POST" })
         const ctx = await buildBusinessContext(sb, workspaceId);
         const scores = computeServiceScores(ctx);
         if (scores.length > 0) {
-          await sb.from("growthmind_service_scores").delete().eq("workspace_id", workspaceId).catch(() => {});
+          await Promise.resolve(sb.from("growthmind_service_scores").delete().eq("workspace_id", workspaceId)).catch(() => {});
           const { error } = await sb.from("growthmind_service_scores").insert(scores.map((s: any) => ({
             workspace_id: workspaceId, service_name: s.serviceName, total_score: s.totalScore,
             scores: { dimensions: s.dimensions }, recommendation: s.recommendation, computed_at: s.computedAt,
@@ -142,7 +142,7 @@ export const runCMOAnalysis = createServerFn({ method: "POST" })
         const { detectTrendSignals } = await import("@/lib/growthmind/growthmind.trend-engine");
         const signals = await detectTrendSignals(sb, workspaceId);
         if (signals.length > 0) {
-          await sb.from("growthmind_trend_signals").delete().eq("workspace_id", workspaceId).catch(() => {});
+          await Promise.resolve(sb.from("growthmind_trend_signals").delete().eq("workspace_id", workspaceId)).catch(() => {});
           await sb.from("growthmind_trend_signals").insert(signals.map((s: any) => ({
             workspace_id: workspaceId, signal_type: s.signalType, label: s.label,
             classification: s.classification, current_value: s.currentValue, previous_value: s.previousValue,
@@ -164,13 +164,13 @@ export const runCMOAnalysis = createServerFn({ method: "POST" })
         const ctx = await buildBusinessContext(sb, workspaceId);
         const proposals = generateDeterministicProposals(ctx);
         if (proposals.length > 0) {
-          await sb.from("growthmind_campaign_proposals").delete().eq("workspace_id", workspaceId).catch(() => {});
-          await sb.from("growthmind_campaign_proposals").insert(proposals.map(p => ({
+          await Promise.resolve(sb.from("growthmind_campaign_proposals").delete().eq("workspace_id", workspaceId)).catch(() => {});
+          await Promise.resolve(sb.from("growthmind_campaign_proposals").insert(proposals.map(p => ({
             workspace_id: workspaceId, title: p.title, reason: p.reason, evidence: p.evidence,
             audience: p.audience, expected_outcome: p.expectedOutcome, budget_estimate: p.budgetEstimate,
             content_plan: p.contentPlan, video_plan: p.videoPlan, channels: p.channels,
             status: "draft", generated_at: p.generatedAt,
-          }))).catch(() => {});
+          })))).catch(() => {});
         }
         // Side-effect: create funnel/WhatsApp/HexMail drafts in hivemind_actions
         await createAutonomousDrafts(sb, workspaceId, proposals);
@@ -189,13 +189,13 @@ export const runCMOAnalysis = createServerFn({ method: "POST" })
         const ctx = await buildBusinessContext(sb, workspaceId);
         const proposals = generateVideoProposals(ctx);
         if (proposals.length > 0) {
-          await sb.from("growthmind_video_proposals").delete().eq("workspace_id", workspaceId).catch(() => {});
-          await sb.from("growthmind_video_proposals").insert(proposals.map(p => ({
+          await Promise.resolve(sb.from("growthmind_video_proposals").delete().eq("workspace_id", workspaceId)).catch(() => {});
+          await Promise.resolve(sb.from("growthmind_video_proposals").insert(proposals.map(p => ({
             workspace_id: workspaceId, title: p.title, hook: p.hook, platform: p.platform,
             target_audience: p.targetAudience, storyboard: p.storyboard, creative_angles: p.creativeAngles,
             expected_outcome: p.expectedOutcome, duration: p.duration, call_to_action: p.callToAction,
             status: "draft", generated_at: p.generatedAt,
-          }))).catch(() => {});
+          })))).catch(() => {});
         }
         // Side-effect: create video queue entries in hivemind_actions
         await createAutonomousVideoQueueEntries(sb, workspaceId, proposals);

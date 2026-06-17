@@ -116,7 +116,7 @@ export const runTrendingValueEngine = createServerFn({ method: "POST" })
         sb.from("growthmind_seo_sites").select("keywords").eq("workspace_id", workspaceId).limit(10),
         sb.from("growthmind_competitors").select("id").eq("workspace_id", workspaceId).limit(20),
         sb.from("hexmail_campaigns").select("status").eq("workspace_id", workspaceId).limit(50),
-        sb.from("whatsapp_messages").select("id").eq("workspace_id", workspaceId).gte("created_at", since30).limit(500).catch(() => ({ data: [] })),
+        Promise.resolve(sb.from("whatsapp_messages").select("id").eq("workspace_id", workspaceId).gte("created_at", since30).limit(500)).catch(() => ({ data: [] })),
         sb.from("growthmind_ads_accounts").select("status").eq("workspace_id", workspaceId).limit(20),
         sb.from("growthmind_content_assets").select("status").eq("workspace_id", workspaceId).gte("created_at", since30).limit(100),
       ]);

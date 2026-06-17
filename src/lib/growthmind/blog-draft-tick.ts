@@ -145,7 +145,7 @@ async function tickWorkspace(
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   const weekStartIso = weekStart.toISOString().split("T")[0];
 
-  const { data: existing } = await (sb as any)
+  const { data: existing } = await Promise.resolve((sb as any)
     .from("growthmind_content_calendar")
     .select("id")
     .eq("workspace_id", workspaceId)
@@ -153,19 +153,19 @@ async function tickWorkspace(
     .ilike("title", "[Auto-Draft]%")
     .gte("created_at", weekStartIso)
     .limit(1)
-    .catch(() => ({ data: null }));
+  ).catch(() => ({ data: null }));
 
   if ((existing ?? []).length > 0) {
     return { ...base, skipped: true, skipReason: "already_drafted_this_week", queued: false };
   }
 
   // Build minimal business context from DNA / workspace settings
-  const { data: dna } = await (sb as any)
+  const { data: dna } = await Promise.resolve((sb as any)
     .from("growthmind_business_dna")
     .select("company_name, industry, core_services, ideal_customer_profile, value_proposition")
     .eq("workspace_id", workspaceId)
     .maybeSingle()
-    .catch(() => ({ data: null }));
+  ).catch(() => ({ data: null }));
 
   const company  = dna?.company_name ?? "the company";
   const industry = dna?.industry     ?? "the industry";
@@ -221,7 +221,7 @@ async function tickWorkspace(
     webflowItemId: null,
   });
 
-  const { data: inserted, error: insertErr } = await (sb as any)
+  const { data: inserted, error: insertErr } = await Promise.resolve((sb as any)
     .from("growthmind_content_calendar")
     .insert({
       workspace_id:   workspaceId,
@@ -236,7 +236,7 @@ async function tickWorkspace(
     })
     .select("id")
     .single()
-    .catch((e: any) => ({ data: null, error: e }));
+  ).catch((e: any) => ({ data: null, error: e }));
 
   if (insertErr) {
     return { ...base, skipped: false, queued: false, error: insertErr?.message ?? String(insertErr) };
@@ -245,7 +245,7 @@ async function tickWorkspace(
   const insertedId = (inserted as any)?.id;
 
   if (insertedId) {
-    await (sb as any).from("hivemind_actions").insert({
+    await Promise.resolve((sb as any).from("hivemind_actions").insert({
       workspace_id: workspaceId,
       action_type:  "blog_draft",
       title:        `Blog Draft Ready: ${title.replace("[Auto-Draft] ", "")}`,
@@ -254,7 +254,7 @@ async function tickWorkspace(
       priority:     "medium",
       source:       "growthmind",
       metadata:     { calendarEntryId: insertedId, type: "auto_blog_draft", seoScore },
-    }).catch(() => {});
+    })).catch(() => {});
   }
 
   return { ...base, skipped: false, queued: true, title };
@@ -284,11 +284,11 @@ export async function runBlogDraftTick(): Promise<BlogDraftTickReport> {
   const platformOpenAI = process.env.OPENAI_API_KEY  ?? null;
 
   // Find all workspaces with assistant or operator hivemind_mode
-  const { data: eligibleSettings, error: settingsErr } = await (sb as any)
+  const { data: eligibleSettings, error: settingsErr } = await Promise.resolve((sb as any)
     .from("workspace_settings")
     .select("workspace_id, hivemind_mode, gemini_api_key, openai_api_key")
     .in("hivemind_mode", ["assistant", "operator"])
-    .catch(() => ({ data: null, error: "query failed" }));
+  ).catch(() => ({ data: null, error: "query failed" }));
 
   if (settingsErr || !eligibleSettings) {
     return { queued: [], skipped: [], failed: [], error: String(settingsErr ?? "No data") };

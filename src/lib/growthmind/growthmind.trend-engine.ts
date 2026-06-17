@@ -59,11 +59,11 @@ export async function detectTrendSignals(sb: any, workspaceId: string): Promise<
   const [leadsRes, callsRes, waRes, hexmailEnrollRes, hexmailRes, calRes, campaignsRes] = await Promise.all([
     sb.from("leads").select("id, created_at, updated_at, status, source, pipeline_stage").eq("workspace_id", workspaceId).limit(5000),
     sb.from("calls").select("id, started_at, call_successful, duration_seconds, sentiment").eq("workspace_id", workspaceId).gte("started_at", s60).limit(5000),
-    sb.from("whatsapp_messages").select("id, direction, created_at").eq("workspace_id", workspaceId).gte("created_at", s60).limit(2000).catch(() => ({ data: [] })),
-    sb.from("hexmail_campaign_enrollments").select("id, status, enrolled_at, workspace_id").eq("workspace_id", workspaceId).gte("enrolled_at", s60).limit(500).catch(() => ({ data: [] })),
-    sb.from("hexmail_campaigns").select("id, status, created_at").eq("workspace_id", workspaceId).limit(100).catch(() => ({ data: [] })),
-    sb.from("growthmind_content_calendar").select("id, status, scheduled_date, channel").eq("workspace_id", workspaceId).limit(200).catch(() => ({ data: [] })),
-    sb.from("campaigns").select("id, status, created_at").eq("workspace_id", workspaceId).limit(100).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("whatsapp_messages").select("id, direction, created_at").eq("workspace_id", workspaceId).gte("created_at", s60).limit(2000)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("hexmail_campaign_enrollments").select("id, status, enrolled_at, workspace_id").eq("workspace_id", workspaceId).gte("enrolled_at", s60).limit(500)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("hexmail_campaigns").select("id, status, created_at").eq("workspace_id", workspaceId).limit(100)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_content_calendar").select("id, status, scheduled_date, channel").eq("workspace_id", workspaceId).limit(200)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("campaigns").select("id, status, created_at").eq("workspace_id", workspaceId).limit(100)).catch(() => ({ data: [] })),
   ]);
 
   const leads:       any[] = leadsRes.data   ?? [];
@@ -456,7 +456,7 @@ export const runTrendEngine = createServerFn({ method: "POST" })
 
     const signals = await detectTrendSignals(sb, workspaceId);
 
-    await sb.from("growthmind_trend_signals").delete().eq("workspace_id", workspaceId).catch(() => {});
+    await Promise.resolve(sb.from("growthmind_trend_signals").delete().eq("workspace_id", workspaceId)).catch(() => {});
 
     const rows = signals.map(s => ({
       workspace_id:   workspaceId,
@@ -471,6 +471,6 @@ export const runTrendEngine = createServerFn({ method: "POST" })
       computed_at:    s.computedAt,
     }));
 
-    await sb.from("growthmind_trend_signals").insert(rows).catch(() => {});
+    await Promise.resolve(sb.from("growthmind_trend_signals").insert(rows)).catch(() => {});
     return { ok: true, count: signals.length, signals };
   });

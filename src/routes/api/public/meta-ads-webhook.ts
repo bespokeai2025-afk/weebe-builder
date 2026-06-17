@@ -98,7 +98,7 @@ export const Route = createFileRoute("/api/public/meta-ads-webhook")({
         }
 
         if (inserts.length > 0) {
-          await sb.from("growthmind_ad_webhook_events").insert(inserts).catch((e: any) =>
+          await Promise.resolve(sb.from("growthmind_ad_webhook_events").insert(inserts)).catch((e: any) =>
             console.error("[meta-ads-webhook] insert error:", e?.message)
           );
         }

@@ -34,10 +34,10 @@ export async function dispatchVideoGeneration(
   // ── Pull workspace context ────────────────────────────────────────────────
   const [wsRes, dnaRes, vpRes, oppRes, kbRes] = await Promise.all([
     sb.from("workspaces").select("name, settings").eq("id", workspaceId).maybeSingle(),
-    sb.from("growthmind_business_dna").select("*").eq("workspace_id", workspaceId).maybeSingle().catch(() => ({ data: null })),
-    sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
-    sb.from("growthmind_opportunities").select("title,recommended_action,urgency").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
-    sb.from("knowledge_bases").select("name, description").eq("workspace_id", workspaceId).limit(5).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_business_dna").select("*").eq("workspace_id", workspaceId).maybeSingle()).catch(() => ({ data: null })),
+    Promise.resolve(sb.from("growthmind_value_points").select("current_highest_value,who_to_target,recommended_offer,best_channels").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
+    Promise.resolve(sb.from("growthmind_opportunities").select("title,recommended_action,urgency").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
+    Promise.resolve(sb.from("knowledge_bases").select("name, description").eq("workspace_id", workspaceId).limit(5)).catch(() => ({ data: [] })),
   ]);
 
   const ws          = wsRes.data;
@@ -193,9 +193,9 @@ export async function dispatchGrowthCampaign(
   const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
   const [dnaRes, leadsRes, valuePointRes] = await Promise.all([
-    sb.from("growthmind_business_dna").select("*").eq("workspace_id", workspaceId).maybeSingle().catch(() => ({ data: null })),
-    sb.from("leads").select("id, status").eq("workspace_id", workspaceId).limit(2000).catch(() => ({ data: [] })),
-    sb.from("growthmind_value_points").select("current_highest_value").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle().catch(() => ({ data: null })),
+    Promise.resolve(sb.from("growthmind_business_dna").select("*").eq("workspace_id", workspaceId).maybeSingle()).catch(() => ({ data: null })),
+    Promise.resolve(sb.from("leads").select("id, status").eq("workspace_id", workspaceId).limit(2000)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_value_points").select("current_highest_value").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(1).maybeSingle()).catch(() => ({ data: null })),
   ]);
 
   const dna          = dnaRes.data;

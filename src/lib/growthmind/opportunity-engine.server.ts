@@ -81,7 +81,7 @@ async function detectOpportunities(sb: any, workspaceId: string): Promise<{
     sb.from("growthmind_competitors").select("id, name, website, ai_analysis").eq("workspace_id", workspaceId).limit(20),
     sb.from("growthmind_content_calendar").select("id, title, status, scheduled_date, channel").eq("workspace_id", workspaceId).gte("created_at", since90).limit(100),
     sb.from("whatsapp_contacts").select("id, created_at").eq("workspace_id", workspaceId).limit(1),
-    sb.from("whatsapp_messages").select("id, direction, created_at").eq("workspace_id", workspaceId).gte("created_at", since30).limit(500).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("whatsapp_messages").select("id, direction, created_at").eq("workspace_id", workspaceId).gte("created_at", since30).limit(500)).catch(() => ({ data: [] })),
     sb.from("hexmail_campaigns").select("id, name, status, type").eq("workspace_id", workspaceId).limit(50),
     sb.from("growthmind_goals").select("id, metric, target, deadline").eq("workspace_id", workspaceId).limit(10),
     sb.from("growthmind_business_dna").select("*").eq("workspace_id", workspaceId).maybeSingle(),

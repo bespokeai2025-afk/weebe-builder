@@ -14,6 +14,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DocsRouteImport } from './routes/docs'
+import { Route as ApiDocsRouteImport } from './routes/api-docs'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UploadTokenRouteImport } from './routes/upload.$token'
@@ -81,6 +82,7 @@ import { Route as ApiPublicContactRouteImport } from './routes/api/public/contac
 import { Route as ApiPublicCampaignExecutorRouteImport } from './routes/api/public/campaign-executor'
 import { Route as ApiPublicApproveUserRouteImport } from './routes/api/public/approve-user'
 import { Route as ApiPublicAdsSyncRouteImport } from './routes/api/public/ads-sync'
+import { Route as ApiMonitoringHealthRouteImport } from './routes/api/monitoring/health'
 import { Route as ApiDashboardLiveCallsSseRouteImport } from './routes/api/dashboard/live-calls-sse'
 import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/builder/script-template'
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
@@ -153,6 +155,7 @@ import { Route as AuthenticatedGrowthmindBusinessDnaRouteImport } from './routes
 import { Route as AuthenticatedGrowthmindBlogWriterRouteImport } from './routes/_authenticated/growthmind.blog-writer'
 import { Route as AuthenticatedGrowthmindAdsPerformanceRouteImport } from './routes/_authenticated/growthmind.ads-performance'
 import { Route as AuthenticatedGrowthmindAdsRouteImport } from './routes/_authenticated/growthmind.ads'
+import { Route as AuthenticatedBillingUsageRouteImport } from './routes/_authenticated/billing.usage'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminWorkspacesRouteImport } from './routes/_authenticated/admin.workspaces'
 import { Route as AuthenticatedAdminWhitelabelRouteImport } from './routes/_authenticated/admin.whitelabel'
@@ -247,6 +250,11 @@ const LoginRoute = LoginRouteImport.update({
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDocsRoute = ApiDocsRouteImport.update({
+  id: '/api-docs',
+  path: '/api-docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -597,6 +605,11 @@ const ApiPublicApproveUserRoute = ApiPublicApproveUserRouteImport.update({
 const ApiPublicAdsSyncRoute = ApiPublicAdsSyncRouteImport.update({
   id: '/api/public/ads-sync',
   path: '/api/public/ads-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMonitoringHealthRoute = ApiMonitoringHealthRouteImport.update({
+  id: '/api/monitoring/health',
+  path: '/api/monitoring/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDashboardLiveCallsSseRoute =
@@ -1029,6 +1042,12 @@ const AuthenticatedGrowthmindAdsRoute =
     path: '/ads',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedBillingUsageRoute =
+  AuthenticatedBillingUsageRouteImport.update({
+    id: '/usage',
+    path: '/usage',
+    getParentRoute: () => AuthenticatedBillingRoute,
+  } as any)
 const AuthenticatedAgentsNewRoute = AuthenticatedAgentsNewRouteImport.update({
   id: '/agents/new',
   path: '/agents/new',
@@ -1432,6 +1451,7 @@ const AuthenticatedAdminAccountsWorkspaceIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api-docs': typeof ApiDocsRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -1440,7 +1460,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/analytics-marketing': typeof AuthenticatedAnalyticsMarketingRoute
-  '/billing': typeof AuthenticatedBillingRoute
+  '/billing': typeof AuthenticatedBillingRouteWithChildren
   '/builder': typeof AuthenticatedBuilderRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/calls': typeof AuthenticatedCallsRoute
@@ -1477,6 +1497,7 @@ export interface FileRoutesByFullPath {
   '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
   '/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/billing/usage': typeof AuthenticatedBillingUsageRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
@@ -1549,6 +1570,7 @@ export interface FileRoutesByFullPath {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -1647,6 +1669,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api-docs': typeof ApiDocsRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -1654,7 +1677,7 @@ export interface FileRoutesByTo {
   '/unsubscribe': typeof UnsubscribeRoute
   '/analytics': typeof AuthenticatedAnalyticsRoute
   '/analytics-marketing': typeof AuthenticatedAnalyticsMarketingRoute
-  '/billing': typeof AuthenticatedBillingRoute
+  '/billing': typeof AuthenticatedBillingRouteWithChildren
   '/builder': typeof AuthenticatedBuilderRoute
   '/calendar': typeof AuthenticatedCalendarRoute
   '/calls': typeof AuthenticatedCallsRoute
@@ -1685,6 +1708,7 @@ export interface FileRoutesByTo {
   '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
   '/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/billing/usage': typeof AuthenticatedBillingUsageRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
@@ -1757,6 +1781,7 @@ export interface FileRoutesByTo {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -1857,6 +1882,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/api-docs': typeof ApiDocsRoute
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
@@ -1865,7 +1891,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
   '/_authenticated/analytics-marketing': typeof AuthenticatedAnalyticsMarketingRoute
-  '/_authenticated/billing': typeof AuthenticatedBillingRoute
+  '/_authenticated/billing': typeof AuthenticatedBillingRouteWithChildren
   '/_authenticated/builder': typeof AuthenticatedBuilderRoute
   '/_authenticated/calendar': typeof AuthenticatedCalendarRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
@@ -1902,6 +1928,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
   '/_authenticated/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
+  '/_authenticated/billing/usage': typeof AuthenticatedBillingUsageRoute
   '/_authenticated/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/_authenticated/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/_authenticated/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
@@ -1974,6 +2001,7 @@ export interface FileRoutesById {
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
   '/api/builder/script-template': typeof ApiBuilderScriptTemplateRoute
   '/api/dashboard/live-calls-sse': typeof ApiDashboardLiveCallsSseRoute
+  '/api/monitoring/health': typeof ApiMonitoringHealthRoute
   '/api/public/ads-sync': typeof ApiPublicAdsSyncRoute
   '/api/public/approve-user': typeof ApiPublicApproveUserRoute
   '/api/public/campaign-executor': typeof ApiPublicCampaignExecutorRoute
@@ -2074,6 +2102,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/api-docs'
     | '/docs'
     | '/login'
     | '/pricing'
@@ -2119,6 +2148,7 @@ export interface FileRouteTypes {
     | '/admin/whitelabel'
     | '/admin/workspaces'
     | '/agents/new'
+    | '/billing/usage'
     | '/growthmind/ads'
     | '/growthmind/ads-performance'
     | '/growthmind/blog-writer'
@@ -2191,6 +2221,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/monitoring/health'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -2289,6 +2320,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/api-docs'
     | '/docs'
     | '/login'
     | '/pricing'
@@ -2327,6 +2359,7 @@ export interface FileRouteTypes {
     | '/admin/whitelabel'
     | '/admin/workspaces'
     | '/agents/new'
+    | '/billing/usage'
     | '/growthmind/ads'
     | '/growthmind/ads-performance'
     | '/growthmind/blog-writer'
@@ -2399,6 +2432,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/monitoring/health'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -2498,6 +2532,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/api-docs'
     | '/docs'
     | '/login'
     | '/pricing'
@@ -2543,6 +2578,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/whitelabel'
     | '/_authenticated/admin/workspaces'
     | '/_authenticated/agents/new'
+    | '/_authenticated/billing/usage'
     | '/_authenticated/growthmind/ads'
     | '/_authenticated/growthmind/ads-performance'
     | '/_authenticated/growthmind/blog-writer'
@@ -2615,6 +2651,7 @@ export interface FileRouteTypes {
     | '/api/builder/scan-pdf'
     | '/api/builder/script-template'
     | '/api/dashboard/live-calls-sse'
+    | '/api/monitoring/health'
     | '/api/public/ads-sync'
     | '/api/public/approve-user'
     | '/api/public/campaign-executor'
@@ -2715,6 +2752,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  ApiDocsRoute: typeof ApiDocsRoute
   DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
   PricingRoute: typeof PricingRoute
@@ -2729,6 +2767,7 @@ export interface RootRouteChildren {
   ApiBuilderScanPdfRoute: typeof ApiBuilderScanPdfRoute
   ApiBuilderScriptTemplateRoute: typeof ApiBuilderScriptTemplateRoute
   ApiDashboardLiveCallsSseRoute: typeof ApiDashboardLiveCallsSseRoute
+  ApiMonitoringHealthRoute: typeof ApiMonitoringHealthRoute
   ApiPublicAdsSyncRoute: typeof ApiPublicAdsSyncRoute
   ApiPublicApproveUserRoute: typeof ApiPublicApproveUserRoute
   ApiPublicCampaignExecutorRoute: typeof ApiPublicCampaignExecutorRoute
@@ -2830,6 +2869,13 @@ declare module '@tanstack/react-router' {
       path: '/docs'
       fullPath: '/docs'
       preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api-docs': {
+      id: '/api-docs'
+      path: '/api-docs'
+      fullPath: '/api-docs'
+      preLoaderRoute: typeof ApiDocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -3299,6 +3345,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/ads-sync'
       fullPath: '/api/public/ads-sync'
       preLoaderRoute: typeof ApiPublicAdsSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/monitoring/health': {
+      id: '/api/monitoring/health'
+      path: '/api/monitoring/health'
+      fullPath: '/api/monitoring/health'
+      preLoaderRoute: typeof ApiMonitoringHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/dashboard/live-calls-sse': {
@@ -3804,6 +3857,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/growthmind/ads'
       preLoaderRoute: typeof AuthenticatedGrowthmindAdsRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/billing/usage': {
+      id: '/_authenticated/billing/usage'
+      path: '/usage'
+      fullPath: '/billing/usage'
+      preLoaderRoute: typeof AuthenticatedBillingUsageRouteImport
+      parentRoute: typeof AuthenticatedBillingRoute
     }
     '/_authenticated/agents/new': {
       id: '/_authenticated/agents/new'
@@ -4360,6 +4420,17 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
 const AuthenticatedAdminRouteWithChildren =
   AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
 
+interface AuthenticatedBillingRouteChildren {
+  AuthenticatedBillingUsageRoute: typeof AuthenticatedBillingUsageRoute
+}
+
+const AuthenticatedBillingRouteChildren: AuthenticatedBillingRouteChildren = {
+  AuthenticatedBillingUsageRoute: AuthenticatedBillingUsageRoute,
+}
+
+const AuthenticatedBillingRouteWithChildren =
+  AuthenticatedBillingRoute._addFileChildren(AuthenticatedBillingRouteChildren)
+
 interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindAdsRoute: typeof AuthenticatedGrowthmindAdsRoute
   AuthenticatedGrowthmindAdsPerformanceRoute: typeof AuthenticatedGrowthmindAdsPerformanceRoute
@@ -4612,7 +4683,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedAnalyticsMarketingRoute: typeof AuthenticatedAnalyticsMarketingRoute
-  AuthenticatedBillingRoute: typeof AuthenticatedBillingRoute
+  AuthenticatedBillingRoute: typeof AuthenticatedBillingRouteWithChildren
   AuthenticatedBuilderRoute: typeof AuthenticatedBuilderRoute
   AuthenticatedCalendarRoute: typeof AuthenticatedCalendarRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
@@ -4649,7 +4720,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
   AuthenticatedAnalyticsMarketingRoute: AuthenticatedAnalyticsMarketingRoute,
-  AuthenticatedBillingRoute: AuthenticatedBillingRoute,
+  AuthenticatedBillingRoute: AuthenticatedBillingRouteWithChildren,
   AuthenticatedBuilderRoute: AuthenticatedBuilderRoute,
   AuthenticatedCalendarRoute: AuthenticatedCalendarRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
@@ -4856,6 +4927,7 @@ const ApiRuntimeAgentIdRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  ApiDocsRoute: ApiDocsRoute,
   DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
   PricingRoute: PricingRoute,
@@ -4870,6 +4942,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBuilderScanPdfRoute: ApiBuilderScanPdfRoute,
   ApiBuilderScriptTemplateRoute: ApiBuilderScriptTemplateRoute,
   ApiDashboardLiveCallsSseRoute: ApiDashboardLiveCallsSseRoute,
+  ApiMonitoringHealthRoute: ApiMonitoringHealthRoute,
   ApiPublicAdsSyncRoute: ApiPublicAdsSyncRoute,
   ApiPublicApproveUserRoute: ApiPublicApproveUserRoute,
   ApiPublicCampaignExecutorRoute: ApiPublicCampaignExecutorRoute,

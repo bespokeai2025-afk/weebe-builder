@@ -192,7 +192,7 @@ export const runServiceScoring = createServerFn({ method: "POST" })
     const scores = computeServiceScores(ctx);
     if (scores.length === 0) return { ok: true, count: 0 };
 
-    await sb.from("growthmind_service_scores").delete().eq("workspace_id", workspaceId).catch(() => {});
+    await Promise.resolve(sb.from("growthmind_service_scores").delete().eq("workspace_id", workspaceId)).catch(() => {});
 
     const rows = scores.map(s => ({
       workspace_id:   workspaceId,
@@ -203,6 +203,6 @@ export const runServiceScoring = createServerFn({ method: "POST" })
       computed_at:    s.computedAt,
     }));
 
-    await sb.from("growthmind_service_scores").insert(rows).catch(() => {});
+    await Promise.resolve(sb.from("growthmind_service_scores").insert(rows)).catch(() => {});
     return { ok: true, count: scores.length, scores };
   });

@@ -243,6 +243,8 @@ export async function processWebformSubmission(opts: {
                 "message","notes","enquiry","website","website_url","utm_source",
                 "utm_medium","utm_campaign","referrer","source_page","_hp","fax","url2","address2",
               ].includes(k.toLowerCase()))
+              .filter(([k]) => /^[a-zA-Z0-9_-]{1,64}$/.test(k))
+              .slice(0, 20)
               .map(([k, v]) => [k, String(v ?? "").slice(0, 500)])
           ),
         },
