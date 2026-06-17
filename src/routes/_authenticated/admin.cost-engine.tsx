@@ -22,6 +22,7 @@ import {
   saveRetellCost, saveMarkup, savePlan, deletePlan,
   saveDevRole, deleteDevRole,
   getClientEstimates, saveClientEstimate, deleteClientEstimate,
+  getActivePlatformClients,
   calcHyperstreamCostPerMin, calcRetellCostPerMin, calcRetellFullCostPerMin,
   applyMarkup, calcInfraCostPerMin,
   getProviderCostRates, saveProviderCostRate, deleteProviderCostRate,
@@ -29,11 +30,47 @@ import {
 import type {
   CostEngineData, CostAnalytics, LlmCost, VoiceCost, TelephonyCost,
   DevRole, ClientEstimate, TeamMember, AddonCharge, RetellCostBreakdown,
+  PlatformClient,
 } from "@/lib/cost-engine/cost-engine.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/cost-engine")({
   component: CostEnginePage,
 });
+
+// ── Platform pricing packages (mirrors pricing.tsx) ───────────────────────────
+
+export interface PlatformPlan {
+  id: string;
+  name: string;
+  type: "module" | "bundle" | "enterprise";
+  price_gbp: number;
+  included_minutes: number;
+  tagline: string;
+}
+
+export const PLATFORM_PLANS: PlatformPlan[] = [
+  // Modules
+  { id: "receptionist",      name: "Receptionist",              type: "module",     price_gbp: 297,  included_minutes: 60,   tagline: "Answer every call, book every appointment." },
+  { id: "lead_gen",          name: "Lead Generation",           type: "module",     price_gbp: 250,  included_minutes: 100,  tagline: "Dial more leads. Fill your pipeline automatically." },
+  { id: "qualification",     name: "Client Qualification",      type: "module",     price_gbp: 300,  included_minutes: 150,  tagline: "Score leads. Automate your qualification pipeline." },
+  { id: "growthmind",        name: "GrowthMind",                type: "module",     price_gbp: 250,  included_minutes: 0,    tagline: "AI-driven growth strategy, campaigns & content." },
+  { id: "whatsapp",          name: "WhatsApp Centre",           type: "module",     price_gbp: 99,   included_minutes: 0,    tagline: "AI-powered WhatsApp inbox, broadcasts & agents." },
+  { id: "video",             name: "Video & Creative Studio",   type: "module",     price_gbp: 99,   included_minutes: 0,    tagline: "Generate videos, images & ad creatives with AI." },
+  { id: "builder",           name: "Builder",                   type: "module",     price_gbp: 97,   included_minutes: 100,  tagline: "Full agent and flow building toolkit." },
+  // Bundles
+  { id: "pro",               name: "Pro Bundle",                type: "bundle",     price_gbp: 997,  included_minutes: 500,  tagline: "Everything you need to run a full AI-powered business." },
+  { id: "scale",             name: "Scale Bundle",              type: "bundle",     price_gbp: 1997, included_minutes: 1500, tagline: "Enterprise-grade AI operations at scale." },
+  // Enterprise tiers
+  { id: "executive_suite",   name: "Executive Suite",           type: "enterprise", price_gbp: 1970, included_minutes: 0,    tagline: "Executive AI Operating System for founders & leadership." },
+  { id: "business_command",  name: "Business Command",          type: "enterprise", price_gbp: 3970, included_minutes: 0,    tagline: "Department-wide AI deployment." },
+  { id: "enterprise",        name: "Enterprise",                type: "enterprise", price_gbp: 7500, included_minutes: 0,    tagline: "Large organisations requiring enterprise controls." },
+];
+
+const PLAN_TYPE_LABELS: Record<PlatformPlan["type"], string> = {
+  module:     "Module",
+  bundle:     "Bundle",
+  enterprise: "Enterprise",
+};
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
@@ -129,20 +166,23 @@ function CostEnginePage() {
   const [data, setData] = useState<(CostEngineData & { tablesReady: boolean }) | null>(null);
   const [analytics, setAnalytics] = useState<CostAnalytics | null>(null);
   const [estimates, setEstimates] = useState<ClientEstimate[]>([]);
+  const [platformClients, setPlatformClients] = useState<PlatformClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [d, a, e] = await Promise.all([
+      const [d, a, e, clients] = await Promise.all([
         getCostEngine(),
         getCostAnalytics().catch(() => null),
         getClientEstimates().catch(() => []),
+        getActivePlatformClients().catch(() => []),
       ]);
       setData(d as any);
       setAnalytics(a);
       setEstimates(e);
+      setPlatformClients(clients);
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to load cost engine");
     } finally {
@@ -249,7 +289,7 @@ function CostEnginePage() {
               {activeTab === "retell"         && data && <RetellCalculatorTab data={data} />}
               {activeTab === "profit"         && data && <ProfitTab data={data} onSaved={loadAll} />}
               {activeTab === "onboarding"     && data && <OnboardingTab rows={data.dev_roles} onSaved={loadAll} />}
-              {activeTab === "clients"        && data && <ClientEstimatesTab data={data} estimates={estimates} onSaved={loadAll} />}
+              {activeTab === "clients"        && data && <ClientEstimatesTab data={data} estimates={estimates} platformClients={platformClients} onSaved={loadAll} />}
               {activeTab === "analytics"      && analytics && <AnalyticsTab analytics={analytics} />}
               {activeTab === "provider-rates" && <ProviderRatesTab />}
             </>
@@ -1271,14 +1311,22 @@ function initTeamRows(devRoles: DevRole[], existingTeam: TeamMember[], defaultWe
 
 const EST_BLANK = { client_name: "", client_email: "", plan_id: "", project_weeks: 4, notes: "" };
 
-function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData; estimates: ClientEstimate[]; onSaved: () => void }) {
+// GBP → USD approximate conversion for platform cost display
+const GBP_USD = 1.27;
+
+function ClientEstimatesTab({ data, estimates, platformClients, onSaved }: {
+  data: CostEngineData;
+  estimates: ClientEstimate[];
+  platformClients: PlatformClient[];
+  onSaved: () => void;
+}) {
   const [editId, setEditId] = useState<string | "new" | null>(null);
   const [form, setForm] = useState({ ...EST_BLANK });
   const [teamRows, setTeamRows] = useState<TeamRow[]>([]);
   const [addons, setAddons] = useState<AddonCharge[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const platformCostPerMin = calcHyperstreamCostPerMin({
+  const platformCostPerMinUsd = calcHyperstreamCostPerMin({
     llm: data.llm.find(l => n(l.audio_input_cost) > 0) ?? data.llm[0] ?? null,
     voice: data.voice[0] ?? null,
     telephony: data.telephony[0] ?? null,
@@ -1287,8 +1335,11 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
     infrastructure: data.infrastructure,
   }).total;
 
-  const openNew = () => {
-    setForm({ ...EST_BLANK, project_weeks: 4 });
+  // Convert platform cost to GBP for consistent P&L display
+  const platformCostPerMinGbp = platformCostPerMinUsd / GBP_USD;
+
+  const openNew = (prefill?: { name: string; email: string }) => {
+    setForm({ ...EST_BLANK, project_weeks: 4, client_name: prefill?.name ?? "", client_email: prefill?.email ?? "" });
     setTeamRows(initTeamRows(data.dev_roles, [], 4));
     setAddons([]);
     setEditId("new");
@@ -1325,19 +1376,21 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
     catch (e: any) { toast.error(e?.message ?? "Failed"); } finally { setBusy(false); }
   };
 
-  const selectedPlan = data.plans.find(p => p.id === form.plan_id);
+  // Use platform pricing plans (not internal cost_engine_customer_plans)
+  const selectedPlan = PLATFORM_PLANS.find(p => p.id === form.plan_id);
   const setupCost = teamRows.reduce((s, r) => r.count > 0 ? s + r.rate_per_hour * r.hours_per_week * r.weeks * r.count : s, 0);
-  const monthlyRevenue = n(selectedPlan?.price_per_month) + addons.reduce((s, a) => s + n(a.amount), 0);
-  const monthlyPlatformCost = n(selectedPlan?.included_minutes) * platformCostPerMin;
-  const monthlyProfit = monthlyRevenue - monthlyPlatformCost;
+  const monthlyRevenue = n(selectedPlan?.price_gbp) + addons.reduce((s, a) => s + n(a.amount), 0);
+  const monthlyPlatformCostGbp = n(selectedPlan?.included_minutes) * platformCostPerMinGbp;
+  const monthlyProfit = monthlyRevenue - monthlyPlatformCostGbp;
   const marginPct = monthlyRevenue > 0 ? (monthlyProfit / monthlyRevenue) * 100 : 0;
   const breakEvenMonths = monthlyProfit > 0 ? setupCost / monthlyProfit : null;
 
+  // ── Edit / New form ──
   if (editId !== null) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <SectionHeader icon={Briefcase} title={editId === "new" ? "New Client Estimate" : "Edit Estimate"} subtitle="Define team, timeline, and assigned pricing plan" />
+          <SectionHeader icon={Briefcase} title={editId === "new" ? "New Client Estimate" : "Edit Estimate"} subtitle="Define team, timeline, and assigned pricing package" />
           <Button variant="ghost" size="sm" onClick={() => setEditId(null)}><X className="w-4 h-4 mr-1" />Cancel</Button>
         </div>
 
@@ -1345,10 +1398,21 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
           <div><Label className="text-xs">Client Name *</Label><Input className="h-7 text-xs mt-0.5" value={form.client_name} onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} placeholder="Acme Corp" /></div>
           <div><Label className="text-xs">Client Email</Label><Input className="h-7 text-xs mt-0.5" type="email" value={form.client_email} onChange={e => setForm(f => ({ ...f, client_email: e.target.value }))} placeholder="client@example.com" /></div>
           <div>
-            <Label className="text-xs">Assigned Plan</Label>
+            <Label className="text-xs">Pricing Package</Label>
             <select className="w-full h-7 text-xs rounded border bg-background px-2 mt-0.5" value={form.plan_id} onChange={e => setForm(f => ({ ...f, plan_id: e.target.value }))}>
-              <option value="">— No plan —</option>
-              {data.plans.map(p => <option key={p.id} value={p.id}>{p.plan_name} — ${n(p.price_per_month).toFixed(0)}/mo ({n(p.included_minutes)} min)</option>)}
+              <option value="">— No package —</option>
+              {(["module", "bundle", "enterprise"] as const).map(type => {
+                const group = PLATFORM_PLANS.filter(p => p.type === type);
+                return (
+                  <optgroup key={type} label={PLAN_TYPE_LABELS[type]}>
+                    {group.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} — £{p.price_gbp.toLocaleString()}/mo{p.included_minutes > 0 ? ` (${p.included_minutes} min)` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>
           </div>
           <div>
@@ -1362,6 +1426,15 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
           </div>
           <div className="md:col-span-2"><Label className="text-xs">Notes</Label><Input className="h-7 text-xs mt-0.5" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any additional context" /></div>
         </div>
+
+        {selectedPlan && (
+          <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2 text-xs flex items-center gap-3">
+            <Badge variant="secondary" className="text-[10px] shrink-0">{PLAN_TYPE_LABELS[selectedPlan.type]}</Badge>
+            <span className="font-medium text-foreground">{selectedPlan.name}</span>
+            <span className="text-muted-foreground">{selectedPlan.tagline}</span>
+            {selectedPlan.included_minutes > 0 && <span className="ml-auto shrink-0 text-violet-400">{selectedPlan.included_minutes} min/mo included</span>}
+          </div>
+        )}
 
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-3">
@@ -1380,13 +1453,11 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
                           <td className="px-3 py-1.5 font-medium">{row.role_name}</td>
                           <td className="px-3 py-1.5 text-muted-foreground">${row.rate_per_hour}/hr</td>
                           <td className="px-3 py-1.5">
-                            <Input type="number" min={0} step={1} className="h-6 w-14 text-xs p-1"
-                              value={row.count}
+                            <Input type="number" min={0} step={1} className="h-6 w-14 text-xs p-1" value={row.count}
                               onChange={e => setTeamRows(rows => rows.map((r, j) => j === i ? { ...r, count: Math.max(0, parseInt(e.target.value) || 0) } : r))} />
                           </td>
                           <td className="px-3 py-1.5">
-                            <Input type="number" min={1} step={1} className="h-6 w-14 text-xs p-1"
-                              value={row.weeks}
+                            <Input type="number" min={1} step={1} className="h-6 w-14 text-xs p-1" value={row.weeks}
                               onChange={e => setTeamRows(rows => rows.map((r, j) => j === i ? { ...r, weeks: Math.max(1, parseInt(e.target.value) || 1) } : r))} />
                           </td>
                           <td className="px-3 py-1.5 font-medium">{cost > 0 ? `$${cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}</td>
@@ -1404,7 +1475,7 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
                 <div key={i} className="flex gap-2 items-center">
                   <Input className="h-7 text-xs flex-1" placeholder="Label (e.g. SMS credits)" value={a.label}
                     onChange={e => setAddons(arr => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
-                  <Input type="number" step="0.01" min="0" className="h-7 text-xs w-24" placeholder="$ amount"
+                  <Input type="number" step="1" min="0" className="h-7 text-xs w-24" placeholder="£ amount"
                     value={a.amount}
                     onChange={e => setAddons(arr => arr.map((x, j) => j === i ? { ...x, amount: parseFloat(e.target.value) || 0 } : x))} />
                   <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive flex-shrink-0"
@@ -1423,12 +1494,12 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
               {([
                 { label: "Project setup cost (one-time)", value: `$${setupCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, bold: true },
                 { sep: true },
-                { label: "Plan revenue / month", value: selectedPlan ? `$${n(selectedPlan.price_per_month).toFixed(2)}` : "—" },
-                ...addons.filter(a => a.label && a.amount > 0).map(a => ({ label: `+ ${a.label}`, value: `$${n(a.amount).toFixed(2)}` })),
-                { label: "Total monthly revenue", value: `$${monthlyRevenue.toFixed(2)}`, accent: "text-blue-600" },
-                { label: "Monthly platform cost", value: `−$${monthlyPlatformCost.toFixed(4)}`, accent: "text-red-500" },
+                { label: "Package revenue / month", value: selectedPlan ? `£${n(selectedPlan.price_gbp).toLocaleString()}` : "—" },
+                ...addons.filter(a => a.label && a.amount > 0).map(a => ({ label: `+ ${a.label}`, value: `£${n(a.amount).toFixed(2)}` })),
+                { label: "Total monthly revenue", value: `£${monthlyRevenue.toFixed(0)}`, accent: "text-blue-600" },
+                { label: "Monthly platform cost", value: selectedPlan ? `−£${monthlyPlatformCostGbp.toFixed(2)}` : "—", accent: "text-red-500" },
                 { sep: true },
-                { label: "Monthly gross profit", value: `$${monthlyProfit.toFixed(2)}`, accent: monthlyProfit >= 0 ? "text-emerald-600" : "text-red-500", bold: true },
+                { label: "Monthly gross profit", value: `£${monthlyProfit.toFixed(0)}`, accent: monthlyProfit >= 0 ? "text-emerald-600" : "text-red-500", bold: true },
                 { label: "Gross margin", value: `${marginPct.toFixed(1)}%`, accent: marginPct > 30 ? "text-emerald-600" : marginPct > 10 ? "text-amber-600" : "text-red-500" },
                 { sep: true },
                 { label: "Break-even point", value: breakEvenMonths !== null ? `${breakEvenMonths.toFixed(1)} months` : "—", accent: breakEvenMonths !== null && breakEvenMonths < 6 ? "text-emerald-600" : "text-amber-600" },
@@ -1442,7 +1513,10 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
               )}
             </div>
             {!selectedPlan && (
-              <p className="text-xs text-amber-600">Assign a plan above to see monthly revenue and platform cost calculations.</p>
+              <p className="text-xs text-amber-600">Assign a pricing package above to see monthly revenue and platform cost calculations.</p>
+            )}
+            {selectedPlan && (
+              <p className="text-[10px] text-muted-foreground">Platform cost converted from $ at approx. £1 = $1.27</p>
             )}
           </div>
         </div>
@@ -1458,73 +1532,127 @@ function ClientEstimatesTab({ data, estimates, onSaved }: { data: CostEngineData
     );
   }
 
+  // ── List view ──
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <SectionHeader icon={Briefcase} title="Client Estimates" subtitle="Per-client project cost and recurring profit margin reports" />
-        <Button size="sm" onClick={openNew} className="h-8 text-xs"><Plus className="w-3 h-3 mr-1.5" />New Estimate</Button>
+    <div className="space-y-6">
+
+      {/* ── Active Platform Clients ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <SectionHeader icon={Users} title="Active Platform Clients" subtitle={`${platformClients.length} workspace${platformClients.length !== 1 ? "s" : ""} on the platform`} />
+        </div>
+        {platformClients.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4">No workspaces found.</p>
+        ) : (
+          <div className="rounded-lg border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50">
+                <tr>
+                  {["Workspace", "Business Name", "Contact Email", "Joined", ""].map(h => (
+                    <th key={h} className="text-left px-3 py-2 font-medium text-muted-foreground">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {platformClients.map(c => {
+                  const hasEstimate = estimates.some(e => e.client_name === (c.business_name || c.workspace_name));
+                  return (
+                    <tr key={c.workspace_id} className="hover:bg-muted/20">
+                      <td className="px-3 py-2 font-medium">{c.workspace_name}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{c.business_name ?? <span className="opacity-40">—</span>}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{c.notification_email ?? <span className="opacity-40">—</span>}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{new Date(c.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</td>
+                      <td className="px-3 py-2">
+                        {hasEstimate ? (
+                          <Badge variant="secondary" className="text-[10px]">Has estimate</Badge>
+                        ) : (
+                          <Button size="sm" variant="outline" className="h-6 text-[10px] px-2"
+                            onClick={() => openNew({ name: c.business_name || c.workspace_name, email: c.notification_email ?? "" })}>
+                            + Estimate
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {estimates.length === 0 && (
-        <div className="text-center py-16 text-muted-foreground">
-          <Briefcase className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm font-medium">No client estimates yet</p>
-          <p className="text-xs mt-1">Create one to model per-client project costs and monthly profit margins</p>
+      {/* ── Client Estimates ── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <SectionHeader icon={Briefcase} title="Client Estimates" subtitle="Per-client project cost and recurring profit margin reports" />
+          <Button size="sm" onClick={() => openNew()} className="h-8 text-xs"><Plus className="w-3 h-3 mr-1.5" />New Estimate</Button>
         </div>
-      )}
 
-      <div className="grid md:grid-cols-2 gap-4">
-        {estimates.map(est => {
-          const plan = data.plans.find(p => p.id === est.plan_id);
-          const estSetup = est.team_config.reduce((s, m) => s + n(m.rate_per_hour) * n(m.hours_per_week) * n(m.weeks) * n(m.count), 0);
-          const estRevenue = n(plan?.price_per_month) + est.monthly_addon_charges.reduce((s, a) => s + n(a.amount), 0);
-          const estPlatform = n(plan?.included_minutes) * platformCostPerMin;
-          const estProfit = estRevenue - estPlatform;
-          const estMargin = estRevenue > 0 ? (estProfit / estRevenue) * 100 : 0;
-          const estBE = estProfit > 0 ? estSetup / estProfit : null;
+        {estimates.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground rounded-lg border border-dashed">
+            <Briefcase className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm font-medium">No estimates yet</p>
+            <p className="text-xs mt-1">Click "+ Estimate" next to a client above, or use the button to start from scratch.</p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-4">
+            {estimates.map(est => {
+              const plan = PLATFORM_PLANS.find(p => p.id === est.plan_id);
+              const estSetup = est.team_config.reduce((s, m) => s + n(m.rate_per_hour) * n(m.hours_per_week) * n(m.weeks) * n(m.count), 0);
+              const estRevenue = n(plan?.price_gbp) + est.monthly_addon_charges.reduce((s, a) => s + n(a.amount), 0);
+              const estPlatform = n(plan?.included_minutes) * platformCostPerMinGbp;
+              const estProfit = estRevenue - estPlatform;
+              const estMargin = estRevenue > 0 ? (estProfit / estRevenue) * 100 : 0;
+              const estBE = estProfit > 0 ? estSetup / estProfit : null;
 
-          return (
-            <div key={est.id} className="rounded-lg border p-4 space-y-3 hover:shadow-sm transition-shadow">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-semibold text-sm">{est.client_name}</p>
-                  {est.client_email && <p className="text-xs text-muted-foreground">{est.client_email}</p>}
-                </div>
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(est)}><Pencil className="w-3 h-3" /></Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeEst(est.id)}><Trash2 className="w-3 h-3" /></Button>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {plan && <Badge variant="secondary" className="text-xs">{plan.plan_name} — ${n(plan.price_per_month).toFixed(0)}/mo</Badge>}
-                <Badge variant="outline" className="text-xs">{est.project_weeks}w project</Badge>
-                {est.team_config.map(m => (
-                  <Badge key={m.role_id} variant="outline" className="text-xs">{m.count}× {m.role_name}</Badge>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {([
-                  { label: "Setup Cost", value: `$${estSetup.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
-                  { label: "Monthly Rev", value: `$${estRevenue.toFixed(0)}`, accent: "text-blue-600" },
-                  { label: "Monthly Profit", value: `$${estProfit.toFixed(0)}`, accent: estProfit >= 0 ? "text-emerald-600" : "text-red-500" },
-                  { label: "Margin", value: `${estMargin.toFixed(1)}%`, accent: estMargin > 30 ? "text-emerald-600" : "text-amber-600" },
-                  { label: "Break-even", value: estBE !== null ? `${estBE.toFixed(1)} mo` : "—", accent: estBE !== null && estBE < 6 ? "text-emerald-600" : "" },
-                  { label: "Platform Cost", value: `$${estPlatform.toFixed(2)}/mo`, accent: "text-muted-foreground" },
-                ] as Array<{ label: string; value: string; accent?: string }>).map(c => (
-                  <div key={c.label} className="rounded-md bg-muted/40 p-2">
-                    <p className="text-[10px] text-muted-foreground mb-0.5">{c.label}</p>
-                    <p className={`text-xs font-semibold ${c.accent ?? ""}`}>{c.value}</p>
+              return (
+                <div key={est.id} className="rounded-lg border p-4 space-y-3 hover:shadow-sm transition-shadow">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-sm">{est.client_name}</p>
+                      {est.client_email && <p className="text-xs text-muted-foreground">{est.client_email}</p>}
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(est)}><Pencil className="w-3 h-3" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeEst(est.id)}><Trash2 className="w-3 h-3" /></Button>
+                    </div>
                   </div>
-                ))}
-              </div>
 
-              {est.notes && <p className="text-xs text-muted-foreground italic truncate">{est.notes}</p>}
-              <p className="text-[10px] text-muted-foreground">Created {new Date(est.created_at).toLocaleDateString()}</p>
-            </div>
-          );
-        })}
+                  <div className="flex flex-wrap gap-1.5">
+                    {plan ? (
+                      <Badge variant="secondary" className="text-xs">{plan.name} — £{plan.price_gbp.toLocaleString()}/mo</Badge>
+                    ) : est.plan_id ? (
+                      <Badge variant="outline" className="text-xs opacity-60">Unknown package</Badge>
+                    ) : null}
+                    <Badge variant="outline" className="text-xs">{est.project_weeks}w project</Badge>
+                    {est.team_config.map(m => (
+                      <Badge key={m.role_id} variant="outline" className="text-xs">{m.count}× {m.role_name}</Badge>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {([
+                      { label: "Setup Cost",      value: `$${estSetup.toLocaleString(undefined, { maximumFractionDigits: 0 })}` },
+                      { label: "Monthly Rev",     value: `£${estRevenue.toFixed(0)}`,                accent: "text-blue-600" },
+                      { label: "Monthly Profit",  value: `£${estProfit.toFixed(0)}`,                 accent: estProfit >= 0 ? "text-emerald-600" : "text-red-500" },
+                      { label: "Margin",          value: `${estMargin.toFixed(1)}%`,                 accent: estMargin > 30 ? "text-emerald-600" : "text-amber-600" },
+                      { label: "Break-even",      value: estBE !== null ? `${estBE.toFixed(1)} mo` : "—", accent: estBE !== null && estBE < 6 ? "text-emerald-600" : "" },
+                      { label: "Platform Cost",   value: `£${estPlatform.toFixed(2)}/mo`,            accent: "text-muted-foreground" },
+                    ] as Array<{ label: string; value: string; accent?: string }>).map(c => (
+                      <div key={c.label} className="rounded-md bg-muted/40 p-2">
+                        <p className="text-[10px] text-muted-foreground mb-0.5">{c.label}</p>
+                        <p className={`text-xs font-semibold ${c.accent ?? ""}`}>{c.value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {est.notes && <p className="text-xs text-muted-foreground italic truncate">{est.notes}</p>}
+                  <p className="text-[10px] text-muted-foreground">Created {new Date(est.created_at).toLocaleDateString()}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

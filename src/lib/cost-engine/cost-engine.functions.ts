@@ -919,6 +919,38 @@ export const saveProviderCostRate = createServerFn({ method: "POST" })
  * Constrained to the calling workspace so cross-workspace deletion is impossible
  * even when using the admin client (which bypasses RLS).
  */
+// ── Active Platform Clients ───────────────────────────────────────────────────
+
+export interface PlatformClient {
+  workspace_id: string;
+  workspace_name: string;
+  business_name: string | null;
+  notification_email: string | null;
+  created_at: string;
+}
+
+export const getActivePlatformClients = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .handler(async (): Promise<PlatformClient[]> => {
+    const [wsRes, settingsRes] = await Promise.all([
+      supabaseAdmin.from("workspaces" as any).select("id,name,created_at").order("created_at", { ascending: false }),
+      supabaseAdmin.from("workspace_settings" as any).select("workspace_id,business_name,notification_email"),
+    ]);
+    const settingsMap = Object.fromEntries(
+      ((settingsRes.data ?? []) as any[]).map((s: any) => [s.workspace_id, s]),
+    );
+    return ((wsRes.data ?? []) as any[]).map((w: any) => {
+      const s = settingsMap[w.id] ?? {};
+      return {
+        workspace_id:       w.id,
+        workspace_name:     w.name,
+        business_name:      s.business_name ?? null,
+        notification_email: s.notification_email ?? null,
+        created_at:         w.created_at,
+      };
+    });
+  });
+
 export const deleteProviderCostRate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i: { id: string }) => i)
