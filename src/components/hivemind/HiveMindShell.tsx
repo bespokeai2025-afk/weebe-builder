@@ -3,12 +3,14 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Brain, BarChart3, Lightbulb, FileText, Activity, MessageSquareMore,
   CheckCircle2, Zap, Newspaper, Eye, MessageSquare, ChevronDown, ChevronUp, Settings,
+  Dna, BookMarked,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { getHiveMindTasksAndEvents } from "@/lib/hivemind/hivemind.tasks";
 import { getHiveMindActionsAndCounts, getHiveMindMode, setHiveMindMode, type HiveMindMode } from "@/lib/hivemind/hivemind.actions";
+import { getUnreadBriefingCountFn } from "@/lib/hivemind/business-dna.functions";
 
 // ── Mode context ──────────────────────────────────────────────────────────────
 export const HiveMindModeCtx = createContext<HiveMindMode>("assistant");
@@ -25,18 +27,20 @@ const MODE_CONFIG: Record<HiveMindMode, { icon: React.ElementType; label: string
 // Mode gates: which nav hrefs are visible per mode
 const SETTINGS_HREF = "/hivemind/settings";
 const MODE_VISIBILITY: Record<HiveMindMode, string[]> = {
-  observe:   ["/hivemind", "/hivemind/briefing", "/hivemind/system-health", SETTINGS_HREF],
-  recommend: ["/hivemind", "/hivemind/briefing", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
-  assistant: ["/hivemind", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
-  operator:  ["/hivemind", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/actions", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
+  observe:   ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/system-health", SETTINGS_HREF],
+  recommend: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
+  assistant: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
+  operator:  ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/actions", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
 };
 
 const ALL_NAV = [
   { label: "Overview",        href: "/hivemind",                  icon: BarChart3 },
+  { label: "Business DNA",    href: "/hivemind/business-dna",     icon: Dna },
+  { label: "Briefings",       href: "/hivemind/briefings",        icon: BookMarked,         briefings: true },
   { label: "Briefing",        href: "/hivemind/briefing",         icon: Newspaper },
   { label: "Assistant",       href: "/hivemind/chat",             icon: MessageSquareMore, highlight: true },
-  { label: "Tasks",           href: "/hivemind/tasks",            icon: CheckCircle2,      tasks: true },
-  { label: "Actions",         href: "/hivemind/actions",          icon: Zap,               actions: true },
+  { label: "Tasks",           href: "/hivemind/tasks",            icon: CheckCircle2,       tasks: true },
+  { label: "Actions",         href: "/hivemind/actions",          icon: Zap,                actions: true },
   { label: "Recommendations", href: "/hivemind/recommendations",  icon: Lightbulb },
   { label: "Reports",         href: "/hivemind/reports",          icon: FileText },
   { label: "System Health",   href: "/hivemind/system-health",    icon: Activity },
@@ -66,6 +70,18 @@ function ActionsBadge() {
   const n = data?.pending ?? 0;
   if (!n) return null;
   return <span className="ml-auto rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400 leading-none">{n > 99 ? "99+" : n}</span>;
+}
+
+function BriefingsBadge() {
+  const getFn = useServerFn(getUnreadBriefingCountFn);
+  const { data } = useQuery({
+    queryKey: ["hivemind-briefings-badge"],
+    queryFn:  () => getFn(),
+    staleTime: 120_000, refetchInterval: 180_000,
+  });
+  const n = data?.count ?? 0;
+  if (!n) return null;
+  return <span className="ml-auto rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[9px] font-semibold text-violet-400 leading-none">{n > 99 ? "99+" : n}</span>;
 }
 
 // ── Mode selector ─────────────────────────────────────────────────────────────
@@ -186,6 +202,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
                   )}
                   {tasks && !active && <TasksBadge />}
                   {actions && !active && <ActionsBadge />}
+                  {(briefings as any) && !active && <BriefingsBadge />}
                 </Link>
               );
             })}

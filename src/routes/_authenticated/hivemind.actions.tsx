@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import {
   Zap, CheckCircle2, XCircle, Clock, Loader2, Plus, RefreshCw,
   ChevronDown, ChevronUp, Trash2, AlertTriangle, Play, X,
   Mail, Users, ArrowRight, BookOpen, Megaphone, ClipboardList,
-  Film, TrendingUp, ExternalLink,
+  Film, TrendingUp, ExternalLink, Dna, Package2,
+  BarChart3, MessageSquare, Phone, Video, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell, useHiveMindMode } from "@/components/hivemind/HiveMindShell";
@@ -15,6 +16,8 @@ import {
   deleteHiveMindAction, proposeHiveMindAction, generateOperatorActions,
   type HiveMindAction, type ActionType,
 } from "@/lib/hivemind/hivemind.actions";
+import { getCampaignProposals, updateProposalStatus } from "@/lib/growthmind/growthmind.campaign-proposals";
+import { generateDnaProposalsFn } from "@/lib/hivemind/business-dna.functions";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
 
@@ -335,24 +338,260 @@ function CreateActionModal({ onClose, onCreate }: {
   );
 }
 
+// ── Campaign Proposal Card ────────────────────────────────────────────────────
+function ProposalCard({
+  proposal, onApprove, onReject, isMutating,
+}: {
+  proposal: any;
+  onApprove: (id: string) => void;
+  onReject:  (id: string) => void;
+  isMutating: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const channels: string[] = proposal.channels ?? [];
+
+  const CHANNEL_ICONS: Record<string, React.ElementType> = {
+    "AI Calling": Phone, "WhatsApp": MessageSquare, "Email": Mail,
+    "Meta Ads": BarChart3, "Google Ads": BarChart3, "LinkedIn Ads": BarChart3,
+    "Video": Video, "Content SEO": FileText,
+  };
+
+  return (
+    <div className={cn(
+      "rounded-xl border bg-[hsl(var(--card))] transition-all",
+      proposal.status === "draft" ? "border-violet-500/20" : "border-white/[0.07]",
+    )}>
+      <div className="flex items-start gap-3 p-4">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 ring-1 ring-violet-500/25 mt-0.5">
+          <Package2 className="h-3.5 w-3.5 text-violet-400" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className={cn(
+              "text-[10px] font-medium px-1.5 py-0.5 rounded border",
+              proposal.status === "draft"    ? "text-violet-400 bg-violet-500/10 border-violet-500/20" :
+              proposal.status === "approved" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" :
+              "text-muted-foreground bg-white/[0.04] border-white/[0.08]",
+            )}>
+              {proposal.status}
+            </span>
+            {channels.slice(0, 3).map((ch: string) => {
+              const Icon = CHANNEL_ICONS[ch] ?? Zap;
+              return (
+                <span key={ch} className="flex items-center gap-1 text-[9px] text-muted-foreground/60 bg-white/[0.03] border border-white/[0.06] px-1.5 py-0.5 rounded">
+                  <Icon className="h-2.5 w-2.5" />{ch}
+                </span>
+              );
+            })}
+            {proposal.expected_roi_pct && (
+              <span className="text-[9px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                ~{proposal.expected_roi_pct}% ROI
+              </span>
+            )}
+            {proposal.estimated_leads && (
+              <span className="text-[9px] text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">
+                ~{proposal.estimated_leads} leads
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-semibold leading-tight">{proposal.title}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{proposal.reason}</p>
+          <p className="text-[10px] text-muted-foreground/50 mt-1">{proposal.evidence?.slice(0, 100)}</p>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {proposal.status === "draft" && (
+            <>
+              <button
+                onClick={() => onApprove(proposal.id)}
+                disabled={isMutating}
+                className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all disabled:opacity-40"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Approve
+              </button>
+              <button
+                onClick={() => onReject(proposal.id)}
+                disabled={isMutating}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setOpen(o => !o)}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
+          >
+            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="border-t border-white/[0.06] px-4 py-4 space-y-4">
+          {/* Core sections */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {proposal.audience && (
+              <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Target Audience</p><p className="text-foreground/80">{proposal.audience}</p></div>
+            )}
+            {proposal.expected_outcome && (
+              <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Expected Outcome</p><p className="text-foreground/80">{proposal.expected_outcome}</p></div>
+            )}
+            {proposal.budget_estimate && (
+              <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Budget</p><p className="text-foreground/80">{proposal.budget_estimate}</p></div>
+            )}
+            {proposal.landing_page_rec && (
+              <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Landing Page</p><p className="text-foreground/80">{proposal.landing_page_rec.slice(0, 200)}</p></div>
+            )}
+          </div>
+
+          {/* Content plan */}
+          {proposal.content_plan && (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Content Plan</p>
+              <p className="text-xs text-foreground/70 whitespace-pre-line leading-relaxed">{proposal.content_plan}</p>
+            </div>
+          )}
+
+          {/* Video prompt */}
+          {proposal.video_prompt && (
+            <div className="rounded-lg border border-pink-500/15 bg-pink-500/[0.05] p-3">
+              <p className="text-[10px] text-pink-400 uppercase tracking-wide mb-1.5 font-semibold">🎬 Video Prompt</p>
+              <p className="text-xs text-foreground/80 leading-relaxed">{proposal.video_prompt}</p>
+            </div>
+          )}
+
+          {/* Image prompt */}
+          {proposal.image_prompt && (
+            <div className="rounded-lg border border-blue-500/15 bg-blue-500/[0.05] p-3">
+              <p className="text-[10px] text-blue-400 uppercase tracking-wide mb-1.5 font-semibold">🖼 Image Prompt</p>
+              <p className="text-xs text-foreground/80 leading-relaxed">{proposal.image_prompt}</p>
+            </div>
+          )}
+
+          {/* Ad copy */}
+          {proposal.ad_copy && Object.keys(proposal.ad_copy).length > 0 && (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Ad Copy</p>
+              <div className="space-y-1">
+                {(proposal.ad_copy.headlines ?? []).map((h: string, i: number) => (
+                  <p key={i} className="text-xs font-medium text-foreground/90">"{h}"</p>
+                ))}
+                {(proposal.ad_copy.body ?? []).slice(0, 1).map((b: string, i: number) => (
+                  <p key={i} className="text-xs text-muted-foreground/70 leading-relaxed">{b}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Email sequence */}
+          {Array.isArray(proposal.email_sequence) && proposal.email_sequence.length > 0 && (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Email Sequence ({proposal.email_sequence.length} emails)</p>
+              <div className="space-y-2">
+                {proposal.email_sequence.map((e: any, i: number) => (
+                  <div key={i} className="rounded-lg bg-white/[0.02] border border-white/[0.05] p-2.5">
+                    <p className="text-[10px] text-amber-400 font-medium">Day {e.day}</p>
+                    <p className="text-xs font-medium mt-0.5">{e.subject}</p>
+                    <p className="text-[11px] text-muted-foreground/70 mt-0.5 line-clamp-2">{e.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* WhatsApp sequence */}
+          {Array.isArray(proposal.whatsapp_sequence) && proposal.whatsapp_sequence.length > 0 && (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">WhatsApp Sequence ({proposal.whatsapp_sequence.length} messages)</p>
+              <div className="space-y-1.5">
+                {proposal.whatsapp_sequence.map((m: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg bg-emerald-500/[0.03] border border-emerald-500/10 p-2.5">
+                    <span className="text-[9px] text-emerald-400 font-semibold shrink-0 mt-0.5">Day {m.day}</span>
+                    <p className="text-xs text-foreground/80 leading-relaxed">{m.message}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Measurement */}
+          {proposal.measurement_strategy && (proposal.measurement_strategy.kpis ?? []).length > 0 && (
+            <div>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">KPIs & Measurement</p>
+              <ul className="space-y-1">
+                {(proposal.measurement_strategy.kpis ?? []).map((k: string, i: number) => (
+                  <li key={i} className="flex items-center gap-1.5 text-xs">
+                    <BarChart3 className="h-3 w-3 text-blue-400 shrink-0" />
+                    <span className="text-foreground/80">{k}</span>
+                  </li>
+                ))}
+              </ul>
+              {proposal.measurement_strategy.reviewCadence && (
+                <p className="text-[10px] text-muted-foreground/50 mt-1">Review: {proposal.measurement_strategy.reviewCadence}</p>
+              )}
+            </div>
+          )}
+
+          {/* ROI summary */}
+          {(proposal.estimated_leads || proposal.estimated_cost_pence || proposal.expected_roi_pct) && (
+            <div className="grid grid-cols-3 gap-2 rounded-lg border border-emerald-500/15 bg-emerald-500/[0.04] p-3">
+              {proposal.estimated_leads && (
+                <div className="text-center">
+                  <p className="text-base font-bold text-emerald-400">{proposal.estimated_leads}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase">Est. Leads</p>
+                </div>
+              )}
+              {proposal.estimated_cost_pence && (
+                <div className="text-center">
+                  <p className="text-base font-bold">£{Math.round(proposal.estimated_cost_pence / 100).toLocaleString()}</p>
+                  <p className="text-[9px] text-muted-foreground uppercase">Est. Cost</p>
+                </div>
+              )}
+              {proposal.expected_roi_pct && (
+                <div className="text-center">
+                  <p className="text-base font-bold text-emerald-400">{proposal.expected_roi_pct}%</p>
+                  <p className="text-[9px] text-muted-foreground uppercase">Expected ROI</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="text-[10px] text-muted-foreground/40 pt-1 border-t border-white/[0.04]">
+            Generated <RelativeTime date={proposal.generated_at} />
+            {proposal.package_complete && " · Full 15-section package"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
-type Tab = "pending" | "executed" | "rejected" | "all";
+type Tab = "pending" | "executed" | "rejected" | "all" | "proposals";
 
 function HiveMindActionsPage() {
   const qc           = useQueryClient();
   const mode         = useHiveMindMode();
-  const getActionsFn = useServerFn(getHiveMindActionsAndCounts);
-  const approveFn    = useServerFn(approveHiveMindAction);
-  const rejectFn     = useServerFn(rejectHiveMindAction);
-  const deleteFn     = useServerFn(deleteHiveMindAction);
-  const proposeFn    = useServerFn(proposeHiveMindAction);
-  const generateFn   = useServerFn(generateOperatorActions);
+  const getActionsFn     = useServerFn(getHiveMindActionsAndCounts);
+  const approveFn        = useServerFn(approveHiveMindAction);
+  const rejectFn         = useServerFn(rejectHiveMindAction);
+  const deleteFn         = useServerFn(deleteHiveMindAction);
+  const proposeFn        = useServerFn(proposeHiveMindAction);
+  const generateFn       = useServerFn(generateOperatorActions);
+  const getProposalsFn   = useServerFn(getCampaignProposals);
+  const updateStatusFn   = useServerFn(updateProposalStatus);
+  const genDnaProposalFn = useServerFn(generateDnaProposalsFn);
 
-  const [tab,        setTab]       = useState<Tab>("pending");
-  const [mutating,   setMutating]  = useState(false);
-  const [generating, setGenerating]= useState(false);
-  const [genMsg,     setGenMsg]    = useState<string | null>(null);
-  const [showCreate, setShowCreate]= useState(false);
+  const [tab,            setTab]         = useState<Tab>("pending");
+  const [mutating,       setMutating]    = useState(false);
+  const [generating,     setGenerating]  = useState(false);
+  const [genMsg,         setGenMsg]      = useState<string | null>(null);
+  const [showCreate,     setShowCreate]  = useState(false);
+  const [genDna,         setGenDna]      = useState(false);
+  const [proposalMuting, setPropMuting]  = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["hivemind-actions"],
@@ -360,15 +599,24 @@ function HiveMindActionsPage() {
     staleTime: 30_000,
   });
 
-  const actions = data?.actions ?? [];
+  const { data: propData, isLoading: propLoading, refetch: refetchProps } = useQuery({
+    queryKey: ["campaign-proposals-actions"],
+    queryFn:  () => getProposalsFn(),
+    staleTime: 60_000,
+  });
+
+  const actions   = data?.actions ?? [];
+  const proposals = propData?.proposals ?? [];
   const tabCounts = {
-    pending:  actions.filter(a => a.status === "pending").length,
-    executed: actions.filter(a => a.status === "executed").length,
-    rejected: actions.filter(a => ["rejected","failed"].includes(a.status)).length,
-    all:      actions.length,
+    pending:   actions.filter(a => a.status === "pending").length,
+    executed:  actions.filter(a => a.status === "executed").length,
+    rejected:  actions.filter(a => ["rejected","failed"].includes(a.status)).length,
+    all:       actions.length,
+    proposals: proposals.filter((p: any) => p.status === "draft").length,
   };
   const visible = tab === "all" ? actions :
     tab === "rejected" ? actions.filter(a => ["rejected","failed"].includes(a.status)) :
+    tab === "proposals" ? [] :
     actions.filter(a => a.status === tab);
 
   async function handleApprove(id: string) {
@@ -402,11 +650,34 @@ function HiveMindActionsPage() {
     } finally { setGenerating(false); }
   }
 
+  async function handlePropApprove(id: string) {
+    setPropMuting(true);
+    try { await updateStatusFn({ data: { proposalId: id, status: "approved" } }); await refetchProps(); }
+    finally { setPropMuting(false); }
+  }
+  async function handlePropReject(id: string) {
+    setPropMuting(true);
+    try { await updateStatusFn({ data: { proposalId: id, status: "rejected" } }); await refetchProps(); }
+    finally { setPropMuting(false); }
+  }
+  async function handleGenDnaProposals() {
+    setGenDna(true); setGenMsg(null);
+    try {
+      const r = await genDnaProposalFn();
+      setGenMsg(`${(r as any).count ?? 0} full campaign packages generated from your Business DNA`);
+      await refetchProps();
+      setTimeout(() => setGenMsg(null), 6000);
+    } catch (e: any) {
+      setGenMsg(e?.message ?? "Failed to generate proposals");
+    } finally { setGenDna(false); }
+  }
+
   const TABS: { key: Tab; label: string }[] = [
-    { key: "pending",  label: "Pending" },
-    { key: "executed", label: "Executed" },
-    { key: "rejected", label: "Rejected" },
-    { key: "all",      label: "All" },
+    { key: "proposals", label: "Campaign Proposals" },
+    { key: "pending",   label: "Pending Actions" },
+    { key: "executed",  label: "Executed" },
+    { key: "rejected",  label: "Rejected" },
+    { key: "all",       label: "All Actions" },
   ];
 
   return (
@@ -419,30 +690,47 @@ function HiveMindActionsPage() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold">Action Approval Centre</p>
           <p className="text-[11px] text-muted-foreground">
-            {tabCounts.pending > 0
-              ? `${tabCounts.pending} action${tabCounts.pending !== 1 ? "s" : ""} awaiting your approval`
-              : "No pending actions"}
+            {tab === "proposals"
+              ? tabCounts.proposals > 0
+                ? `${tabCounts.proposals} campaign package${tabCounts.proposals !== 1 ? "s" : ""} awaiting approval`
+                : "No draft campaign proposals"
+              : tabCounts.pending > 0
+                ? `${tabCounts.pending} action${tabCounts.pending !== 1 ? "s" : ""} awaiting your approval`
+                : "No pending actions"}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {genMsg && <p className="text-[11px] text-emerald-400 hidden sm:block">{genMsg}</p>}
-          {mode === "operator" && (
+          {tab === "proposals" ? (
             <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition-all disabled:opacity-40"
+              onClick={handleGenDnaProposals}
+              disabled={genDna}
+              className="flex items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-400 hover:bg-violet-500/20 transition-all disabled:opacity-40"
             >
-              {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-              Generate Actions
+              {genDna ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Dna className="h-3.5 w-3.5" />}
+              Generate from DNA
+            </button>
+          ) : (
+            mode === "operator" && (
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition-all disabled:opacity-40"
+              >
+                {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                Generate Actions
+              </button>
+            )
+          )}
+          {tab !== "proposals" && (
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-xs font-medium text-white transition-all"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Propose
             </button>
           )}
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 px-3 py-1.5 text-xs font-medium text-white transition-all"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Propose
-          </button>
         </div>
       </div>
 
@@ -469,7 +757,40 @@ function HiveMindActionsPage() {
 
       {/* Content */}
       <div className="px-5 py-5">
-        {isLoading ? (
+        {tab === "proposals" ? (
+          propLoading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading campaign proposals…
+            </div>
+          ) : proposals.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="h-12 w-12 rounded-full bg-violet-500/10 flex items-center justify-center mb-3">
+                <Package2 className="h-5 w-5 text-violet-400" />
+              </div>
+              <p className="text-sm font-medium">No campaign proposals yet</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                Click "Generate from DNA" to create full 15-section campaign packages powered by your Business DNA profile.
+              </p>
+              <button onClick={handleGenDnaProposals} disabled={genDna}
+                className="mt-4 flex items-center gap-1.5 rounded-lg bg-violet-500/15 border border-violet-500/30 px-4 py-2 text-xs font-medium text-violet-400 hover:bg-violet-500/25 transition-all disabled:opacity-40">
+                {genDna ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Dna className="h-3.5 w-3.5" />}
+                Generate from DNA
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {proposals.map((p: any) => (
+                <ProposalCard
+                  key={p.id}
+                  proposal={p}
+                  onApprove={handlePropApprove}
+                  onReject={handlePropReject}
+                  isMutating={proposalMuting}
+                />
+              ))}
+            </div>
+          )
+        ) : isLoading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading actions…
           </div>

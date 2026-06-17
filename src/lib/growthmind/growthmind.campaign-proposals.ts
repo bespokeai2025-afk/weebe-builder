@@ -351,25 +351,49 @@ export const getCampaignProposals = createServerFn({ method: "GET" })
     try {
       const { data } = await sb
         .from("growthmind_campaign_proposals")
-        .select("id, title, reason, evidence, audience, expected_outcome, budget_estimate, content_plan, video_plan, channels, status, generated_at")
+        .select([
+          "id", "title", "reason", "evidence", "audience",
+          "expected_outcome", "budget_estimate", "content_plan", "video_plan",
+          "channels", "status", "generated_at",
+          "video_prompt", "image_prompt", "ad_copy", "email_sequence",
+          "whatsapp_sequence", "follow_up_campaign", "call_campaign",
+          "landing_page_rec", "measurement_strategy",
+          "estimated_leads", "estimated_cpl_pence", "expected_roi_pct",
+          "estimated_cost_pence", "package_complete", "dna_snapshot",
+        ].join(", "))
         .eq("workspace_id", workspaceId)
         .order("generated_at", { ascending: false })
         .limit(20);
       return {
         proposals: (data ?? []).map((r: any) => ({
-          id:             r.id,
-          title:          r.title,
-          reason:         r.reason,
-          evidence:       r.evidence,
-          audience:       r.audience,
-          expectedOutcome: r.expected_outcome,
-          budgetEstimate:  r.budget_estimate,
-          contentPlan:    r.content_plan,
-          videoPlan:      r.video_plan,
-          channels:       r.channels ?? [],
-          status:         r.status as CampaignProposalStatus,
-          generatedAt:    r.generated_at,
-        })) as CampaignProposal[],
+          id:                  r.id,
+          title:               r.title,
+          reason:              r.reason,
+          evidence:            r.evidence,
+          audience:            r.audience,
+          expected_outcome:    r.expected_outcome,
+          budget_estimate:     r.budget_estimate,
+          content_plan:        r.content_plan,
+          video_plan:          r.video_plan,
+          channels:            r.channels ?? [],
+          status:              r.status as CampaignProposalStatus,
+          generated_at:        r.generated_at,
+          video_prompt:        r.video_prompt ?? null,
+          image_prompt:        r.image_prompt ?? null,
+          ad_copy:             r.ad_copy ?? {},
+          email_sequence:      r.email_sequence ?? [],
+          whatsapp_sequence:   r.whatsapp_sequence ?? [],
+          follow_up_campaign:  r.follow_up_campaign ?? {},
+          call_campaign:       r.call_campaign ?? {},
+          landing_page_rec:    r.landing_page_rec ?? null,
+          measurement_strategy: r.measurement_strategy ?? {},
+          estimated_leads:     r.estimated_leads ?? null,
+          estimated_cpl_pence: r.estimated_cpl_pence ?? null,
+          expected_roi_pct:    r.expected_roi_pct ?? null,
+          estimated_cost_pence: r.estimated_cost_pence ?? null,
+          package_complete:    r.package_complete ?? false,
+          dna_snapshot:        r.dna_snapshot ?? {},
+        })),
       };
     } catch {
       return { proposals: [] };
@@ -492,3 +516,186 @@ export const runCampaignProposalEngine = createServerFn({ method: "POST" })
 
     return { ok: true, count: proposals.length, aiGenerated };
   });
+
+// ── Full 15-Section Campaign Package Generator ────────────────────────────────
+// Generates complete campaign packages with all extended fields (video prompt,
+// ad copy, email sequence, WhatsApp sequence, etc.) driven by Business DNA.
+// Called from business-dna.functions.ts generateDnaProposalsFn.
+
+async function gptMiniPackage(apiKey: string, messages: any[], maxTokens = 3000): Promise<string> {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: "gpt-4o", messages, max_tokens: maxTokens, temperature: 0.5 }),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}`);
+  const j = (await res.json()) as any;
+  return j.choices?.[0]?.message?.content ?? "";
+}
+
+function safeParse(raw: string, fallback: any = {}): any {
+  try { return JSON.parse(raw.replace(/```json?\n?/g, "").replace(/```\n?/g, "").trim()); }
+  catch { return fallback; }
+}
+
+export async function generateFullCampaignPackage(
+  workspaceId: string,
+  apiKey: string,
+  sb: any,
+): Promise<{ count: number; ids: string[] }> {
+  const ctx = await buildBusinessContext(sb, workspaceId);
+
+  // Pull current DNA for snapshot + enhanced context
+  const { data: dna } = await sb
+    .from("growthmind_business_dna")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .single()
+    .catch(() => ({ data: {} }));
+
+  const dnaSnap = {
+    company:   dna?.company_name ?? ctx.companyName ?? "",
+    industry:  dna?.industry ?? ctx.industry ?? "",
+    services:  dna?.services ?? "",
+    icp:       dna?.ideal_customer_profiles ?? ctx.idealCustomerProfiles ?? "",
+    usp:       dna?.unique_selling_points ?? ctx.uniqueSellingPoints ?? "",
+    budget:    dna?.monthly_marketing_budget ?? ctx.monthlyBudget ?? 0,
+    goal:      dna?.main_growth_objective ?? "",
+    tone:      dna?.tone_of_voice ?? dna?.brand_voice ?? "",
+    geo:       dna?.target_countries ?? dna?.country ?? "",
+    adPlatforms: dna?.current_ad_platforms ?? "",
+  };
+
+  const systemPrompt = `You are GrowthMind, an elite AI CMO. Generate EXACTLY 3 full campaign packages for this business.
+Each package must include all 15 sections listed below. Be specific, data-driven, and reference the business context.
+
+BUSINESS DNA:
+Company: ${dnaSnap.company}
+Industry: ${dnaSnap.industry}
+Services: ${dnaSnap.services.slice(0, 300)}
+ICP: ${dnaSnap.icp.slice(0, 200)}
+USP: ${dnaSnap.usp.slice(0, 200)}
+Monthly Budget: £${dnaSnap.budget}
+Goal: ${dnaSnap.goal}
+Tone: ${dnaSnap.tone}
+Geography: ${dnaSnap.geo}
+Ad Platforms Used: ${dnaSnap.adPlatforms}
+
+Pipeline: ${ctx.totalLeads} leads, ${ctx.conversionRate}% conversion, ${ctx.newLeads30d} new last 30d`;
+
+  const userPrompt = `Return ONLY a valid JSON array of exactly 3 objects. Each object must have these exact keys:
+
+[
+  {
+    "title": "Campaign name",
+    "reason": "Why this campaign now — specific evidence",
+    "evidence": "Data points justifying this",
+    "audience": "Precise target audience",
+    "expectedOutcome": "Specific projected results with numbers",
+    "budgetEstimate": "Estimated spend",
+    "contentPlan": "Week-by-week content execution (4 weeks)",
+    "videoPlan": "Existing video plan / hook concept",
+    "channels": ["channel1", "channel2"],
+    "videoPrompt": "Detailed video generation prompt for AI video tool — describe scene, tone, CTA, platform, duration",
+    "imagePrompt": "Detailed image/creative prompt for static ads — describe scene, brand style, copy overlay, platform",
+    "adCopy": {
+      "headlines": ["headline1", "headline2", "headline3"],
+      "body": ["body variant 1", "body variant 2"],
+      "cta": ["CTA 1", "CTA 2"],
+      "platformVariants": { "meta": "Meta-optimised copy", "google": "Google-optimised copy", "linkedin": "LinkedIn copy" }
+    },
+    "emailSequence": [
+      { "day": 1, "subject": "Subject line", "body": "Email body (2-3 paragraphs)", "cta": "CTA text" },
+      { "day": 4, "subject": "Subject line", "body": "Email body", "cta": "CTA text" },
+      { "day": 8, "subject": "Subject line", "body": "Email body", "cta": "CTA text" }
+    ],
+    "whatsappSequence": [
+      { "day": 1, "message": "WhatsApp message (conversational, <160 chars)", "mediaSuggestion": "image/video/none" },
+      { "day": 3, "message": "Follow-up message", "mediaSuggestion": "image/video/none" },
+      { "day": 7, "message": "Offer message", "mediaSuggestion": "image/video/none" }
+    ],
+    "followUpCampaign": {
+      "strategy": "Re-engagement strategy for non-responders",
+      "timelineDays": 14,
+      "callScriptHint": "AI call script opening line for follow-up"
+    },
+    "callCampaign": {
+      "objective": "What the AI agent should achieve on the call",
+      "targetListFilter": "Which leads to target (status/source/tag filter)",
+      "aiAgentType": "inbound/outbound",
+      "callScriptHint": "Opening line for the AI call agent"
+    },
+    "landingPageRec": "Landing page recommendation — headline, hero copy, CTA, trust signals",
+    "measurementStrategy": {
+      "kpis": ["KPI 1 with target", "KPI 2 with target"],
+      "tracking": ["Tracking setup item 1", "Tracking setup item 2"],
+      "reviewCadence": "Daily/weekly/monthly review recommendation"
+    },
+    "estimatedLeads": 25,
+    "estimatedCplPence": 3500,
+    "expectedRoiPct": 180,
+    "estimatedCostPence": 75000
+  }
+]
+
+Return only the JSON array.`;
+
+  const raw = await gptMiniPackage(
+    apiKey,
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    4000,
+  );
+
+  let packages: any[];
+  try {
+    const parsed = safeParse(raw, []);
+    packages = Array.isArray(parsed) ? parsed : (parsed.proposals ?? parsed.campaigns ?? Object.values(parsed));
+  } catch {
+    return { count: 0, ids: [] };
+  }
+
+  const ids: string[] = [];
+  for (const pkg of packages.slice(0, 3)) {
+    try {
+      const { data: row } = await sb
+        .from("growthmind_campaign_proposals")
+        .insert({
+          workspace_id:        workspaceId,
+          title:               pkg.title ?? "AI Campaign Package",
+          reason:              pkg.reason ?? "",
+          evidence:            pkg.evidence ?? "",
+          audience:            pkg.audience ?? "",
+          expected_outcome:    pkg.expectedOutcome ?? "",
+          budget_estimate:     pkg.budgetEstimate ?? "",
+          content_plan:        pkg.contentPlan ?? "",
+          video_plan:          pkg.videoPlan ?? "",
+          channels:            pkg.channels ?? [],
+          status:              "draft",
+          generated_at:        new Date().toISOString(),
+          video_prompt:        pkg.videoPrompt ?? null,
+          image_prompt:        pkg.imagePrompt ?? null,
+          ad_copy:             pkg.adCopy ?? {},
+          email_sequence:      pkg.emailSequence ?? [],
+          whatsapp_sequence:   pkg.whatsappSequence ?? [],
+          follow_up_campaign:  pkg.followUpCampaign ?? {},
+          call_campaign:       pkg.callCampaign ?? {},
+          landing_page_rec:    pkg.landingPageRec ?? null,
+          measurement_strategy: pkg.measurementStrategy ?? {},
+          estimated_leads:     pkg.estimatedLeads ?? null,
+          estimated_cpl_pence: pkg.estimatedCplPence ?? null,
+          expected_roi_pct:    pkg.expectedRoiPct ?? null,
+          estimated_cost_pence: pkg.estimatedCostPence ?? null,
+          dna_snapshot:        dnaSnap,
+          package_complete:    true,
+        })
+        .select("id")
+        .single();
+      if (row?.id) ids.push(row.id);
+    } catch { /* skip failed inserts */ }
+  }
+
+  return { count: ids.length, ids };
+}

@@ -30,6 +30,7 @@ import { runBlogDraftTick } from "@/lib/growthmind/blog-draft-tick";
 import { runCMOAnalysisTick } from "@/lib/growthmind/cmo-analysis-tick";
 import { runAdsSyncTick } from "@/lib/growthmind/growthmind.ads-sync-tick";
 import { runAccountsMindTick } from "@/lib/accountsmind/executor";
+import { runProactiveTick } from "@/lib/hivemind/proactive-engine";
 
 export const Route = createFileRoute("/api/public/campaign-executor")({
   server: {
@@ -50,12 +51,13 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
         }
 
         try {
-          const [campaignTick, blogTick, cmoTick, adsTick, accountsTick] = await Promise.all([
+          const [campaignTick, blogTick, cmoTick, adsTick, accountsTick, proactiveTick] = await Promise.all([
             runCampaignTick(),
             runBlogDraftTick(),
             runCMOAnalysisTick(),
             runAdsSyncTick(),
             runAccountsMindTick(),
+            runProactiveTick(),
           ]);
 
           if (campaignTick.error) {
@@ -91,6 +93,12 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );
 
+          if (proactiveTick.dnaRefreshed > 0 || proactiveTick.briefingsGenerated > 0) {
+            console.log(
+              `[proactive-engine] ws=${proactiveTick.workspacesScanned} dna=${proactiveTick.dnaRefreshed} briefings=${proactiveTick.briefingsGenerated} errors=${proactiveTick.errors}`,
+            );
+          }
+
           return Response.json({
             ran: due.length,
             skipped: skipped.length,
@@ -99,6 +107,7 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             cmoAnalysis: { ran: cmoTick.ran.length, skipped: cmoTick.skipped.length, failed: cmoTick.failed.length },
             adsSync: { synced: adsTick.synced, errors: adsTick.errors, skipped: adsTick.skipped },
             accountsMind: { scanned: accountsTick.scanned, updated: accountsTick.updated, alerts: accountsTick.alertsGenerated, hivemindTasks: accountsTick.hivemindTasksPosted, failed: accountsTick.failed.length },
+            proactiveEngine: { workspacesScanned: proactiveTick.workspacesScanned, dnaRefreshed: proactiveTick.dnaRefreshed, briefingsGenerated: proactiveTick.briefingsGenerated, errors: proactiveTick.errors },
           });
         } catch (e: any) {
           console.error("[campaign-executor] unhandled error:", e);
