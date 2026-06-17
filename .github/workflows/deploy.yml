@@ -1,159 +1,202 @@
-name: Deploy to EC2
+name: Deploy to App Runner
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# Only one production deploy at a time; never cancel mid-flight.
+# One deploy at a time — never cancel a live deployment mid-flight.
 concurrency:
   group: production-deploy
   cancel-in-progress: false
 
 permissions:
   contents: read
+  id-token: write   # required for OIDC auth (if you switch to OIDC later)
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # 1. BUILD — runs entirely on GitHub Actions, never on the live server.
-  #    Real VITE_* values are baked into the client bundle here.
+  # 1. VERIFY — typecheck + build locally to catch errors before touching prod.
   # ─────────────────────────────────────────────────────────────────────────────
-  build:
-    name: Build production artifact
+  verify:
+    name: Typecheck & verify build
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ed225e2b7595cf9aa897e8c42cd19c353ca # v4.4.0
+      - uses: actions/setup-node@49933ed225e2b7595cf9aa897e8c42cd19c353ca # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Install all dependencies
-        run: npm ci
+      - run: npm ci
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build with real VITE_* values
-        # These are public values — safe to use as build args.
-        # Store them in GitHub → Settings → Secrets and variables → Actions → Variables
-        # (use Variables, not Secrets, since they are public/non-sensitive).
+      - name: Build (verify VITE_* values resolve)
         run: npm run build
         env:
-          VITE_SUPABASE_URL:            ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY:       ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL:             ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_PAYMENTS_CLIENT_TOKEN:   ${{ vars.VITE_PAYMENTS_CLIENT_TOKEN }}
-
-      - name: Create release tarball
-        # Packages the built dist/ plus the manifests needed for npm ci --omit=dev.
-        # Source code is NOT included — the server will never rebuild from source.
-        run: |
-          tar -czf release.tar.gz \
-            dist/ \
-            package.json \
-            package-lock.json
-          echo "Tarball size: $(du -sh release.tar.gz | cut -f1)"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-${{ github.sha }}
-          path: release.tar.gz
-          retention-days: 7
+          VITE_SUPABASE_ANON_KEY:        ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_PAYMENTS_CLIENT_TOKEN:    ${{ vars.VITE_PAYMENTS_CLIENT_TOKEN }}
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # 2. DEPLOY — copies the pre-built tarball to EC2 and atomically swaps it in.
-  #    No npm run build ever runs on the live server.
+  # 2. BUILD & PUSH — build the Docker image with real VITE_* values and push
+  #    to Amazon ECR. The image is the deployable artifact.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build Docker image & push to ECR
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    outputs:
+      image_uri: ${{ steps.push.outputs.image_uri }}
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ vars.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Build and push Docker image
+        id: push
+        env:
+          REGISTRY:   ${{ steps.ecr-login.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+          IMAGE_TAG:  ${{ github.sha }}
+          # Public values — safe as Docker build args (baked into client bundle)
+          VITE_SUPABASE_URL:             ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_ANON_KEY:        ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_PAYMENTS_CLIENT_TOKEN:    ${{ vars.VITE_PAYMENTS_CLIENT_TOKEN }}
+        run: |
+          set -euo pipefail
+          IMAGE_URI="${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}"
+          LATEST_URI="${REGISTRY}/${REPOSITORY}:latest"
+
+          docker build \
+            --build-arg VITE_SUPABASE_URL="${VITE_SUPABASE_URL}" \
+            --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY}" \
+            --build-arg VITE_SUPABASE_ANON_KEY="${VITE_SUPABASE_ANON_KEY}" \
+            --build-arg VITE_PAYMENTS_CLIENT_TOKEN="${VITE_PAYMENTS_CLIENT_TOKEN:-}" \
+            --label "git.sha=${IMAGE_TAG}" \
+            --label "built.at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "${IMAGE_URI}" \
+            -t "${LATEST_URI}" \
+            .
+
+          docker push "${IMAGE_URI}"
+          docker push "${LATEST_URI}"
+
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+          echo "Pushed: ${IMAGE_URI}"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 3. DEPLOY — trigger App Runner to pull the new image and deploy it.
+  #    App Runner does a blue/green swap with built-in health checks and
+  #    automatic rollback if the new container fails to start.
   # ─────────────────────────────────────────────────────────────────────────────
   deploy:
-    name: Deploy to EC2
-    needs: build
+    name: Deploy to App Runner
+    needs: build-and-push
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
 
     steps:
-      - name: Checkout (scripts only)
-        uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
-          sparse-checkout: scripts/
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ vars.AWS_REGION }}
 
-      - name: Download release artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.2.1
-        with:
-          name: release-${{ github.sha }}
-
-      - name: Validate required secrets
+      - name: Trigger App Runner deployment
         env:
-          EC2_HOST:    ${{ secrets.EC2_HOST }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-        run: |
-          if [[ -z "${EC2_HOST}" || -z "${EC2_SSH_KEY}" ]]; then
-            echo "::error::Missing required secrets: EC2_HOST and EC2_SSH_KEY" >&2
-            exit 1
-          fi
-
-      - name: Configure SSH
-        env:
-          EC2_HOST:    ${{ secrets.EC2_HOST }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          SERVICE_ARN: ${{ secrets.APP_RUNNER_SERVICE_ARN }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          printf '%s\n' "${EC2_SSH_KEY}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${EC2_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "Triggering deployment for: ${SERVICE_ARN}"
+          OPERATION_ID=$(aws apprunner start-deployment \
+            --service-arn "${SERVICE_ARN}" \
+            --query 'OperationId' \
+            --output text)
+          echo "Deployment started. Operation ID: ${OPERATION_ID}"
 
-      - name: Upload release tarball to EC2
+      - name: Wait for deployment to complete
         env:
-          EC2_HOST:     ${{ secrets.EC2_HOST }}
-          EC2_USER:     ${{ secrets.EC2_USER }}
-          EC2_SSH_PORT: ${{ secrets.EC2_SSH_PORT }}
+          SERVICE_ARN: ${{ secrets.APP_RUNNER_SERVICE_ARN }}
         run: |
           set -euo pipefail
-          EC2_USER="${EC2_USER:-deploy}"
-          EC2_SSH_PORT="${EC2_SSH_PORT:-22}"
-          REMOTE_TARBALL="/tmp/webee-release-${{ github.sha }}.tar.gz"
+          echo "Waiting for App Runner to reach RUNNING state…"
 
-          scp -i ~/.ssh/deploy_key \
-              -P "${EC2_SSH_PORT}" \
-              -o StrictHostKeyChecking=yes \
-              -o BatchMode=yes \
-              release.tar.gz \
-              "${EC2_USER}@${EC2_HOST}:${REMOTE_TARBALL}"
+          for attempt in $(seq 1 40); do
+            STATUS=$(aws apprunner describe-service \
+              --service-arn "${SERVICE_ARN}" \
+              --query 'Service.Status' \
+              --output text 2>/dev/null || echo "UNKNOWN")
 
-          echo "Uploaded to ${REMOTE_TARBALL}"
-          echo "REMOTE_TARBALL=${REMOTE_TARBALL}" >> "$GITHUB_ENV"
+            echo "  [${attempt}/40] Status: ${STATUS}"
 
-      - name: Atomic deploy on EC2
+            if [[ "${STATUS}" == "RUNNING" ]]; then
+              echo "✓ Deployment complete."
+              break
+            fi
+
+            if [[ "${STATUS}" == "CREATE_FAILED" || "${STATUS}" == "UPDATE_FAILED" || "${STATUS}" == "DELETED" ]]; then
+              echo "::error::App Runner deployment failed with status: ${STATUS}"
+              exit 1
+            fi
+
+            if [[ "${attempt}" -eq 40 ]]; then
+              echo "::error::Timed out waiting for App Runner (last status: ${STATUS})"
+              exit 1
+            fi
+
+            sleep 15
+          done
+
+      - name: Verify health check
         env:
-          EC2_HOST:          ${{ secrets.EC2_HOST }}
-          EC2_USER:          ${{ secrets.EC2_USER }}
-          EC2_SSH_PORT:      ${{ secrets.EC2_SSH_PORT }}
-          EC2_RELEASES_ROOT: ${{ secrets.EC2_RELEASES_ROOT }}
+          SERVICE_ARN: ${{ secrets.APP_RUNNER_SERVICE_ARN }}
         run: |
           set -euo pipefail
-          EC2_USER="${EC2_USER:-deploy}"
-          EC2_SSH_PORT="${EC2_SSH_PORT:-22}"
+          SERVICE_URL=$(aws apprunner describe-service \
+            --service-arn "${SERVICE_ARN}" \
+            --query 'Service.ServiceUrl' \
+            --output text)
 
-          ssh -i ~/.ssh/deploy_key \
-              -p "${EC2_SSH_PORT}" \
-              -o StrictHostKeyChecking=yes \
-              -o BatchMode=yes \
-              "${EC2_USER}@${EC2_HOST}" \
-              "TARBALL='${REMOTE_TARBALL}' \
-               GIT_SHA='${{ github.sha }}' \
-               RELEASES_ROOT='${EC2_RELEASES_ROOT:-/var/www/webee/releases}' \
-               CURRENT_LINK='${EC2_RELEASES_ROOT:-/var/www/webee}/current' \
-               bash -s" \
-              < scripts/deploy-remote.sh
+          HEALTH_URL="https://${SERVICE_URL}/api/health"
+          echo "Health check: ${HEALTH_URL}"
 
-      - name: Remove deploy key
-        if: always()
-        run: rm -f ~/.ssh/deploy_key
+          for attempt in $(seq 1 6); do
+            HTTP_CODE=$(curl -o /dev/null -w "%{http_code}" -fsS \
+              --max-time 15 "${HEALTH_URL}" 2>/dev/null || echo "000")
+
+            if [[ "${HTTP_CODE}" == "200" ]]; then
+              echo "✓ Health check passed (HTTP 200)"
+              echo ""
+              echo "Live at: https://${SERVICE_URL}"
+              exit 0
+            fi
+
+            echo "  [${attempt}/6] HTTP ${HTTP_CODE} — retrying in 10s…"
+            sleep 10
+          done
+
+          echo "::error::Health check failed after deployment (last HTTP ${HTTP_CODE})"
+          exit 1

@@ -1,121 +1,128 @@
 # Deploying WEBEE to AWS
 
-WEBEE is a server-rendered TanStack Start + Vite application. It builds to a
-Node SSR server (`dist/server/server.js`) and static client assets
-(`dist/client/`), served by `srvx` as a long-running Node process.
+WEBEE is a server-rendered TanStack Start + Vite app. It builds to a Node SSR
+server (`dist/server/server.js`) and static client assets (`dist/client/`),
+served by `srvx` as a long-running Node process packaged inside a Docker
+container.
 
 ---
 
-## How deployments work
+## Recommended: Docker + AWS App Runner
 
-### The golden rule
+App Runner is the simplest production option — no servers to manage, no SSH
+keys, automatic HTTPS, automatic scaling.
 
-> **`npm run build` never runs on the production server.**
-
-The full build happens on GitHub Actions (free CI runners with no impact on
-live traffic). The built artifact is uploaded to EC2 as a tarball. The server
-only runs `npm ci --omit=dev` (install prod deps — fast, no compilation).
-
-### Atomic release flow
+**How it works:**
 
 ```
-GitHub Actions runner                      EC2 host
-─────────────────────────                  ──────────────────────────────────
-1. npm ci                                  (nothing running yet)
-2. npm run build (real VITE_* values)
-3. tar -czf release.tar.gz dist/ …
-4. scp release.tar.gz → /tmp/             5. mkdir releases/{timestamp}/
-                                           6. tar -xzf release.tar.gz → releases/{timestamp}/
-                                           7. npm ci --omit=dev
-                                           8. ln -sfn releases/{timestamp} current
-                                           9. systemctl restart webee
-                                          10. GET /api/health → 200? → done ✓
-                                                               → fail → rollback ✗
+git push main
+   │
+   ▼
+GitHub Actions
+   1. Typecheck + verify build
+   2. docker build (with real VITE_* values baked in)
+   3. docker push → Amazon ECR
+   │
+   ▼
+AWS App Runner
+   4. Pulls new image from ECR
+   5. Blue/green swap with built-in health check (/api/health)
+   6. Auto-rollback if health check fails
+   │
+   ▼
+Live at https://your-service.region.awsapprunner.com
 ```
-
-The `current` symlink is updated atomically in step 8. If the health check
-fails, the deploy script switches the symlink back to the previous release and
-restarts the service — customers see only a brief restart, never a broken build.
 
 ---
 
-## Quick start (first deploy)
+## One-time setup (≈ 10 minutes)
 
-### 1. Bootstrap the EC2 host (one-time only)
+### Step 1 — Install the AWS CLI (if you haven't)
 
 ```bash
-# SSH into your EC2 instance
-ssh ubuntu@your-ec2-host
+# macOS
+brew install awscli
 
-# Clone the repo so you have the bootstrap script
-git clone <your-repo-url> /tmp/webee-setup && cd /tmp/webee-setup
-
-# Run the bootstrap (creates /var/www/webee/ layout + systemd service)
-bash deploy/ec2-bootstrap.sh ubuntu   # pass your OS user (ubuntu / ec2-user)
-
-# IMPORTANT: edit the permanent .env with real secrets
-sudo nano /var/www/webee/.env
+# Windows — download from:
+# https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-windows.html
 ```
 
-### 2. Add GitHub Actions secrets
+### Step 2 — Configure it with your AWS credentials
 
-Go to **GitHub → your repo → Settings → Secrets and variables → Actions**.
+```bash
+aws configure
+# Enter: AWS Access Key ID, Secret, region (e.g. us-east-1), output format (json)
+```
 
-#### Secrets (sensitive — use "Secrets" tab):
-| Secret | Value |
-|---|---|
-| `EC2_HOST` | Your EC2 public IP or hostname |
-| `EC2_SSH_KEY` | Contents of your deploy private key (`~/.ssh/id_rsa`) |
-| `EC2_USER` | OS user on EC2 (e.g. `ubuntu`, `ec2-user`) |
-| `EC2_SSH_PORT` | SSH port (default: `22`) |
-| `EC2_RELEASES_ROOT` | `/var/www/webee/releases` |
+If you don't have AWS credentials yet:
+1. Go to **console.aws.amazon.com**
+2. IAM → Users → Create user → Attach `AdministratorAccess` (for setup only)
+3. Security credentials → Create access key → copy both values
 
-#### Variables (public — use "Variables" tab):
-These are the public Supabase values baked into the client bundle at build time.
-| Variable | Value |
-|---|---|
-| `VITE_SUPABASE_URL` | `https://YOUR-PROJECT.supabase.co` |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Your Supabase anon/publishable key |
-| `VITE_SUPABASE_ANON_KEY` | Same as above |
-| `VITE_PAYMENTS_CLIENT_TOKEN` | Stripe publishable key (optional) |
+### Step 3 — Run the setup script
 
-### 3. Deploy
+```bash
+bash deploy/apprunner-setup.sh
+```
+
+This creates everything automatically:
+- ECR repository for Docker images
+- IAM role for App Runner to pull from ECR
+- IAM user + policy for GitHub Actions (scoped: push images + trigger deploys)
+- App Runner service pointed at ECR, with health check on `/api/health`
+
+At the end it prints a table like this:
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  SECRETS TAB                                                     ║
+║  AWS_ACCESS_KEY_ID        AKIA...                                ║
+║  AWS_SECRET_ACCESS_KEY    abc123...                              ║
+║  APP_RUNNER_SERVICE_ARN   arn:aws:apprunner:...                  ║
+║  VARIABLES TAB                                                   ║
+║  AWS_REGION               us-east-1                              ║
+║  ECR_REPOSITORY           webee                                  ║
+║  VITE_SUPABASE_URL        https://xxx.supabase.co                ║
+║  VITE_SUPABASE_ANON_KEY   eyJ...                                 ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+### Step 4 — Add those values to GitHub
+
+Go to: **github.com → your repo → Settings → Secrets and variables → Actions**
+
+- Copy the **SECRETS** rows into the **Secrets** tab
+- Copy the **VARIABLES** rows into the **Variables** tab
+
+### Step 5 — Push to deploy
 
 ```bash
 git push origin main
-# GitHub Actions builds and deploys automatically.
-# Watch progress: GitHub → Actions → Deploy to EC2
 ```
 
-### 4. Rollback (if needed)
-
-```bash
-# SSH into EC2:
-bash scripts/rollback.sh            # roll back to previous release
-bash scripts/rollback.sh 20240617   # roll back to a specific timestamp
-```
-
-Or from GitHub: **Actions → Deploy to EC2 → Run workflow** on a previous commit SHA.
+GitHub Actions builds and deploys automatically. Watch progress at:
+**github.com → your repo → Actions → Deploy to App Runner**
 
 ---
 
-## Directory layout on EC2
+## After the first deploy
+
+Your app is live at the App Runner URL shown in:
+**AWS Console → App Runner → webee → Default domain**
 
 ```
-/var/www/webee/
-├── .env                     ← runtime secrets (permanent — never overwritten)
-├── current -> releases/20240617142300/   ← symlink; updated on each deploy
-└── releases/
-    ├── 20240617142300/      ← active release
-    │   ├── dist/
-    │   │   ├── server/server.js
-    │   │   └── client/
-    │   ├── node_modules/    ← prod deps only (no devDeps)
-    │   ├── package.json
-    │   └── .deploy_sha      ← commit SHA (read by /api/health)
-    ├── 20240616091500/      ← previous release (kept for rollback)
-    └── …                   ← up to 5 releases kept; older ones pruned
+https://xxxxxxxxxx.us-east-1.awsapprunner.com
 ```
+
+To use a custom domain: App Runner → your service → Custom domains → Add domain.
+
+**Post-deploy checklist:**
+
+- [ ] `GET https://your-url/api/health` returns `{ "status": "ok" }`
+- [ ] Sign-in page loads
+- [ ] Log in → Agents page loads (confirms SSR + Supabase)
+- [ ] Add your App Runner URL to Supabase Auth → URL configuration
+- [ ] Set `PUBLIC_SITE_URL` in App Runner → your service → Configuration → Environment variables
 
 ---
 
@@ -123,30 +130,31 @@ Or from GitHub: **Actions → Deploy to EC2 → Run workflow** on a previous com
 
 ### Build-time (baked into the public client bundle)
 
-Set as **GitHub Actions Variables** (not Secrets — these are public values).
+Set as **GitHub Actions Variables** (non-sensitive — the browser already sees these).
 
 | Variable | Required | Notes |
 |---|---|---|
 | `VITE_SUPABASE_URL` | ✅ | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Supabase anon key |
-| `VITE_SUPABASE_ANON_KEY` | ✅ | Same as above (both names used) |
+| `VITE_SUPABASE_ANON_KEY` | ✅ | Same value as above |
 | `VITE_PAYMENTS_CLIENT_TOKEN` | optional | Stripe publishable key |
 
-### Runtime (server-only secrets — live in `/var/www/webee/.env`)
+### Runtime (server-only secrets)
+
+Set in the **App Runner service configuration** (AWS Console → App Runner → your service → Configuration → Environment variables). The setup script sets these for you during first-time setup.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `NODE_ENV` | ✅ | Set to `production` |
-| `PORT` | ✅ | Port to listen on (default: `3000` behind Nginx) |
+| `NODE_ENV` | ✅ | `production` |
+| `PORT` | ✅ | `8080` (App Runner exposes this) |
 | `VITE_SUPABASE_URL` | ✅ | Also needed at runtime for SSR |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Also needed at runtime for SSR |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Also needed at runtime for SSR |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Admin DB access for server functions |
 | `RETELL_API_KEY` | ✅ | Platform Retell workspace key |
-| `PUBLIC_SITE_URL` | recommended | Used in emails, booking links, redirects |
-| `RESEND_API_KEY` | optional | Transactional email notifications |
+| `PUBLIC_SITE_URL` | recommended | Your live URL (emails, booking links) |
+| `RESEND_API_KEY` | optional | Transactional emails |
 | `RETELL_WEBHOOK_SECRET` | optional | Verify inbound Retell webhooks |
-| `COMMIT_SHA` | auto | Injected by `deploy-remote.sh` via `.env.deploy` |
 
 ---
 
@@ -156,7 +164,7 @@ Set as **GitHub Actions Variables** (not Secrets — these are public values).
 GET /api/health
 ```
 
-Returns `200 OK` with JSON when healthy, `503` when degraded:
+Returns `200 OK` when healthy, `503` when degraded:
 
 ```json
 {
@@ -174,79 +182,33 @@ Returns `200 OK` with JSON when healthy, `503` when degraded:
 }
 ```
 
-Use this URL for:
-- AWS ALB / App Runner health checks
-- Uptime monitoring (UptimeRobot, BetterStack, etc.)
-- Post-deploy verification in `deploy-remote.sh`
+App Runner uses this for its built-in health check (configured in the setup
+script). If the new container fails this check, App Runner automatically keeps
+the previous version running.
 
 ---
 
-## Build artefacts
+## Build notes
 
 | Output | What it is |
 |---|---|
 | `dist/server/server.js` | SSR entry point |
-| `dist/server/assets/` | Server-side route chunks |
 | `dist/client/` | Static JS/CSS/favicon served to browsers |
 
-**Static asset path note:** both start scripts pass `--static=../client`.
-`srvx` resolves this path **relative to the entry file** (`dist/server/`),
-so `../client` correctly resolves to `dist/client/`. Do not change this
-to `dist/client` or `--static dist/client` — it silently serves no assets.
+**Static asset path:** both `start` scripts pass `--static=../client`.
+`srvx` resolves this relative to the entry file (`dist/server/`), so
+`../client` correctly points at `dist/client/`. Do not change to
+`--static dist/client` — it silently serves no assets.
 
 ---
 
-## Container option (ECR + ECS / App Runner)
+## Alternative: EC2 (manual server)
 
-The `Dockerfile` is a two-stage build and is production-ready for container
-deployments. See the original options below.
-
-### Option A — App Runner (least ops)
+Scripts for EC2 atomic deploys are still available in `scripts/` if you
+prefer a self-managed server. See the git history of `DEPLOY_AWS.md` for
+the EC2 setup guide, or use:
 
 ```bash
-AWS_REGION=us-east-1
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-ECR="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/webee"
-
-aws ecr create-repository --repository-name webee --region $AWS_REGION
-aws ecr get-login-password --region $AWS_REGION \
-  | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
-
-docker build \
-  --build-arg VITE_SUPABASE_URL="https://YOUR-PROJECT.supabase.co" \
-  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="YOUR_ANON_KEY" \
-  -t "$ECR:latest" .
-docker push "$ECR:latest"
+bash deploy/ec2-bootstrap.sh      # one-time host setup
+bash scripts/rollback.sh          # roll back to previous release
 ```
-
-Then: Console → App Runner → Create service → ECR source → port `8080` → add
-runtime env vars → health check path `/api/health`.
-
-### Option B — ECS Fargate
-
-Same ECR push as above. Create a Fargate task definition (0.5 vCPU / 1 GB),
-service behind an ALB, health check path `/api/health`, Route 53 → ALB.
-
----
-
-## Post-deploy checklist
-
-- [ ] `GET /api/health` returns `{ "status": "ok" }`
-- [ ] App loads at your HTTPS URL — sign-in page renders
-- [ ] Log in → Agents page loads (confirms SSR + server functions + Supabase)
-- [ ] Add your AWS domain to Supabase Auth → URL configuration (for OAuth/magic links)
-- [ ] Set `PUBLIC_SITE_URL` to the live URL (emails + booking links)
-- [ ] Point Retell webhooks at `https://YOUR-DOMAIN/...` + set `RETELL_WEBHOOK_SECRET`
-
----
-
-## Gotchas
-
-- **Not a static site.** Don't deploy `dist/client` to S3 alone — the SSR
-  server must be running.
-- **Two lockfiles** (`package-lock.json` + `bun.lock`) exist; the Dockerfile
-  and deploy script use npm. If you standardise on Bun, update accordingly.
-- **Supabase stays put.** AWS hosts the app; Supabase remains your
-  database/auth provider. Only the EC2/container domain needs whitelisting.
-- **Secrets management:** prefer AWS Secrets Manager or SSM Parameter Store
-  over plaintext values in task definitions or `.env` files.
