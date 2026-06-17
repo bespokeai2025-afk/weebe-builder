@@ -290,6 +290,50 @@ async function generateAlerts(
   }
 }
 
+// ── Google OAuth token refresh ─────────────────────────────────────────────────
+
+/**
+ * Exchange a Google OAuth refresh token for a fresh access token.
+ * Returns the new access token on success, or null if the exchange fails.
+ */
+async function refreshGoogleAccessToken(
+  clientId:     string,
+  clientSecret: string,
+  refreshToken: string,
+): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({
+      grant_type:    "refresh_token",
+      client_id:     clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+    });
+
+    const resp = await fetch("https://oauth2.googleapis.com/token", {
+      method:  "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body:    params.toString(),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      console.error(`[ads-sync] Google token refresh failed (${resp.status}): ${text}`);
+      return null;
+    }
+
+    const json = await resp.json();
+    const newToken: string | undefined = json?.access_token;
+    if (!newToken) {
+      console.error("[ads-sync] Google token refresh response missing access_token");
+      return null;
+    }
+    return newToken;
+  } catch (err: any) {
+    console.error("[ads-sync] Google token refresh error:", err?.message);
+    return null;
+  }
+}
+
 // ── Per-workspace sync ─────────────────────────────────────────────────────────
 
 async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId: string): Promise<AdsSyncResult[]> {
@@ -332,6 +376,46 @@ async function syncWorkspace(sb: ReturnType<typeof getAdminClient>, workspaceId:
   // ── Google ──────────────────────────────────────────────────────────────────
   const gCreds = await getGoogleCreds(sb, workspaceId);
   if (gCreds) {
+    // Attempt to get a fresh access token via OAuth refresh before syncing.
+    // This keeps syncs working beyond the 1-hour access token expiry.
+    if (gCreds.refreshToken && gCreds.clientId && gCreds.clientSecret) {
+      const freshToken = await refreshGoogleAccessToken(
+        gCreds.clientId,
+        gCreds.clientSecret,
+        gCreds.refreshToken,
+      );
+      if (freshToken) {
+        gCreds.accessToken = freshToken;
+        // Write the fresh token back so health checks and subsequent reads see it.
+        try {
+          const { data: psRow } = await sb
+            .from("provider_settings")
+            .select("credentials")
+            .eq("workspace_id", workspaceId)
+            .eq("provider_category", "advertising")
+            .eq("provider_name", "google_ads")
+            .maybeSingle();
+
+          if (psRow) {
+            const updated = { ...(psRow as any).credentials, accessToken: freshToken };
+            await sb
+              .from("provider_settings")
+              .update({ credentials: updated })
+              .eq("workspace_id", workspaceId)
+              .eq("provider_category", "advertising")
+              .eq("provider_name", "google_ads");
+          }
+        } catch (writeErr: any) {
+          console.warn("[ads-sync] Could not write refreshed Google token back to DB:", writeErr?.message);
+        }
+      } else {
+        // Refresh failed — log a warning and proceed with whatever accessToken
+        // exists. If it is also expired/missing, the API call below will throw
+        // and the existing catch block will record the error gracefully.
+        console.warn(`[ads-sync] workspace ${workspaceId}: Google token refresh failed; attempting sync with existing token`);
+      }
+    }
+
     try {
       const { syncGoogleAdsCampaigns } = await import("./ads-sync-google.server");
       const campaigns = await syncGoogleAdsCampaigns(gCreds);
