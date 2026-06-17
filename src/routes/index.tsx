@@ -135,9 +135,10 @@ function Nav() {
 
         {/* Center nav links */}
         <div style={{ display: "flex", alignItems: "center", gap: 28 }} className="hidden md:flex">
-          {["Features", "Pricing", "Docs"].map(l => (
+          {["Features", "Pricing"].map(l => (
             <a key={l} href="#" className="nav-link" style={{ fontSize: 13.5, color: "rgba(184,197,214,0.85)", textDecoration: "none", fontWeight: 500 }}>{l}</a>
           ))}
+          <Link to="/docs" className="nav-link" style={{ fontSize: 13.5, color: "rgba(184,197,214,0.85)", textDecoration: "none", fontWeight: 500 }}>Docs</Link>
         </div>
 
         {/* Right CTAs */}
@@ -163,9 +164,10 @@ function Nav() {
       {/* Mobile drawer */}
       {open && (
         <div style={{ background: "#050e1e", borderTop: "1px solid rgba(255,255,255,0.05)", padding: "16px 24px 20px" }} className="md:hidden">
-          {["Features", "Pricing", "Docs"].map(l => (
+          {["Features", "Pricing"].map(l => (
             <a key={l} href="#" style={{ display: "block", padding: "11px 0", color: "#B8C5D6", fontSize: 14, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>{l}</a>
           ))}
+          <Link to="/docs" style={{ display: "block", padding: "11px 0", color: "#B8C5D6", fontSize: 14, borderBottom: "1px solid rgba(255,255,255,0.04)", textDecoration: "none" }}>Docs</Link>
           <Link to="/login" search={{ redirect: "/dashboard" }} style={{ display: "block", marginTop: 16, padding: "11px 0", color: "#B8C5D6", fontSize: 14, textDecoration: "none" }}>Sign In</Link>
         </div>
       )}
@@ -927,7 +929,7 @@ function CTASection() {
 /* ─── Footer ─────────────────────────────────────────────────── */
 function Footer() {
   const cols = [
-    { heading: "Platform", links: ["Builder", "Voice Agents", "Smart Dash", "API Docs"] },
+    { heading: "Platform", links: ["Builder", "Voice Agents", "Smart Dash"] },
     { heading: "Solutions", links: ["Healthcare", "Property", "Automotive", "Trades"] },
     { heading: "Company",  links: ["About", "Contact", "Partners", "Careers"] },
     { heading: "Legal",    links: ["Privacy Policy", "Terms of Service", "Security", "Compliance"] },
@@ -967,6 +969,9 @@ function Footer() {
                 {col.links.map(l => (
                   <a key={l} href="#" style={{ fontSize: 12.5, color: "rgba(184,197,214,0.55)", textDecoration: "none", transition: "color 0.2s" }} className="hover:text-white">{l}</a>
                 ))}
+                {col.heading === "Platform" && (
+                  <Link to="/docs" style={{ fontSize: 12.5, color: "rgba(184,197,214,0.55)", textDecoration: "none", transition: "color 0.2s" }} className="hover:text-white">API Docs</Link>
+                )}
               </div>
             </div>
           ))}

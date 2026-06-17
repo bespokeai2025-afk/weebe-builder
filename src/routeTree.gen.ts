@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as UnsubscribeRouteImport } from './routes/unsubscribe'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UploadTokenRouteImport } from './routes/upload.$token'
@@ -225,6 +226,11 @@ const SignupRoute = SignupRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -1352,6 +1358,7 @@ const AuthenticatedAdminAccountsWorkspaceIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -1555,6 +1562,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -1754,6 +1762,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/unsubscribe': typeof UnsubscribeRoute
@@ -1959,6 +1968,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/docs'
     | '/login'
     | '/signup'
     | '/unsubscribe'
@@ -2162,6 +2172,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/docs'
     | '/login'
     | '/signup'
     | '/unsubscribe'
@@ -2360,6 +2371,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_authenticated'
+    | '/docs'
     | '/login'
     | '/signup'
     | '/unsubscribe'
@@ -2565,6 +2577,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
   SignupRoute: typeof SignupRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
@@ -2662,6 +2675,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -4593,6 +4613,7 @@ const ApiRuntimeAgentIdRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
   SignupRoute: SignupRoute,
   UnsubscribeRoute: UnsubscribeRoute,
