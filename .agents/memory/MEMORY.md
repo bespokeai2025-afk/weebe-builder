@@ -32,3 +32,4 @@
 - [Prompt Studio architecture](prompt-studio-arch.md) — 5-table schema (manual migration); 12 library packs seeded per workspace; scoring via GPT-4o-mini (5 dims); getPromptPerformanceSummary is plain async (not server fn) for HiveMind use.
 - [GrowthMind Strategy Centre](strategy-centre-arch.md) — prompt engine routing, 4 DB tables, 13 strategy types, HiveMind approval via hivemind_actions.
 - [Onboarding V2 Architecture](onboarding-v2-arch.md) — path modal + checklist + gated tour; workspace_onboarding table; knowledge tier rules (no WEBEE content in SEED_TOPICS).
+- [Build — Node.js externals](build-node-externals.md) — Node built-ins must be in vite build.rollupOptions.external or client bundle fails; @vite-ignore alone is NOT enough; stale dynamic import paths only surface in SSR build.

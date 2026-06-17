@@ -476,7 +476,7 @@ async function checkAndMaybeAssemble(
   if (!safeToAssemble) return;
 
   console.log(`[video-poller] All clips settled for ${assetId} — triggering assembly`);
-  const { assembleCompositeVideo } = await import("./video-assembly.server");
+  const { assembleCompositeVideo } = await import(/* @vite-ignore */ "./video-assembly.server");
   await assembleCompositeVideo(sb, assetId, workspaceId);
 }
 

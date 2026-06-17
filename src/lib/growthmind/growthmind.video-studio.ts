@@ -1417,7 +1417,7 @@ export const scoreVideoCreative = createServerFn({ method: "POST" })
 
     if (!asset) throw new Error("Asset not found");
 
-    const { routeGenerate } = await import("./growthmind.ai-router.server");
+    const { routeGenerate } = await import(/* @vite-ignore */ "./model-router.server");
     const storyboardText = Array.isArray(asset.storyboard)
       ? asset.storyboard.map((s: any) => `Scene ${s.scene}: ${s.visual}. VO: ${s.voiceover}`).join("\n")
       : "";
@@ -1516,7 +1516,7 @@ export const generateVideoVariants = createServerFn({ method: "POST" })
         const vp = vpRes.data;
         const valuePoint = vp ? vp.current_highest_value ?? "" : "";
 
-        const { routeGenerate } = await import("./growthmind.ai-router.server");
+        const { routeGenerate } = await import(/* @vite-ignore */ "./model-router.server");
         const strategy = await routeGenerate({
           system: `You are an expert video strategist. Create a ${angle.label} variant strategy for a ${data.videoType} video for ${companyName}. Focus on the hook style: ${angle.type}. ${valuePoint ? `Lead with this value point: ${valuePoint}` : ""}`,
           user:   `Target: ${data.targetAudience || "ideal customer"}\nOffer: ${data.offer || "our product"}\nTone: ${data.tone}\nCTA: ${data.cta || "Contact us"}`,
@@ -2238,7 +2238,7 @@ export const triggerVideoAssembly = createServerFn({ method: "POST" })
     if (asset.assembly_status === "assembling") throw new Error("Assembly already in progress");
 
     // Import and run assembly (service-role client already in sb)
-    const { assembleCompositeVideo } = await import("./video-assembly.server");
+    const { assembleCompositeVideo } = await import(/* @vite-ignore */ "./video-assembly.server");
     const result = await assembleCompositeVideo(sb, data.assetId, workspaceId);
 
     return result;

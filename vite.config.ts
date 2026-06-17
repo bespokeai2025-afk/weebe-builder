@@ -35,6 +35,30 @@ export default defineConfig({
         },
       },
     },
+    // Server-only modules that must never enter the client bundle.
+    // These are Node.js built-ins pulled in transitively through server-function
+    // files. Marking them external prevents Rollup from trying to bundle the
+    // browser-stub versions (which don't export the named symbols used).
+    build: {
+      rollupOptions: {
+        external: [
+          "child_process",
+          "util",
+          "fs/promises",
+          "fs",
+          "path",
+          "os",
+          "crypto",
+          "stream",
+          "http",
+          "https",
+          "net",
+          "tls",
+          "events",
+          "buffer",
+        ],
+      },
+    },
     plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin(), frejunStreamPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin()],
     resolve: {
       alias: {
