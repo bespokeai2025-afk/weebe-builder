@@ -2244,6 +2244,7 @@ ON CONFLICT DO NOTHING;
 -- Security is preserved: kb ids are always resolved server-side; the RPC is still
 -- SECURITY DEFINER / service_role-only so browsers cannot call it directly.
 
+DROP FUNCTION IF EXISTS public.match_executive_document_chunks(UUID, UUID[], vector, INT);
 CREATE OR REPLACE FUNCTION public.match_executive_document_chunks(
   p_workspace_id        UUID,
   p_knowledge_base_ids  UUID[],
