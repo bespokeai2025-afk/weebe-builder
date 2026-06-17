@@ -1,0 +1,457 @@
+FULL API CONNECTABILITY AUDIT
+
+IMPORTANT
+
+Audit only.
+
+Do not modify code.
+Do not create migrations.
+Do not implement fixes.
+
+OBJECTIVE
+
+Audit every API connection point in WEBEE.
+
+I need to know exactly how external systems can connect to WEBEE and how WEBEE can connect to external systems.
+
+This audit must cover:
+
+1. Inbound APIs
+2. Outbound APIs
+3. Webhooks
+4. Provider adapters
+5. OAuth connections
+6. API keys
+7. Public endpoints
+8. Internal endpoints
+9. CRM integrations
+10. Marketing integrations
+11. Voice integrations
+12. Telephony integrations
+13. WhatsApp integrations
+14. Email integrations
+15. Calendar integrations
+16. Analytics integrations
+17. Advertising integrations
+18. Billing integrations
+19. Knowledge base integrations
+20. Missing or partial integrations
+
+====================================================
+
+SECTION 1 — API ARCHITECTURE OVERVIEW
+
+Identify:
+
+- API route structure
+- Public API routes
+- Internal API routes
+- Webhook routes
+- Authenticated routes
+- Server functions
+- Provider framework
+- API authentication methods
+- Workspace scoping
+- Rate limiting if present
+- Logging if present
+- Error handling if present
+
+Return exact files and routes.
+
+====================================================
+
+SECTION 2 — INBOUND CONNECTABILITY
+
+List every way an external system can send data into WEBEE.
+
+Include:
+
+Retell webhooks
+ElevenLabs webhooks
+Twilio voice webhooks
+Twilio WhatsApp webhooks
+FreJun webhooks
+Meta WhatsApp webhooks
+WATI webhooks
+Cal.com webhooks
+Stripe webhooks
+Resend webhooks
+Custom telemetry webhooks
+Campaign executor callbacks
+Ads sync callbacks
+Video job poller callbacks
+Document upload links
+Public upload routes
+Any generic webhook receiver
+Any custom workflow webhook receiver
+
+For each inbound connection show:
+
+Provider
+Route
+HTTP method
+Auth method
+Signature verification yes/no
+Workspace resolution method
+Stores raw payload yes/no
+Target tables
+Handler file
+Status: working / partial / missing
+Production URL
+Known issues
+
+====================================================
+
+SECTION 3 — OUTBOUND CONNECTABILITY
+
+List every external system WEBEE can call.
+
+Include:
+
+OpenAI
+Gemini
+Claude
+OpenRouter
+Retell
+ElevenLabs
+Twilio
+FreJun
+Meta
+WATI
+Cal.com
+Google Calendar
+Google Ads
+Google Analytics
+Google Search Console
+Meta Ads
+LinkedIn Ads
+TikTok Ads
+Resend
+SendGrid
+Stripe
+HubSpot
+GoHighLevel
+Salesforce
+Pipedrive
+Pinecone
+Supabase
+Google Veo
+Runway
+GPT Image
+Imagen
+Flux
+Midjourney
+Google Cloud / Vertex AI
+
+For each outbound provider show:
+
+Provider category
+Provider name
+Adapter file
+Credentials required
+Where credentials are stored
+Connection test exists yes/no
+Health check exists yes/no
+Cost tracking exists yes/no
+Usage tracking exists yes/no
+Fallback provider yes/no
+Current status: working / partial / stub / missing
+
+====================================================
+
+SECTION 4 — PUBLIC API ENDPOINTS
+
+List every route under:
+
+/api/public/*
+
+For each:
+
+Route
+Purpose
+Method
+Authentication
+Secret/header required
+Workspace scoping
+Payload expected
+Response format
+Security risk
+Current status
+
+====================================================
+
+SECTION 5 — INTERNAL API ENDPOINTS
+
+List every route under:
+
+/api/internal/*
+
+For each:
+
+Route
+Purpose
+Auth required
+Used by which feature
+Provider involved
+Current status
+
+====================================================
+
+SECTION 6 — WEBHOOK SECURITY AUDIT
+
+Check:
+
+Retell signature verification
+Twilio signature verification
+Stripe signature verification
+Resend signature verification
+Meta verify token
+WATI verification
+FreJun webhook validation
+Cal.com webhook validation
+Custom telemetry validation
+Cron secret validation
+Replay protection
+Raw payload storage
+Audit logging
+
+Mark:
+
+secure
+partial
+missing
+
+====================================================
+
+SECTION 7 — OAUTH CONNECTABILITY
+
+Audit OAuth or OAuth-like flows for:
+
+Google Ads
+Google Analytics
+Google Search Console
+Google Calendar
+Meta Ads
+Meta WhatsApp
+LinkedIn
+TikTok
+HubSpot
+GoHighLevel
+Salesforce
+Pipedrive
+Cal.com
+Stripe
+
+For each:
+
+OAuth implemented?
+Manual API key only?
+Refresh token support?
+Token expiry handling?
+Workspace scoped?
+Reconnect flow?
+Status?
+
+====================================================
+
+SECTION 8 — PROVIDER FRAMEWORK AUDIT
+
+For every provider category:
+
+LLM
+Voice
+Telephony
+WhatsApp
+Email
+Video
+Image
+CRM
+Calendar
+Knowledge
+Analytics
+Advertising
+
+Show:
+
+Provider interface exists?
+Factory exists?
+Registry entry exists?
+Adapter exists?
+Settings UI exists?
+Health check exists?
+Usage tracking exists?
+Cost tracking exists?
+Current providers working?
+Current providers partial?
+Current providers stubs?
+
+====================================================
+
+SECTION 9 — CUSTOMER-FACING API
+
+Audit whether WEBEE exposes a public API for customers.
+
+Check for:
+
+API keys
+Workspace API tokens
+Developer dashboard
+Webhook builder
+External system push endpoints
+CRM import API
+Lead creation API
+Call trigger API
+Campaign trigger API
+Agent deployment API
+Knowledge upload API
+
+For each:
+
+Exists?
+Auth model?
+Docs?
+Rate limits?
+Status?
+
+====================================================
+
+SECTION 10 — WORKFLOW / WEBHOOK BUILDER CONNECTABILITY
+
+Audit whether users can connect external systems into workflows.
+
+Check:
+
+Builder function node
+Custom webhook node
+Tool call node
+HTTP request action
+Response mapping
+Variable mapping
+OpenAI tool schema mapping
+Retell tool mapping
+WhatsApp workflow webhooks
+HexMail webhook actions
+SystemMind workflow creation
+
+For each:
+
+Working?
+Partial?
+Missing?
+Limitations?
+
+====================================================
+
+SECTION 11 — DATA SYNC CAPABILITY
+
+Audit data sync for:
+
+CRM leads
+Contacts
+Bookings
+Campaign results
+Ad performance
+Email performance
+WhatsApp conversations
+Call logs
+Recordings
+Transcripts
+Costs
+Provider usage
+Knowledge documents
+
+For each:
+
+Inbound sync
+Outbound sync
+Two-way sync
+Manual sync
+Scheduled sync
+Webhook sync
+Status
+
+====================================================
+
+SECTION 12 — MULTI-TENANT SAFETY
+
+Check:
+
+workspace_id scoping
+provider_settings scoping
+webhook workspace resolution
+API key isolation
+client data isolation
+RLS policies
+service-role usage
+public endpoint risk
+cross-workspace leakage risks
+
+====================================================
+
+SECTION 13 — PRODUCTION READINESS
+
+Check:
+
+Production base URL usage
+Hardcoded localhost URLs
+Replit preview URLs
+Webhook URLs
+Supabase callback URLs
+Stripe webhook URLs
+Cron URLs
+CORS
+Rate limiting
+Timeouts
+Retries
+Dead-letter logging
+Provider error handling
+
+====================================================
+
+SECTION 14 — FINAL CONNECTABILITY MATRIX
+
+Create a table:
+
+Provider / System
+Inbound supported?
+Outbound supported?
+OAuth/API key supported?
+Webhook supported?
+Health check?
+Cost tracking?
+Usage tracking?
+Production ready?
+Status
+Missing pieces
+
+====================================================
+
+SECTION 15 — TOP GAPS
+
+Rank all missing API/connectability gaps by business impact.
+
+Include:
+
+Critical
+High
+Medium
+Low
+
+====================================================
+
+FINAL OUTPUT
+
+Return:
+
+1. Total number of inbound APIs
+2. Total number of outbound integrations
+3. Total number of webhook endpoints
+4. Total number of working integrations
+5. Total number of partial integrations
+6. Total number of stubs
+7. Production readiness %
+8. Security readiness %
+9. Top 20 missing API/connectability issues
+10. Best next implementation prompt
+
+Audit only.
