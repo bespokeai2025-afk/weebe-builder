@@ -1,0 +1,432 @@
+BUILD ACCOUNTSMIND CLIENT COSTING + PROFIT MONITORING SYSTEM
+
+IMPORTANT
+
+Do not replace the existing Cost Engine.
+
+Do not break HiveMind, GrowthMind, SystemMind, Billing, Stripe, Retell, HyperStream, VoxStream, WhatsApp, HexMail, Video Studio or Provider Framework.
+
+Extend the existing Cost Engine and Admin section safely.
+
+OBJECTIVE
+
+Build an Accounts Agent inside WEBEE that monitors client revenue, monthly charges, provider costs, usage spend, margins, recharge events and profitability.
+
+This agent should help us understand:
+
+What each client pays monthly
+What each client costs us monthly
+Which providers are consuming cost
+Which clients are profitable
+Which clients are loss-making
+When provider recharge/top-up events happen
+When a client is approaching usage limits
+When prices should be reviewed
+
+HiveMind should notify us of important finance/cost events.
+
+====================================================
+
+NEW EXECUTIVE AGENT
+
+Create:
+
+AccountsMind
+
+Role:
+
+AI Accounts / Finance Agent
+
+AccountsMind reports to HiveMind.
+
+HiveMind remains the only speaking executive.
+
+====================================================
+
+ROUTES
+
+Create:
+
+/admin/accounts
+/admin/accounts/clients
+/admin/accounts/client.$id
+/admin/accounts/costs
+/admin/accounts/recharges
+/admin/accounts/profitability
+/admin/accounts/alerts
+/admin/accounts/settings
+
+Optional workspace-visible route:
+
+/settings/billing-usage
+
+====================================================
+
+CLIENT MONTHLY CHARGES
+
+Allow admin to set per workspace/client:
+
+monthly_charge
+currency
+billing_cycle
+included_minutes
+included_messages
+included_video_seconds
+included_email_sends
+included_storage
+overage_rates
+contract_start
+contract_end
+status
+
+Store in:
+
+client_billing_profiles
+
+Fields:
+
+id
+workspace_id
+monthly_charge_cents
+currency
+billing_cycle
+included_minutes
+included_messages
+included_video_seconds
+included_email_sends
+included_storage_mb
+overage_rates_json
+contract_start_date
+contract_end_date
+status
+created_at
+updated_at
+
+====================================================
+
+MONTHLY COSTING ENGINE
+
+Pull actual monthly cost from all services.
+
+Sources:
+
+Retell
+OpenAI
+Gemini
+Claude
+ElevenLabs
+Twilio
+FreJun
+WhatsApp
+WATI
+Meta
+Resend
+SendGrid
+Stripe
+Veo
+Runway
+GPT Image
+Imagen
+Supabase Storage
+Server / Infrastructure
+CRM providers
+Calendar providers
+
+Use existing:
+
+usage_events
+provider_usage_events
+call_profitability
+growthmind_generation_logs
+provider_cost_rates
+cost_engine tables
+
+Create aggregation service:
+
+src/lib/accountsmind/client-costing.server.ts
+
+Calculate per workspace:
+
+voice_cost
+llm_cost
+telephony_cost
+whatsapp_cost
+email_cost
+video_cost
+image_cost
+storage_cost
+crm_cost
+calendar_cost
+infrastructure_cost
+total_cost
+monthly_charge
+gross_profit
+gross_margin_percent
+
+====================================================
+
+DATABASE
+
+Create:
+
+client_monthly_costs
+
+Fields:
+
+id
+workspace_id
+month
+monthly_charge_cents
+total_cost_cents
+voice_cost_cents
+llm_cost_cents
+telephony_cost_cents
+whatsapp_cost_cents
+email_cost_cents
+video_cost_cents
+image_cost_cents
+storage_cost_cents
+infrastructure_cost_cents
+gross_profit_cents
+gross_margin_percent
+source_breakdown_json
+created_at
+updated_at
+
+Create:
+
+provider_recharge_events
+
+Fields:
+
+id
+provider_category
+provider_name
+workspace_id nullable
+amount_cents
+currency
+event_type
+description
+source
+detected_at
+raw_payload
+created_at
+
+Create:
+
+accountsmind_alerts
+
+Fields:
+
+id
+workspace_id nullable
+alert_type
+severity
+title
+message
+provider_category
+provider_name
+amount_cents
+status
+hivemind_action_id nullable
+created_at
+resolved_at
+
+====================================================
+
+RECHARGE / TOP-UP MONITORING
+
+Detect when service credits/top-ups/recharges happen.
+
+Examples:
+
+OpenAI credit top-up
+Retell balance recharge
+Twilio recharge
+ElevenLabs credit purchase
+Veo/Google billing event
+Stripe charge
+Resend usage charge
+
+Where APIs support billing events, ingest them.
+
+Where not supported, allow manual entry.
+
+Add manual button:
+
+Record Provider Recharge
+
+Fields:
+
+Provider
+Amount
+Currency
+Date
+Notes
+Client or Platform-wide
+
+====================================================
+
+ALERT RULES
+
+Notify when:
+
+Client margin below threshold
+Client monthly cost exceeds expected
+Client usage exceeds included allowance
+Provider recharge detected
+Provider cost spikes
+Video generation cost unusually high
+Call volume unusually high
+WhatsApp spend unusually high
+A client becomes loss-making
+A client is approaching usage cap
+A service has missing cost rate
+
+Severity:
+
+info
+warning
+critical
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should report:
+
+Most profitable clients
+Least profitable clients
+Clients at risk
+Provider recharges
+Monthly cost spikes
+Margin warnings
+Suggested price increases
+Usage anomalies
+
+Example HiveMind message:
+
+"AccountsMind has detected that Client A has used £412 in provider costs against a £500 monthly charge. Current margin is 17%. Recommended action: review pricing or pause overage-heavy campaigns."
+
+====================================================
+
+GROWTHMIND INTEGRATION
+
+GrowthMind should understand account profitability.
+
+When recommending campaigns, GrowthMind should consider:
+
+Client margin
+Available budget
+Cost of channel
+Cost per lead
+Cost per booking
+Expected ROI
+
+GrowthMind should not recommend expensive campaigns for low-margin clients without warning.
+
+====================================================
+
+SYSTEMMIND INTEGRATION
+
+SystemMind should monitor:
+
+Missing cost rates
+Failed provider cost syncs
+Broken usage tracking
+Provider billing API failures
+Cost aggregation failures
+
+====================================================
+
+ADMIN UI
+
+/admin/accounts dashboard should show:
+
+Total Monthly Revenue
+Total Monthly Cost
+Gross Profit
+Average Margin
+Most Expensive Provider
+Most Profitable Client
+Least Profitable Client
+Recent Recharges
+Critical Alerts
+
+Client detail page should show:
+
+Monthly charge
+Current month cost
+Cost breakdown by provider
+Usage breakdown
+Margin
+Forecasted month-end cost
+Recommended action
+
+====================================================
+
+FORECASTING
+
+Forecast month-end cost using current run-rate.
+
+Example:
+
+Current date:
+15th
+
+Cost so far:
+£250
+
+Forecast:
+£500 by month end
+
+Compare against monthly charge.
+
+====================================================
+
+APPROVAL ACTIONS
+
+If AccountsMind recommends:
+
+Increase price
+Pause campaign
+Change provider
+Set usage cap
+Send billing warning
+Review client contract
+
+Create HiveMind approval action.
+
+Do not automatically change billing without approval.
+
+====================================================
+
+SECURITY
+
+Admin-only access for /admin/accounts routes.
+
+Workspace users can only view their own billing usage if enabled.
+
+Never expose provider secrets.
+
+====================================================
+
+SUCCESS CRITERIA
+
+Admin can enter each client's monthly charge.
+
+System pulls provider costs from usage data.
+
+AccountsMind calculates client profitability.
+
+Provider recharge events are tracked.
+
+HiveMind notifies us of margin risks and recharges.
+
+GrowthMind uses profitability when recommending campaigns.
+
+SystemMind monitors cost tracking failures.
+
+Generate implementation plan first.
+
+Then implement safely.
