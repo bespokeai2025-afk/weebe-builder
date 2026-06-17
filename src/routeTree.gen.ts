@@ -111,6 +111,8 @@ import { Route as AuthenticatedGrowthmindProposalsRouteImport } from './routes/_
 import { Route as AuthenticatedGrowthmindPromptStudioRouteImport } from './routes/_authenticated/growthmind.prompt-studio'
 import { Route as AuthenticatedGrowthmindPlaybooksRouteImport } from './routes/_authenticated/growthmind.playbooks'
 import { Route as AuthenticatedGrowthmindLeadOpportunitiesRouteImport } from './routes/_authenticated/growthmind.lead-opportunities'
+import { Route as AuthenticatedGrowthmindImageStudioRouteImport } from './routes/_authenticated/growthmind.image-studio'
+import { Route as AuthenticatedGrowthmindImageLibraryRouteImport } from './routes/_authenticated/growthmind.image-library'
 import { Route as AuthenticatedGrowthmindGrowthSchedulerRouteImport } from './routes/_authenticated/growthmind.growth-scheduler'
 import { Route as AuthenticatedGrowthmindGoalsRouteImport } from './routes/_authenticated/growthmind.goals'
 import { Route as AuthenticatedGrowthmindFunnelsRouteImport } from './routes/_authenticated/growthmind.funnels'
@@ -746,6 +748,18 @@ const AuthenticatedGrowthmindLeadOpportunitiesRoute =
     path: '/lead-opportunities',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedGrowthmindImageStudioRoute =
+  AuthenticatedGrowthmindImageStudioRouteImport.update({
+    id: '/image-studio',
+    path: '/image-studio',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
+const AuthenticatedGrowthmindImageLibraryRoute =
+  AuthenticatedGrowthmindImageLibraryRouteImport.update({
+    id: '/image-library',
+    path: '/image-library',
+    getParentRoute: () => AuthenticatedGrowthmindRoute,
+  } as any)
 const AuthenticatedGrowthmindGrowthSchedulerRoute =
   AuthenticatedGrowthmindGrowthSchedulerRouteImport.update({
     id: '/growth-scheduler',
@@ -1182,6 +1196,8 @@ export interface FileRoutesByFullPath {
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
   '/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
+  '/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
+  '/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
@@ -1345,6 +1361,8 @@ export interface FileRoutesByTo {
   '/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
   '/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
+  '/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
+  '/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
@@ -1515,6 +1533,8 @@ export interface FileRoutesById {
   '/_authenticated/growthmind/funnels': typeof AuthenticatedGrowthmindFunnelsRoute
   '/_authenticated/growthmind/goals': typeof AuthenticatedGrowthmindGoalsRoute
   '/_authenticated/growthmind/growth-scheduler': typeof AuthenticatedGrowthmindGrowthSchedulerRoute
+  '/_authenticated/growthmind/image-library': typeof AuthenticatedGrowthmindImageLibraryRoute
+  '/_authenticated/growthmind/image-studio': typeof AuthenticatedGrowthmindImageStudioRoute
   '/_authenticated/growthmind/lead-opportunities': typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   '/_authenticated/growthmind/playbooks': typeof AuthenticatedGrowthmindPlaybooksRoute
   '/_authenticated/growthmind/prompt-studio': typeof AuthenticatedGrowthmindPromptStudioRoute
@@ -1685,6 +1705,8 @@ export interface FileRouteTypes {
     | '/growthmind/funnels'
     | '/growthmind/goals'
     | '/growthmind/growth-scheduler'
+    | '/growthmind/image-library'
+    | '/growthmind/image-studio'
     | '/growthmind/lead-opportunities'
     | '/growthmind/playbooks'
     | '/growthmind/prompt-studio'
@@ -1848,6 +1870,8 @@ export interface FileRouteTypes {
     | '/growthmind/funnels'
     | '/growthmind/goals'
     | '/growthmind/growth-scheduler'
+    | '/growthmind/image-library'
+    | '/growthmind/image-studio'
     | '/growthmind/lead-opportunities'
     | '/growthmind/playbooks'
     | '/growthmind/prompt-studio'
@@ -2017,6 +2041,8 @@ export interface FileRouteTypes {
     | '/_authenticated/growthmind/funnels'
     | '/_authenticated/growthmind/goals'
     | '/_authenticated/growthmind/growth-scheduler'
+    | '/_authenticated/growthmind/image-library'
+    | '/_authenticated/growthmind/image-studio'
     | '/_authenticated/growthmind/lead-opportunities'
     | '/_authenticated/growthmind/playbooks'
     | '/_authenticated/growthmind/prompt-studio'
@@ -2909,6 +2935,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/growthmind/image-studio': {
+      id: '/_authenticated/growthmind/image-studio'
+      path: '/image-studio'
+      fullPath: '/growthmind/image-studio'
+      preLoaderRoute: typeof AuthenticatedGrowthmindImageStudioRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
+    '/_authenticated/growthmind/image-library': {
+      id: '/_authenticated/growthmind/image-library'
+      path: '/image-library'
+      fullPath: '/growthmind/image-library'
+      preLoaderRoute: typeof AuthenticatedGrowthmindImageLibraryRouteImport
+      parentRoute: typeof AuthenticatedGrowthmindRoute
+    }
     '/_authenticated/growthmind/growth-scheduler': {
       id: '/_authenticated/growthmind/growth-scheduler'
       path: '/growth-scheduler'
@@ -3405,6 +3445,8 @@ interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindFunnelsRoute: typeof AuthenticatedGrowthmindFunnelsRoute
   AuthenticatedGrowthmindGoalsRoute: typeof AuthenticatedGrowthmindGoalsRoute
   AuthenticatedGrowthmindGrowthSchedulerRoute: typeof AuthenticatedGrowthmindGrowthSchedulerRoute
+  AuthenticatedGrowthmindImageLibraryRoute: typeof AuthenticatedGrowthmindImageLibraryRoute
+  AuthenticatedGrowthmindImageStudioRoute: typeof AuthenticatedGrowthmindImageStudioRoute
   AuthenticatedGrowthmindLeadOpportunitiesRoute: typeof AuthenticatedGrowthmindLeadOpportunitiesRoute
   AuthenticatedGrowthmindPlaybooksRoute: typeof AuthenticatedGrowthmindPlaybooksRoute
   AuthenticatedGrowthmindPromptStudioRoute: typeof AuthenticatedGrowthmindPromptStudioRoute
@@ -3449,6 +3491,10 @@ const AuthenticatedGrowthmindRouteChildren: AuthenticatedGrowthmindRouteChildren
     AuthenticatedGrowthmindGoalsRoute: AuthenticatedGrowthmindGoalsRoute,
     AuthenticatedGrowthmindGrowthSchedulerRoute:
       AuthenticatedGrowthmindGrowthSchedulerRoute,
+    AuthenticatedGrowthmindImageLibraryRoute:
+      AuthenticatedGrowthmindImageLibraryRoute,
+    AuthenticatedGrowthmindImageStudioRoute:
+      AuthenticatedGrowthmindImageStudioRoute,
     AuthenticatedGrowthmindLeadOpportunitiesRoute:
       AuthenticatedGrowthmindLeadOpportunitiesRoute,
     AuthenticatedGrowthmindPlaybooksRoute:

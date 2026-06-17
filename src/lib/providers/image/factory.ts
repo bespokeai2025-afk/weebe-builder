@@ -1,4 +1,4 @@
-import type { ImageProvider, ImageGenerateParams, ImageGenerateResult } from "./interface";
+import type { ImageProvider, ImageGenerateParams, ImageGenerateResult, ImageEditParams, ImageVariationParams } from "./interface";
 import { GPTImageAdapter } from "./adapters/gpt-image.adapter";
 import { ImagenAdapter } from "./adapters/imagen.adapter";
 import { withProviderTracking } from "@/lib/providers/instrumentation";
@@ -12,10 +12,6 @@ export type ImageConfig =
   | { provider: "midjourney"; apiKey: string }
   | { provider: "flux"; apiKey: string };
 
-/**
- * Create an ImageProvider. When `workspaceId` is included in `config`,
- * every method call is automatically tracked in provider_usage.
- */
 export function createImageProvider(
   config: ImageConfig & { workspaceId?: string },
 ): ImageProvider {
@@ -48,6 +44,21 @@ export function createImageProvider(
         { workspaceId, category: "image", providerName, unitsConsumed: 1, unitType: "image" },
         () => inner.generate(params),
       ),
+    edit: inner.edit
+      ? (params: ImageEditParams): Promise<ImageGenerateResult> =>
+          withProviderTracking(
+            { workspaceId, category: "image", providerName, unitsConsumed: 1, unitType: "image" },
+            () => inner.edit!(params),
+          )
+      : undefined,
+    createVariation: inner.createVariation
+      ? (params: ImageVariationParams): Promise<ImageGenerateResult> =>
+          withProviderTracking(
+            { workspaceId, category: "image", providerName, unitsConsumed: 1, unitType: "image" },
+            () => inner.createVariation!(params),
+          )
+      : undefined,
+    healthCheck: inner.healthCheck?.bind(inner),
   };
 }
 

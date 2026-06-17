@@ -964,7 +964,7 @@ export function GrowthMindOverview() {
                 { key: "analytics",   label: "Analytics",          icon: BarChart3, color: "text-teal-400",   gateMsg: "Connect Google Analytics to unlock traffic & conversion data", href: "/settings/providers" },
                 { key: "advertising", label: "Advertising",        icon: Megaphone, color: "text-yellow-400", gateMsg: "Connect Google Ads or Meta Ads to track campaign performance",  href: "/settings/providers" },
                 { key: "video",       label: "Video Generation",   icon: Video,     color: "text-pink-400",   gateMsg: "Connect a video provider to generate AI-powered video ads",    href: "/growthmind/video-studio" },
-                { key: "image",       label: "Image Generation",   icon: Image,     color: "text-orange-400", gateMsg: "Connect an image provider to auto-generate creative assets",   href: "/growthmind/content-studio" },
+                { key: "image",       label: "Image Generation",   icon: Image,     color: "text-orange-400", gateMsg: "Connect an image provider to auto-generate creative assets",   href: "/growthmind/image-studio" },
               ];
 
               const notConnected = growthCategories.filter(c => {

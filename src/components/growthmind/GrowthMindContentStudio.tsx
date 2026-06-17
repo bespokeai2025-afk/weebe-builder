@@ -10,7 +10,7 @@ import {
   Plus, MoreHorizontal, Edit2, ArrowLeft, BarChart3, ExternalLink,
   Zap, SlidersHorizontal, Cpu, AlertCircle, Facebook, Send,
   Link, DollarSign, Settings2, ShieldCheck, Upload, Clapperboard,
-  BookMarked, FlaskConical,
+  BookMarked, FlaskConical, ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GrowthMindShell } from "./GrowthMindShell";
@@ -337,6 +337,19 @@ function AssetCard({ asset, onView, onDelete, onToggleFav, onStatusChange }: {
                   }}
                   className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors text-violet-400">
                   <Clapperboard className="h-3 w-3" /> Create Video
+                </button>
+                <button
+                  onClick={() => {
+                    setMenu(false);
+                    const params = new URLSearchParams({
+                      prompt:    asset.content.slice(0, 600),
+                      assetType: "social_image",
+                      contentAssetId: asset.id,
+                    });
+                    window.location.assign(`/growthmind/image-studio?${params.toString()}`);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-white/[0.04] transition-colors text-orange-400">
+                  <ImageIcon className="h-3 w-3" /> Generate Image
                 </button>
                 {asset.status !== "published" && (
                   <button onClick={() => { onStatusChange(asset.id, "published"); setMenu(false); }}

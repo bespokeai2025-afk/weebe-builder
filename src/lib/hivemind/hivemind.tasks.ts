@@ -476,6 +476,41 @@ async function scanGrowthMind(sb: any, workspaceId: string): Promise<ScanFinding
     }
   }
 
+  // 10a. Campaign drafts without image creative assets
+  const [draftImgRes, imgAssetRes] = await Promise.all([
+    Promise.resolve(sb.from("growthmind_campaign_drafts")
+      .select("id, name, campaign_type")
+      .eq("workspace_id", workspaceId)
+      .in("status", ["approved", "ready", "draft"])
+      .limit(20)).catch(() => ({ data: [] })),
+    Promise.resolve(sb.from("growthmind_image_assets")
+      .select("campaign_id")
+      .eq("workspace_id", workspaceId)
+      .eq("status", "ready")
+      .not("campaign_id", "is", null)
+      .limit(100)).catch(() => ({ data: [] })),
+  ]);
+  const draftsWithImages = new Set(
+    ((imgAssetRes as any).data ?? []).map((r: any) => r.campaign_id)
+  );
+  const draftsNeedingImages = ((draftImgRes as any).data ?? []).filter(
+    (d: any) => !draftsWithImages.has(d.id)
+  );
+  if (draftsNeedingImages.length > 0) {
+    const first = draftsNeedingImages[0];
+    results.push({
+      trigger_type: "gm_campaign_no_image",
+      entity_type:  "growthmind",
+      entity_id:    first.id,
+      entity_name:  first.name,
+      title:        `${draftsNeedingImages.length} campaign${draftsNeedingImages.length > 1 ? "s" : ""} missing image creatives`,
+      description:  `${draftsNeedingImages.length} campaign draft${draftsNeedingImages.length > 1 ? "s have" : " has"} no image creative attached. Strong ad creative is one of the biggest levers on ROAS — generate images in Image Studio and attach them to your campaigns.`,
+      priority:     draftsNeedingImages.length >= 3 ? "high" : "medium",
+      severity:     "warning",
+      metadata:     { count: draftsNeedingImages.length, firstCampaignId: first.id },
+    });
+  }
+
   // 10. Failed video jobs — need attention
   const failedVideos = (failedVideoRes?.data ?? []) as Array<{ id: string; title: string }>;
   if (failedVideos.length > 0) {

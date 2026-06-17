@@ -1,0 +1,345 @@
+BUILD NEW CUSTOMER ONBOARDING + KNOWLEDGE ISOLATION SYSTEM
+
+IMPORTANT
+
+Do not break existing Knowledge Centre.
+
+Do not break HiveMind, GrowthMind or SystemMind.
+
+Extend existing onboarding and knowledge architecture safely.
+
+====================================================
+
+OBJECTIVE
+
+Ensure every new customer receives:
+
+1. Guided onboarding
+2. Standardised starter knowledge
+3. Complete knowledge isolation from WEBEE
+4. Business-specific GrowthMind behaviour
+
+====================================================
+
+CRITICAL REQUIREMENT
+
+WEBEE internal business knowledge must NEVER automatically become a customer's business knowledge.
+
+Separate:
+
+Platform Knowledge
+Customer Knowledge
+
+====================================================
+
+KNOWLEDGE TIERS
+
+Create:
+
+Tier 1
+Platform Knowledge
+
+Purpose:
+
+Teach the system how to operate.
+
+Examples:
+
+Marketing Frameworks
+SEO Best Practices
+AI Receptionist Playbooks
+Sales Methodologies
+CRM Best Practices
+GrowthMind Frameworks
+SystemMind Frameworks
+
+Shared across all workspaces.
+
+Read-only.
+
+====================================================
+
+Tier 2
+
+Workspace Knowledge
+
+Purpose:
+
+Customer-specific business information.
+
+Examples:
+
+Company details
+Products
+Services
+Pricing
+Offers
+Case studies
+Processes
+FAQs
+Documents
+
+Private to workspace.
+
+====================================================
+
+Tier 3
+
+Business DNA
+
+Purpose:
+
+Structured understanding of the customer.
+
+Industry
+
+Services
+
+Customers
+
+Markets
+
+Goals
+
+Brand Voice
+
+Offers
+
+Competitors
+
+Revenue Targets
+
+====================================================
+
+NEW CUSTOMER SIGNUP FLOW
+
+After signup:
+
+Step 1
+
+Welcome to WEBEE
+
+Explain:
+
+HiveMind
+GrowthMind
+SystemMind
+
+====================================================
+
+Step 2
+
+Select Business Type
+
+Examples:
+
+Service Business
+Agency
+Ecommerce
+Property
+Legal
+Healthcare
+Construction
+Custom
+
+====================================================
+
+Step 3
+
+Business DNA Wizard
+
+Collect:
+
+Business Name
+
+Industry
+
+Services
+
+Target Customers
+
+Website
+
+Locations
+
+Goals
+
+====================================================
+
+Step 4
+
+Knowledge Seeding
+
+Automatically create:
+
+HiveMind KB
+GrowthMind KB
+SystemMind KB
+
+Seed:
+
+Standard Platform Knowledge
+
+NOT WEBEE business data.
+
+====================================================
+
+Step 5
+
+Knowledge Upload
+
+Prompt user to upload:
+
+Website
+
+Brochure
+
+PDFs
+
+FAQs
+
+Pricing
+
+Case Studies
+
+Documents
+
+====================================================
+
+Step 6
+
+Connection Wizard
+
+Prompt user to connect:
+
+Google
+
+Meta
+
+WhatsApp
+
+CRM
+
+Email
+
+Calendar
+
+Telephony
+
+====================================================
+
+Step 7
+
+GrowthMind Setup
+
+Generate:
+
+Initial Business Analysis
+
+Initial Opportunities
+
+Initial Marketing Recommendations
+
+====================================================
+
+NOTIFICATIONS
+
+Show onboarding progress.
+
+Examples:
+
+"Knowledge bases created."
+
+"Starter playbooks installed."
+
+"Business DNA completed."
+
+"GrowthMind analysis ready."
+
+====================================================
+
+KNOWLEDGE ACCESS RULES
+
+GrowthMind
+
+Platform Knowledge
++
+Workspace Knowledge
++
+Business DNA
+
+HiveMind
+
+Platform Knowledge
++
+Workspace Knowledge
++
+Executive Summaries
+
+SystemMind
+
+Platform Knowledge
++
+System Data
++
+Workspace Configuration
+
+====================================================
+
+AUDIT EXISTING SEEDING
+
+Before implementation:
+
+Audit all current knowledge seeding.
+
+Identify:
+
+WEBEE-specific content
+
+Platform content
+
+Customer content
+
+Move WEBEE-specific content out of default seeds.
+
+====================================================
+
+FIRST LOGIN EXPERIENCE
+
+Add onboarding checklist:
+
+□ Complete Business DNA
+
+□ Upload Knowledge
+
+□ Connect Email
+
+□ Connect Calendar
+
+□ Connect CRM
+
+□ Connect Marketing Platforms
+
+□ Create First Campaign
+
+□ Create First AI Agent
+
+Progress percentage displayed.
+
+====================================================
+
+SUCCESS CRITERIA
+
+New customers never inherit WEBEE business knowledge.
+
+All customers receive standardised starter knowledge.
+
+GrowthMind understands the customer's business from day one.
+
+Onboarding is guided and visible.
+
+Knowledge isolation is guaranteed across workspaces.
+
+Generate implementation plan first.
+
+Audit existing seeding before making changes.

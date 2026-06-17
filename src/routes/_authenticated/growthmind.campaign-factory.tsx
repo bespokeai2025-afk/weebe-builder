@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   Rocket, Loader2, Send, Trash2, ChevronDown, ChevronUp,
   RefreshCw, DollarSign, Target, Copy, CheckCheck, Clapperboard,
-  ArrowLeftCircle, Megaphone, FileText,
+  ArrowLeftCircle, Megaphone, FileText, ImageIcon,
 } from "lucide-react";
 import { GrowthMindShell } from "@/components/growthmind/GrowthMindShell";
 import { Button } from "@/components/ui/button";
@@ -135,6 +135,20 @@ function DraftCard({ draft, onDelete, onSend }: {
           <button type="button" onClick={() => setExpanded(o => !o)}
             className="p-1.5 text-muted-foreground hover:text-foreground rounded">
             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          <button
+            type="button"
+            title="Generate image creative in Image Studio"
+            onClick={() => {
+              const params = new URLSearchParams({
+                campaignDraftId: draft.id,
+                assetType:       "ad_creative",
+                prompt:          [draft.coreOffer, draft.name].filter(Boolean).join(" — ").slice(0, 600),
+              });
+              window.location.assign(`/growthmind/image-studio?${params.toString()}`);
+            }}
+            className="p-1.5 text-muted-foreground hover:text-orange-400 rounded transition-colors">
+            <ImageIcon className="h-4 w-4" />
           </button>
           <button
             type="button"
