@@ -1,195 +1,252 @@
-# Deploying to AWS
+# Deploying WEBEE to AWS
 
-This app is a server-rendered (SSR) TanStack Start + Vite application. It builds
-to a Node SSR server (`dist/server/server.js`) plus a folder of static client
-assets (`dist/client/`), and is served by `srvx` as a normal long-running Node
-process. That makes it a containerized Node service on AWS — **not** a static
-S3/CloudFront site.
-
-A `Dockerfile` and `.dockerignore` are included and ready to use.
+WEBEE is a server-rendered TanStack Start + Vite application. It builds to a
+Node SSR server (`dist/server/server.js`) and static client assets
+(`dist/client/`), served by `srvx` as a long-running Node process.
 
 ---
 
-## TL;DR
+## How deployments work
 
-```bash
-# Build the image (VITE_* values are baked into the client bundle here)
-docker build \
-  --build-arg VITE_SUPABASE_URL="https://YOUR-PROJECT.supabase.co" \
-  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="YOUR_SUPABASE_ANON_KEY" \
-  -t webespoke-ai:latest .
+### The golden rule
 
-# Run it locally to verify (Supabase URL/key are also needed at RUNTIME for SSR)
-docker run --rm -p 8080:8080 \
-  -e VITE_SUPABASE_URL="https://YOUR-PROJECT.supabase.co" \
-  -e VITE_SUPABASE_PUBLISHABLE_KEY="YOUR_SUPABASE_ANON_KEY" \
-  -e SUPABASE_SERVICE_ROLE_KEY="..." \
-  -e RETELL_API_KEY="..." \
-  webespoke-ai:latest
+> **`npm run build` never runs on the production server.**
 
-# Open http://localhost:8080
+The full build happens on GitHub Actions (free CI runners with no impact on
+live traffic). The built artifact is uploaded to EC2 as a tarball. The server
+only runs `npm ci --omit=dev` (install prod deps — fast, no compilation).
+
+### Atomic release flow
+
+```
+GitHub Actions runner                      EC2 host
+─────────────────────────                  ──────────────────────────────────
+1. npm ci                                  (nothing running yet)
+2. npm run build (real VITE_* values)
+3. tar -czf release.tar.gz dist/ …
+4. scp release.tar.gz → /tmp/             5. mkdir releases/{timestamp}/
+                                           6. tar -xzf release.tar.gz → releases/{timestamp}/
+                                           7. npm ci --omit=dev
+                                           8. ln -sfn releases/{timestamp} current
+                                           9. systemctl restart webee
+                                          10. GET /api/health → 200? → done ✓
+                                                               → fail → rollback ✗
 ```
 
-Then push the image to **Amazon ECR** and run it on **App Runner** (simplest) or
-**ECS Fargate** (more control).
+The `current` symlink is updated atomically in step 8. If the health check
+fails, the deploy script switches the symlink back to the previous release and
+restarts the service — customers see only a brief restart, never a broken build.
 
 ---
 
-## How the build works
+## Quick start (first deploy)
 
-| Output | What it is |
-| --- | --- |
-| `dist/server/server.js` | The SSR entry (wrapped with branded error handling). |
-| `dist/server/assets/*`  | Server-side route/component chunks. |
-| `dist/client/*`         | Static JS/CSS/favicon served to the browser. |
+### 1. Bootstrap the EC2 host (one-time only)
 
-- Build: `npm run build`
-- Start (AWS): `npm run start:aws` — binds `0.0.0.0` and reads the `PORT` env var (defaults to 8080 in the container).
-- The default `npm run start` binds `127.0.0.1` (loopback only) and is **not** suitable for AWS. Always use `start:aws` in the container — the `Dockerfile` already does.
-- Node **22.12+** is required.
+```bash
+# SSH into your EC2 instance
+ssh ubuntu@your-ec2-host
 
-> **Static asset serving:** both start scripts pass `--static=../client`. srvx
-> resolves the static dir **relative to the entry file** (`dist/server/`), so
-> `../client` correctly points at `dist/client/`. Using `--static dist/client`
-> silently serves no assets (it looks for `dist/server/dist/client`), which ships
-> HTML with no JS/CSS. Don't "simplify" this back. Verified: `/`, `/assets/*`,
-> `/favicon.ico`, and SSR routes all return 200 with the current scripts.
+# Clone the repo so you have the bootstrap script
+git clone <your-repo-url> /tmp/webee-setup && cd /tmp/webee-setup
 
-> The dev-only SSR warning you may see in the Replit console
-> (`Cannot use 'in' operator ... TSS_SERVER_FUNCTION_FACTORY`) comes from Vite's
-> dev module runner and **does not occur in the production build** — verified:
-> the built server SSRs authenticated routes with HTTP 200.
+# Run the bootstrap (creates /var/www/webee/ layout + systemd service)
+bash deploy/ec2-bootstrap.sh ubuntu   # pass your OS user (ubuntu / ec2-user)
+
+# IMPORTANT: edit the permanent .env with real secrets
+sudo nano /var/www/webee/.env
+```
+
+### 2. Add GitHub Actions secrets
+
+Go to **GitHub → your repo → Settings → Secrets and variables → Actions**.
+
+#### Secrets (sensitive — use "Secrets" tab):
+| Secret | Value |
+|---|---|
+| `EC2_HOST` | Your EC2 public IP or hostname |
+| `EC2_SSH_KEY` | Contents of your deploy private key (`~/.ssh/id_rsa`) |
+| `EC2_USER` | OS user on EC2 (e.g. `ubuntu`, `ec2-user`) |
+| `EC2_SSH_PORT` | SSH port (default: `22`) |
+| `EC2_RELEASES_ROOT` | `/var/www/webee/releases` |
+
+#### Variables (public — use "Variables" tab):
+These are the public Supabase values baked into the client bundle at build time.
+| Variable | Value |
+|---|---|
+| `VITE_SUPABASE_URL` | `https://YOUR-PROJECT.supabase.co` |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Your Supabase anon/publishable key |
+| `VITE_SUPABASE_ANON_KEY` | Same as above |
+| `VITE_PAYMENTS_CLIENT_TOKEN` | Stripe publishable key (optional) |
+
+### 3. Deploy
+
+```bash
+git push origin main
+# GitHub Actions builds and deploys automatically.
+# Watch progress: GitHub → Actions → Deploy to EC2
+```
+
+### 4. Rollback (if needed)
+
+```bash
+# SSH into EC2:
+bash scripts/rollback.sh            # roll back to previous release
+bash scripts/rollback.sh 20240617   # roll back to a specific timestamp
+```
+
+Or from GitHub: **Actions → Deploy to EC2 → Run workflow** on a previous commit SHA.
+
+---
+
+## Directory layout on EC2
+
+```
+/var/www/webee/
+├── .env                     ← runtime secrets (permanent — never overwritten)
+├── current -> releases/20240617142300/   ← symlink; updated on each deploy
+└── releases/
+    ├── 20240617142300/      ← active release
+    │   ├── dist/
+    │   │   ├── server/server.js
+    │   │   └── client/
+    │   ├── node_modules/    ← prod deps only (no devDeps)
+    │   ├── package.json
+    │   └── .deploy_sha      ← commit SHA (read by /api/health)
+    ├── 20240616091500/      ← previous release (kept for rollback)
+    └── …                   ← up to 5 releases kept; older ones pruned
+```
 
 ---
 
 ## Environment variables
 
-### Build time (baked into the public client bundle — pass as `--build-arg`)
+### Build-time (baked into the public client bundle)
 
-These are public values (the same ones the browser already sees). They must be
-present when `vite build` runs, or the client will fail with "Missing Supabase
-environment variable(s)".
+Set as **GitHub Actions Variables** (not Secrets — these are public values).
 
 | Variable | Required | Notes |
-| --- | --- | --- |
-| `VITE_SUPABASE_URL` | ✅ | Your Supabase project URL. |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Supabase anon/publishable key. |
-| `VITE_PAYMENTS_CLIENT_TOKEN` | optional | Only if using the Stripe payments UI. |
+|---|---|---|
+| `VITE_SUPABASE_URL` | ✅ | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Supabase anon key |
+| `VITE_SUPABASE_ANON_KEY` | ✅ | Same as above (both names used) |
+| `VITE_PAYMENTS_CLIENT_TOKEN` | optional | Stripe publishable key |
 
-### Runtime (server-only secrets — pass as container env vars, never build args)
+### Runtime (server-only secrets — live in `/var/www/webee/.env`)
 
 | Variable | Required | Purpose |
-| --- | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Admin Supabase access for server functions. |
-| `RETELL_API_KEY` | ✅ | Platform Retell workspace (agent builder / Go Live). |
-| `PORT` | ✅ | Port to listen on. The container sets `PORT=8080` via Docker `ENV`; override it to match your platform's expected port if needed. Don't assume AWS auto-injects it. |
-| `VITE_SUPABASE_URL` | ✅ | Also needed at runtime for SSR (server reads it as a fallback). |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Same — needed for SSR. |
-| `RESEND_API_KEY` | optional | Email notifications (e.g. workspace approval). |
-| `RETELL_WEBHOOK_SECRET` | optional | Verify inbound Retell webhooks. |
-| `RETELL_SIGNATURE_VERIFICATION_ENABLED` | optional | `"true"` to enforce webhook signature checks. |
-| `PUBLIC_SITE_URL` / `PUBLIC_BASE_URL` | recommended | Your public HTTPS URL (used in emails, booking links, redirects). |
-| `SITE_NAME` | optional | Branding in outbound emails. |
-| `SENDER_DOMAIN` | optional | Verified email sender subdomain. |
-| `SEED_ADMIN_EMAIL` | optional | Where admin alerts are sent. |
-| `RETAIL_WORKSPACE_ID` / `RETELL_RETAIL_API_KEY` | optional | Only for shared "retail" deploy mode. |
-
-> Pass `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` **both** as build
-> args (for the client bundle) **and** as runtime env vars (for SSR).
+|---|---|---|
+| `NODE_ENV` | ✅ | Set to `production` |
+| `PORT` | ✅ | Port to listen on (default: `3000` behind Nginx) |
+| `VITE_SUPABASE_URL` | ✅ | Also needed at runtime for SSR |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Also needed at runtime for SSR |
+| `VITE_SUPABASE_ANON_KEY` | ✅ | Also needed at runtime for SSR |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Admin DB access for server functions |
+| `RETELL_API_KEY` | ✅ | Platform Retell workspace key |
+| `PUBLIC_SITE_URL` | recommended | Used in emails, booking links, redirects |
+| `RESEND_API_KEY` | optional | Transactional email notifications |
+| `RETELL_WEBHOOK_SECRET` | optional | Verify inbound Retell webhooks |
+| `COMMIT_SHA` | auto | Injected by `deploy-remote.sh` via `.env.deploy` |
 
 ---
 
-## Option A — App Runner (recommended, least ops)
+## Health check endpoint
 
-App Runner runs your container, gives you HTTPS + a public URL, and autoscales.
-
-1. **Create an ECR repo and push the image**
-
-   ```bash
-   AWS_REGION=us-east-1
-   ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-   ECR="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/webespoke-ai"
-
-   aws ecr create-repository --repository-name webespoke-ai --region $AWS_REGION
-   aws ecr get-login-password --region $AWS_REGION \
-     | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
-
-   docker build \
-     --build-arg VITE_SUPABASE_URL="https://YOUR-PROJECT.supabase.co" \
-     --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="YOUR_ANON_KEY" \
-     -t "$ECR:latest" .
-   docker push "$ECR:latest"
-   ```
-
-2. **Create the App Runner service** (Console → App Runner → Create service):
-   - Source: the ECR image you pushed.
-   - Port: **8080**.
-   - Add the **runtime** environment variables from the table above. Store
-     secrets in **AWS Secrets Manager** and reference them rather than pasting
-     plaintext.
-   - Health check path: `/` (HTTP 200).
-   - Deploy. App Runner gives you an HTTPS URL — set that as `PUBLIC_SITE_URL`
-     and redeploy if email/booking links need it.
-
-3. **Updates**: rebuild, `docker push` a new tag, and trigger a new deployment
-   (or enable automatic deployments on `:latest`).
-
----
-
-## Option B — ECS Fargate (more control)
-
-1. Push the image to ECR (same as Option A step 1).
-2. Create an **ECS cluster** (Fargate).
-3. Create a **Task Definition**:
-   - Container image: your ECR URI.
-   - Container port: **8080**.
-   - Environment variables / secrets: the runtime vars above (use Secrets
-     Manager / SSM Parameter Store for secrets).
-   - CPU/memory: 0.5 vCPU / 1 GB is a fine starting point.
-4. Create a **Service** behind an **Application Load Balancer**:
-   - Target group protocol HTTP, port 8080, health check path `/`.
-   - Attach an **ACM** certificate to the ALB listener for HTTPS (443).
-5. Point your domain (Route 53) at the ALB.
-
----
-
-## Option C — Single EC2 instance (cheapest, most manual)
-
-```bash
-# On an Amazon Linux 2023 / Ubuntu instance with Node 22+ installed:
-git clone <your repo> && cd <repo>
-npm ci
-VITE_SUPABASE_URL=... VITE_SUPABASE_PUBLISHABLE_KEY=... npm run build
-
-# Run under a process manager (pm2/systemd) with runtime secrets exported:
-PORT=8080 npm run start:aws
+```
+GET /api/health
 ```
 
-Put **Nginx** or an ALB in front for TLS, and keep the process alive with
-`pm2` or a `systemd` unit. You manage patching, restarts, and scaling yourself.
+Returns `200 OK` with JSON when healthy, `503` when degraded:
+
+```json
+{
+  "status": "ok",
+  "version": "1.0.0",
+  "commit_sha": "abc1234",
+  "environment": "production",
+  "uptime_s": 3600,
+  "response_ms": 12,
+  "timestamp": "2024-06-17T14:23:00.000Z",
+  "checks": {
+    "database": { "ok": true, "latencyMs": 8 },
+    "environment": { "ok": true }
+  }
+}
+```
+
+Use this URL for:
+- AWS ALB / App Runner health checks
+- Uptime monitoring (UptimeRobot, BetterStack, etc.)
+- Post-deploy verification in `deploy-remote.sh`
+
+---
+
+## Build artefacts
+
+| Output | What it is |
+|---|---|
+| `dist/server/server.js` | SSR entry point |
+| `dist/server/assets/` | Server-side route chunks |
+| `dist/client/` | Static JS/CSS/favicon served to browsers |
+
+**Static asset path note:** both start scripts pass `--static=../client`.
+`srvx` resolves this path **relative to the entry file** (`dist/server/`),
+so `../client` correctly resolves to `dist/client/`. Do not change this
+to `dist/client` or `--static dist/client` — it silently serves no assets.
+
+---
+
+## Container option (ECR + ECS / App Runner)
+
+The `Dockerfile` is a two-stage build and is production-ready for container
+deployments. See the original options below.
+
+### Option A — App Runner (least ops)
+
+```bash
+AWS_REGION=us-east-1
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ECR="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/webee"
+
+aws ecr create-repository --repository-name webee --region $AWS_REGION
+aws ecr get-login-password --region $AWS_REGION \
+  | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+
+docker build \
+  --build-arg VITE_SUPABASE_URL="https://YOUR-PROJECT.supabase.co" \
+  --build-arg VITE_SUPABASE_PUBLISHABLE_KEY="YOUR_ANON_KEY" \
+  -t "$ECR:latest" .
+docker push "$ECR:latest"
+```
+
+Then: Console → App Runner → Create service → ECR source → port `8080` → add
+runtime env vars → health check path `/api/health`.
+
+### Option B — ECS Fargate
+
+Same ECR push as above. Create a Fargate task definition (0.5 vCPU / 1 GB),
+service behind an ALB, health check path `/api/health`, Route 53 → ALB.
 
 ---
 
 ## Post-deploy checklist
 
-- [ ] App loads at your HTTPS URL; the **sign-in page** renders.
-- [ ] Log in → **My Agents** loads (confirms SSR + server functions + Supabase).
-- [ ] Create/save an agent works (confirms `SUPABASE_SERVICE_ROLE_KEY`).
-- [ ] In Supabase Auth → URL config, add your AWS domain to the **allowed
-      redirect URLs** (Google OAuth / magic links will fail otherwise).
-- [ ] Set `PUBLIC_SITE_URL` to the live URL so emails/booking links are correct.
-- [ ] If using Retell webhooks, point them at `https://YOUR-DOMAIN/...` and set
-      `RETELL_WEBHOOK_SECRET`.
+- [ ] `GET /api/health` returns `{ "status": "ok" }`
+- [ ] App loads at your HTTPS URL — sign-in page renders
+- [ ] Log in → Agents page loads (confirms SSR + server functions + Supabase)
+- [ ] Add your AWS domain to Supabase Auth → URL configuration (for OAuth/magic links)
+- [ ] Set `PUBLIC_SITE_URL` to the live URL (emails + booking links)
+- [ ] Point Retell webhooks at `https://YOUR-DOMAIN/...` + set `RETELL_WEBHOOK_SECRET`
 
 ---
 
-## Notes & gotchas
+## Gotchas
 
-- **This is not a static site.** Don't deploy `dist/client` to S3 alone — the
-  app needs the running SSR server.
-- **Supabase stays where it is.** AWS hosts the app; Supabase remains your
-  database/auth. Just make sure the AWS domain is whitelisted in Supabase Auth.
-- **Secrets management:** prefer AWS Secrets Manager / SSM over plaintext env
-  vars in task definitions.
+- **Not a static site.** Don't deploy `dist/client` to S3 alone — the SSR
+  server must be running.
 - **Two lockfiles** (`package-lock.json` + `bun.lock`) exist; the Dockerfile
-  uses npm. If you standardize on Bun later, update the Dockerfile accordingly.
+  and deploy script use npm. If you standardise on Bun, update accordingly.
+- **Supabase stays put.** AWS hosts the app; Supabase remains your
+  database/auth provider. Only the EC2/container domain needs whitelisting.
+- **Secrets management:** prefer AWS Secrets Manager or SSM Parameter Store
+  over plaintext values in task definitions or `.env` files.

@@ -21,6 +21,7 @@ import { Route as UploadTokenRouteImport } from './routes/upload.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as ApiVoiceCopilotRouteImport } from './routes/api/voice-copilot'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedTemplateStudioRouteImport } from './routes/_authenticated/template-studio'
@@ -284,6 +285,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
 const ApiVoiceCopilotRoute = ApiVoiceCopilotRouteImport.update({
   id: '/api/voice-copilot',
   path: '/api/voice-copilot',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
@@ -1484,6 +1490,7 @@ export interface FileRoutesByFullPath {
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -1696,6 +1703,7 @@ export interface FileRoutesByTo {
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -1915,6 +1923,7 @@ export interface FileRoutesById {
   '/_authenticated/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -2135,6 +2144,7 @@ export interface FileRouteTypes {
     | '/template-studio'
     | '/templates'
     | '/whatsapp'
+    | '/api/health'
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
@@ -2347,6 +2357,7 @@ export interface FileRouteTypes {
     | '/template-studio'
     | '/templates'
     | '/whatsapp'
+    | '/api/health'
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
@@ -2565,6 +2576,7 @@ export interface FileRouteTypes {
     | '/_authenticated/template-studio'
     | '/_authenticated/templates'
     | '/_authenticated/whatsapp'
+    | '/api/health'
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
@@ -2758,6 +2770,7 @@ export interface RootRouteChildren {
   PricingRoute: typeof PricingRoute
   SignupRoute: typeof SignupRoute
   UnsubscribeRoute: typeof UnsubscribeRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiVoiceCopilotRoute: typeof ApiVoiceCopilotRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
@@ -2918,6 +2931,13 @@ declare module '@tanstack/react-router' {
       path: '/api/voice-copilot'
       fullPath: '/api/voice-copilot'
       preLoaderRoute: typeof ApiVoiceCopilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/whatsapp': {
@@ -4933,6 +4953,7 @@ const rootRouteChildren: RootRouteChildren = {
   PricingRoute: PricingRoute,
   SignupRoute: SignupRoute,
   UnsubscribeRoute: UnsubscribeRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiVoiceCopilotRoute: ApiVoiceCopilotRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,

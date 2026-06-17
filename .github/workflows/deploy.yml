@@ -5,6 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Only one production deploy at a time; never cancel mid-flight.
 concurrency:
   group: production-deploy
   cancel-in-progress: false
@@ -13,8 +14,12 @@ permissions:
   contents: read
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 1. BUILD — runs entirely on GitHub Actions, never on the live server.
+  #    Real VITE_* values are baked into the client bundle here.
+  # ─────────────────────────────────────────────────────────────────────────────
   build:
-    name: Verify production build
+    name: Build production artifact
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -28,61 +33,126 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install all dependencies
+        run: npm ci
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
+      - name: Build with real VITE_* values
+        # These are public values — safe to use as build args.
+        # Store them in GitHub → Settings → Secrets and variables → Actions → Variables
+        # (use Variables, not Secrets, since they are public/non-sensitive).
         run: npm run build
         env:
-          VITE_SUPABASE_URL: https://placeholder.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
-          VITE_PAYMENTS_CLIENT_TOKEN: pk_test_placeholder
+          VITE_SUPABASE_URL:            ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY:       ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_PAYMENTS_CLIENT_TOKEN:   ${{ vars.VITE_PAYMENTS_CLIENT_TOKEN }}
 
+      - name: Create release tarball
+        # Packages the built dist/ plus the manifests needed for npm ci --omit=dev.
+        # Source code is NOT included — the server will never rebuild from source.
+        run: |
+          tar -czf release.tar.gz \
+            dist/ \
+            package.json \
+            package-lock.json
+          echo "Tarball size: $(du -sh release.tar.gz | cut -f1)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-${{ github.sha }}
+          path: release.tar.gz
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 2. DEPLOY — copies the pre-built tarball to EC2 and atomically swaps it in.
+  #    No npm run build ever runs on the live server.
+  # ─────────────────────────────────────────────────────────────────────────────
   deploy:
     name: Deploy to EC2
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     environment: production
 
     steps:
-      - name: Checkout
+      - name: Checkout (scripts only)
         uses: actions/checkout@11bd71901bbe5b163c9e07d13b8e26e0aa266cb4 # v4.2.2
+        with:
+          sparse-checkout: scripts/
+
+      - name: Download release artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.2.1
+        with:
+          name: release-${{ github.sha }}
+
+      - name: Validate required secrets
+        env:
+          EC2_HOST:    ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          if [[ -z "${EC2_HOST}" || -z "${EC2_SSH_KEY}" ]]; then
+            echo "::error::Missing required secrets: EC2_HOST and EC2_SSH_KEY" >&2
+            exit 1
+          fi
 
       - name: Configure SSH
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_HOST:    ${{ secrets.EC2_HOST }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           set -euo pipefail
-          if [[ -z "${EC2_HOST}" || -z "${EC2_SSH_KEY}" ]]; then
-            echo "Missing required secrets: EC2_HOST and EC2_SSH_KEY" >&2
-            exit 1
-          fi
           mkdir -p ~/.ssh
           printf '%s\n' "${EC2_SSH_KEY}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${EC2_HOST}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Run remote deploy
+      - name: Upload release tarball to EC2
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST:     ${{ secrets.EC2_HOST }}
+          EC2_USER:     ${{ secrets.EC2_USER }}
           EC2_SSH_PORT: ${{ secrets.EC2_SSH_PORT }}
-          EC2_DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
-          GIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           EC2_USER="${EC2_USER:-deploy}"
           EC2_SSH_PORT="${EC2_SSH_PORT:-22}"
-          EC2_DEPLOY_PATH="${EC2_DEPLOY_PATH:-/var/www/html/webespoke}"
+          REMOTE_TARBALL="/tmp/webee-release-${{ github.sha }}.tar.gz"
 
-          ssh -i ~/.ssh/deploy_key -p "${EC2_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            "${EC2_USER}@${EC2_HOST}" \
-            "DEPLOY_PATH='${EC2_DEPLOY_PATH}' GIT_SHA='${GIT_SHA}' bash -s" < scripts/deploy-remote.sh
+          scp -i ~/.ssh/deploy_key \
+              -P "${EC2_SSH_PORT}" \
+              -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes \
+              release.tar.gz \
+              "${EC2_USER}@${EC2_HOST}:${REMOTE_TARBALL}"
+
+          echo "Uploaded to ${REMOTE_TARBALL}"
+          echo "REMOTE_TARBALL=${REMOTE_TARBALL}" >> "$GITHUB_ENV"
+
+      - name: Atomic deploy on EC2
+        env:
+          EC2_HOST:          ${{ secrets.EC2_HOST }}
+          EC2_USER:          ${{ secrets.EC2_USER }}
+          EC2_SSH_PORT:      ${{ secrets.EC2_SSH_PORT }}
+          EC2_RELEASES_ROOT: ${{ secrets.EC2_RELEASES_ROOT }}
+        run: |
+          set -euo pipefail
+          EC2_USER="${EC2_USER:-deploy}"
+          EC2_SSH_PORT="${EC2_SSH_PORT:-22}"
+
+          ssh -i ~/.ssh/deploy_key \
+              -p "${EC2_SSH_PORT}" \
+              -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes \
+              "${EC2_USER}@${EC2_HOST}" \
+              "TARBALL='${REMOTE_TARBALL}' \
+               GIT_SHA='${{ github.sha }}' \
+               RELEASES_ROOT='${EC2_RELEASES_ROOT:-/var/www/webee/releases}' \
+               CURRENT_LINK='${EC2_RELEASES_ROOT:-/var/www/webee}/current' \
+               bash -s" \
+              < scripts/deploy-remote.sh
 
       - name: Remove deploy key
         if: always()
