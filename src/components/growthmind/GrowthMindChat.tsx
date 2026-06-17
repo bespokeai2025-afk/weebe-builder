@@ -39,11 +39,11 @@ const DEFAULT_VOICE: VoiceSettings = {
 const SPEED_OPTIONS = [0.7, 0.85, 1.0, 1.15, 1.3, 1.5];
 const PERSONALITIES = ["professional", "friendly", "concise"] as const;
 const SUGGESTED = [
+  "How are my ads doing?",
   "What's my biggest growth opportunity right now?",
   "Which leads are most likely to convert?",
   "How can I improve my conversion rate?",
   "What campaigns should I be running?",
-  "Where is revenue leaking in my pipeline?",
 ];
 
 function uid() { return Math.random().toString(36).slice(2, 10); }

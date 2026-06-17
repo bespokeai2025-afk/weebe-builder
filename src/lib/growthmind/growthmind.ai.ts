@@ -2,8 +2,140 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+// ── Ads trend summary ──────────────────────────────────────────────────────────
+// Computes 7-day vs prior-7-day deltas for spend, ROAS, impressions, conversions
+// per platform using the growthmind_ad_sync_log + growthmind_ad_campaigns tables.
+// Returns a formatted text block ready to embed in the system prompt.
+async function fetchAdsTrendSummary(sb: any, workspaceId: string): Promise<string> {
+  try {
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [perfRes, roasRes] = await Promise.all([
+      sb.from("growthmind_ad_sync_log")
+        .select("platform,spend_total,impressions_total,conversions_total,synced_at")
+        .eq("workspace_id", workspaceId)
+        .eq("status", "success")
+        .gte("synced_at", fourteenDaysAgo)
+        .order("synced_at", { ascending: true })
+        .limit(5_000),
+      sb.from("growthmind_ad_campaigns")
+        .select("platform,roas,synced_at")
+        .eq("workspace_id", workspaceId)
+        .not("roas", "is", null)
+        .gte("synced_at", fourteenDaysAgo)
+        .order("synced_at", { ascending: true })
+        .limit(5_000),
+    ]);
+
+    const perfRows: any[] = perfRes.data ?? [];
+    const roasRows: any[] = roasRes.data ?? [];
+
+    if (perfRows.length === 0 && roasRows.length === 0) return "";
+
+    // Latest snapshot per (day, platform) for spend/impressions/conversions
+    const latestSnap = new Map<string, { spend: number; impressions: number; conversions: number }>();
+    for (const r of perfRows) {
+      const p = r.platform as string;
+      if (p !== "meta" && p !== "google") continue;
+      const day = (r.synced_at as string).slice(0, 10);
+      latestSnap.set(`${day}:${p}`, {
+        spend:       Number(r.spend_total       ?? 0),
+        impressions: Number(r.impressions_total ?? 0),
+        conversions: Number(r.conversions_total ?? 0),
+      });
+    }
+
+    // Average ROAS per (day, platform)
+    const roasAcc = new Map<string, { sum: number; count: number }>();
+    for (const r of roasRows) {
+      const p = r.platform as string;
+      if (p !== "meta" && p !== "google") continue;
+      const day = (r.synced_at as string).slice(0, 10);
+      const key = `${day}:${p}`;
+      const prev = roasAcc.get(key) ?? { sum: 0, count: 0 };
+      roasAcc.set(key, { sum: prev.sum + Number(r.roas), count: prev.count + 1 });
+    }
+
+    // Split into recent 7 days vs prior 7 days
+    const now      = new Date();
+    const sevenAgo = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000);
+    const fourAgo  = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    function inRecent(isoDay: string) {
+      const d = new Date(isoDay + "T00:00:00Z");
+      return d >= sevenAgo;
+    }
+    function inPrior(isoDay: string) {
+      const d = new Date(isoDay + "T00:00:00Z");
+      return d >= fourAgo && d < sevenAgo;
+    }
+
+    type Period = "recent" | "prior";
+    type PlatformAgg = { spend: number; impressions: number; conversions: number; roasSum: number; roasCount: number };
+    const agg: Record<string, Record<Period, PlatformAgg>> = {
+      meta:   { recent: { spend: 0, impressions: 0, conversions: 0, roasSum: 0, roasCount: 0 }, prior: { spend: 0, impressions: 0, conversions: 0, roasSum: 0, roasCount: 0 } },
+      google: { recent: { spend: 0, impressions: 0, conversions: 0, roasSum: 0, roasCount: 0 }, prior: { spend: 0, impressions: 0, conversions: 0, roasSum: 0, roasCount: 0 } },
+    };
+
+    for (const [key, snap] of latestSnap.entries()) {
+      const [day, platform] = key.split(":");
+      if (platform !== "meta" && platform !== "google") continue;
+      const period: Period | null = inRecent(day) ? "recent" : inPrior(day) ? "prior" : null;
+      if (!period) continue;
+      agg[platform][period].spend       += snap.spend;
+      agg[platform][period].impressions += snap.impressions;
+      agg[platform][period].conversions += snap.conversions;
+    }
+
+    for (const [key, acc] of roasAcc.entries()) {
+      const [day, platform] = key.split(":");
+      if (platform !== "meta" && platform !== "google") continue;
+      const period: Period | null = inRecent(day) ? "recent" : inPrior(day) ? "prior" : null;
+      if (!period) continue;
+      agg[platform][period].roasSum   += acc.sum;
+      agg[platform][period].roasCount += acc.count;
+    }
+
+    function pctChange(current: number, previous: number): string {
+      if (previous === 0) return current > 0 ? "+∞%" : "n/a";
+      const pct = ((current - previous) / previous) * 100;
+      const sign = pct >= 0 ? "+" : "";
+      return `${sign}${pct.toFixed(1)}%`;
+    }
+    function arrow(current: number, previous: number): string {
+      if (previous === 0 || current === previous) return "→";
+      return current > previous ? "↑" : "↓";
+    }
+
+    const lines: string[] = [];
+    for (const platform of ["meta", "google"] as const) {
+      const r = agg[platform].recent;
+      const p = agg[platform].prior;
+      const hasData = r.spend > 0 || r.impressions > 0 || p.spend > 0 || p.impressions > 0;
+      if (!hasData) continue;
+
+      const rRoas = r.roasCount > 0 ? r.roasSum / r.roasCount : 0;
+      const pRoas = p.roasCount > 0 ? p.roasSum / p.roasCount : 0;
+
+      const platformLabel = platform === "meta" ? "Meta (Facebook/Instagram)" : "Google Ads";
+      lines.push(`**${platformLabel}** (last 7d vs prior 7d):`);
+      lines.push(`  • Spend: $${r.spend.toFixed(2)} vs $${p.spend.toFixed(2)} ${arrow(r.spend, p.spend)} ${pctChange(r.spend, p.spend)}`);
+      lines.push(`  • Impressions: ${r.impressions.toLocaleString()} vs ${p.impressions.toLocaleString()} ${arrow(r.impressions, p.impressions)} ${pctChange(r.impressions, p.impressions)}`);
+      lines.push(`  • Conversions: ${r.conversions} vs ${p.conversions} ${arrow(r.conversions, p.conversions)} ${pctChange(r.conversions, p.conversions)}`);
+      if (r.roasCount > 0 || p.roasCount > 0) {
+        lines.push(`  • ROAS: ${rRoas > 0 ? rRoas.toFixed(2) : "n/a"} vs ${pRoas > 0 ? pRoas.toFixed(2) : "n/a"} ${rRoas > 0 && pRoas > 0 ? `${arrow(rRoas, pRoas)} ${pctChange(rRoas, pRoas)}` : ""}`);
+      }
+    }
+
+    if (lines.length === 0) return "";
+    return `### Ads Performance Trends (7-day vs prior 7-day)\n${lines.join("\n")}`;
+  } catch {
+    return "";
+  }
+}
+
 // ── Compile a rich marketing system prompt ─────────────────────────────────────
-function compileSystemPrompt(data: any, personality: string): string {
+function compileSystemPrompt(data: any, personality: string, adsTrend?: string): string {
   if (!data) return "You are GrowthMind, an AI Chief Marketing Officer. You help identify revenue opportunities, improve marketing performance, and drive sustainable business growth.";
 
   const { calls, leads, bookings, campaigns, email, whatsapp, marketing, systemHealth } = data;
@@ -65,7 +197,7 @@ You are a pure marketing strategist. You focus exclusively on: lead generation, 
 - SEO monitoring: ${systemHealth?.seoKeywords ? "✅ keywords tracked" : "❌ no keywords"}
 - Content publishing: ${systemHealth?.recentContent ? "✅ recently active" : "❌ no recent content"}
 - Competitor tracking: ${systemHealth?.competitors ? "✅ tracking" : "❌ not tracking"}
-
+${adsTrend ? `\n${adsTrend}\n` : ""}
 ## Your Role as CMO
 You are the user's strategic marketing advisor. You:
 1. Identify the highest-impact revenue opportunities in the data above
@@ -168,12 +300,15 @@ export const getGrowthMindAIResponse = createServerFn({ method: "POST" })
     if (!apiKey) throw new Error("OpenAI API key not configured. Add it in Settings → Integrations.");
 
     const lastUser = [...data.messages].reverse().find((m) => m.role === "user")?.content ?? "marketing growth strategy";
-    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
-    const knowledgeBlock = workspaceId
-      ? await getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: lastUser, topK: 5 })
-      : "";
+    const sb = (context as any).supabase;
+    const [knowledgeBlockResult, adsTrend] = await Promise.all([
+      workspaceId
+        ? import("@/lib/executives/executive-knowledge.server").then(m => m.getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: lastUser, topK: 5 }))
+        : Promise.resolve(""),
+      workspaceId && sb ? fetchAdsTrendSummary(sb, workspaceId) : Promise.resolve(""),
+    ]);
 
-    const systemPrompt = compileSystemPrompt(data.platformData, data.personality) + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
+    const systemPrompt = compileSystemPrompt(data.platformData, data.personality, adsTrend) + (knowledgeBlockResult ? `\n\n${knowledgeBlockResult}` : "");
 
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -221,11 +356,14 @@ export const getGrowthMindBriefing = createServerFn({ method: "POST" })
       return { briefing: fallback };
     }
 
-    const { getRetrievedKnowledgeBlock } = await import("@/lib/executives/executive-knowledge.server");
-    const knowledgeBlock = workspaceId
-      ? await getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: buildGrowthMindRetrievalQuery(data.platformData), topK: 5 })
-      : "";
-    const systemPrompt = compileSystemPrompt(data.platformData, "professional") + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
+    const sb = (context as any).supabase;
+    const [knowledgeBlock, adsTrend] = await Promise.all([
+      workspaceId
+        ? import("@/lib/executives/executive-knowledge.server").then(m => m.getRetrievedKnowledgeBlock({ workspaceId, mindType: "growthmind", query: buildGrowthMindRetrievalQuery(data.platformData), topK: 5 }))
+        : Promise.resolve(""),
+      workspaceId && sb ? fetchAdsTrendSummary(sb, workspaceId) : Promise.resolve(""),
+    ]);
+    const systemPrompt = compileSystemPrompt(data.platformData, "professional", adsTrend) + (knowledgeBlock ? `\n\n${knowledgeBlock}` : "");
     const prompt = `Generate a concise morning marketing briefing (3-5 sentences) that:
 1. Highlights the most important metric or opportunity
 2. Flags the biggest risk in the current pipeline
