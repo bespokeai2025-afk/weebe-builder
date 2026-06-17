@@ -135,9 +135,8 @@ function Nav() {
 
         {/* Center nav links */}
         <div style={{ display: "flex", alignItems: "center", gap: 28 }} className="hidden md:flex">
-          {["Features", "Pricing"].map(l => (
-            <a key={l} href="#" className="nav-link" style={{ fontSize: 13.5, color: "rgba(184,197,214,0.85)", textDecoration: "none", fontWeight: 500 }}>{l}</a>
-          ))}
+          <a href="#" className="nav-link" style={{ fontSize: 13.5, color: "rgba(184,197,214,0.85)", textDecoration: "none", fontWeight: 500 }}>Features</a>
+          <Link to="/pricing" className="nav-link" style={{ fontSize: 13.5, color: "rgba(184,197,214,0.85)", textDecoration: "none", fontWeight: 500 }}>Pricing</Link>
           <Link to="/docs" className="nav-link" style={{ fontSize: 13.5, color: "rgba(184,197,214,0.85)", textDecoration: "none", fontWeight: 500 }}>Docs</Link>
         </div>
 
@@ -164,9 +163,8 @@ function Nav() {
       {/* Mobile drawer */}
       {open && (
         <div style={{ background: "#050e1e", borderTop: "1px solid rgba(255,255,255,0.05)", padding: "16px 24px 20px" }} className="md:hidden">
-          {["Features", "Pricing"].map(l => (
-            <a key={l} href="#" style={{ display: "block", padding: "11px 0", color: "#B8C5D6", fontSize: 14, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>{l}</a>
-          ))}
+          <a href="#" style={{ display: "block", padding: "11px 0", color: "#B8C5D6", fontSize: 14, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>Features</a>
+          <Link to="/pricing" style={{ display: "block", padding: "11px 0", color: "#B8C5D6", fontSize: 14, borderBottom: "1px solid rgba(255,255,255,0.04)", textDecoration: "none" }}>Pricing</Link>
           <Link to="/docs" style={{ display: "block", padding: "11px 0", color: "#B8C5D6", fontSize: 14, borderBottom: "1px solid rgba(255,255,255,0.04)", textDecoration: "none" }}>Docs</Link>
           <Link to="/login" search={{ redirect: "/dashboard" }} style={{ display: "block", marginTop: 16, padding: "11px 0", color: "#B8C5D6", fontSize: 14, textDecoration: "none" }}>Sign In</Link>
         </div>
