@@ -1,0 +1,518 @@
+ADD CUSTOM AGENT WORKFLOW GENERATOR + DEPLOYMENT CONFIGURATOR VIA SYSTEMMIND
+
+IMPORTANT
+
+Do not break existing Builder workflows.
+
+Do not modify existing Retell, HyperStream, VoxStream or deployed agent flows.
+
+Do not deploy automatically.
+
+Do not overwrite existing canvases without confirmation.
+
+SystemMind must create drafts, validations and admin change requests only.
+
+Live deployment must continue using the existing Go Live pipeline.
+
+====================================================
+
+OBJECTIVE
+
+Add a Custom agent type in the Builder Global Panel that supports two user scenarios:
+
+1. User needs SystemMind to build a new workflow from a description.
+
+2. User already has an agent script/workflow and only needs deployment configuration, post-call data extraction, CRM mapping, webhook mapping, and Go Live readiness.
+
+====================================================
+
+CUSTOM AGENT TYPE FLOW
+
+In Builder Global Panel:
+
+Agent Type:
+Custom
+
+Show two options:
+
+OPTION A:
+Build Workflow From Description
+
+OPTION B:
+Configure Deployment From Existing Script
+
+====================================================
+
+OPTION A — BUILD WORKFLOW FROM DESCRIPTION
+
+User enters:
+
+Workflow description
+
+Example:
+
+"I want a rebooking workflow. If a caller asks for a callback, collect preferred date and time, check availability, confirm the callback, update CRM, and send confirmation."
+
+SystemMind generates:
+
+nodes_json
+edges_json
+variables_json
+tools_json
+required_integrations_json
+missing_capabilities_json
+validation_results_json
+
+Then imports as Builder draft.
+
+====================================================
+
+OPTION B — CONFIGURE DEPLOYMENT FROM EXISTING SCRIPT
+
+User may already have:
+
+A script
+A PDF
+A conversation flow
+A Retell-style prompt
+A call script
+A qualification questionnaire
+A webhook spec
+A list of post-call fields
+
+SystemMind should not rebuild the conversation unless needed.
+
+Instead, SystemMind should analyse the existing script and create:
+
+Deployment configuration
+Post-call extraction schema
+Variable mapping
+CRM mapping
+Webhook mapping
+Calendar mapping
+Call outcome mapping
+Sentiment/outcome rules
+Go Live validation checklist
+
+====================================================
+
+OPTION B INPUTS
+
+Allow user to:
+
+Paste script
+
+Upload PDF/DOCX
+
+Upload JSON flow
+
+Upload webhook spec
+
+Paste extraction fields
+
+Paste CRM field names
+
+Select target agent/provider
+
+Select target CRM mode:
+
+WEBEE Smart Dash
+
+Existing CRM
+
+Webhook only
+
+No CRM
+
+====================================================
+
+OPTION B OUTPUTS
+
+SystemMind should generate:
+
+1. Agent Summary
+
+2. Deployment Readiness Score
+
+3. Required Variables
+
+4. Post-Call Extraction Fields
+
+5. Call Outcome Schema
+
+6. Lead/CRM Field Mapping
+
+7. Calendar/Booking Mapping
+
+8. Webhook Payload Mapping
+
+9. Required Tools
+
+10. Missing Capability Report
+
+11. Go Live Checklist
+
+12. Builder Deployment Draft
+
+====================================================
+
+POST-CALL EXTRACTION SCHEMA
+
+SystemMind should create structured extraction fields.
+
+Example:
+
+customer_name
+
+phone_number
+
+email
+
+preferred_callback_date
+
+preferred_callback_time
+
+qualification_status
+
+budget
+
+urgency
+
+decision_maker
+
+property_type
+
+case_type
+
+appointment_requested
+
+appointment_booked
+
+sentiment
+
+call_summary
+
+next_action
+
+====================================================
+
+OUTCOME CLASSIFICATION
+
+SystemMind should create outcome rules.
+
+Example:
+
+qualified
+
+interested
+
+callback_requested
+
+not_interested
+
+no_answer
+
+needs_documents
+
+appointment_booked
+
+do_not_call
+
+transferred
+
+failed
+
+Each outcome should map to:
+
+lead status
+
+pipeline stage
+
+follow-up action
+
+notification
+
+CRM update
+
+====================================================
+
+CRM MAPPING
+
+If user chooses WEBEE Smart Dash:
+
+Map extracted data to:
+
+leads
+
+calls
+
+qualified
+
+pipeline
+
+contacts
+
+bookings
+
+entity_notes
+
+If user chooses Existing CRM:
+
+Map to selected CRM provider fields.
+
+If user chooses Webhook Only:
+
+Generate webhook payload schema.
+
+If no CRM:
+
+Store only in WEBEE calls and notes.
+
+====================================================
+
+WEBHOOK MAPPING
+
+Allow SystemMind to create:
+
+Outbound webhook schema
+
+Example:
+
+POST {{customer_webhook_url}}
+
+Payload:
+
+{
+"call_id": "{{call_id}}",
+"customer_name": "{{customer_name}}",
+"phone": "{{phone_number}}",
+"outcome": "{{outcome}}",
+"summary": "{{call_summary}}",
+"next_action": "{{next_action}}"
+}
+
+====================================================
+
+DEPLOYMENT VALIDATION
+
+Before Go Live, validate:
+
+Provider selected
+
+Phone number assigned if required
+
+Start node exists if flow-based
+
+Prompt exists if prompt-based
+
+Post-call extraction fields defined
+
+CRM mapping defined or explicitly skipped
+
+Webhook mapping valid if selected
+
+Calendar connected if booking required
+
+Knowledge base attached if required
+
+Tool schemas valid
+
+Retell compatibility
+
+HyperStream compatibility
+
+VoxStream compatibility
+
+====================================================
+
+BUILDER INTEGRATION
+
+For Option A:
+
+Import generated nodes/edges into canvas.
+
+For Option B:
+
+Create deployment configuration panel.
+
+Attach extraction schema and mappings to the agent.
+
+Do not force a visual node flow if the user already has a prompt/script-based agent.
+
+====================================================
+
+GO LIVE BEHAVIOUR
+
+When user clicks Go Live:
+
+Run existing deployment path.
+
+If workflow is node-based:
+
+Deploy normal Builder flow.
+
+If script/prompt-based:
+
+Deploy using prompt/script configuration plus extraction schema.
+
+If validation fails:
+
+Do not deploy.
+
+Create SystemMind log.
+
+Create admin change request if missing platform capability is required.
+
+====================================================
+
+ADMIN CHANGE REQUESTS
+
+Create or extend:
+
+admin_change_requests
+
+Create billable request when:
+
+Required extraction cannot be mapped
+
+Required CRM field does not exist
+
+Custom webhook transformer needed
+
+Unsupported provider feature required
+
+Custom tool needs to be built
+
+Custom builder node needed
+
+Custom post-call automation requested
+
+Mark:
+
+billable = true
+
+billing_status = pending_quote
+
+====================================================
+
+ADMIN UI
+
+/admin/change-requests should show:
+
+Workspace
+
+User
+
+Source Agent
+
+Request Type
+
+Title
+
+Missing Capability
+
+Technical Summary
+
+Estimated Effort
+
+Billable
+
+Quote Amount
+
+Status
+
+====================================================
+
+SYSTEMMIND LOGGING
+
+Log:
+
+custom_workflow_requested
+
+script_config_requested
+
+script_uploaded
+
+extraction_schema_generated
+
+crm_mapping_generated
+
+webhook_mapping_generated
+
+deployment_validation_passed
+
+deployment_validation_failed
+
+admin_change_request_created
+
+go_live_attempted
+
+deployed
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should notify:
+
+"SystemMind configured deployment from an existing script."
+
+"SystemMind created post-call extraction fields."
+
+"Deployment validation failed due to missing CRM mapping."
+
+"Admin change request created for a custom webhook transformer."
+
+====================================================
+
+SAFETY RULES
+
+SystemMind may:
+
+Create workflow drafts
+
+Create deployment configs
+
+Create extraction schemas
+
+Create CRM mappings
+
+Create webhook mappings
+
+Create admin change requests
+
+SystemMind may not:
+
+Deploy automatically
+
+Modify live agents silently
+
+Change phone routing directly
+
+Change Retell config directly outside Go Live
+
+Start outbound calls
+
+without explicit user approval and existing Go Live validation.
+
+====================================================
+
+SUCCESS CRITERIA
+
+Custom agent type supports both workflow creation and deployment configuration.
+
+Users with existing scripts do not need to rebuild the whole flow.
+
+Post-call data extraction is generated automatically.
+
+CRM/webhook mappings are generated automatically.
+
+Go Live remains controlled and safe.
+
+Existing Retell and other providers are unaffected.
+
+Failures create logs and billable admin change requests.
+
+Generate implementation plan first.
+
+Audit current Builder Global Panel, script import, post-call extraction, Retell deploy and Go Live validation before coding.

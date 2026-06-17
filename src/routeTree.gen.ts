@@ -149,6 +149,8 @@ import { Route as AuthenticatedGrowthmindBlogWriterRouteImport } from './routes/
 import { Route as AuthenticatedGrowthmindAdsPerformanceRouteImport } from './routes/_authenticated/growthmind.ads-performance'
 import { Route as AuthenticatedGrowthmindAdsRouteImport } from './routes/_authenticated/growthmind.ads'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
+import { Route as AuthenticatedAdminWorkspacesRouteImport } from './routes/_authenticated/admin.workspaces'
+import { Route as AuthenticatedAdminWhitelabelRouteImport } from './routes/_authenticated/admin.whitelabel'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
 import { Route as AuthenticatedAdminPlatformKnowledgeRouteImport } from './routes/_authenticated/admin.platform-knowledge'
@@ -996,6 +998,18 @@ const AuthenticatedAgentsNewRoute = AuthenticatedAgentsNewRouteImport.update({
   path: '/agents/new',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminWorkspacesRoute =
+  AuthenticatedAdminWorkspacesRouteImport.update({
+    id: '/workspaces',
+    path: '/workspaces',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminWhitelabelRoute =
+  AuthenticatedAdminWhitelabelRouteImport.update({
+    id: '/whitelabel',
+    path: '/whitelabel',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminUsersRoute = AuthenticatedAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -1411,6 +1425,8 @@ export interface FileRoutesByFullPath {
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
+  '/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
@@ -1611,6 +1627,8 @@ export interface FileRoutesByTo {
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
+  '/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
@@ -1819,6 +1837,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
+  '/_authenticated/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
+  '/_authenticated/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
   '/_authenticated/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/_authenticated/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
@@ -2027,6 +2047,8 @@ export interface FileRouteTypes {
     | '/admin/platform-knowledge'
     | '/admin/user-activity'
     | '/admin/users'
+    | '/admin/whitelabel'
+    | '/admin/workspaces'
     | '/agents/new'
     | '/growthmind/ads'
     | '/growthmind/ads-performance'
@@ -2227,6 +2249,8 @@ export interface FileRouteTypes {
     | '/admin/platform-knowledge'
     | '/admin/user-activity'
     | '/admin/users'
+    | '/admin/whitelabel'
+    | '/admin/workspaces'
     | '/agents/new'
     | '/growthmind/ads'
     | '/growthmind/ads-performance'
@@ -2434,6 +2458,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/platform-knowledge'
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
+    | '/_authenticated/admin/whitelabel'
+    | '/_authenticated/admin/workspaces'
     | '/_authenticated/agents/new'
     | '/_authenticated/growthmind/ads'
     | '/_authenticated/growthmind/ads-performance'
@@ -3661,6 +3687,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgentsNewRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/workspaces': {
+      id: '/_authenticated/admin/workspaces'
+      path: '/workspaces'
+      fullPath: '/admin/workspaces'
+      preLoaderRoute: typeof AuthenticatedAdminWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/whitelabel': {
+      id: '/_authenticated/admin/whitelabel'
+      path: '/whitelabel'
+      fullPath: '/admin/whitelabel'
+      preLoaderRoute: typeof AuthenticatedAdminWhitelabelRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/users': {
       id: '/_authenticated/admin/users'
       path: '/users'
@@ -4159,6 +4199,8 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminPlatformKnowledgeRoute: typeof AuthenticatedAdminPlatformKnowledgeRoute
   AuthenticatedAdminUserActivityRoute: typeof AuthenticatedAdminUserActivityRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
+  AuthenticatedAdminWhitelabelRoute: typeof AuthenticatedAdminWhitelabelRoute
+  AuthenticatedAdminWorkspacesRoute: typeof AuthenticatedAdminWorkspacesRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
@@ -4169,6 +4211,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminPlatformKnowledgeRoute,
   AuthenticatedAdminUserActivityRoute: AuthenticatedAdminUserActivityRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
+  AuthenticatedAdminWhitelabelRoute: AuthenticatedAdminWhitelabelRoute,
+  AuthenticatedAdminWorkspacesRoute: AuthenticatedAdminWorkspacesRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 

@@ -35,6 +35,10 @@ import {
   Calculator,
   Flame,
   Code2,
+  Lock,
+  Globe,
+  Package,
+  ArrowRight,
 } from "lucide-react";
 import {
   DndContext,
@@ -78,7 +82,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { MODULE_CATALOG, requestModuleUpgrade } from "@/lib/modules/modules.functions";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyAdminStatus, getMyProfile } from "@/lib/auth/auth.functions";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -88,24 +102,25 @@ type NavItem = {
   url: string;
   icon: React.ElementType;
   tourId?: string;
+  moduleId?: string;
 };
 
 const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Dashboard",   url: "/dashboard",   icon: LayoutDashboard },
-  { title: "HiveMind",    url: "/hivemind",    icon: Brain },
-  { title: "GrowthMind",  url: "/growthmind",  icon: TrendingUp },
-  { title: "SystemMind",  url: "/systemmind",  icon: Server },
+  { title: "HiveMind",    url: "/hivemind",    icon: Brain,      moduleId: "hivemind" },
+  { title: "GrowthMind",  url: "/growthmind",  icon: TrendingUp, moduleId: "growthmind" },
+  { title: "SystemMind",  url: "/systemmind",  icon: Server,     moduleId: "systemmind" },
   { title: "Knowledge Centre", url: "/knowledge-centre", icon: BookOpen },
   { title: "Analytics",   url: "/analytics",   icon: BarChart3 },
-  { title: "Mktg Analytics", url: "/analytics-marketing", icon: Megaphone },
+  { title: "Mktg Analytics", url: "/analytics-marketing", icon: Megaphone, moduleId: "growthmind" },
   { title: "Agents",    url: "/my-agents", icon: LayoutGrid,    tourId: "nav-agents" },
-  { title: "Builder",   url: "/builder",   icon: Workflow },
+  { title: "Builder",   url: "/builder",   icon: Workflow,       moduleId: "builder" },
   { title: "Templates", url: "/templates", icon: LayoutTemplate, tourId: "nav-templates" },
-  { title: "Data",      url: "/data",      icon: Database },
+  { title: "Data",      url: "/data",      icon: Database,       moduleId: "lead_generation" },
   { title: "Contacts",  url: "/contacts",  icon: BookUser },
   { title: "Leads",     url: "/leads",     icon: UserCheck },
   { title: "Pipeline",  url: "/pipeline",  icon: Kanban },
-  { title: "Qualified", url: "/qualified", icon: Check },
+  { title: "Qualified", url: "/qualified", icon: Check,          moduleId: "qualification" },
   { title: "Calls",     url: "/calls",     icon: PhoneCall },
   { title: "Calendar",  url: "/calendar",  icon: CalendarDays },
   { title: "Template Studio", url: "/template-studio", icon: FileText },
@@ -113,7 +128,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "Deliverability", url: "/hexmail/deliverability", icon: ShieldCheck },
   { title: "Domain Warming", url: "/hexmail/domain-warming", icon: Flame },
   { title: "Follow-Up",     url: "/follow-up",              icon: Zap },
-  { title: "Buzzchat",  url: "/whatsapp",  icon: MessageSquare },
+  { title: "Buzzchat",  url: "/whatsapp",  icon: MessageSquare,  moduleId: "whatsapp" },
   { title: "Billing",   url: "/billing",   icon: CreditCard },
 ];
 
@@ -146,11 +161,15 @@ function SortableNavItem({
   collapsed,
   active,
   buttonClass,
+  isLocked,
+  onLockedClick,
 }: {
   item: NavItem;
   collapsed: boolean;
   active: boolean;
   buttonClass: string;
+  isLocked: boolean;
+  onLockedClick: (item: NavItem) => void;
 }) {
   const {
     attributes,
@@ -166,6 +185,37 @@ function SortableNavItem({
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+
+  const lockedButtonClass = cn(
+    buttonClass,
+    "opacity-50 cursor-not-allowed pointer-events-none",
+  );
+
+  if (isLocked) {
+    return (
+      <SidebarMenuItem
+        ref={setNodeRef}
+        style={style}
+        className="group/item group-data-[collapsible=icon]:w-auto"
+      >
+        <SidebarMenuButton
+          tooltip={`${item.title} — Upgrade to unlock`}
+          className={cn(lockedButtonClass, "pointer-events-auto cursor-pointer")}
+          onClick={() => onLockedClick(item)}
+        >
+          <div className="flex items-center gap-3 w-full">
+            <div className="relative shrink-0">
+              <item.icon className="h-[18px] w-[18px] text-muted-foreground/50" />
+              <Lock className="absolute -bottom-1 -right-1 h-2.5 w-2.5 text-muted-foreground/60" />
+            </div>
+            <span className="truncate group-data-[collapsible=icon]:hidden text-muted-foreground/60">
+              {item.title}
+            </span>
+          </div>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
 
   return (
     <SidebarMenuItem
@@ -249,6 +299,10 @@ export function AppSidebar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [navItems, setNavItems] = useState<NavItem[]>(DEFAULT_NAV_ITEMS);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeModules, setActiveModules] = useState<string[]>([]);
+  const [upgradeItem, setUpgradeItem] = useState<NavItem | null>(null);
+  const [requesting, setRequesting] = useState(false);
+  const requestModuleFn = useServerFn(requestModuleUpgrade);
 
   // Load saved order after hydration to avoid SSR mismatch
   useEffect(() => {
@@ -270,6 +324,53 @@ export function AppSidebar() {
     })();
     return () => { active = false; };
   }, []);
+
+  // Fetch active modules for this workspace
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("default_workspace_id")
+          .eq("user_id", sess.session.user.id)
+          .maybeSingle();
+        if (!profile?.default_workspace_id || !active) return;
+        const { data: settings } = await supabase
+          .from("workspace_settings")
+          .select("active_modules")
+          .eq("workspace_id", profile.default_workspace_id)
+          .maybeSingle();
+        if (active) setActiveModules((settings?.active_modules as string[]) ?? []);
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleLockedClick = (item: NavItem) => setUpgradeItem(item);
+
+  const handleRequestModule = async () => {
+    if (!upgradeItem?.moduleId) return;
+    const mod = MODULE_CATALOG.find((m) => m.id === upgradeItem.moduleId);
+    setRequesting(true);
+    try {
+      const res = await requestModuleFn({
+        data: { moduleId: upgradeItem.moduleId, moduleName: mod?.name ?? upgradeItem.title },
+      });
+      if ((res as any).alreadyPending) {
+        toast.info("Upgrade request already submitted — we'll be in touch.");
+      } else {
+        toast.success("Upgrade request sent! Our team will review and activate the module.");
+      }
+      setUpgradeItem(null);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to send request");
+    } finally {
+      setRequesting(false);
+    }
+  };
 
   const isActive = (path: string) =>
     path === "/builder"
@@ -411,15 +512,20 @@ export function AppSidebar() {
                 strategy={verticalListSortingStrategy}
               >
                 <SidebarMenu className="gap-1 pl-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pl-0">
-                  {navItems.map((item) => (
-                    <SortableNavItem
-                      key={item.url}
-                      item={item}
-                      collapsed={collapsed}
-                      active={isActive(item.url)}
-                      buttonClass={navButtonClasses(isActive(item.url))}
-                    />
-                  ))}
+                  {navItems.map((item) => {
+                    const isLocked = !!(item.moduleId && !activeModules.includes(item.moduleId));
+                    return (
+                      <SortableNavItem
+                        key={item.url}
+                        item={item}
+                        collapsed={collapsed}
+                        active={isActive(item.url)}
+                        buttonClass={navButtonClasses(isActive(item.url))}
+                        isLocked={isLocked}
+                        onLockedClick={handleLockedClick}
+                      />
+                    );
+                  })}
                 </SidebarMenu>
               </SortableContext>
 
@@ -526,6 +632,48 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="Workspace Modules"
+                      className={navButtonClasses(isActive("/admin/workspaces"))}
+                    >
+                      <Link to="/admin/workspaces" className="flex items-center gap-3">
+                        <Package
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/workspaces")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">
+                          Modules
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="White Label"
+                      className={navButtonClasses(isActive("/admin/whitelabel"))}
+                    >
+                      <Link to="/admin/whitelabel" className="flex items-center gap-3">
+                        <Globe
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/whitelabel")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">
+                          White Label
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -535,6 +683,57 @@ export function AppSidebar() {
 
       <div className="mx-2 mb-1 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
       <SidebarFooter className="px-1.5 pb-3 group-data-[collapsible=icon]:px-1.5">
+
+      {/* ── Upgrade module dialog ─────────────────────────────────────────── */}
+      {upgradeItem && (() => {
+        const mod = MODULE_CATALOG.find((m) => m.id === upgradeItem.moduleId);
+        return (
+          <Dialog open onOpenChange={(o) => !o && setUpgradeItem(null)}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  Unlock {upgradeItem.title}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {mod && (
+                  <div
+                    className="rounded-xl border p-4"
+                    style={{ borderColor: `${mod.color}30`, background: `${mod.color}08` }}
+                  >
+                    <div className="text-sm font-semibold" style={{ color: mod.color }}>{mod.name}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{mod.description}</div>
+                    <div className="mt-2 text-xs font-medium" style={{ color: mod.color }}>{mod.price}</div>
+                  </div>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  This module isn&apos;t included in your current plan. Request access and our team will be in touch.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => { setUpgradeItem(null); navigate({ to: "/billing" }); }}
+                  >
+                    View Plans
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 gap-1.5"
+                    onClick={handleRequestModule}
+                    disabled={requesting}
+                  >
+                    <ArrowRight className="h-3.5 w-3.5" />
+                    Request Access
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
