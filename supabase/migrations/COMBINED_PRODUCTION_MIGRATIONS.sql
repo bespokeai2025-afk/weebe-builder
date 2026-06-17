@@ -1905,6 +1905,75 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- ADS SYNC CRON (20260722)
+-- Schedules a 15-minute pg_cron job that POSTs to /api/public/ads-sync to keep
+-- ad campaign metrics fresh. After running this block, also run the separate
+-- APPLY_ADS_SYNC_CONFIG.sql snippet to insert the two app_config rows.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE EXTENSION IF NOT EXISTS pg_net SCHEMA extensions;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    CREATE EXTENSION pg_cron;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.app_config (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+GRANT ALL ON public.app_config TO service_role;
+
+ALTER TABLE public.app_config ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "Service role can manage app_config"
+    ON public.app_config FOR ALL
+    USING (auth.role() = 'service_role')
+    WITH CHECK (auth.role() = 'service_role');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.trigger_ads_sync()
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+  v_url    TEXT;
+  v_secret TEXT;
+BEGIN
+  SELECT value INTO v_url    FROM public.app_config WHERE key = 'ads_sync_url';
+  SELECT value INTO v_secret FROM public.app_config WHERE key = 'ads_sync_secret';
+
+  IF v_url IS NULL OR v_secret IS NULL THEN
+    RAISE NOTICE '[ads-sync] ads_sync_url or ads_sync_secret not set in app_config — skipping';
+    RETURN;
+  END IF;
+
+  PERFORM extensions.net.http_post(
+    url     := v_url,
+    headers := jsonb_build_object(
+      'Content-Type',   'application/json',
+      'x-cron-secret',  v_secret
+    ),
+    body    := '{}'::jsonb
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.trigger_ads_sync() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.trigger_ads_sync() TO service_role;
+
+SELECT cron.schedule(
+  'sync-ads-analytics',
+  '*/15 * * * *',
+  $$SELECT public.trigger_ads_sync()$$
+);
+
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- END OF COMBINED MIGRATIONS
 -- ═══════════════════════════════════════════════════════════════════════════════

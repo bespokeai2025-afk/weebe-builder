@@ -2301,3 +2301,72 @@ COMMENT ON COLUMN growthmind_video_assets.generation_mode  IS 'guided | freeform
 COMMENT ON COLUMN growthmind_video_assets.platform         IS 'meta | tiktok | linkedin | youtube | instagram | general';
 COMMENT ON COLUMN growthmind_video_assets.aspect_ratio     IS '16:9 | 9:16 | 1:1 | 4:5';
 COMMENT ON COLUMN growthmind_video_assets.quality_checks   IS 'JSON array of {rule, passed, note} quality check results';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- ADS SYNC CRON (20260722)
+-- Schedules a 15-minute pg_cron job that POSTs to /api/public/ads-sync to keep
+-- ad campaign metrics fresh for all workspaces with advertising credentials.
+-- Safe to re-run — all DDL is guarded with IF NOT EXISTS / OR REPLACE.
+-- After running this block, run APPLY_ADS_SYNC_CONFIG.sql to insert app_config.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE EXTENSION IF NOT EXISTS pg_net SCHEMA extensions;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    CREATE EXTENSION pg_cron;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.app_config (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+GRANT ALL ON public.app_config TO service_role;
+
+ALTER TABLE public.app_config ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY "Service role can manage app_config"
+    ON public.app_config FOR ALL
+    USING (auth.role() = 'service_role')
+    WITH CHECK (auth.role() = 'service_role');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.trigger_ads_sync()
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER
+AS $$
+DECLARE
+  v_url    TEXT;
+  v_secret TEXT;
+BEGIN
+  SELECT value INTO v_url    FROM public.app_config WHERE key = 'ads_sync_url';
+  SELECT value INTO v_secret FROM public.app_config WHERE key = 'ads_sync_secret';
+
+  IF v_url IS NULL OR v_secret IS NULL THEN
+    RAISE NOTICE '[ads-sync] ads_sync_url or ads_sync_secret not set in app_config — skipping';
+    RETURN;
+  END IF;
+
+  PERFORM extensions.net.http_post(
+    url     := v_url,
+    headers := jsonb_build_object(
+      'Content-Type',   'application/json',
+      'x-cron-secret',  v_secret
+    ),
+    body    := '{}'::jsonb
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.trigger_ads_sync() FROM PUBLIC;
+GRANT  EXECUTE ON FUNCTION public.trigger_ads_sync() TO service_role;
+
+SELECT cron.schedule(
+  'sync-ads-analytics',
+  '*/15 * * * *',
+  $$SELECT public.trigger_ads_sync()$$
+);
