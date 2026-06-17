@@ -50,6 +50,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedSystemmindIndexRouteImport } from './routes/_authenticated/systemmind.index'
 import { Route as AuthenticatedKnowledgeCentreIndexRouteImport } from './routes/_authenticated/knowledge-centre.index'
 import { Route as AuthenticatedHivemindIndexRouteImport } from './routes/_authenticated/hivemind.index'
+import { Route as AuthenticatedHexmailIndexRouteImport } from './routes/_authenticated/hexmail.index'
 import { Route as AuthenticatedGrowthmindIndexRouteImport } from './routes/_authenticated/growthmind.index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
@@ -435,6 +436,12 @@ const AuthenticatedHivemindIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
+const AuthenticatedHexmailIndexRoute =
+  AuthenticatedHexmailIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedHexmailRoute,
   } as any)
 const AuthenticatedGrowthmindIndexRoute =
   AuthenticatedGrowthmindIndexRouteImport.update({
@@ -1572,6 +1579,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/growthmind/': typeof AuthenticatedGrowthmindIndexRoute
+  '/hexmail/': typeof AuthenticatedHexmailIndexRoute
   '/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/systemmind/': typeof AuthenticatedSystemmindIndexRoute
@@ -1655,7 +1663,6 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
-  '/hexmail': typeof AuthenticatedHexmailRouteWithChildren
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -1780,6 +1787,7 @@ export interface FileRoutesByTo {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/growthmind': typeof AuthenticatedGrowthmindIndexRoute
+  '/hexmail': typeof AuthenticatedHexmailIndexRoute
   '/hivemind': typeof AuthenticatedHivemindIndexRoute
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/systemmind': typeof AuthenticatedSystemmindIndexRoute
@@ -1996,6 +2004,7 @@ export interface FileRoutesById {
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/growthmind/': typeof AuthenticatedGrowthmindIndexRoute
+  '/_authenticated/hexmail/': typeof AuthenticatedHexmailIndexRoute
   '/_authenticated/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/_authenticated/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/_authenticated/systemmind/': typeof AuthenticatedSystemmindIndexRoute
@@ -2212,6 +2221,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/admin/'
     | '/growthmind/'
+    | '/hexmail/'
     | '/hivemind/'
     | '/knowledge-centre/'
     | '/systemmind/'
@@ -2295,7 +2305,6 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/data'
     | '/follow-up'
-    | '/hexmail'
     | '/leads'
     | '/my-agents'
     | '/phone-numbers'
@@ -2420,6 +2429,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/admin'
     | '/growthmind'
+    | '/hexmail'
     | '/hivemind'
     | '/knowledge-centre'
     | '/systemmind'
@@ -2635,6 +2645,7 @@ export interface FileRouteTypes {
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
     | '/_authenticated/growthmind/'
+    | '/_authenticated/hexmail/'
     | '/_authenticated/hivemind/'
     | '/_authenticated/knowledge-centre/'
     | '/_authenticated/systemmind/'
@@ -3072,6 +3083,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/hivemind/'
       preLoaderRoute: typeof AuthenticatedHivemindIndexRouteImport
       parentRoute: typeof AuthenticatedHivemindRoute
+    }
+    '/_authenticated/hexmail/': {
+      id: '/_authenticated/hexmail/'
+      path: '/'
+      fullPath: '/hexmail/'
+      preLoaderRoute: typeof AuthenticatedHexmailIndexRouteImport
+      parentRoute: typeof AuthenticatedHexmailRoute
     }
     '/_authenticated/growthmind/': {
       id: '/_authenticated/growthmind/'
@@ -4441,6 +4459,7 @@ interface AuthenticatedHexmailRouteChildren {
   AuthenticatedHexmailMailboxesRoute: typeof AuthenticatedHexmailMailboxesRoute
   AuthenticatedHexmailReputationRoute: typeof AuthenticatedHexmailReputationRoute
   AuthenticatedHexmailSenderDomainsRoute: typeof AuthenticatedHexmailSenderDomainsRoute
+  AuthenticatedHexmailIndexRoute: typeof AuthenticatedHexmailIndexRoute
 }
 
 const AuthenticatedHexmailRouteChildren: AuthenticatedHexmailRouteChildren = {
@@ -4452,6 +4471,7 @@ const AuthenticatedHexmailRouteChildren: AuthenticatedHexmailRouteChildren = {
   AuthenticatedHexmailReputationRoute: AuthenticatedHexmailReputationRoute,
   AuthenticatedHexmailSenderDomainsRoute:
     AuthenticatedHexmailSenderDomainsRoute,
+  AuthenticatedHexmailIndexRoute: AuthenticatedHexmailIndexRoute,
 }
 
 const AuthenticatedHexmailRouteWithChildren =
