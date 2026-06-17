@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Brain, Mic, MicOff, Send, Settings2,
   Loader2, Radio, Square, Play, Pause,
-  X, User,
+  X, User, Lightbulb,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HiveMindShell } from "@/components/hivemind/HiveMindShell";
@@ -51,6 +51,132 @@ const SUGGESTED = [
   "How is my pipeline performing?",
   "Are any campaigns stalling?",
   "Show me inactive leads",
+];
+
+// ── Hint library ───────────────────────────────────────────────────────────────
+type HintGroup = { label: string; questions: { q: string; desc: string }[] };
+
+const HINT_GROUPS: HintGroup[] = [
+  {
+    label: "Today",
+    questions: [
+      { q: "What should I focus on today?",       desc: "Executive briefing with your top priorities ranked by urgency." },
+      { q: "What are my top 3 priorities?",        desc: "HiveMind picks the three highest-impact actions right now." },
+      { q: "What needs attention right now?",      desc: "Flags issues and gaps across all your systems." },
+      { q: "What changed since yesterday?",        desc: "Compares today's data against yesterday for quick deltas." },
+      { q: "What is the biggest opportunity today?", desc: "Surfaces the single highest-value action you can take now." },
+    ],
+  },
+  {
+    label: "Sales",
+    questions: [
+      { q: "Which leads should I contact first?",          desc: "Scores and ranks leads by conversion likelihood." },
+      { q: "Which opportunities are closest to converting?", desc: "Shows pipeline deals that are nearly ready to close." },
+      { q: "Where am I losing potential customers?",        desc: "Identifies the biggest drop-off points in your funnel." },
+      { q: "What should my sales team do next?",            desc: "Generates a prioritised action list for your team." },
+      { q: "Which pipeline stage needs attention?",         desc: "Highlights the bottleneck stage slowing your pipeline." },
+    ],
+  },
+  {
+    label: "Marketing",
+    questions: [
+      { q: "How do I get more customers?",           desc: "GrowthMind analyses your services, leads and channels." },
+      { q: "What campaign should I run next?",       desc: "Recommends the best next campaign based on your data." },
+      { q: "Which service should I promote right now?", desc: "Picks the highest-margin or highest-demand offering." },
+      { q: "What audience should I target?",         desc: "Builds a targeting profile from your best leads." },
+      { q: "What does GrowthMind recommend?",        desc: "Full GrowthMind advisory report for your business." },
+    ],
+  },
+  {
+    label: "Calls",
+    questions: [
+      { q: "What are my call results this week?",  desc: "Summary of call volume, duration and outcomes." },
+      { q: "Why are calls not converting?",        desc: "Analyses call transcripts for friction patterns." },
+      { q: "Which agent is performing best?",      desc: "Compares agents by conversion rate and call score." },
+      { q: "What call script should I improve?",   desc: "Finds the weakest part of your current script." },
+      { q: "Which calls need follow-up?",          desc: "Lists calls with no follow-up action taken." },
+    ],
+  },
+  {
+    label: "Leads",
+    questions: [
+      { q: "Where are my leads coming from?",           desc: "Breaks down lead sources by volume and quality." },
+      { q: "Which lead source is performing best?",     desc: "Ranks sources by conversion rate and cost-per-lead." },
+      { q: "Which leads are uncontacted?",              desc: "Lists leads with no outreach in the last 7 days." },
+      { q: "Which leads should be qualified?",          desc: "Flags leads that are warm but not yet scored." },
+      { q: "How can I increase lead quality?",          desc: "Recommends changes to your intake and targeting." },
+    ],
+  },
+  {
+    label: "Campaigns",
+    questions: [
+      { q: "Which campaigns are working?",                  desc: "Shows active campaigns ranked by ROI and engagement." },
+      { q: "Which campaign should I pause?",                desc: "Flags campaigns with poor performance metrics." },
+      { q: "Create a campaign proposal for me.",            desc: "GrowthMind drafts a full campaign brief for your business." },
+      { q: "Create a video ad campaign.",                   desc: "Generates a video campaign strategy with scripts." },
+      { q: "Create a WhatsApp follow-up campaign.",         desc: "Builds a WhatsApp sequence for warm leads." },
+    ],
+  },
+  {
+    label: "System Health",
+    questions: [
+      { q: "What needs fixing?",                      desc: "SystemMind surfaces all critical and high-priority issues." },
+      { q: "Are any integrations broken?",            desc: "Checks all connected providers for errors or expired keys." },
+      { q: "Is my system ready to go live?",          desc: "Full pre-launch checklist across all modules." },
+      { q: "What does SystemMind recommend?",         desc: "Complete SystemMind health report and action plan." },
+      { q: "Are my webhooks working?",                desc: "Verifies webhook endpoints are active and receiving data." },
+    ],
+  },
+  {
+    label: "Costs & Profit",
+    questions: [
+      { q: "What is costing me the most?",             desc: "AccountsMind ranks your biggest operational expenses." },
+      { q: "Which clients are least profitable?",      desc: "Shows clients with high effort and low revenue." },
+      { q: "Are any providers costing too much?",      desc: "Compares provider costs against usage and alternatives." },
+      { q: "What does AccountsMind recommend?",        desc: "Full financial advisory from AccountsMind." },
+      { q: "What should I charge more for?",           desc: "Identifies underpriced services based on demand." },
+    ],
+  },
+  {
+    label: "Team & Users",
+    questions: [
+      { q: "Who needs access?",                  desc: "Lists users with pending invites or permission requests." },
+      { q: "Which users are active?",            desc: "Shows login activity and feature usage by team member." },
+      { q: "Should I add more seats?",           desc: "Checks capacity against current workload and growth." },
+      { q: "Which permissions need review?",     desc: "Flags users with over-broad or stale permissions." },
+      { q: "Are there any admin requests?",      desc: "Shows open admin tasks and approval items." },
+    ],
+  },
+  {
+    label: "Setup",
+    questions: [
+      { q: "What should I set up next?",              desc: "Onboarding guide tailored to your current workspace state." },
+      { q: "What is missing from my workspace?",      desc: "Gaps check across integrations, agents and data." },
+      { q: "Is my Business DNA complete?",            desc: "Checks your business profile for missing fields." },
+      { q: "What knowledge base should I upload?",    desc: "Recommends knowledge base content for your agents." },
+      { q: "Which providers should I connect?",       desc: "Lists unconnected integrations that would add value." },
+    ],
+  },
+  {
+    label: "Agents & Workflows",
+    questions: [
+      { q: "Create a receptionist workflow.",           desc: "Builds an inbound call handling agent workflow." },
+      { q: "Create a rebooking workflow.",              desc: "Designs a follow-up workflow for lapsed bookings." },
+      { q: "Check my agent before going live.",         desc: "Runs a pre-live audit on your selected agent." },
+      { q: "What post-call fields should I extract?",  desc: "Recommends data extraction fields for your use case." },
+      { q: "What agent workflow should I improve?",    desc: "Scores all workflows and flags the weakest one." },
+    ],
+  },
+  {
+    label: "Growth Strategy",
+    questions: [
+      { q: "Create a 30-day growth plan.",                desc: "GrowthMind builds a full 30-day action plan." },
+      { q: "Create a 90-day marketing strategy.",         desc: "Multi-channel strategy with milestones and targets." },
+      { q: "What is my highest-opportunity service?",     desc: "Identifies which service has the best growth potential." },
+      { q: "What should WEBEE market next?",              desc: "Recommends the next high-impact marketing push." },
+      { q: "Create a full multi-channel strategy.",       desc: "Voice + WhatsApp + email + ads strategy in one plan." },
+    ],
+  },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -409,6 +535,56 @@ function VoiceSettingsPanel({ settings, onChange, onClose, voices }: {
   );
 }
 
+// ── Hint panel ────────────────────────────────────────────────────────────────
+function HintPanel({ onSelect, onClose }: { onSelect: (q: string) => void; onClose: () => void }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const group = HINT_GROUPS[activeIdx];
+  return (
+    <div className="border-t border-white/[0.07] bg-[hsl(var(--background))] flex flex-col max-h-72">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.05] shrink-0">
+        <div className="flex items-center gap-1.5">
+          <Lightbulb className="h-3.5 w-3.5 text-violet-400" />
+          <span className="text-[11px] font-semibold text-violet-300">Suggested Questions</span>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {/* Category tabs */}
+      <div className="flex overflow-x-auto gap-1 px-3 py-1.5 border-b border-white/[0.04] shrink-0 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+        {HINT_GROUPS.map((g, i) => (
+          <button
+            key={g.label}
+            onClick={() => setActiveIdx(i)}
+            className={cn(
+              "rounded-full px-2.5 py-1 text-[11px] font-medium whitespace-nowrap transition-all",
+              activeIdx === i
+                ? "bg-violet-500/20 text-violet-300"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+      {/* Questions */}
+      <div className="overflow-y-auto px-3 py-2 flex flex-col gap-1.5">
+        {group.questions.map(({ q, desc }) => (
+          <button
+            key={q}
+            onClick={() => { onSelect(q); onClose(); }}
+            className="text-left rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-violet-500/[0.08] hover:border-violet-500/20 px-3 py-2 transition-all group"
+          >
+            <p className="text-xs font-medium group-hover:text-violet-300 transition-colors">{q}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{desc}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Message bubble ─────────────────────────────────────────────────────────────
 function MessageBubble({ msg, onPlay, onStop, isPlaying, ttsLoading }: {
   msg:       ChatMessage;
@@ -481,6 +657,7 @@ function HiveMindChat() {
   const [mode, setMode]                   = useState<"chat"|"live">("chat");
   const [ttsLoadingId, setTtsLoadingId]   = useState<string | null>(null);
   const [liveError, setLiveError]         = useState<string | null>(null);
+  const [hintsOpen, setHintsOpen]         = useState(false);
 
   const bottomRef  = useRef<HTMLDivElement>(null);
   const recognRef  = useRef<any>(null);
@@ -755,42 +932,66 @@ function HiveMindChat() {
 
       {/* ── STICKY INPUT BAR (chat mode only) ── */}
       {mode === "chat" && (
-        <div className="sticky bottom-0 z-20 border-t border-white/[0.07] bg-[hsl(var(--background))]/95 backdrop-blur-sm px-4 py-3">
-          <div className="flex items-end gap-2">
-            {/* Mic */}
-            <button
-              onClick={toggleRecording}
-              title={isRecording ? "Stop recording" : "Speak your question"}
-              className={cn(
-                "h-9 w-9 rounded-xl border flex items-center justify-center shrink-0 transition-all",
-                isRecording
-                  ? "bg-red-500/20 border-red-500/40 text-red-400 animate-pulse"
-                  : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
-              )}
-            >
-              {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </button>
-
-            {/* Text input */}
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-              placeholder={isRecording ? "Listening…" : "Ask HiveMind anything…"}
-              rows={1}
-              disabled={isThinking}
-              className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-violet-500/40 focus:ring-1 focus:ring-violet-500/20 disabled:opacity-60 max-h-32 leading-relaxed"
-              style={{ scrollbarWidth: "none" }}
+        <div className="sticky bottom-0 z-20 bg-[hsl(var(--background))]/95 backdrop-blur-sm">
+          {/* Hint panel — slides in above the input row */}
+          {hintsOpen && (
+            <HintPanel
+              onSelect={q => { setInput(q); setHintsOpen(false); }}
+              onClose={() => setHintsOpen(false)}
             />
+          )}
 
-            {/* Send */}
-            <button
-              onClick={() => sendMessage(input)}
-              disabled={!input.trim() || isThinking}
-              className="h-9 w-9 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 flex items-center justify-center shrink-0 transition-all"
-            >
-              {isThinking ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Send className="h-4 w-4 text-white" />}
-            </button>
+          <div className="border-t border-white/[0.07] px-4 py-3">
+            <div className="flex items-end gap-2">
+              {/* Mic */}
+              <button
+                onClick={toggleRecording}
+                title={isRecording ? "Stop recording" : "Speak your question"}
+                className={cn(
+                  "h-9 w-9 rounded-xl border flex items-center justify-center shrink-0 transition-all",
+                  isRecording
+                    ? "bg-red-500/20 border-red-500/40 text-red-400 animate-pulse"
+                    : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+                )}
+              >
+                {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </button>
+
+              {/* Text input */}
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+                placeholder={isRecording ? "Listening…" : "Ask HiveMind anything…"}
+                rows={1}
+                disabled={isThinking}
+                className="flex-1 resize-none rounded-xl border border-white/[0.08] bg-white/[0.04] px-3.5 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:border-violet-500/40 focus:ring-1 focus:ring-violet-500/20 disabled:opacity-60 max-h-32 leading-relaxed"
+                style={{ scrollbarWidth: "none" }}
+              />
+
+              {/* Hint / Suggested questions toggle */}
+              <button
+                onClick={() => setHintsOpen(p => !p)}
+                title="Suggested questions"
+                className={cn(
+                  "h-9 w-9 rounded-xl border flex items-center justify-center shrink-0 transition-all",
+                  hintsOpen
+                    ? "border-violet-500/40 bg-violet-500/15 text-violet-400"
+                    : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+                )}
+              >
+                <Lightbulb className="h-4 w-4" />
+              </button>
+
+              {/* Send */}
+              <button
+                onClick={() => sendMessage(input)}
+                disabled={!input.trim() || isThinking}
+                className="h-9 w-9 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 flex items-center justify-center shrink-0 transition-all"
+              >
+                {isThinking ? <Loader2 className="h-4 w-4 text-white animate-spin" /> : <Send className="h-4 w-4 text-white" />}
+              </button>
+            </div>
           </div>
         </div>
       )}

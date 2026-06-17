@@ -1,0 +1,327 @@
+ADD HIVEMIND HINT BUTTON + SMART QUESTION LIBRARY
+
+IMPORTANT
+
+Do not rebuild HiveMind.
+
+Do not break HiveMind chat, HiveMind voice, GrowthMind, SystemMind, AccountsMind, Builder, Smart Dash, Campaign Factory, WhatsApp, HexMail or existing recommendation routing.
+
+This is a UI and intent-routing enhancement only.
+
+OBJECTIVE
+
+Add a Hint / Ask HiveMind button that gives users suggested phrases they can click or say to get useful results from HiveMind.
+
+The hints should cover all major areas of the business and route to the correct intelligence engine.
+
+====================================================
+
+WHERE TO ADD
+
+Add a small button near the HiveMind chat input and voice button:
+
+"Ask Ideas"
+
+or
+
+"Try asking HiveMind"
+
+or
+
+"Suggested Questions"
+
+When clicked, open a panel/modal/drawer with grouped suggested questions.
+
+====================================================
+
+GROUPS
+
+Create grouped question categories:
+
+1. Today
+2. Sales
+3. Marketing
+4. Calls
+5. Leads
+6. Campaigns
+7. System Health
+8. Costs & Profit
+9. Team & Users
+10. Setup
+11. Agents & Workflows
+12. Growth Strategy
+
+====================================================
+
+SUGGESTED QUESTIONS
+
+TODAY
+
+"What should I focus on today?"
+
+"What are my top 3 priorities?"
+
+"What needs attention right now?"
+
+"What changed since yesterday?"
+
+"What is the biggest opportunity today?"
+
+SALES
+
+"Which leads should I contact first?"
+
+"Which opportunities are closest to converting?"
+
+"Where am I losing potential customers?"
+
+"What should my sales team do next?"
+
+"Which pipeline stage needs attention?"
+
+MARKETING
+
+"How do I get more customers?"
+
+"What campaign should I run next?"
+
+"Which service should I promote right now?"
+
+"What audience should I target?"
+
+"What does GrowthMind recommend?"
+
+CALLS
+
+"What are my call results this week?"
+
+"Why are calls not converting?"
+
+"Which agent is performing best?"
+
+"What call script should I improve?"
+
+"Which calls need follow-up?"
+
+LEADS
+
+"Where are my leads coming from?"
+
+"Which lead source is performing best?"
+
+"Which leads are uncontacted?"
+
+"Which leads should be qualified?"
+
+"How can I increase lead quality?"
+
+CAMPAIGNS
+
+"Which campaigns are working?"
+
+"Which campaign should I pause?"
+
+"Create a campaign proposal for me."
+
+"Create a video ad campaign."
+
+"Create a WhatsApp follow-up campaign."
+
+SYSTEM HEALTH
+
+"What needs fixing?"
+
+"Are any integrations broken?"
+
+"Is my system ready to go live?"
+
+"What does SystemMind recommend?"
+
+"Are my webhooks working?"
+
+COSTS & PROFIT
+
+"What is costing me the most?"
+
+"Which clients are least profitable?"
+
+"Are any providers costing too much?"
+
+"What does AccountsMind recommend?"
+
+"What should I charge more for?"
+
+TEAM & USERS
+
+"Who needs access?"
+
+"Which users are active?"
+
+"Should I add more seats?"
+
+"Which permissions need review?"
+
+"Are there any admin requests?"
+
+SETUP
+
+"What should I set up next?"
+
+"What is missing from my workspace?"
+
+"Is my Business DNA complete?"
+
+"What knowledge base should I upload?"
+
+"Which providers should I connect?"
+
+AGENTS & WORKFLOWS
+
+"Create a receptionist workflow."
+
+"Create a rebooking workflow."
+
+"Check my agent before going live."
+
+"What post-call fields should I extract?"
+
+"What agent workflow should I improve?"
+
+GROWTH STRATEGY
+
+"Create a 30-day growth plan."
+
+"Create a 90-day marketing strategy."
+
+"What is my highest-opportunity service?"
+
+"What should WEBEE market next?"
+
+"Create a full multi-channel strategy."
+
+====================================================
+
+CLICK BEHAVIOUR
+
+When a user clicks a suggested question:
+
+1. Fill the HiveMind input with that question.
+2. Optionally auto-submit if user confirms.
+3. Route it through the same HiveMind intent engine as typed/voice questions.
+4. Create recommendation cards/tasks/actions where relevant.
+
+====================================================
+
+VOICE BEHAVIOUR
+
+The same phrases should work by voice.
+
+If user says one of the suggested phrases or similar wording, HiveMind should route correctly.
+
+====================================================
+
+INTENT ROUTING
+
+Map suggested questions to correct engines:
+
+Today / Priorities
+→ HiveMind executive briefing
+
+Marketing / Growth Strategy / Campaigns
+→ GrowthMind
+
+System Health / Agents / Workflows
+→ SystemMind
+
+Costs & Profit
+→ AccountsMind
+
+Sales / Leads / Calls
+→ Smart Dash + HiveMind
+
+Setup
+→ Onboarding + SystemMind + HiveMind
+
+====================================================
+
+UI REQUIREMENTS
+
+The panel should show:
+
+Category tabs or sections
+
+Question cards
+
+Short explanation under each question
+
+Example:
+
+Question:
+"How do I get more customers?"
+
+Explanation:
+"GrowthMind will analyse your services, leads, campaigns and channels."
+
+====================================================
+
+EMPTY WORKSPACE BEHAVIOUR
+
+If the selected question requires missing data, HiveMind should not fail.
+
+Example:
+
+User clicks:
+"Which campaigns are working?"
+
+If no campaigns exist:
+
+HiveMind should reply:
+
+"You do not have active campaigns yet. I recommend creating your first campaign or connecting Meta/Google Ads."
+
+Then create setup recommendations.
+
+====================================================
+
+ADMIN CONFIG
+
+Allow platform admin to edit suggested questions later.
+
+Create static seed first if admin UI is too much.
+
+Optional table:
+
+hivemind_suggested_questions
+
+Fields:
+
+id
+category
+question
+description
+intent_key
+target_engine
+sort_order
+active
+created_at
+updated_at
+
+====================================================
+
+SUCCESS CRITERIA
+
+Users can click a Hint / Suggested Questions button.
+
+Questions cover all key areas of the business.
+
+Clicked questions route to the correct mind/engine.
+
+Voice questions using the same phrases also work.
+
+HiveMind creates useful recommendations, not generic responses.
+
+Empty workspaces receive setup guidance.
+
+Generate implementation plan first.
+
+Then implement safely.
