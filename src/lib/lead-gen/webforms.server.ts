@@ -337,7 +337,7 @@ export async function processContactForm(fields: {
 
   if (!workspaceId) {
     const { data: ws } = await supabaseAdmin
-      .from("workspace_users")
+      .from("workspace_members")
       .select("workspace_id, users!inner(email)")
       .eq("users.email", WEBEE_ADMIN_EMAIL)
       .limit(1)

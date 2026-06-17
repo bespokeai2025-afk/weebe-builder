@@ -83,13 +83,13 @@ ALTER TABLE webform_submissions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "workspace_webform_sources" ON webform_sources;
 CREATE POLICY "workspace_webform_sources" ON webform_sources
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_users WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
   ));
 
 DROP POLICY IF EXISTS "workspace_webform_submissions" ON webform_submissions;
 CREATE POLICY "workspace_webform_submissions" ON webform_submissions
   USING (workspace_id IN (
-    SELECT workspace_id FROM workspace_users WHERE user_id = auth.uid()
+    SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
   ));
 
 -- ── Rate limit table for public endpoint ──────────────────────────────────────
