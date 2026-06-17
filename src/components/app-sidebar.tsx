@@ -522,7 +522,7 @@ export function AppSidebar() {
               >
                 <SidebarMenu className="gap-1 pl-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:pl-0">
                   {navItems.map((item) => {
-                    const isLocked = !!(item.moduleId && !activeModules.includes(item.moduleId));
+                    const isLocked = !isAdmin && !!(item.moduleId && !activeModules.includes(item.moduleId));
                     return (
                       <SortableNavItem
                         key={item.url}
