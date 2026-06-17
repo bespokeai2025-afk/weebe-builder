@@ -114,6 +114,7 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
       capsRes,
       deltaLogRes,
       deltaRoasRes,
+      latestSyncRes,
     ] = await Promise.all([
       Promise.resolve(
         sb.from("growthmind_ad_campaigns")
@@ -184,6 +185,16 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
           .order("synced_at", { ascending: true })
           .limit(5_000),
       ).catch(() => ({ data: [] })),
+
+      // Most recent successful sync row — used for the "Last synced X min ago" header indicator.
+      Promise.resolve(
+        sb.from("growthmind_ad_sync_log")
+          .select("synced_at")
+          .eq("workspace_id", workspaceId)
+          .eq("status", "success")
+          .order("synced_at", { ascending: false })
+          .limit(1),
+      ).catch(() => ({ data: [] })),
     ]);
 
     const campaigns: any[]   = campaignsRes.data  ?? [];
@@ -193,6 +204,7 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
     const capsRaw: any[]     = capsRes.data       ?? [];
     const deltaLogRows: any[] = deltaLogRes.data  ?? [];
     const deltaRoasRows: any[] = deltaRoasRes.data ?? [];
+    const latestSyncRow: any = (latestSyncRes.data as any[])?.[0] ?? null;
 
     const hasMetaCreds   = !!(ws?.meta_ads_access_token && ws?.meta_ads_account_id) || connectedAds.has("meta_ads");
     const hasGoogleCreds = connectedAds.has("google_ads");
@@ -221,10 +233,9 @@ const getAdsPerformanceData = createServerFn({ method: "GET" })
     const metaTotals   = totals(metaCamps);
     const googleTotals = totals(googleCamps);
     const totalSpend   = +(metaTotals.spend + googleTotals.spend).toFixed(2);
-    const lastSyncedAt = [metaTotals.lastSyncedAt, googleTotals.lastSyncedAt]
-      .filter(Boolean)
-      .sort()
-      .pop() ?? null;
+    // lastSyncedAt — sourced from the most recent successful row in growthmind_ad_sync_log
+    // so the header indicator always reflects the sync engine's last run, not stale campaign data.
+    const lastSyncedAt: string | null = latestSyncRow?.synced_at ?? null;
 
     // ── Week-over-week deltas ──────────────────────────────────────────────────
     // sync_log rows are cumulative snapshots — each row reflects the platform's
@@ -1195,8 +1206,8 @@ function timeAgo(iso: string | null): string {
   if (!iso) return "Never";
   const diff = Date.now() - new Date(iso).getTime();
   const mins  = Math.floor(diff / 60_000);
-  if (mins < 1)  return "Just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1)  return "just now";
+  if (mins < 60) return `${mins} min ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24)  return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
