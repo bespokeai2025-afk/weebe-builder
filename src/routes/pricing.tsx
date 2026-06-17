@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-  ArrowRight, Check, Minus, Zap, Building2, Menu, X,
-  Phone, Users, BarChart3, Bot, MessageSquare, Video,
-  Wrench, Crown, Rocket, Star,
+  ArrowRight, Check, Minus, Menu, X,
+  Phone, Users, BarChart3, MessageSquare, Video,
+  Wrench, Crown, Rocket, Star, Shield, Building2, Layers,
+  UserCheck,
 } from "lucide-react";
 import logoWebee from "@/assets/webee-logo-yellow.png";
 
@@ -202,6 +203,91 @@ const BUNDLES = [
   },
 ];
 
+/* ── Enterprise tiers (seat-based) ──────────────────────────────────── */
+const ENTERPRISE_TIERS = [
+  {
+    id: "executive_suite",
+    icon: Shield,
+    name: "Executive Suite",
+    price: "£1,970",
+    period: "/month",
+    includedSeats: 5,
+    additionalSeatPrice: "£39",
+    tagline: "Executive AI Operating System for founders & leadership teams.",
+    color: C.gold,
+    glow: "rgba(245,184,0,0.13)",
+    highlighted: true,
+    badge: "Most popular at scale",
+    features: [
+      "HiveMind AI COO",
+      "GrowthMind AI CMO",
+      "Strategy Centre",
+      "Campaign Factory & Content Studio",
+      "SEO Centre & Content Calendar",
+      "Business DNA & Opportunity Engine",
+      "Analytics Intelligence",
+      "Executive Briefings",
+      "Action Approval Centre",
+      "Marketing Recommendations & Growth Reports",
+      "Provider Health Visibility",
+      "Basic SystemMind visibility",
+    ],
+  },
+  {
+    id: "business_command",
+    icon: Building2,
+    name: "Business Command",
+    price: "£3,970",
+    period: "/month",
+    includedSeats: 15,
+    additionalSeatPrice: "£29",
+    tagline: "Department-wide AI deployment across marketing, sales and ops.",
+    color: "#a78bfa",
+    glow: "rgba(167,139,250,0.12)",
+    highlighted: false,
+    badge: null,
+    features: [
+      "Everything in Executive Suite",
+      "SystemMind AI CTO",
+      "AccountsMind",
+      "Department Dashboards",
+      "Approval Workflows & Workflow Generator",
+      "Advanced & Board Reporting",
+      "Advanced Analytics & Forecasting",
+      "Custom Roles & Department Permissions",
+      "Cross-Team Visibility",
+    ],
+  },
+  {
+    id: "enterprise",
+    icon: Layers,
+    name: "Enterprise",
+    price: "From £7,500",
+    period: "/month",
+    includedSeats: null,
+    additionalSeatPrice: null,
+    tagline: "Large organisations requiring enterprise controls and dedicated support.",
+    color: "#38bdf8",
+    glow: "rgba(56,189,248,0.10)",
+    highlighted: false,
+    badge: "Custom pricing",
+    features: [
+      "Everything in Business Command",
+      "Unlimited Modules",
+      "SSO & Advanced Security Controls",
+      "White Labelling",
+      "Custom Integrations",
+      "Dedicated Success Manager & SLA",
+      "Enterprise Reporting",
+      "Custom Provider Routing",
+      "Private Knowledge Layers",
+      "Custom AI Models",
+      "Enterprise Governance Controls",
+      "Dedicated Infrastructure Options",
+    ],
+  },
+];
+
 const CORE_FEATURES = [
   "Smart Dash CRM",
   "Calls dashboard",
@@ -390,22 +476,120 @@ function BundleCard({ bundle }: { bundle: typeof BUNDLES[0] }) {
   );
 }
 
+/* ── Enterprise tier card ────────────────────────────────────────────── */
+function EnterpriseTierCard({ tier }: { tier: typeof ENTERPRISE_TIERS[0] }) {
+  const Icon = tier.icon;
+  const isEnterprise = tier.id === "enterprise";
+  return (
+    <div style={{
+      background: tier.highlighted
+        ? "linear-gradient(135deg, #0d1f3a 0%, #0f2445 100%)"
+        : C.card,
+      border: `1px solid ${tier.highlighted ? `${tier.color}40` : C.border}`,
+      borderRadius: 20,
+      padding: "34px 32px",
+      position: "relative",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      boxShadow: tier.highlighted ? `0 0 0 1px ${tier.color}15, 0 32px 80px -40px ${tier.color}22` : "none",
+    }}>
+      <div style={{ position: "absolute", top: -60, right: -60, width: 240, height: 240, borderRadius: "50%", background: tier.glow, pointerEvents: "none" }} />
+
+      {tier.badge && (
+        <div style={{ position: "absolute", top: 18, right: 18, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: tier.highlighted ? "#06162B" : tier.color, background: tier.highlighted ? tier.color : `${tier.color}18`, border: tier.highlighted ? "none" : `1px solid ${tier.color}35`, borderRadius: 6, padding: "4px 10px" }}>
+          {tier.badge}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: `${tier.color}15`, border: `1px solid ${tier.color}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon size={20} color={tier.color} />
+        </div>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.text, letterSpacing: "-0.03em" }}>{tier.name}</div>
+          <div style={{ fontSize: 12, color: C.dim, marginTop: 2 }}>{tier.tagline}</div>
+        </div>
+      </div>
+
+      {/* Price */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+          <span style={{ fontSize: 38, fontWeight: 900, color: C.text, letterSpacing: "-0.05em", lineHeight: 1 }}>{tier.price}</span>
+          <span style={{ fontSize: 14, color: C.muted }}>{tier.period}</span>
+        </div>
+      </div>
+
+      {/* Seat billing pill */}
+      {tier.includedSeats !== null ? (
+        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: tier.color, background: `${tier.color}12`, border: `1px solid ${tier.color}28`, borderRadius: 8, padding: "6px 12px" }}>
+            <UserCheck size={12} />
+            {tier.includedSeats} users included
+          </div>
+          {tier.additionalSeatPrice && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: C.muted, background: "rgba(255,255,255,0.04)", border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 12px" }}>
+              {tier.additionalSeatPrice}/user/mo extra
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, fontWeight: 600, color: tier.color, background: `${tier.color}10`, border: `1px solid ${tier.color}25`, borderRadius: 8, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 20 }}>
+          <UserCheck size={12} />
+          Unlimited users — custom seat pricing
+        </div>
+      )}
+
+      <ul style={{ flex: 1, margin: "0 0 26px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 8 }}>
+        {tier.features.map(f => (
+          <li key={f} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: C.muted }}>
+            <Check size={13} color={tier.color} style={{ marginTop: 2, flexShrink: 0 }} />
+            {f}
+          </li>
+        ))}
+      </ul>
+
+      {isEnterprise ? (
+        <a href="https://www.webespokeai.com" target="_blank" rel="noopener noreferrer"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "14px 0", borderRadius: 10, background: `${tier.color}15`, border: `1px solid ${tier.color}35`, color: tier.color, fontSize: 14, fontWeight: 700, textDecoration: "none" }}
+          className="hover:opacity-80 transition-opacity"
+        >
+          Contact sales <ArrowRight size={13} />
+        </a>
+      ) : (
+        <Link to="/login" search={{ redirect: "/billing" }}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "14px 0", borderRadius: 10, background: tier.highlighted ? tier.color : `${tier.color}15`, border: tier.highlighted ? "none" : `1px solid ${tier.color}35`, color: tier.highlighted ? "#06162B" : tier.color, fontSize: 14, fontWeight: 700, textDecoration: "none" }}
+          className="hover:opacity-90 transition-opacity"
+        >
+          Get {tier.name} <ArrowRight size={13} />
+        </Link>
+      )}
+    </div>
+  );
+}
+
 /* ── Comparison table ──────────────────────────────────────────────── */
 const COMPARE_ROWS = [
-  { feature: "Smart Dash CRM", core: true, receptionist: true, leadGen: true, pro: true },
-  { feature: "Calls & Call Logs", core: true, receptionist: true, leadGen: true, pro: true },
-  { feature: "Leads & Contacts", core: true, receptionist: true, leadGen: true, pro: true },
-  { feature: "Pipeline & Qualified", core: true, receptionist: true, leadGen: true, pro: true },
-  { feature: "Calendar & Bookings", core: true, receptionist: true, leadGen: true, pro: true },
-  { feature: "Knowledge Bases", core: true, receptionist: true, leadGen: true, pro: true },
-  { feature: "AI Inbound Receptionist", core: false, receptionist: true, leadGen: false, pro: true },
-  { feature: "Outbound Calling", core: false, receptionist: false, leadGen: true, pro: true },
-  { feature: "Lead Campaigns", core: false, receptionist: false, leadGen: true, pro: true },
-  { feature: "Qualification Agents", core: false, receptionist: false, leadGen: false, pro: true },
-  { feature: "GrowthMind AI", core: false, receptionist: false, leadGen: false, pro: true },
-  { feature: "WhatsApp Centre", core: false, receptionist: false, leadGen: false, pro: true },
-  { feature: "Video & Creative Studio", core: false, receptionist: false, leadGen: false, pro: true },
-  { feature: "HiveMind AI COO", core: false, receptionist: false, leadGen: false, pro: true },
+  { feature: "Smart Dash CRM",          core: true,  receptionist: true,  leadGen: true,  pro: true,  exec: true  },
+  { feature: "Calls & Call Logs",       core: true,  receptionist: true,  leadGen: true,  pro: true,  exec: true  },
+  { feature: "Leads & Contacts",        core: true,  receptionist: true,  leadGen: true,  pro: true,  exec: true  },
+  { feature: "Pipeline & Qualified",    core: true,  receptionist: true,  leadGen: true,  pro: true,  exec: true  },
+  { feature: "Calendar & Bookings",     core: true,  receptionist: true,  leadGen: true,  pro: true,  exec: true  },
+  { feature: "Knowledge Bases",         core: true,  receptionist: true,  leadGen: true,  pro: true,  exec: true  },
+  { feature: "AI Inbound Receptionist", core: false, receptionist: true,  leadGen: false, pro: true,  exec: false },
+  { feature: "Outbound Calling",        core: false, receptionist: false, leadGen: true,  pro: true,  exec: false },
+  { feature: "Lead Campaigns",          core: false, receptionist: false, leadGen: true,  pro: true,  exec: false },
+  { feature: "Qualification Agents",    core: false, receptionist: false, leadGen: false, pro: true,  exec: false },
+  { feature: "GrowthMind AI",           core: false, receptionist: false, leadGen: false, pro: true,  exec: true  },
+  { feature: "WhatsApp Centre",         core: false, receptionist: false, leadGen: false, pro: true,  exec: false },
+  { feature: "Video & Creative Studio", core: false, receptionist: false, leadGen: false, pro: true,  exec: false },
+  { feature: "HiveMind AI COO",         core: false, receptionist: false, leadGen: false, pro: true,  exec: true  },
+  { feature: "Strategy Centre",         core: false, receptionist: false, leadGen: false, pro: false, exec: true  },
+  { feature: "Executive Briefings",     core: false, receptionist: false, leadGen: false, pro: false, exec: true  },
+  { feature: "Analytics Intelligence",  core: false, receptionist: false, leadGen: false, pro: false, exec: true  },
+  { feature: "SystemMind AI CTO",       core: false, receptionist: false, leadGen: false, pro: false, exec: false },
+  { feature: "AccountsMind",            core: false, receptionist: false, leadGen: false, pro: false, exec: false },
+  { feature: "Seat Management",         core: false, receptionist: false, leadGen: false, pro: false, exec: true  },
 ];
 
 /* ── Page ───────────────────────────────────────────────────────────── */
@@ -507,6 +691,39 @@ function PricingPage() {
         </div>
       </section>
 
+      {/* ── Enterprise Tiers ──────────────────────────────────────────── */}
+      <section style={{ maxWidth: 1100, margin: "0 auto", padding: "0 24px 80px" }}>
+        <div style={{ textAlign: "center", marginBottom: 44 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: C.dim, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 10 }}>Seat-based plans</div>
+          <h2 style={{ fontSize: "clamp(24px, 4vw, 38px)", fontWeight: 900, letterSpacing: "-0.04em", margin: "0 0 12px" }}>
+            Built for leadership &amp; enterprise
+          </h2>
+          <p style={{ fontSize: 14.5, color: C.muted, maxWidth: 520, margin: "0 auto" }}>
+            Fixed seat allowances with a simple per-user overage. Scale your team without unpredictable pricing.
+          </p>
+        </div>
+
+        {/* Seat billing explainer strip */}
+        <div style={{ background: "rgba(245,184,0,0.05)", border: "1px solid rgba(245,184,0,0.15)", borderRadius: 12, padding: "16px 22px", display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center", marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 240px" }}>
+            <UserCheck size={16} color={C.gold} />
+            <span style={{ fontSize: 13, color: C.muted }}><strong style={{ color: "#fff" }}>Included seats</strong> — users covered in the base price</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 240px" }}>
+            <Users size={16} color={C.gold} />
+            <span style={{ fontSize: 13, color: C.muted }}><strong style={{ color: "#fff" }}>Additional users</strong> — flat rate per extra seat per month</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 240px" }}>
+            <Rocket size={16} color={C.gold} />
+            <span style={{ fontSize: 13, color: C.muted }}><strong style={{ color: "#fff" }}>HiveMind monitors</strong> seat utilisation and flags upgrade opportunities</span>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 22 }}>
+          {ENTERPRISE_TIERS.map(tier => <EnterpriseTierCard key={tier.id} tier={tier} />)}
+        </div>
+      </section>
+
       {/* ── Comparison table ──────────────────────────────────────────── */}
       <section style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px 80px" }}>
         <div style={{ textAlign: "center", marginBottom: 36 }}>
@@ -514,31 +731,32 @@ function PricingPage() {
           <p style={{ fontSize: 14, color: C.muted }}>What's included across tiers</p>
         </div>
 
-        <div style={{ border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden" }}>
+        <div style={{ border: `1px solid ${C.border}`, borderRadius: 16, overflow: "hidden", overflowX: "auto" }}>
           {/* Header */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 130px 130px 110px", background: "#050e1e", borderBottom: `1px solid ${C.border}`, padding: "14px 20px", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 120px 120px 100px 130px", background: "#050e1e", borderBottom: `1px solid ${C.border}`, padding: "14px 20px", gap: 8, alignItems: "center", minWidth: 680 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: "0.1em", textTransform: "uppercase" }}>Feature</span>
             {[
-              { label: "Core", sub: "Included" },
-              { label: "Receptionist", sub: "£297/mo" },
-              { label: "Lead Gen", sub: "+£250/mo" },
-              { label: "Pro Bundle", sub: "£997/mo" },
+              { label: "Core",        sub: "Included",  col: C.gold },
+              { label: "Receptionist",sub: "£297/mo",   col: "#60a5fa" },
+              { label: "Lead Gen",    sub: "+£250/mo",  col: "#4ade80" },
+              { label: "Pro Bundle",  sub: "£997/mo",   col: C.gold },
+              { label: "Executive",   sub: "£1,970/mo", col: C.gold },
             ].map(col => (
               <div key={col.label} style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>{col.label}</div>
-                <div style={{ fontSize: 10, color: C.gold }}>{col.sub}</div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: "#fff" }}>{col.label}</div>
+                <div style={{ fontSize: 9.5, color: col.col, marginTop: 2 }}>{col.sub}</div>
               </div>
             ))}
           </div>
 
           {COMPARE_ROWS.map((row, i) => (
-            <div key={row.feature} style={{ display: "grid", gridTemplateColumns: "1fr 100px 130px 130px 110px", padding: "12px 20px", gap: 8, alignItems: "center", background: i % 2 === 0 ? C.surface : "transparent", borderBottom: i < COMPARE_ROWS.length - 1 ? `1px solid ${C.border}` : "none" }}>
+            <div key={row.feature} style={{ display: "grid", gridTemplateColumns: "1fr 90px 120px 120px 100px 130px", padding: "11px 20px", gap: 8, alignItems: "center", background: i % 2 === 0 ? C.surface : "transparent", borderBottom: i < COMPARE_ROWS.length - 1 ? `1px solid ${C.border}` : "none", minWidth: 680 }}>
               <span style={{ fontSize: 13, color: C.muted }}>{row.feature}</span>
-              {[row.core, row.receptionist, row.leadGen, row.pro].map((has, j) => (
+              {[row.core, row.receptionist, row.leadGen, row.pro, row.exec].map((has, j) => (
                 <div key={j} style={{ display: "flex", justifyContent: "center" }}>
                   {has
-                    ? <Check size={15} color={C.gold} />
-                    : <Minus size={13} color="rgba(255,255,255,0.12)" />
+                    ? <Check size={14} color={C.gold} />
+                    : <Minus size={12} color="rgba(255,255,255,0.12)" />
                   }
                 </div>
               ))}
@@ -555,9 +773,12 @@ function PricingPage() {
             { q: "Do I need to choose just one module?", a: "No — workspaces can have multiple modules active at the same time. You can start with Receptionist and add Lead Generation later, or go straight to a bundle." },
             { q: "What's included in the Core Platform?", a: "Every paid workspace gets the full CRM foundation: Smart Dash, Calls, Leads, Contacts, Qualified pipeline, Calendar, Knowledge Bases, and basic reporting. We never gate your data." },
             { q: "How do AI voice minutes work?", a: "Each module includes a monthly allowance of AI voice minutes (e.g. Receptionist includes 60 mins/month). Overages are billed at a per-minute rate. The Pro Bundle includes 500 mins, Scale includes 1,500 mins." },
+            { q: "How does seat billing work on Executive Suite and above?", a: "Executive Suite includes 5 users in the base price. If you add a 6th user, you're charged £39/user/month for each additional seat. Business Command includes 15 users at £29/user/month extra. Seat counts are checked monthly and any overage is added to your next invoice." },
+            { q: "What happens when my team grows past the included seats?", a: "HiveMind monitors your seat utilisation in real time. At 80% capacity it will surface a recommendation. When you exceed your included seats, additional seat charges appear on your billing page automatically — no manual action needed." },
             { q: "Can I try before I buy?", a: "Yes — the Builder module is available as a standalone £97/mo plan so you can build and test your agents before committing to a full module stack." },
+            { q: "What's the difference between Pro Bundle and Executive Suite?", a: "Pro Bundle (£997/mo) is module-focused — it bundles all core AI capabilities with 500 voice minutes. Executive Suite (£1,970/mo) is people-focused — it's designed for leadership teams with seat-based access, executive briefings, strategy tools, and HiveMind intelligence baked in." },
             { q: "How does video and image generation work?", a: "The Video & Creative Studio module unlocks access to the studio. Generation itself is usage-based (credits) billed separately on top of the module fee." },
-            { q: "Can I have a custom plan?", a: "Yes — enterprise customers with specific requirements (white labelling, custom minute pools, dedicated support) should contact us to discuss a tailored arrangement." },
+            { q: "Can I have a custom plan?", a: "Yes — Enterprise customers with specific requirements (white labelling, custom minute pools, SSO, dedicated support) should contact us. We build tailored arrangements for large organisations." },
           ].map(item => (
             <FaqItem key={item.q} q={item.q} a={item.a} />
           ))}

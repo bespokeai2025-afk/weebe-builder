@@ -1,0 +1,361 @@
+PACKAGE EXPANSION + SEAT BILLING SYSTEM
+
+IMPORTANT
+
+Do not rebuild the existing package, module, billing, Stripe, permissions or workspace subscription system.
+
+Extend the current implementation safely.
+
+Continue from the existing package architecture.
+
+====================================================
+
+OBJECTIVE
+
+Introduce seat-based pricing above Executive Suite and create a clear upgrade path from SMB customers to enterprise customers.
+
+Add:
+
+Executive Suite
+Business Command
+Enterprise
+
+with seat management and seat billing.
+
+====================================================
+
+WEBEE EXECUTIVE SUITE
+
+Price:
+£1,970/month
+
+Purpose:
+
+Executive AI Operating System for founders, directors and leadership teams.
+
+Included Users:
+5
+
+Additional Users:
+£39/user/month
+
+Includes:
+
+HiveMind
+
+GrowthMind
+
+Strategy Centre
+
+Campaign Factory
+
+Content Studio
+
+SEO Centre
+
+Business DNA
+
+Opportunity Engine
+
+Analytics Intelligence
+
+Executive Briefings
+
+Action Approval Centre
+
+Marketing Recommendations
+
+Growth Reports
+
+Provider Health Visibility
+
+Basic SystemMind visibility
+
+====================================================
+
+WEBEE BUSINESS COMMAND
+
+Price:
+£3,970/month
+
+Purpose:
+
+Department-wide deployment across marketing, sales and operations teams.
+
+Included Users:
+15
+
+Additional Users:
+£29/user/month
+
+Includes:
+
+Everything in Executive Suite
+
+SystemMind
+
+AccountsMind
+
+Department Dashboards
+
+Approval Workflows
+
+Workflow Generator
+
+Advanced Reporting
+
+Board Reports
+
+Advanced Analytics
+
+Custom Roles
+
+Department Permissions
+
+Cross-Team Visibility
+
+Forecasting
+
+====================================================
+
+WEBEE ENTERPRISE
+
+Starting Price:
+£7,500/month
+
+Custom Pricing
+
+Purpose:
+
+Large organisations requiring enterprise controls, integrations and support.
+
+Includes:
+
+Everything in Business Command
+
+Unlimited Modules
+
+SSO
+
+White Labelling
+
+Custom Integrations
+
+Dedicated Success Manager
+
+SLA
+
+Advanced Security Controls
+
+Enterprise Reporting
+
+Custom Provider Routing
+
+Dedicated Infrastructure Options
+
+Private Knowledge Layers
+
+Custom AI Models
+
+Enterprise Governance Controls
+
+====================================================
+
+SEAT BILLING SYSTEM
+
+Add support for:
+
+included_users
+
+additional_user_price
+
+current_user_count
+
+seat_overage_cost
+
+seat_limit_warning_threshold
+
+====================================================
+
+WORKSPACE BILLING LOGIC
+
+Calculate:
+
+Base Package Cost
+
+*
+
+Additional User Cost
+
+=
+Monthly Subscription Total
+
+Example:
+
+Executive Suite
+
+5 included users
+
+9 active users
+
+Additional users:
+4
+
+4 × £39
+
+Additional charge:
+£156/month
+
+====================================================
+
+WORKSPACE BILLING PAGE
+
+Show:
+
+Current Package
+
+Included Users
+
+Active Users
+
+Additional Users
+
+Additional Seat Charges
+
+Estimated Monthly Cost
+
+Package Upgrade Options
+
+====================================================
+
+TEAM MANAGEMENT
+
+Extend:
+
+/settings/team
+
+Allow:
+
+Invite User
+
+Deactivate User
+
+Remove User
+
+View User Role
+
+View Seat Consumption
+
+====================================================
+
+UPGRADE PROMPTS
+
+If workspace exceeds:
+
+80% seat utilisation
+
+HiveMind should generate recommendation:
+
+"Your workspace is approaching seat capacity. Consider adding users or upgrading your package."
+
+If workspace exceeds:
+
+Included user count
+
+Show:
+
+Additional Seat Charges
+
+and upgrade recommendations.
+
+====================================================
+
+HIVEMIND INTEGRATION
+
+HiveMind should monitor:
+
+User Growth
+
+Department Growth
+
+Seat Utilisation
+
+Package Suitability
+
+Upsell Opportunities
+
+Enterprise Readiness
+
+Examples:
+
+"This workspace has grown from 4 users to 12 users in 60 days. Business Command may now be more cost effective."
+
+"This workspace is using 90% of Executive Suite capabilities and has requested custom permissions. Enterprise may be appropriate."
+
+====================================================
+
+ACCOUNTSMIND INTEGRATION
+
+AccountsMind should report:
+
+MRR
+
+ARR
+
+Seat Revenue
+
+Additional Seat Revenue
+
+Package Revenue
+
+Enterprise Revenue
+
+Upgrade Pipeline
+
+Expansion Revenue
+
+====================================================
+
+ADMIN DASHBOARD
+
+Show:
+
+Total Executive Suite Customers
+
+Total Business Command Customers
+
+Total Enterprise Customers
+
+Seat Revenue
+
+Package Revenue
+
+Expansion Revenue
+
+Largest Accounts
+
+Fastest Growing Accounts
+
+Upgrade Opportunities
+
+====================================================
+
+SUCCESS CRITERIA
+
+Executive Suite supports seat billing.
+
+Business Command exists above Executive Suite.
+
+Enterprise exists above Business Command.
+
+Workspace owners can manage seats.
+
+HiveMind can identify upgrade opportunities.
+
+AccountsMind can track seat revenue.
+
+Platform admins can monitor expansion revenue and enterprise readiness.
+
+Generate implementation plan first.
+
+Then implement safely without breaking the existing package system.
