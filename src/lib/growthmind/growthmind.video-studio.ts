@@ -2132,20 +2132,22 @@ export async function getVideoSummaryForHiveMind(
 }
 
 // ── Veo connection status ────────────────────────────────────────────────────
-export const getVeoStatus = createServerFn({ method: "GET" })
+export const getVeoStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const workspaceId = context.workspaceId;
     if (!workspaceId) return { connected: false };
 
     // Use supabaseAdmin (service role) to bypass RLS — credentials are server-side secrets
-    const { data } = await (supabaseAdmin as any)
+    const { data, error } = await (supabaseAdmin as any)
       .from("provider_settings")
       .select("credentials")
       .eq("workspace_id", workspaceId)
       .eq("provider_category", "video")
       .eq("provider_name", "google_veo")
       .maybeSingle();
+
+    console.log("[getVeoStatus] workspaceId=", workspaceId, "data=", JSON.stringify(data), "error=", error);
 
     const creds = data?.credentials ?? {};
     const hasGeminiKey =
@@ -2159,13 +2161,15 @@ export const getVeoStatus = createServerFn({ method: "GET" })
     const effectiveModel = storedModel || "veo-3.0-generate-preview";  // default is always Veo 3
     const audioCapable   = isAudioCapableModel(effectiveModel);
 
-    return {
+    const result = {
       connected: hasGeminiKey || hasVertexCreds,
       hasGeminiKey,
       hasVertexCreds,
       veoModel:     effectiveModel,
       audioCapable,
     };
+    console.log("[getVeoStatus] returning=", JSON.stringify(result));
+    return result;
   });
 
 // ── Get clips for a composite video asset ─────────────────────────────────────
