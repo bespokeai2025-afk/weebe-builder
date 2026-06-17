@@ -311,15 +311,19 @@ const getSyncHistory = createServerFn({ method: "GET" })
 // ── Trend data server fn ────────────────────────────────────────────────────────
 
 interface TrendPoint {
-  date:                string;
-  meta_spend?:         number;
-  google_spend?:       number;
-  meta_impressions?:   number;
-  google_impressions?: number;
-  meta_conversions?:   number;
-  google_conversions?: number;
-  meta_roas?:          number;
-  google_roas?:        number;
+  date:                 string;
+  meta_spend?:          number;
+  google_spend?:        number;
+  tiktok_spend?:        number;
+  meta_impressions?:    number;
+  google_impressions?:  number;
+  tiktok_impressions?:  number;
+  meta_conversions?:    number;
+  google_conversions?:  number;
+  tiktok_conversions?:  number;
+  meta_roas?:           number;
+  google_roas?:         number;
+  tiktok_roas?:         number;
 }
 
 const getAdsTrendData = createServerFn({ method: "GET" })
@@ -341,7 +345,7 @@ const getAdsTrendData = createServerFn({ method: "GET" })
     // value we take the LATEST row per (day, platform). Rows are fetched
     // ascending so later rows overwrite earlier ones in the accumulator.
     //
-    // Limit: 90d × 2 platforms × 96 syncs/day ≈ 17 000 rows worst-case.
+    // Limit: 90d × 3 platforms × 96 syncs/day ≈ 25 000 rows worst-case.
     // 50 000 covers this with room to spare.
     const [perfRes, roasRes] = await Promise.all([
       sb.from("growthmind_ad_sync_log")
@@ -349,6 +353,7 @@ const getAdsTrendData = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .eq("status", "success")
         .gte("synced_at", cutoff)
+        .in("platform", ["meta", "google", "tiktok"])
         .order("synced_at", { ascending: true })
         .limit(50_000),
 
@@ -359,6 +364,7 @@ const getAdsTrendData = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .not("roas", "is", null)
         .gte("synced_at", cutoff)
+        .in("platform", ["meta", "google", "tiktok"])
         .order("synced_at", { ascending: true })
         .limit(50_000),
     ]);
@@ -367,16 +373,17 @@ const getAdsTrendData = createServerFn({ method: "GET" })
     const roasRows: any[] = roasRes.data ?? [];
 
     type DayKey = string; // ISO date "2026-06-10"
+    type Platform = "meta" | "google" | "tiktok";
 
     // For spend/impressions/conversions: keep only the LATEST snapshot per
     // (day, platform). Iterating in ascending order means later rows win.
-    const latestSnap = new Map<`${DayKey}:${"meta" | "google"}`, {
+    const latestSnap = new Map<`${DayKey}:${Platform}`, {
       spend: number; impressions: number; conversions: number;
     }>();
 
     for (const r of perfRows) {
-      const platform = r.platform as "meta" | "google";
-      if (platform !== "meta" && platform !== "google") continue;
+      const platform = r.platform as Platform;
+      if (platform !== "meta" && platform !== "google" && platform !== "tiktok") continue;
       const day = r.synced_at.slice(0, 10) as DayKey;
       latestSnap.set(`${day}:${platform}`, {
         spend:       Number(r.spend_total        ?? 0),
@@ -386,13 +393,13 @@ const getAdsTrendData = createServerFn({ method: "GET" })
     }
 
     // For ROAS: average across all campaign records on that day/platform.
-    const roasAcc = new Map<`${DayKey}:${"meta" | "google"}`, { sum: number; count: number }>();
+    const roasAcc = new Map<`${DayKey}:${Platform}`, { sum: number; count: number }>();
 
     for (const r of roasRows) {
-      const platform = r.platform as "meta" | "google";
-      if (platform !== "meta" && platform !== "google") continue;
+      const platform = r.platform as Platform;
+      if (platform !== "meta" && platform !== "google" && platform !== "tiktok") continue;
       const day = r.synced_at.slice(0, 10) as DayKey;
-      const key = `${day}:${platform}` as const;
+      const key = `${day}:${platform}` as `${DayKey}:${Platform}`;
       const prev = roasAcc.get(key) ?? { sum: 0, count: 0 };
       roasAcc.set(key, { sum: prev.sum + Number(r.roas), count: prev.count + 1 });
     }
@@ -405,8 +412,10 @@ const getAdsTrendData = createServerFn({ method: "GET" })
     return [...allDays].sort().map(day => {
       const metaSnap   = latestSnap.get(`${day}:meta`);
       const googleSnap = latestSnap.get(`${day}:google`);
+      const tiktokSnap = latestSnap.get(`${day}:tiktok`);
       const metaRoas   = roasAcc.get(`${day}:meta`);
       const googleRoas = roasAcc.get(`${day}:google`);
+      const tiktokRoas = roasAcc.get(`${day}:tiktok`);
 
       const dt    = new Date(day + "T00:00:00Z");
       const label = dt.toLocaleDateString("en-GB", { month: "short", day: "numeric", timeZone: "UTC" });
@@ -415,8 +424,10 @@ const getAdsTrendData = createServerFn({ method: "GET" })
 
       if (metaSnap)   { point.meta_spend = +metaSnap.spend.toFixed(2); point.meta_impressions = metaSnap.impressions; point.meta_conversions = metaSnap.conversions; }
       if (googleSnap) { point.google_spend = +googleSnap.spend.toFixed(2); point.google_impressions = googleSnap.impressions; point.google_conversions = googleSnap.conversions; }
+      if (tiktokSnap) { point.tiktok_spend = +tiktokSnap.spend.toFixed(2); point.tiktok_impressions = tiktokSnap.impressions; point.tiktok_conversions = tiktokSnap.conversions; }
       if (metaRoas   && metaRoas.count   > 0) point.meta_roas   = +(metaRoas.sum   / metaRoas.count).toFixed(2);
       if (googleRoas && googleRoas.count > 0) point.google_roas = +(googleRoas.sum / googleRoas.count).toFixed(2);
+      if (tiktokRoas && tiktokRoas.count > 0) point.tiktok_roas = +(tiktokRoas.sum / tiktokRoas.count).toFixed(2);
 
       return point;
     });
@@ -805,36 +816,40 @@ type RangeDays = 7 | 30 | 90;
 
 const CHART_PANELS = [
   {
-    key:       "spend" as const,
-    label:     "Spend",
-    metaKey:   "meta_spend",
-    googleKey: "google_spend",
-    fmt:       (v: number) => `£${v.toLocaleString("en-GB", { maximumFractionDigits: 0 })}`,
-    yFmt:      (v: number) => `£${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`,
+    key:        "spend" as const,
+    label:      "Spend",
+    metaKey:    "meta_spend",
+    googleKey:  "google_spend",
+    tiktokKey:  "tiktok_spend",
+    fmt:        (v: number) => `£${v.toLocaleString("en-GB", { maximumFractionDigits: 0 })}`,
+    yFmt:       (v: number) => `£${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`,
   },
   {
-    key:       "roas" as const,
-    label:     "ROAS",
-    metaKey:   "meta_roas",
-    googleKey: "google_roas",
-    fmt:       (v: number) => `${v.toFixed(2)}x`,
-    yFmt:      (v: number) => `${v.toFixed(1)}x`,
+    key:        "roas" as const,
+    label:      "ROAS",
+    metaKey:    "meta_roas",
+    googleKey:  "google_roas",
+    tiktokKey:  "tiktok_roas",
+    fmt:        (v: number) => `${v.toFixed(2)}x`,
+    yFmt:       (v: number) => `${v.toFixed(1)}x`,
   },
   {
-    key:       "impressions" as const,
-    label:     "Impressions",
-    metaKey:   "meta_impressions",
-    googleKey: "google_impressions",
-    fmt:       (v: number) => v.toLocaleString("en-GB"),
-    yFmt:      (v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v),
+    key:        "impressions" as const,
+    label:      "Impressions",
+    metaKey:    "meta_impressions",
+    googleKey:  "google_impressions",
+    tiktokKey:  "tiktok_impressions",
+    fmt:        (v: number) => v.toLocaleString("en-GB"),
+    yFmt:       (v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v),
   },
   {
-    key:       "conversions" as const,
-    label:     "Conversions",
-    metaKey:   "meta_conversions",
-    googleKey: "google_conversions",
-    fmt:       (v: number) => v.toLocaleString("en-GB"),
-    yFmt:      (v: number) => String(v),
+    key:        "conversions" as const,
+    label:      "Conversions",
+    metaKey:    "meta_conversions",
+    googleKey:  "google_conversions",
+    tiktokKey:  "tiktok_conversions",
+    fmt:        (v: number) => v.toLocaleString("en-GB"),
+    yFmt:       (v: number) => String(v),
   },
 ] as const;
 
@@ -889,8 +904,9 @@ function AdsTrendCharts() {
           {CHART_PANELS.map(panel => {
             const hasMetaData   = points.some(p => (p as any)[panel.metaKey]   != null);
             const hasGoogleData = points.some(p => (p as any)[panel.googleKey] != null);
+            const hasTiktokData = points.some(p => (p as any)[panel.tiktokKey] != null);
 
-            if (!hasMetaData && !hasGoogleData) return null;
+            if (!hasMetaData && !hasGoogleData && !hasTiktokData) return null;
 
             return (
               <div key={panel.key} className="rounded-xl border border-white/[0.06] bg-card/40 p-4 space-y-3">
@@ -907,6 +923,10 @@ function AdsTrendCharts() {
                       <linearGradient id={`google-${panel.key}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%"  stopColor="#10b981" stopOpacity={0.25} />
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0}    />
+                      </linearGradient>
+                      <linearGradient id={`tiktok-${panel.key}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#e879f9" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#e879f9" stopOpacity={0}    />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -959,7 +979,19 @@ function AdsTrendCharts() {
                         connectNulls
                       />
                     )}
-                    {(hasMetaData || hasGoogleData) && (
+                    {hasTiktokData && (
+                      <Area
+                        type="monotone"
+                        dataKey={panel.tiktokKey}
+                        name="TikTok"
+                        stroke="#e879f9"
+                        strokeWidth={1.5}
+                        fill={`url(#tiktok-${panel.key})`}
+                        dot={false}
+                        connectNulls
+                      />
+                    )}
+                    {(hasMetaData || hasGoogleData || hasTiktokData) && (
                       <Legend
                         iconType="circle"
                         iconSize={6}
