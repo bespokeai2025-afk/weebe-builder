@@ -3,6 +3,7 @@ import { createServerFn, useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { ProviderCreditsBar } from "@/components/providers/ProviderCreditsBar";
 import {
   PageHeader,
   PanelCard,
@@ -339,6 +340,8 @@ function MarketingAnalyticsPage() {
           </Link>
         }
       />
+
+      <ProviderCreditsBar />
 
       {/* ── Tab bar ── */}
       <div className="flex gap-1 border-b border-white/[0.06]">

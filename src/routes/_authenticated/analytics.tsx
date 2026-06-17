@@ -45,6 +45,7 @@ import {
 } from "@/components/dashboard/PageShell";
 import { Button } from "@/components/ui/button";
 import { getRetellAnalytics } from "@/lib/dashboard/analytics.functions";
+import { ProviderCreditsBar } from "@/components/providers/ProviderCreditsBar";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
   head: () => ({ meta: [{ title: "Analytics — Webee" }] }),
@@ -371,6 +372,8 @@ function AnalyticsPage() {
           </div>
         }
       />
+
+      <ProviderCreditsBar />
 
       {result?.error && (
         <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
