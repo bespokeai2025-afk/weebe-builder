@@ -49,6 +49,7 @@ import { Route as AuthenticatedAnalyticsMarketingRouteImport } from './routes/_a
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedSystemmindIndexRouteImport } from './routes/_authenticated/systemmind.index'
+import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated/leads.index'
 import { Route as AuthenticatedKnowledgeCentreIndexRouteImport } from './routes/_authenticated/knowledge-centre.index'
 import { Route as AuthenticatedHivemindIndexRouteImport } from './routes/_authenticated/hivemind.index'
 import { Route as AuthenticatedHexmailIndexRouteImport } from './routes/_authenticated/hexmail.index'
@@ -433,6 +434,11 @@ const AuthenticatedSystemmindIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
+const AuthenticatedLeadsIndexRoute = AuthenticatedLeadsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedLeadsRoute,
+} as any)
 const AuthenticatedKnowledgeCentreIndexRoute =
   AuthenticatedKnowledgeCentreIndexRouteImport.update({
     id: '/',
@@ -1604,6 +1610,7 @@ export interface FileRoutesByFullPath {
   '/hexmail/': typeof AuthenticatedHexmailIndexRoute
   '/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
+  '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/systemmind/': typeof AuthenticatedSystemmindIndexRoute
   '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
@@ -1686,7 +1693,6 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/data': typeof AuthenticatedDataRoute
   '/follow-up': typeof AuthenticatedFollowUpRoute
-  '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -1815,6 +1821,7 @@ export interface FileRoutesByTo {
   '/hexmail': typeof AuthenticatedHexmailIndexRoute
   '/hivemind': typeof AuthenticatedHivemindIndexRoute
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreIndexRoute
+  '/leads': typeof AuthenticatedLeadsIndexRoute
   '/systemmind': typeof AuthenticatedSystemmindIndexRoute
   '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
@@ -2035,6 +2042,7 @@ export interface FileRoutesById {
   '/_authenticated/hexmail/': typeof AuthenticatedHexmailIndexRoute
   '/_authenticated/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/_authenticated/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
+  '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/_authenticated/systemmind/': typeof AuthenticatedSystemmindIndexRoute
   '/_authenticated/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/_authenticated/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
@@ -2255,6 +2263,7 @@ export interface FileRouteTypes {
     | '/hexmail/'
     | '/hivemind/'
     | '/knowledge-centre/'
+    | '/leads/'
     | '/systemmind/'
     | '/admin/accounts/alerts'
     | '/admin/accounts/clients'
@@ -2337,7 +2346,6 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/data'
     | '/follow-up'
-    | '/leads'
     | '/my-agents'
     | '/phone-numbers'
     | '/pipeline'
@@ -2466,6 +2474,7 @@ export interface FileRouteTypes {
     | '/hexmail'
     | '/hivemind'
     | '/knowledge-centre'
+    | '/leads'
     | '/systemmind'
     | '/admin/accounts/alerts'
     | '/admin/accounts/clients'
@@ -2685,6 +2694,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hexmail/'
     | '/_authenticated/hivemind/'
     | '/_authenticated/knowledge-centre/'
+    | '/_authenticated/leads/'
     | '/_authenticated/systemmind/'
     | '/_authenticated/admin/accounts/alerts'
     | '/_authenticated/admin/accounts/clients'
@@ -3115,6 +3125,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/systemmind/'
       preLoaderRoute: typeof AuthenticatedSystemmindIndexRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/leads/': {
+      id: '/_authenticated/leads/'
+      path: '/'
+      fullPath: '/leads/'
+      preLoaderRoute: typeof AuthenticatedLeadsIndexRouteImport
+      parentRoute: typeof AuthenticatedLeadsRoute
     }
     '/_authenticated/knowledge-centre/': {
       id: '/_authenticated/knowledge-centre/'
@@ -4603,10 +4620,12 @@ const AuthenticatedKnowledgeCentreRouteWithChildren =
 
 interface AuthenticatedLeadsRouteChildren {
   AuthenticatedLeadsWebformsRoute: typeof AuthenticatedLeadsWebformsRoute
+  AuthenticatedLeadsIndexRoute: typeof AuthenticatedLeadsIndexRoute
 }
 
 const AuthenticatedLeadsRouteChildren: AuthenticatedLeadsRouteChildren = {
   AuthenticatedLeadsWebformsRoute: AuthenticatedLeadsWebformsRoute,
+  AuthenticatedLeadsIndexRoute: AuthenticatedLeadsIndexRoute,
 }
 
 const AuthenticatedLeadsRouteWithChildren =

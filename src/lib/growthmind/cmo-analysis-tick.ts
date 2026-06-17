@@ -43,13 +43,13 @@ async function tickWorkspace(
   todayStart.setHours(0, 0, 0, 0);
   const todayIso = todayStart.toISOString();
 
-  const { data: recent } = await (sb as any)
+  const { data: recent } = await Promise.resolve((sb as any)
     .from("growthmind_service_scores")
     .select("computed_at")
     .eq("workspace_id", workspaceId)
     .gte("computed_at", todayIso)
     .limit(1)
-    .catch(() => ({ data: null }));
+  ).catch(() => ({ data: null }));
 
   if (recent && (recent as any[]).length > 0) {
     return { ...base, skipped: true, skipReason: "already_ran_today", ran: false };
@@ -161,10 +161,10 @@ export async function runCMOAnalysisTick(): Promise<CMOTickReport> {
   const sb = createClient(supabaseUrl, serviceRoleKey);
 
   // Find all workspaces with Business DNA (signals active GrowthMind usage)
-  const { data: dnaRows, error: dnaErr } = await (sb as any)
+  const { data: dnaRows, error: dnaErr } = await Promise.resolve((sb as any)
     .from("growthmind_business_dna")
     .select("workspace_id")
-    .catch(() => ({ data: null, error: "query failed" }));
+  ).catch(() => ({ data: null, error: "query failed" }));
 
   if (dnaErr || !dnaRows) {
     return { ran: [], skipped: [], failed: [], error: String(dnaErr ?? "No data") };
