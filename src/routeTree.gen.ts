@@ -137,6 +137,8 @@ import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
 import { Route as AuthenticatedAdminPlatformKnowledgeRouteImport } from './routes/_authenticated/admin.platform-knowledge'
 import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
+import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin.accounts'
+import { Route as AuthenticatedAdminAccountsIndexRouteImport } from './routes/_authenticated/admin.accounts.index'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
@@ -176,10 +178,17 @@ import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
 import { Route as AuthenticatedSettingsProvidersCategoryRouteImport } from './routes/_authenticated/settings.providers.$category'
+import { Route as AuthenticatedAdminAccountsSettingsRouteImport } from './routes/_authenticated/admin.accounts.settings'
+import { Route as AuthenticatedAdminAccountsRechargesRouteImport } from './routes/_authenticated/admin.accounts.recharges'
+import { Route as AuthenticatedAdminAccountsProfitabilityRouteImport } from './routes/_authenticated/admin.accounts.profitability'
+import { Route as AuthenticatedAdminAccountsCostsRouteImport } from './routes/_authenticated/admin.accounts.costs'
+import { Route as AuthenticatedAdminAccountsClientsRouteImport } from './routes/_authenticated/admin.accounts.clients'
+import { Route as AuthenticatedAdminAccountsAlertsRouteImport } from './routes/_authenticated/admin.accounts.alerts'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
 import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
 import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
 import { Route as ApiPublicPaymentsWebhookHealthRouteImport } from './routes/api/public/payments/webhook.health'
+import { Route as AuthenticatedAdminAccountsWorkspaceIdRouteImport } from './routes/_authenticated/admin.accounts.workspace.$id'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -904,6 +913,18 @@ const AuthenticatedAdminCostEngineRoute =
     path: '/cost-engine',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminAccountsRoute =
+  AuthenticatedAdminAccountsRouteImport.update({
+    id: '/accounts',
+    path: '/accounts',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminAccountsIndexRoute =
+  AuthenticatedAdminAccountsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
 const LovableEmailTransactionalSendRoute =
   LovableEmailTransactionalSendRouteImport.update({
     id: '/lovable/email/transactional/send',
@@ -1128,6 +1149,42 @@ const AuthenticatedSettingsProvidersCategoryRoute =
     path: '/$category',
     getParentRoute: () => AuthenticatedSettingsProvidersRoute,
   } as any)
+const AuthenticatedAdminAccountsSettingsRoute =
+  AuthenticatedAdminAccountsSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
+const AuthenticatedAdminAccountsRechargesRoute =
+  AuthenticatedAdminAccountsRechargesRouteImport.update({
+    id: '/recharges',
+    path: '/recharges',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
+const AuthenticatedAdminAccountsProfitabilityRoute =
+  AuthenticatedAdminAccountsProfitabilityRouteImport.update({
+    id: '/profitability',
+    path: '/profitability',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
+const AuthenticatedAdminAccountsCostsRoute =
+  AuthenticatedAdminAccountsCostsRouteImport.update({
+    id: '/costs',
+    path: '/costs',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
+const AuthenticatedAdminAccountsClientsRoute =
+  AuthenticatedAdminAccountsClientsRouteImport.update({
+    id: '/clients',
+    path: '/clients',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
+const AuthenticatedAdminAccountsAlertsRoute =
+  AuthenticatedAdminAccountsAlertsRouteImport.update({
+    id: '/alerts',
+    path: '/alerts',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
 const ApiRuntimeAgentIdExportRoute = ApiRuntimeAgentIdExportRouteImport.update({
   id: '/export',
   path: '/export',
@@ -1150,6 +1207,12 @@ const ApiPublicPaymentsWebhookHealthRoute =
     id: '/health',
     path: '/health',
     getParentRoute: () => ApiPublicPaymentsWebhookRoute,
+  } as any)
+const AuthenticatedAdminAccountsWorkspaceIdRoute =
+  AuthenticatedAdminAccountsWorkspaceIdRouteImport.update({
+    id: '/workspace/$id',
+    path: '/workspace/$id',
+    getParentRoute: () => AuthenticatedAdminAccountsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -1188,6 +1251,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/upload/$token': typeof UploadTokenRoute
+  '/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
   '/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
@@ -1280,6 +1344,12 @@ export interface FileRoutesByFullPath {
   '/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/systemmind/': typeof AuthenticatedSystemmindIndexRoute
+  '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
+  '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
+  '/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
+  '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
+  '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
+  '/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -1319,6 +1389,8 @@ export interface FileRoutesByFullPath {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/admin/accounts/': typeof AuthenticatedAdminAccountsIndexRoute
+  '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -1447,6 +1519,12 @@ export interface FileRoutesByTo {
   '/hivemind': typeof AuthenticatedHivemindIndexRoute
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/systemmind': typeof AuthenticatedSystemmindIndexRoute
+  '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
+  '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
+  '/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
+  '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
+  '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
+  '/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -1486,6 +1564,8 @@ export interface FileRoutesByTo {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/admin/accounts': typeof AuthenticatedAdminAccountsIndexRoute
+  '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -1529,6 +1609,7 @@ export interface FileRoutesById {
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/upload/$token': typeof UploadTokenRoute
+  '/_authenticated/admin/accounts': typeof AuthenticatedAdminAccountsRouteWithChildren
   '/_authenticated/admin/cost-engine': typeof AuthenticatedAdminCostEngineRoute
   '/_authenticated/admin/platform-knowledge': typeof AuthenticatedAdminPlatformKnowledgeRoute
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
@@ -1621,6 +1702,12 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/': typeof AuthenticatedHivemindIndexRoute
   '/_authenticated/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/_authenticated/systemmind/': typeof AuthenticatedSystemmindIndexRoute
+  '/_authenticated/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
+  '/_authenticated/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
+  '/_authenticated/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
+  '/_authenticated/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
+  '/_authenticated/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
+  '/_authenticated/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
   '/_authenticated/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
@@ -1660,6 +1747,8 @@ export interface FileRoutesById {
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
+  '/_authenticated/admin/accounts/': typeof AuthenticatedAdminAccountsIndexRoute
+  '/_authenticated/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
@@ -1703,6 +1792,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/upload/$token'
+    | '/admin/accounts'
     | '/admin/cost-engine'
     | '/admin/platform-knowledge'
     | '/admin/user-activity'
@@ -1795,6 +1885,12 @@ export interface FileRouteTypes {
     | '/hivemind/'
     | '/knowledge-centre/'
     | '/systemmind/'
+    | '/admin/accounts/alerts'
+    | '/admin/accounts/clients'
+    | '/admin/accounts/costs'
+    | '/admin/accounts/profitability'
+    | '/admin/accounts/recharges'
+    | '/admin/accounts/settings'
     | '/settings/providers/$category'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
@@ -1834,6 +1930,8 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/admin/accounts/'
+    | '/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -1962,6 +2060,12 @@ export interface FileRouteTypes {
     | '/hivemind'
     | '/knowledge-centre'
     | '/systemmind'
+    | '/admin/accounts/alerts'
+    | '/admin/accounts/clients'
+    | '/admin/accounts/costs'
+    | '/admin/accounts/profitability'
+    | '/admin/accounts/recharges'
+    | '/admin/accounts/settings'
     | '/settings/providers/$category'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
@@ -2001,6 +2105,8 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/admin/accounts'
+    | '/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -2043,6 +2149,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/email/unsubscribe'
     | '/upload/$token'
+    | '/_authenticated/admin/accounts'
     | '/_authenticated/admin/cost-engine'
     | '/_authenticated/admin/platform-knowledge'
     | '/_authenticated/admin/user-activity'
@@ -2135,6 +2242,12 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/'
     | '/_authenticated/knowledge-centre/'
     | '/_authenticated/systemmind/'
+    | '/_authenticated/admin/accounts/alerts'
+    | '/_authenticated/admin/accounts/clients'
+    | '/_authenticated/admin/accounts/costs'
+    | '/_authenticated/admin/accounts/profitability'
+    | '/_authenticated/admin/accounts/recharges'
+    | '/_authenticated/admin/accounts/settings'
     | '/_authenticated/settings/providers/$category'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
@@ -2174,6 +2287,8 @@ export interface FileRouteTypes {
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
+    | '/_authenticated/admin/accounts/'
+    | '/_authenticated/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
@@ -3143,6 +3258,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminCostEngineRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/accounts': {
+      id: '/_authenticated/admin/accounts'
+      path: '/accounts'
+      fullPath: '/admin/accounts'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/accounts/': {
+      id: '/_authenticated/admin/accounts/'
+      path: '/'
+      fullPath: '/admin/accounts/'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
     '/lovable/email/transactional/send': {
       id: '/lovable/email/transactional/send'
       path: '/lovable/email/transactional/send'
@@ -3416,6 +3545,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsProvidersCategoryRouteImport
       parentRoute: typeof AuthenticatedSettingsProvidersRoute
     }
+    '/_authenticated/admin/accounts/settings': {
+      id: '/_authenticated/admin/accounts/settings'
+      path: '/settings'
+      fullPath: '/admin/accounts/settings'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsSettingsRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
+    '/_authenticated/admin/accounts/recharges': {
+      id: '/_authenticated/admin/accounts/recharges'
+      path: '/recharges'
+      fullPath: '/admin/accounts/recharges'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsRechargesRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
+    '/_authenticated/admin/accounts/profitability': {
+      id: '/_authenticated/admin/accounts/profitability'
+      path: '/profitability'
+      fullPath: '/admin/accounts/profitability'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsProfitabilityRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
+    '/_authenticated/admin/accounts/costs': {
+      id: '/_authenticated/admin/accounts/costs'
+      path: '/costs'
+      fullPath: '/admin/accounts/costs'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsCostsRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
+    '/_authenticated/admin/accounts/clients': {
+      id: '/_authenticated/admin/accounts/clients'
+      path: '/clients'
+      fullPath: '/admin/accounts/clients'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsClientsRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
+    '/_authenticated/admin/accounts/alerts': {
+      id: '/_authenticated/admin/accounts/alerts'
+      path: '/alerts'
+      fullPath: '/admin/accounts/alerts'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsAlertsRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
     '/api/runtime/agent/$id/export': {
       id: '/api/runtime/agent/$id/export'
       path: '/export'
@@ -3444,10 +3615,52 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookHealthRouteImport
       parentRoute: typeof ApiPublicPaymentsWebhookRoute
     }
+    '/_authenticated/admin/accounts/workspace/$id': {
+      id: '/_authenticated/admin/accounts/workspace/$id'
+      path: '/workspace/$id'
+      fullPath: '/admin/accounts/workspace/$id'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsWorkspaceIdRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsRoute
+    }
   }
 }
 
+interface AuthenticatedAdminAccountsRouteChildren {
+  AuthenticatedAdminAccountsAlertsRoute: typeof AuthenticatedAdminAccountsAlertsRoute
+  AuthenticatedAdminAccountsClientsRoute: typeof AuthenticatedAdminAccountsClientsRoute
+  AuthenticatedAdminAccountsCostsRoute: typeof AuthenticatedAdminAccountsCostsRoute
+  AuthenticatedAdminAccountsProfitabilityRoute: typeof AuthenticatedAdminAccountsProfitabilityRoute
+  AuthenticatedAdminAccountsRechargesRoute: typeof AuthenticatedAdminAccountsRechargesRoute
+  AuthenticatedAdminAccountsSettingsRoute: typeof AuthenticatedAdminAccountsSettingsRoute
+  AuthenticatedAdminAccountsIndexRoute: typeof AuthenticatedAdminAccountsIndexRoute
+  AuthenticatedAdminAccountsWorkspaceIdRoute: typeof AuthenticatedAdminAccountsWorkspaceIdRoute
+}
+
+const AuthenticatedAdminAccountsRouteChildren: AuthenticatedAdminAccountsRouteChildren =
+  {
+    AuthenticatedAdminAccountsAlertsRoute:
+      AuthenticatedAdminAccountsAlertsRoute,
+    AuthenticatedAdminAccountsClientsRoute:
+      AuthenticatedAdminAccountsClientsRoute,
+    AuthenticatedAdminAccountsCostsRoute: AuthenticatedAdminAccountsCostsRoute,
+    AuthenticatedAdminAccountsProfitabilityRoute:
+      AuthenticatedAdminAccountsProfitabilityRoute,
+    AuthenticatedAdminAccountsRechargesRoute:
+      AuthenticatedAdminAccountsRechargesRoute,
+    AuthenticatedAdminAccountsSettingsRoute:
+      AuthenticatedAdminAccountsSettingsRoute,
+    AuthenticatedAdminAccountsIndexRoute: AuthenticatedAdminAccountsIndexRoute,
+    AuthenticatedAdminAccountsWorkspaceIdRoute:
+      AuthenticatedAdminAccountsWorkspaceIdRoute,
+  }
+
+const AuthenticatedAdminAccountsRouteWithChildren =
+  AuthenticatedAdminAccountsRoute._addFileChildren(
+    AuthenticatedAdminAccountsRouteChildren,
+  )
+
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminAccountsRoute: typeof AuthenticatedAdminAccountsRouteWithChildren
   AuthenticatedAdminCostEngineRoute: typeof AuthenticatedAdminCostEngineRoute
   AuthenticatedAdminPlatformKnowledgeRoute: typeof AuthenticatedAdminPlatformKnowledgeRoute
   AuthenticatedAdminUserActivityRoute: typeof AuthenticatedAdminUserActivityRoute
@@ -3456,6 +3669,7 @@ interface AuthenticatedAdminRouteChildren {
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminAccountsRoute: AuthenticatedAdminAccountsRouteWithChildren,
   AuthenticatedAdminCostEngineRoute: AuthenticatedAdminCostEngineRoute,
   AuthenticatedAdminPlatformKnowledgeRoute:
     AuthenticatedAdminPlatformKnowledgeRoute,

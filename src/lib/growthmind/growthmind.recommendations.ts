@@ -330,6 +330,47 @@ export function generateGrowthRecommendations(data: any): GrowthRecommendation[]
     });
   }
 
+  // ── AccountsMind: profitability-aware campaign guardrails ─────────────────
+  // `data.profitability` is optionally injected by buildGrowthMindData
+  // when AccountsMind cost data is available. Gracefully no-ops otherwise.
+  const profitability = data?.profitability;
+  if (profitability) {
+    const margin      = profitability.grossMarginPercent ?? null;
+    const chargeCents = profitability.monthlyChargeCents ?? 0;
+    const costCents   = profitability.totalCostCents     ?? 0;
+
+    if (margin !== null && margin < 0 && chargeCents > 0) {
+      recs.push({
+        id:       "accountsmind-loss-making",
+        category: "Profitability",
+        priority: "critical",
+        problem:  `This client is currently loss-making — margin is ${margin.toFixed(1)}%`,
+        impact:   `Provider costs (£${(costCents / 100).toFixed(2)}) exceed the monthly charge (£${(chargeCents / 100).toFixed(2)}). Adding more campaigns will deepen the loss.`,
+        fix:      "Pause non-essential campaigns and review provider spend before launching any new marketing initiatives. Contact AccountsMind for a pricing review.",
+        action:   { href: "/admin/accounts", label: "Open AccountsMind" },
+      });
+    } else if (margin !== null && margin < 20 && margin >= 0 && chargeCents > 0) {
+      recs.push({
+        id:       "accountsmind-low-margin",
+        category: "Profitability",
+        priority: "high",
+        problem:  `Client margin is low at ${margin.toFixed(1)}% — expensive campaigns risk turning this account into a loss`,
+        impact:   `With only £${((chargeCents - costCents) / 100).toFixed(2)} gross profit, high-cost channels (video ads, WhatsApp blasts) could erode profitability further.`,
+        fix:      "Prioritise low-cost channels (email, organic SEO) over paid and video campaigns until margin improves above 30%.",
+        action:   { href: "/admin/accounts", label: "View AccountsMind" },
+      });
+    }
+
+    // Warn if recommending video campaigns for low-margin client
+    if (margin !== null && margin < 25 && chargeCents > 0) {
+      const videoRec = recs.find((r) => r.id?.includes("video") || r.category?.toLowerCase().includes("video"));
+      if (videoRec) {
+        videoRec.problem = `⚠️ Profitability warning — ${videoRec.problem}`;
+        videoRec.fix     = `${videoRec.fix} Note: current client margin is ${margin.toFixed(1)}% — confirm budget headroom before launching video campaigns.`;
+      }
+    }
+  }
+
   const order: Record<GrowthPriority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
   return recs.sort((a, b) => order[a.priority] - order[b.priority]);
 }

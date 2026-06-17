@@ -825,6 +825,82 @@ export const generateOperatorActions = createServerFn({ method: "POST" })
       }
     } catch { /* graceful — strategy centre tables may not exist yet */ }
 
+    // ── AccountsMind: margin risks, loss-making clients, recharge events ──────
+    try {
+      const now          = new Date();
+      const monthStr     = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+
+      const [costRes, alertsRes] = await Promise.all([
+        sb
+          .from("client_monthly_costs")
+          .select("gross_margin_percent,gross_profit_cents,monthly_charge_cents,total_cost_cents")
+          .eq("workspace_id", workspaceId)
+          .eq("month", monthStr)
+          .maybeSingle()
+          .catch(() => ({ data: null })),
+        sb
+          .from("accountsmind_alerts")
+          .select("id,severity,title,message,alert_type")
+          .eq("workspace_id", workspaceId)
+          .eq("status", "open")
+          .in("severity", ["critical", "warning"])
+          .order("created_at", { ascending: false })
+          .limit(3)
+          .catch(() => ({ data: [] })),
+      ]);
+
+      const costs  = costRes.data;
+      const accountsAlerts = alertsRes.data ?? [];
+
+      // Low-margin / loss-making client
+      if (costs && costs.monthly_charge_cents > 0) {
+        const margin = costs.gross_margin_percent ?? 0;
+        if (margin < 20 && !pendingTypes.has("review_client_pricing")) {
+          const isLoss = margin < 0;
+          const profitStr = `£${Math.abs((costs.gross_profit_cents ?? 0) / 100).toFixed(2)}`;
+          const chargeStr = `£${((costs.monthly_charge_cents ?? 0) / 100).toFixed(2)}`;
+          const costStr   = `£${((costs.total_cost_cents ?? 0) / 100).toFixed(2)}`;
+          proposed.push({
+            workspace_id:   workspaceId,
+            title:          isLoss
+              ? `AccountsMind: This client is loss-making (margin ${margin.toFixed(1)}%)`
+              : `AccountsMind: Low client margin detected — ${margin.toFixed(1)}%`,
+            description:    `Monthly charge ${chargeStr} against provider costs of ${costStr}. ${isLoss ? `Loss of ${profitStr}.` : `Gross profit ${profitStr}.`} AccountsMind recommends reviewing pricing, pausing overage-heavy campaigns, or adjusting the service plan.`,
+            action_type:    "review_client_pricing",
+            action_payload: {
+              workspace_id:       workspaceId,
+              gross_margin_pct:   margin,
+              monthly_charge:     costs.monthly_charge_cents,
+              total_cost:         costs.total_cost_cents,
+              recommended_action: isLoss ? "Increase price or reduce provider usage" : "Review pricing at next contract renewal",
+            },
+            proposed_by: "hivemind",
+            status:      "pending",
+          });
+        }
+      }
+
+      // Surface critical AccountsMind alerts as HiveMind tasks
+      for (const alert of accountsAlerts) {
+        if (!pendingTypes.has("create_task")) {
+          proposed.push({
+            workspace_id:   workspaceId,
+            title:          `AccountsMind Alert: ${alert.title}`,
+            description:    `${alert.message} Review in AccountsMind → Alerts for details and recommended actions.`,
+            action_type:    "create_task",
+            action_payload: {
+              title:        alert.title,
+              description:  alert.message,
+              priority:     alert.severity === "critical" ? "high" : "medium",
+              trigger_type: `accountsmind_${alert.alert_type ?? "alert"}`,
+            },
+            proposed_by: "hivemind",
+            status:      "pending",
+          });
+        }
+      }
+    } catch { /* graceful — accountsmind tables may not exist yet */ }
+
     if (proposed.length > 0) {
       await sb.from("hivemind_actions").insert(proposed);
     }
