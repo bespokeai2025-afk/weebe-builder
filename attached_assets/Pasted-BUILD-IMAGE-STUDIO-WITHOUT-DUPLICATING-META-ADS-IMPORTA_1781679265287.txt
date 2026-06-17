@@ -1,0 +1,227 @@
+BUILD IMAGE STUDIO WITHOUT DUPLICATING META ADS
+
+IMPORTANT
+
+Do not duplicate the Meta Ads tab.
+
+Do not create a second Meta campaign manager.
+
+Do not create duplicate ad campaign tables if equivalent campaign/ad tables already exist.
+
+Use existing GrowthMind Campaign Factory and Meta Ads architecture where available.
+
+OBJECTIVE
+
+Build Image Studio as a creative asset engine only.
+
+Image Studio should create and edit image assets.
+
+Meta Ads should manage ad campaigns, audiences, budgets, publishing and performance.
+
+Campaign Factory should connect both together.
+
+CORRECT ARCHITECTURE
+
+GrowthMind Strategy Centre
+↓
+Campaign Factory
+↓
+Creative Assets
+   ├── Image Studio
+   └── Video Studio
+↓
+Meta Ads / Google Ads / LinkedIn Ads
+↓
+Performance Analytics
+↓
+GrowthMind Optimisation
+
+IMAGE STUDIO RESPONSIBILITY
+
+Image Studio should handle:
+
+Generate ad creatives
+Generate social images
+Generate product images
+Generate blog images
+Generate landing page hero images
+Edit images
+Create variations
+Store image assets
+Tag assets to campaigns
+
+IMAGE STUDIO SHOULD NOT HANDLE:
+
+Meta campaign launch
+Ad account setup
+Audience targeting
+Budget setting
+Ad set creation
+Pixel/conversion setup
+Meta performance reporting
+Campaign optimisation
+
+Those belong in Meta Ads / Ads Manager pages.
+
+DATABASE RULE
+
+Before creating any new table, audit existing tables for:
+
+growthmind_campaigns
+growthmind_campaign_drafts
+growthmind_strategy_assets
+growthmind_ad_creatives
+growthmind_image_assets
+growthmind_ads_accounts
+growthmind_campaign_performance
+
+If an equivalent table exists, extend it safely instead of duplicating it.
+
+CREATE ONLY IF MISSING:
+
+growthmind_image_assets
+
+Purpose:
+Store reusable image assets, not ad campaigns.
+
+Required fields:
+
+id
+workspace_id
+campaign_id nullable
+strategy_id nullable
+content_asset_id nullable
+provider
+prompt
+image_url
+thumbnail_url
+status
+knowledge_context_type
+knowledge_context_id
+business_name
+asset_type
+platform_hint
+created_at
+updated_at
+
+META ADS RELATIONSHIP
+
+Image assets may be attached to Meta campaigns.
+
+Add:
+
+campaign_id
+platform_hint = meta
+
+But do not create Meta campaign logic inside Image Studio.
+
+CAMPAIGN FACTORY INTEGRATION
+
+Campaign Factory should be the bridge.
+
+When creating a Meta campaign draft, allow:
+
+Generate copy
+Generate image creative
+Generate video creative
+Attach existing image
+Attach existing video
+
+The Meta Ads tab should then use those assets when publishing.
+
+CONTENT STUDIO INTEGRATION
+
+Content Studio can request:
+
+Featured image
+Social image
+Ad image
+
+but the generated image should be stored once in the image asset library and linked back to the content item.
+
+IMAGE LIBRARY
+
+Create or extend:
+
+/growthmind/image-library
+
+Show all image assets.
+
+Filters:
+
+Campaign
+Platform
+Asset Type
+Provider
+Business Context
+
+Allow:
+
+View
+Download
+Edit
+Create Variation
+Attach to Campaign
+Attach to Content
+Send to Meta Campaign Draft
+
+PROVIDER USAGE
+
+Use existing Provider Framework.
+
+Primary:
+GPT Image
+
+Fallback:
+Imagen
+
+Future:
+Flux
+Midjourney
+
+KNOWLEDGE CONTEXT
+
+Use the same Knowledge Context Selector as Video Studio.
+
+Current Business
+Selected Knowledge Base
+Client Context
+Custom Campaign Context
+
+HIVEMIND / GROWTHMIND VISIBILITY
+
+HiveMind should see:
+
+Images created
+Images attached to campaigns
+Images used in Meta Ads
+Image costs
+Creative gaps
+
+GrowthMind should recommend:
+
+Create image variants
+Replace weak creative
+Generate Meta ad creative
+Generate campaign creative pack
+
+SUCCESS CRITERIA
+
+Image Studio creates reusable image assets.
+
+Meta Ads tab remains the only place for Meta ad deployment.
+
+Campaign Factory connects strategy, copy, image, video and ad deployment.
+
+No duplicate campaign systems are created.
+
+No duplicate Meta Ads logic is created.
+
+Generate implementation plan first.
+
+Before coding, explicitly list:
+
+Existing tables reused
+Existing routes reused
+New tables only if required
+How Image Studio connects to Meta Ads without duplicating it
