@@ -16,12 +16,21 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function assertAdmin(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await (supabaseAdmin as any)
+  // Check profiles.user_type first (consistent with frontend admin gate in admin.tsx),
+  // then fall back to user_roles for legacy support.
+  const { data: profile } = await (supabaseAdmin as any)
+    .from("profiles")
+    .select("user_type")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (profile?.user_type === "admin") return;
+
+  const { data: roles } = await (supabaseAdmin as any)
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
     .eq("role", "admin");
-  if (!data || data.length === 0) throw new Error("Forbidden");
+  if (!roles || roles.length === 0) throw new Error("Forbidden");
 }
 
 // ── OpenAI mini helper (local, server-only) ───────────────────────────────────
