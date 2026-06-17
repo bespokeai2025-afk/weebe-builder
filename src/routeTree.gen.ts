@@ -163,6 +163,7 @@ import { Route as ApiV1GrowthmindRecommendationsRouteImport } from './routes/api
 import { Route as ApiV1ContactsIdRouteImport } from './routes/api/v1/contacts.$id'
 import { Route as ApiV1CampaignsPerformanceRouteImport } from './routes/api/v1/campaigns.performance'
 import { Route as ApiV1CallsAnalyticsRouteImport } from './routes/api/v1/calls.analytics'
+import { Route as ApiV1CallsIdRouteImport } from './routes/api/v1/calls.$id'
 import { Route as ApiV1BookingsIdRouteImport } from './routes/api/v1/bookings.$id'
 import { Route as ApiV1AgentsTestRouteImport } from './routes/api/v1/agents.test'
 import { Route as ApiV1AgentsDeployRouteImport } from './routes/api/v1/agents.deploy'
@@ -1074,6 +1075,11 @@ const ApiV1CallsAnalyticsRoute = ApiV1CallsAnalyticsRouteImport.update({
   path: '/analytics',
   getParentRoute: () => ApiV1CallsRoute,
 } as any)
+const ApiV1CallsIdRoute = ApiV1CallsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiV1CallsRoute,
+} as any)
 const ApiV1BookingsIdRoute = ApiV1BookingsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -1544,6 +1550,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/agents/deploy': typeof ApiV1AgentsDeployRoute
   '/api/v1/agents/test': typeof ApiV1AgentsTestRoute
   '/api/v1/bookings/$id': typeof ApiV1BookingsIdRoute
+  '/api/v1/calls/$id': typeof ApiV1CallsIdRoute
   '/api/v1/calls/analytics': typeof ApiV1CallsAnalyticsRoute
   '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
   '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
@@ -1742,6 +1749,7 @@ export interface FileRoutesByTo {
   '/api/v1/agents/deploy': typeof ApiV1AgentsDeployRoute
   '/api/v1/agents/test': typeof ApiV1AgentsTestRoute
   '/api/v1/bookings/$id': typeof ApiV1BookingsIdRoute
+  '/api/v1/calls/$id': typeof ApiV1CallsIdRoute
   '/api/v1/calls/analytics': typeof ApiV1CallsAnalyticsRoute
   '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
   '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
@@ -1948,6 +1956,7 @@ export interface FileRoutesById {
   '/api/v1/agents/deploy': typeof ApiV1AgentsDeployRoute
   '/api/v1/agents/test': typeof ApiV1AgentsTestRoute
   '/api/v1/bookings/$id': typeof ApiV1BookingsIdRoute
+  '/api/v1/calls/$id': typeof ApiV1CallsIdRoute
   '/api/v1/calls/analytics': typeof ApiV1CallsAnalyticsRoute
   '/api/v1/campaigns/performance': typeof ApiV1CampaignsPerformanceRoute
   '/api/v1/contacts/$id': typeof ApiV1ContactsIdRoute
@@ -2154,6 +2163,7 @@ export interface FileRouteTypes {
     | '/api/v1/agents/deploy'
     | '/api/v1/agents/test'
     | '/api/v1/bookings/$id'
+    | '/api/v1/calls/$id'
     | '/api/v1/calls/analytics'
     | '/api/v1/campaigns/performance'
     | '/api/v1/contacts/$id'
@@ -2352,6 +2362,7 @@ export interface FileRouteTypes {
     | '/api/v1/agents/deploy'
     | '/api/v1/agents/test'
     | '/api/v1/bookings/$id'
+    | '/api/v1/calls/$id'
     | '/api/v1/calls/analytics'
     | '/api/v1/campaigns/performance'
     | '/api/v1/contacts/$id'
@@ -2557,6 +2568,7 @@ export interface FileRouteTypes {
     | '/api/v1/agents/deploy'
     | '/api/v1/agents/test'
     | '/api/v1/bookings/$id'
+    | '/api/v1/calls/$id'
     | '/api/v1/calls/analytics'
     | '/api/v1/campaigns/performance'
     | '/api/v1/contacts/$id'
@@ -3734,6 +3746,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1CallsAnalyticsRouteImport
       parentRoute: typeof ApiV1CallsRoute
     }
+    '/api/v1/calls/$id': {
+      id: '/api/v1/calls/$id'
+      path: '/$id'
+      fullPath: '/api/v1/calls/$id'
+      preLoaderRoute: typeof ApiV1CallsIdRouteImport
+      parentRoute: typeof ApiV1CallsRoute
+    }
     '/api/v1/bookings/$id': {
       id: '/api/v1/bookings/$id'
       path: '/$id'
@@ -4522,10 +4541,12 @@ const ApiV1BookingsRouteWithChildren = ApiV1BookingsRoute._addFileChildren(
 )
 
 interface ApiV1CallsRouteChildren {
+  ApiV1CallsIdRoute: typeof ApiV1CallsIdRoute
   ApiV1CallsAnalyticsRoute: typeof ApiV1CallsAnalyticsRoute
 }
 
 const ApiV1CallsRouteChildren: ApiV1CallsRouteChildren = {
+  ApiV1CallsIdRoute: ApiV1CallsIdRoute,
   ApiV1CallsAnalyticsRoute: ApiV1CallsAnalyticsRoute,
 }
 

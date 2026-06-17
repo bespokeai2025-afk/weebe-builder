@@ -286,7 +286,7 @@ function DocsPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 36 }}>
               {[
-                { icon: Zap,    label: "21 endpoints",    sub: "across 8 resource types" },
+                { icon: Zap,    label: "22 endpoints",    sub: "across 8 resource types" },
                 { icon: Shield, label: "Bearer auth",      sub: "per-workspace API keys" },
                 { icon: BarChart3, label: "60 req / min",  sub: "per key, with Retry-After" },
               ].map(card => (
@@ -403,6 +403,71 @@ function DocsPage() {
             { name: "bucket",   type: "string", desc: "Time-series bucket: day | week (default day)." },
             { name: "agent_id", type: "string", desc: "Restrict analytics to one agent." },
           ]} example={`curl "${API_BASE}/calls/analytics?days=30&bucket=day" \\\n  -H "Authorization: Bearer YOUR_KEY"`} />
+
+          <EndpointCard method="GET" path="/calls/:id" perm="calls:read"
+            desc="Returns the full record for a single call including the post-call AI summary, full transcript, recording URL, sentiment, cost, and associated contact."
+            params={[
+              { name: "id", type: "string", required: true, desc: "The call UUID." },
+            ]}
+            example={`curl "${API_BASE}/calls/<id>" \\\n  -H "Authorization: Bearer YOUR_KEY"`}
+          />
+
+          {/* ── Call statuses reference ── */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "18px 22px", marginTop: 8, marginBottom: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 16 }}>Call Status Values</div>
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+              {[
+                { val: "initiated",   color: "#60a5fa", desc: "Call created and being dialled out." },
+                { val: "in_progress", color: "#4ade80", desc: "Agent and caller are connected." },
+                { val: "completed",   color: "#4ade80", desc: "Call ended normally. Summary and transcript are available." },
+                { val: "ended",       color: "#4ade80", desc: "Alias for completed (used by some voice providers)." },
+                { val: "no_answer",   color: "#fbbf24", desc: "Destination did not pick up." },
+                { val: "busy",        color: "#fbbf24", desc: "Destination line was busy." },
+                { val: "cancelled",   color: "#fbbf24", desc: "Call was cancelled before it connected." },
+                { val: "failed",      color: "#f87171", desc: "Provider-level failure (bad number, network error, etc.)." },
+                { val: "error",       color: "#f87171", desc: "Internal system error during call setup." },
+              ].map((row, i, arr) => (
+                <div key={row.val} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 16, padding: "10px 14px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
+                  <code style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: row.color }}>{row.val}</code>
+                  <span style={{ fontSize: 12.5, color: C.muted }}>{row.desc}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Sentiment Values</div>
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", marginBottom: 20 }}>
+              {[
+                { val: "positive", color: "#4ade80", desc: "Agent determined the caller was happy, interested, or engaged." },
+                { val: "neutral",  color: "#94a3b8", desc: "No strong positive or negative signal detected." },
+                { val: "negative", color: "#f87171", desc: "Caller expressed frustration, disinterest, or complaints." },
+              ].map((row, i, arr) => (
+                <div key={row.val} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 16, padding: "10px 14px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "center" }}>
+                  <code style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: row.color }}>{row.val}</code>
+                  <span style={{ fontSize: 12.5, color: C.muted }}>{row.desc}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.dim, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Post-call Summary Fields</div>
+            <div style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden" }}>
+              {[
+                { field: "summary",              type: "string | null",  desc: "AI-generated narrative summary of the call." },
+                { field: "transcript",           type: "string | null",  desc: "Full verbatim transcript (agent + caller turns)." },
+                { field: "recording_url",        type: "string | null",  desc: "Signed URL to the call recording audio file." },
+                { field: "sentiment",            type: "string | null",  desc: "Detected caller sentiment: positive | neutral | negative." },
+                { field: "call_outcome",         type: "string | null",  desc: "Outcome label set by the agent flow (e.g. booked, callback_requested)." },
+                { field: "disconnection_reason", type: "string | null",  desc: "Why the call ended (e.g. agent_hangup, user_hangup, dial_failed)." },
+                { field: "duration_seconds",     type: "number | null",  desc: "Total talk time in seconds." },
+                { field: "cost_usd",             type: "number | null",  desc: "Provider cost for this call in USD." },
+              ].map((row, i, arr) => (
+                <div key={row.field} style={{ display: "grid", gridTemplateColumns: "190px 120px 1fr", gap: 12, padding: "10px 14px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", alignItems: "start" }}>
+                  <code style={{ fontFamily: "monospace", fontSize: 12, color: "#93c5fd" }}>{row.field}</code>
+                  <code style={{ fontFamily: "monospace", fontSize: 11, color: "#a78bfa" }}>{row.type}</code>
+                  <span style={{ fontSize: 12.5, color: C.muted }}>{row.desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* ── Bookings ─────────────────────────────────────────── */}
           <SectionHead id="bookings" icon={Calendar} title="Bookings" subtitle="Create and manage calendar bookings captured by your agents." />
