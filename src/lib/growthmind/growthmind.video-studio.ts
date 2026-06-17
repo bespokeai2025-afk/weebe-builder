@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { routeGenerate } from "./model-router.server";
 import {
   parseJobSentinel, isJobPending, archiveVideoToStorage,
@@ -2134,12 +2135,11 @@ export async function getVideoSummaryForHiveMind(
 export const getVeoStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const sb          = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) return { connected: false };
 
-    // Read from the canonical provider_settings table (same as generateVideoFromPrompt)
-    const { data } = await sb
+    // Use supabaseAdmin (service role) to bypass RLS — credentials are server-side secrets
+    const { data } = await (supabaseAdmin as any)
       .from("provider_settings")
       .select("credentials")
       .eq("workspace_id", workspaceId)
