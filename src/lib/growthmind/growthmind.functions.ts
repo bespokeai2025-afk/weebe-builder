@@ -535,6 +535,38 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
       })),
     };
 
+    // ── PROFITABILITY — from AccountsMind (graceful if tables don't exist) ──────
+    let profitability: {
+      grossProfitCents: number;
+      grossMarginPct: number;
+      totalCostCents: number;
+      monthlyChargeCents: number;
+      isLossMaking: boolean;
+      isLowMargin: boolean;
+    } | null = null;
+    try {
+      const nowM = new Date();
+      const monthStart = new Date(nowM.getFullYear(), nowM.getMonth(), 1).toISOString().slice(0, 10);
+      const { data: snap } = await sb
+        .from("client_monthly_costs")
+        .select("gross_profit_cents, gross_margin_percent, total_cost_cents, monthly_charge_cents")
+        .eq("workspace_id", workspaceId)
+        .eq("month", monthStart)
+        .maybeSingle();
+      if (snap) {
+        profitability = {
+          grossProfitCents:   snap.gross_profit_cents   ?? 0,
+          grossMarginPct:     snap.gross_margin_percent ?? 0,
+          totalCostCents:     snap.total_cost_cents     ?? 0,
+          monthlyChargeCents: snap.monthly_charge_cents ?? 0,
+          isLossMaking:  (snap.gross_margin_percent ?? 0) < 0,
+          isLowMargin:   (snap.gross_margin_percent ?? 100) < 20,
+        };
+      }
+    } catch {
+      // AccountsMind tables not yet migrated — skip silently
+    }
+
     // ── RETURN — no credentials, no raw settings ──────────────────────────────
     return {
       agents, agentPerf,
@@ -603,6 +635,7 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
           syncedAt:    c.synced_at,
         })),
       },
+      profitability,
       // No `settings` key — credentials never leave the server
     };
 }

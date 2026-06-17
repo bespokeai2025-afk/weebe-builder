@@ -2,10 +2,11 @@
  * POST /api/public/campaign-executor
  *
  * Unified background-tick handler. Runs in parallel:
- *   • runCampaignTick()    — call-scheduling campaigns
- *   • runBlogDraftTick()   — scheduled blog content generation
- *   • runCMOAnalysisTick() — AI-driven CMO marketing analysis
- *   • runAdsSyncTick()     — ad campaign metrics (Meta, Google, TikTok, LinkedIn)
+ *   • runCampaignTick()      — call-scheduling campaigns
+ *   • runBlogDraftTick()     — scheduled blog content generation
+ *   • runCMOAnalysisTick()   — AI-driven CMO marketing analysis
+ *   • runAdsSyncTick()       — ad campaign metrics (Meta, Google, TikTok, LinkedIn)
+ *   • runAccountsMindTick()  — client costing snapshots, finance alerts, HiveMind + GrowthMind reporting
  *
  * Secured with the Supabase service-role key passed as a Bearer token.
  *
@@ -28,6 +29,7 @@ import { runCampaignTick } from "@/lib/campaign-scheduler/executor";
 import { runBlogDraftTick } from "@/lib/growthmind/blog-draft-tick";
 import { runCMOAnalysisTick } from "@/lib/growthmind/cmo-analysis-tick";
 import { runAdsSyncTick } from "@/lib/growthmind/growthmind.ads-sync-tick";
+import { runAccountsMindTick } from "@/lib/accountsmind/executor";
 
 export const Route = createFileRoute("/api/public/campaign-executor")({
   server: {
@@ -48,11 +50,12 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
         }
 
         try {
-          const [campaignTick, blogTick, cmoTick, adsTick] = await Promise.all([
+          const [campaignTick, blogTick, cmoTick, adsTick, accountsTick] = await Promise.all([
             runCampaignTick(),
             runBlogDraftTick(),
             runCMOAnalysisTick(),
             runAdsSyncTick(),
+            runAccountsMindTick(),
           ]);
 
           if (campaignTick.error) {
@@ -77,6 +80,13 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
               `[ads-sync-tick] synced=${adsTick.synced} errors=${adsTick.errors} skipped=${adsTick.skipped}`,
             );
           }
+          if (accountsTick.scanned > 0) {
+            console.log(
+              `[accountsmind-tick] scanned=${accountsTick.scanned} updated=${accountsTick.updated}` +
+              ` alerts=${accountsTick.alertsGenerated} hivemind_tasks=${accountsTick.hivemindTasksPosted}` +
+              (accountsTick.failed.length ? ` failed=${accountsTick.failed.length}` : ""),
+            );
+          }
           console.log(
             `[campaign-executor] ran=${due.length} skipped=${skipped.length}`,
           );
@@ -88,6 +98,7 @@ export const Route = createFileRoute("/api/public/campaign-executor")({
             blogDrafts: { queued: blogTick.queued.length, skipped: blogTick.skipped.length, failed: blogTick.failed.length },
             cmoAnalysis: { ran: cmoTick.ran.length, skipped: cmoTick.skipped.length, failed: cmoTick.failed.length },
             adsSync: { synced: adsTick.synced, errors: adsTick.errors, skipped: adsTick.skipped },
+            accountsMind: { scanned: accountsTick.scanned, updated: accountsTick.updated, alerts: accountsTick.alertsGenerated, hivemindTasks: accountsTick.hivemindTasksPosted, failed: accountsTick.failed.length },
           });
         } catch (e: any) {
           console.error("[campaign-executor] unhandled error:", e);

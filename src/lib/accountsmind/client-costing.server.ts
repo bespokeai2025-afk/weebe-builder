@@ -2,7 +2,27 @@
 // Pulls provider costs from all existing tables and computes per-workspace
 // monthly profitability. Does NOT modify cost_engine tables.
 
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { createClient } from "@supabase/supabase-js";
+
+// Lazy — created on first use so the module can be imported at Vite config
+// resolution time (when env vars are not yet available).
+let _admin: ReturnType<typeof createClient> | null = null;
+function getAdmin() {
+  if (!_admin) {
+    _admin = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+  }
+  return _admin;
+}
+// Alias so existing function bodies keep working unchanged
+const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_t, prop) {
+    return (getAdmin() as any)[prop];
+  },
+});
 
 export interface MonthlyCostBreakdown {
   workspaceId:            string;
