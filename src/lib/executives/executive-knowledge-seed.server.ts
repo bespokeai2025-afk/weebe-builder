@@ -11,22 +11,58 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveOpenAiKey, ensureDefaultKnowledgeBases } from "@/lib/executives/executive-knowledge.server";
 import { indexTextDocument } from "@/lib/executives/executive-document-processing.server";
 
-// Starter topics per default KB slug (from the task spec).
+// ── TIER 1: PLATFORM KNOWLEDGE ONLY ──────────────────────────────────────────
+// These are universal business frameworks and methodologies — safe for ALL
+// customer workspaces. NO WEBEE-specific products, pricing, campaigns, or
+// business information must ever appear here.
+//
+// Knowledge Tier Rules:
+//   Tier 1 = Platform Knowledge (this file) — shared, read-only, framework-level
+//   Tier 2 = Workspace Knowledge — customer uploads, Business DNA, private
+//   Tier 3 = Business DNA — structured profile specific to each workspace
+// ─────────────────────────────────────────────────────────────────────────────
 const SEED_TOPICS: Record<string, string[]> = {
   growthmind: [
-    "AIDA Framework", "PAS Framework", "Russell Brunson Funnels", "Hormozi Offers",
-    "SEO Fundamentals", "Google Ads", "Meta Ads", "Lead Nurturing",
-    "Email Marketing", "Conversion Optimisation", "CRM Best Practices",
+    // Marketing Frameworks
+    "AIDA Framework", "PAS Framework", "Before-After-Bridge Framework",
+    "StoryBrand Framework", "Jobs-To-Be-Done Marketing",
+    // Growth & Offers
+    "Hormozi Offer Creation", "Russell Brunson Funnel Strategy",
+    "Value Ladder Framework", "Lead Magnet Strategy",
+    // Channels & Tactics
+    "SEO Fundamentals", "Google Ads Best Practices", "Meta Ads Best Practices",
+    "LinkedIn Advertising", "Email Marketing Fundamentals", "Content Marketing Strategy",
+    // Optimisation
+    "Lead Nurturing Sequences", "Conversion Rate Optimisation",
+    "Marketing Attribution", "Customer Acquisition Cost Framework",
+    // Strategy
+    "CRM Best Practices", "Sales Methodology Overview", "Client Qualification Framework",
+    "Campaign Planning Framework", "GrowthMind Marketing Playbook",
   ],
   systemmind: [
-    "Monitoring", "Observability", "Security", "Error Tracking", "Infrastructure",
-    "API Reliability", "Telephony Reliability", "Database Operations",
-    "AI Runtime Monitoring", "Cost Optimisation",
+    // Reliability
+    "Monitoring and Observability", "Error Tracking Best Practices",
+    "API Reliability and SLAs", "Telephony System Reliability",
+    // Infrastructure
+    "Cloud Infrastructure Best Practices", "Database Operations and Backup",
+    "AI Runtime Cost Optimisation", "Security and Access Control",
+    // Operations
+    "Incident Response Playbook", "Performance Benchmarking",
+    "AI Receptionist Deployment Playbook", "Voice AI Quality Assurance",
+    "SystemMind Operational Playbook",
   ],
   hivemind: [
-    "Business Operations", "Executive Reporting", "Task Management", "KPIs",
-    "Revenue Forecasting", "Decision Making", "Business Scaling",
-    "CRM Operations", "Team Productivity",
+    // Executive Decision Support
+    "Business Operations Framework", "Executive Reporting Fundamentals",
+    "KPI Selection and Tracking", "Revenue Forecasting Methods",
+    "Decision Making Under Uncertainty",
+    // Business Scaling
+    "Business Scaling Playbook", "Team Productivity Frameworks",
+    "CRM Operations Best Practices", "Customer Lifetime Value Optimisation",
+    // Intelligence
+    "Task Prioritisation Matrix", "Competitive Intelligence Framework",
+    "AI Receptionist Playbook", "Lead Generation Playbook",
+    "HiveMind COO Playbook",
   ],
 };
 

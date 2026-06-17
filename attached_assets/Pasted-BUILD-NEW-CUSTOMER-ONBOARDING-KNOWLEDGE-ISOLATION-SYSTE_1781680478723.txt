@@ -1,0 +1,554 @@
+BUILD NEW CUSTOMER ONBOARDING + KNOWLEDGE ISOLATION SYSTEM V2
+
+IMPORTANT
+
+Do not break existing Knowledge Centre.
+
+Do not break HiveMind, GrowthMind, SystemMind, Agent Builder, Campaign Factory, Video Studio, Content Studio or Smart Dash.
+
+Extend existing onboarding and knowledge architecture safely.
+
+====================================================
+
+OBJECTIVE
+
+Ensure every new customer receives:
+
+1. Guided onboarding
+2. Standardised starter knowledge
+3. Complete knowledge isolation from WEBEE
+4. Business-specific GrowthMind behaviour
+5. Flexible onboarding paths based on customer goals
+
+====================================================
+
+CRITICAL REQUIREMENT
+
+WEBEE internal business knowledge must NEVER automatically become a customer's business knowledge.
+
+Separate:
+
+Platform Knowledge
+Customer Knowledge
+
+====================================================
+
+KNOWLEDGE TIERS
+
+TIER 1
+
+Platform Knowledge
+
+Purpose:
+
+Teach the system how to operate.
+
+Examples:
+
+Marketing Frameworks
+SEO Best Practices
+AI Receptionist Playbooks
+Lead Generation Playbooks
+Client Qualification Playbooks
+CRM Best Practices
+GrowthMind Frameworks
+HiveMind Frameworks
+SystemMind Frameworks
+Campaign Frameworks
+Sales Methodologies
+
+Shared across all workspaces.
+
+Read-only.
+
+====================================================
+
+TIER 2
+
+Workspace Knowledge
+
+Purpose:
+
+Customer-specific business information.
+
+Examples:
+
+Products
+Services
+Pricing
+Offers
+Case Studies
+Processes
+Documents
+FAQs
+Company Information
+
+Private to workspace.
+
+====================================================
+
+TIER 3
+
+Business DNA
+
+Purpose:
+
+Structured understanding of the customer's business.
+
+Industry
+
+Services
+
+Target Audience
+
+Markets
+
+Goals
+
+Brand Voice
+
+Offers
+
+Competitors
+
+Revenue Goals
+
+====================================================
+
+FIRST-TIME SIGNUP FLOW
+
+Immediately after signup:
+
+Welcome to WEBEE
+
+Explain:
+
+HiveMind = Executive Intelligence
+
+GrowthMind = Marketing Intelligence
+
+SystemMind = Operational Intelligence
+
+Builder = AI Agent Creation Platform
+
+====================================================
+
+ONBOARDING PATH SELECTION
+
+Ask:
+
+What would you like to do?
+
+OPTION 1
+
+Build AI Agents
+
+OPTION 2
+
+Grow My Business
+
+OPTION 3
+
+Both
+
+====================================================
+
+PATH 1
+
+BUILD AI AGENTS
+
+Purpose:
+
+For users who only want the AI Agent Builder.
+
+Flow:
+
+Builder Introduction
+
+Knowledge Base Setup
+
+Telephony Setup
+
+Provider Setup
+
+Create First Agent
+
+Deploy First Agent
+
+GrowthMind onboarding not required.
+
+CRM onboarding not required.
+
+Business DNA not required.
+
+====================================================
+
+PATH 2
+
+GROW MY BUSINESS
+
+Purpose:
+
+For users who want marketing, campaigns, GrowthMind and HiveMind.
+
+Flow:
+
+Business DNA Wizard
+
+Knowledge Upload
+
+Connection Wizard
+
+GrowthMind Analysis
+
+Campaign Recommendations
+
+First Campaign
+
+Agent Builder onboarding not required.
+
+====================================================
+
+PATH 3
+
+BOTH
+
+Purpose:
+
+For users who want the full WEBEE platform.
+
+Flow:
+
+Business DNA
+
+Knowledge Upload
+
+Builder Setup
+
+Provider Setup
+
+GrowthMind Setup
+
+Campaign Recommendations
+
+First Agent
+
+First Campaign
+
+====================================================
+
+BUSINESS DNA WIZARD
+
+Collect:
+
+Business Name
+
+Industry
+
+Website
+
+Locations
+
+Services
+
+Target Customers
+
+Primary Goal
+
+Brand Voice
+
+Revenue Goal
+
+====================================================
+
+KNOWLEDGE SEEDING
+
+Automatically create:
+
+HiveMind KB
+
+GrowthMind KB
+
+SystemMind KB
+
+Seed:
+
+Standard Platform Knowledge ONLY.
+
+Do NOT seed:
+
+WEBEE products
+
+WEBEE services
+
+WEBEE campaigns
+
+WEBEE pricing
+
+WEBEE case studies
+
+WEBEE marketing data
+
+WEBEE business strategy
+
+====================================================
+
+KNOWLEDGE UPLOAD STEP
+
+Allow upload of:
+
+Website
+
+PDF
+
+Brochure
+
+FAQs
+
+Pricing
+
+Case Studies
+
+Product Information
+
+Process Documentation
+
+====================================================
+
+CONNECTION WIZARD
+
+CRM MUST BE OPTIONAL.
+
+Present:
+
+Business Operations Setup
+
+Choose:
+
+○ Use WEBEE Smart Dash as my CRM
+
+○ Connect Existing CRM
+
+○ Skip For Now
+
+Supported CRM:
+
+HubSpot
+
+Salesforce
+
+Dynamics
+
+Pipedrive
+
+GoHighLevel
+
+Future Providers
+
+====================================================
+
+SMART DASH MODE
+
+If user selects:
+
+Use WEBEE Smart Dash
+
+Use WEBEE for:
+
+Leads
+
+Calls
+
+Bookings
+
+Pipeline
+
+Qualified Leads
+
+Contacts
+
+No CRM connection required.
+
+====================================================
+
+MARKETING CONNECTIONS
+
+Optional:
+
+Google Analytics
+
+Search Console
+
+Google Ads
+
+Meta Ads
+
+LinkedIn
+
+TikTok
+
+WhatsApp
+
+Email
+
+Calendar
+
+Telephony
+
+Allow Skip For Now.
+
+====================================================
+
+GROWTHMIND INITIAL ANALYSIS
+
+After onboarding:
+
+Generate:
+
+Business Summary
+
+Opportunities
+
+Recommended Services
+
+Recommended Campaigns
+
+Recommended Channels
+
+Marketing Readiness Score
+
+====================================================
+
+NOTIFICATIONS
+
+Show progress:
+
+Knowledge Bases Created
+
+Platform Knowledge Installed
+
+Business DNA Completed
+
+GrowthMind Analysis Ready
+
+First Campaign Ready
+
+First Agent Ready
+
+====================================================
+
+KNOWLEDGE ACCESS RULES
+
+GrowthMind
+
+Platform Knowledge
++
+Workspace Knowledge
++
+Business DNA
+
+HiveMind
+
+Platform Knowledge
++
+Workspace Knowledge
++
+Executive Summaries
+
+SystemMind
+
+Platform Knowledge
++
+System Configuration
++
+Workspace Configuration
+
+====================================================
+
+AUDIT EXISTING SEEDING
+
+Before implementation:
+
+Audit all existing seed content.
+
+Identify:
+
+WEBEE-specific content
+
+Platform content
+
+Customer content
+
+Move all WEBEE-specific content out of default seed packs.
+
+Create:
+
+Platform Starter Knowledge Packs
+
+that are safe for all customers.
+
+====================================================
+
+FIRST LOGIN CHECKLIST
+
+Builder Users
+
+□ Create First Agent
+
+□ Add Knowledge Base
+
+□ Configure Telephony
+
+□ Deploy Agent
+
+Growth Users
+
+□ Complete Business DNA
+
+□ Upload Knowledge
+
+□ Connect Platforms
+
+□ Review GrowthMind Analysis
+
+□ Launch First Campaign
+
+Combined Users
+
+□ Complete Business DNA
+
+□ Upload Knowledge
+
+□ Create First Agent
+
+□ Connect Platforms
+
+□ Review GrowthMind Analysis
+
+□ Launch First Campaign
+
+Progress percentage visible at all times.
+
+====================================================
+
+SUCCESS CRITERIA
+
+New customers never inherit WEBEE business knowledge.
+
+All customers receive standardised platform knowledge.
+
+Business-specific knowledge remains isolated.
+
+CRM setup is optional.
+
+WEBEE Smart Dash can be used as the primary CRM.
+
+Agent Builder onboarding remains completely independent.
+
+GrowthMind onboarding remains completely independent.
+
+Users choose their onboarding path based on their goals.
+
+Generate implementation plan first.
+
+Audit existing onboarding and knowledge seeding before making changes.
