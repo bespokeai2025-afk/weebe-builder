@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import {
+  Bot,
   ChevronDown,
   ChevronRight,
   Download,
@@ -11,6 +12,7 @@ import {
   PhoneIncoming,
   PhoneOutgoing,
   PlayCircle,
+  Radio,
   RefreshCw,
   StickyNote,
   X,
@@ -20,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { getWbahCallLogs } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { getWbahRetellCalls, getWbahRetellAgents } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -579,19 +581,17 @@ function CallsPage() {
 
 // ── WeeBespoke Call Logs (only shown for webuyanyhouse workspace) ──────────────
 
-function wbahStatusBadge(s?: string | null) {
-  if (!s) return <span className="text-[11px] text-muted-foreground">—</span>;
-  const v = s.toLowerCase();
+// ── WeeBespoke / Retell helpers ──────────────────────────────────────────────
+
+function retellStatusBadge(v?: string | null) {
+  if (!v) return <span className="text-[11px] text-muted-foreground">—</span>;
+  const s = v.toLowerCase();
   const cls =
-    v === "completed" || v === "answered" || v === "called"
-      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-      : v === "not connected" || v === "not_connected" || v === "failed" || v === "no_answer" || v === "busy"
-        ? "bg-destructive/20 text-destructive border border-destructive/30"
-        : v === "callback" || v === "pending"
-          ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-          : v === "in_progress" || v === "ringing"
-            ? "bg-primary/20 text-primary border border-primary/30"
-            : "bg-muted/40 text-muted-foreground border border-white/[0.06]";
+    s === "ended"    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" :
+    s === "ongoing"  ? "bg-primary/20 text-primary border border-primary/30 animate-pulse" :
+    s === "error"    ? "bg-destructive/15 text-destructive border border-destructive/30" :
+    s === "registered" ? "bg-amber-500/15 text-amber-400 border border-amber-500/30" :
+                       "bg-muted/40 text-muted-foreground border border-white/[0.06]";
   return (
     <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${cls}`}>
       {s.replace(/_/g, " ")}
@@ -599,8 +599,8 @@ function wbahStatusBadge(s?: string | null) {
   );
 }
 
-function wbahSentimentBadge(v?: string | null) {
-  if (!v || v === "N/A" || v === "n/a") return <span className="text-[11px] text-muted-foreground">—</span>;
+function retellSentimentBadge(v?: string | null) {
+  if (!v || v === "N/A") return <span className="text-[11px] text-muted-foreground">—</span>;
   const cls =
     v.toLowerCase() === "positive" ? "text-emerald-400" :
     v.toLowerCase() === "negative" ? "text-destructive" :
@@ -608,16 +608,57 @@ function wbahSentimentBadge(v?: string | null) {
   return <span className={`text-[11px] capitalize ${cls}`}>{v}</span>;
 }
 
-const WBAH_PAGE_SIZE = 50; // API returns 50 records per page regardless of ?limit param
+// ── WBAH Agents Bar ───────────────────────────────────────────────────────────
+
+function WbahAgentsBar() {
+  const getFn = useServerFn(getWbahRetellAgents);
+  const { data: agents, isLoading } = useQuery({
+    queryKey: ["wbah-retell-agents"],
+    queryFn: () => getFn(),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+
+  if (isLoading || !agents?.length) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {agents.map((a) => (
+        <div
+          key={a.id}
+          className={cn(
+            "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs",
+            a.isLive
+              ? "border-primary/40 bg-primary/10 text-primary"
+              : "border-white/[0.06] bg-card/40 text-muted-foreground",
+          )}
+        >
+          {a.isLive
+            ? <Radio className="h-3 w-3 animate-pulse" />
+            : <Bot className="h-3 w-3" />}
+          <span className="font-medium">{a.name}</span>
+          {a.isLive && <span className="text-[10px] font-semibold uppercase tracking-wide ml-0.5 text-primary">LIVE</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── WBAH Call Logs (from Retell) ──────────────────────────────────────────────
 
 function WbahCallLogsSection() {
-  const [page, setPage] = useState(1);
+  // Cursor-based pagination: stack of cursors; index 0 = page 1 (null cursor)
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
   const [transcript, setTranscript] = useState<{ text: string; name: string } | null>(null);
-  const getFn = useServerFn(getWbahCallLogs);
+  const getFn = useServerFn(getWbahRetellCalls);
+
+  const currentCursor = cursorStack[cursorStack.length - 1];
+  const currentPage   = cursorStack.length;
 
   const { data, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery({
-    queryKey: ["wbah-call-logs", page],
-    queryFn: () => getFn({ data: { page, limit: WBAH_PAGE_SIZE } }),
+    queryKey: ["wbah-retell-calls", currentCursor],
+    queryFn: () => getFn({ data: { paginationKey: currentCursor } }),
     staleTime: 60_000,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
@@ -625,28 +666,21 @@ function WbahCallLogsSection() {
     placeholderData: (prev) => prev,
   });
 
-  const records     = data?.records    ?? [];
-  const total       = data?.total      ?? 0;
-  const totalKnown  = data?.totalKnown ?? false;
-  const hasMore     = data?.hasMore    ?? false;
-  const pages       = data?.pages      ?? 1;
-  const startNo     = (page - 1) * WBAH_PAGE_SIZE + 1;
-  const endNo       = startNo + records.length - 1;
+  const records = data?.records ?? [];
+  const hasMore = data?.hasMore ?? false;
 
   const lastUpdated = dataUpdatedAt
     ? new Date(dataUpdatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
     : null;
 
-  // Page window: show up to 10 page buttons centred on current page
-  const pageWindow = (() => {
-    const half = 4;
-    let start = Math.max(1, page - half);
-    let end   = Math.min(pages, start + 9);
-    start = Math.max(1, end - 9);
-    const nums: number[] = [];
-    for (let i = start; i <= end; i++) nums.push(i);
-    return nums;
-  })();
+  const goNext = () => {
+    if (data?.nextPaginationKey) {
+      setCursorStack(s => [...s, data.nextPaginationKey!]);
+    }
+  };
+  const goPrev = () => {
+    if (cursorStack.length > 1) setCursorStack(s => s.slice(0, -1));
+  };
 
   if (isLoading && !data) return (
     <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
@@ -682,18 +716,19 @@ function WbahCallLogsSection() {
         </div>
       )}
 
+      {/* Live agents bar */}
+      <WbahAgentsBar />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Building2 className="h-3.5 w-3.5" />
           {records.length > 0
-            ? totalKnown
-              ? `Showing ${startNo}–${endNo} of ${total.toLocaleString()} calls`
-              : `Showing ${startNo}–${endNo}${hasMore ? "+" : ""} calls`
-            : "WeeBespoke call logs"}
+            ? `Page ${currentPage} · ${records.length} calls${hasMore ? "+" : ""}`
+            : "WeeBespoke call logs via Retell"}
           {lastUpdated && <span className="ml-2 opacity-50">· updated {lastUpdated}</span>}
         </p>
-        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setPage(1); refetch(); }} disabled={isFetching}>
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setCursorStack([null]); refetch(); }} disabled={isFetching}>
           <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} /> Refresh
         </Button>
       </div>
@@ -711,11 +746,11 @@ function WbahCallLogsSection() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-card/30">
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground w-10">SR NO</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">From</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">To</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Called At</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Started At</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
@@ -724,21 +759,19 @@ function WbahCallLogsSection() {
                 </tr>
               </thead>
               <tbody>
-                {records.map((r, idx) => (
+                {records.map((r) => (
                   <tr key={r.id} className="h-10 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? startNo + idx}</td>
-                    <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{r.name ?? "—"}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.contact ?? "—"}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">{r.type ?? "Lead"}</td>
+                    <td className="px-3 py-2 text-[11px] font-medium whitespace-nowrap max-w-[140px] truncate" title={r.agentName ?? undefined}>{r.agentName ?? "—"}</td>
+                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.from ?? "—"}</td>
+                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.to ?? "—"}</td>
+                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap capitalize">{(r.type ?? "phone_call").replace(/_/g, " ")}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
                       {r.lastCalledAt
                         ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
                         : "—"}
                     </td>
-                    <td className="px-3 py-2">{wbahStatusBadge(r.status)}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
-                      {r.duration ?? "N/A"}
-                    </td>
+                    <td className="px-3 py-2">{retellStatusBadge(r.status)}</td>
+                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">{r.duration ?? "—"}</td>
                     <td className="px-3 py-2">
                       {r.recordingUrl ? (
                         <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer"
@@ -751,14 +784,14 @@ function WbahCallLogsSection() {
                     <td className="px-3 py-2">
                       {r.transcript ? (
                         <button
-                          onClick={() => setTranscript({ text: r.transcript!, name: r.name ?? "Call" })}
+                          onClick={() => setTranscript({ text: r.transcript!, name: r.agentName ?? r.from ?? "Call" })}
                           className="inline-flex items-center gap-1 text-[11px] text-violet-400 hover:underline whitespace-nowrap"
                         >
                           <ChevronRight className="h-3 w-3" /> View
                         </button>
                       ) : <span className="text-[11px] text-muted-foreground">—</span>}
                     </td>
-                    <td className="px-3 py-2">{wbahSentimentBadge(r.sentiment)}</td>
+                    <td className="px-3 py-2">{retellSentimentBadge(r.sentiment)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -768,58 +801,28 @@ function WbahCallLogsSection() {
       </div>
 
       {/* Pagination */}
-      {(pages > 1 || hasMore) && (
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>
-            {totalKnown
-              ? `${total.toLocaleString()} calls total`
-              : hasMore
-                ? `Page ${page} · more records available`
-                : `${endNo} calls total`}
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>{hasMore ? `Page ${currentPage} · more records available` : `Page ${currentPage} · end of records`}</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={goPrev}
+            disabled={currentPage === 1}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight className="h-3.5 w-3.5 rotate-180" />
+          </button>
+          <span className="flex h-7 min-w-[28px] items-center justify-center rounded-md border border-primary/40 bg-primary/15 text-primary font-semibold px-2">
+            {currentPage}
           </span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="h-3.5 w-3.5 rotate-180" />
-            </button>
-            {pageWindow[0] > 1 && (
-              <>
-                <button onClick={() => setPage(1)} className="flex h-7 min-w-[28px] items-center justify-center rounded-md border border-white/[0.06] bg-card/40 px-2 hover:bg-white/[0.06]">1</button>
-                {pageWindow[0] > 2 && <span className="px-1">…</span>}
-              </>
-            )}
-            {pageWindow.map(n => (
-              <button
-                key={n}
-                onClick={() => setPage(n)}
-                className={cn(
-                  "flex h-7 min-w-[28px] items-center justify-center rounded-md border px-2 transition-colors",
-                  n === page
-                    ? "border-primary/40 bg-primary/15 text-primary font-semibold"
-                    : "border-white/[0.06] bg-card/40 hover:bg-white/[0.06]",
-                )}
-              >{n}</button>
-            ))}
-            {/* Show ellipsis + last known page when total is known */}
-            {totalKnown && pageWindow[pageWindow.length - 1] < pages && (
-              <>
-                {pageWindow[pageWindow.length - 1] < pages - 1 && <span className="px-1">…</span>}
-                <button onClick={() => setPage(pages)} className="flex h-7 min-w-[28px] items-center justify-center rounded-md border border-white/[0.06] bg-card/40 px-2 hover:bg-white/[0.06]">{pages}</button>
-              </>
-            )}
-            <button
-              onClick={() => setPage(p => p + 1)}
-              disabled={!hasMore && page >= pages}
-              className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <button
+            onClick={goNext}
+            disabled={!hasMore}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
