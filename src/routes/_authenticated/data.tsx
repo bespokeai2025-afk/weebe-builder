@@ -251,10 +251,14 @@ function wbahSentimentBadge(sentiment: string | null | undefined): { label: stri
   return { label: sentiment ? sentiment : "N/A", cls: "text-muted-foreground" };
 }
 
+const WBAH_DISQUALIFIED_STATUSES = new Set([
+  "disqualified", "disqualified_sweep", "disqualifed", "disqualifed_sweep",
+  "rejected", "not_interested", "not interested",
+]);
+
 function isWbahDisqualified(r: any): boolean {
-  const s = (r.callStatus ?? "").toLowerCase();
-  const sent = (r.sentimentAnalysis ?? "").toLowerCase();
-  return s === "disqualified" || s === "rejected" || s === "not_interested" || sent.includes("negative");
+  const s = (r.callStatus ?? "").toLowerCase().trim();
+  return WBAH_DISQUALIFIED_STATUSES.has(s) || s.includes("disqualif");
 }
 
 const OPTIONAL_COLS: { key: string; label: string }[] = [
@@ -779,6 +783,15 @@ function DataPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
 
+  useEffect(() => {
+    if (!wbahDisqualifiedSweep) return;
+    const qualAgent = agents.find(a =>
+      a.name.toLowerCase().includes("wbah") && a.name.toLowerCase().includes("qualification")
+    );
+    if (qualAgent) setWbahQualAgentId(qualAgent.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wbahDisqualifiedSweep, agents]);
+
   async function handleImportWbahSelected() {
     const toImport = wbahCallData.filter(r => wbahSelected.has(r.id));
     if (!toImport.length) return;
@@ -788,7 +801,7 @@ function DataPage() {
         name:          r.name || "Unknown",
         mobile_number: r.contact || "",
         email:         r.email  || "",
-        notes:         [r.callStatus, r.sentimentAnalysis, r.disconnectionReason].filter(Boolean).join(" | "),
+        notes:         ["Disqualified Sweep", r.callStatus, r.disconnectionReason].filter(Boolean).join(" | "),
       }));
       const result = await importFn({ data: { rows, agentId: wbahQualAgentId || null } });
       const inserted = (result as any)?.inserted ?? toImport.length;
@@ -1197,20 +1210,28 @@ function DataPage() {
                 {/* Assign Qualification Agent — only when rows are selected */}
                 {wbahSelected.size > 0 && (
                   <>
-                    <Select
-                      value={wbahQualAgentId || "__none__"}
-                      onValueChange={(v) => setWbahQualAgentId(v === "__none__" ? "" : v)}
-                    >
-                      <SelectTrigger className="h-7 w-[170px] text-xs">
-                        <SelectValue placeholder="Assign qual. agent…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">No agent</SelectItem>
-                        {agents.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {wbahDisqualifiedSweep ? (
+                      /* In sweep mode the agent is locked to the WBAH qual agent */
+                      <div className="flex items-center gap-1.5 rounded-md border border-rose-500/20 bg-rose-500/5 px-2.5 py-1 text-[11px] text-rose-300">
+                        <UserCheck className="h-3 w-3" />
+                        {agents.find(a => a.id === wbahQualAgentId)?.name ?? "WBAH Client qualification agent"}
+                      </div>
+                    ) : (
+                      <Select
+                        value={wbahQualAgentId || "__none__"}
+                        onValueChange={(v) => setWbahQualAgentId(v === "__none__" ? "" : v)}
+                      >
+                        <SelectTrigger className="h-7 w-[170px] text-xs">
+                          <SelectValue placeholder="Assign qual. agent…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No agent</SelectItem>
+                          {agents.map((a) => (
+                            <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Button
                       size="sm"
                       className="h-7 text-xs"
@@ -1313,7 +1334,7 @@ function DataPage() {
                   {wbahDisqualifiedSweep && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/5 border-b border-rose-500/10 text-[11px] text-rose-400">
                       <AlertCircle className="h-3 w-3" />
-                      Disqualified Sweep — showing {filtered.length} disqualified / negative-sentiment lead{filtered.length !== 1 ? "s" : ""}
+                      Disqualified Sweep — showing {filtered.length} lead{filtered.length !== 1 ? "s" : ""} from the client's Disqualified Sweep CRM section
                     </div>
                   )}
                   <table className="w-full text-xs">
