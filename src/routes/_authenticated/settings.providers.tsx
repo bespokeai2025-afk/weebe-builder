@@ -36,6 +36,8 @@ import {
   syncWebespokeEnterpriseCars,
   syncWebespokeEnterpriseBuyers,
   syncWebespokeEnterpriseDealers,
+  adminOverrideConnectWebespokeEnterprise,
+  syncAllWebespokeEnterpriseData,
 } from "@/lib/integrations/webespokeEnterprise/enterprise.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/providers")({
@@ -45,83 +47,133 @@ export const Route = createFileRoute("/_authenticated/settings/providers")({
 
 // ── WeeBespoke AI Enterprise integration card ─────────────────────────────────
 
-type WbsFlow = "idle" | "otp_sent" | "verifying" | "connected" | "disconnected";
+// Known admin account for Webuyanyhouse — email is not sensitive
+const ADMIN_EMAIL = "nathan@bespoke.ai";
+
+type WbsFlow = "idle" | "otp_sent" | "connected";
 
 function WebespokeEnterpriseSection() {
   const qc = useQueryClient();
-  const [email, setEmail]   = useState("");
-  const [otp, setOtp]       = useState("");
-  const [flow, setFlow]     = useState<WbsFlow>("idle");
-  const [busy, setBusy]     = useState(false);
+  const [showOtp, setShowOtp]   = useState(false);
+  const [email, setEmail]       = useState(ADMIN_EMAIL);
+  const [otp, setOtp]           = useState("");
+  const [busy, setBusy]         = useState<string | null>(null); // which action is pending
 
-  const getStatusFn     = useServerFn(getWebespokeEnterpriseStatus);
-  const requestOtpFn    = useServerFn(requestWebespokeEnterpriseOtp);
-  const verifyOtpFn     = useServerFn(verifyWebespokeEnterpriseOtp);
-  const disconnectFn    = useServerFn(disconnectWebespokeEnterprise);
-  const syncCarsFn      = useServerFn(syncWebespokeEnterpriseCars);
-  const syncBuyersFn    = useServerFn(syncWebespokeEnterpriseBuyers);
-  const syncDealersFn   = useServerFn(syncWebespokeEnterpriseDealers);
+  const getStatusFn       = useServerFn(getWebespokeEnterpriseStatus);
+  const requestOtpFn      = useServerFn(requestWebespokeEnterpriseOtp);
+  const verifyOtpFn       = useServerFn(verifyWebespokeEnterpriseOtp);
+  const disconnectFn      = useServerFn(disconnectWebespokeEnterprise);
+  const syncCarsFn        = useServerFn(syncWebespokeEnterpriseCars);
+  const syncBuyersFn      = useServerFn(syncWebespokeEnterpriseBuyers);
+  const syncDealersFn     = useServerFn(syncWebespokeEnterpriseDealers);
+  const adminConnectFn    = useServerFn(adminOverrideConnectWebespokeEnterprise);
+  const syncAllFn         = useServerFn(syncAllWebespokeEnterpriseData);
 
   const statusQ = useQuery({
     queryKey: ["wbs-enterprise-status"],
     queryFn:  () => getStatusFn(),
-    refetchInterval: flow === "connected" ? false : 30_000,
+    refetchInterval: 60_000,
   });
 
   const serverStatus = statusQ.data?.status ?? "disconnected";
-  const isConnected  = serverStatus === "connected" || flow === "connected";
-  const isOtpSent    = serverStatus === "otp_sent"  || flow === "otp_sent";
+  const isConnected  = serverStatus === "connected";
+  const isOtpSent    = serverStatus === "otp_sent";
+  const stat         = statusQ.data;
+
+  function invalidate() {
+    qc.invalidateQueries({ queryKey: ["wbs-enterprise-status"] });
+    qc.invalidateQueries({ queryKey: ["wbs-status"] });
+    qc.invalidateQueries({ queryKey: ["wbs-cars"] });
+    qc.invalidateQueries({ queryKey: ["wbs-buyers"] });
+    qc.invalidateQueries({ queryKey: ["wbs-dealers"] });
+  }
+
+  async function handleAdminOverride() {
+    setBusy("override");
+    try {
+      await adminConnectFn();
+      toast.success("Admin override connected — syncing all data…");
+      invalidate();
+      // Auto-sync all data after connect
+      try {
+        const res = await syncAllFn();
+        const r = res as Record<string, number | string>;
+        const parts = [];
+        if (typeof r.cars === "number")    parts.push(`${r.cars} cars`);
+        if (typeof r.buyers === "number")  parts.push(`${r.buyers} buyers`);
+        if (typeof r.dealers === "number") parts.push(`${r.dealers} dealers`);
+        if (parts.length) toast.success(`Synced: ${parts.join(", ")}`);
+        invalidate();
+      } catch { /* sync errors shown separately */ }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Admin override failed");
+    } finally { setBusy(null); }
+  }
 
   async function handleRequestOtp() {
-    if (!email.trim()) { toast.error("Enter an admin email address"); return; }
-    setBusy(true);
+    setBusy("otp");
     try {
       await requestOtpFn({ data: { email: email.trim() } });
-      setFlow("otp_sent");
+      setShowOtp(true);
       toast.success("OTP sent — check your email");
     } catch (e: any) { toast.error(e?.message ?? "OTP request failed"); }
-    finally { setBusy(false); }
+    finally { setBusy(null); }
   }
 
   async function handleVerifyOtp() {
-    if (!otp.trim()) { toast.error("Enter the OTP from your email"); return; }
-    setBusy(true);
+    setBusy("verify");
     try {
       await verifyOtpFn({ data: { email: email.trim(), otp: otp.trim() } });
-      setFlow("connected");
-      setOtp("");
-      toast.success("WeeBespoke AI Enterprise connected");
-      qc.invalidateQueries({ queryKey: ["wbs-enterprise-status"] });
-      qc.invalidateQueries({ queryKey: ["wbs-status"] });
+      setShowOtp(false); setOtp("");
+      toast.success("Connected — syncing all data…");
+      invalidate();
+      try {
+        const res = await syncAllFn();
+        const r = res as Record<string, number | string>;
+        const parts = [];
+        if (typeof r.cars === "number")    parts.push(`${r.cars} cars`);
+        if (typeof r.buyers === "number")  parts.push(`${r.buyers} buyers`);
+        if (typeof r.dealers === "number") parts.push(`${r.dealers} dealers`);
+        if (parts.length) toast.success(`Synced: ${parts.join(", ")}`);
+        invalidate();
+      } catch { /* sync errors shown separately */ }
     } catch (e: any) { toast.error(e?.message ?? "OTP verification failed"); }
-    finally { setBusy(false); }
+    finally { setBusy(null); }
   }
 
   async function handleDisconnect() {
     if (!confirm("Disconnect WeeBespoke AI Enterprise and clear all cached data?")) return;
-    setBusy(true);
+    setBusy("disconnect");
     try {
       await disconnectFn();
-      setFlow("idle");
-      setEmail(""); setOtp("");
-      toast.success("Disconnected");
-      qc.invalidateQueries({ queryKey: ["wbs-enterprise-status"] });
+      toast.success("Disconnected and cache cleared");
+      invalidate();
     } catch (e: any) { toast.error(e?.message ?? "Disconnect failed"); }
-    finally { setBusy(false); }
+    finally { setBusy(null); }
   }
 
-  async function handleSync(type: "cars" | "buyers" | "dealers") {
-    setBusy(true);
+  async function handleSync(type: "cars" | "buyers" | "dealers" | "all") {
+    setBusy(`sync-${type}`);
     try {
-      const fn = type === "cars" ? syncCarsFn : type === "buyers" ? syncBuyersFn : syncDealersFn;
-      const res = await fn();
-      toast.success(`Synced ${(res as any).count} ${type} from WeeBespoke AI`);
-      qc.invalidateQueries({ queryKey: ["wbs-enterprise-status"] });
-    } catch (e: any) { toast.error(e?.message ?? `${type} sync failed`); }
-    finally { setBusy(false); }
+      if (type === "all") {
+        const res = await syncAllFn();
+        const r = res as Record<string, number | string>;
+        const parts = [];
+        if (typeof r.cars === "number")    parts.push(`${r.cars} cars`);
+        if (typeof r.buyers === "number")  parts.push(`${r.buyers} buyers`);
+        if (typeof r.dealers === "number") parts.push(`${r.dealers} dealers`);
+        toast.success(parts.length ? `Synced: ${parts.join(", ")}` : "Sync complete");
+      } else {
+        const fn = type === "cars" ? syncCarsFn : type === "buyers" ? syncBuyersFn : syncDealersFn;
+        const res = await fn();
+        toast.success(`Synced ${(res as any).count} ${type}`);
+      }
+      invalidate();
+    } catch (e: any) { toast.error(e?.message ?? `Sync failed`); }
+    finally { setBusy(null); }
   }
 
-  const stat = statusQ.data;
+  const isBusy = busy !== null;
 
   return (
     <div>
@@ -130,11 +182,12 @@ function WebespokeEnterpriseSection() {
           <Building2 className="h-3.5 w-3.5 text-violet-400" />
         </div>
         <h2 className="text-sm font-semibold">Enterprise Integrations</h2>
-        <span className="text-[10px] text-muted-foreground">isolated from platform data</span>
+        <span className="text-[10px] text-muted-foreground">client data is fully isolated</span>
       </div>
 
       <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-4">
-        {/* Header row */}
+
+        {/* ── Header row ── */}
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 border border-violet-500/20 shrink-0">
             <Building2 className="h-4 w-4 text-violet-400" />
@@ -142,113 +195,164 @@ function WebespokeEnterpriseSection() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold">WeeBespoke AI Enterprise</span>
-              <span className="text-[10px] text-muted-foreground">Webuyanyhouse</span>
+              <span className="text-[10px] font-medium text-violet-300 bg-violet-500/10 px-1.5 py-0.5 rounded border border-violet-500/20">
+                Webuyanyhouse
+              </span>
               <span className={cn(
                 "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border",
                 isConnected
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                   : isOtpSent
                   ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                  : "bg-muted text-muted-foreground border-border",
+                  : "bg-muted/60 text-muted-foreground border-border",
               )}>
-                {isConnected ? "Connected" : isOtpSent ? "OTP Sent" : "Disconnected"}
+                {isConnected ? "● Connected" : isOtpSent ? "⟳ OTP Sent" : "○ Disconnected"}
               </span>
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              Vehicle marketplace CRM backend — data stays isolated under the Webuyanyhouse client profile.
+              Vehicle marketplace CRM — cars, buyers &amp; dealers. Admin account: <span className="font-mono">{ADMIN_EMAIL}</span>
             </p>
           </div>
           {isConnected && (
             <Link
               to="/enterprise/webuyanyhouse"
-              className="text-[11px] text-violet-400 hover:text-violet-300 underline underline-offset-2 shrink-0"
+              className="text-[11px] text-violet-400 hover:text-violet-300 underline underline-offset-2 shrink-0 whitespace-nowrap"
             >
-              View client data →
+              Open client profile →
             </Link>
           )}
         </div>
 
-        {/* Connected state */}
-        {isConnected ? (
+        {/* ── Connected: data counts + sync controls ── */}
+        {isConnected && (
           <div className="space-y-3">
             {stat && (
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-3 gap-2">
                 {([
                   { icon: Car,       label: "Cars",    count: stat.carsCount    },
                   { icon: Users,     label: "Buyers",  count: stat.buyersCount  },
                   { icon: UserCheck, label: "Dealers", count: stat.dealersCount },
                 ]).map(c => (
-                  <div key={c.label} className="rounded-lg bg-muted/40 p-2">
-                    <p className="text-[10px] text-muted-foreground mb-0.5">{c.label}</p>
-                    <p className="text-sm font-semibold">{c.count}</p>
+                  <div key={c.label} className="rounded-lg bg-muted/30 border border-white/[0.04] p-2.5 flex items-center gap-2">
+                    <c.icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold tabular-nums leading-none">{c.count}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{c.label}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-            {stat?.userEmail && (
-              <p className="text-[11px] text-muted-foreground">
-                Logged in as <span className="font-medium">{stat.userEmail}</span>
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={busy} onClick={() => handleSync("cars")}>
-                <Car className="w-3 h-3" />Sync Cars
+
+            {/* Primary sync all */}
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white"
+              disabled={isBusy}
+              onClick={() => handleSync("all")}
+            >
+              {busy === "sync-all" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Sync All Data (Cars + Buyers + Dealers)
+            </Button>
+
+            {/* Individual syncs + disconnect */}
+            <div className="flex flex-wrap gap-1.5">
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 flex-1" disabled={isBusy} onClick={() => handleSync("cars")}>
+                {busy === "sync-cars" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Car className="w-3 h-3" />}
+                Sync Cars
               </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={busy} onClick={() => handleSync("buyers")}>
-                <Users className="w-3 h-3" />Sync Buyers
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 flex-1" disabled={isBusy} onClick={() => handleSync("buyers")}>
+                {busy === "sync-buyers" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Users className="w-3 h-3" />}
+                Sync Buyers
               </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={busy} onClick={() => handleSync("dealers")}>
-                <UserCheck className="w-3 h-3" />Sync Dealers
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 flex-1" disabled={isBusy} onClick={() => handleSync("dealers")}>
+                {busy === "sync-dealers" ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserCheck className="w-3 h-3" />}
+                Sync Dealers
               </Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:text-destructive ml-auto" disabled={busy} onClick={handleDisconnect}>
-                {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <PowerOff className="w-3 h-3" />}
+              <Button
+                size="sm" variant="outline"
+                className="h-7 text-xs gap-1 text-destructive hover:text-destructive border-destructive/20"
+                disabled={isBusy}
+                onClick={handleDisconnect}
+              >
+                {busy === "disconnect" ? <Loader2 className="w-3 h-3 animate-spin" /> : <PowerOff className="w-3 h-3" />}
                 Disconnect
               </Button>
             </div>
           </div>
-        ) : isOtpSent ? (
-          /* OTP verify step */
+        )}
+
+        {/* ── Not connected: connect options ── */}
+        {!isConnected && !showOtp && (
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              OTP sent to <span className="font-medium">{email || "your email"}</span>. Enter the code below.
-            </p>
-            <div className="flex gap-2">
-              <Input
-                className="h-8 text-sm flex-1 max-w-[200px]"
-                placeholder="123456"
-                value={otp}
-                onChange={e => setOtp(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleVerifyOtp()}
-              />
-              <Button size="sm" className="h-8 text-xs" disabled={busy || !otp.trim()} onClick={handleVerifyOtp}>
-                {busy ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
-                Verify OTP
-              </Button>
-              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setFlow("idle")}>
-                Back
+            {/* Admin Override — primary CTA */}
+            <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-violet-400" />
+                <span className="text-xs font-semibold text-violet-300">Admin Override</span>
+                <span className="text-[10px] text-muted-foreground ml-1">uses stored credentials — no OTP needed</span>
+              </div>
+              <Button
+                size="sm"
+                className="w-full h-8 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white"
+                disabled={isBusy}
+                onClick={handleAdminOverride}
+              >
+                {busy === "override"
+                  ? <><Loader2 className="w-3 h-3 animate-spin" />Connecting…</>
+                  : <>Connect as Webuyanyhouse ({ADMIN_EMAIL})</>}
               </Button>
             </div>
-          </div>
-        ) : (
-          /* Connect step */
-          <div className="space-y-3">
+
+            {/* Divider */}
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <div className="flex-1 h-px bg-border" />or connect manually with OTP<div className="flex-1 h-px bg-border" />
+            </div>
+
+            {/* OTP flow */}
             <div className="flex gap-2">
               <Input
-                className="h-8 text-sm flex-1 max-w-[280px]"
+                className="h-8 text-xs flex-1"
                 type="email"
-                placeholder="admin@webespokeai.com"
+                placeholder={ADMIN_EMAIL}
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleRequestOtp()}
               />
-              <Button size="sm" className="h-8 text-xs" disabled={busy || !email.trim()} onClick={handleRequestOtp}>
-                {busy ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+              <Button size="sm" variant="outline" className="h-8 text-xs shrink-0" disabled={isBusy || !email.trim()} onClick={handleRequestOtp}>
+                {busy === "otp" ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                 Send OTP
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Enter the WeeBespoke AI admin email. An OTP will be sent — tokens are stored server-side only.
+              Credentials are stored server-side only and never exposed to the browser.
             </p>
+          </div>
+        )}
+
+        {/* ── OTP verify step ── */}
+        {!isConnected && showOtp && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              OTP sent to <span className="font-medium font-mono">{email}</span>. Enter the code below.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                className="h-8 text-sm flex-1 max-w-[180px] font-mono tracking-widest"
+                placeholder="123456"
+                value={otp}
+                onChange={e => setOtp(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleVerifyOtp()}
+                autoFocus
+              />
+              <Button size="sm" className="h-8 text-xs" disabled={isBusy || !otp.trim()} onClick={handleVerifyOtp}>
+                {busy === "verify" ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                Verify &amp; Connect
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setShowOtp(false); setOtp(""); }}>
+                Back
+              </Button>
+            </div>
           </div>
         )}
       </div>

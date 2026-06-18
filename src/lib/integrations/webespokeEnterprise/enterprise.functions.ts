@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
+  loginWithPassword,
   requestOtp,
   verifyOtp,
   getAllCars,
@@ -259,3 +260,90 @@ export const getWebespokeEnterpriseBuyers = createServerFn({ method: "GET" })
 export const getWebespokeEnterpriseDealers = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async () => readCache("dealers"));
+
+// ── Admin override — connect using platform-stored credentials ────────────────
+// Reads WEBESPOKE_ADMIN_EMAIL + WEBESPOKE_ADMIN_PASSWORD from server env vars.
+// The password is NEVER sent to or from the browser.
+
+export const adminOverrideConnectWebespokeEnterprise = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .handler(async () => {
+    const email    = process.env.WEBESPOKE_ADMIN_EMAIL;
+    const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
+
+    if (!email || !password) {
+      throw new Error(
+        "Admin credentials not configured. Set WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in Replit Secrets.",
+      );
+    }
+
+    const res = await loginWithPassword(email, password);
+
+    if (!res.ok || !res.data) {
+      throw new Error(
+        res.error
+          ? `WeeBespoke AI login failed: ${res.error}`
+          : `WeeBespoke AI login failed (HTTP ${res.status}). Check credentials.`,
+      );
+    }
+
+    const d = res.data;
+    const accessToken  = d.accessToken ?? d.token;
+    const refreshToken = d.refreshToken ?? "";
+
+    if (!accessToken) {
+      throw new Error("Login succeeded but no access token was returned by WeeBespoke AI.");
+    }
+
+    // Persist server-side only — never returned to browser
+    await saveTokens(accessToken, refreshToken, d.user ?? { email });
+    return { ok: true, email };
+  });
+
+// ── Sync all data in one call ─────────────────────────────────────────────────
+
+export const syncAllWebespokeEnterpriseData = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .handler(async () => {
+    const { getTokens, saveNewAccessToken: save } = makeTokenCallbacks();
+
+    const [carsRes, buyersRes, dealersRes] = await Promise.allSettled([
+      getAllCars(getTokens, save),
+      getAllBuyers(getTokens, save),
+      getAllDealers(getTokens, save),
+    ]);
+
+    const results: Record<string, number | string> = {};
+
+    if (carsRes.status === "fulfilled" && carsRes.value.ok) {
+      const records = Array.isArray(carsRes.value.data) ? carsRes.value.data : [];
+      await upsertCache("cars", records);
+      results.cars = records.length;
+    } else {
+      results.carsError = carsRes.status === "rejected"
+        ? (carsRes.reason as any)?.message
+        : carsRes.value.error ?? "Unknown error";
+    }
+
+    if (buyersRes.status === "fulfilled" && buyersRes.value.ok) {
+      const records = Array.isArray(buyersRes.value.data) ? buyersRes.value.data : [];
+      await upsertCache("buyers", records);
+      results.buyers = records.length;
+    } else {
+      results.buyersError = buyersRes.status === "rejected"
+        ? (buyersRes.reason as any)?.message
+        : buyersRes.value.error ?? "Unknown error";
+    }
+
+    if (dealersRes.status === "fulfilled" && dealersRes.value.ok) {
+      const records = Array.isArray(dealersRes.value.data) ? dealersRes.value.data : [];
+      await upsertCache("dealers", records);
+      results.dealers = records.length;
+    } else {
+      results.dealersError = dealersRes.status === "rejected"
+        ? (dealersRes.reason as any)?.message
+        : dealersRes.value.error ?? "Unknown error";
+    }
+
+    return results;
+  });

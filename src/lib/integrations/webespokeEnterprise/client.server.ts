@@ -85,6 +85,22 @@ export async function authenticatedFetch<T>(
 
 // ── Auth endpoints ────────────────────────────────────────────────────────────
 
+/**
+ * Password-based login — used by the admin override.
+ * Tokens are never returned to the browser; they live server-side only.
+ */
+export async function loginWithPassword(email: string, password: string) {
+  return apiFetch<{
+    accessToken?: string;
+    token?: string;
+    refreshToken?: string;
+    user?: Record<string, unknown>;
+  }>("/admin/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
 export async function requestOtp(email: string) {
   return apiFetch<{ message?: string }>("/admin/auth/request-otp", {
     method: "POST",
