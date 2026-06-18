@@ -1,0 +1,245 @@
+WEBUYANYHOUSE / WEBESPOKEAI API ENDPOINT INVENTORY
+
+MOST LIKELY LEAD SOURCES TO FEED WEBEE CALLING CAMPAIGNS
+
+1. HIGHEST PRIORITY
+
+GET /crm-data/get-crm-data
+
+Expected Data:
+
+* New Leads
+* Disqualified Leads
+* Tried To Contact
+* Lead Status
+* Phone Numbers
+* CRM Records
+
+Recommended WEBEE Mapping:
+CRM
+Leads
+Campaign Sources
+
+---
+
+2. VERY LIKELY LEAD SOURCE
+
+GET /call-output-data/get-userCall-lead
+
+Expected Data:
+
+* Lead Record
+* Contact Details
+* Calling Status
+* Lead Metadata
+
+Recommended WEBEE Mapping:
+Leads
+People
+
+---
+
+3. POSSIBLE LEAD/CALL DATA SOURCE
+
+GET /call-output-data/get-all-calldata
+
+Expected Data:
+
+* Mixed Lead Data
+* Call Results
+* CRM Output Data
+
+Recommended WEBEE Mapping:
+People
+Leads
+Calls
+
+---
+
+4. CALLBACK SOURCE
+
+GET /call-output-data/callbacks/pending
+
+Expected Data:
+
+* Callback Queue
+* Callback Dates
+* Callback Notes
+* Contact Details
+
+Recommended WEBEE Mapping:
+Callbacks
+
+---
+
+5. COMPLETED CALL DATA
+
+GET /call-output-data/all
+
+Expected Data:
+
+* Completed Calls
+* Call Outcomes
+* Call Results
+* Duration
+* Sentiment
+* Call History
+
+Recommended WEBEE Mapping:
+Calls
+
+---
+
+## DASHBOARD ENDPOINTS
+
+POST /dashboard/total-call-minutes
+
+POST /dashboard/number-of-calls
+
+POST /dashboard/leads
+
+POST /dashboard/call-performance
+
+POST /dashboard/call-drops
+
+Purpose:
+Analytics
+KPIs
+Charts
+Dashboard Metrics
+
+---
+
+## CRM MANAGEMENT
+
+GET /crm-data/get-crm-data
+
+POST /crm-data/create
+
+POST /crm-data/upload-excel
+
+GET /crm-data/start-batch-calling
+
+DELETE /crm-data/clear-all-crm-data
+
+DELETE /crm-data/delete-selected-crm-data
+
+---
+
+## CAMPAIGNS
+
+GET /campaigns
+
+POST /campaigns
+
+GET /campaigns/:id
+
+PATCH /campaigns/:id
+
+PATCH /campaigns/:id/pause
+
+PATCH /campaigns/:id/resume
+
+PATCH /campaigns/:id/voicemail
+
+DELETE /campaigns/:id
+
+---
+
+## AGENTS
+
+GET /agent/get-list
+
+GET /agent/get-agents-with-voicemail
+
+POST /agent/update
+
+PATCH /agent/rename/:id
+
+PATCH /agent/voicemailSetting/:id
+
+---
+
+## CALL SCHEDULING
+
+POST /frquency-setting/get-frequency
+
+POST /frquency-setting/add-frequency
+
+POST /frquency-setting/update-frequency
+
+---
+
+## PHONE NUMBERS
+
+GET /phoneNumber/get-allphonenumbersfrom-retell
+
+POST /phoneNumber/update-phonenumbersfrom-retell
+
+PATCH /phoneNumber/voicemailSetting/:id
+
+---
+
+## CREDITS
+
+GET /credits/summary
+
+GET /credits/history
+
+GET /credits/monthly-usage
+
+GET /credits/retell-usage
+
+POST /credits/allocate
+
+DELETE /credits/allocate/:id
+
+---
+
+## USER MANAGEMENT
+
+GET /admin/permissions
+
+GET /admin/users
+
+POST /admin/users
+
+PUT /admin/users/:id
+
+PATCH /admin/users/:id/status
+
+DELETE /admin/users/:id
+
+---
+
+## AUDIT PRIORITY ORDER
+
+To determine which endpoint should supply leads into WEBEE calling campaigns, inspect in this order:
+
+1. GET /crm-data/get-crm-data
+2. GET /call-output-data/get-userCall-lead
+3. GET /call-output-data/get-all-calldata
+4. GET /call-output-data/callbacks/pending
+5. GET /call-output-data/all
+
+For each endpoint, inspect:
+
+* Total records returned
+* Field names
+* Status fields
+* Lead identifiers
+* Phone numbers
+* Pagination support
+* Record counts
+* CRM classification fields
+
+Then map the endpoint to:
+
+* New Leads
+* Tried To Contact
+* Disqualified Leads
+* Qualified Leads
+* Callbacks
+* Calls
+
+inside WEBEE Smart Dash.
