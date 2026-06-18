@@ -19,7 +19,7 @@ import {
   PlayCircle,
   StickyNote,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { KpiCard, MiniKpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +51,7 @@ import {
 } from "@/lib/dashboard/leads.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
+import { DialogDescription } from "@/components/ui/dialog";
 import {
   getCampaignStats,
 } from "@/lib/dashboard/campaigns.functions";
@@ -110,6 +111,46 @@ function interestBadge(level: string | null) {
   );
 }
 
+function fmtDuration(ms: number | null): string {
+  if (ms == null) return "—";
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function callStatusBadge(status: string | null) {
+  if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
+  const map: Record<string, string> = {
+    completed:   "bg-emerald-500/15 text-emerald-400",
+    failed:      "bg-red-500/15 text-red-400",
+    no_answer:   "bg-orange-500/15 text-orange-400",
+    initiated:   "bg-blue-500/15 text-blue-400",
+    in_progress: "bg-blue-500/15 text-blue-400",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[status] ?? "bg-muted text-muted-foreground"}`}>
+      {status.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function bookingStatusBadge(status: string | null) {
+  if (!status) return <span className="text-muted-foreground text-[11px]">—</span>;
+  const lower = status.toLowerCase();
+  const map: Record<string, string> = {
+    booked:    "bg-emerald-500/15 text-emerald-400",
+    confirmed: "bg-emerald-500/15 text-emerald-400",
+    pending:   "bg-amber-500/15 text-amber-400",
+    cancelled: "bg-red-500/15 text-red-400",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize whitespace-nowrap ${map[lower] ?? "bg-muted text-muted-foreground"}`}>
+      {status.replace(/_/g, " ")}
+    </span>
+  );
+}
+
 const STATUS_OPTIONS = [
   { value: "interested", label: "Open", color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" },
   { value: "qualified", label: "Qualified", color: "bg-violet-500/15 text-violet-400 ring-violet-500/30" },
@@ -157,6 +198,7 @@ function LeadsPage() {
     leadId?: string | null;
   };
   const [panel, setPanel] = useState<PanelTarget | null>(null);
+  const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
 
   function openLeadPanel(lead: any) {
     setPanel({
@@ -193,6 +235,11 @@ function LeadsPage() {
   const allAgents = (agentsQ.data ?? []) as any[];
   const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
   const scheduledCount = leads.filter((l: any) => l.status === "scheduled").length;
+
+  const isWbah = useMemo(() =>
+    leads.some((l: any) => l.source_detail === "WeeBespoke Enterprise" || (l.meta as any)?.wbah_external_id),
+    [leads],
+  );
 
   const filtered = leads.filter((l: any) => {
     if (!search.trim()) return true;
@@ -476,6 +523,17 @@ function LeadsPage() {
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
+                      {isWbah && <>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Date</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Time</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Booking</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Disconnection</th>
+                      </>}
                       <th className="px-3 py-2 w-8"></th>
                     </tr>
                   </thead>
@@ -533,6 +591,25 @@ function LeadsPage() {
                         <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtDate(lead.last_contacted_at)}
                         </td>
+                        {isWbah && <>
+                          <td className="px-3 py-1.5">{callStatusBadge(lead.meta?.call_status)}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
+                          <td className="px-3 py-1.5">
+                            {lead.meta?.recording_url
+                              ? <a href={lead.meta.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
+                              : <span className="text-muted-foreground text-[11px]">—</span>}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {lead.call_summary
+                              ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
+                              : <span className="text-muted-foreground text-[11px]">—</span>}
+                          </td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
+                          <td className="px-3 py-1.5">{bookingStatusBadge(lead.meta?.booking_status)}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
+                        </>}
                         <td className="px-3 py-1.5">
                           <button
                             onClick={() => openLeadPanel(lead)}
@@ -689,6 +766,19 @@ function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* WBAH Transcript modal */}
+      {wbahTranscript !== null && (
+        <Dialog open onOpenChange={() => setWbahTranscript(null)}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Call Transcript</DialogTitle>
+              <DialogDescription>Full transcript of the call recording.</DialogDescription>
+            </DialogHeader>
+            <pre className="whitespace-pre-wrap text-xs text-muted-foreground font-sans leading-relaxed">{wbahTranscript}</pre>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Notes & Booking sheet */}
       {panel && (
