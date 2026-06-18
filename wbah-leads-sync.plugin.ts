@@ -8,7 +8,7 @@
 import type { Plugin } from "vite";
 import { runWbahLeadsSyncTick } from "./src/lib/integrations/webespokeEnterprise/wbah-leads-sync-tick";
 
-const TICK_INTERVAL_MS = 30 * 60 * 1000;
+const TICK_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 5_000;
 
 export function wbahLeadsSyncPlugin(): Plugin {
@@ -40,7 +40,7 @@ export function wbahLeadsSyncPlugin(): Plugin {
         if (intervalId) clearInterval(intervalId);
       });
 
-      console.log(`[wbah-leads-sync] ready — first sync in 5 s, then every 30 min`);
+      console.log(`[wbah-leads-sync] ready — first sync in 5 s, then every 5 min`);
     },
   };
 }
