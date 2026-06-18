@@ -96,13 +96,6 @@ function urgencyBadge(v: string | null) {
 }
 
 
-const QUAL_FILTER_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "qualified", label: "Qualified" },
-  { value: "partially_qualified", label: "Partial" },
-  { value: "not_qualified", label: "Not Qualified" },
-  { value: "callback_required", label: "Callback" },
-];
 
 const STATUS_ACTIONS = [
   { value: "qualified" as const, label: "Qualified", color: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" },
@@ -126,7 +119,6 @@ function QualifiedPage() {
   const setStatusFn = useServerFn(setLeadStatus);
 
   const [search, setSearch] = useState("");
-  const [qualFilter, setQualFilter] = useState("all");
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
   const listAgentsFn = useServerFn(listLiveAgents);
@@ -140,12 +132,12 @@ function QualifiedPage() {
   const qualAgents = (agentsQ.data ?? []) as Array<{ id: string; name: string; retell_agent_id?: string | null }>;
 
   const leadsQ = useQuery({
-    queryKey: ["leads-qualified", search, qualFilter],
+    queryKey: ["leads-qualified", search],
     queryFn: () =>
       getLeads({
         data: {
           search: search || undefined,
-          qualificationStatus: qualFilter !== "all" ? qualFilter : undefined,
+          qualificationStatus: "qualified",
           limit: 200,
         },
       }),
@@ -170,10 +162,8 @@ function QualifiedPage() {
       (r.full_name ?? "").toLowerCase().includes(q) ||
       (r.phone ?? "").toLowerCase().includes(q) ||
       (r.company_name ?? "").toLowerCase().includes(q));
-    if (qualFilter !== "all") out = out.filter((r: any) =>
-      (r.qualification_status ?? r.status) === qualFilter);
     return out;
-  }, [rows, search, qualFilter]);
+  }, [rows, search]);
 
   const qualPag = useTablePagination(filtered, 25);
 
@@ -288,17 +278,6 @@ function QualifiedPage() {
             placeholder="Search name, phone…"
             className="h-8 w-52 pl-8 text-xs"
           />
-        </div>
-        <div className="flex gap-1">
-          {QUAL_FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setQualFilter(opt.value)}
-              className={`rounded px-2.5 py-1 text-xs transition-colors ${qualFilter === opt.value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
-            >
-              {opt.label}
-            </button>
-          ))}
         </div>
       </div>
 
