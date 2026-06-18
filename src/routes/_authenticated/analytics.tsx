@@ -303,10 +303,20 @@ function AnalyticsPage() {
   const result   = q.data;
   const allCalls = (result?.calls ?? []) as any[];
   const agentNames: Record<string, string> = (result?.agentNames ?? {}) as Record<string, string>;
+  // Build agent list from the Retell API response (agentNames) so the
+  // dropdown appears for any workspace that has calls, not just those
+  // whose agents happen to be in the local deployments DB.
+  // Supplement with live-agent names from the DB for display.
   const agentList = useMemo(() => {
-    const live = liveAgentsQ.data ?? [];
-    return live.filter((a) => !!a.deployedRetellAgentId).map((a) => ({ id: a.deployedRetellAgentId as string, name: a.name }));
-  }, [liveAgentsQ.data]);
+    const liveMap: Record<string, string> = {};
+    for (const a of liveAgentsQ.data ?? []) {
+      if (a.deployedRetellAgentId) liveMap[a.deployedRetellAgentId] = a.name;
+    }
+    return Object.entries(agentNames).map(([id, name]) => ({
+      id,
+      name: liveMap[id] ?? name,
+    }));
+  }, [agentNames, liveAgentsQ.data]);
   const calls    = useMemo(() => (selectedAgentId ? allCalls.filter((c) => c.agent_id === selectedAgentId) : allCalls), [allCalls, selectedAgentId]);
   const analytics = useMemo(() => computeAnalytics(calls), [calls]);
   const sortedDays = useMemo(() => Object.keys(analytics.byDay).sort(), [analytics.byDay]);
