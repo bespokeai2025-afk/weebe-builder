@@ -111,6 +111,62 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
     return res.data;
   });
 
+// ── Leads (Positive/Neutral) — live from WeeBespoke API with pagination ───────
+
+export const getWbahLeads = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({
+      page:   z.number().int().min(1).default(1),
+      limit:  z.number().int().min(1).max(100).default(10),
+      search: z.string().optional(),
+      filter: z.enum(["all", "inbound", "outbound", "lead", "opportunity"]).optional(),
+    }).parse(i ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahGetUserCallLeadPaged(data.page, data.limit, cbs.getTokens, cbs.saveNewAccessToken);
+    if (!res.ok) throw new Error(res.error ?? "Failed to fetch leads");
+
+    const raw = res.data as any;
+    const records: any[] = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.leads)
+          ? raw.leads
+          : Array.isArray(raw?.records)
+            ? raw.records
+            : [];
+
+    const total: number =
+      raw?.total ?? raw?.totalCount ?? raw?.count ?? raw?.pagination?.total ?? records.length;
+
+    const normalised = records.map((r: any, idx: number) => ({
+      id:             String(r._id ?? r.id ?? idx),
+      srNo:           r.srNo ?? r.sr_no ?? null,
+      name:           r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
+      contact:        r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
+      type:           r.type ?? r.leadType ?? "Lead",
+      lastCalledAt:   r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
+      callStatus:     r.callStatus ?? r.call_status ?? r.status ?? null,
+      callDuration:   r.callDuration ?? r.call_duration ?? r.duration ?? null,
+      recordingUrl:   r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
+      transcript:     r.transcript ?? r.callTranscript ?? null,
+      sentiment:      r.sentimentAnalysis ?? r.sentiment ?? null,
+      direction:      r.direction ?? r.callDirection ?? null,
+      appointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
+    }));
+
+    return {
+      records: normalised,
+      total,
+      page:  data.page,
+      limit: data.limit,
+      pages: Math.max(1, Math.ceil(total / data.limit)),
+    };
+  });
+
 // ── Call Logs — live from WeeBespoke API with server-side pagination ──────────
 
 export const getWbahCallLogs = createServerFn({ method: "POST" })

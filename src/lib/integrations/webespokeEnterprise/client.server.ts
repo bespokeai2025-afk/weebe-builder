@@ -166,6 +166,9 @@ export const wbahGetUserHistory = (payload: Record<string, unknown>, gt: GetToke
 export const wbahGetUserCallLead = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/get-userCall-lead", gt, st);
 
+export const wbahGetUserCallLeadPaged = (page: number, limit: number, gt: GetTokens, st: SaveToken) =>
+  aGet<unknown>(`/call-output-data/get-userCall-lead?page=${page}&limit=${limit}`, gt, st);
+
 export const wbahGetPendingCallbacks = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/callbacks/pending", gt, st);
 
