@@ -9,7 +9,7 @@ import type { Plugin } from "vite";
 import { runWbahCallsSyncTick } from "./src/lib/integrations/webespokeEnterprise/wbah-leads-sync-tick";
 
 const INITIAL_DELAY_MS = 10_000;
-const INTERVAL_MS      = 4 * 60 * 60 * 1000;
+const INTERVAL_MS      = 5 * 60 * 1000;
 
 export function wbahCallsSyncPlugin(): Plugin {
   return {
@@ -41,7 +41,7 @@ export function wbahCallsSyncPlugin(): Plugin {
         if (intervalId) clearInterval(intervalId);
       });
 
-      console.log(`[wbah-calls-sync] ready — first sync in 10 s, then every 4 h`);
+      console.log(`[wbah-calls-sync] ready — first sync in 10 s, then every 5 min`);
     },
   };
 }
