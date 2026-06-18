@@ -155,9 +155,10 @@ export const listWbahLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    // Count + page 1 in parallel
-    const [countRes, firstRes] = await Promise.all([
+    // Step 1: try unlimited fetch + count in parallel
+    const [countRes, unlimitedRes, firstRes] = await Promise.all([
       api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetUserCallLeadAll(cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
     ]);
     if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch leads");
@@ -166,18 +167,25 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     const firstRecs = extractRecords(firstRaw);
     const pageSize  = firstRecs.length || 50;
 
-    // Real total from count endpoint
+    // Real total from count endpoint — only sum lead + opportunity, never add .total (avoids double-count)
     const countData  = countRes.data as any;
     const countTotal =
       (countData?.totalCall?.lead ?? 0)
-      + (countData?.totalCall?.opportunity ?? 0)
-      + (countData?.totalCall?.total ?? 0);
+      + (countData?.totalCall?.opportunity ?? 0);
     const total =
       (countTotal > 0 ? countTotal : null)
       ?? countData?.total
       ?? countData?.totalCount
       ?? countData?.count
       ?? extractCountFromResponse(firstRaw, 0);
+
+    // If unlimited fetch returned more records than a single page, use it directly
+    const unlimitedRecs = unlimitedRes.ok && unlimitedRes.data
+      ? extractRecords(unlimitedRes.data as any)
+      : [];
+    if (unlimitedRecs.length > pageSize) {
+      return unlimitedRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
+    }
 
     const knownPages = total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 0;
     let allRecs = [...firstRecs];
@@ -220,25 +228,29 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     }
 
     // Normalise
-    return allRecs.map((r: any, idx: number) => ({
-      id:              String(r._id ?? r.id ?? idx),
-      srNo:            r.srNo ?? r.sr_no ?? null,
-      name:            r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
-      contact:         r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
-      type:            r.type ?? r.leadType ?? "Lead",
-      lastCalledAt:    r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
-      callStatus:      r.callStatus ?? r.call_status ?? r.status ?? null,
-      callDuration:    r.callDuration ?? r.call_duration ?? r.duration ?? null,
-      recordingUrl:    r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
-      transcript:      r.transcript ?? r.callTranscript ?? null,
-      sentiment:       r.sentimentAnalysis ?? r.sentiment ?? null,
-      direction:       r.direction ?? r.callDirection ?? null,
-      appointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
-      agentName:       r.agentName ?? r.agent_name ?? r.assignedAgent ?? r.agent ?? null,
-    }));
+    return allRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
   });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function normaliseLeadRecord(r: any, idx: number) {
+  return {
+    id:              String(r._id ?? r.id ?? idx),
+    srNo:            r.srNo ?? r.sr_no ?? null,
+    name:            r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
+    contact:         r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
+    type:            r.type ?? r.leadType ?? "Lead",
+    lastCalledAt:    r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
+    callStatus:      r.callStatus ?? r.call_status ?? r.status ?? null,
+    callDuration:    r.callDuration ?? r.call_duration ?? r.duration ?? null,
+    recordingUrl:    r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
+    transcript:      r.transcript ?? r.callTranscript ?? null,
+    sentiment:       r.sentimentAnalysis ?? r.sentiment ?? null,
+    direction:       r.direction ?? r.callDirection ?? null,
+    appointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
+    agentName:       r.agentName ?? r.agent_name ?? r.assignedAgent ?? r.agent ?? null,
+  };
+}
 
 function extractRecords(raw: any): any[] {
   if (Array.isArray(raw))        return raw;

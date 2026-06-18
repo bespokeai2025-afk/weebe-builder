@@ -191,6 +191,9 @@ export const wbahGetUserCallLead = (gt: GetTokens, st: SaveToken) =>
 export const wbahGetUserCallLeadPaged = (page: number, gt: GetTokens, st: SaveToken) =>
   aGet<unknown>(`/call-output-data/get-userCall-lead?page=${page}`, gt, st);
 
+export const wbahGetUserCallLeadAll = (gt: GetTokens, st: SaveToken) =>
+  aGet<unknown>(`/call-output-data/get-userCall-lead?limit=10000`, gt, st);
+
 export const wbahGetPendingCallbacks = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/callbacks/pending", gt, st);
 

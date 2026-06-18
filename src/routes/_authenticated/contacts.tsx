@@ -140,12 +140,39 @@ function wbahLeadSentiment(v?: string | null) {
 function WbahLeadsSection() {
   const SENTIMENTS = ["Positive", "Neutral", "Negative"] as const;
 
+  // Display labels for known callStatus API values
+  const STATUS_LABELS: Record<string, string> = {
+    disqualified:      "Disqualified",
+    Disqualified:      "Disqualified",
+    "dis-qualified":   "Disqualified",
+    dis_qualified:     "Disqualified",
+    new:               "New Lead",
+    New:               "New Lead",
+    new_lead:          "New Lead",
+    newlead:           "New Lead",
+    "new-lead":        "New Lead",
+    "New Lead":        "New Lead",
+    rebooking:         "Rebooking",
+    Rebooking:         "Rebooking",
+    re_booking:        "Rebooking",
+    "re-booking":      "Rebooking",
+    tried_to_contact:  "Tried to Contact",
+    triedtocontact:    "Tried to Contact",
+    "tried-to-contact":"Tried to Contact",
+    "Tried to Contact":"Tried to Contact",
+    tried:             "Tried to Contact",
+  };
+
+  function statusLabel(raw: string): string {
+    return STATUS_LABELS[raw] ?? raw;
+  }
+
   const [search, setSearch]             = useState("");
   const [transcript, setTranscript]     = useState<{ text: string; name: string } | null>(null);
   const [showFilters, setShowFilters]   = useState(false);
   const [sentFilters, setSentFilters]   = useState<Set<string>>(new Set());
   const [agentFilters, setAgentFilters] = useState<Set<string>>(new Set());
-  const [typeFilters, setTypeFilters]   = useState<Set<string>>(new Set());
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
 
   const getFn = useServerFn(listWbahLeads);
 
@@ -165,30 +192,28 @@ function WbahLeadsSection() {
     return [...s].sort();
   }, [records]);
 
-  const uniqueTypes = useMemo(() => {
+  const uniqueStatuses = useMemo(() => {
     const s = new Set<string>();
-    for (const r of records) if (r.type) s.add(r.type);
+    for (const r of records) if (r.callStatus) s.add(r.callStatus);
     return [...s].sort();
   }, [records]);
 
   // Business rule: "Qualified" type always shows only Positive sentiment
-  const qualifiedSelected = [...typeFilters].some(t => t.toLowerCase() === "qualified");
+  const qualifiedSelected = false; // callStatus filter no longer locks sentiment
 
-  const activeFilterCount = sentFilters.size + agentFilters.size + typeFilters.size;
+  const activeFilterCount = sentFilters.size + agentFilters.size + statusFilters.size;
 
   const filtered = useMemo(() => {
     let out = records;
     const q = search.trim().toLowerCase();
     if (q) out = out.filter((r: any) =>
       r.name?.toLowerCase().includes(q) || r.contact?.toLowerCase().includes(q));
-    if (typeFilters.size > 0) out = out.filter((r: any) =>
-      typeFilters.has(r.type ?? "Lead"));
-    // Business rule: any Qualified record only shows if sentiment is Positive
+    if (statusFilters.size > 0) out = out.filter((r: any) =>
+      statusFilters.has(r.callStatus ?? ""));
+    // Business rule: any record with type === "Qualified" only shows if sentiment is Positive
     out = out.filter((r: any) => {
       const isQualified = (r.type ?? "").toLowerCase() === "qualified";
-      if (isQualified) {
-        return (r.sentiment ?? "").toLowerCase().includes("positive");
-      }
+      if (isQualified) return (r.sentiment ?? "").toLowerCase().includes("positive");
       return true;
     });
     if (sentFilters.size > 0) out = out.filter((r: any) => {
@@ -198,7 +223,7 @@ function WbahLeadsSection() {
     if (agentFilters.size > 0) out = out.filter((r: any) =>
       agentFilters.has(r.agentName ?? ""));
     return out;
-  }, [records, search, typeFilters, sentFilters, agentFilters]);
+  }, [records, search, statusFilters, sentFilters, agentFilters]);
 
   function toggleSent(v: string) {
     setSentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
@@ -206,10 +231,10 @@ function WbahLeadsSection() {
   function toggleAgent(v: string) {
     setAgentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
   }
-  function toggleType(v: string) {
-    setTypeFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
+  function toggleStatus(v: string) {
+    setStatusFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
   }
-  function clearFilters() { setSentFilters(new Set()); setAgentFilters(new Set()); setTypeFilters(new Set()); }
+  function clearFilters() { setSentFilters(new Set()); setAgentFilters(new Set()); setStatusFilters(new Set()); }
 
   const sentimentDot: Record<string, string> = {
     positive: "bg-emerald-400",
@@ -300,31 +325,23 @@ function WbahLeadsSection() {
       {showFilters && (
         <div className="rounded-xl border border-white/[0.06] bg-card/50 px-4 py-3 flex flex-wrap gap-x-8 gap-y-3">
 
-          {/* Type */}
-          {uniqueTypes.length > 0 && (
+          {/* Status (callStatus) */}
+          {uniqueStatuses.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</p>
-              <div className="flex flex-col gap-1">
-                {uniqueTypes.map(t => {
-                  const isQual = t.toLowerCase() === "qualified";
-                  return (
-                    <label key={t} className="flex items-center gap-2 cursor-pointer select-none group">
-                      <input type="checkbox" className="sr-only" checked={typeFilters.has(t)} onChange={() => toggleType(t)} />
-                      <span className={cn(
-                        "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
-                        typeFilters.has(t) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
-                      )}>
-                        {typeFilters.has(t) && <span className="block h-1.5 w-1.5 rounded-sm bg-primary-foreground" />}
-                      </span>
-                      <span className="text-xs text-foreground/80 whitespace-nowrap">{t}</span>
-                      {isQual && (
-                        <span className="text-[9px] font-medium px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 whitespace-nowrap">
-                          Positive only
-                        </span>
-                      )}
-                    </label>
-                  );
-                })}
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</p>
+              <div className="flex flex-col gap-1 max-h-36 overflow-y-auto pr-1">
+                {uniqueStatuses.map(s => (
+                  <label key={s} className="flex items-center gap-2 cursor-pointer select-none group">
+                    <input type="checkbox" className="sr-only" checked={statusFilters.has(s)} onChange={() => toggleStatus(s)} />
+                    <span className={cn(
+                      "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
+                      statusFilters.has(s) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
+                    )}>
+                      {statusFilters.has(s) && <span className="block h-1.5 w-1.5 rounded-sm bg-primary-foreground" />}
+                    </span>
+                    <span className="text-xs text-foreground/80 whitespace-nowrap">{statusLabel(s)}</span>
+                  </label>
+                ))}
               </div>
             </div>
           )}
@@ -334,13 +351,12 @@ function WbahLeadsSection() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</p>
             <div className="flex flex-col gap-1">
               {SENTIMENTS.map(s => (
-                <label key={s} className={cn("flex items-center gap-2 cursor-pointer select-none group", qualifiedSelected && "opacity-40 pointer-events-none")}>
+                <label key={s} className="flex items-center gap-2 cursor-pointer select-none group">
                   <input
                     type="checkbox"
                     className="sr-only"
                     checked={sentFilters.has(s)}
                     onChange={() => toggleSent(s)}
-                    disabled={qualifiedSelected}
                   />
                   <span className={cn(
                     "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
@@ -352,9 +368,6 @@ function WbahLeadsSection() {
                   <span className="text-xs text-foreground/80">{s}</span>
                 </label>
               ))}
-              {qualifiedSelected && (
-                <p className="text-[10px] text-emerald-400/80 mt-0.5">Locked to Positive for Qualified</p>
-              )}
             </div>
           </div>
 
@@ -410,10 +423,9 @@ function WbahLeadsSection() {
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground w-10">SR NO</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Called At</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Call Status</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Call Duration</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
@@ -426,14 +438,13 @@ function WbahLeadsSection() {
                     <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
                     <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{r.name ?? "—"}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.contact ?? "—"}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">{r.type ?? "Lead"}</td>
+                    <td className="px-3 py-2">{wbahLeadStatusBadge(r.callStatus)}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">{r.agentName ?? "—"}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
                       {r.lastCalledAt
                         ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
                         : "—"}
                     </td>
-                    <td className="px-3 py-2">{wbahLeadStatusBadge(r.callStatus)}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
                       {r.callDuration ?? "N/A"}
                     </td>
