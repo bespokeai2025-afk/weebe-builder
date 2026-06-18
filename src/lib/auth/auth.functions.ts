@@ -37,13 +37,12 @@ export const getMyAdminStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("user_type")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return { isAdmin: data?.user_type === "admin" };
+    const [profileRes, roleRes] = await Promise.all([
+      supabase.from("profiles").select("user_type").eq("user_id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
+    ]);
+    const isAdmin = profileRes.data?.user_type === "admin" || !!roleRes.data;
+    return { isAdmin };
   });
 
 /**
