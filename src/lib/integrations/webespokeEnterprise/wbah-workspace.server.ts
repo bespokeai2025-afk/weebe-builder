@@ -354,6 +354,7 @@ function normaliseLeadRecord(r: any, idx: number) {
     endReason:          r.endReason ?? r.end_reason ?? null,
     disconnectionReason:r.disconnectionReason ?? r.disconnection_reason ?? null,
     agentName:          r.agentName ?? r.agent_name ?? r.assignedAgent ?? r.agent ?? null,
+    callSummary:        r.callSummary ?? r.call_summary ?? r.summary ?? null,
   };
 }
 

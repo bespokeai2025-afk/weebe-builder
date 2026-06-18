@@ -475,7 +475,7 @@ function WbahLeadsSection() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-card/30">
-                  {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Transcript","View","Appt Date","Appt Time","Booking Status","Calendly URL","End Reason","Disconnection Reason"].map(h => (
+                  {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appt Date","Appt Time","Booking Status","Calendly URL","End Reason","Disconnection Reason"].map(h => (
                     <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -516,6 +516,9 @@ function WbahLeadsSection() {
                       ) : <span className="text-[11px] text-muted-foreground">N/A</span>}
                     </td>
                     <td className="px-3 py-1.5">{wbahLeadSentiment(r.sentiment)}</td>
+                    <td className="px-3 py-1.5 text-xs text-muted-foreground max-w-[200px] align-middle">
+                      <SummaryTooltip text={r.callSummary} lines={2} />
+                    </td>
                     <td className="px-3 py-1.5">
                       {r.transcript ? (
                         <button onClick={() => setTranscript({ text: r.transcript, name: r.name ?? "Lead" })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">
