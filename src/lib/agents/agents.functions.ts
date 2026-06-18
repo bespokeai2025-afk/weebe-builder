@@ -199,32 +199,36 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
     }
 
     // Map Retell agents → dashboard shape.
-    const retellMapped: DashAgent[] = retellAgentList.map((ra) => {
-      const localLiveMatch = localByDeployedId.get(ra.agent_id);
-      const localRow = localByRetellAgentId.get(ra.agent_id);
+    // Only include agents that already have a matching local DB row —
+    // new agents built in this workspace use the standard isLive flag instead.
+    const retellMapped: DashAgent[] = retellAgentList
+      .filter((ra) => localByDeployedId.has(ra.agent_id) || localByRetellAgentId.has(ra.agent_id))
+      .map((ra) => {
+        const localLiveMatch = localByDeployedId.get(ra.agent_id);
+        const localRow = localByRetellAgentId.get(ra.agent_id);
 
-      const agentType = localLiveMatch?.agentType
-        ?? (localRow ? ((localRow.settings as Record<string, unknown>)?.dashboardAgentType as string | undefined) : undefined)
-        ?? "receptionist";
+        const agentType = localLiveMatch?.agentType
+          ?? (localRow ? ((localRow.settings as Record<string, unknown>)?.dashboardAgentType as string | undefined) : undefined)
+          ?? "receptionist";
 
-      const liveAt = localLiveMatch?.liveAt ?? null;
+        const liveAt = localLiveMatch?.liveAt ?? null;
 
-      // Phone: Retell phone numbers take precedence (most accurate source of truth).
-      const phoneNumber =
-        phoneMap[ra.agent_id] ??
-        localLiveMatch?.phoneNumber ??
-        localRow?.inbound_phone_number ??
-        null;
+        // Phone: Retell phone numbers take precedence (most accurate source of truth).
+        const phoneNumber =
+          phoneMap[ra.agent_id] ??
+          localLiveMatch?.phoneNumber ??
+          localRow?.inbound_phone_number ??
+          null;
 
-      return {
-        id: localLiveMatch?.id ?? localRow?.id ?? `retell_${ra.agent_id}`,
-        name: ra.agent_name,
-        agentType,
-        phoneNumber,
-        liveAt,
-        deployedRetellAgentId: ra.agent_id,
-      };
-    });
+        return {
+          id: (localLiveMatch?.id ?? localRow?.id)!,
+          name: ra.agent_name,
+          agentType,
+          phoneNumber,
+          liveAt,
+          deployedRetellAgentId: ra.agent_id,
+        };
+      });
 
     // Include any local live agents not covered by the Retell list.
     const retellIds = new Set(retellAgentList.map((a) => a.agent_id));
