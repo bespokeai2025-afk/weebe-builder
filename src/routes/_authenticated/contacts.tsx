@@ -137,7 +137,7 @@ function wbahLeadSentiment(v?: string | null) {
   return <span className={`text-[11px] capitalize ${cls}`}>{v}</span>;
 }
 
-const WBAH_LEAD_PAGE_SIZE = 10;
+const WBAH_LEAD_PAGE_SIZE = 50; // API returns 50 records per page regardless of ?limit param
 
 function WbahLeadsSection() {
   const [page, setPage]           = useState(1);

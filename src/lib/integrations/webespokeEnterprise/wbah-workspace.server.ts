@@ -155,29 +155,22 @@ export const getWbahLeads = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z.object({
       page:   z.number().int().min(1).default(1),
-      limit:  z.number().int().min(1).max(100).default(10),
+      limit:  z.number().int().min(1).max(200).default(50),
       search: z.string().optional(),
       filter: z.enum(["all", "inbound", "outbound", "lead", "opportunity"]).optional(),
     }).parse(i ?? {}),
   )
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahGetUserCallLeadPaged(data.page, data.limit, cbs.getTokens, cbs.saveNewAccessToken);
+
+    // Fetch data — count comes from within the response or falls back to records.length
+    const res = await api.wbahGetUserCallLeadPaged(data.page, cbs.getTokens, cbs.saveNewAccessToken);
     if (!res.ok) throw new Error(res.error ?? "Failed to fetch leads");
 
     const raw = res.data as any;
-    const records: any[] = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.data)
-        ? raw.data
-        : Array.isArray(raw?.leads)
-          ? raw.leads
-          : Array.isArray(raw?.records)
-            ? raw.records
-            : [];
-
-    const total: number =
-      raw?.total ?? raw?.totalCount ?? raw?.count ?? raw?.pagination?.total ?? records.length;
+    const records = extractRecords(raw);
+    const realTotal = extractCountFromResponse(raw, records.length);
+    const pageSize  = records.length || data.limit;
 
     const normalised = records.map((r: any, idx: number) => ({
       id:             String(r._id ?? r.id ?? idx),
@@ -197,12 +190,42 @@ export const getWbahLeads = createServerFn({ method: "POST" })
 
     return {
       records: normalised,
-      total,
-      page:  data.page,
-      limit: data.limit,
-      pages: Math.max(1, Math.ceil(total / data.limit)),
+      total:   realTotal,
+      page:    data.page,
+      limit:   pageSize,
+      pages:   Math.max(1, Math.ceil(realTotal / pageSize)),
     };
   });
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function extractRecords(raw: any): any[] {
+  if (Array.isArray(raw))        return raw;
+  if (Array.isArray(raw?.data))  return raw.data;
+  if (Array.isArray(raw?.calls)) return raw.calls;
+  if (Array.isArray(raw?.records)) return raw.records;
+  if (Array.isArray(raw?.leads)) return raw.leads;
+  return [];
+}
+
+function extractCountFromResponse(raw: any, fallback: number): number {
+  return raw?.total ?? raw?.totalCount ?? raw?.count ?? raw?.pagination?.total ?? fallback;
+}
+
+async function fetchWbahCount(
+  countFn: () => Promise<any>,
+  fallback: number,
+): Promise<number> {
+  try {
+    const res = await countFn();
+    if (!res.ok) return fallback;
+    const d = res.data as any;
+    const n = d?.count ?? d?.total ?? d?.totalCount ?? d?.data?.count ?? d?.data?.total;
+    return typeof n === "number" ? n : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 // ── Call Logs — live from WeeBespoke API with server-side pagination ──────────
 
@@ -211,28 +234,28 @@ export const getWbahCallLogs = createServerFn({ method: "POST" })
   .inputValidator((i) =>
     z.object({
       page:  z.number().int().min(1).default(1),
-      limit: z.number().int().min(1).max(100).default(10),
+      limit: z.number().int().min(1).max(200).default(50),
     }).parse(i ?? {}),
   )
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahGetAllCallDataPaged(data.page, data.limit, cbs.getTokens, cbs.saveNewAccessToken);
+
+    // Fetch data + count in parallel — count gives the real total (API ignores ?limit)
+    const [res, total] = await Promise.all([
+      api.wbahGetAllCallDataPaged(data.page, cbs.getTokens, cbs.saveNewAccessToken),
+      fetchWbahCount(
+        () => api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
+        0,
+      ),
+    ]);
+
     if (!res.ok) throw new Error(res.error ?? "Failed to fetch call logs");
 
-    // Normalise the API response — field names vary between environments
     const raw = res.data as any;
-    const records: any[] = Array.isArray(raw)
-      ? raw
-      : Array.isArray(raw?.data)
-        ? raw.data
-        : Array.isArray(raw?.calls)
-          ? raw.calls
-          : Array.isArray(raw?.records)
-            ? raw.records
-            : [];
-
-    const total: number =
-      raw?.total ?? raw?.totalCount ?? raw?.count ?? raw?.pagination?.total ?? records.length;
+    const records = extractRecords(raw);
+    // Use count endpoint result; fall back to in-response total if count endpoint returned 0
+    const realTotal = total > 0 ? total : extractCountFromResponse(raw, records.length);
+    const pageSize  = records.length || data.limit; // actual batch the API returned
 
     const normalised = records.map((r: any, idx: number) => ({
       id:            String(r._id ?? r.id ?? idx),
@@ -251,9 +274,9 @@ export const getWbahCallLogs = createServerFn({ method: "POST" })
 
     return {
       records: normalised,
-      total,
-      page:  data.page,
-      limit: data.limit,
-      pages: Math.max(1, Math.ceil(total / data.limit)),
+      total:   realTotal,
+      page:    data.page,
+      limit:   pageSize,
+      pages:   Math.max(1, Math.ceil(realTotal / pageSize)),
     };
   });
