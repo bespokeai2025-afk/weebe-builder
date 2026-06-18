@@ -1153,6 +1153,25 @@ function DataPage() {
             </div>
           )}
 
+          {/* ── WBAH People KPI strip ───────────────────────────────────── */}
+          {wbahCallData.length > 0 && (() => {
+            const wbahTotal      = wbahCallData.length;
+            const wbahNeedCall   = wbahCallData.filter(r => {
+              const s = (r.callStatus ?? "").toLowerCase();
+              return s === "need_to_call" || s === "need to call" || s === "not_connected" || s === "no_answer" || s === "not connected";
+            }).length;
+            const wbahAppts      = wbahCallData.filter(r => !!r.appointmentDate).length;
+            const wbahDisqualCnt = wbahCallData.filter(isWbahDisqualified).length;
+            return (
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <KpiCard label="Total Leads"    value={wbahTotal}      icon={Users}        iconBg="bg-blue-500/15"    iconColor="text-blue-400" />
+                <KpiCard label="Need to Call"   value={wbahNeedCall}   icon={PhoneOutgoing} iconBg="bg-amber-500/15"  iconColor="text-amber-400" />
+                <KpiCard label="Appointments"   value={wbahAppts}      icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+                <KpiCard label="Disqualified"   value={wbahDisqualCnt} icon={UserCheck}    iconBg="bg-rose-500/15"   iconColor="text-rose-400" />
+              </div>
+            );
+          })()}
+
           {/* ── WBAH People toolbar ─────────────────────────────────────── */}
           <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
 
@@ -1273,7 +1292,6 @@ function DataPage() {
                     className="h-7 text-xs"
                     onClick={() => {
                       const visible = wbahCallData.filter(r => {
-                        if (wbahPeopleSubTab === "disqualified_sweep" && !isWbahDisqualified(r)) return false;
                         if (wbahPeopleSearch) {
                           const q = wbahPeopleSearch.toLowerCase();
                           return (r.name ?? "").toLowerCase().includes(q) || (r.contact ?? "").includes(q);
@@ -1337,7 +1355,6 @@ function DataPage() {
             ) : (() => {
               const isSweepTab = wbahPeopleSubTab === "disqualified_sweep";
               const filtered = wbahCallData.filter(r => {
-                if (isSweepTab && !isWbahDisqualified(r)) return false;
                 if (wbahPeopleSearch) {
                   const q = wbahPeopleSearch.toLowerCase();
                   if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
@@ -1350,7 +1367,7 @@ function DataPage() {
                   {isSweepTab && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/5 border-b border-rose-500/10 text-[11px] text-rose-400">
                       <AlertCircle className="h-3 w-3" />
-                      Disqualified Sweep — {filtered.length} lead{filtered.length !== 1 ? "s" : ""} from the client's Disqualified Sweep CRM section
+                      Disqualified Sweep — review all {filtered.length} record{filtered.length !== 1 ? "s" : ""} and assign the qualification agent to disqualify leads
                     </div>
                   )}
                   <table className="w-full text-xs">
