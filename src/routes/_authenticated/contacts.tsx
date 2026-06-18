@@ -20,7 +20,7 @@ import {
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
-import { getWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { cn } from "@/lib/utils";
 import { createClient } from "@supabase/supabase-js";
 
@@ -137,26 +137,20 @@ function wbahLeadSentiment(v?: string | null) {
   return <span className={`text-[11px] capitalize ${cls}`}>{v}</span>;
 }
 
-const WBAH_LEAD_PAGE_SIZE = 50; // API returns 50 records per page regardless of ?limit param
-
 function WbahLeadsSection() {
-  const [page, setPage]           = useState(1);
-  const [search, setSearch]       = useState("");
+  const [search, setSearch]         = useState("");
   const [transcript, setTranscript] = useState<{ text: string; name: string } | null>(null);
-  const getFn = useServerFn(getWbahLeads);
+  const getFn = useServerFn(listWbahLeads);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["wbah-leads", page],
-    queryFn: () => getFn({ data: { page, limit: WBAH_LEAD_PAGE_SIZE } }),
-    staleTime: 60_000,
+    queryKey: ["wbah-leads-all"],
+    queryFn:  () => getFn(),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
     retry: 1,
-    placeholderData: (prev) => prev,
   });
 
-  const records = data?.records ?? [];
-  const total   = data?.total  ?? 0;
-  const pages   = data?.pages  ?? 1;
-  const startNo = (page - 1) * WBAH_LEAD_PAGE_SIZE + 1;
+  const records = (data ?? []) as any[];
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -168,17 +162,7 @@ function WbahLeadsSection() {
     );
   }, [records, search]);
 
-  const pageWindow = (() => {
-    const half = 4;
-    let start = Math.max(1, page - half);
-    let end   = Math.min(pages, start + 9);
-    start = Math.max(1, end - 9);
-    const nums: number[] = [];
-    for (let i = start; i <= end; i++) nums.push(i);
-    return nums;
-  })();
-
-  if (isLoading && !data) return (
+  if (isLoading && records.length === 0) return (
     <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
       <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Loading WeeBespoke leads…
     </div>
@@ -224,16 +208,18 @@ function WbahLeadsSection() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
             value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            onChange={e => setSearch(e.target.value)}
             placeholder="Search name or number…"
             className="h-7 pl-8 text-xs"
           />
         </div>
         <p className="ml-auto text-[11px] text-muted-foreground flex items-center gap-1.5">
           <Building2 className="h-3.5 w-3.5" />
-          {total > 0 ? `Showing ${startNo}–${Math.min(startNo + WBAH_LEAD_PAGE_SIZE - 1, total)} of ${total.toLocaleString()}` : "WeeBespoke leads"}
+          {records.length > 0
+            ? `${filtered.length < records.length ? `${filtered.length} of ` : ""}${records.length.toLocaleString()} leads`
+            : "WeeBespoke leads"}
         </p>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setPage(1); refetch(); }} disabled={isFetching}>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
         </Button>
       </div>
@@ -243,7 +229,7 @@ function WbahLeadsSection() {
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16">
             <Phone className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">{total === 0 ? "No leads found" : "No matches"}</p>
+            <p className="text-sm font-medium">{records.length === 0 ? "No leads found" : "No matches"}</p>
             <p className="text-xs text-muted-foreground">WeeBespoke lead data will appear here once available.</p>
           </div>
         ) : (
@@ -266,7 +252,7 @@ function WbahLeadsSection() {
               <tbody>
                 {filtered.map((r: any, idx: number) => (
                   <tr key={r.id} className="h-10 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? startNo + idx}</td>
+                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
                     <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{r.name ?? "—"}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.contact ?? "—"}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">{r.type ?? "Lead"}</td>
@@ -310,53 +296,6 @@ function WbahLeadsSection() {
           </div>
         )}
       </div>
-
-      {/* Pagination */}
-      {pages > 1 && (
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>Showing {startNo}–{Math.min(startNo + WBAH_LEAD_PAGE_SIZE - 1, total)} of {total.toLocaleString()} leads</span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="h-3.5 w-3.5 rotate-180" />
-            </button>
-            {pageWindow[0] > 1 && (
-              <>
-                <button onClick={() => setPage(1)} className="flex h-7 min-w-[28px] items-center justify-center rounded-md border border-white/[0.06] bg-card/40 px-2 hover:bg-white/[0.06]">1</button>
-                {pageWindow[0] > 2 && <span className="px-1">…</span>}
-              </>
-            )}
-            {pageWindow.map(n => (
-              <button
-                key={n}
-                onClick={() => setPage(n)}
-                className={cn(
-                  "flex h-7 min-w-[28px] items-center justify-center rounded-md border px-2 transition-colors",
-                  n === page
-                    ? "border-primary/40 bg-primary/15 text-primary font-semibold"
-                    : "border-white/[0.06] bg-card/40 hover:bg-white/[0.06]",
-                )}
-              >{n}</button>
-            ))}
-            {pageWindow[pageWindow.length - 1] < pages && (
-              <>
-                {pageWindow[pageWindow.length - 1] < pages - 1 && <span className="px-1">…</span>}
-                <button onClick={() => setPage(pages)} className="flex h-7 min-w-[28px] items-center justify-center rounded-md border border-white/[0.06] bg-card/40 px-2 hover:bg-white/[0.06]">{pages}</button>
-              </>
-            )}
-            <button
-              onClick={() => setPage(p => Math.min(pages, p + 1))}
-              disabled={page === pages}
-              className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

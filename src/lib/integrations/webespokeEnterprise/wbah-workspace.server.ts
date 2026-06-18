@@ -148,53 +148,93 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
     return res.data;
   });
 
-// ── Leads (Positive/Neutral) — live from WeeBespoke API with pagination ───────
+// ── Leads — fetch ALL pages in parallel, return flat list ─────────────────────
 
-export const getWbahLeads = createServerFn({ method: "POST" })
+export const listWbahLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((i) =>
-    z.object({
-      page:   z.number().int().min(1).default(1),
-      limit:  z.number().int().min(1).max(200).default(50),
-      search: z.string().optional(),
-      filter: z.enum(["all", "inbound", "outbound", "lead", "opportunity"]).optional(),
-    }).parse(i ?? {}),
-  )
-  .handler(async ({ context, data }) => {
+  .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    // Fetch data — count comes from within the response or falls back to records.length
-    const res = await api.wbahGetUserCallLeadPaged(data.page, cbs.getTokens, cbs.saveNewAccessToken);
-    if (!res.ok) throw new Error(res.error ?? "Failed to fetch leads");
+    // Count + page 1 in parallel
+    const [countRes, firstRes] = await Promise.all([
+      api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
+    ]);
+    if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch leads");
 
-    const raw = res.data as any;
-    const records = extractRecords(raw);
-    const realTotal = extractCountFromResponse(raw, records.length);
-    const pageSize  = records.length || data.limit;
+    const firstRaw  = firstRes.data as any;
+    const firstRecs = extractRecords(firstRaw);
+    const pageSize  = firstRecs.length || 50;
 
-    const normalised = records.map((r: any, idx: number) => ({
-      id:             String(r._id ?? r.id ?? idx),
-      srNo:           r.srNo ?? r.sr_no ?? null,
-      name:           r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
-      contact:        r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
-      type:           r.type ?? r.leadType ?? "Lead",
-      lastCalledAt:   r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
-      callStatus:     r.callStatus ?? r.call_status ?? r.status ?? null,
-      callDuration:   r.callDuration ?? r.call_duration ?? r.duration ?? null,
-      recordingUrl:   r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
-      transcript:     r.transcript ?? r.callTranscript ?? null,
-      sentiment:      r.sentimentAnalysis ?? r.sentiment ?? null,
-      direction:      r.direction ?? r.callDirection ?? null,
+    // Real total from count endpoint
+    const countData  = countRes.data as any;
+    const countTotal =
+      (countData?.totalCall?.lead ?? 0)
+      + (countData?.totalCall?.opportunity ?? 0)
+      + (countData?.totalCall?.total ?? 0);
+    const total =
+      (countTotal > 0 ? countTotal : null)
+      ?? countData?.total
+      ?? countData?.totalCount
+      ?? countData?.count
+      ?? extractCountFromResponse(firstRaw, 0);
+
+    const knownPages = total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 0;
+    let allRecs = [...firstRecs];
+
+    // Fetch remaining known pages in parallel batches of 20
+    if (knownPages > 1) {
+      const remaining = Array.from({ length: knownPages - 1 }, (_, i) => i + 2);
+      const BATCH = 20;
+      for (let b = 0; b < remaining.length; b += BATCH) {
+        const chunk = remaining.slice(b, b + BATCH);
+        const results = await Promise.all(
+          chunk.map((p) => api.wbahGetUserCallLeadPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
+        );
+        for (const r of results) {
+          if (r.ok && r.data) allRecs.push(...extractRecords(r.data));
+        }
+      }
+    }
+
+    // Safety net: batch-fetch beyond knownPages until empty
+    {
+      const SAFETY_CAP   = 500;
+      const SAFETY_BATCH = 10;
+      let nextPage = knownPages > 0 ? knownPages + 1 : 2;
+      while (nextPage <= SAFETY_CAP) {
+        const batch = Array.from({ length: SAFETY_BATCH }, (_, i) => nextPage + i);
+        const results = await Promise.all(
+          batch.map((p) => api.wbahGetUserCallLeadPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
+        );
+        let anyFound = false;
+        for (const r of results) {
+          if (r.ok && r.data) {
+            const recs = extractRecords(r.data as any);
+            if (recs.length > 0) { allRecs.push(...recs); anyFound = true; }
+          }
+        }
+        if (!anyFound) break;
+        nextPage += SAFETY_BATCH;
+      }
+    }
+
+    // Normalise
+    return allRecs.map((r: any, idx: number) => ({
+      id:              String(r._id ?? r.id ?? idx),
+      srNo:            r.srNo ?? r.sr_no ?? null,
+      name:            r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
+      contact:         r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
+      type:            r.type ?? r.leadType ?? "Lead",
+      lastCalledAt:    r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
+      callStatus:      r.callStatus ?? r.call_status ?? r.status ?? null,
+      callDuration:    r.callDuration ?? r.call_duration ?? r.duration ?? null,
+      recordingUrl:    r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
+      transcript:      r.transcript ?? r.callTranscript ?? null,
+      sentiment:       r.sentimentAnalysis ?? r.sentiment ?? null,
+      direction:       r.direction ?? r.callDirection ?? null,
       appointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
     }));
-
-    return {
-      records: normalised,
-      total:   realTotal,
-      page:    data.page,
-      limit:   pageSize,
-      pages:   Math.max(1, Math.ceil(realTotal / pageSize)),
-    };
   });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
