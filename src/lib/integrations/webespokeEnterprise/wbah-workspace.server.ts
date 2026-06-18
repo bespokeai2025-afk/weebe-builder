@@ -220,8 +220,45 @@ async function fetchWbahCount(
     const res = await countFn();
     if (!res.ok) return fallback;
     const d = res.data as any;
-    const n = d?.count ?? d?.total ?? d?.totalCount ?? d?.data?.count ?? d?.data?.total;
-    return typeof n === "number" ? n : fallback;
+
+    // Log raw response for debugging (visible in workflow logs)
+    console.log("[wbah-count] raw response:", JSON.stringify(d).slice(0, 300));
+
+    // Handle plain number response
+    if (typeof d === "number") return d > 0 ? d : fallback;
+
+    // Handle array response: [{ count: N }] or [N]
+    if (Array.isArray(d)) {
+      if (d.length > 0) {
+        const first = d[0];
+        if (typeof first === "number") return first > 0 ? first : fallback;
+        const n = first?.count ?? first?.total ?? first?.totalCount ?? first?.callCount;
+        if (typeof n === "number" && n > 0) return n;
+      }
+      return d.length > 0 ? d.length : fallback;
+    }
+
+    // Try every common field name the WeeBespoke API might use
+    const candidates = [
+      d?.count, d?.total, d?.totalCount, d?.totalCalls, d?.callCount,
+      d?.callsCount, d?.total_count, d?.total_calls,
+      d?.data?.count, d?.data?.total, d?.data?.totalCount,
+      d?.data?.totalCalls, d?.data?.callCount,
+      d?.result?.count, d?.result?.total,
+      d?.metadata?.count, d?.metadata?.total,
+      d?.pagination?.total, d?.pagination?.count,
+      Array.isArray(d?.counts) ? d.counts[0]?.count : undefined,
+      Array.isArray(d?.data) ? d.data.length : undefined,
+    ];
+
+    for (const n of candidates) {
+      if (typeof n === "number" && n > 0) return n;
+      if (typeof n === "string" && /^\d+$/.test(n)) {
+        const parsed = parseInt(n, 10);
+        if (parsed > 0) return parsed;
+      }
+    }
+    return fallback;
   } catch {
     return fallback;
   }
