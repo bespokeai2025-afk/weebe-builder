@@ -603,77 +603,121 @@ function formatDurationMs(ms: number | null | undefined): string | null {
   return `${m}m ${sec}s`;
 }
 
-// ── All WeeBespoke calls — fetches every page in parallel, returns WEBEE shape ─
+// ── All WeeBespoke calls — POST /get-user-history, all 10,149 records ──────────
+//
+// Endpoint audit confirmed:
+//   POST /call-output-data/get-user-history → totalItems=10,149, pageSize=10 (hardcoded)
+//   Pagination key: { currentPage: N }
+//   Fields: snake_case (call_id, customer_name, to_number, duration_ms, etc.)
+//
+// GET /get-all-calldata (609 records) = CRM contacts-to-call, NOT completed calls.
+// GET /get-userCall-lead (1,201 records) = analyzed/qualified leads (contacts page).
 
 export const listWbahCalls = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
+    const gt = cbs.getTokens;
+    const st = cbs.saveNewAccessToken;
 
-    // ── Strategy 1: /call-output-data/all (different endpoint — may return all records) ──
-    const allEndpointRes = await api.wbahGetAllCallOutput(cbs.getTokens, cbs.saveNewAccessToken);
-    const allEndpointRecs = extractRecords(allEndpointRes.data);
-    console.log(`[WBAH calls] /all endpoint → ok=${allEndpointRes.ok} status=${allEndpointRes.status} records=${allEndpointRecs.length} topKeys=${allEndpointRes.data && typeof allEndpointRes.data === "object" ? Object.keys(allEndpointRes.data as object).join(",") : "n/a"} pagination=${JSON.stringify((allEndpointRes.data as any)?.pagination ?? null)}`);
+    // ── Pages 1 & 2 in parallel — validates pagination key works ─────────
+    const [p1Res, p2Res] = await Promise.all([
+      api.wbahGetUserHistoryPaged(1, gt, st),
+      api.wbahGetUserHistoryPaged(2, gt, st),
+    ]);
+    if (!p1Res.ok) {
+      console.log(`[WBAH calls] get-user-history page1 failed: status=${p1Res.status} err=${p1Res.error}`);
+      throw new Error(p1Res.error ?? "Failed to fetch calls from WeeBespoke");
+    }
+    const p1Raw        = p1Res.data as any;
+    const p1Recs       = Array.isArray(p1Raw?.data) ? p1Raw.data : [];
+    const p2Recs       = (p2Res.ok && Array.isArray((p2Res.data as any)?.data)) ? (p2Res.data as any).data : [];
+    const pagination   = p1Raw?.pagination;
+    const totalItems   = pagination?.totalItems ?? 0;
+    // pageSize is hardcoded to 10 by the API regardless of payload
+    const totalPages   = pagination?.totalPages ?? Math.ceil(totalItems / 10);
 
-    let allRecs: any[];
-    if (allEndpointRes.ok && allEndpointRecs.length > 609) {
-      // /all endpoint returned more data than the paginated endpoint — use it
-      console.log(`[WBAH calls] using /all endpoint result: ${allEndpointRecs.length} records`);
-      allRecs = allEndpointRecs;
-    } else {
-      // ── Strategy 2: ?limit=10000 single request ───────────────────────────
-      const bulkRes = await api.wbahGetAllCallDataAll(cbs.getTokens, cbs.saveNewAccessToken);
-      const bulkRecs = extractRecords(bulkRes.data);
-      console.log(`[WBAH calls] ?limit=10000 → ok=${bulkRes.ok} status=${bulkRes.status} records=${bulkRecs.length} pagination=${JSON.stringify((bulkRes.data as any)?.pagination ?? null)}`);
+    // Detect whether pagination is advancing — compare first call_id of each page
+    const p1FirstId = p1Recs[0]?.call_id ?? null;
+    const p2FirstId = p2Recs[0]?.call_id ?? null;
+    const paginationWorks = p2FirstId !== null && p2FirstId !== p1FirstId;
+    console.log(
+      `[WBAH calls] get-user-history page1: records=${p1Recs.length} totalItems=${totalItems} totalPages=${totalPages}` +
+      ` | page2: records=${p2Recs.length} firstId=${p2FirstId} | paginationWorks=${paginationWorks}`,
+    );
 
-      if (bulkRes.ok && bulkRecs.length > 609) {
-        console.log(`[WBAH calls] using bulk result: ${bulkRecs.length} records`);
-        allRecs = bulkRecs;
-      } else {
-        // ── Strategy 3: paginated fetch — best effort with available pages ──
-        console.log(`[WBAH calls] falling back to paginated fetch (API cap: totalItems in pagination)`);
-        const firstRes = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
-        if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch calls from WeeBespoke");
-        const p1Raw = firstRes.data as any;
-        allRecs = await fetchAllPages(
-          (p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken),
-          p1Raw,
-          "calls",
-        );
-        console.log(`[WBAH calls] paginated fetch total: ${allRecs.length} records`);
+    // ── Fetch remaining pages in parallel batches of 20 ──────────────────
+    const allRecs: any[] = [...p1Recs, ...p2Recs];
+
+    if (paginationWorks && totalPages > 2) {
+      const remaining = Array.from({ length: totalPages - 2 }, (_, i) => i + 3);
+      const BATCH = 20;
+      for (let i = 0; i < remaining.length; i += BATCH) {
+        const batch   = remaining.slice(i, i + BATCH);
+        const results = await Promise.all(batch.map((p) => api.wbahGetUserHistoryPaged(p, gt, st)));
+        let   found   = 0;
+        for (const res of results) {
+          if (res.ok) {
+            const recs = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
+            allRecs.push(...recs);
+            found += recs.length;
+          }
+        }
+        console.log(`[WBAH calls] get-user-history batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} (total: ${allRecs.length})`);
       }
+    } else if (!paginationWorks && totalPages > 1) {
+      console.log(`[WBAH calls] ⚠ pagination did NOT advance (page2 firstId === page1 firstId). Using only page1 data (${p1Recs.length} records). Investigate API pagination key.`);
+      // Reset to only p1Recs — p2Recs are duplicates
+      allRecs.length = 0;
+      allRecs.push(...p1Recs);
     }
 
-    const calls = allRecs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
+    // ── Deduplicate by call_id (safety net for overlapping pages) ─────────
+    const seenIds = new Set<string>();
+    const deduped: any[] = [];
+    for (const r of allRecs) {
+      const key = r.call_id ?? r._id ?? r.id;
+      if (key === undefined || key === null || !seenIds.has(String(key))) {
+        if (key !== undefined && key !== null) seenIds.add(String(key));
+        deduped.push(r);
+      }
+    }
+    if (deduped.length !== allRecs.length) {
+      console.log(`[WBAH calls] dedup: ${allRecs.length} raw → ${deduped.length} unique records`);
+    }
+
+    console.log(`[WBAH calls] get-user-history COMPLETE: unique=${deduped.length} of totalItems=${totalItems}`);
+
+    const calls = deduped.map((r: any, idx: number) => normaliseWbahCall(r, idx));
 
     // Count how many times each phone number appears across all call records
     const phoneCounts = new Map<string, number>();
     for (const c of calls) {
-      const phone = (c.wbah_contact ?? c.to_number ?? c.from_number ?? "") as string;
+      const phone = (c.wbah_contact ?? "") as string;
       if (phone) phoneCounts.set(phone, (phoneCounts.get(phone) ?? 0) + 1);
     }
     for (const c of calls) {
-      const phone = (c.wbah_contact ?? c.to_number ?? c.from_number ?? "") as string;
+      const phone = (c.wbah_contact ?? "") as string;
       (c as any).call_count = phone ? (phoneCounts.get(phone) ?? 1) : 1;
     }
 
     calls.sort((a, b) => {
-      const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
-      const tb = b.started_at ? new Date(b.started_at).getTime() : 0;
+      const ta = a.started_at ? new Date(a.started_at as string).getTime() : 0;
+      const tb = b.started_at ? new Date(b.started_at as string).getTime() : 0;
       return tb - ta;
     });
     return calls;
   });
 
-// ── Calls — fetch only page 1 (newest 50) — used for incremental polling ──────
+// ── Latest 10 calls — page 1 of get-user-history — used for incremental polling ─
 
 export const listWbahLatestCalls = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
+    const res = await api.wbahGetUserHistoryPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
     if (!res.ok) return [];
-    const recs = extractRecords(res.data as any);
+    const recs  = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
     const calls = recs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
     calls.sort((a: any, b: any) => {
       const ta = a.started_at ? new Date(a.started_at as string).getTime() : 0;
@@ -707,17 +751,21 @@ export const listWbahCrmContacts = createServerFn({ method: "GET" })
 
 function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
   // ── Identity ──────────────────────────────────────────────────────────────
-  const id    = String(r._id ?? r.id ?? `wbah-${idx}`);
-  const name  = r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null;
-  const phone = r.toNumber ?? r.mobile_number ?? r.phone ?? r.phoneNumber ?? null;
+  // get-user-history uses call_id; get-userCall-lead uses id
+  const id    = String(r.call_id ?? r._id ?? r.id ?? `wbah-${idx}`);
+  // get-user-history uses customer_name; get-userCall-lead uses name
+  const name  = r.customer_name ?? r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null;
+  // get-user-history uses to_number (snake); get-userCall-lead uses toNumber (camel)
+  const phone = r.to_number ?? r.toNumber ?? r.mobile_number ?? r.phone ?? r.phoneNumber ?? null;
   const agentName = r.agentName ?? r.agent_name ?? r.assignedAgent ?? null;
 
   // ── Call status ───────────────────────────────────────────────────────────
-  const rawStatus = (r.callStatus ?? r.status ?? "").toLowerCase();
+  // get-user-history uses call_status; get-userCall-lead uses callStatus
+  const rawStatus = (r.call_status ?? r.callStatus ?? r.status ?? "").toLowerCase();
   let callStatus: string;
   if (rawStatus === "ended" || rawStatus === "call_analyzed" || rawStatus === "completed") {
     callStatus = "completed";
-  } else if (rawStatus === "not_connected" || rawStatus === "voicemail" || rawStatus === "no_answer") {
+  } else if (["not_connected","voicemail","voicemail_reached","no_answer","missed"].includes(rawStatus)) {
     callStatus = "no_answer";
   } else if (rawStatus === "failed") {
     callStatus = "failed";
@@ -726,27 +774,46 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
   }
 
   // ── Sentiment ─────────────────────────────────────────────────────────────
-  const rawSentiment = (r.sentimentAnalysis ?? r.sentiment ?? "").toLowerCase();
+  // get-user-history: sentiment_analysis (string or object)
+  // get-userCall-lead: sentimentAnalysis (string or object)
+  const sentVal = r.sentiment_analysis ?? r.sentimentAnalysis ?? r.sentiment ?? "";
+  const rawSentiment = (() => {
+    if (typeof sentVal === "string") return sentVal.toLowerCase();
+    if (sentVal && typeof sentVal === "object") {
+      return String(sentVal.overall ?? sentVal.label ?? sentVal.score ?? "").toLowerCase();
+    }
+    return "";
+  })();
   let sentiment: string | null = null;
   if (/positive/.test(rawSentiment))       sentiment = "positive";
   else if (/neutral/.test(rawSentiment))   sentiment = "neutral";
   else if (/negative/.test(rawSentiment))  sentiment = "negative";
 
   // ── Duration ──────────────────────────────────────────────────────────────
+  // get-user-history: duration_ms (snake), duration (string seconds?)
+  // get-userCall-lead: durationMs (camel)
   let durationSeconds: number | null = null;
-  if (r.durationMs && Number(r.durationMs) > 0) {
-    durationSeconds = Math.round(Number(r.durationMs) / 1000);
+  const dmsRaw = r.duration_ms ?? r.durationMs;
+  if (dmsRaw && Number(dmsRaw) > 0) {
+    durationSeconds = Math.round(Number(dmsRaw) / 1000);
   } else if (r.callDuration) {
     durationSeconds = Number(r.callDuration) || null;
   } else if (r.duration) {
-    durationSeconds = Number(r.duration) || null;
+    // get-user-history "duration" field — could be seconds or ms; treat as seconds if <10000
+    const d = Number(r.duration);
+    if (d > 0) durationSeconds = d > 10_000 ? Math.round(d / 1000) : d;
   }
 
   // ── Timestamps ────────────────────────────────────────────────────────────
-  const startedAt = r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.createdAt ?? r.created_at ?? null;
+  // get-user-history: call_updatedat; get-userCall-lead: startTimestamp / createdAt
+  const startedAt =
+    r.startTimestamp
+      ? new Date(Number(r.startTimestamp)).toISOString()
+      : r.call_updatedat ?? r.lastCalledAt ?? r.last_called_at ?? r.calledAt
+        ?? r.createdAt ?? r.created_at ?? null;
 
   // ── Direction ─────────────────────────────────────────────────────────────
-  const dir = (r.direction ?? r.callDirection ?? r.type ?? "outbound").toLowerCase();
+  const dir = (r.direction ?? r.callDirection ?? r.call_type ?? r.callType ?? r.type ?? "outbound").toLowerCase();
   const callType = dir.includes("inbound") ? "inbound" : "outbound";
 
   return {
@@ -758,24 +825,24 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
     duration_seconds:      durationSeconds,
     started_at:            startedAt,
     ended_at:              null,
-    recording_url:         r.recordingUrl ?? r.recording_url ?? null,
+    recording_url:         r.recording_url ?? r.recordingUrl ?? null,
     transcript:            r.transcript ?? r.callTranscript ?? null,
     call_summary:          r.transcript ?? r.callTranscript ?? r.callSummary ?? null,
     from_number:           callType === "inbound"  ? phone : null,
     to_number:             callType === "outbound" ? phone : null,
     sentiment,
-    disconnection_reason:  r.disconnectionReason ?? r.disconnection_reason ?? null,
+    disconnection_reason:  r.disconnection_reason ?? r.disconnectionReason ?? null,
     cost_cents:            null,
     retell_call_id:        null,
     lead:                  name ? { id, full_name: name, phone: phone ?? "" } : null,
     // WeeBespoke-specific extras
     wbah_name:             name,
     wbah_contact:          phone,
-    appointment_date:      r.appointmentDate ?? r.appointment_date ?? null,
-    appointment_time:      r.appointmentTime ?? r.appointment_time ?? null,
-    booking_status:        r.bookingStatus ?? r.booking_status ?? null,
-    calendly_booking_url:  r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
-    end_reason:            r.endReason ?? r.end_reason ?? null,
+    appointment_date:      r.call_appointment_date ?? r.appointmentDate ?? r.appointment_date ?? null,
+    appointment_time:      r.call_appointment_time ?? r.appointmentTime ?? r.appointment_time ?? null,
+    booking_status:        r.call_booking_status ?? r.bookingStatus ?? r.booking_status ?? null,
+    calendly_booking_url:  r.call_calendly_booking_url ?? r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
+    end_reason:            r.end_reason ?? r.endReason ?? null,
   };
 }
 

@@ -197,6 +197,10 @@ export const wbahGetCallCount = (gt: GetTokens, st: SaveToken) =>
 export const wbahGetUserHistory = (payload: Record<string, unknown>, gt: GetTokens, st: SaveToken) =>
   aPost("/call-output-data/get-user-history", payload, gt, st);
 
+/** Fetch a specific page of the completed call history (POST, page hardcoded to 10 records). */
+export const wbahGetUserHistoryPaged = (page: number, gt: GetTokens, st: SaveToken) =>
+  aPost<unknown>("/call-output-data/get-user-history", { currentPage: page }, gt, st);
+
 export const wbahGetUserCallLead = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/get-userCall-lead", gt, st);
 
