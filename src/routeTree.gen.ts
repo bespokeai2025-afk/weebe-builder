@@ -22,7 +22,6 @@ import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as ApiVoiceCopilotRouteImport } from './routes/api/voice-copilot'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
-import { Route as AuthenticatedWbahRouteImport } from './routes/_authenticated/wbah'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedTemplateStudioRouteImport } from './routes/_authenticated/template-studio'
 import { Route as AuthenticatedTelephonySettingsRouteImport } from './routes/_authenticated/telephony-settings'
@@ -49,7 +48,6 @@ import { Route as AuthenticatedBuilderRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
-import { Route as AuthenticatedWbahIndexRouteImport } from './routes/_authenticated/wbah.index'
 import { Route as AuthenticatedSystemmindIndexRouteImport } from './routes/_authenticated/systemmind.index'
 import { Route as AuthenticatedLeadsIndexRouteImport } from './routes/_authenticated/leads.index'
 import { Route as AuthenticatedKnowledgeCentreIndexRouteImport } from './routes/_authenticated/knowledge-centre.index'
@@ -91,14 +89,6 @@ import { Route as ApiBuilderScriptTemplateRouteImport } from './routes/api/build
 import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan-pdf'
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
 import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admin/test-retell-webhook'
-import { Route as AuthenticatedWbahUsersRouteImport } from './routes/_authenticated/wbah.users'
-import { Route as AuthenticatedWbahPhoneNumbersRouteImport } from './routes/_authenticated/wbah.phone-numbers'
-import { Route as AuthenticatedWbahPeopleRouteImport } from './routes/_authenticated/wbah.people'
-import { Route as AuthenticatedWbahCrmRouteImport } from './routes/_authenticated/wbah.crm'
-import { Route as AuthenticatedWbahCreditsRouteImport } from './routes/_authenticated/wbah.credits'
-import { Route as AuthenticatedWbahCampaignsRouteImport } from './routes/_authenticated/wbah.campaigns'
-import { Route as AuthenticatedWbahCallsRouteImport } from './routes/_authenticated/wbah.calls'
-import { Route as AuthenticatedWbahAgentsRouteImport } from './routes/_authenticated/wbah.agents'
 import { Route as AuthenticatedSystemmindWorkflowsRouteImport } from './routes/_authenticated/systemmind.workflows'
 import { Route as AuthenticatedSystemmindWorkflowGeneratorRouteImport } from './routes/_authenticated/systemmind.workflow-generator'
 import { Route as AuthenticatedSystemmindWorkflowDraftsRouteImport } from './routes/_authenticated/systemmind.workflow-drafts'
@@ -305,11 +295,6 @@ const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
   path: '/whatsapp',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedWbahRoute = AuthenticatedWbahRouteImport.update({
-  id: '/wbah',
-  path: '/wbah',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedTemplatesRoute = AuthenticatedTemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
@@ -444,11 +429,6 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedWbahIndexRoute = AuthenticatedWbahIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AuthenticatedWbahRoute,
 } as any)
 const AuthenticatedSystemmindIndexRoute =
   AuthenticatedSystemmindIndexRouteImport.update({
@@ -668,49 +648,6 @@ const ApiAdminTestRetellWebhookRoute =
     path: '/api/admin/test-retell-webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
-const AuthenticatedWbahUsersRoute = AuthenticatedWbahUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => AuthenticatedWbahRoute,
-} as any)
-const AuthenticatedWbahPhoneNumbersRoute =
-  AuthenticatedWbahPhoneNumbersRouteImport.update({
-    id: '/phone-numbers',
-    path: '/phone-numbers',
-    getParentRoute: () => AuthenticatedWbahRoute,
-  } as any)
-const AuthenticatedWbahPeopleRoute = AuthenticatedWbahPeopleRouteImport.update({
-  id: '/people',
-  path: '/people',
-  getParentRoute: () => AuthenticatedWbahRoute,
-} as any)
-const AuthenticatedWbahCrmRoute = AuthenticatedWbahCrmRouteImport.update({
-  id: '/crm',
-  path: '/crm',
-  getParentRoute: () => AuthenticatedWbahRoute,
-} as any)
-const AuthenticatedWbahCreditsRoute =
-  AuthenticatedWbahCreditsRouteImport.update({
-    id: '/credits',
-    path: '/credits',
-    getParentRoute: () => AuthenticatedWbahRoute,
-  } as any)
-const AuthenticatedWbahCampaignsRoute =
-  AuthenticatedWbahCampaignsRouteImport.update({
-    id: '/campaigns',
-    path: '/campaigns',
-    getParentRoute: () => AuthenticatedWbahRoute,
-  } as any)
-const AuthenticatedWbahCallsRoute = AuthenticatedWbahCallsRouteImport.update({
-  id: '/calls',
-  path: '/calls',
-  getParentRoute: () => AuthenticatedWbahRoute,
-} as any)
-const AuthenticatedWbahAgentsRoute = AuthenticatedWbahAgentsRouteImport.update({
-  id: '/agents',
-  path: '/agents',
-  getParentRoute: () => AuthenticatedWbahRoute,
-} as any)
 const AuthenticatedSystemmindWorkflowsRoute =
   AuthenticatedSystemmindWorkflowsRouteImport.update({
     id: '/workflows',
@@ -1572,7 +1509,6 @@ export interface FileRoutesByFullPath {
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
-  '/wbah': typeof AuthenticatedWbahRouteWithChildren
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -1656,14 +1592,6 @@ export interface FileRoutesByFullPath {
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
-  '/wbah/agents': typeof AuthenticatedWbahAgentsRoute
-  '/wbah/calls': typeof AuthenticatedWbahCallsRoute
-  '/wbah/campaigns': typeof AuthenticatedWbahCampaignsRoute
-  '/wbah/credits': typeof AuthenticatedWbahCreditsRoute
-  '/wbah/crm': typeof AuthenticatedWbahCrmRoute
-  '/wbah/people': typeof AuthenticatedWbahPeopleRoute
-  '/wbah/phone-numbers': typeof AuthenticatedWbahPhoneNumbersRoute
-  '/wbah/users': typeof AuthenticatedWbahUsersRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -1705,7 +1633,6 @@ export interface FileRoutesByFullPath {
   '/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/systemmind/': typeof AuthenticatedSystemmindIndexRoute
-  '/wbah/': typeof AuthenticatedWbahIndexRoute
   '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRouteWithChildren
   '/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
@@ -1879,14 +1806,6 @@ export interface FileRoutesByTo {
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
-  '/wbah/agents': typeof AuthenticatedWbahAgentsRoute
-  '/wbah/calls': typeof AuthenticatedWbahCallsRoute
-  '/wbah/campaigns': typeof AuthenticatedWbahCampaignsRoute
-  '/wbah/credits': typeof AuthenticatedWbahCreditsRoute
-  '/wbah/crm': typeof AuthenticatedWbahCrmRoute
-  '/wbah/people': typeof AuthenticatedWbahPeopleRoute
-  '/wbah/phone-numbers': typeof AuthenticatedWbahPhoneNumbersRoute
-  '/wbah/users': typeof AuthenticatedWbahUsersRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -1928,7 +1847,6 @@ export interface FileRoutesByTo {
   '/knowledge-centre': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/systemmind': typeof AuthenticatedSystemmindIndexRoute
-  '/wbah': typeof AuthenticatedWbahIndexRoute
   '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
   '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
@@ -2028,7 +1946,6 @@ export interface FileRoutesById {
   '/_authenticated/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/_authenticated/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
-  '/_authenticated/wbah': typeof AuthenticatedWbahRouteWithChildren
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -2112,14 +2029,6 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/_authenticated/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
   '/_authenticated/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
-  '/_authenticated/wbah/agents': typeof AuthenticatedWbahAgentsRoute
-  '/_authenticated/wbah/calls': typeof AuthenticatedWbahCallsRoute
-  '/_authenticated/wbah/campaigns': typeof AuthenticatedWbahCampaignsRoute
-  '/_authenticated/wbah/credits': typeof AuthenticatedWbahCreditsRoute
-  '/_authenticated/wbah/crm': typeof AuthenticatedWbahCrmRoute
-  '/_authenticated/wbah/people': typeof AuthenticatedWbahPeopleRoute
-  '/_authenticated/wbah/phone-numbers': typeof AuthenticatedWbahPhoneNumbersRoute
-  '/_authenticated/wbah/users': typeof AuthenticatedWbahUsersRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
   '/api/builder/scan-pdf': typeof ApiBuilderScanPdfRoute
@@ -2161,7 +2070,6 @@ export interface FileRoutesById {
   '/_authenticated/knowledge-centre/': typeof AuthenticatedKnowledgeCentreIndexRoute
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/_authenticated/systemmind/': typeof AuthenticatedSystemmindIndexRoute
-  '/_authenticated/wbah/': typeof AuthenticatedWbahIndexRoute
   '/_authenticated/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
   '/_authenticated/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRouteWithChildren
   '/_authenticated/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
@@ -2262,7 +2170,6 @@ export interface FileRouteTypes {
     | '/telephony-settings'
     | '/template-studio'
     | '/templates'
-    | '/wbah'
     | '/whatsapp'
     | '/api/voice-copilot'
     | '/auth/callback'
@@ -2346,14 +2253,6 @@ export interface FileRouteTypes {
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
     | '/systemmind/workflows'
-    | '/wbah/agents'
-    | '/wbah/calls'
-    | '/wbah/campaigns'
-    | '/wbah/credits'
-    | '/wbah/crm'
-    | '/wbah/people'
-    | '/wbah/phone-numbers'
-    | '/wbah/users'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -2395,7 +2294,6 @@ export interface FileRouteTypes {
     | '/knowledge-centre/'
     | '/leads/'
     | '/systemmind/'
-    | '/wbah/'
     | '/admin/accounts/alerts'
     | '/admin/accounts/clients'
     | '/admin/accounts/costs'
@@ -2569,14 +2467,6 @@ export interface FileRouteTypes {
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
     | '/systemmind/workflows'
-    | '/wbah/agents'
-    | '/wbah/calls'
-    | '/wbah/campaigns'
-    | '/wbah/credits'
-    | '/wbah/crm'
-    | '/wbah/people'
-    | '/wbah/phone-numbers'
-    | '/wbah/users'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -2618,7 +2508,6 @@ export interface FileRouteTypes {
     | '/knowledge-centre'
     | '/leads'
     | '/systemmind'
-    | '/wbah'
     | '/admin/accounts/alerts'
     | '/admin/accounts/costs'
     | '/admin/accounts/profitability'
@@ -2717,7 +2606,6 @@ export interface FileRouteTypes {
     | '/_authenticated/telephony-settings'
     | '/_authenticated/template-studio'
     | '/_authenticated/templates'
-    | '/_authenticated/wbah'
     | '/_authenticated/whatsapp'
     | '/api/voice-copilot'
     | '/auth/callback'
@@ -2801,14 +2689,6 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/workflow-drafts'
     | '/_authenticated/systemmind/workflow-generator'
     | '/_authenticated/systemmind/workflows'
-    | '/_authenticated/wbah/agents'
-    | '/_authenticated/wbah/calls'
-    | '/_authenticated/wbah/campaigns'
-    | '/_authenticated/wbah/credits'
-    | '/_authenticated/wbah/crm'
-    | '/_authenticated/wbah/people'
-    | '/_authenticated/wbah/phone-numbers'
-    | '/_authenticated/wbah/users'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
     | '/api/builder/scan-pdf'
@@ -2850,7 +2730,6 @@ export interface FileRouteTypes {
     | '/_authenticated/knowledge-centre/'
     | '/_authenticated/leads/'
     | '/_authenticated/systemmind/'
-    | '/_authenticated/wbah/'
     | '/_authenticated/admin/accounts/alerts'
     | '/_authenticated/admin/accounts/clients'
     | '/_authenticated/admin/accounts/costs'
@@ -3094,13 +2973,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWhatsappRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/wbah': {
-      id: '/_authenticated/wbah'
-      path: '/wbah'
-      fullPath: '/wbah'
-      preLoaderRoute: typeof AuthenticatedWbahRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/templates': {
       id: '/_authenticated/templates'
       path: '/templates'
@@ -3282,13 +3154,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin'
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/wbah/': {
-      id: '/_authenticated/wbah/'
-      path: '/'
-      fullPath: '/wbah/'
-      preLoaderRoute: typeof AuthenticatedWbahIndexRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
     }
     '/_authenticated/systemmind/': {
       id: '/_authenticated/systemmind/'
@@ -3576,62 +3441,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/admin/test-retell-webhook'
       preLoaderRoute: typeof ApiAdminTestRetellWebhookRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/wbah/users': {
-      id: '/_authenticated/wbah/users'
-      path: '/users'
-      fullPath: '/wbah/users'
-      preLoaderRoute: typeof AuthenticatedWbahUsersRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
-    }
-    '/_authenticated/wbah/phone-numbers': {
-      id: '/_authenticated/wbah/phone-numbers'
-      path: '/phone-numbers'
-      fullPath: '/wbah/phone-numbers'
-      preLoaderRoute: typeof AuthenticatedWbahPhoneNumbersRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
-    }
-    '/_authenticated/wbah/people': {
-      id: '/_authenticated/wbah/people'
-      path: '/people'
-      fullPath: '/wbah/people'
-      preLoaderRoute: typeof AuthenticatedWbahPeopleRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
-    }
-    '/_authenticated/wbah/crm': {
-      id: '/_authenticated/wbah/crm'
-      path: '/crm'
-      fullPath: '/wbah/crm'
-      preLoaderRoute: typeof AuthenticatedWbahCrmRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
-    }
-    '/_authenticated/wbah/credits': {
-      id: '/_authenticated/wbah/credits'
-      path: '/credits'
-      fullPath: '/wbah/credits'
-      preLoaderRoute: typeof AuthenticatedWbahCreditsRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
-    }
-    '/_authenticated/wbah/campaigns': {
-      id: '/_authenticated/wbah/campaigns'
-      path: '/campaigns'
-      fullPath: '/wbah/campaigns'
-      preLoaderRoute: typeof AuthenticatedWbahCampaignsRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
-    }
-    '/_authenticated/wbah/calls': {
-      id: '/_authenticated/wbah/calls'
-      path: '/calls'
-      fullPath: '/wbah/calls'
-      preLoaderRoute: typeof AuthenticatedWbahCallsRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
-    }
-    '/_authenticated/wbah/agents': {
-      id: '/_authenticated/wbah/agents'
-      path: '/agents'
-      fullPath: '/wbah/agents'
-      preLoaderRoute: typeof AuthenticatedWbahAgentsRouteImport
-      parentRoute: typeof AuthenticatedWbahRoute
     }
     '/_authenticated/systemmind/workflows': {
       id: '/_authenticated/systemmind/workflows'
@@ -4964,33 +4773,6 @@ const AuthenticatedSystemmindRouteWithChildren =
     AuthenticatedSystemmindRouteChildren,
   )
 
-interface AuthenticatedWbahRouteChildren {
-  AuthenticatedWbahAgentsRoute: typeof AuthenticatedWbahAgentsRoute
-  AuthenticatedWbahCallsRoute: typeof AuthenticatedWbahCallsRoute
-  AuthenticatedWbahCampaignsRoute: typeof AuthenticatedWbahCampaignsRoute
-  AuthenticatedWbahCreditsRoute: typeof AuthenticatedWbahCreditsRoute
-  AuthenticatedWbahCrmRoute: typeof AuthenticatedWbahCrmRoute
-  AuthenticatedWbahPeopleRoute: typeof AuthenticatedWbahPeopleRoute
-  AuthenticatedWbahPhoneNumbersRoute: typeof AuthenticatedWbahPhoneNumbersRoute
-  AuthenticatedWbahUsersRoute: typeof AuthenticatedWbahUsersRoute
-  AuthenticatedWbahIndexRoute: typeof AuthenticatedWbahIndexRoute
-}
-
-const AuthenticatedWbahRouteChildren: AuthenticatedWbahRouteChildren = {
-  AuthenticatedWbahAgentsRoute: AuthenticatedWbahAgentsRoute,
-  AuthenticatedWbahCallsRoute: AuthenticatedWbahCallsRoute,
-  AuthenticatedWbahCampaignsRoute: AuthenticatedWbahCampaignsRoute,
-  AuthenticatedWbahCreditsRoute: AuthenticatedWbahCreditsRoute,
-  AuthenticatedWbahCrmRoute: AuthenticatedWbahCrmRoute,
-  AuthenticatedWbahPeopleRoute: AuthenticatedWbahPeopleRoute,
-  AuthenticatedWbahPhoneNumbersRoute: AuthenticatedWbahPhoneNumbersRoute,
-  AuthenticatedWbahUsersRoute: AuthenticatedWbahUsersRoute,
-  AuthenticatedWbahIndexRoute: AuthenticatedWbahIndexRoute,
-}
-
-const AuthenticatedWbahRouteWithChildren =
-  AuthenticatedWbahRoute._addFileChildren(AuthenticatedWbahRouteChildren)
-
 interface AuthenticatedSettingsProvidersRouteChildren {
   AuthenticatedSettingsProvidersCategoryRoute: typeof AuthenticatedSettingsProvidersCategoryRoute
 }
@@ -5033,7 +4815,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTelephonySettingsRoute: typeof AuthenticatedTelephonySettingsRoute
   AuthenticatedTemplateStudioRoute: typeof AuthenticatedTemplateStudioRoute
   AuthenticatedTemplatesRoute: typeof AuthenticatedTemplatesRoute
-  AuthenticatedWbahRoute: typeof AuthenticatedWbahRouteWithChildren
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedAgentsNewRoute: typeof AuthenticatedAgentsNewRoute
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
@@ -5072,7 +4853,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTelephonySettingsRoute: AuthenticatedTelephonySettingsRoute,
   AuthenticatedTemplateStudioRoute: AuthenticatedTemplateStudioRoute,
   AuthenticatedTemplatesRoute: AuthenticatedTemplatesRoute,
-  AuthenticatedWbahRoute: AuthenticatedWbahRouteWithChildren,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedAgentsNewRoute: AuthenticatedAgentsNewRoute,
   AuthenticatedSettingsCalendarRoute: AuthenticatedSettingsCalendarRoute,

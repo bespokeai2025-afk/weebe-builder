@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Megaphone,
   Plus,
@@ -18,6 +18,7 @@ import {
   Database,
   UserCheck,
   PhoneOutgoing,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ import {
   deleteCallCampaign,
   type CallCampaignWithAgent,
 } from "@/lib/dashboard/call-campaigns.functions";
+import { getWbahCampaigns, pauseWbahCampaign, resumeWbahCampaign, deleteWbahCampaign } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/campaigns")({
@@ -60,10 +62,35 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleDateString();
 }
 
-type CampaignsTab = "telephony" | "scheduled";
+type CampaignsTab = "telephony" | "scheduled" | "wbah";
 
 function CampaignsPage() {
   const [activeTab, setActiveTab] = useState<CampaignsTab>("scheduled");
+  const [isWbah, setIsWbah] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("default_workspace_id")
+          .eq("user_id", sess.session.user.id)
+          .maybeSingle();
+        if (!profile?.default_workspace_id || !active) return;
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("slug")
+          .eq("id", profile.default_workspace_id)
+          .maybeSingle();
+        if (active) setIsWbah(ws?.slug === "webuyanyhouse");
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
+
   const qc = useQueryClient();
   const listFn = useServerFn(listCampaigns);
   const saveFn = useServerFn(saveCampaign);
@@ -111,6 +138,7 @@ function CampaignsPage() {
   const tabs: { key: CampaignsTab; label: string; icon: React.ReactNode }[] = [
     { key: "scheduled", label: "Scheduled Campaigns", icon: <CalendarClock className="h-3.5 w-3.5" /> },
     { key: "telephony", label: "Telephony Campaigns", icon: <PhoneOutgoing className="h-3.5 w-3.5" /> },
+    ...(isWbah ? [{ key: "wbah" as CampaignsTab, label: "WeeBespoke Campaigns", icon: <Building2 className="h-3.5 w-3.5" /> }] : []),
   ];
 
   return (
@@ -155,6 +183,8 @@ function CampaignsPage() {
       </div>
 
       {activeTab === "scheduled" && <ScheduledCampaignsTab />}
+
+      {activeTab === "wbah" && <WbahCampaignsTab />}
 
       {activeTab === "telephony" && (<>
         {(showCreate || editCampaign) && (
@@ -586,6 +616,114 @@ function ConfirmDialog({
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── WeeBespoke Campaigns tab (only shown for webuyanyhouse workspace) ──────────
+
+function wbahStatusBadge(s: string) {
+  const map: Record<string, string> = {
+    active:    "bg-emerald-500/15 text-emerald-400",
+    paused:    "bg-amber-500/15 text-amber-400",
+    completed: "bg-primary/15 text-primary",
+    draft:     "bg-muted text-muted-foreground",
+    cancelled: "bg-destructive/15 text-destructive",
+  };
+  return (
+    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${map[s] ?? "bg-muted text-muted-foreground"}`}>
+      {s ?? "unknown"}
+    </span>
+  );
+}
+
+function WbahCampaignsTab() {
+  const qc = useQueryClient();
+  const getFn    = useServerFn(getWbahCampaigns);
+  const pauseFn  = useServerFn(pauseWbahCampaign);
+  const resumeFn = useServerFn(resumeWbahCampaign);
+  const delFn    = useServerFn(deleteWbahCampaign);
+
+  const { data: campaigns = [], isLoading, error, refetch, isFetching } = useQuery({
+    queryKey: ["wbah-campaigns"],
+    queryFn:  () => getFn(),
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const pauseMut  = useMutation({ mutationFn: (id: string) => pauseFn({ data: { id } }),  onSuccess: () => qc.invalidateQueries({ queryKey: ["wbah-campaigns"] }) });
+  const resumeMut = useMutation({ mutationFn: (id: string) => resumeFn({ data: { id } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["wbah-campaigns"] }) });
+  const deleteMut = useMutation({ mutationFn: (id: string) => delFn({ data: { id } }),    onSuccess: () => qc.invalidateQueries({ queryKey: ["wbah-campaigns"] }) });
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
+      <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Loading campaigns…
+    </div>
+  );
+
+  if (error) return (
+    <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+      {(error as Error).message}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <Building2 className="h-3.5 w-3.5" />
+          Live campaigns from WeeBespoke AI — Webuyanyhouse workspace
+        </p>
+        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} /> Refresh
+        </Button>
+      </div>
+
+      {campaigns.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-20 text-center text-muted-foreground">
+          <Megaphone className="h-10 w-10 opacity-30" />
+          <p className="text-sm">No WeeBespoke campaigns found.</p>
+        </div>
+      ) : (
+        campaigns.map((c: any) => (
+          <div key={c.id} className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold truncate">{c.name ?? c.campaign_name ?? `Campaign ${c.id}`}</h3>
+                  {wbahStatusBadge(c.status ?? c.campaign_status ?? "unknown")}
+                </div>
+                {c.description && <p className="mt-1 text-sm text-muted-foreground">{c.description}</p>}
+                <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                  {c.agentName  && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {c.agentName}</span>}
+                  {c.phoneNumber && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {c.phoneNumber}</span>}
+                  {c.total_leads != null && <span>{c.total_leads} leads</span>}
+                  {c.created_at && <span>Created {new Date(c.created_at).toLocaleDateString()}</span>}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {(c.status === "active" || c.campaign_status === "active") && (
+                  <Button size="sm" variant="outline" className="text-amber-400 border-amber-400/30 hover:bg-amber-400/10"
+                    onClick={() => pauseMut.mutate(c.id)} disabled={pauseMut.isPending}>
+                    <Pause className="h-3.5 w-3.5" /> Pause
+                  </Button>
+                )}
+                {(c.status === "paused" || c.campaign_status === "paused") && (
+                  <Button size="sm" variant="outline" className="text-emerald-400 border-emerald-400/30 hover:bg-emerald-400/10"
+                    onClick={() => resumeMut.mutate(c.id)} disabled={resumeMut.isPending}>
+                    <Play className="h-3.5 w-3.5" /> Resume
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive"
+                  onClick={() => { if (window.confirm("Delete this campaign?")) deleteMut.mutate(c.id); }}
+                  disabled={deleteMut.isPending}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

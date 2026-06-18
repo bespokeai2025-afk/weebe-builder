@@ -1,0 +1,286 @@
+Audit and correct the Webuyanyhouse / WBAH implementation.
+
+Important: Replit has incorrectly created new WBAH-specific pages. This must be rectified.
+
+Do NOT build separate WBAH pages.
+Do NOT build a separate WBAH dashboard.
+Do NOT create duplicate CRM, Calls, Campaigns, Phone Numbers, Credits, People, or User Management systems.
+Do NOT create separate WBAH navigation.
+
+Correct requirement:
+
+Webuyanyhouse is a client workspace inside WEBEE.
+
+When a Webuyanyhouse user logs into WEBEE, their data from:
+
+https://uat-api.webespokeai.com
+
+must appear inside the existing WEBEE Smart Dash pages only.
+
+Use and adapt existing WEBEE pages:
+
+- Dashboard
+- People / Leads
+- CRM
+- Calls
+- Call Scheduling / Campaigns
+- Callbacks
+- Positive / Neutral Leads
+- Credits
+- User Management
+- Phone Numbers, only if already part of the existing WEBEE app
+
+This must be scoped only to the Webuyanyhouse workspace/account.
+
+Nathan/Super Admin should only see:
+- client status
+- integration status
+- last sync time
+- basic counts
+- open/impersonate workspace button if available
+
+Nathan/Super Admin should NOT automatically see all Webuyanyhouse lead data.
+
+Step 1: Audit existing work
+
+Find all WBAH/Webuyanyhouse-specific work already created, including:
+
+- routes
+- pages
+- components
+- API clients
+- hooks
+- services
+- migrations
+- tables
+- menu/sidebar items
+- permissions
+- navigation items
+- cached data
+- workspace settings
+
+Identify anything that duplicates existing WEBEE Smart Dash functionality.
+
+Step 2: Remove or refactor incorrect pages
+
+Remove, hide, or merge any newly-created WBAH-specific pages into the existing WEBEE pages.
+
+Do not leave dead routes or unused sidebar links.
+
+If the page duplicates an existing WEBEE page, move the useful logic/data fetching into the existing page instead.
+
+Step 3: Correct data mapping
+
+Use the existing WEBEE page structure and map the API endpoints like this:
+
+Dashboard page:
+POST /dashboard/total-call-minutes
+POST /dashboard/number-of-calls
+POST /dashboard/leads
+POST /dashboard/call-performance
+POST /dashboard/call-drops
+
+People / Leads page:
+GET /call-output-data/get-all-calldata
+GET /call-output-data/get-call-count
+POST /call-output-data/get-user-history
+GET /call-output-data/get-userCall-lead
+GET /call-output-data/callbacks/pending
+
+CRM page:
+GET /crm-data/get-crm-data
+POST /crm-data/create
+POST /crm-data/upload-excel
+GET /crm-data/start-batch-calling
+DELETE /crm-data/clear-all-crm-data
+DELETE /crm-data/delete-selected-crm-data
+
+Calls page:
+GET /call-output-data/all
+
+Call Scheduling / Campaigns page:
+GET /campaigns
+POST /campaigns
+GET /campaigns/:id
+PATCH /campaigns/:id
+PATCH /campaigns/:id/pause
+PATCH /campaigns/:id/resume
+PATCH /campaigns/:id/voicemail
+DELETE /campaigns/:id
+
+Frequency scheduling:
+POST /frquency-setting/get-frequency
+POST /frquency-setting/add-frequency
+POST /frquency-setting/update-frequency
+
+Important: keep the misspelling frquency-setting exactly as given.
+
+Agents, if an existing Agents area exists:
+GET /agent/get-list
+GET /agent/get-agents-with-voicemail
+POST /agent/update
+PATCH /agent/rename/:id
+PATCH /agent/voicemailSetting/:id
+
+Phone Numbers, only if existing WEBEE has this page:
+GET /phoneNumber/get-allphonenumbersfrom-retell
+POST /phoneNumber/update-phonenumbersfrom-retell
+PATCH /phoneNumber/voicemailSetting/:id
+
+Credits page:
+GET /credits/summary
+GET /credits/history
+GET /credits/monthly-usage
+GET /credits/retell-usage
+POST /credits/allocate
+DELETE /credits/allocate/:id
+
+User Management page:
+GET /admin/permissions
+GET /admin/users
+POST /admin/users
+PUT /admin/users/:id
+PATCH /admin/users/:id/status
+DELETE /admin/users/:id
+
+Step 4: Remove incorrect terminology
+
+Webuyanyhouse is not a vehicle dealership.
+
+Remove or rename any labels including:
+
+- cars
+- dealers
+- buyers
+- vehicles
+- vehicle listings
+- spare parts
+- bikes
+- marketplace
+- dealership
+
+Use terminology:
+
+- leads
+- people
+- CRM records
+- calls
+- campaigns
+- agents
+- callbacks
+- qualified leads
+- positive / neutral leads
+- credits
+- users
+
+Step 5: Workspace-specific behaviour
+
+Only apply this adapted data source and layout when:
+
+workspace/client = Webuyanyhouse
+
+For all other clients, keep the normal WEBEE dashboard unchanged.
+
+Add a clean workspace configuration, for example:
+
+workspace_settings.custom_data_source = "webuyanyhouse_api"
+workspace_settings.client_template = "webuyanyhouse"
+
+or use the existing equivalent setting if already available.
+
+Do not hardcode globally.
+
+Step 6: API authentication
+
+Use the existing Webuyanyhouse API authentication flow:
+
+POST /admin/auth/request-otp
+POST /admin/auth/verify-otp
+POST /admin/refresh-token
+
+Store accessToken and refreshToken server-side only against the Webuyanyhouse workspace.
+
+Never expose tokens in frontend code.
+Never store tokens in localStorage.
+Never log tokens.
+
+All protected API calls must send:
+
+Authorization: Bearer <accessToken>
+
+If any request returns 401:
+- call refresh-token
+- save the new accessToken
+- retry once
+- if it fails again, mark the integration disconnected
+
+Step 7: RBAC
+
+Respect the existing WEBEE permission system.
+
+For Webuyanyhouse pages, use these permission keys where relevant:
+
+dashboard
+people
+crm
+campaigns
+agents
+calls
+phone_numbers
+credits
+user_management
+
+If the external API provides permissions from:
+
+GET /admin/permissions
+
+use those to render permission grids and user access.
+
+Do not hardcode permission labels if the API returns them.
+
+Step 8: UI requirement
+
+The Webuyanyhouse user should log into WEBEE and see a familiar Smart Dash experience using the existing WEBEE layout.
+
+The pages should look like WEBEE, not like a separate imported app.
+
+Do not add a separate WBAH sidebar.
+
+Do not add a separate WBAH dashboard area.
+
+Only adapt existing pages for this workspace.
+
+Step 9: Workflow engine safety
+
+Do not build a separate workflow engine for WBAH yet.
+
+If any workflow engine work has already been started, ensure it is platform-level and reusable, not hardcoded only to Webuyanyhouse.
+
+The workflow engine should orchestrate existing WEBEE systems in future:
+- Agent Builder
+- Campaigns
+- Smart Dash
+- Calls
+- CRM
+- HexMail
+- WhatsApp
+- Calendar
+- HiveMind
+
+Do not duplicate those systems.
+
+Step 10: Final output report
+
+After completing the refactor, provide a summary showing:
+
+- WBAH-specific pages removed
+- WBAH-specific pages merged into existing WEBEE pages
+- routes removed
+- routes retained
+- components reused
+- components refactored
+- API mappings completed
+- workspace isolation confirmed
+- Super Admin isolation confirmed
+- incorrect vehicle/dealer terminology removed
+- remaining follow-up items
