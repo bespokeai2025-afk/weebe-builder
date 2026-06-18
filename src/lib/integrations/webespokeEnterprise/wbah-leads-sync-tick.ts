@@ -228,14 +228,23 @@ function buildContactRow(raw: any, workspaceId: string) {
 async function upsertLeadsRows(sb: ReturnType<typeof getAdminClient>, rows: ReturnType<typeof buildLeadRow>[]): Promise<number> {
   if (!rows.length) return 0;
   const workspaceId = rows[0].workspace_id;
-  const { data: existing } = await (sb as any).from("leads").select("id, phone")
+  const { data: existing } = await (sb as any).from("leads").select("id, phone, meta")
     .eq("workspace_id", workspaceId).eq("source", "import").eq("source_detail", SOURCE_DETAIL);
-  const byPhone = new Map<string, string>((existing ?? []).map((l: any) => [String(l.phone).trim(), String(l.id)]));
+  // Dedup by external ID first (most reliable), then fall back to phone
+  const byExternalId = new Map<string, string>();
+  const byPhone      = new Map<string, string>();
+  for (const l of existing ?? []) {
+    const extId = l.meta?.wbah_external_id;
+    if (extId) byExternalId.set(String(extId), String(l.id));
+    const phone = String(l.phone ?? "").trim();
+    if (phone) byPhone.set(phone, String(l.id));
+  }
   const toInsert: typeof rows = [];
   const toUpdate: Array<{ id: string } & (typeof rows)[0]> = [];
   for (const row of rows) {
-    const phone = String(row.phone).trim();
-    const existingId = phone ? byPhone.get(phone) : undefined;
+    const extId = row.meta?.wbah_external_id ? String(row.meta.wbah_external_id) : null;
+    const phone = String(row.phone ?? "").trim();
+    const existingId = (extId && byExternalId.get(extId)) ?? (phone && byPhone.get(phone)) ?? undefined;
     if (existingId) toUpdate.push({ ...row, id: existingId });
     else toInsert.push(row);
   }

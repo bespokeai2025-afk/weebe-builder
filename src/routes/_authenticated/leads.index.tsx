@@ -283,7 +283,7 @@ function LeadsPage() {
       )) return false;
     }
     if (statusFilter && l.status !== statusFilter) return false;
-    if (sentimentFilter && (l.sentiment ?? "").toLowerCase() !== sentimentFilter) return false;
+    if (sentimentFilter && normalizeSentiment(l.sentiment) !== sentimentFilter) return false;
     if (callStatusFilter) {
       const cs = isRetell
         ? l.retell_call?.call_status
