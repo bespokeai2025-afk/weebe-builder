@@ -707,6 +707,27 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="AccountsMind"
+                      className={navButtonClasses(isActive("/admin/accounts"))}
+                    >
+                      <Link to="/admin/accounts" className="flex items-center gap-3">
+                        <Building2
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/accounts")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">
+                          AccountsMind
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
