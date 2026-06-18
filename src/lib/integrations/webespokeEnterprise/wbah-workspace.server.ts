@@ -283,13 +283,29 @@ export const listWbahLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    const firstRes = await api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
-    if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch leads");
+    // ── Strategy 1: bulk ?limit=10000 (single request, fastest) ──────────────
+    const bulkRes = await api.wbahGetUserCallLeadAll(cbs.getTokens, cbs.saveNewAccessToken);
+    const bulkRecs = extractRecords(bulkRes.data);
+    console.log(`[WBAH leads] bulk ?limit=10000 → ok=${bulkRes.ok} status=${bulkRes.status} records=${bulkRecs.length} paginationKeys=${bulkRes.data && typeof bulkRes.data === "object" ? Object.keys(bulkRes.data as object).join(",") : "n/a"} pagination=${JSON.stringify((bulkRes.data as any)?.pagination ?? null)}`);
 
-    const allRecs = await fetchAllPages(
-      (p) => api.wbahGetUserCallLeadPaged(p, cbs.getTokens, cbs.saveNewAccessToken),
-      firstRes.data,
-    );
+    let allRecs: any[];
+    if (bulkRes.ok && bulkRecs.length > 50) {
+      console.log(`[WBAH leads] using bulk result: ${bulkRecs.length} records`);
+      allRecs = bulkRecs;
+    } else {
+      // ── Strategy 2: paginated fetch (all pages) ──────────────────────────
+      console.log(`[WBAH leads] bulk returned ≤50 — falling back to paginated fetch`);
+      const firstRes = await api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
+      if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch leads");
+      const p1Raw = firstRes.data as any;
+      console.log(`[WBAH leads] page1 → records=${extractRecords(p1Raw).length} pagination=${JSON.stringify(p1Raw?.pagination ?? null)}`);
+      allRecs = await fetchAllPages(
+        (p) => api.wbahGetUserCallLeadPaged(p, cbs.getTokens, cbs.saveNewAccessToken),
+        p1Raw,
+        "leads",
+      );
+      console.log(`[WBAH leads] paginated fetch total: ${allRecs.length} records`);
+    }
 
     const leads = allRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
 
@@ -380,9 +396,11 @@ function extractTotalPages(raw: any): number | null {
 async function fetchAllPages(
   fetchPage: (page: number) => Promise<any>,
   firstRaw: any,
+  label = "endpoint",
 ): Promise<any[]> {
   const firstRecs  = extractRecords(firstRaw);
   const totalPages = extractTotalPages(firstRaw) ?? null;
+  console.log(`[WBAH fetchAllPages:${label}] page1.records=${firstRecs.length} totalPages=${totalPages} pagination=${JSON.stringify(firstRaw?.pagination ?? null)}`);
 
   // If we know total pages, fetch all remaining in parallel batches of 20
   if (totalPages && totalPages > 1) {
@@ -390,16 +408,23 @@ async function fetchAllPages(
     const BATCH = 20;
     const allRecs = [...firstRecs];
     for (let i = 0; i < remaining.length; i += BATCH) {
-      const batch = remaining.slice(i, i + BATCH);
+      const batch   = remaining.slice(i, i + BATCH);
       const results = await Promise.all(batch.map((p) => fetchPage(p)));
+      let batchFound = 0;
       for (const res of results) {
-        if (res?.ok && res?.data) allRecs.push(...extractRecords(res.data));
+        if (res?.ok && res?.data) {
+          const recs = extractRecords(res.data);
+          allRecs.push(...recs);
+          batchFound += recs.length;
+        }
       }
+      console.log(`[WBAH fetchAllPages:${label}] batch pages ${batch[0]}-${batch[batch.length - 1]} → +${batchFound} records (running total: ${allRecs.length})`);
     }
     return allRecs;
   }
 
   // Fallback: fetch until we get an empty batch (unknown total pages)
+  console.log(`[WBAH fetchAllPages:${label}] no totalPages from API — using "fetch until empty" fallback`);
   const BATCH   = 20;
   const allRecs = [...firstRecs];
   let   page    = 2;
@@ -414,6 +439,7 @@ async function fetchAllPages(
         found += recs.length;
       }
     }
+    console.log(`[WBAH fetchAllPages:${label}] fallback batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} records (running total: ${allRecs.length})`);
     if (found === 0) break;
     page += BATCH;
   }
@@ -440,13 +466,30 @@ export const listWbahCalls = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    const firstRes = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
-    if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch calls from WeeBespoke");
+    // ── Strategy 1: bulk ?limit=10000 (single request, fastest) ──────────────
+    const bulkRes = await api.wbahGetAllCallDataAll(cbs.getTokens, cbs.saveNewAccessToken);
+    const bulkRecs = extractRecords(bulkRes.data);
+    console.log(`[WBAH calls] bulk ?limit=10000 → ok=${bulkRes.ok} status=${bulkRes.status} records=${bulkRecs.length} paginationKeys=${bulkRes.data && typeof bulkRes.data === "object" ? Object.keys(bulkRes.data as object).join(",") : "n/a"} pagination=${JSON.stringify((bulkRes.data as any)?.pagination ?? null)}`);
 
-    const allRecs = await fetchAllPages(
-      (p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken),
-      firstRes.data,
-    );
+    let allRecs: any[];
+    if (bulkRes.ok && bulkRecs.length > 50) {
+      // API honoured the limit param — use these records directly
+      console.log(`[WBAH calls] using bulk result: ${bulkRecs.length} records`);
+      allRecs = bulkRecs;
+    } else {
+      // ── Strategy 2: paginated fetch (all pages) ──────────────────────────
+      console.log(`[WBAH calls] bulk returned ≤50 — falling back to paginated fetch`);
+      const firstRes = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
+      if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch calls from WeeBespoke");
+      const p1Raw = firstRes.data as any;
+      console.log(`[WBAH calls] page1 → records=${extractRecords(p1Raw).length} pagination=${JSON.stringify(p1Raw?.pagination ?? null)}`);
+      allRecs = await fetchAllPages(
+        (p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken),
+        p1Raw,
+        "calls",
+      );
+      console.log(`[WBAH calls] paginated fetch total: ${allRecs.length} records`);
+    }
 
     const calls = allRecs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
 

@@ -1,0 +1,279 @@
+AUDIT WHY WEBUYANYHOUSE API IS ONLY RETURNING / DISPLAYING 50 RECORDS
+
+Important:
+We are ONLY using the Webuyanyhouse/WebespokeAI API for this data.
+
+Do NOT check Retell.
+Do NOT add Retell fallback.
+Do NOT use Retell API.
+Do NOT mention Retell in the implementation.
+
+API base URL:
+https://uat-api.webespokeai.com
+
+Goal:
+Find out why WEBEE is only showing around 50 leads/calls/CRM records instead of the full dataset from the API.
+
+Do not rebuild pages.
+Do not create new pages.
+Do not change unrelated modules.
+
+Perform a full end-to-end audit of the API data flow only.
+
+Check these areas:
+
+1. API endpoint audit
+
+Inspect every Webuyanyhouse API endpoint currently used for leads, calls, CRM and dashboard data.
+
+Include:
+
+GET /call-output-data/get-all-calldata
+GET /call-output-data/get-call-count
+POST /call-output-data/get-user-history
+GET /call-output-data/get-userCall-lead
+GET /call-output-data/callbacks/pending
+GET /call-output-data/all
+GET /crm-data/get-crm-data
+POST /dashboard/leads
+POST /dashboard/number-of-calls
+POST /dashboard/call-performance
+POST /dashboard/total-call-minutes
+POST /dashboard/call-drops
+
+For each endpoint, log safely:
+
+- endpoint
+- method
+- request body/query params
+- status code
+- response top-level keys
+- number of records returned
+- whether response includes total count
+- whether response includes pagination metadata
+- whether response includes page
+- whether response includes limit
+- whether response includes offset
+- whether response includes nextPage
+- whether response includes nextCursor
+- whether response includes totalPages
+
+Do not log access tokens.
+
+2. Find hardcoded limits
+
+Search the entire codebase for:
+
+limit: 50
+limit=50
+pageSize: 50
+pageSize=50
+perPage: 50
+per_page=50
+take: 50
+take=50
+size: 50
+rowsPerPage
+slice(0, 50)
+range(0, 49)
+LIMIT 50
+
+Also search for:
+
+50
+
+in all Webuyanyhouse/API/CRM/People/Calls/Dashboard related files.
+
+Report every file and line where a 50-record limit exists.
+
+3. API request parameter audit
+
+Check whether the frontend or server is sending any of these by default:
+
+page
+limit
+pageSize
+offset
+skip
+take
+perPage
+per_page
+
+If yes, show exactly where.
+
+Check whether the API supports increasing limit, for example:
+
+?limit=500
+?page=1&limit=500
+?pageSize=500
+?perPage=500
+
+Do not assume. Test carefully.
+
+4. Pagination audit
+
+Determine if the API returns only the first page.
+
+If response includes pagination metadata, implement fetching all pages server-side.
+
+Examples of possible pagination shapes:
+
+{
+  data: [...],
+  total: 10000,
+  page: 1,
+  limit: 50,
+  totalPages: 200
+}
+
+or:
+
+{
+  results: [...],
+  pagination: {
+    page,
+    limit,
+    total,
+    totalPages
+  }
+}
+
+or:
+
+{
+  data: [...],
+  nextCursor: "..."
+}
+
+or:
+
+{
+  data: [...],
+  nextPage: 2
+}
+
+Support the actual response shape returned by this API.
+
+5. Count mismatch audit
+
+Compare:
+
+GET /call-output-data/get-call-count
+
+against:
+
+GET /call-output-data/get-all-calldata
+
+If get-call-count says there are thousands but get-all-calldata returns 50, then pagination is confirmed.
+
+Report this clearly.
+
+6. CRM count audit
+
+Check whether:
+
+GET /crm-data/get-crm-data
+
+returns pagination metadata.
+
+If it only returns 50, identify whether that is:
+
+- API default
+- frontend limit
+- server adapter limit
+- table display limit
+
+7. Dashboard count audit
+
+Check whether dashboard cards are using count endpoints or only counting the 50 returned rows.
+
+Dashboard cards must not calculate totals from only the first page.
+
+If totals exist from dashboard endpoints, use those directly.
+
+8. React Query audit
+
+Check all React Query hooks for People, Calls, CRM and Dashboard.
+
+Verify:
+
+- queryKey includes workspaceId and pagination/date filters
+- queryFn is calling the correct server route
+- enabled is not false accidentally
+- only first page is not being treated as full dataset
+- pagination metadata is preserved
+- stale cached 50-row response is not being reused globally
+
+9. Server adapter audit
+
+Check the Webuyanyhouse API client/server adapter.
+
+Identify whether it:
+
+- normalizes only first 50 rows
+- drops pagination metadata
+- slices data
+- deduplicates incorrectly
+- maps only first page
+- returns data.data instead of full response with meta
+
+10. Table display audit
+
+Check People, Calls and CRM tables.
+
+Determine:
+
+- how many records the API returns to the component
+- how many records the component receives
+- how many records the table displays
+- whether pagination is client-side or server-side
+- whether table default page size is 50
+
+If the table page size is 50 but total pagination works, that is okay.
+
+If the table only has 50 records total, fix the data fetch.
+
+11. Implement safe fix
+
+If API supports pagination:
+- implement server-side pagination correctly
+- expose total count to frontend
+- make table request page changes properly
+
+If API supports larger limit:
+- use a safe page size like 100 or 250
+- do not request unlimited records into browser
+
+If API requires all-page sync:
+- create server-side function fetchAllPages()
+- loop until all pages/cursors are fetched
+- cache/store results if needed
+- frontend should still paginate display
+
+12. Add debug mode
+
+In development only, add a debug panel showing:
+
+- endpoint used
+- page requested
+- limit requested
+- records returned this page
+- total records available
+- total pages
+- current frontend rows displayed
+
+Never show tokens.
+
+13. Final report
+
+Provide final audit report:
+
+- exact reason only 50 records were showing
+- exact file(s) causing it
+- whether API or frontend was limiting
+- whether pagination exists
+- fix implemented
+- total source count
+- total records now accessible
+- total records displayed per page
+- remaining API limitations if any

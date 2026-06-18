@@ -179,6 +179,10 @@ export const wbahGetAllCallData = (gt: GetTokens, st: SaveToken) =>
 export const wbahGetAllCallDataPaged = (page: number, gt: GetTokens, st: SaveToken) =>
   aGet<unknown>(`/call-output-data/get-all-calldata?currentPage=${page}`, gt, st);
 
+/** Attempt to fetch all call records in a single request (API must honour the limit param). */
+export const wbahGetAllCallDataAll = (gt: GetTokens, st: SaveToken) =>
+  aGet<unknown>(`/call-output-data/get-all-calldata?limit=10000`, gt, st);
+
 // ── Page-param discovery variants (used only by the diagnostic probe) ──────────
 export const wbahCallsParamTest = (paramName: string, value: number | string, gt: GetTokens, st: SaveToken) =>
   aGet<unknown>(`/call-output-data/get-all-calldata?${paramName}=${value}`, gt, st);
