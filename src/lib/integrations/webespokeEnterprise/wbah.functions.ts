@@ -87,26 +87,50 @@ function pickStr(raw: any, ...keys: string[]): string | null {
 function statusHaystack(raw: any): string {
   return [
     raw?.status, raw?.leadStatus, raw?.crmStatus, raw?.pipelineStage,
+    raw?.callStatus, raw?.booking_status,
     raw?.stage, raw?.category, raw?.section, raw?.listName, raw?.segment,
     raw?.tags, raw?.notes, raw?.callOutcome, raw?.lastCallOutcome,
-    raw?.qualificationStatus, raw?.sentiment,
+    raw?.qualificationStatus, raw?.sentiment, raw?.sentimentAnalysis,
+    raw?.disconnectionReason,
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
 function classifyStatus(raw: any): LeadStatus {
+  // WeeBespoke UAT: callStatus is the primary status field
+  const cs = (raw?.callStatus ?? "").toLowerCase();
+  const sa = (raw?.sentimentAnalysis ?? "").toLowerCase();
+
+  // Explicit need_to_call flag from CRM data
+  if (raw?.need_to_call === true) return "need_to_call";
+  // Negative sentiment or disqualified
+  if (raw?.is_negative_sentiment === true) return "not_interested";
+
+  // callStatus-based classification
+  if (cs === "need_to_call") return "need_to_call";
+  if (cs === "ended" || cs === "call_analyzed") {
+    if (/negative/.test(sa)) return "not_interested";
+    if (/positive|neutral/.test(sa)) return "qualified";
+    // Voicemail / no answer
+    const dr = (raw?.disconnectionReason ?? "").toLowerCase();
+    if (/voicemail|no_answer|no_input|dial_no_answer/.test(dr)) return "not_connected";
+    return "qualified"; // answered call = qualified by default
+  }
+  if (cs === "not_connected" || cs === "no_answer" || cs === "voicemail") return "not_connected";
+
+  // Generic haystack fallback
   const h = statusHaystack(raw);
   if (/disqualif|disqual|reject|unsuitable|do[_\s]?not[_\s]?call/.test(h)) return "not_interested";
   if (/tried.{0,10}contact|attempted.{0,10}contact|no[_\s]answer|unable.{0,10}contact|not.{0,5}reached|missed|voicemail/.test(h)) return "not_connected";
   if (/qualified|positive|neutral/.test(h)) return "qualified";
-  if (/\bnew\b|fresh|unworked|new[_\s]?lead/.test(h)) return "need_to_call";
-  return "need_to_call"; // safe default — these are unprocessed leads
+  return "need_to_call";
 }
 
 function classifySentiment(raw: any): SentimentVal | null {
-  const h = statusHaystack(raw) + " " + (raw?.sentiment ?? "").toLowerCase();
-  if (/positive|interested|keen|motivated/.test(h)) return "positive";
-  if (/neutral|maybe|unsure|undecided/.test(h)) return "neutral";
-  if (/negative|disqualif|not[_\s]interested|hostile/.test(h)) return "negative";
+  // WeeBespoke UAT returns sentimentAnalysis: "Positive" | "Neutral" | "Negative"
+  const sa = (raw?.sentimentAnalysis ?? raw?.sentiment ?? "").toLowerCase();
+  if (/positive|interested|keen|motivated/.test(sa)) return "positive";
+  if (/neutral|maybe|unsure|undecided/.test(sa)) return "neutral";
+  if (/negative|disqualif|not[_\s]interested|hostile/.test(sa)) return "negative";
   return null;
 }
 
@@ -132,20 +156,33 @@ function isCallbackRequested(raw: any): boolean {
 }
 
 // ── Build `leads` table row from WeeBespoke payload ───────────────────────────
+// Handles two source shapes:
+//   get-userCall-lead : { name, toNumber, email, callStatus, sentimentAnalysis,
+//                         agentName, transcript, recordingUrl, lead_id, … }
+//   crm-data rows     : { name, mobile_number, email, lead_status, … }
 
 function buildLeadRow(raw: any, workspaceId: string) {
   const status      = classifyStatus(raw);
   const sentiment   = classifySentiment(raw);
   const pipeline    = classifyPipelineStage(status);
   const qualStatus  = classifyQualificationStatus(raw);
-  const externalId  = pickStr(raw, "id", "_id", "leadId", "sellerId") ?? null;
-  const callbackAt  = raw?.callbackDate ?? raw?.callback_date ?? raw?.scheduledDate ?? null;
+  // get-userCall-lead uses `lead_id` as the stable external reference
+  const externalId  = pickStr(raw, "lead_id", "id", "_id", "leadId", "sellerId") ?? null;
+  const callbackAt  = raw?.appointment_date || raw?.callbackDate || raw?.callback_date || null;
+
+  // CRM sub-object (present on get-all-calldata items)
+  const crm = raw?.crmData ?? {};
 
   return {
     workspace_id:          workspaceId,
-    full_name:             pickStr(raw, "name", "fullName", "leadName", "customerName", "sellerName", "contact_name", "seller_name") ?? "Unknown",
-    phone:                 pickStr(raw, "phone", "phoneNumber", "mobile", "telephone", "contact_phone", "mobileNumber") ?? "",
-    email:                 pickStr(raw, "email", "emailAddress", "contact_email"),
+    full_name:             pickStr(raw, "name", "fullName", "leadName", "customerName", "sellerName")
+                           ?? pickStr(crm, "name", "firstname")
+                           ?? "Unknown",
+    // get-userCall-lead stores the called number in `toNumber`; CRM uses `mobile_number`
+    phone:                 pickStr(raw, "toNumber", "fromNumber", "phone", "phoneNumber", "mobile", "telephone")
+                           ?? pickStr(crm, "mobile_number", "mobileNumber")
+                           ?? "",
+    email:                 pickStr(raw, "email", "emailAddress") ?? pickStr(crm, "email") ?? null,
     company_name:          null,
     status:                status as string,
     sentiment:             sentiment,
@@ -154,46 +191,64 @@ function buildLeadRow(raw: any, workspaceId: string) {
     source:                "import",
     source_detail:         SOURCE_DETAIL,
     notes:                 pickStr(raw, "notes", "description", "comments"),
-    call_summary:          pickStr(raw, "callSummary", "summary", "qualification_summary"),
-    scheduled_call_at:     (isCallbackRequested(raw) && callbackAt) ? callbackAt : null,
+    // Use WeeBespoke transcript as call summary
+    call_summary:          pickStr(raw, "transcript", "callSummary", "summary"),
+    callback_date:         (isCallbackRequested(raw) && callbackAt) ? callbackAt : null,
     meta: {
       wbah_external_id:    externalId,
       wbah_synced_at:      new Date().toISOString(),
-      property_address:    pickStr(raw, "address", "propertyAddress", "fullAddress", "property_address", "make", "title"),
-      postcode:            pickStr(raw, "postcode", "postCode", "zipCode", "postal_code"),
-      expected_price:      pickStr(raw, "askingPrice", "expectedPrice", "price", "salePrice", "valuation"),
-      assigned_agent:      pickStr(raw, "assignedAgent", "agentName", "agent", "dealerName", "dealer"),
-      call_attempt_count:  raw?.callAttemptCount ?? null,
-      call_outcome:        pickStr(raw, "callOutcome", "lastCallOutcome", "outcome"),
-      n8n_workflow_id:     pickStr(raw, "n8nWorkflowId", "workflowId", "n8n_workflow_id"),
+      // Property info from CRM sub-object
+      property_address:    pickStr(crm, "new_propinfo_street2", "address1_line1")
+                           ?? pickStr(raw, "address", "propertyAddress", "fullAddress"),
+      property_city:       pickStr(crm, "new_propinfo_city", "address1_city"),
+      postcode:            pickStr(crm, "new_propinfo_postalcode", "address1_postalcode")
+                           ?? pickStr(raw, "postcode", "postCode"),
+      property_type:       pickStr(crm, "property_type"),
+      expected_price:      pickStr(raw, "askingPrice", "expectedPrice", "price", "salePrice"),
+      assigned_agent:      pickStr(raw, "agentName", "assignedAgent", "agent"),
+      call_status:         raw?.callStatus ?? null,
+      call_id:             pickStr(raw, "callId"),
+      recording_url:       pickStr(raw, "recordingUrl"),
+      disconnection_reason: pickStr(raw, "disconnectionReason"),
+      duration_ms:         raw?.durationMs ?? null,
+      appointment_date:    pickStr(raw, "appointment_date"),
+      appointment_time:    pickStr(raw, "appointment_time"),
+      booking_status:      pickStr(raw, "booking_status"),
     },
   };
 }
 
-// ── Build `data_records` row from WeeBespoke buyer payload ────────────────────
+// ── Build `data_records` row from WeeBespoke CRM payload ─────────────────────
+// Source: GET /crm-data/get-crm-data
+// Shape: { name, mobile_number, email, lead_status, … }
 
 function buildContactRow(raw: any, workspaceId: string) {
-  const externalId = pickStr(raw, "id", "_id", "buyerId", "contactId") ?? null;
-  const name = pickStr(raw, "name", "fullName", "contact_name", "firstName") ?? "Unknown";
-  const phone = pickStr(raw, "phone", "phoneNumber", "mobile", "telephone") ?? "";
+  const externalId = pickStr(raw, "id", "_id", "lead_id", "buyerId", "contactId") ?? null;
+  const name = pickStr(raw, "name", "fullName", "contact_name", "firstname", "firstName") ?? "Unknown";
+  // WeeBespoke CRM uses mobile_number not phone/mobile
+  const phone = pickStr(raw, "mobile_number", "mobileNumber", "phone", "phoneNumber", "mobile", "telephone") ?? "";
 
   return {
     workspace_id:      workspaceId,
     name,
-    first_name:        pickStr(raw, "firstName", "first_name"),
-    last_name:         pickStr(raw, "lastName", "last_name"),
+    first_name:        pickStr(raw, "firstname", "firstName", "first_name"),
+    last_name:         pickStr(raw, "lastname", "lastName", "last_name"),
     mobile_number:     phone,
     email:             pickStr(raw, "email", "emailAddress"),
-    address_line1:     pickStr(raw, "address", "addressLine1", "address_line1"),
-    postal_code:       pickStr(raw, "postcode", "postCode", "postal_code", "zipCode"),
-    city:              pickStr(raw, "city", "town"),
+    address_line1:     pickStr(raw, "new_propinfo_street2", "address1_line1", "address", "addressLine1"),
+    postal_code:       pickStr(raw, "new_propinfo_postalcode", "address1_postalcode", "postcode", "postCode"),
+    city:              pickStr(raw, "new_propinfo_city", "address1_city", "city", "town"),
     client_name:       "Webuyanyhouse",
     lead_external_id:  externalId,
-    is_active:         true,
-    need_to_call:      false,
+    is_active:         raw?.isActive ?? true,
+    need_to_call:      raw?.need_to_call ?? false,
     meta: {
-      wbah_source:    "buyers",
-      wbah_synced_at: new Date().toISOString(),
+      wbah_source:     "crm",
+      wbah_synced_at:  new Date().toISOString(),
+      lead_status:     raw?.lead_status ?? null,
+      crm_type:        raw?.crm_type ?? null,
+      property_type:   raw?.property_type ?? null,
+      unique_id:       raw?.unique_id ?? null,
     },
   };
 }
@@ -480,6 +535,8 @@ export const adminSyncWebuyanyhouseLeads = createServerFn({ method: "POST" })
 
     const { getTokens, saveNewAccessToken: saveToken } = makeTokenCallbacks();
 
+    // getAllCars = /call-output-data/get-userCall-lead (paginated — fetch all pages)
+    // getAllBuyers = /crm-data/get-crm-data
     const [sellersRes, buyersRes] = await Promise.allSettled([
       getAllCars(getTokens, saveToken),
       getAllBuyers(getTokens, saveToken),

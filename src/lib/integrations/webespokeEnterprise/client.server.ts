@@ -315,13 +315,15 @@ export const wbahToggleUserStatus = (id: string, payload: Record<string, unknown
 export const wbahDeleteUser = (id: string, gt: GetTokens, st: SaveToken) =>
   aDel(`/admin/users/${id}`, gt, st);
 
-// ── Legacy sync endpoints (used by admin sync engine) ─────────────────────────
+// ── Sync endpoints (used by admin sync engine) ────────────────────────────────
+// /call-output-data/get-userCall-lead  → all leads that have been called (609+)
+// /crm-data/get-crm-data              → all CRM contacts (property sellers)
 
 export const getAllCars = (gt: GetTokens, st: SaveToken) =>
-  aGet("/product/carRoutes/get_cars_by_admin", gt, st);
+  aGet("/call-output-data/get-userCall-lead", gt, st);
 
 export const getAllBuyers = (gt: GetTokens, st: SaveToken) =>
-  aGet("/buyer/buyerRoute/get-all-buyers", gt, st);
+  aGet("/crm-data/get-crm-data", gt, st);
 
 export const getAllDealers = (gt: GetTokens, st: SaveToken) =>
-  aGet("/dealer/auth/get-all-dealers", gt, st);
+  aGet("/call-output-data/get-all-calldata", gt, st);
