@@ -483,13 +483,21 @@ export const adminConnectWebuyanyhouseApi = createServerFn({ method: "POST" })
 
     const res = await loginWithPassword(email, password);
     if (!res.ok || !res.data) {
-      throw new Error(res.error ?? `WeeBespoke login failed (HTTP ${res.status})`);
+      throw new Error(
+        `WeeBespoke login failed (HTTP ${res.status}) for ${email} — ` +
+        (res.error ? res.error : "no error body returned by API")
+      );
     }
 
     const d = res.data as any;
-    const accessToken  = d.accessToken ?? d.token;
-    const refreshToken = d.refreshToken ?? "";
-    if (!accessToken) throw new Error("Login succeeded but no token returned");
+    const accessToken  = d.accessToken ?? d.token ?? d.data?.accessToken ?? d.data?.token;
+    const refreshToken = d.refreshToken ?? d.data?.refreshToken ?? "";
+    if (!accessToken) {
+      throw new Error(
+        `Login succeeded (HTTP ${res.status}) but no token in response. ` +
+        `Top-level keys: ${Object.keys(d).join(", ")}`
+      );
+    }
 
     await (supabaseAdmin as any).from("enterprise_integrations").upsert(
       {

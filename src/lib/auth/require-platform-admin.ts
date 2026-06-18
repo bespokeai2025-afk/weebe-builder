@@ -15,13 +15,13 @@ export const requirePlatformAdmin = createMiddleware({ type: "function" }).serve
     };
     const { supabase, userId } = ctx;
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("user_type")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const [profileRes, roleRes] = await Promise.all([
+      supabase.from("profiles").select("user_type").eq("user_id", userId).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
+    ]);
 
-    if (error || !data || data.user_type !== "admin") {
+    const isAdmin = profileRes.data?.user_type === "admin" || !!roleRes.data;
+    if (!isAdmin) {
       throw new Error("Forbidden: Platform admin access required");
     }
 
