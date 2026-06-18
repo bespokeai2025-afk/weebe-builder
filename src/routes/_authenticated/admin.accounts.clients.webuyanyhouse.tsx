@@ -19,6 +19,7 @@ import {
   adminDisconnectWebuyanyhouseApi,
   adminSyncWebuyanyhouseLeads,
 } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
+import { wbahProbeApi } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 
 export const Route = createFileRoute(
   "/_authenticated/admin/accounts/clients/webuyanyhouse",
@@ -84,6 +85,10 @@ function WebuyanyhouseAdminPanel() {
   const connectFn     = useServerFn(adminConnectWebuyanyhouseApi);
   const disconnectFn  = useServerFn(adminDisconnectWebuyanyhouseApi);
   const syncFn        = useServerFn(adminSyncWebuyanyhouseLeads);
+  const probeFn       = useServerFn(wbahProbeApi);
+
+  const [probing, setProbing]       = useState(false);
+  const [probeResult, setProbeResult] = useState<any | null>(null);
 
   const { data: status, isLoading } = useQuery({
     queryKey: ["wbah-admin-status"],
@@ -128,6 +133,15 @@ function WebuyanyhouseAdminPanel() {
       invalidate();
     } catch (e: any) { toast.error(e?.message ?? "Disconnect failed"); }
     finally { setBusy(null); }
+  }
+
+  async function handleProbe() {
+    setProbing(true);
+    try {
+      const r = await probeFn();
+      setProbeResult(r);
+    } catch (e: any) { toast.error(e?.message ?? "Probe failed"); }
+    finally { setProbing(false); }
   }
 
   async function handleSync() {
@@ -340,6 +354,35 @@ function WebuyanyhouseAdminPanel() {
                 </div>
               )}
             </Section>
+
+            {/* 4 — API Diagnostic Probe */}
+            {apiConn && (
+              <Section title="4 · API Diagnostic Probe">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <p className="text-xs text-gray-500">
+                    Fires 7 parallel requests to WeeBespoke API and returns record counts for each.
+                    Use to verify pagination behaviour and total record counts.
+                  </p>
+                  <Button
+                    size="sm"
+                    className="bg-violet-600 hover:bg-violet-700 text-white h-8 text-xs gap-1.5 shrink-0"
+                    disabled={probing}
+                    onClick={handleProbe}
+                  >
+                    {probing
+                      ? <><Loader2 className="w-3 h-3 animate-spin" />Probing…</>
+                      : <><RefreshCw className="w-3 h-3" />Run Probe</>}
+                  </Button>
+                </div>
+                {probeResult && (
+                  <div className="mt-2 rounded-lg bg-gray-950 border border-gray-800 p-3 overflow-x-auto">
+                    <pre className="text-[11px] text-emerald-300 whitespace-pre-wrap font-mono leading-relaxed">
+                      {JSON.stringify(probeResult, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </Section>
+            )}
 
             {/* Info */}
             <div className="rounded-lg bg-gray-900 border border-gray-800 px-4 py-3 text-xs text-gray-500 space-y-1">

@@ -98,6 +98,54 @@ async function requireWbahCbs(userId: string) {
   return { getTokens, saveNewAccessToken };
 }
 
+// ── Diagnostic probe — returns raw API count + page 1/2 responses ─────────────
+
+export const wbahProbeApi = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+
+    const [countRes, callsP1Res, callsP2Res, leadsP1Res, leadsP2Res, unlimitedCallsRes, unlimitedLeadsRes] = await Promise.all([
+      api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetAllCallDataPaged(2, cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetUserCallLeadPaged(2, cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetAllCallData(cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetUserCallLeadAll(cbs.getTokens, cbs.saveNewAccessToken),
+    ]);
+
+    function summarise(res: any, label: string) {
+      const raw = res.data as any;
+      const arr = Array.isArray(raw) ? raw
+        : Array.isArray(raw?.data) ? raw.data
+        : Array.isArray(raw?.calls) ? raw.calls
+        : Array.isArray(raw?.leads) ? raw.leads
+        : Array.isArray(raw?.records) ? raw.records
+        : null;
+      return {
+        label,
+        ok:         res.ok,
+        status:     res.status,
+        recordCount: arr ? arr.length : "N/A (not an array)",
+        topLevelKeys: raw && typeof raw === "object" && !Array.isArray(raw) ? Object.keys(raw) : null,
+        totalField:   raw?.total ?? raw?.totalCount ?? raw?.count ?? null,
+        sampleId:     arr?.[0]?._id ?? arr?.[0]?.id ?? null,
+        rawIfSmall:   arr && arr.length <= 2 ? raw : undefined,
+      };
+    }
+
+    return {
+      count:           { ok: countRes.ok, status: countRes.status, raw: countRes.data },
+      callsPage1:      summarise(callsP1Res, "calls page 1"),
+      callsPage2:      summarise(callsP2Res, "calls page 2"),
+      leadsPage1:      summarise(leadsP1Res, "leads page 1"),
+      leadsPage2:      summarise(leadsP2Res, "leads page 2"),
+      unlimitedCalls:  summarise(unlimitedCallsRes, "calls unlimited (no params)"),
+      unlimitedLeads:  summarise(unlimitedLeadsRes, "leads unlimited (?limit=10000)"),
+    };
+  });
+
 // ── Campaigns (live from WeeBespoke API — shown as a tab in /campaigns) ────────
 
 export const getWbahCampaigns = createServerFn({ method: "GET" })
@@ -219,20 +267,25 @@ export const listWbahLeads = createServerFn({ method: "GET" })
 
 function normaliseLeadRecord(r: any, idx: number) {
   return {
-    id:              String(r._id ?? r.id ?? idx),
-    srNo:            r.srNo ?? r.sr_no ?? null,
-    name:            r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
-    contact:         r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
-    type:            r.type ?? r.leadType ?? "Lead",
-    lastCalledAt:    r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
-    callStatus:      r.callStatus ?? r.call_status ?? r.status ?? null,
-    callDuration:    r.callDuration ?? r.call_duration ?? r.duration ?? null,
-    recordingUrl:    r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
-    transcript:      r.transcript ?? r.callTranscript ?? null,
-    sentiment:       r.sentimentAnalysis ?? r.sentiment ?? null,
-    direction:       r.direction ?? r.callDirection ?? null,
-    appointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
-    agentName:       r.agentName ?? r.agent_name ?? r.assignedAgent ?? r.agent ?? null,
+    id:                 String(r._id ?? r.id ?? idx),
+    srNo:               r.srNo ?? r.sr_no ?? null,
+    name:               r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
+    contact:            r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
+    type:               r.type ?? r.leadType ?? "Lead",
+    lastCalledAt:       r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
+    callStatus:         r.callStatus ?? r.call_status ?? r.status ?? null,
+    callDuration:       r.callDuration ?? r.call_duration ?? r.duration ?? null,
+    recordingUrl:       r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
+    transcript:         r.transcript ?? r.callTranscript ?? null,
+    sentiment:          r.sentimentAnalysis ?? r.sentiment ?? null,
+    direction:          r.direction ?? r.callDirection ?? null,
+    appointmentDate:    r.appointmentDate ?? r.appointment_date ?? null,
+    appointmentTime:    r.appointmentTime ?? r.appointment_time ?? null,
+    bookingStatus:      r.bookingStatus ?? r.booking_status ?? null,
+    calendlyBookingUrl: r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
+    endReason:          r.endReason ?? r.end_reason ?? null,
+    disconnectionReason:r.disconnectionReason ?? r.disconnection_reason ?? null,
+    agentName:          r.agentName ?? r.agent_name ?? r.assignedAgent ?? r.agent ?? null,
   };
 }
 
@@ -391,23 +444,31 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
 
   return {
     id,
-    agent_id:             null,
-    agent_name:           agentName,
-    call_status:          callStatus,
-    call_type:            callType,
-    duration_seconds:     durationSeconds,
-    started_at:           startedAt,
-    ended_at:             null,
-    recording_url:        r.recordingUrl ?? r.recording_url ?? null,
-    transcript:           r.transcript ?? r.callTranscript ?? null,
-    call_summary:         r.transcript ?? r.callTranscript ?? r.callSummary ?? null,
-    from_number:          callType === "inbound"  ? phone : null,
-    to_number:            callType === "outbound" ? phone : null,
+    agent_id:              null,
+    agent_name:            agentName,
+    call_status:           callStatus,
+    call_type:             callType,
+    duration_seconds:      durationSeconds,
+    started_at:            startedAt,
+    ended_at:              null,
+    recording_url:         r.recordingUrl ?? r.recording_url ?? null,
+    transcript:            r.transcript ?? r.callTranscript ?? null,
+    call_summary:          r.transcript ?? r.callTranscript ?? r.callSummary ?? null,
+    from_number:           callType === "inbound"  ? phone : null,
+    to_number:             callType === "outbound" ? phone : null,
     sentiment,
-    disconnection_reason: r.disconnectionReason ?? r.disconnection_reason ?? null,
-    cost_cents:           null,
-    retell_call_id:       null,
-    lead:                 name ? { id, full_name: name, phone: phone ?? "" } : null,
+    disconnection_reason:  r.disconnectionReason ?? r.disconnection_reason ?? null,
+    cost_cents:            null,
+    retell_call_id:        null,
+    lead:                  name ? { id, full_name: name, phone: phone ?? "" } : null,
+    // WeeBespoke-specific extras
+    wbah_name:             name,
+    wbah_contact:          phone,
+    appointment_date:      r.appointmentDate ?? r.appointment_date ?? null,
+    appointment_time:      r.appointmentTime ?? r.appointment_time ?? null,
+    booking_status:        r.bookingStatus ?? r.booking_status ?? null,
+    calendly_booking_url:  r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
+    end_reason:            r.endReason ?? r.end_reason ?? null,
   };
 }
 

@@ -167,11 +167,12 @@ function WbahLeadsSection() {
     return STATUS_LABELS[raw] ?? raw;
   }
 
-  const [search, setSearch]             = useState("");
-  const [transcript, setTranscript]     = useState<{ text: string; name: string } | null>(null);
-  const [showFilters, setShowFilters]   = useState(false);
-  const [sentFilters, setSentFilters]   = useState<Set<string>>(new Set());
-  const [agentFilters, setAgentFilters] = useState<Set<string>>(new Set());
+  const [search, setSearch]               = useState("");
+  const [transcript, setTranscript]       = useState<{ text: string; name: string } | null>(null);
+  const [viewRecord, setViewRecord]       = useState<any | null>(null);
+  const [showFilters, setShowFilters]     = useState(false);
+  const [sentFilters, setSentFilters]     = useState<Set<string>>(new Set());
+  const [agentFilters, setAgentFilters]   = useState<Set<string>>(new Set());
   const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set());
 
   const getFn = useServerFn(listWbahLeads);
@@ -277,6 +278,57 @@ function WbahLeadsSection() {
             </div>
             <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
               {transcript.text || "No transcript available."}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View record modal */}
+      {viewRecord && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setViewRecord(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">{viewRecord.name ?? "Lead Detail"}</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{viewRecord.contact ?? ""}</p>
+              </div>
+              <button onClick={() => setViewRecord(null)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+              {([
+                ["Type",                viewRecord.type],
+                ["Call Status",         viewRecord.callStatus],
+                ["Call Duration",       viewRecord.callDuration],
+                ["Sentiment",           viewRecord.sentiment],
+                ["Last Called At",      viewRecord.lastCalledAt ? new Date(viewRecord.lastCalledAt).toLocaleString() : null],
+                ["Appointment Date",    viewRecord.appointmentDate],
+                ["Appointment Time",    viewRecord.appointmentTime],
+                ["Booking Status",      viewRecord.bookingStatus],
+                ["End Reason",          viewRecord.endReason],
+                ["Disconnection Reason",viewRecord.disconnectionReason],
+                ["Agent",               viewRecord.agentName],
+              ] as [string, any][]).map(([label, val]) => (
+                <div key={label}>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+                  <p className="mt-0.5 text-foreground/80">{val ?? "N/A"}</p>
+                </div>
+              ))}
+              {viewRecord.calendlyBookingUrl && (
+                <div className="col-span-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Calendly URL</p>
+                  <a href={viewRecord.calendlyBookingUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                    {viewRecord.calendlyBookingUrl}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -420,58 +472,60 @@ function WbahLeadsSection() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-card/30">
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground w-10">SR NO</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Called At</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Call Duration</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
+                  {["SR No","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Transcript","View","Appt Date","Appt Time","Booking Status","Calendly URL","End Reason","Disconnection Reason"].map(h => (
+                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r: any, idx: number) => (
-                  <tr key={r.id ?? idx} className="h-10 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
-                    <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{r.name ?? "—"}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.contact ?? "—"}</td>
-                    <td className="px-3 py-2">{wbahLeadStatusBadge(r.callStatus)}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">{r.agentName ?? "—"}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
+                  <tr key={r.id ?? idx} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
+                    <td className="px-3 py-1.5">
+                      {r.contact
+                        ? <a href={`tel:${r.contact}`} className="inline-flex rounded p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors" onClick={e => e.stopPropagation()}><Phone className="h-3.5 w-3.5" /></a>
+                        : <Phone className="h-3.5 w-3.5 text-muted-foreground/30" />}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{r.name ?? "—"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.contact ?? "N/A"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.type ?? "N/A"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
                       {r.lastCalledAt
                         ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
-                        : "—"}
+                        : "N/A"}
                     </td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">
-                      {r.callDuration ?? "N/A"}
-                    </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-1.5">{wbahLeadStatusBadge(r.callStatus)}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">{r.callDuration ?? "N/A"}</td>
+                    <td className="px-3 py-1.5">
                       {r.recordingUrl ? (
-                        <a
-                          href={r.recordingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline whitespace-nowrap"
-                          onClick={e => e.stopPropagation()}
-                        >
+                        <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline whitespace-nowrap" onClick={e => e.stopPropagation()}>
                           <PlayCircle className="h-3 w-3" /> Play
                         </a>
-                      ) : <span className="text-[11px] text-muted-foreground">—</span>}
+                      ) : <span className="text-[11px] text-muted-foreground">N/A</span>}
                     </td>
-                    <td className="px-3 py-2">{wbahLeadSentiment(r.sentiment)}</td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-1.5">{wbahLeadSentiment(r.sentiment)}</td>
+                    <td className="px-3 py-1.5">
                       {r.transcript ? (
-                        <button
-                          onClick={() => setTranscript({ text: r.transcript, name: r.name ?? "Lead" })}
-                          className="inline-flex items-center gap-1 text-[11px] text-violet-400 hover:underline whitespace-nowrap"
-                        >
-                          <ChevronRight className="h-3 w-3" /> View
+                        <button onClick={() => setTranscript({ text: r.transcript, name: r.name ?? "Lead" })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">
+                          Transcript
                         </button>
-                      ) : <span className="text-[11px] text-muted-foreground">—</span>}
+                      ) : <span className="text-[11px] text-muted-foreground">N/A</span>}
                     </td>
+                    <td className="px-3 py-1.5">
+                      <button onClick={() => setViewRecord(r)} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">
+                        View
+                      </button>
+                    </td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.appointmentDate ?? "N/A"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.appointmentTime ?? "N/A"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.bookingStatus ?? "N/A"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                      {r.calendlyBookingUrl
+                        ? <a href={r.calendlyBookingUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Link</a>
+                        : "N/A"}
+                    </td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.endReason ?? "N/A"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.disconnectionReason ?? "N/A"}</td>
                   </tr>
                 ))}
               </tbody>

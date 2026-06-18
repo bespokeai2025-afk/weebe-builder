@@ -317,6 +317,7 @@ function CallsPage() {
 
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
+  const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
@@ -345,6 +346,32 @@ function CallsPage() {
           contact={recordingPlayer.contact}
           onClose={() => setRecordingPlayer(null)}
         />
+      )}
+
+      {/* Transcript modal — WBAH calls */}
+      {wbahTranscript && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setWbahTranscript(null)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-xl border border-border bg-card p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold">Transcript</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{wbahTranscript.name}</p>
+              </div>
+              <button onClick={() => setWbahTranscript(null)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
+              {wbahTranscript.text || "No transcript available."}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Header */}
@@ -427,7 +454,83 @@ function CallsPage() {
                 <p className="text-sm font-medium">No calls yet</p>
                 <p className="text-xs text-muted-foreground">Outbound and inbound calls will be logged here.</p>
               </div>
+            ) : isWbah ? (
+              /* ── WeeBespoke calls table ──────────────────────────────────── */
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] bg-card/30">
+                      {["SR No","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appt Date","Appt Time","Booking Status","Calendly URL","End Reason","Disconnection Reason"].map(h => (
+                        <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((c: any, idx: number) => {
+                      const name = c.wbah_name ?? c.lead?.full_name ?? "—";
+                      const phone = c.wbah_contact ?? c.to_number ?? c.from_number ?? null;
+                      const callType = c.call_type === "inbound" ? "Inbound" : "Outbound";
+                      return (
+                        <tr key={c.id} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">{idx + 1}</td>
+                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            {phone
+                              ? <a href={`tel:${phone}`} className="inline-flex rounded p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"><Phone className="h-3.5 w-3.5" /></a>
+                              : <Phone className="h-3.5 w-3.5 text-muted-foreground/30" />}
+                          </td>
+                          <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{name}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{phone ?? "N/A"}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{callType}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                            {c.started_at
+                              ? new Date(c.started_at).toLocaleString(undefined, { timeStyle: "short", dateStyle: "medium" })
+                              : "N/A"}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
+                              {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
+                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            {c.recording_url
+                              ? <button onClick={() => setRecordingPlayer({ url: c.recording_url, contact: name })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline whitespace-nowrap"><PlayCircle className="h-3 w-3" /> Play</button>
+                              : <span className="text-[11px] text-muted-foreground">N/A</span>}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <span className={cn("text-[11px] capitalize", sentimentClass(c.sentiment ?? "neutral").replace(/bg-\S+/g, "").replace(/\s+/g, " ").trim())}>
+                              {c.sentiment ? c.sentiment.charAt(0).toUpperCase() + c.sentiment.slice(1) : "Neutral"}
+                            </span>
+                          </td>
+                          <td className="max-w-[200px] px-3 py-1.5 text-xs text-muted-foreground align-middle">
+                            <SummaryTooltip text={c.call_summary} lines={2} />
+                          </td>
+                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            {c.transcript
+                              ? <button onClick={() => setWbahTranscript({ text: c.transcript, name })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
+                              : <span className="text-[11px] text-muted-foreground">N/A</span>}
+                          </td>
+                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => openPanel(c)} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">View</button>
+                          </td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.appointment_date ?? "N/A"}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.appointment_time ?? "N/A"}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.booking_status ?? "N/A"}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                            {c.calendly_booking_url
+                              ? <a href={c.calendly_booking_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Link</a>
+                              : "N/A"}
+                          </td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.end_reason ?? "N/A"}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{c.disconnection_reason ?? "N/A"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : (
+              /* ── Standard WEBEE calls table ──────────────────────────────── */
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -454,22 +557,14 @@ function CallsPage() {
                           <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{contact}</td>
                           <td className="px-3 py-1.5">
                             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                              {inbound ? (
-                                <PhoneIncoming className="h-3 w-3 text-primary" />
-                              ) : (
-                                <PhoneOutgoing className="h-3 w-3" />
-                              )}
+                              {inbound ? <PhoneIncoming className="h-3 w-3 text-primary" /> : <PhoneOutgoing className="h-3 w-3" />}
                               {inbound ? "Inbound" : "Outbound"}
                             </span>
                             {(c.provider as string | null) === "ELEVENLABS" && (
-                              <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">
-                                VoxStream
-                              </span>
+                              <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">VoxStream</span>
                             )}
                             {(c.to_number as string | null)?.startsWith("web:") && (
-                              <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">
-                                Web
-                              </span>
+                              <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">Web</span>
                             )}
                           </td>
                           <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
@@ -479,44 +574,24 @@ function CallsPage() {
                             </span>
                           </td>
                           <td className="px-3 py-1.5">
-                            {c.sentiment ? (
-                              <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>
-                                {c.sentiment}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] text-muted-foreground">—</span>
-                            )}
+                            {c.sentiment
+                              ? <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>{c.sentiment}</span>
+                              : <span className="text-[11px] text-muted-foreground">—</span>}
                           </td>
-                          <td className="max-w-[300px] px-3 py-1.5 text-xs text-muted-foreground align-middle">
-                            <SummaryTooltip text={c.call_summary} lines={2} />
-                          </td>
+                          <td className="max-w-[300px] px-3 py-1.5 text-xs text-muted-foreground align-middle"><SummaryTooltip text={c.call_summary} lines={2} /></td>
                           <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
                           <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                            {c.recording_url ? (
-                              <button
-                                onClick={() => setRecordingPlayer({ url: c.recording_url, contact })}
-                                className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-                              >
-                                <PlayCircle className="h-3 w-3" /> Play
-                              </button>
-                            ) : (
-                              <span className="text-[11px] text-muted-foreground">—</span>
-                            )}
+                            {c.recording_url
+                              ? <button onClick={() => setRecordingPlayer({ url: c.recording_url, contact })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"><PlayCircle className="h-3 w-3" /> Play</button>
+                              : <span className="text-[11px] text-muted-foreground">—</span>}
                           </td>
-                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
-                            <RelativeTime date={c.started_at} fallback="—" />
-                          </td>
+                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]"><RelativeTime date={c.started_at} fallback="—" /></td>
                           <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                             <div className="relative group/notes flex justify-center">
-                              <button
-                                onClick={() => openPanel(c)}
-                                className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
-                              >
+                              <button onClick={() => openPanel(c)} className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
                                 <StickyNote className="h-3.5 w-3.5" />
                               </button>
-                              <span className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[10px] text-foreground shadow opacity-0 group-hover/notes:opacity-100 transition-opacity z-50">
-                                Notes
-                              </span>
+                              <span className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[10px] text-foreground shadow opacity-0 group-hover/notes:opacity-100 transition-opacity z-50">Notes</span>
                             </div>
                           </td>
                         </tr>
