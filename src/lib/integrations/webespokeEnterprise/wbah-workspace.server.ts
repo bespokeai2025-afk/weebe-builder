@@ -15,6 +15,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import * as api from "./client.server";
+import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
 
@@ -121,23 +122,42 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
+    // ── Round 1: baseline + CRM ────────────────────────────────────────────────
     const [
-      countRes, callsP1Res, callsP2Res, callsP3Res,
-      leadsP1Res, leadsP2Res,
-      unlimitedCallsRes, unlimitedLeadsRes,
-      callsAllRes, crmRes,
+      countRes, callsP1Res, leadsP1Res, crmRes,
     ] = await Promise.all([
       api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetAllCallDataPaged(2, cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetAllCallDataPaged(3, cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetUserCallLeadPaged(2, cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetAllCallData(cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetUserCallLeadAll(cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetAllCallOutput(cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetCrmData(cbs.getTokens, cbs.saveNewAccessToken),
     ]);
+
+    // ── Round 2: page-param discovery — all variants for calls page 2 ─────────
+    const PAGE_VARIANTS = [
+      { param: "page",        value: 2 },
+      { param: "currentPage", value: 2 },
+      { param: "pageNumber",  value: 2 },
+      { param: "pageNo",      value: 2 },
+      { param: "p",           value: 2 },
+      { param: "offset",      value: 50 },
+      { param: "skip",        value: 50 },
+    ];
+    const [
+      ...paramResults
+    ] = await Promise.all([
+      ...PAGE_VARIANTS.map(({ param, value }) =>
+        wbahCallsParamTest(param, value, cbs.getTokens, cbs.saveNewAccessToken)
+      ),
+      wbahCallsPostPage({ page: 2 },        cbs.getTokens, cbs.saveNewAccessToken),
+      wbahCallsPostPage({ currentPage: 2 }, cbs.getTokens, cbs.saveNewAccessToken),
+      wbahLeadsParamTest("currentPage", 2,  cbs.getTokens, cbs.saveNewAccessToken),
+      wbahLeadsParamTest("pageNumber",  2,  cbs.getTokens, cbs.saveNewAccessToken),
+    ]);
+
+    // Get first record ID from page 1 for comparison
+    const p1Raw   = callsP1Res.data as any;
+    const p1Recs  = Array.isArray(p1Raw?.data) ? p1Raw.data : [];
+    const p1FirstId = p1Recs[0]?.id ?? p1Recs[0]?._id ?? null;
 
     function summarise(res: any, label: string) {
       const raw = res.data as any;
@@ -148,9 +168,41 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
         : Array.isArray(raw?.records)    ? raw.records
         : Array.isArray(raw?.result)     ? raw.result
         : Array.isArray(raw?.items)      ? raw.items
-        : Array.isArray(raw?.list)       ? raw.list
-        : Array.isArray(raw?.callData)   ? raw.callData
-        : Array.isArray(raw?.userData)   ? raw.userData
+        : null;
+      const firstId = arr?.[0]?.id ?? arr?.[0]?._id ?? null;
+      return {
+        label,
+        ok:              res.ok,
+        status:          res.status,
+        recordCount:     arr ? arr.length : "N/A",
+        pagination:      raw?.pagination ?? null,
+        reportedPage:    raw?.pagination?.currentPage ?? null,
+        firstRecordId:   firstId,
+        differentToP1:   firstId !== null && p1FirstId !== null ? firstId !== p1FirstId : "unknown",
+      };
+    }
+
+    // Build page-param discovery results
+    const discoveryLabels = [
+      ...PAGE_VARIANTS.map(({ param, value }) => `GET ?${param}=${value}`),
+      "POST body {page:2}",
+      "POST body {currentPage:2}",
+      "GET leads ?currentPage=2",
+      "GET leads ?pageNumber=2",
+    ];
+    const pageParamDiscovery = discoveryLabels.map((label, i) =>
+      summarise(paramResults[i], label)
+    );
+
+    function fullSummarise(res: any, label: string) {
+      const raw = res.data as any;
+      const arr = Array.isArray(raw) ? raw
+        : Array.isArray(raw?.data)       ? raw.data
+        : Array.isArray(raw?.calls)      ? raw.calls
+        : Array.isArray(raw?.leads)      ? raw.leads
+        : Array.isArray(raw?.records)    ? raw.records
+        : Array.isArray(raw?.result)     ? raw.result
+        : Array.isArray(raw?.items)      ? raw.items
         : null;
       return {
         label,
@@ -158,26 +210,19 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
         status:       res.status,
         recordCount:  arr ? arr.length : "N/A — raw is not an array under any known key",
         topLevelKeys: raw && typeof raw === "object" && !Array.isArray(raw) ? Object.keys(raw) : (Array.isArray(raw) ? ["(bare array)"] : null),
-        isArray:      Array.isArray(raw),
         pagination:   raw?.pagination ?? null,
-        totalField:   raw?.total ?? raw?.totalCount ?? raw?.count ?? raw?.pagination?.total ?? null,
-        pageField:    raw?.page ?? raw?.currentPage ?? raw?.pagination?.page ?? null,
         sampleKeys:   arr?.[0] ? Object.keys(arr[0]).slice(0, 8) : null,
         rawWhenEmpty: (!arr || arr.length === 0) ? raw : undefined,
       };
     }
 
     return {
-      count:           { ok: countRes.ok, status: countRes.status, raw: countRes.data },
-      callsPage1:      summarise(callsP1Res,      "GET /get-all-calldata?page=1"),
-      callsPage2:      summarise(callsP2Res,      "GET /get-all-calldata?page=2"),
-      callsPage3:      summarise(callsP3Res,      "GET /get-all-calldata?page=3"),
-      callsNoParams:   summarise(unlimitedCallsRes,"GET /get-all-calldata (no params)"),
-      callsAll:        summarise(callsAllRes,      "GET /call-output-data/all"),
-      leadsPage1:      summarise(leadsP1Res,       "GET /get-userCall-lead?page=1"),
-      leadsPage2:      summarise(leadsP2Res,       "GET /get-userCall-lead?page=2"),
-      leadsLimit10k:   summarise(unlimitedLeadsRes,"GET /get-userCall-lead?limit=10000"),
-      crmData:         summarise(crmRes,           "GET /crm-data/get-crm-data"),
+      count:              { ok: countRes.ok, status: countRes.status, raw: countRes.data },
+      callsPage1:         fullSummarise(callsP1Res,  "GET /get-all-calldata?page=1"),
+      leadsPage1:         fullSummarise(leadsP1Res,  "GET /get-userCall-lead?page=1"),
+      crmData:            fullSummarise(crmRes,       "GET /crm-data/get-crm-data"),
+      p1FirstId,
+      pageParamDiscovery,
     };
   });
 
