@@ -308,6 +308,7 @@ export function AppSidebar() {
   const [navItems, setNavItems] = useState<NavItem[]>(DEFAULT_NAV_ITEMS);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeModules, setActiveModules] = useState<string[]>([]);
+  const [isWebuyanyhouseWorkspace, setIsWebuyanyhouseWorkspace] = useState(false);
   const [upgradeItem, setUpgradeItem] = useState<NavItem | null>(null);
   const [requesting, setRequesting] = useState(false);
   const requestModuleFn = useServerFn(requestModuleUpgrade);
@@ -352,6 +353,13 @@ export function AppSidebar() {
           .eq("workspace_id", profile.default_workspace_id)
           .maybeSingle();
         if (active) setActiveModules((settings?.active_modules as string[]) ?? []);
+        // Check if this is the Webuyanyhouse workspace
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("slug")
+          .eq("id", profile.default_workspace_id)
+          .maybeSingle();
+        if (active) setIsWebuyanyhouseWorkspace(ws?.slug === "webuyanyhouse");
       } catch {}
     })();
     return () => { active = false; };
@@ -590,6 +598,42 @@ export function AppSidebar() {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
+
+            {isWebuyanyhouseWorkspace && (
+              <>
+                <div className="mx-2 my-3 h-px bg-emerald-500/20 group-data-[collapsible=icon]:mx-1.5" />
+                <SidebarGroup>
+                  {!collapsed && (
+                    <SidebarGroupLabel className="px-2 text-[10px] font-medium uppercase tracking-[0.12em] text-emerald-500/70">
+                      Webuyanyhouse
+                    </SidebarGroupLabel>
+                  )}
+                  <SidebarGroupContent>
+                    <SidebarMenu className="gap-1 group-data-[collapsible=icon]:items-center">
+                      <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                        <SidebarMenuButton
+                          asChild
+                          tooltip="Property Leads"
+                          className={navButtonClasses(isActive("/wbah"))}
+                        >
+                          <Link to="/wbah" className="flex items-center gap-3">
+                            <Home
+                              className={cn(
+                                "h-[18px] w-[18px] shrink-0",
+                                isActive("/wbah")
+                                  ? "text-emerald-400"
+                                  : "text-muted-foreground group-hover/nav:text-foreground",
+                              )}
+                            />
+                            <span className="truncate group-data-[collapsible=icon]:hidden">Leads</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </>
+            )}
 
             <div className="mx-2 my-3 h-px bg-white/[0.05] group-data-[collapsible=icon]:mx-1.5" />
             <SidebarGroup>

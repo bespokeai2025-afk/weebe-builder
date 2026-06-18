@@ -1,0 +1,297 @@
+Correction: Webuyanyhouse is NOT a vehicle marketplace client in our use case.
+
+Webuyanyhouse is a property/home seller qualification client.
+
+The API data should be treated as property seller lead data coming from the current WebespokeAI platform/API, which is already connected to their Microsoft Dynamics CRM and n8n calling flows.
+
+They have 3 agents set up through n8n to call and qualify leads.
+
+The external API is:
+https://uat-api.webespokeai.com
+
+Do not treat cars as vehicle listings in our Smart Dash.
+For this client, map the API product/carRoutes data as imported property seller lead records only, because that is how their current platform/API is exposing the data.
+
+Create/activate a WEBEE workspace/account for:
+Webuyanyhouse
+
+All imported data must belong only to Webuyanyhouse’s logged-in Smart Dash account.
+
+Do not load this into:
+- my admin login
+- the global dashboard
+- other client accounts
+- default HiveMind
+- any shared CRM tables without workspace_id scoping
+
+Build this as a custom Webuyanyhouse workspace configuration.
+
+Required Smart Dash structure for Webuyanyhouse:
+
+1. Leads page
+
+Create 3 separate lead sections/tabs:
+
+A. Disqualified Leads
+These are pulled from the API/Dynamics source section:
+"disqualified leads"
+
+B. Tried To Contact
+These are pulled from the API/Dynamics source section:
+"tried to contact"
+
+C. New Leads
+Prepare this section, but it can show:
+"No new leads synced yet"
+until the API/source route for new leads is confirmed.
+
+Each section must be separate visually and logically.
+
+2. Lead record fields
+
+For each imported lead, safely display fields if available:
+
+- lead name
+- phone number
+- email
+- property address
+- postcode
+- asking price / expected price
+- current status
+- source section
+- Dynamics/source ID if available
+- assigned agent if available
+- last call attempt if available
+- qualification status if available
+- sentiment if available
+- notes/summary if available
+- created date
+- updated date
+
+Also add an expandable raw JSON drawer for every record because the API response shape may vary.
+
+3. API integration
+
+Use this backend API:
+
+BASE_URL:
+https://uat-api.webespokeai.com
+
+Authentication:
+POST /admin/auth/request-otp
+Body:
+{ "email": "..." }
+
+POST /admin/auth/verify-otp
+Body:
+{ "email": "...", "otp": "..." }
+
+POST /admin/refresh-token
+Body:
+{ "refreshToken": "<token>" }
+
+All protected routes require:
+Authorization: Bearer <accessToken>
+
+Available endpoints currently supplied:
+
+GET /product/carRoutes/get_cars_by_admin
+
+POST /product/carRoutes/cars_by_dealerid_for_admin
+Body:
+{ "dealerId": "<id>" }
+
+GET /buyer/buyerRoute/get-all-buyers
+
+GET /dealer/auth/get-all-dealers
+
+Important mapping for Webuyanyhouse:
+
+Because this API still uses old route names like cars/dealers/buyers, do not name them as cars/dealers/buyers in the Webuyanyhouse Smart Dash UI.
+
+Map them as:
+
+GET /product/carRoutes/get_cars_by_admin
+→ Webuyanyhouse imported lead/property records source
+
+GET /buyer/buyerRoute/get-all-buyers
+→ Webuyanyhouse buyer/contact records if relevant, otherwise store as raw imported contacts
+
+GET /dealer/auth/get-all-dealers
+→ Webuyanyhouse source/CRM account records if relevant, otherwise store as raw imported organisations
+
+Do not show "cars", "dealers", "vehicle listings", or "spare parts" labels anywhere in Webuyanyhouse’s Smart Dash.
+
+4. Source-section classification
+
+When importing lead records, classify each record into:
+
+- disqualified
+- tried_to_contact
+- new_lead
+- unknown
+
+Use these detection rules:
+
+If any field contains:
+"disqualified", "disqualified leads", "disqual"
+then source_section = "disqualified"
+
+If any field contains:
+"tried to contact", "try to contact", "attempted contact", "contact attempted", "unable to contact"
+then source_section = "tried_to_contact"
+
+If any field contains:
+"new", "new lead", "fresh lead"
+then source_section = "new_lead"
+
+Otherwise:
+source_section = "unknown"
+
+Check likely fields including:
+status
+leadStatus
+crmStatus
+pipelineStage
+stage
+category
+source
+section
+listName
+segment
+tags
+notes
+raw payload string
+
+5. Database/storage
+
+Create or reuse a workspace-scoped table for this imported data.
+
+Preferred table:
+
+webuyanyhouse_imported_leads:
+- id uuid primary key default gen_random_uuid()
+- workspace_id uuid not null
+- source text not null default 'webespoke_enterprise_api'
+- source_section text not null
+- external_id text nullable
+- lead_name text nullable
+- phone text nullable
+- email text nullable
+- property_address text nullable
+- postcode text nullable
+- expected_price text nullable
+- current_status text nullable
+- assigned_agent text nullable
+- last_call_attempt timestamptz nullable
+- qualification_status text nullable
+- sentiment text nullable
+- notes text nullable
+- raw_payload jsonb not null
+- synced_at timestamptz default now()
+- created_at timestamptz default now()
+- updated_at timestamptz default now()
+
+Add a unique constraint on:
+workspace_id + source + external_id
+where external_id is not null
+
+If the main leads table already supports workspace_id, source, source_section and raw_payload, it can be reused, but only if this does not affect other clients or the normal dashboard.
+
+6. Workspace/account isolation
+
+The Webuyanyhouse workspace/account must be separate from my admin login.
+
+In the admin panel, inside the Webuyanyhouse client record, add:
+
+- Create/Activate WEBEE Account
+- Connect External API
+- Send OTP
+- Verify OTP
+- Sync Now
+- Last sync time
+- Integration status
+- Open Webuyanyhouse Smart Dash / Impersonate, only if the app already supports impersonation
+
+The imported data should be visible when logged into Webuyanyhouse’s account only.
+
+My admin panel should only show connection/sync status, not all their CRM data.
+
+7. Token handling
+
+Store accessToken and refreshToken server-side only against the Webuyanyhouse workspace.
+
+Never expose tokens to frontend.
+Never store tokens in localStorage.
+Never log tokens.
+
+If protected request returns 401:
+- call POST /admin/refresh-token
+- save the new accessToken
+- retry the original request once
+- if retry fails, mark integration disconnected
+
+8. n8n / agent awareness
+
+Add fields/placeholders so the Smart Dash can display qualification activity from their 3 n8n agents if available in the API payload:
+
+- assigned_agent
+- agent_name
+- n8n_workflow_id
+- last_call_attempt
+- call_attempt_count
+- call_outcome
+- qualification_status
+- qualification_summary
+
+If these fields are missing, do not crash.
+Show "Not available yet".
+
+9. Webuyanyhouse Leads UI
+
+In Webuyanyhouse Smart Dash > Leads, create tabs:
+
+- Disqualified Leads
+- Tried To Contact
+- New Leads
+- Unknown / Needs Mapping
+
+Each tab should show a count.
+
+Each row should support:
+- view details
+- raw JSON drawer
+- qualification status
+- last call outcome
+- assigned agent if available
+
+10. Do not break existing system
+
+Do not interfere with:
+
+- existing admin login
+- existing dashboard pages for other clients
+- existing HiveMind
+- existing Retell setup
+- existing OpenAI setup
+- existing Twilio setup
+- existing Cal.com setup
+- existing WhatsApp setup
+- existing lead generation system
+- existing client qualification agent system
+
+This is a client-specific Smart Dash custom integration for Webuyanyhouse only.
+
+11. Final checks
+
+After implementation, confirm:
+
+- Webuyanyhouse has its own WEBEE account/workspace
+- API auth works through OTP
+- tokens are stored only server-side
+- sync pulls from the supplied API
+- data is classified into Disqualified Leads, Tried To Contact, New Leads, and Unknown
+- data appears only when logged into Webuyanyhouse Smart Dash
+- my admin login only sees integration status and sync controls
+- no car/dealer/vehicle labels appear in Webuyanyhouse’s UI
+- existing dashboard/HiveMind are untouched

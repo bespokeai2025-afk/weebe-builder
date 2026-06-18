@@ -1,0 +1,494 @@
+WEBUYANYHOUSE ENTERPRISE WORKSPACE INTEGRATION
+
+IMPORTANT CONTEXT
+
+Do not build a new dashboard.
+
+Do not create new CRM pages.
+
+Do not create a separate environment.
+
+Instead, use the existing WEBEE Smart Dash architecture and adapt it specifically for the Webuyanyhouse workspace.
+
+I have reviewed the existing Webuyanyhouse platform and it already contains the exact operational structure we need:
+
+* People
+* Calls
+* Call Scheduling
+* Callbacks
+* Positive / Neutral Leads
+* CRM
+* Credits
+* User Management
+
+The objective is to create a dedicated Webuyanyhouse workspace inside WEBEE which mirrors this workflow while being powered by WEBEE infrastructure, Retell agents, Smart Dash, analytics and automations.
+
+The Webuyanyhouse workspace must be completely isolated from every other client and from my Super Admin workspace.
+
+---
+
+## PHASE 1 - CREATE WEBUYANYHOUSE WORKSPACE
+
+Inside the Admin Panel:
+
+Locate the existing client:
+
+Webuyanyhouse
+
+Add a new action:
+
+"Activate WEBEE Workspace"
+
+When clicked:
+
+* Create a dedicated workspace for Webuyanyhouse
+* Create workspace settings
+* Create default permissions
+* Create default lead statuses
+* Create default call statuses
+* Create default Smart Dash configuration
+* Link workspace to the existing client record
+
+Do not duplicate the client.
+
+Do not create another company.
+
+Simply activate a tenant workspace attached to the existing client.
+
+---
+
+## PHASE 2 - API INTEGRATION
+
+Create a new integration:
+
+Webespoke Enterprise API
+
+Base URL:
+
+https://uat-api.webespokeai.com
+
+Authentication Flow:
+
+POST /admin/auth/request-otp
+
+POST /admin/auth/verify-otp
+
+POST /admin/refresh-token
+
+Store:
+
+* accessToken
+* refreshToken
+* user
+
+Server-side only.
+
+Never expose tokens to frontend.
+
+Never use localStorage.
+
+Store integration credentials against:
+
+workspace_id = Webuyanyhouse
+
+integration_key = webespoke_enterprise
+
+---
+
+## PHASE 3 - WORKSPACE ISOLATION
+
+All imported data must belong to:
+
+Webuyanyhouse Workspace
+
+ONLY.
+
+Do NOT show imported data inside:
+
+* Super Admin dashboard
+* HiveMind
+* Other workspaces
+* Global analytics
+* Other clients
+
+The Super Admin should only see:
+
+* Integration Status
+* Last Sync
+* Total Imported Leads
+* Total Qualified Leads
+* Total Campaigns
+* Sync Controls
+
+The Super Admin should NOT automatically see client lead data.
+
+Only workspace impersonation should expose client data.
+
+---
+
+## PHASE 4 - LEADS MODULE
+
+Do NOT create new pages.
+
+Use existing WEBEE Leads functionality.
+
+Create lead categories:
+
+1. New Leads
+2. Tried To Contact
+3. Disqualified Leads
+4. Qualified Leads
+5. Callbacks
+
+The imported Dynamics data must automatically map into these buckets.
+
+Classification Rules:
+
+If status contains:
+
+* disqualified
+* rejected
+* unsuitable
+
+Then:
+
+lead_bucket = Disqualified
+
+If status contains:
+
+* tried to contact
+* attempted contact
+* no answer
+* unable to contact
+
+Then:
+
+lead_bucket = Tried To Contact
+
+If status contains:
+
+* new
+* fresh
+* unworked
+
+Then:
+
+lead_bucket = New Leads
+
+If qualification status becomes:
+
+* positive
+* neutral
+* qualified
+
+Then:
+
+lead_bucket = Qualified Leads
+
+If callback requested:
+
+lead_bucket = Callbacks
+
+---
+
+## PHASE 5 - PEOPLE PAGE
+
+Reuse the existing People page.
+
+Replace metrics with:
+
+Card 1:
+Total Leads
+
+Card 2:
+New Leads
+
+Card 3:
+Qualified Leads
+
+Card 4:
+Disqualified Leads
+
+Card 5:
+Tried To Contact
+
+Each card must dynamically calculate from imported data.
+
+Do not hardcode.
+
+---
+
+## PHASE 6 - CALLS PAGE
+
+Reuse existing Calls page.
+
+Map imported call information into:
+
+* Contact Name
+* Phone
+* Status
+* Duration
+* Recording
+* Transcript
+* Sentiment
+* Qualification Outcome
+
+If recordings exist:
+
+Show playback button.
+
+If transcripts exist:
+
+Show transcript button.
+
+Maintain existing Smart Dash layout.
+
+---
+
+## PHASE 7 - CALL SCHEDULING PAGE
+
+This is the core of the system.
+
+Webuyanyhouse already operates with multiple qualification agents.
+
+Create scheduling capability for:
+
+Agent A
+Agent B
+Agent C
+
+The scheduler must allow:
+
+Campaign Name
+Source Bucket
+Assigned Agent
+Schedule
+Timezone
+Concurrency
+Active / Paused
+
+Example:
+
+Campaign:
+Disqualified Sweep
+
+Source:
+Disqualified Leads
+
+Agent:
+Property Qualification Agent
+
+Schedule:
+Daily 3PM
+
+Concurrency:
+20
+
+The scheduler must feed WEBEE calling agents.
+
+---
+
+## PHASE 8 - CALLBACKS PAGE
+
+Reuse existing Callbacks page.
+
+Automatically populate when:
+
+callback_requested = true
+
+OR
+
+callback_date exists
+
+Display:
+
+* Name
+* Phone
+* Callback Date
+* Callback Time
+* Callback Notes
+* Assigned Agent
+
+---
+
+## PHASE 9 - QUALIFIED LEADS PAGE
+
+Reuse existing Positive / Neutral Leads page.
+
+Populate when:
+
+sentiment = positive
+
+OR
+
+sentiment = neutral
+
+OR
+
+qualification_status = qualified
+
+Display:
+
+* Lead Name
+* Contact Details
+* Qualification Summary
+* Last Call Date
+* Recording
+* Transcript
+* Assigned Agent
+
+---
+
+## PHASE 10 - CRM PAGE
+
+Reuse existing CRM page.
+
+This becomes the master lead repository.
+
+Store every imported lead.
+
+Suggested fields:
+
+* External ID
+* Name
+* Phone
+* Email
+* Address
+* Postcode
+* Property Value
+* Lead Status
+* Qualification Status
+* Source Bucket
+* Assigned Agent
+* Last Contact Date
+* Raw Payload
+
+Add expandable raw data viewer.
+
+Do not crash if fields vary.
+
+---
+
+## PHASE 11 - USER MANAGEMENT
+
+Reuse existing User Management page.
+
+Allow:
+
+Admin
+Manager
+Viewer
+
+Roles must be scoped to:
+
+Webuyanyhouse Workspace Only.
+
+No cross-workspace access.
+
+---
+
+## PHASE 12 - DATA SYNC ENGINE
+
+Create sync services:
+
+syncWebuyanyhouseLeads()
+
+syncWebuyanyhouseCalls()
+
+syncWebuyanyhouseCallbacks()
+
+syncWebuyanyhouseQualified()
+
+Run manually and scheduled.
+
+Support incremental syncs.
+
+Store:
+
+external_id
+workspace_id
+source
+payload
+synced_at
+
+Prevent duplicates.
+
+---
+
+## PHASE 13 - TOKEN REFRESH
+
+If API returns 401:
+
+1. Call refresh-token endpoint
+2. Save new access token
+3. Retry original request
+4. If retry fails:
+
+   * mark integration disconnected
+   * notify workspace admin
+
+---
+
+## PHASE 14 - SECURITY
+
+Never expose:
+
+* accessToken
+* refreshToken
+* OTP values
+
+All API calls must be server-side.
+
+All imported records must contain workspace_id.
+
+Add RLS enforcement.
+
+Users can only see records belonging to their workspace.
+
+---
+
+## PHASE 15 - FINAL VALIDATION
+
+Confirm:
+
+✓ Webuyanyhouse workspace created
+
+✓ API connected
+
+✓ OTP flow working
+
+✓ Tokens stored securely
+
+✓ Lead sync working
+
+✓ Lead classification working
+
+✓ Calls syncing
+
+✓ Callbacks syncing
+
+✓ Qualified leads syncing
+
+✓ CRM populated
+
+✓ Call Scheduling operational
+
+✓ Workspace isolation enforced
+
+✓ Super Admin only sees integration controls
+
+✓ Existing HiveMind untouched
+
+✓ Existing Smart Dash untouched
+
+✓ Existing Retell integrations untouched
+
+✓ Existing WhatsApp integrations untouched
+
+✓ Existing OpenAI integrations untouched
+
+✓ Existing client workspaces untouched
+
+Goal:
+
+When a Webuyanyhouse user logs into WEBEE, the system should feel almost identical to their current operational platform, while running entirely on WEBEE Smart Dash infrastructure and WEBEE AI calling agents.
