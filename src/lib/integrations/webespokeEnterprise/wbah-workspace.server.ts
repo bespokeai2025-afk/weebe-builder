@@ -155,76 +155,54 @@ export const listWbahLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    // Step 1: try unlimited fetch + count in parallel
-    const [countRes, unlimitedRes, firstRes] = await Promise.all([
-      api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
+    // Fetch unlimited + page 1 in parallel
+    const [unlimitedRes, firstRes] = await Promise.all([
       api.wbahGetUserCallLeadAll(cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
     ]);
     if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch leads");
 
-    const firstRaw  = firstRes.data as any;
-    const firstRecs = extractRecords(firstRaw);
+    const firstRecs = extractRecords(firstRes.data as any);
     const pageSize  = firstRecs.length || 50;
 
-    // Real total from count endpoint — only sum lead + opportunity, never add .total (avoids double-count)
-    const countData  = countRes.data as any;
-    const countTotal =
-      (countData?.totalCall?.lead ?? 0)
-      + (countData?.totalCall?.opportunity ?? 0);
-    const total =
-      (countTotal > 0 ? countTotal : null)
-      ?? countData?.total
-      ?? countData?.totalCount
-      ?? countData?.count
-      ?? extractCountFromResponse(firstRaw, 0);
-
-    // If unlimited fetch returned more records than a single page, use it directly
+    // If unlimited returned more than one page's worth, use it directly
     const unlimitedRecs = unlimitedRes.ok && unlimitedRes.data
       ? extractRecords(unlimitedRes.data as any)
       : [];
+    console.log("[wbah-leads] page-1:", firstRecs.length, "unlimited:", unlimitedRecs.length);
     if (unlimitedRecs.length > pageSize) {
-      return unlimitedRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
+      console.log("[wbah-leads] using unlimited path →", unlimitedRecs.length);
+      const leads = unlimitedRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
+      leads.sort((a, b) => {
+        const ta = a.lastCalledAt ? new Date(a.lastCalledAt).getTime() : 0;
+        const tb = b.lastCalledAt ? new Date(b.lastCalledAt).getTime() : 0;
+        return tb - ta;
+      });
+      return leads;
     }
 
-    const knownPages = total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 0;
-    let allRecs = [...firstRecs];
+    // Sequential batch fetch — never depends on count endpoint
+    const MAX_PAGES = 500;
+    const BATCH     = 20;
+    const allRecs   = [...firstRecs];
+    let   page      = 2;
 
-    // Fetch remaining known pages in parallel batches of 20
-    if (knownPages > 1) {
-      const remaining = Array.from({ length: knownPages - 1 }, (_, i) => i + 2);
-      const BATCH = 20;
-      for (let b = 0; b < remaining.length; b += BATCH) {
-        const chunk = remaining.slice(b, b + BATCH);
-        const results = await Promise.all(
-          chunk.map((p) => api.wbahGetUserCallLeadPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
-        );
-        for (const r of results) {
-          if (r.ok && r.data) allRecs.push(...extractRecords(r.data));
+    while (page <= MAX_PAGES) {
+      const batch = Array.from({ length: BATCH }, (_, i) => page + i).filter(p => p <= MAX_PAGES);
+      const results = await Promise.all(
+        batch.map((p) => api.wbahGetUserCallLeadPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
+      );
+      let found = 0;
+      for (const r of results) {
+        if (r.ok && r.data) {
+          const recs = extractRecords(r.data as any);
+          allRecs.push(...recs);
+          found += recs.length;
         }
       }
-    }
-
-    // Safety net: batch-fetch beyond knownPages until empty
-    {
-      const SAFETY_CAP   = 500;
-      const SAFETY_BATCH = 10;
-      let nextPage = knownPages > 0 ? knownPages + 1 : 2;
-      while (nextPage <= SAFETY_CAP) {
-        const batch = Array.from({ length: SAFETY_BATCH }, (_, i) => nextPage + i);
-        const results = await Promise.all(
-          batch.map((p) => api.wbahGetUserCallLeadPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
-        );
-        let anyFound = false;
-        for (const r of results) {
-          if (r.ok && r.data) {
-            const recs = extractRecords(r.data as any);
-            if (recs.length > 0) { allRecs.push(...recs); anyFound = true; }
-          }
-        }
-        if (!anyFound) break;
-        nextPage += SAFETY_BATCH;
-      }
+      console.log(`[wbah-leads] pages ${page}-${page + BATCH - 1}: +${found} (total ${allRecs.length})`);
+      if (found === 0) break;
+      page += BATCH;
     }
 
     // Normalise and sort newest-first by lastCalledAt
@@ -287,89 +265,65 @@ export const listWbahCalls = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    // Fetch count + page 1 in parallel — count gives us the real total so we
-    // know how many pages to request.  get-all-calldata returns a bare array
-    // with no wrapper, so relying on the response body for the total always
-    // falls back to 50 (one page).
-    const [countRes, firstRes] = await Promise.all([
-      api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
+    // Fetch unlimited + page 1 in parallel
+    const [unlimitedRes, firstRes] = await Promise.all([
+      api.wbahGetAllCallData(cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
     ]);
     if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch calls from WeeBespoke");
 
-    const firstRaw  = firstRes.data as any;
-    const firstRecs = extractRecords(firstRaw);
+    const firstRecs = extractRecords(firstRes.data as any);
     const pageSize  = firstRecs.length || 50;
 
-    // Hard cap at 15,000 records — keeps initial load fast
-    const MAX_RECORDS = 15_000;
-    const MAX_PAGES   = Math.ceil(MAX_RECORDS / pageSize);
-
-    // Extract real total from count endpoint — only sum lead + opportunity,
-    // never add .total (avoids double-counting)
-    const countData = countRes.data as any;
-    const countTotal =
-      (countData?.totalCall?.lead  ?? 0)
-      + (countData?.totalCall?.opportunity ?? 0);
-    const total =
-      (countTotal > 0 ? countTotal : null)
-      ?? countData?.total
-      ?? countData?.totalCount
-      ?? countData?.count
-      ?? extractCountFromResponse(firstRaw, 0);
-
-    // Calculate pages; cap at MAX_PAGES
-    const knownPages = total > 0
-      ? Math.min(MAX_PAGES, Math.max(1, Math.ceil(total / pageSize)))
-      : 0;
-
-    let allRecs = [...firstRecs];
-
-    if (knownPages > 1) {
-      const remaining = Array.from({ length: knownPages - 1 }, (_, i) => i + 2);
-      const BATCH = 20;
-      for (let b = 0; b < remaining.length; b += BATCH) {
-        const chunk = remaining.slice(b, b + BATCH);
-        const results = await Promise.all(
-          chunk.map((p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
-        );
-        for (const r of results) {
-          if (r.ok && r.data) allRecs.push(...extractRecords(r.data));
-        }
-      }
+    // If unlimited returned more than one page's worth, use it directly
+    const unlimitedRecs = unlimitedRes.ok && unlimitedRes.data
+      ? extractRecords(unlimitedRes.data as any)
+      : [];
+    console.log("[wbah-calls] page-1:", firstRecs.length, "unlimited:", unlimitedRecs.length);
+    if (unlimitedRecs.length > pageSize) {
+      console.log("[wbah-calls] using unlimited path →", unlimitedRecs.length);
+      const calls = unlimitedRecs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
+      calls.sort((a: any, b: any) => {
+        const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
+        const tb = b.started_at ? new Date(b.started_at).getTime() : 0;
+        return tb - ta;
+      });
+      return calls;
     }
 
-    // Safety net: keep fetching until empty batch or cap reached
-    {
-      const SAFETY_BATCH = 10;
-      let nextPage = knownPages > 0 ? knownPages + 1 : 2;
-      while (nextPage <= MAX_PAGES) {
-        const batch = Array.from({ length: SAFETY_BATCH }, (_, i) => nextPage + i);
-        const results = await Promise.all(
-          batch.map((p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
-        );
-        let anyFound = false;
-        for (const r of results) {
-          if (r.ok && r.data) {
-            const recs = extractRecords(r.data as any);
-            if (recs.length > 0) { allRecs.push(...recs); anyFound = true; }
-          }
+    // Sequential batch fetch — cap at 15,000, never depends on count endpoint
+    const MAX_PAGES = 300; // 300 × 50 = 15,000 records
+    const BATCH     = 20;
+    const allRecs   = [...firstRecs];
+    let   page      = 2;
+
+    while (page <= MAX_PAGES) {
+      const batch = Array.from({ length: BATCH }, (_, i) => page + i).filter(p => p <= MAX_PAGES);
+      const results = await Promise.all(
+        batch.map((p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
+      );
+      let found = 0;
+      for (const r of results) {
+        if (r.ok && r.data) {
+          const recs = extractRecords(r.data as any);
+          allRecs.push(...recs);
+          found += recs.length;
         }
-        if (!anyFound) break;
-        nextPage += SAFETY_BATCH;
       }
+      console.log(`[wbah-calls] pages ${page}-${page + BATCH - 1}: +${found} (total ${allRecs.length})`);
+      if (found === 0) break;
+      page += BATCH;
     }
 
-    // Normalise every record to the WEBEE `calls` table shape
+    // Normalise and sort newest-first
     const calls = allRecs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
-
-    // Sort newest-first
     calls.sort((a, b) => {
       const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
       const tb = b.started_at ? new Date(b.started_at).getTime() : 0;
       return tb - ta;
     });
 
+    console.log("[wbah-calls] returning:", calls.length);
     return calls;
   });
 
