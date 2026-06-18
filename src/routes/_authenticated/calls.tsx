@@ -615,18 +615,27 @@ function WbahCallLogsSection() {
   const [transcript, setTranscript] = useState<{ text: string; name: string } | null>(null);
   const getFn = useServerFn(getWbahCallLogs);
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
+  const { data, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["wbah-call-logs", page],
     queryFn: () => getFn({ data: { page, limit: WBAH_PAGE_SIZE } }),
     staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
     retry: 1,
     placeholderData: (prev) => prev,
   });
 
-  const records = data?.records ?? [];
-  const total   = data?.total  ?? 0;
-  const pages   = data?.pages  ?? 1;
-  const startNo = (page - 1) * WBAH_PAGE_SIZE + 1;
+  const records     = data?.records    ?? [];
+  const total       = data?.total      ?? 0;
+  const totalKnown  = data?.totalKnown ?? false;
+  const hasMore     = data?.hasMore    ?? false;
+  const pages       = data?.pages      ?? 1;
+  const startNo     = (page - 1) * WBAH_PAGE_SIZE + 1;
+  const endNo       = startNo + records.length - 1;
+
+  const lastUpdated = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   // Page window: show up to 10 page buttons centred on current page
   const pageWindow = (() => {
@@ -677,7 +686,12 @@ function WbahCallLogsSection() {
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground flex items-center gap-1.5">
           <Building2 className="h-3.5 w-3.5" />
-          {total > 0 ? `Showing ${startNo}–${Math.min(startNo + WBAH_PAGE_SIZE - 1, total)} of ${total.toLocaleString()}` : "WeeBespoke call logs"}
+          {records.length > 0
+            ? totalKnown
+              ? `Showing ${startNo}–${endNo} of ${total.toLocaleString()} calls`
+              : `Showing ${startNo}–${endNo}${hasMore ? "+" : ""} calls`
+            : "WeeBespoke call logs"}
+          {lastUpdated && <span className="ml-2 opacity-50">· updated {lastUpdated}</span>}
         </p>
         <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setPage(1); refetch(); }} disabled={isFetching}>
           <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} /> Refresh
@@ -754,9 +768,15 @@ function WbahCallLogsSection() {
       </div>
 
       {/* Pagination */}
-      {pages > 1 && (
+      {(pages > 1 || hasMore) && (
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>Showing {startNo}–{Math.min(startNo + WBAH_PAGE_SIZE - 1, total)} of {total.toLocaleString()} calls</span>
+          <span>
+            {totalKnown
+              ? `${total.toLocaleString()} calls total`
+              : hasMore
+                ? `Page ${page} · more records available`
+                : `${endNo} calls total`}
+          </span>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -783,15 +803,16 @@ function WbahCallLogsSection() {
                 )}
               >{n}</button>
             ))}
-            {pageWindow[pageWindow.length - 1] < pages && (
+            {/* Show ellipsis + last known page when total is known */}
+            {totalKnown && pageWindow[pageWindow.length - 1] < pages && (
               <>
                 {pageWindow[pageWindow.length - 1] < pages - 1 && <span className="px-1">…</span>}
                 <button onClick={() => setPage(pages)} className="flex h-7 min-w-[28px] items-center justify-center rounded-md border border-white/[0.06] bg-card/40 px-2 hover:bg-white/[0.06]">{pages}</button>
               </>
             )}
             <button
-              onClick={() => setPage(p => Math.min(pages, p + 1))}
-              disabled={page === pages}
+              onClick={() => setPage(p => p + 1)}
+              disabled={!hasMore && page >= pages}
               className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="h-3.5 w-3.5" />

@@ -281,22 +281,31 @@ export const getWbahCallLogs = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    // Fetch data + count in parallel — count gives the real total (API ignores ?limit)
-    const [res, total] = await Promise.all([
-      api.wbahGetAllCallDataPaged(data.page, cbs.getTokens, cbs.saveNewAccessToken),
-      fetchWbahCount(
-        () => api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
-        0,
-      ),
-    ]);
+    const res = await api.wbahGetAllCallDataPaged(data.page, cbs.getTokens, cbs.saveNewAccessToken);
 
     if (!res.ok) throw new Error(res.error ?? "Failed to fetch call logs");
 
     const raw = res.data as any;
     const records = extractRecords(raw);
-    // Use count endpoint result; fall back to in-response total if count endpoint returned 0
-    const realTotal = total > 0 ? total : extractCountFromResponse(raw, records.length);
-    const pageSize  = records.length || data.limit; // actual batch the API returned
+
+    // Try to get a total from the response itself (totalCount, total, totalPages*batch, etc.)
+    const inlineTotal = (() => {
+      if (Array.isArray(raw)) return 0;
+      const direct = raw?.total ?? raw?.totalCount ?? raw?.totalDocuments
+                  ?? raw?.pagination?.total ?? raw?.meta?.total;
+      if (typeof direct === "number" && direct > 0) return direct;
+      // If API returns totalPages, back-calculate
+      const tp = raw?.totalPages ?? raw?.pagination?.totalPages ?? raw?.meta?.totalPages;
+      if (typeof tp === "number" && tp > 0 && records.length > 0) {
+        return tp * records.length;
+      }
+      return 0;
+    })();
+
+    // hasMore: if a full batch came back there are likely more pages
+    const hasMore  = records.length >= 50;
+    const pageSize = records.length || data.limit;
+    const realTotal = inlineTotal > 0 ? inlineTotal : (hasMore ? (data.page * pageSize) + 1 : data.page * pageSize);
 
     const normalised = records.map((r: any, idx: number) => ({
       id:            String(r._id ?? r.id ?? idx),
@@ -314,10 +323,14 @@ export const getWbahCallLogs = createServerFn({ method: "POST" })
     }));
 
     return {
-      records: normalised,
-      total:   realTotal,
-      page:    data.page,
-      limit:   pageSize,
-      pages:   Math.max(1, Math.ceil(realTotal / pageSize)),
+      records:    normalised,
+      total:      realTotal,
+      totalKnown: inlineTotal > 0,
+      hasMore:    hasMore,
+      page:       data.page,
+      limit:      pageSize,
+      pages:      inlineTotal > 0
+                    ? Math.max(1, Math.ceil(inlineTotal / pageSize))
+                    : hasMore ? data.page + 1 : data.page,
     };
   });
