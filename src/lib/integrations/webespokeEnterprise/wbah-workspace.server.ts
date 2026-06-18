@@ -227,8 +227,14 @@ export const listWbahLeads = createServerFn({ method: "GET" })
       }
     }
 
-    // Normalise
-    return allRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
+    // Normalise and sort newest-first by lastCalledAt
+    const leads = allRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
+    leads.sort((a, b) => {
+      const ta = a.lastCalledAt ? new Date(a.lastCalledAt).getTime() : 0;
+      const tb = b.lastCalledAt ? new Date(b.lastCalledAt).getTime() : 0;
+      return tb - ta;
+    });
+    return leads;
   });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -376,7 +382,13 @@ export const listWbahLatestCalls = createServerFn({ method: "GET" })
     const res = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
     if (!res.ok) return [];
     const recs = extractRecords(res.data as any);
-    return recs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
+    const calls = recs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
+    calls.sort((a: any, b: any) => {
+      const ta = a.started_at ? new Date(a.started_at as string).getTime() : 0;
+      const tb = b.started_at ? new Date(b.started_at as string).getTime() : 0;
+      return tb - ta;
+    });
+    return calls;
   });
 
 function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {

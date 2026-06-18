@@ -265,13 +265,13 @@ function CallsPage() {
   });
 
   // WeeBespoke calls — full bulk load (up to 15,000 records).
-  // staleTime: Infinity so navigating away and back never re-fetches all pages.
+  // staleTime: 30 min so navigating away and back uses cache, but errors can recover.
   const wbahFn = useServerFn(listWbahCalls);
   const wbahQ = useQuery({
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
     enabled: isWbah,
-    staleTime: Infinity,
+    staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
@@ -287,14 +287,19 @@ function CallsPage() {
     refetchOnWindowFocus: true,
   });
 
-  // Merge: prepend any records from the latest poll that aren't in the full list
+  // Merge: combine full list + any new records from latest poll, then sort newest-first
   const wbahRows = useMemo(() => {
     const full   = (wbahQ.data ?? []) as any[];
     const latest = (wbahLatestQ.data ?? []) as any[];
     const existingIds = new Set(full.map((r: any) => r.id));
     const newOnes = latest.filter((r: any) => !existingIds.has(r.id));
-    if (newOnes.length === 0) return full;
-    return [...newOnes, ...full];
+    const merged = newOnes.length === 0 ? full : [...newOnes, ...full];
+    // Always re-sort so the merged array is newest-first regardless of query completion order
+    return [...merged].sort((a, b) => {
+      const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
+      const tb = b.started_at ? new Date(b.started_at).getTime() : 0;
+      return tb - ta;
+    });
   }, [wbahQ.data, wbahLatestQ.data]);
 
   const rows = (isWbah ? wbahRows : (q.data ?? [])) as any[];
