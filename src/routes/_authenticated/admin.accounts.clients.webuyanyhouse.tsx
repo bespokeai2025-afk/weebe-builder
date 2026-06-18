@@ -135,8 +135,8 @@ function WebuyanyhouseAdminPanel() {
     try {
       const r = await syncFn() as any;
       const parts: string[] = [];
-      if (typeof r.properties === "number") parts.push(`${r.properties} property leads`);
-      if (typeof r.contacts   === "number") parts.push(`${r.contacts} contacts`);
+      if (typeof r.sellers  === "number") parts.push(`${r.sellers} property leads`);
+      if (typeof r.contacts === "number") parts.push(`${r.contacts} contacts`);
       if (r.errors?.length) toast.error(`Sync partial: ${r.errors.join(", ")}`);
       else toast.success(parts.length ? `Synced: ${parts.join(", ")}` : "Sync complete");
       invalidate();
@@ -229,10 +229,10 @@ function WebuyanyhouseAdminPanel() {
                   </Button>
                   {wsCreated && (
                     <Link
-                      to="/wbah"
+                      to="/leads"
                       className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
                     >
-                      <ExternalLink className="w-3 h-3" /> Open Leads Dash
+                      <ExternalLink className="w-3 h-3" /> View Leads
                     </Link>
                   )}
                 </div>
@@ -330,13 +330,13 @@ function WebuyanyhouseAdminPanel() {
                 </Button>
               </div>
 
-              {/* Lead counts */}
+              {/* Lead counts — sourced from standard leads table */}
               {status.totalLeads > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1">
-                  <StatCard icon={Home}       label="New Leads"        value={status.leadCounts.new_lead}         color="text-emerald-400" />
+                  <StatCard icon={Home}       label="New Leads"        value={status.leadCounts.new_leads}        color="text-emerald-400" />
                   <StatCard icon={Phone}      label="Tried To Contact" value={status.leadCounts.tried_to_contact} color="text-yellow-400" />
                   <StatCard icon={Users}      label="Disqualified"     value={status.leadCounts.disqualified}     color="text-red-400" />
-                  <StatCard icon={HelpCircle} label="Unknown"          value={status.leadCounts.unknown}          color="text-gray-400" />
+                  <StatCard icon={HelpCircle} label="Qualified"        value={status.leadCounts.qualified}        color="text-purple-400" />
                 </div>
               )}
             </Section>

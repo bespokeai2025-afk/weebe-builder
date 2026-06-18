@@ -1,36 +1,35 @@
 /**
  * Webuyanyhouse Workspace Integration — server functions.
  *
- * Admin functions (requirePlatformAdmin): account provisioning, API sync.
- * Workspace functions (requireSupabaseAuth): lead reads, scoped to WBAH workspace.
+ * Syncs WeeBespoke AI Enterprise API data directly into the existing WEBEE
+ * `leads` and `data_records` tables so all standard Smart Dash pages (Leads,
+ * Qualified, Pipeline, Contacts, Calls, Campaigns) work without any new UI.
  *
  * Tokens are NEVER returned to the browser — stored server-side only.
  */
 import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
   getAllCars,
   getAllBuyers,
-  getAllDealers,
   loginWithPassword,
 } from "./client.server";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const INTEGRATION_KEY = "webespoke_enterprise";
-const CLIENT_NAME = "Webuyanyhouse";
-const WBAH_SLUG = "webuyanyhouse";
-const WBAH_EMAIL = "admin@webuyanyhouse.co.uk";
-const WBAH_PASSWORD = "Bespoke2025!";
+const INTEGRATION_KEY  = "webespoke_enterprise";
+const CLIENT_NAME      = "Webuyanyhouse";
+const WBAH_SLUG        = "webuyanyhouse";
+const WBAH_EMAIL       = "admin@webuyanyhouse.co.uk";
+const WBAH_PASSWORD    = "Bespoke2025!";
+const SOURCE_DETAIL    = "webespoke_enterprise";
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
 
 async function getWebuyanyhouseWorkspaceId(): Promise<string | null> {
-  const sb = supabaseAdmin as any;
-  const { data } = await sb
+  const { data } = await (supabaseAdmin as any)
     .from("workspaces")
     .select("id")
     .eq("slug", WBAH_SLUG)
@@ -38,11 +37,10 @@ async function getWebuyanyhouseWorkspaceId(): Promise<string | null> {
   return data?.id ?? null;
 }
 
-// ── Token helpers (server-side only) ─────────────────────────────────────────
+// ── Token helpers (server-side only — never sent to browser) ──────────────────
 
 async function getStoredTokens(): Promise<{ accessToken: string; refreshToken: string } | null> {
-  const sb = supabaseAdmin as any;
-  const { data } = await sb
+  const { data } = await (supabaseAdmin as any)
     .from("enterprise_integrations")
     .select("access_token, refresh_token, status")
     .eq("integration_key", INTEGRATION_KEY)
@@ -53,8 +51,7 @@ async function getStoredTokens(): Promise<{ accessToken: string; refreshToken: s
 }
 
 async function saveNewAccessToken(token: string): Promise<void> {
-  const sb = supabaseAdmin as any;
-  await sb
+  await (supabaseAdmin as any)
     .from("enterprise_integrations")
     .update({ access_token: token, status: "connected" })
     .eq("integration_key", INTEGRATION_KEY)
@@ -72,109 +69,248 @@ function makeTokenCallbacks() {
   };
 }
 
-// ── Lead classification ───────────────────────────────────────────────────────
+// ── Classification helpers ────────────────────────────────────────────────────
 
-function classifyLead(raw: unknown): string {
-  const haystack = JSON.stringify(raw).toLowerCase();
-
-  // Check specific high-priority fields first
-  const r = raw as any;
-  const statusFields = [
-    r?.status, r?.leadStatus, r?.crmStatus, r?.pipelineStage,
-    r?.stage, r?.category, r?.source, r?.section, r?.listName,
-    r?.segment, r?.tags, r?.notes,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  if (/disqualif|disqual/.test(statusFields)) return "disqualified";
-  if (/tried.{0,10}contact|attempted.{0,10}contact|contact.{0,10}attempted|unable.{0,10}contact/.test(statusFields)) return "tried_to_contact";
-  if (/\bnew.{0,5}lead|fresh.{0,5}lead|new_lead/.test(statusFields)) return "new_lead";
-
-  // Fall back to full payload scan
-  if (/disqualif|disqual/.test(haystack)) return "disqualified";
-  if (/tried.{0,10}contact|attempted.{0,10}contact|contact.{0,10}attempted|unable.{0,10}contact/.test(haystack)) return "tried_to_contact";
-  if (/\bnew.{0,5}lead|fresh.{0,5}lead|new_lead/.test(haystack)) return "new_lead";
-
-  return "unknown";
-}
+type LeadStatus   = "need_to_call" | "not_interested" | "not_connected" | "qualified";
+type SentimentVal = "positive" | "neutral" | "negative";
 
 function pickStr(raw: any, ...keys: string[]): string | null {
   for (const k of keys) {
     const v = raw?.[k];
-    if (v != null && v !== "" && v !== "null" && v !== "undefined") return String(v).trim();
+    if (v != null && String(v).trim() && String(v) !== "null" && String(v) !== "undefined") {
+      return String(v).trim();
+    }
   }
   return null;
 }
 
-function extractLeadFields(raw: any) {
-  return {
-    lead_name:             pickStr(raw, "name", "fullName", "leadName", "customerName", "sellerName", "contact_name", "firstName"),
-    phone:                 pickStr(raw, "phone", "phoneNumber", "mobile", "telephone", "contact_phone", "mobileNumber"),
-    email:                 pickStr(raw, "email", "emailAddress", "contact_email"),
-    property_address:      pickStr(raw, "address", "propertyAddress", "fullAddress", "property_address", "make", "title"),
-    postcode:              pickStr(raw, "postcode", "postCode", "zipCode", "postal_code", "zip"),
-    expected_price:        pickStr(raw, "askingPrice", "expectedPrice", "price", "salePrice", "valuation", "offerPrice"),
-    current_status:        pickStr(raw, "status", "leadStatus", "crmStatus", "pipelineStage", "stage", "listingStatus"),
-    assigned_agent:        pickStr(raw, "assignedAgent", "agentName", "agent", "dealerName", "dealer"),
-    call_attempt_count:    typeof raw?.callAttemptCount === "number" ? raw.callAttemptCount : null,
-    call_outcome:          pickStr(raw, "callOutcome", "lastCallOutcome", "outcome"),
-    qualification_status:  pickStr(raw, "qualificationStatus", "qualified", "qualStatus"),
-    qualification_summary: pickStr(raw, "qualificationSummary", "summary", "qualification_summary"),
-    sentiment:             pickStr(raw, "sentiment", "leadSentiment"),
-    n8n_workflow_id:       pickStr(raw, "n8nWorkflowId", "workflowId", "n8n_workflow_id"),
-    notes:                 pickStr(raw, "notes", "description", "comments"),
-    last_call_attempt:     raw?.lastCallAttempt ?? raw?.last_call_attempt ?? null,
-  };
+function statusHaystack(raw: any): string {
+  return [
+    raw?.status, raw?.leadStatus, raw?.crmStatus, raw?.pipelineStage,
+    raw?.stage, raw?.category, raw?.section, raw?.listName, raw?.segment,
+    raw?.tags, raw?.notes, raw?.callOutcome, raw?.lastCallOutcome,
+    raw?.qualificationStatus, raw?.sentiment,
+  ].filter(Boolean).join(" ").toLowerCase();
 }
 
-function buildLeadRow(raw: any, workspaceId: string, sourceLabel: string) {
-  const fields = extractLeadFields(raw);
-  const externalId = raw?.id ? String(raw.id) : raw?._id ? String(raw._id) : null;
+function classifyStatus(raw: any): LeadStatus {
+  const h = statusHaystack(raw);
+  if (/disqualif|disqual|reject|unsuitable|do[_\s]?not[_\s]?call/.test(h)) return "not_interested";
+  if (/tried.{0,10}contact|attempted.{0,10}contact|no[_\s]answer|unable.{0,10}contact|not.{0,5}reached|missed|voicemail/.test(h)) return "not_connected";
+  if (/qualified|positive|neutral/.test(h)) return "qualified";
+  if (/\bnew\b|fresh|unworked|new[_\s]?lead/.test(h)) return "need_to_call";
+  return "need_to_call"; // safe default — these are unprocessed leads
+}
+
+function classifySentiment(raw: any): SentimentVal | null {
+  const h = statusHaystack(raw) + " " + (raw?.sentiment ?? "").toLowerCase();
+  if (/positive|interested|keen|motivated/.test(h)) return "positive";
+  if (/neutral|maybe|unsure|undecided/.test(h)) return "neutral";
+  if (/negative|disqualif|not[_\s]interested|hostile/.test(h)) return "negative";
+  return null;
+}
+
+function classifyPipelineStage(status: LeadStatus): string | null {
+  if (status === "not_interested") return "lost";
+  if (status === "not_connected")  return "discovery";
+  if (status === "qualified")      return "proposal";
+  if (status === "need_to_call")   return "new_lead";
+  return "new_lead";
+}
+
+function classifyQualificationStatus(raw: any): string | null {
+  const h = statusHaystack(raw);
+  if (/qualified|positive|neutral/.test(h))       return "qualified";
+  if (/disqualif|reject|unsuitable/.test(h))       return "not_qualified";
+  return null;
+}
+
+function isCallbackRequested(raw: any): boolean {
+  return !!(raw?.callbackRequested || raw?.callback_requested ||
+    raw?.callbackDate || raw?.callback_date ||
+    /callback|call[_\s]?back/.test((raw?.status ?? "").toLowerCase()));
+}
+
+// ── Build `leads` table row from WeeBespoke payload ───────────────────────────
+
+function buildLeadRow(raw: any, workspaceId: string) {
+  const status      = classifyStatus(raw);
+  const sentiment   = classifySentiment(raw);
+  const pipeline    = classifyPipelineStage(status);
+  const qualStatus  = classifyQualificationStatus(raw);
+  const externalId  = pickStr(raw, "id", "_id", "leadId", "sellerId") ?? null;
+  const callbackAt  = raw?.callbackDate ?? raw?.callback_date ?? raw?.scheduledDate ?? null;
+
   return {
     workspace_id:          workspaceId,
-    source:               "webespoke_enterprise_api",
-    source_section:        classifyLead(raw),
-    external_id:           externalId,
-    raw_payload:           raw,
-    synced_at:             new Date().toISOString(),
-    ...fields,
+    full_name:             pickStr(raw, "name", "fullName", "leadName", "customerName", "sellerName", "contact_name", "seller_name") ?? "Unknown",
+    phone:                 pickStr(raw, "phone", "phoneNumber", "mobile", "telephone", "contact_phone", "mobileNumber") ?? "",
+    email:                 pickStr(raw, "email", "emailAddress", "contact_email"),
+    company_name:          null,
+    status:                status as string,
+    sentiment:             sentiment,
+    pipeline_stage:        pipeline,
+    qualification_status:  qualStatus,
+    source:                "import",
+    source_detail:         SOURCE_DETAIL,
+    notes:                 pickStr(raw, "notes", "description", "comments"),
+    call_summary:          pickStr(raw, "callSummary", "summary", "qualification_summary"),
+    scheduled_call_at:     (isCallbackRequested(raw) && callbackAt) ? callbackAt : null,
+    meta: {
+      wbah_external_id:    externalId,
+      wbah_synced_at:      new Date().toISOString(),
+      property_address:    pickStr(raw, "address", "propertyAddress", "fullAddress", "property_address", "make", "title"),
+      postcode:            pickStr(raw, "postcode", "postCode", "zipCode", "postal_code"),
+      expected_price:      pickStr(raw, "askingPrice", "expectedPrice", "price", "salePrice", "valuation"),
+      assigned_agent:      pickStr(raw, "assignedAgent", "agentName", "agent", "dealerName", "dealer"),
+      call_attempt_count:  raw?.callAttemptCount ?? null,
+      call_outcome:        pickStr(raw, "callOutcome", "lastCallOutcome", "outcome"),
+      n8n_workflow_id:     pickStr(raw, "n8nWorkflowId", "workflowId", "n8n_workflow_id"),
+    },
   };
 }
 
-async function upsertLeads(rows: any[]): Promise<number> {
+// ── Build `data_records` row from WeeBespoke buyer payload ────────────────────
+
+function buildContactRow(raw: any, workspaceId: string) {
+  const externalId = pickStr(raw, "id", "_id", "buyerId", "contactId") ?? null;
+  const name = pickStr(raw, "name", "fullName", "contact_name", "firstName") ?? "Unknown";
+  const phone = pickStr(raw, "phone", "phoneNumber", "mobile", "telephone") ?? "";
+
+  return {
+    workspace_id:      workspaceId,
+    name,
+    first_name:        pickStr(raw, "firstName", "first_name"),
+    last_name:         pickStr(raw, "lastName", "last_name"),
+    mobile_number:     phone,
+    email:             pickStr(raw, "email", "emailAddress"),
+    address_line1:     pickStr(raw, "address", "addressLine1", "address_line1"),
+    postal_code:       pickStr(raw, "postcode", "postCode", "postal_code", "zipCode"),
+    city:              pickStr(raw, "city", "town"),
+    client_name:       "Webuyanyhouse",
+    lead_external_id:  externalId,
+    is_active:         true,
+    need_to_call:      false,
+    meta: {
+      wbah_source:    "buyers",
+      wbah_synced_at: new Date().toISOString(),
+    },
+  };
+}
+
+// ── Upsert leads into existing `leads` table ──────────────────────────────────
+
+async function upsertLeadsRows(rows: ReturnType<typeof buildLeadRow>[]): Promise<number> {
   if (!rows.length) return 0;
   const sb = supabaseAdmin as any;
-  const { error } = await sb
-    .from("webuyanyhouse_imported_leads")
-    .upsert(rows, {
-      onConflict: "workspace_id,source,external_id",
-      ignoreDuplicates: false,
-    });
-  if (error) throw new Error(`Lead upsert failed: ${error.message}`);
+  const workspaceId = rows[0].workspace_id;
+
+  // Fetch existing records by phone to determine insert vs update
+  const { data: existing } = await sb
+    .from("leads")
+    .select("id, phone")
+    .eq("workspace_id", workspaceId)
+    .eq("source", "import")
+    .eq("source_detail", SOURCE_DETAIL);
+
+  const existingByPhone = new Map<string, string>(
+    (existing ?? []).map((l: any) => [String(l.phone).trim(), String(l.id)])
+  );
+
+  const toInsert: typeof rows = [];
+  const toUpdate: Array<{ id: string } & (typeof rows)[0]> = [];
+
+  for (const row of rows) {
+    const phone = String(row.phone).trim();
+    const existingId = phone ? existingByPhone.get(phone) : undefined;
+    if (existingId) {
+      toUpdate.push({ ...row, id: existingId });
+    } else {
+      toInsert.push(row);
+    }
+  }
+
+  // Batch insert new
+  if (toInsert.length) {
+    const { error } = await sb.from("leads").insert(toInsert);
+    if (error) console.error("[wbah-sync] leads insert error:", error.message);
+  }
+
+  // Update existing in batches of 50
+  for (let i = 0; i < toUpdate.length; i += 50) {
+    const batch = toUpdate.slice(i, i + 50);
+    await Promise.allSettled(
+      batch.map(({ id, ...row }) =>
+        sb.from("leads").update(row).eq("id", id)
+      )
+    );
+  }
+
   return rows.length;
 }
 
-// ── Admin: Provision Webuyanyhouse WEBEE Account ──────────────────────────────
+// ── Upsert contacts into existing `data_records` table ───────────────────────
+
+async function upsertContactRows(rows: ReturnType<typeof buildContactRow>[]): Promise<number> {
+  if (!rows.length) return 0;
+  const sb = supabaseAdmin as any;
+  const workspaceId = rows[0].workspace_id;
+
+  // Use lead_external_id for dedup (it has a unique index in WEBEE)
+  const withId    = rows.filter(r => r.lead_external_id);
+  const withoutId = rows.filter(r => !r.lead_external_id);
+
+  if (withId.length) {
+    // Check which external IDs already exist
+    const externalIds = withId.map(r => r.lead_external_id);
+    const { data: existing } = await sb
+      .from("data_records")
+      .select("id, lead_external_id")
+      .eq("workspace_id", workspaceId)
+      .in("lead_external_id", externalIds);
+
+    const existingSet = new Set((existing ?? []).map((r: any) => r.lead_external_id));
+    const toInsert = withId.filter(r => !existingSet.has(r.lead_external_id));
+    const toSkip   = withId.filter(r =>  existingSet.has(r.lead_external_id));
+
+    if (toInsert.length) {
+      await sb.from("data_records").insert(toInsert);
+    }
+    // Update existing
+    const existingMap = new Map((existing ?? []).map((r: any) => [r.lead_external_id, r.id]));
+    await Promise.allSettled(
+      toSkip.map(row => sb.from("data_records").update(row).eq("id", existingMap.get(row.lead_external_id)))
+    );
+  }
+
+  if (withoutId.length) {
+    await sb.from("data_records").insert(withoutId);
+  }
+
+  return rows.length;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN SERVER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Provision Webuyanyhouse WEBEE Account ─────────────────────────────────────
 
 export const provisionWebuyanyhouseAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async () => {
     const sb = supabaseAdmin as any;
 
-    // Check if already exists
-    const { data: existing } = await sb.auth.admin.listUsers();
-    const existingUser = (existing?.users ?? []).find(
-      (u: any) => u.email === WBAH_EMAIL
-    );
+    // Find or create auth user
+    const { data: existing } = await supabaseAdmin.auth.admin.listUsers();
+    const existingUser = (existing?.users ?? []).find((u: any) => u.email === WBAH_EMAIL);
 
     let userId: string;
+    let alreadyExisted = !!existingUser;
 
     if (existingUser) {
       userId = existingUser.id;
     } else {
-      // Create auth user
       const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
         email: WBAH_EMAIL,
         password: WBAH_PASSWORD,
@@ -182,20 +318,17 @@ export const provisionWebuyanyhouseAccount = createServerFn({ method: "POST" })
         user_metadata: { full_name: "Webuyanyhouse Admin" },
       });
       if (createErr || !newUser.user) {
-        throw new Error(`Failed to create user: ${createErr?.message ?? "unknown error"}`);
+        throw new Error(`Failed to create user: ${createErr?.message ?? "unknown"}`);
       }
       userId = newUser.user.id;
 
-      // Create profile if trigger hasn't fired
-      await sb.from("profiles").upsert({
-        user_id: userId,
-        email: WBAH_EMAIL,
-        full_name: "Webuyanyhouse Admin",
-        user_type: "user",
-      }, { onConflict: "user_id" });
+      await sb.from("profiles").upsert(
+        { user_id: userId, email: WBAH_EMAIL, full_name: "Webuyanyhouse Admin", user_type: "user" },
+        { onConflict: "user_id" },
+      );
     }
 
-    // Check if workspace already exists
+    // Find or create workspace
     const existingWsId = await getWebuyanyhouseWorkspaceId();
     let workspaceId = existingWsId;
 
@@ -206,50 +339,37 @@ export const provisionWebuyanyhouseAccount = createServerFn({ method: "POST" })
         .select("id")
         .single();
 
-      if (wsErr || !ws) {
-        throw new Error(`Failed to create workspace: ${wsErr?.message ?? "unknown error"}`);
-      }
+      if (wsErr || !ws) throw new Error(`Workspace create failed: ${wsErr?.message}`);
       workspaceId = ws.id;
 
       await supabaseAdmin.from("workspace_members").upsert(
         { workspace_id: workspaceId, user_id: userId, role: "owner" },
-        { onConflict: "workspace_id,user_id" }
+        { onConflict: "workspace_id,user_id" },
       );
-
       await supabaseAdmin.from("workspace_settings").upsert(
         { workspace_id: workspaceId, business_name: "Webuyanyhouse" },
-        { onConflict: "workspace_id" }
+        { onConflict: "workspace_id" },
       );
-
       await supabaseAdmin.from("profiles")
         .update({ default_workspace_id: workspaceId })
         .eq("user_id", userId);
 
-      // Telephony config so builder is ready
       await supabaseAdmin.from("telephony_configs")
         .upsert({ workspace_id: workspaceId, provider: "twilio", is_active: true }, { onConflict: "workspace_id,provider" })
         .then(() => {}).catch(() => {});
     }
 
-    return {
-      ok: true,
-      email: WBAH_EMAIL,
-      userId,
-      workspaceId,
-      alreadyExisted: !!existingUser,
-    };
+    return { ok: true, email: WBAH_EMAIL, userId, workspaceId, alreadyExisted };
   });
 
-// ── Admin: status ─────────────────────────────────────────────────────────────
+// ── Admin: API connection status ──────────────────────────────────────────────
 
 export const getWebuyanyhouseAdminStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async () => {
     const sb = supabaseAdmin as any;
-
     const workspaceId = await getWebuyanyhouseWorkspaceId();
 
-    // API connection status
     const { data: integration } = await sb
       .from("enterprise_integrations")
       .select("status, updated_at")
@@ -257,56 +377,58 @@ export const getWebuyanyhouseAdminStatus = createServerFn({ method: "GET" })
       .eq("client_name", CLIENT_NAME)
       .maybeSingle();
 
-    // Lead counts
-    let leadCounts: Record<string, number> = {};
+    // Lead counts from the standard `leads` table (workspace-scoped)
+    let leadCounts = { need_to_call: 0, not_connected: 0, not_interested: 0, qualified: 0 };
+    let totalLeads = 0;
     let lastSynced: string | null = null;
 
     if (workspaceId) {
       const { data: counts } = await sb
-        .from("webuyanyhouse_imported_leads")
-        .select("source_section, synced_at")
+        .from("leads")
+        .select("status, updated_at")
         .eq("workspace_id", workspaceId)
-        .order("synced_at", { ascending: false });
+        .eq("source", "import")
+        .eq("source_detail", SOURCE_DETAIL)
+        .order("updated_at", { ascending: false });
 
       for (const row of counts ?? []) {
-        leadCounts[row.source_section] = (leadCounts[row.source_section] ?? 0) + 1;
+        leadCounts[row.status as keyof typeof leadCounts] =
+          (leadCounts[row.status as keyof typeof leadCounts] ?? 0) + 1;
+        totalLeads++;
       }
-      if (counts?.length) lastSynced = counts[0].synced_at;
+      if (counts?.length) lastSynced = counts[0].updated_at;
     }
 
     return {
       workspaceId,
       workspaceCreated: !!workspaceId,
-      apiStatus: (integration?.status ?? "disconnected") as string,
+      apiStatus:   (integration?.status ?? "disconnected") as string,
       apiUpdatedAt: integration?.updated_at ?? null,
       lastSynced,
-      totalLeads: Object.values(leadCounts).reduce((a, b) => a + b, 0),
+      totalLeads,
       leadCounts: {
-        disqualified:     leadCounts["disqualified"]     ?? 0,
-        tried_to_contact: leadCounts["tried_to_contact"] ?? 0,
-        new_lead:         leadCounts["new_lead"]         ?? 0,
-        unknown:          leadCounts["unknown"]          ?? 0,
+        new_leads:        leadCounts.need_to_call,
+        tried_to_contact: leadCounts.not_connected,
+        disqualified:     leadCounts.not_interested,
+        qualified:        leadCounts.qualified,
       },
     };
   });
 
-// ── Admin: Connect API using stored credentials ───────────────────────────────
+// ── Admin: Connect API (password auth, server-side only) ─────────────────────
 
 export const adminConnectWebuyanyhouseApi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async () => {
     const email    = process.env.WEBESPOKE_ADMIN_EMAIL;
     const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
-
     if (!email || !password) {
-      throw new Error(
-        "Set WEBESPOKE_ADMIN_EMAIL and WEBESPOKE_ADMIN_PASSWORD in Replit Secrets."
-      );
+      throw new Error("Set WEBESPOKE_ADMIN_EMAIL + WEBESPOKE_ADMIN_PASSWORD in Replit Secrets.");
     }
 
     const res = await loginWithPassword(email, password);
     if (!res.ok || !res.data) {
-      throw new Error(res.error ?? `Login failed (HTTP ${res.status})`);
+      throw new Error(res.error ?? `WeeBespoke login failed (HTTP ${res.status})`);
     }
 
     const d = res.data as any;
@@ -317,15 +439,14 @@ export const adminConnectWebuyanyhouseApi = createServerFn({ method: "POST" })
     await (supabaseAdmin as any).from("enterprise_integrations").upsert(
       {
         integration_key: INTEGRATION_KEY,
-        client_name: CLIENT_NAME,
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        user_payload: { email },
-        status: "connected",
+        client_name:     CLIENT_NAME,
+        access_token:    accessToken,
+        refresh_token:   refreshToken,
+        user_payload:    { email },
+        status:          "connected",
       },
-      { onConflict: "integration_key,client_name" }
+      { onConflict: "integration_key,client_name" },
     );
-
     return { ok: true };
   });
 
@@ -342,90 +463,76 @@ export const adminDisconnectWebuyanyhouseApi = createServerFn({ method: "POST" }
     return { ok: true };
   });
 
-// ── Admin: Sync all leads ─────────────────────────────────────────────────────
+// ── Admin: Sync all leads into existing WEBEE tables ─────────────────────────
+//
+// Phase 4/12 of the Webuyanyhouse workspace spec:
+// - Property sellers (cars endpoint) → standard `leads` table with WEBEE status/pipeline mapping
+// - Buyers (buyers endpoint)         → standard `data_records` table (People/Contacts page)
+// Both are workspace-scoped to Webuyanyhouse. All existing WEBEE pages work automatically.
 
 export const adminSyncWebuyanyhouseLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requirePlatformAdmin])
   .handler(async () => {
     const workspaceId = await getWebuyanyhouseWorkspaceId();
-    if (!workspaceId) throw new Error("Webuyanyhouse workspace not found. Create the account first.");
+    if (!workspaceId) {
+      throw new Error("Webuyanyhouse workspace not found — create the account first.");
+    }
 
     const { getTokens, saveNewAccessToken: saveToken } = makeTokenCallbacks();
 
-    const [carsRes, buyersRes, dealersRes] = await Promise.allSettled([
+    const [sellersRes, buyersRes] = await Promise.allSettled([
       getAllCars(getTokens, saveToken),
       getAllBuyers(getTokens, saveToken),
-      getAllDealers(getTokens, saveToken),
     ]);
 
-    const results = { properties: 0, contacts: 0, organisations: 0, errors: [] as string[] };
+    const results = {
+      sellers:      0,
+      contacts:     0,
+      errors:       [] as string[],
+    };
 
-    // Property seller leads (cars endpoint) — full classification
-    if (carsRes.status === "fulfilled" && carsRes.value.ok) {
-      const records = Array.isArray(carsRes.value.data) ? carsRes.value.data : [];
-      const rows = records.map((r: any) => buildLeadRow(r, workspaceId, "property"));
-      const withId = rows.filter((r: any) => r.external_id !== null);
-      const withoutId = rows.filter((r: any) => r.external_id === null);
-
-      if (withId.length) await upsertLeads(withId);
-      if (withoutId.length) {
-        await (supabaseAdmin as any).from("webuyanyhouse_imported_leads").insert(withoutId);
-      }
-      results.properties = records.length;
+    // ── Property sellers → leads table ────────────────────────────────────────
+    if (sellersRes.status === "fulfilled" && sellersRes.value.ok) {
+      const records = Array.isArray(sellersRes.value.data) ? sellersRes.value.data : [];
+      const rows = records.map((r: any) => buildLeadRow(r, workspaceId));
+      results.sellers = await upsertLeadsRows(rows);
     } else {
-      results.errors.push(
-        carsRes.status === "rejected"
-          ? carsRes.reason?.message
-          : carsRes.value?.error ?? "Properties sync failed"
-      );
+      const err = sellersRes.status === "rejected"
+        ? sellersRes.reason?.message
+        : sellersRes.value?.error ?? "Sellers sync failed";
+      results.errors.push(err);
+      if ((sellersRes as any).value?.status === 401) {
+        await (supabaseAdmin as any)
+          .from("enterprise_integrations")
+          .update({ status: "disconnected" })
+          .eq("integration_key", INTEGRATION_KEY)
+          .eq("client_name", CLIENT_NAME);
+      }
     }
 
-    // Buyer/contact records — stored with source section from classification
+    // ── Buyer contacts → data_records table ───────────────────────────────────
     if (buyersRes.status === "fulfilled" && buyersRes.value.ok) {
       const records = Array.isArray(buyersRes.value.data) ? buyersRes.value.data : [];
-      const rows = records.map((r: any) => ({
-        ...buildLeadRow(r, workspaceId, "contact"),
-        source: "webespoke_enterprise_api_buyers",
-      }));
-      const withId = rows.filter((r: any) => r.external_id !== null);
-      if (withId.length) await upsertLeads(withId);
-      results.contacts = records.length;
+      const rows = records.map((r: any) => buildContactRow(r, workspaceId));
+      results.contacts = await upsertContactRows(rows);
     } else {
-      results.errors.push(
-        buyersRes.status === "rejected"
-          ? buyersRes.reason?.message
-          : buyersRes.value?.error ?? "Contacts sync failed"
-      );
-    }
-
-    // Organisation/agent records
-    if (dealersRes.status === "fulfilled" && dealersRes.value.ok) {
-      const records = Array.isArray(dealersRes.value.data) ? dealersRes.value.data : [];
-      const rows = records.map((r: any) => ({
-        ...buildLeadRow(r, workspaceId, "organisation"),
-        source: "webespoke_enterprise_api_dealers",
-      }));
-      const withId = rows.filter((r: any) => r.external_id !== null);
-      if (withId.length) await upsertLeads(withId);
-      results.organisations = records.length;
-    } else {
-      results.errors.push(
-        dealersRes.status === "rejected"
-          ? dealersRes.reason?.message
-          : dealersRes.value?.error ?? "Organisations sync failed"
-      );
+      const err = buyersRes.status === "rejected"
+        ? buyersRes.reason?.message
+        : buyersRes.value?.error ?? "Contacts sync failed";
+      results.errors.push(err);
     }
 
     return results;
   });
 
-// ── Workspace: Check if current workspace is Webuyanyhouse ────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// WORKSPACE SERVER FUNCTIONS (used by workspace-user checks)
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export const checkWebuyanyhouseWorkspace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const sb = supabaseAdmin as any;
-    const { data } = await sb
+    const { data } = await (supabaseAdmin as any)
       .from("workspaces")
       .select("slug, name")
       .eq("id", context.workspaceId)
@@ -434,46 +541,5 @@ export const checkWebuyanyhouseWorkspace = createServerFn({ method: "GET" })
       isWebuyanyhouse: data?.slug === WBAH_SLUG,
       slug: data?.slug ?? null,
       name: data?.name ?? null,
-    };
-  });
-
-// ── Workspace: Get leads (scoped to current workspace) ────────────────────────
-
-export const getWebuyanyhouseLeads = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const sb = supabaseAdmin as any;
-    const { data } = await sb
-      .from("webuyanyhouse_imported_leads")
-      .select("*")
-      .eq("workspace_id", context.workspaceId)
-      .order("synced_at", { ascending: false });
-    return data ?? [];
-  });
-
-// ── Workspace: Get lead stats ─────────────────────────────────────────────────
-
-export const getWebuyanyhouseLeadStats = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const sb = supabaseAdmin as any;
-    const { data } = await sb
-      .from("webuyanyhouse_imported_leads")
-      .select("source_section, synced_at")
-      .eq("workspace_id", context.workspaceId)
-      .order("synced_at", { ascending: false });
-
-    const counts: Record<string, number> = {};
-    for (const row of data ?? []) {
-      counts[row.source_section] = (counts[row.source_section] ?? 0) + 1;
-    }
-
-    return {
-      total:            (data ?? []).length,
-      disqualified:     counts["disqualified"]     ?? 0,
-      tried_to_contact: counts["tried_to_contact"] ?? 0,
-      new_lead:         counts["new_lead"]         ?? 0,
-      unknown:          counts["unknown"]          ?? 0,
-      lastSynced:       data?.[0]?.synced_at ?? null,
     };
   });

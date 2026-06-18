@@ -22,7 +22,6 @@ import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as ApiVoiceCopilotRouteImport } from './routes/api/voice-copilot'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
-import { Route as AuthenticatedWbahRouteImport } from './routes/_authenticated/wbah'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedTemplateStudioRouteImport } from './routes/_authenticated/template-studio'
 import { Route as AuthenticatedTelephonySettingsRouteImport } from './routes/_authenticated/telephony-settings'
@@ -294,11 +293,6 @@ const ApiVoiceCopilotRoute = ApiVoiceCopilotRouteImport.update({
 const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
   id: '/whatsapp',
   path: '/whatsapp',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedWbahRoute = AuthenticatedWbahRouteImport.update({
-  id: '/wbah',
-  path: '/wbah',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedTemplatesRoute = AuthenticatedTemplatesRouteImport.update({
@@ -1515,7 +1509,6 @@ export interface FileRoutesByFullPath {
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
-  '/wbah': typeof AuthenticatedWbahRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -1731,7 +1724,6 @@ export interface FileRoutesByTo {
   '/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
-  '/wbah': typeof AuthenticatedWbahRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -1954,7 +1946,6 @@ export interface FileRoutesById {
   '/_authenticated/telephony-settings': typeof AuthenticatedTelephonySettingsRoute
   '/_authenticated/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
-  '/_authenticated/wbah': typeof AuthenticatedWbahRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -2179,7 +2170,6 @@ export interface FileRouteTypes {
     | '/telephony-settings'
     | '/template-studio'
     | '/templates'
-    | '/wbah'
     | '/whatsapp'
     | '/api/voice-copilot'
     | '/auth/callback'
@@ -2395,7 +2385,6 @@ export interface FileRouteTypes {
     | '/telephony-settings'
     | '/template-studio'
     | '/templates'
-    | '/wbah'
     | '/whatsapp'
     | '/api/voice-copilot'
     | '/auth/callback'
@@ -2617,7 +2606,6 @@ export interface FileRouteTypes {
     | '/_authenticated/telephony-settings'
     | '/_authenticated/template-studio'
     | '/_authenticated/templates'
-    | '/_authenticated/wbah'
     | '/_authenticated/whatsapp'
     | '/api/voice-copilot'
     | '/auth/callback'
@@ -2983,13 +2971,6 @@ declare module '@tanstack/react-router' {
       path: '/whatsapp'
       fullPath: '/whatsapp'
       preLoaderRoute: typeof AuthenticatedWhatsappRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/wbah': {
-      id: '/_authenticated/wbah'
-      path: '/wbah'
-      fullPath: '/wbah'
-      preLoaderRoute: typeof AuthenticatedWbahRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/templates': {
@@ -4834,7 +4815,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTelephonySettingsRoute: typeof AuthenticatedTelephonySettingsRoute
   AuthenticatedTemplateStudioRoute: typeof AuthenticatedTemplateStudioRoute
   AuthenticatedTemplatesRoute: typeof AuthenticatedTemplatesRoute
-  AuthenticatedWbahRoute: typeof AuthenticatedWbahRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
   AuthenticatedAgentsNewRoute: typeof AuthenticatedAgentsNewRoute
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
@@ -4873,7 +4853,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTelephonySettingsRoute: AuthenticatedTelephonySettingsRoute,
   AuthenticatedTemplateStudioRoute: AuthenticatedTemplateStudioRoute,
   AuthenticatedTemplatesRoute: AuthenticatedTemplatesRoute,
-  AuthenticatedWbahRoute: AuthenticatedWbahRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
   AuthenticatedAgentsNewRoute: AuthenticatedAgentsNewRoute,
   AuthenticatedSettingsCalendarRoute: AuthenticatedSettingsCalendarRoute,

@@ -1,0 +1,554 @@
+UPDATE THE WEBUYANYHOUSE IMPLEMENTATION WITH THE DEVELOPER ENDPOINT MAP
+
+We have already started the Webuyanyhouse workspace integration.
+
+Do not restart from scratch.
+
+Audit the work already done, keep anything useful, and refactor anything that conflicts with this updated requirement.
+
+Important correction:
+
+These endpoints should power the Webuyanyhouse WEBEE workspace pages.
+
+Do not build these as global Super Admin pages.
+
+Do not load this data into my Super Admin login.
+
+Do not affect other client workspaces.
+
+Everything must be scoped to the Webuyanyhouse workspace only.
+
+The previous requirement still stands:
+
+* Webuyanyhouse is a property/home seller qualification client
+* They are not a car dealership
+* They are not a vehicle marketplace client
+* Their CRM data is property seller lead data
+* Their existing workflow must be mirrored inside WEBEE Smart Dash
+
+Use the following endpoint map as the source of truth for their custom WEBEE workspace.
+
+BASE API:
+https://uat-api.webespokeai.com
+
+Authentication:
+Use the existing OTP flow already specified:
+POST /admin/auth/request-otp
+POST /admin/auth/verify-otp
+POST /admin/refresh-token
+
+All protected requests must use:
+Authorization: Bearer <accessToken>
+
+Tokens must remain server-side only.
+
+---
+
+1. DASHBOARD PAGE
+
+---
+
+Build/update the Webuyanyhouse Dashboard page.
+
+Use React Query.
+
+Add a date-range picker.
+
+All dashboard endpoints are POST and take a JSON body:
+
+{
+"startDate": "...",
+"endDate": "..."
+}
+
+Also include user/campaign filters only if the API accepts them.
+
+Endpoints:
+
+POST /dashboard/total-call-minutes
+POST /dashboard/number-of-calls
+POST /dashboard/leads
+POST /dashboard/call-performance
+POST /dashboard/call-drops
+
+UI:
+
+At the top show KPI cards:
+
+* Total Call Minutes
+* Number of Calls
+* Leads
+* Call Drops
+
+Below show 1-2 Recharts charts:
+
+* Call Performance Over Time
+* Call Outcomes / Drops
+
+This Dashboard is visible only inside the Webuyanyhouse workspace.
+
+---
+
+2. PEOPLE PAGE
+
+---
+
+Build/update the People page.
+
+Permission key:
+people
+
+Endpoints:
+
+GET /call-output-data/get-all-calldata
+GET /call-output-data/get-call-count
+POST /call-output-data/get-user-history
+GET /call-output-data/get-userCall-lead
+GET /call-output-data/callbacks/pending
+
+UI:
+
+* Searchable table
+* Pagination
+* Lead/contact rows
+* Call status
+* Sentiment
+* Last called
+* Recording button if available
+* Transcript button if available
+* View/details button
+
+On row click:
+
+Open drawer/modal showing:
+
+* Person details
+* Call history
+* Lead details
+* Raw API payload
+
+Also add a Pending Callbacks tab/list using:
+
+GET /call-output-data/callbacks/pending
+
+Read-only unless user has people write permission.
+
+---
+
+3. CRM DATA PAGE
+
+---
+
+Build/update CRM Data page.
+
+Permission key:
+crm
+
+Endpoints:
+
+GET /crm-data/get-crm-data
+POST /crm-data/create
+POST /crm-data/upload-excel
+GET /crm-data/start-batch-calling
+DELETE /crm-data/clear-all-crm-data
+DELETE /crm-data/delete-selected-crm-data
+
+UI:
+
+* Paginated CRM lead table
+* Search if API/client supports it
+* Add Lead modal
+* Drag-and-drop Excel/CSV uploader
+* Start Batch Calling button
+* Clear All button with confirm dialog
+* Checkbox row selection
+* Delete Selected button
+
+Upload endpoint:
+
+POST /crm-data/upload-excel
+
+multipart/form-data
+
+field name:
+file
+
+Accepted:
+Excel / CSV
+
+Write actions only visible if user has crm write permission.
+
+Important:
+
+This CRM data represents property seller leads.
+
+Do not label it as vehicles.
+
+---
+
+4. CAMPAIGNS PAGE
+
+---
+
+Build/update Campaigns page.
+
+Permission key:
+campaigns
+
+Endpoints:
+
+GET /campaigns
+POST /campaigns
+GET /campaigns/:id
+PATCH /campaigns/:id
+PATCH /campaigns/:id/pause
+PATCH /campaigns/:id/resume
+PATCH /campaigns/:id/voicemail
+DELETE /campaigns/:id
+
+UI:
+
+* Campaign cards or table
+* Status badges active/paused
+* Create Campaign modal
+* Detail view
+* Edit campaign
+* Pause/resume buttons
+* Voicemail toggle
+* Soft delete with confirm dialog
+
+Write actions only visible if user has campaigns write permission.
+
+Campaigns should support the Webuyanyhouse lead buckets:
+
+* New Leads
+* Tried To Contact
+* Disqualified Leads
+* Positive / Neutral
+* Callback Queue
+
+---
+
+5. AGENTS PAGE
+
+---
+
+Build/update Agents page.
+
+Permission key:
+agents
+
+Endpoints:
+
+GET /agent/get-list
+GET /agent/get-agents-with-voicemail
+POST /agent/update
+PATCH /agent/rename/:id
+PATCH /agent/voicemailSetting/:id
+
+UI:
+
+* Agent list/table
+* Active agents
+* Voicemail-configured agents
+* Multi-select saved agents
+* Inline rename
+* Voicemail toggle/settings
+
+Write actions only visible if user has agents write permission.
+
+This must support the 3 Webuyanyhouse calling/qualification agents.
+
+---
+
+6. CALLS & SCHEDULING PAGE
+
+---
+
+Build/update Calls & Scheduling page.
+
+Permission key:
+calls
+
+Section 1:
+Call Output Data
+
+Endpoint:
+
+GET /call-output-data/all
+
+Show table of:
+
+* Name
+* Phone
+* Status
+* Outcome
+* Duration
+* Recording
+* Transcript
+* Sentiment
+* Appointment/callback info if available
+
+Section 2:
+Call Frequency Scheduling
+
+Endpoints:
+
+POST /frquency-setting/get-frequency
+POST /frquency-setting/add-frequency
+POST /frquency-setting/update-frequency
+
+Important:
+The route prefix is intentionally misspelled:
+frquency-setting
+
+Do not correct it.
+
+UI:
+
+* Current schedules
+* Create schedule
+* Edit schedule
+* Friendly schedule builder
+* Raw cron input
+
+Friendly examples:
+
+* Every day at 3PM
+* Every weekday at 9AM
+* Every 2 hours
+* Custom cron
+
+The schedule builder must output a cron expression.
+
+Write actions only visible if user has calls write permission.
+
+---
+
+7. PHONE NUMBERS PAGE
+
+---
+
+Build/update Phone Numbers page.
+
+Permission key:
+phone_numbers
+
+Endpoints:
+
+GET /phoneNumber/get-allphonenumbersfrom-retell
+POST /phoneNumber/update-phonenumbersfrom-retell
+PATCH /phoneNumber/voicemailSetting/:id
+
+UI:
+
+* Table of phone numbers
+* Owned/available numbers
+* Multi-select save action
+* Per-number voicemail toggle/settings
+
+Write actions only visible if user has phone_numbers write permission.
+
+---
+
+8. CREDITS PAGE
+
+---
+
+Build/update Credits page.
+
+Permission key:
+credits
+
+Endpoints:
+
+GET /credits/summary
+GET /credits/history
+GET /credits/monthly-usage
+GET /credits/retell-usage
+POST /credits/allocate
+DELETE /credits/allocate/:id
+
+UI:
+
+* Balance / Allocated / Used KPI cards
+* Monthly usage chart
+* Retell billing usage breakdown
+* Credit transaction history
+* Allocate credits modal
+* Delete allocation with confirm dialog
+
+Allocate/delete only visible if user has credits write permission.
+
+---
+
+9. USER MANAGEMENT PAGE
+
+---
+
+Build/update User Management page.
+
+Permission key:
+user_management
+
+Endpoints:
+
+GET /admin/permissions
+GET /admin/users
+POST /admin/users
+PUT /admin/users/:id
+PATCH /admin/users/:id/status
+DELETE /admin/users/:id
+
+Important:
+
+Do not hardcode permission keys.
+
+Always load the permission catalog from:
+
+GET /admin/permissions
+
+Use the returned array:
+
+{ key, label }
+
+Render a permissions grid with:
+
+* Read checkbox
+* Write checkbox
+
+Rules:
+
+* Checking write automatically checks read
+* Unchecking read also unchecks write
+* Write implies read
+
+Create/edit form fields:
+
+* Name
+* Email
+* Password
+* Role: admin | user
+* Permission grid
+
+Only users with user_management write can access create/edit/delete/status controls.
+
+---
+
+10. RBAC
+
+---
+
+Every page must respect permission keys:
+
+dashboard
+people
+crm
+campaigns
+agents
+calls
+phone_numbers
+credits
+user_management
+
+If the API permission catalog does not include dashboard, treat dashboard as read-only for authenticated workspace users unless backend says otherwise.
+
+Never hardcode final permission labels.
+
+Use the backend permission catalog where available.
+
+---
+
+11. EXISTING WORK RECTIFICATION
+
+---
+
+Before building, audit the current implementation.
+
+If any work was already done from previous prompts, do this:
+
+Keep:
+
+* Webuyanyhouse workspace creation
+* Server-side token storage
+* OTP authentication flow
+* Workspace isolation
+* API client wrapper
+* React Query setup
+* Existing Smart Dash layout reuse
+
+Refactor:
+
+* Any incorrect vehicle/dealer/buyer naming
+* Any global pages
+* Any data leaking into Super Admin
+* Any generic dashboard components that are not workspace-scoped
+* Any tables or services not tied to Webuyanyhouse workspace_id
+
+Remove or hide:
+
+* Cars labels
+* Dealers labels
+* Buyers labels
+* Spare Parts labels
+* Vehicle Listings labels
+* Marketplace language
+* Dealership language
+
+Replace with:
+
+* Leads
+* People
+* CRM Data
+* Campaigns
+* Agents
+* Calls & Scheduling
+* Phone Numbers
+* Credits
+* User Management
+
+---
+
+12. DATA SCOPE
+
+---
+
+All API data must be shown only when logged into the Webuyanyhouse workspace.
+
+My Super Admin account should only see:
+
+* Client exists
+* Workspace status
+* Integration connected/disconnected
+* Last sync
+* Basic counts
+* Open/impersonate workspace button if existing system supports it
+
+Super Admin must not automatically see all Webuyanyhouse lead data.
+
+---
+
+13. FINAL VALIDATION
+
+---
+
+Confirm the following:
+
+* Webuyanyhouse workspace works independently
+* API OTP login works
+* Access token is attached to protected requests
+* Refresh token flow works on 401
+* Dashboard endpoints load
+* People endpoints load
+* CRM endpoints load
+* Campaign endpoints load
+* Agents endpoints load
+* Calls/Scheduling endpoints load
+* Phone Numbers endpoints load
+* Credits endpoints load
+* User Management endpoints load
+* RBAC gates actions correctly
+* Write buttons hide when user lacks write permission
+* Data is not visible in Super Admin login
+* No vehicle/dealership labels remain
+* Existing WEBEE dashboard/HiveMind/other clients are untouched
