@@ -933,6 +933,63 @@ export const listWbahCrmContacts = createServerFn({ method: "GET" })
     }));
   });
 
+// ── All-call-data — GET /get-all-calldata (386 records, 8 pages) ──────────────
+//
+// CRM contacts-to-call. Includes records where callId === null (not yet called).
+// Used to populate the People tab in Data Records for the WBAH workspace.
+
+export const listWbahAllCallData = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const gt  = cbs.getTokens;
+    const st  = cbs.saveNewAccessToken;
+
+    function extractRecs(raw: any): any[] {
+      return Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+    }
+
+    const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st);
+    if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch call data from WeeBespoke");
+
+    const p1Raw    = p1Res.data as any;
+    const pagination = p1Raw?.pagination;
+    const totalPages = pagination?.totalPages ?? 1;
+    const allRecs: any[] = [...extractRecs(p1Raw)];
+
+    for (let page = 2; page <= totalPages; page += 8) {
+      const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
+      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st)));
+      for (const r of settled) {
+        if (r.status === "fulfilled" && r.value.ok) allRecs.push(...extractRecs(r.value.data as any));
+      }
+    }
+
+    return allRecs.map((r: any, idx: number) => ({
+      id:                  String(r.id ?? r._id ?? idx),
+      srNo:                idx + 1,
+      name:                r.name ?? r.fullName ?? null,
+      contact:             r.toNumber ?? r.fromNumber ?? r.phone ?? null,
+      callType:            r.callType ?? "Lead",
+      callId:              r.callId ?? null,
+      agentName:           r.agentName ?? null,
+      callStatus:          r.callStatus ?? null,
+      startTimestamp:      r.startTimestamp ? Number(r.startTimestamp) : null,
+      durationMs:          r.durationMs    ? Number(r.durationMs)    : null,
+      recordingUrl:        r.recordingUrl  ?? null,
+      transcript:          r.transcript    ?? null,
+      sentimentAnalysis:   r.sentimentAnalysis ?? null,
+      endReason:           r.endReason           ?? null,
+      disconnectionReason: r.disconnectionReason ?? null,
+      email:               r.email    ?? null,
+      leadId:              r.lead_id  ?? null,
+      appointmentDate:     r.appointment_date  ?? null,
+      appointmentTime:     r.appointment_time  ?? null,
+      bookingStatus:       r.booking_status    ?? null,
+      calendlyBookingUrl:  r.calendly_booking_url ?? null,
+    }));
+  });
+
 function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
   // ── Identity ──────────────────────────────────────────────────────────────
   // get-user-history uses call_id; get-userCall-lead uses id
