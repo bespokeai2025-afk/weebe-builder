@@ -22,20 +22,32 @@ import * as api from "./client.server";
 let _wbahReloginAt = 0;
 const RELOGIN_TTL_MS = 30 * 60 * 1000;
 
+async function isPlatformAdmin(userId: string): Promise<boolean> {
+  const [profileRes, roleRes] = await Promise.all([
+    (supabaseAdmin as any).from("profiles").select("user_type").eq("user_id", userId).maybeSingle(),
+    (supabaseAdmin as any).from("user_roles").select("role").eq("user_id", userId).eq("role", "admin").maybeSingle(),
+  ]);
+  return profileRes.data?.user_type === "admin" || !!roleRes.data;
+}
+
 async function requireWbahCbs(userId: string) {
   if (!userId) throw new Error("Unauthorized");
 
-  const { data: memberships } = await (supabaseAdmin as any)
-    .from("workspace_members")
-    .select("workspace_id, workspaces(slug)")
-    .eq("user_id", userId);
+  // Platform admins bypass workspace membership check
+  const admin = await isPlatformAdmin(userId);
+  if (!admin) {
+    const { data: memberships } = await (supabaseAdmin as any)
+      .from("workspace_members")
+      .select("workspace_id, workspaces(slug)")
+      .eq("user_id", userId);
 
-  const wbahMembership = (memberships ?? []).find(
-    (m: any) => m.workspaces?.slug === "webuyanyhouse",
-  );
+    const wbahMembership = (memberships ?? []).find(
+      (m: any) => m.workspaces?.slug === "webuyanyhouse",
+    );
 
-  if (!wbahMembership) {
-    throw new Error("Access denied — not a member of the Webuyanyhouse workspace");
+    if (!wbahMembership) {
+      throw new Error("Access denied — not a member of the Webuyanyhouse workspace");
+    }
   }
 
   const { data: integration } = await (supabaseAdmin as any)
@@ -63,8 +75,12 @@ async function requireWbahCbs(userId: string) {
       const loginRes = await api.loginWithPassword(email, password);
       if (loginRes.ok && loginRes.data) {
         const d = loginRes.data as any;
-        const at = d.accessToken ?? d.token ?? d.data?.accessToken ?? d.data?.token;
-        const rt = d.refreshToken ?? d.data?.refreshToken ?? currentRefreshToken;
+        const at = d.accessToken ?? d.token ?? d.access_token ?? d.jwt ??
+                   d.data?.accessToken ?? d.data?.token ?? d.data?.access_token ??
+                   d.result?.accessToken ?? d.result?.token ??
+                   d.auth?.accessToken ?? d.auth?.token ?? d.user?.token ?? null;
+        const rt = d.refreshToken ?? d.refresh_token ?? d.data?.refreshToken ??
+                   d.data?.refresh_token ?? d.result?.refreshToken ?? currentRefreshToken;
         if (at) {
           await (supabaseAdmin as any)
             .from("enterprise_integrations")
@@ -498,16 +514,20 @@ const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
 async function requireWbahRetellKey(userId: string): Promise<string> {
   if (!userId) throw new Error("Unauthorized");
 
-  const { data: memberships } = await (supabaseAdmin as any)
-    .from("workspace_members")
-    .select("workspace_id, workspaces(slug)")
-    .eq("user_id", userId);
+  // Platform admins bypass workspace membership check
+  const admin = await isPlatformAdmin(userId);
+  if (!admin) {
+    const { data: memberships } = await (supabaseAdmin as any)
+      .from("workspace_members")
+      .select("workspace_id, workspaces(slug)")
+      .eq("user_id", userId);
 
-  const wbahMembership = (memberships ?? []).find(
-    (m: any) => m.workspaces?.slug === "webuyanyhouse",
-  );
-  if (!wbahMembership) {
-    throw new Error("Access denied — not a member of the Webuyanyhouse workspace");
+    const wbahMembership = (memberships ?? []).find(
+      (m: any) => m.workspaces?.slug === "webuyanyhouse",
+    );
+    if (!wbahMembership) {
+      throw new Error("Access denied — not a member of the Webuyanyhouse workspace");
+    }
   }
 
   const { data: ws } = await (supabaseAdmin as any)
