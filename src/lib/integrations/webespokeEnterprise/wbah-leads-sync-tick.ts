@@ -170,6 +170,9 @@ function buildLeadRow(raw: any, workspaceId: string) {
     notes:                pickStr(raw, "notes", "description", "comments"),
     call_summary:         pickStr(raw, "transcript", "callSummary", "summary"),
     callback_date:        callbackAt ?? null,
+    last_call_at:         raw?.lastCalledAt ?? raw?.last_called_at ?? raw?.calledAt ?? raw?.call_updatedat ?? null,
+    last_call_outcome:    raw?.callStatus ?? raw?.callOutcome ?? raw?.lastCallOutcome ?? null,
+    last_call_sentiment:  classifySentiment(raw),
     meta: {
       wbah_external_id:     externalId,
       wbah_synced_at:       new Date().toISOString(),
