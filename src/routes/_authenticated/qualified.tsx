@@ -1,7 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
-import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
-import { createClient } from "@supabase/supabase-js";
-import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { useState, useMemo, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,9 +13,6 @@ import {
   CheckCircle2,
   StickyNote,
   BarChart3,
-  Phone,
-  PlayCircle,
-  Building2,
 } from "lucide-react";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { Button } from "@/components/ui/button";
@@ -100,22 +94,6 @@ function urgencyBadge(v: string | null) {
   return <span className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${map[v] ?? "bg-muted text-muted-foreground"}`}>{v}</span>;
 }
 
-function wbahQualStatusBadge(s: string | null) {
-  if (!s) return <span className="text-[11px] text-muted-foreground">N/A</span>;
-  const lc = s.toLowerCase();
-  const cls = lc.includes("complet") ? "bg-emerald-500/15 text-emerald-400"
-    : lc.includes("fail") || lc.includes("busy") || lc.includes("no-answer") ? "bg-red-500/15 text-red-400"
-    : lc.includes("voicemail") ? "bg-amber-500/15 text-amber-400"
-    : "bg-blue-500/15 text-blue-400";
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${cls}`}>{s}</span>;
-}
-
-function wbahQualSentiment(sentiment: string | null) {
-  if (!sentiment) return <span className="text-[11px] text-muted-foreground">N/A</span>;
-  const lc = sentiment.toLowerCase();
-  const cls = lc === "positive" ? "text-emerald-400" : lc === "negative" ? "text-red-400" : "text-amber-400";
-  return <span className={`text-[11px] font-medium ${cls} capitalize`}>{sentiment}</span>;
-}
 
 const QUAL_FILTER_OPTIONS = [
   { value: "all", label: "All" },
@@ -198,62 +176,6 @@ function QualifiedPage() {
 
   const qualPag = useTablePagination(filtered, 25);
 
-  /* ── WBAH detection ── */
-  const [isWbah, setIsWbah] = useState(false);
-  const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
-  const wbahFn = useServerFn(listWbahLeads);
-
-  useEffect(() => {
-    const sb = createClient(
-      import.meta.env.VITE_SUPABASE_URL!,
-      import.meta.env.VITE_SUPABASE_ANON_KEY!,
-    );
-    sb.auth.getUser().then(async ({ data: u }) => {
-      if (!u.user) return;
-      const { data: w } = await (sb as any).from("workspaces").select("slug").eq("owner_id", u.user.id).maybeSingle();
-      if (w?.slug === "webuyanyhouse") setIsWbah(true);
-    });
-  }, []);
-
-  const wbahQ = useQuery({
-    queryKey: ["wbah-leads-all"],
-    queryFn: () => wbahFn(),
-    staleTime: 0,
-    enabled: isWbah && qualTab === "contacts",
-    refetchOnWindowFocus: false,
-    retry: 0,
-    throwOnError: false,
-  });
-
-  // Auto-reload on stale server-fn ID error. Timestamp guard: max once per 20s.
-  useEffect(() => {
-    if (isWbah && wbahQ.isError) {
-      const key = "qualified-autoreload-ts";
-      const last = parseInt(sessionStorage.getItem(key) ?? "0");
-      if (Date.now() - last > 20_000) {
-        sessionStorage.setItem(key, String(Date.now()));
-        window.location.reload();
-      }
-    }
-  }, [isWbah, wbahQ.isError]);
-
-  const wbahRows = useMemo(() => (wbahQ.data ?? []) as any[], [wbahQ.data]);
-
-  const wbahFiltered = useMemo(() => {
-    let out = wbahRows;
-    // Qualified page shows only Neutral + Positive sentiment (matching WeeBespoke "Positive/Neutral Leads").
-    out = out.filter((r: any) => {
-      const s = (r.sentiment ?? "").toString().toLowerCase().trim();
-      return s === "" || s === "neutral" || s === "positive";
-    });
-    const q = search.trim().toLowerCase();
-    if (q) out = out.filter((r: any) =>
-      (r.name ?? "").toLowerCase().includes(q) ||
-      (r.contact ?? "").toLowerCase().includes(q));
-    return out;
-  }, [wbahRows, search]);
-
-  const wbahPag = useTablePagination(wbahFiltered, 25);
 
   async function handleSetStatus(id: string, status: typeof STATUS_ACTIONS[number]["value"]) {
     try {
@@ -338,118 +260,7 @@ function QualifiedPage() {
         />
       )}
 
-      {qualTab === "contacts" && isWbah && (
-      <>
-      {/* WBAH KPI strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">
-        <KpiCard label="Total Leads" value={wbahRows.length || "—"} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-        <KpiCard label="Positive" value={wbahRows.filter((r:any)=>(r.sentiment??'').toLowerCase()==='positive').length || "—"} icon={ShieldCheck} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
-        <KpiCard label="Neutral" value={wbahRows.filter((r:any)=>(r.sentiment??'').toLowerCase()==='neutral').length || "—"} icon={TrendingUp} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
-        <KpiCard label="Completed" value={wbahRows.filter((r:any)=>(r.callStatus??'').toLowerCase().includes('complet')).length || "—"} icon={Target} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
-      </div>
-
-      {/* WBAH Search */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative flex-shrink-0">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone…" className="h-8 w-52 pl-8 text-xs" />
-        </div>
-        {search && <span className="text-xs text-muted-foreground">{wbahFiltered.length.toLocaleString()} of {wbahRows.length.toLocaleString()} leads</span>}
-      </div>
-
-      {/* WBAH Table */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-        {wbahQ.isFetching && wbahRows.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16">
-            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-            <p className="text-sm font-medium">Loading WeeBespoke leads…</p>
-            <p className="text-xs text-muted-foreground">Fetching all lead records — this takes a moment.</p>
-          </div>
-        ) : wbahFiltered.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16">
-            <Building2 className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">{wbahRows.length === 0 ? "No leads found" : "No matches"}</p>
-            <p className="text-xs text-muted-foreground">{wbahRows.length === 0 ? "WeeBespoke lead data will appear here once available." : "Try adjusting your search."}</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-white/[0.06] bg-card/30">
-                  {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map(h => (
-                    <th key={h} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {wbahPag.sliced.map((r: any, idx: number) => (
-                  <tr key={r.id ?? idx} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
-                    <td className="px-3 py-1.5">
-                      {(r.callCount ?? 1) > 1
-                        ? <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400 tabular-nums">×{r.callCount}</span>
-                        : <span className="text-[11px] text-muted-foreground tabular-nums">1</span>}
-                    </td>
-                    <td className="px-3 py-1.5">
-                      {r.contact
-                        ? <a href={`tel:${r.contact}`} className="inline-flex rounded p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors" onClick={e => e.stopPropagation()}><Phone className="h-3.5 w-3.5" /></a>
-                        : <Phone className="h-3.5 w-3.5 text-muted-foreground/30" />}
-                    </td>
-                    <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{r.name ?? "—"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.contact ?? "N/A"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.type ?? "N/A"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                      {r.lastCalledAt ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "N/A"}
-                    </td>
-                    <td className="px-3 py-1.5">{wbahQualStatusBadge(r.callStatus)}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">{r.callDuration ?? "N/A"}</td>
-                    <td className="px-3 py-1.5">
-                      {r.recordingUrl
-                        ? <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline whitespace-nowrap" onClick={e => e.stopPropagation()}><PlayCircle className="h-3 w-3" /> Play</a>
-                        : <span className="text-[11px] text-muted-foreground">N/A</span>}
-                    </td>
-                    <td className="px-3 py-1.5">{wbahQualSentiment(r.sentiment)}</td>
-                    <td className="px-3 py-1.5">
-                      {r.transcript
-                        ? <button onClick={() => setWbahTranscript({ text: r.transcript, name: r.name ?? "Lead" })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
-                        : <span className="text-[11px] text-muted-foreground">N/A</span>}
-                    </td>
-                    <td className="px-3 py-1.5">
-                      <button onClick={() => setWbahTranscript({ text: JSON.stringify(r, null, 2), name: r.name ?? "Lead" })} className="inline-flex items-center gap-1 text-[11px] rounded border border-white/20 px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-white/40 whitespace-nowrap transition-colors">View</button>
-                    </td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.appointmentDate ?? "N/A"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.appointmentTime ?? "N/A"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.bookingStatus ?? "N/A"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                      {r.calendlyBookingUrl ? <a href={r.calendlyBookingUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Link</a> : "N/A"}
-                    </td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.endReason ?? "N/A"}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{r.disconnectionReason ?? "N/A"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <TablePagBar page={wbahPag.page} pageSize={wbahPag.pageSize} totalPages={wbahPag.totalPages} total={wbahPag.total} setPage={wbahPag.setPage} changePageSize={wbahPag.changePageSize} />
-          </div>
-        )}
-      </div>
-
-      {/* WBAH Transcript modal */}
-      {wbahTranscript && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setWbahTranscript(null)}>
-          <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-xl bg-card border border-white/10 p-5" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold">{wbahTranscript.name} — Transcript</h3>
-              <button onClick={() => setWbahTranscript(null)} className="text-muted-foreground hover:text-foreground text-xs">Close ✕</button>
-            </div>
-            <pre className="whitespace-pre-wrap text-xs text-muted-foreground font-mono leading-relaxed">{wbahTranscript.text}</pre>
-          </div>
-        </div>
-      )}
-      </>
-      )}
-
-      {qualTab === "contacts" && !isWbah && (
+      {qualTab === "contacts" && (
       <>
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">

@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { listWbahCalls, listWbahLatestCalls } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCallsFromDb } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -269,9 +269,8 @@ function CallsPage() {
     retry: 0,
   });
 
-  // WeeBespoke calls — full bulk load (up to 15,000 records).
-  // staleTime: 0 → always fetch fresh data on mount.
-  const wbahFn = useServerFn(listWbahCalls);
+  // WeeBespoke calls — read from DB (synced by wbah-calls-sync plugin).
+  const wbahFn = useServerFn(listWbahCallsFromDb);
   const wbahQ = useQuery({
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
@@ -297,32 +296,13 @@ function CallsPage() {
 
   // Incremental refresh — only page 1 (newest ~50 records) polled every 60s.
   // New records are merged client-side so we never re-fetch the full set.
-  const wbahLatestFn = useServerFn(listWbahLatestCalls);
-  const wbahLatestQ = useQuery({
-    queryKey: ["wbah-calls-latest"],
-    queryFn: () => wbahLatestFn(),
-    enabled: isWbah,
-    staleTime: 0,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
-    throwOnError: false,
-    retry: 0,
-  });
-
-  // Merge: combine full list + any new records from latest poll, then sort newest-first
   const wbahRows = useMemo(() => {
-    const full   = (wbahQ.data ?? []) as any[];
-    const latest = (wbahLatestQ.data ?? []) as any[];
-    const existingIds = new Set(full.map((r: any) => r.id));
-    const newOnes = latest.filter((r: any) => !existingIds.has(r.id));
-    const merged = newOnes.length === 0 ? full : [...newOnes, ...full];
-    // Always re-sort so the merged array is newest-first regardless of query completion order
-    return [...merged].sort((a, b) => {
+    return ((wbahQ.data ?? []) as any[]).slice().sort((a, b) => {
       const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
       const tb = b.started_at ? new Date(b.started_at).getTime() : 0;
       return tb - ta;
     });
-  }, [wbahQ.data, wbahLatestQ.data]);
+  }, [wbahQ.data]);
 
   const rows = (isWbah ? wbahRows : (q.data ?? [])) as any[];
   const callsPag = useTablePagination(rows, 25);
@@ -358,7 +338,7 @@ function CallsPage() {
   }
 
   const isRefetching = tab === "live"
-    ? (isWbah ? (wbahQ.isFetching || wbahLatestQ.isFetching) : q.isRefetching)
+    ? (isWbah ? wbahQ.isFetching : q.isRefetching)
     : testQ.isRefetching;
 
   return (
@@ -442,7 +422,7 @@ function CallsPage() {
             size="sm"
             className="h-8 gap-1.5 text-xs"
             onClick={() => {
-              if (tab === "live") isWbah ? wbahLatestQ.refetch() : q.refetch();
+              if (tab === "live") isWbah ? wbahQ.refetch() : q.refetch();
               else testQ.refetch();
             }}
             disabled={isRefetching}
@@ -465,11 +445,10 @@ function CallsPage() {
 
           {/* Calls table */}
           <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-            {isWbah && wbahQ.isFetching && rows.length === 0 ? (
+            {wbahQ.isFetching && isWbah && rows.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-16">
                 <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-                <p className="text-sm font-medium">Loading WeeBespoke calls…</p>
-                <p className="text-xs text-muted-foreground">Fetching all call records — this takes a moment.</p>
+                <p className="text-sm font-medium">Loading calls…</p>
               </div>
             ) : rows.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-16">

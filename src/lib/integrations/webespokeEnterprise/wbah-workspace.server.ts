@@ -1030,6 +1030,50 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
   };
 }
 
+// ── Read WBAH calls from DB (synced by wbah-calls-sync.plugin) ───────────────
+
+export const listWbahCallsFromDb = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const { data, error } = await (supabase as any)
+      .from("wbah_calls")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .limit(15000);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r: any) => ({
+      id:                   r.id,
+      agent_id:             null,
+      agent_name:           r.agent_name,
+      call_status:          r.call_status,
+      call_type:            r.call_type ?? "outbound",
+      duration_seconds:     r.duration_seconds,
+      started_at:           r.started_at,
+      ended_at:             null,
+      recording_url:        r.recording_url,
+      transcript:           r.transcript,
+      call_summary:         r.call_summary,
+      from_number:          r.call_type === "inbound"  ? r.phone : null,
+      to_number:            r.call_type === "outbound" ? r.phone : null,
+      sentiment:            r.sentiment,
+      disconnection_reason: r.disconnection_reason,
+      cost_cents:           null,
+      retell_call_id:       null,
+      lead:                 r.customer_name ? { id: r.id, full_name: r.customer_name, phone: r.phone ?? "" } : null,
+      wbah_name:            r.customer_name,
+      wbah_contact:         r.phone,
+      appointment_date:     r.appointment_date,
+      appointment_time:     r.appointment_time,
+      booking_status:       r.booking_status,
+      calendly_booking_url: r.calendly_booking_url,
+      end_reason:           r.end_reason,
+      call_count:           r.call_count ?? 1,
+    }));
+  });
+
 // ── Retell helper — get WBAH workspace's Retell API key ───────────────────────
 
 const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";

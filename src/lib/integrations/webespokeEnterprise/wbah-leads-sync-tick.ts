@@ -305,7 +305,134 @@ async function fetchAllBuyers(getTokens: () => Promise<{ accessToken: string; re
   return { ok: true, data: records };
 }
 
-// ── Main exported tick function ───────────────────────────────────────────────
+// ── Call row builder ──────────────────────────────────────────────────────────
+
+function buildCallRow(raw: any, workspaceId: string) {
+  const id = String(raw.call_id ?? raw._id ?? raw.id ?? "");
+  if (!id) return null;
+  const rawStatus = (raw.call_status ?? raw.callStatus ?? raw.status ?? "").toLowerCase();
+  let callStatus: string;
+  if (rawStatus === "ended" || rawStatus === "call_analyzed" || rawStatus === "completed") callStatus = "completed";
+  else if (["not_connected","voicemail","voicemail_reached","no_answer","missed"].includes(rawStatus)) callStatus = "no_answer";
+  else if (rawStatus === "failed") callStatus = "failed";
+  else callStatus = rawStatus || "completed";
+
+  const sentVal = (raw.sentiment_analysis ?? raw.sentimentAnalysis ?? raw.sentiment ?? "").toString().toLowerCase();
+  let sentiment: string | null = null;
+  if (/positive/.test(sentVal)) sentiment = "positive";
+  else if (/neutral/.test(sentVal)) sentiment = "neutral";
+  else if (/negative/.test(sentVal)) sentiment = "negative";
+
+  let durationSeconds: number | null = null;
+  const dmsRaw = raw.duration_ms ?? raw.durationMs;
+  if (dmsRaw && Number(dmsRaw) > 0) durationSeconds = Math.round(Number(dmsRaw) / 1000);
+  else if (raw.callDuration) durationSeconds = Number(raw.callDuration) || null;
+  else if (raw.duration) {
+    const d = Number(raw.duration);
+    if (d > 0) durationSeconds = d > 10_000 ? Math.round(d / 1000) : d;
+  }
+
+  const startedAt = raw.startTimestamp
+    ? new Date(Number(raw.startTimestamp)).toISOString()
+    : raw.call_updatedat ?? raw.lastCalledAt ?? raw.last_called_at ?? raw.calledAt ?? raw.createdAt ?? raw.created_at ?? null;
+
+  return {
+    id,
+    workspace_id:         workspaceId,
+    customer_name:        raw.customer_name ?? raw.name ?? raw.fullName ?? raw.contactName ?? null,
+    phone:                raw.to_number ?? raw.toNumber ?? raw.mobile_number ?? raw.phone ?? null,
+    agent_name:           raw.agentName ?? raw.agent_name ?? raw.assignedAgent ?? null,
+    call_status:          callStatus,
+    call_type:            "outbound",
+    sentiment,
+    duration_seconds:     durationSeconds,
+    started_at:           startedAt,
+    recording_url:        raw.recording_url ?? raw.recordingUrl ?? null,
+    transcript:           raw.transcript ?? raw.callTranscript ?? null,
+    call_summary:         raw.transcript ?? raw.callTranscript ?? raw.callSummary ?? null,
+    disconnection_reason: raw.disconnection_reason ?? raw.disconnectionReason ?? null,
+    end_reason:           raw.end_reason ?? raw.endReason ?? null,
+    appointment_date:     raw.call_appointment_date ?? raw.appointmentDate ?? raw.appointment_date ?? null,
+    appointment_time:     raw.call_appointment_time ?? raw.appointmentTime ?? raw.appointment_time ?? null,
+    booking_status:       raw.call_booking_status ?? raw.bookingStatus ?? raw.booking_status ?? null,
+    calendly_booking_url: raw.call_calendly_booking_url ?? raw.calendlyBookingUrl ?? raw.calendly_booking_url ?? null,
+    call_count:           raw.callCount ?? raw.call_count ?? 1,
+    meta:                 {},
+    synced_at:            new Date().toISOString(),
+  };
+}
+
+// ── Paginated call fetch (POST /call-output-data/get-user-history) ────────────
+
+async function fetchAllCallRecords(
+  getTokens: () => Promise<{ accessToken: string; refreshToken: string }>,
+): Promise<{ ok: boolean; data: any[] }> {
+  const { accessToken } = await getTokens();
+  const authHeaders = { Authorization: `Bearer ${accessToken}` };
+
+  const p1 = await apiFetch<any>(`/call-output-data/get-user-history?currentPage=1`, { method: "POST", body: "{}", headers: { ...authHeaders } });
+  if (!p1.ok || !p1.data) return { ok: false, data: [] };
+  const pagination = (p1.data as any)?.pagination;
+  const totalItems = pagination?.totalItems ?? 0;
+  const totalPages = pagination?.totalPages ?? (totalItems > 0 ? Math.ceil(totalItems / 10) : 1);
+  const all: any[] = Array.isArray((p1.data as any)?.data) ? [...(p1.data as any).data] : [];
+
+  for (let page = 2; page <= totalPages; page += 20) {
+    const batch = Array.from({ length: Math.min(20, totalPages - page + 1) }, (_, i) => page + i);
+    const results = await Promise.allSettled(
+      batch.map(p => apiFetch<any>(`/call-output-data/get-user-history?currentPage=${p}`, { method: "POST", body: "{}", headers: { ...authHeaders } }))
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value.ok && r.value.data) {
+        const recs = Array.isArray((r.value.data as any)?.data) ? (r.value.data as any).data : [];
+        all.push(...recs);
+      }
+    }
+  }
+  return { ok: true, data: all };
+}
+
+// ── Upsert calls to wbah_calls ────────────────────────────────────────────────
+
+async function upsertCallRows(sb: ReturnType<typeof getAdminClient>, rows: NonNullable<ReturnType<typeof buildCallRow>>[]): Promise<number> {
+  if (!rows.length) return 0;
+  const BATCH = 200;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { error } = await (sb as any).from("wbah_calls").upsert(rows.slice(i, i + BATCH), { onConflict: "id" });
+    if (error) console.error("[wbah-calls-sync] upsert error:", error.message);
+  }
+  return rows.length;
+}
+
+// ── Main exported tick functions ──────────────────────────────────────────────
+
+export async function runWbahCallsSyncTick(): Promise<{ calls: number; errors: string[] }> {
+  const sb = getAdminClient();
+  const { data: ws } = await (sb as any).from("workspaces").select("id").eq("slug", WBAH_SLUG).maybeSingle();
+  if (!ws?.id) throw new Error("Webuyanyhouse workspace not found");
+  const workspaceId: string = ws.id;
+
+  await ensureFreshToken(sb);
+  const getTokens = async () => {
+    const tokens = await getStoredTokens(sb);
+    if (!tokens) throw new Error("Not connected");
+    return tokens;
+  };
+
+  const results = { calls: 0, errors: [] as string[] };
+  try {
+    const callsRes = await fetchAllCallRecords(getTokens);
+    if (callsRes.ok) {
+      const rows = callsRes.data.map(r => buildCallRow(r, workspaceId)).filter(Boolean) as NonNullable<ReturnType<typeof buildCallRow>>[];
+      results.calls = await upsertCallRows(sb, rows);
+    } else {
+      results.errors.push("Calls fetch failed");
+    }
+  } catch (e: any) {
+    results.errors.push(e?.message ?? "Unknown error");
+  }
+  return results;
+}
 
 export async function runWbahLeadsSyncTick(): Promise<{ sellers: number; contacts: number; errors: string[] }> {
   const sb = getAdminClient();
