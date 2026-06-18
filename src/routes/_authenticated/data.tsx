@@ -41,6 +41,7 @@ import {
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
   head: () => ({ meta: [{ title: "Data Records — Webee" }] }),
@@ -342,7 +343,34 @@ function DataPage() {
   const [startCallingOpen, setStartCallingOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [callScheduleOpen, setCallScheduleOpen] = useState(false);
+  const [isWbah, setIsWbah] = useState(false);
   const [dataTab, setDataTab] = useState<"records" | "campaigns" | "people">("records");
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("default_workspace_id")
+          .eq("user_id", sess.session.user.id)
+          .maybeSingle();
+        if (!profile?.default_workspace_id || !active) return;
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("slug")
+          .eq("id", profile.default_workspace_id)
+          .maybeSingle();
+        if (!active) return;
+        const wbah = ws?.slug === "webuyanyhouse";
+        setIsWbah(wbah);
+        if (!wbah) setDataTab("people");
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
 
   const [crmPeople, setCrmPeople] = useState<CrmPersonRow[]>([]);
   const [crmPeopleLoading, setCrmPeopleLoading] = useState(false);
@@ -704,41 +732,48 @@ function DataPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Data Records</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Manage calling data, import records, and control outbound campaigns
+            {isWbah
+              ? "Manage calling data, import records, and control outbound campaigns"
+              : "Pull inbound leads from your CRM and manage people"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowManualEntry(true)}
-          >
-            <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-            Add Record
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (!showCsvImport && agentFilter !== "all") {
-                setCsvImportAgentId(agentFilter);
-              }
-              setShowCsvImport(!showCsvImport);
-            }}
-          >
-            <Database className="mr-1.5 h-3.5 w-3.5" />
-            Import CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setCallScheduleOpen(true)}>
-            <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
-            Call Schedule
-          </Button>
-        </div>
+        {isWbah && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowManualEntry(true)}
+            >
+              <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+              Add Record
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!showCsvImport && agentFilter !== "all") {
+                  setCsvImportAgentId(agentFilter);
+                }
+                setShowCsvImport(!showCsvImport);
+              }}
+            >
+              <Database className="mr-1.5 h-3.5 w-3.5" />
+              Import CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setCallScheduleOpen(true)}>
+              <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
+              Call Schedule
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — Records + Campaigns only for WBAH; People for all */}
       <div className="flex gap-1 mb-4 border-b border-white/[0.06]">
-        {(["records", "people", "campaigns"] as const).map((t) => (
+        {(isWbah
+          ? (["records", "people", "campaigns"] as const)
+          : (["people"] as const)
+        ).map((t) => (
           <button
             key={t}
             onClick={() => setDataTab(t)}
