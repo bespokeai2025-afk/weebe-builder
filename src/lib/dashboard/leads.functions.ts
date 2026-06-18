@@ -166,7 +166,7 @@ export const listLeads = createServerFn({ method: "POST" })
         status: z.string().optional(),
         qualifiedOnly: z.boolean().optional(),
         search: z.string().optional(),
-        limit: z.number().int().min(1).max(500).default(100),
+        limit: z.number().int().min(1).max(5000).default(100),
       })
       .parse(input ?? {}),
   )

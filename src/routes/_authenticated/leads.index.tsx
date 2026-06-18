@@ -171,7 +171,7 @@ function LeadsPage() {
 
   const leadsQ = useQuery({
     queryKey: ["leads-all"],
-    queryFn: () => listLeadsFn({ data: { limit: 200 } }),
+    queryFn: () => listLeadsFn({ data: { limit: 5000 } }),
   });
 
   const statsQ = useQuery({
