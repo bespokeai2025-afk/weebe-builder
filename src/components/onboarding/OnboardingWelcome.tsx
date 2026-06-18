@@ -136,6 +136,16 @@ const DNA_DEFAULTS: DnaForm = {
   brandVoice: "Professional and approachable",
 };
 
+// ── Restart helper (callable from sidebar) ────────────────────────────────────
+
+const WELCOME_SEEN_KEY = "webee_welcome_seen_v1";
+const WELCOME_RESTART_EVENT = "webee-welcome-restart";
+
+export function restartWelcome() {
+  try { localStorage.removeItem(WELCOME_SEEN_KEY); } catch {}
+  window.dispatchEvent(new Event(WELCOME_RESTART_EVENT));
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function OnboardingWelcome() {
@@ -153,17 +163,23 @@ export function OnboardingWelcome() {
   const dismissFn      = useServerFn(dismissOnboarding);
   const saveDnaFn      = useServerFn(saveOnboardingBusinessDna);
 
-  // Load state on mount
+  const showWelcome = useCallback(() => {
+    try { localStorage.setItem(WELCOME_SEEN_KEY, "1"); } catch {}
+    setStep("welcome");
+    setVisible(true);
+  }, []);
+
+  // Load state on mount — only show if never seen on this browser AND not dismissed in DB
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        const alreadySeen = localStorage.getItem(WELCOME_SEEN_KEY);
+        if (alreadySeen) return; // already completed/dismissed on this browser
         const state = await getStateFn();
         if (!mounted) return;
-        // Show modal only if path not set and not dismissed
         if (!state.dismissed && !state.path) {
-          setVisible(true);
-          setStep("welcome");
+          showWelcome();
         }
       } catch {
         // Non-critical — onboarding table may not exist yet
@@ -171,6 +187,18 @@ export function OnboardingWelcome() {
     })();
     return () => { mounted = false; };
   }, []);
+
+  // Listen for sidebar restart trigger
+  useEffect(() => {
+    const handler = () => {
+      setSelectedPath(null);
+      setSelectedCrm("skip");
+      setDna(DNA_DEFAULTS);
+      showWelcome();
+    };
+    window.addEventListener(WELCOME_RESTART_EVENT, handler);
+    return () => window.removeEventListener(WELCOME_RESTART_EVENT, handler);
+  }, [showWelcome]);
 
   const handleDismiss = useCallback(async () => {
     setVisible(false);

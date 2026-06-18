@@ -63,6 +63,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restartTour } from "@/components/onboarding/useOnboarding";
+import { restartWelcome } from "@/components/onboarding/OnboardingWelcome";
 import {
   Sidebar,
   SidebarContent,
@@ -861,12 +862,20 @@ export function AppSidebar() {
             )}
             <DropdownMenuItem
               onClick={() => {
+                restartWelcome();
+              }}
+            >
+              <MapPin className="mr-2 h-4 w-4" />
+              Setup Guide
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
                 restartTour();
                 navigate({ to: "/builder" });
               }}
             >
               <MapPin className="mr-2 h-4 w-4" />
-              Start Walkthrough Tour
+              Builder Walkthrough
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <div className="px-2 py-1.5 flex items-center justify-between text-sm">

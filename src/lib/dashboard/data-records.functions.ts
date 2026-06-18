@@ -541,6 +541,36 @@ export const importDataRecords = createServerFn({ method: "POST" })
     return { inserted, skipped: uniqueRows.length - newRows.length };
   });
 
+export type QualifiedLeadRow = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  email: string | null;
+  sentiment: string | null;
+  status: string | null;
+  source: string | null;
+  created_at: string | null;
+};
+
+export const fetchQualifiedLeads = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({}).parse(input ?? {}))
+  .handler(async ({ context }): Promise<QualifiedLeadRow[]> => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const { data, error } = await (supabaseAdmin as any)
+      .from("leads")
+      .select("id, full_name, phone, email, sentiment, status, source, created_at")
+      .eq("workspace_id", workspaceId)
+      .eq("sentiment", "positive")
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    if (error) throw new Error(error.message);
+    return (data ?? []) as QualifiedLeadRow[];
+  });
+
 export type CrmPersonRow = {
   external_id: string;
   name: string;
