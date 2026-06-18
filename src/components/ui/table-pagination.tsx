@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-const PAGE_SIZES = [10, 25, 50, 100] as const;
+const PAGE_SIZES = [10, 25, 50, 75, 100] as const;
 export type PageSize = typeof PAGE_SIZES[number];
 
-export function useTablePagination<T>(items: T[], defaultPageSize: PageSize = 25) {
+export function useTablePagination<T>(items: T[], defaultPageSize: PageSize = 50) {
   const [pageSize, setPageSize] = useState<PageSize>(defaultPageSize);
   const [page, setPage]         = useState(1);
 

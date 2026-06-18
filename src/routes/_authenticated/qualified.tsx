@@ -221,10 +221,11 @@ function QualifiedPage() {
       (r.full_name ?? "").toLowerCase().includes(q) ||
       (r.phone ?? "").toLowerCase().includes(q) ||
       (r.company_name ?? "").toLowerCase().includes(q));
+    if (isWbah) out = out.filter((r: any) => (r.sentiment ?? "").toLowerCase() === "positive");
     return out;
-  }, [rows, search]);
+  }, [rows, search, isWbah]);
 
-  const qualPag = useTablePagination(filtered, 25);
+  const qualPag = useTablePagination(filtered, 50);
 
 
   async function handleSetStatus(id: string, status: typeof STATUS_ACTIONS[number]["value"]) {

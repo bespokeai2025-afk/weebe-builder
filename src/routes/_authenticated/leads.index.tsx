@@ -57,6 +57,7 @@ import {
 } from "@/lib/dashboard/campaigns.functions";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 
 export const Route = createFileRoute("/_authenticated/leads/")({
   head: () => ({ meta: [{ title: "Leads — Webee" }] }),
@@ -260,15 +261,21 @@ function LeadsPage() {
       )) return false;
     }
     if (statusFilter && l.status !== statusFilter) return false;
-    if (sentimentFilter && l.sentiment !== sentimentFilter) return false;
+    if (sentimentFilter && (l.sentiment ?? "").toLowerCase() !== sentimentFilter) return false;
     if (callStatusFilter) {
       const cs = isRetell
         ? l.retell_call?.call_status
         : (isWbah ? l.meta?.call_status : null);
       if (cs !== callStatusFilter) return false;
     }
+    if (isWbah) {
+      const s = (l.sentiment ?? "").toLowerCase().trim();
+      if (s !== "" && s !== "positive" && s !== "negative") return false;
+    }
     return true;
   });
+
+  const leadsPag = useTablePagination(filtered, 50);
 
   const hasLeadFilters = search.trim() || statusFilter || sentimentFilter || callStatusFilter;
 
@@ -527,7 +534,7 @@ function LeadsPage() {
               >
                 <option value="">All Sentiments</option>
                 <option value="positive">Positive</option>
-                <option value="neutral">Neutral</option>
+                {!isWbah && <option value="neutral">Neutral</option>}
                 <option value="negative">Negative</option>
               </select>
               {(isRetell || isWbah) && (
@@ -608,7 +615,7 @@ function LeadsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((lead: any) => (
+                    {leadsPag.sliced.map((lead: any) => (
                       <tr
                         key={lead.id}
                         className={`h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
@@ -711,6 +718,14 @@ function LeadsPage() {
                     ))}
                   </tbody>
                 </table>
+                <TablePagBar
+                  page={leadsPag.page}
+                  pageSize={leadsPag.pageSize}
+                  totalPages={leadsPag.totalPages}
+                  total={leadsPag.total}
+                  setPage={leadsPag.setPage}
+                  changePageSize={leadsPag.changePageSize}
+                />
               </div>
             )}
           </div>

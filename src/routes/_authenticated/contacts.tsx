@@ -290,7 +290,7 @@ function WbahLeadsSection() {
     return out;
   }, [records, search, statusFilters, sentFilters, agentFilters]);
 
-  const leadsPag = useTablePagination(filtered, 25);
+  const leadsPag = useTablePagination(filtered, 50);
 
   function toggleSent(v: string) {
     setSentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
@@ -735,7 +735,7 @@ function ContactsPage() {
     );
   }, [deduped, search]);
 
-  const contactsPag = useTablePagination(filtered, 25);
+  const contactsPag = useTablePagination(filtered, 50);
 
   const total       = deduped.length;
   const withAddress = deduped.filter((r: any) => r.address_line1).length;

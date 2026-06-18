@@ -1,0 +1,146 @@
+Update the existing WEBEE Smart Dash table behaviour for Webuyanyhouse without breaking any existing pages or other clients.
+
+Do not create new pages.
+Do not rebuild the dashboard.
+Do not change unrelated modules.
+Do not change Super Admin behaviour.
+Do not affect other client workspaces.
+
+Apply this only to the existing pages/modules:
+
+- People
+- Calls
+- Leads
+- Qualified Leads
+
+Requirement 1: Rows per page selector
+
+Add a rows-per-page selector to the tables on:
+
+- People
+- Calls
+- Leads
+- Qualified Leads
+
+Options:
+
+10
+25
+50
+75
+100
+
+Default:
+
+50
+
+The selector should update the table pagination cleanly.
+
+If the page uses server-side pagination:
+- send the selected pageSize/limit to the existing API/data service
+- reset to page 1 when page size changes
+- preserve search/filter/date settings
+
+If the page uses client-side pagination:
+- paginate the already-loaded records safely
+- do not refetch unnecessarily
+
+Do not hardcode only 50 rows anymore.
+
+Requirement 2: Leads sentiment display
+
+On the Leads page, show a Sentiment column.
+
+Only show leads with sentiment:
+
+positive
+negative
+
+Do not show neutral sentiment on the Leads page.
+
+Do not show unknown sentiment on the Leads page unless no sentiment exists and the existing logic requires it.
+
+Sentiment display rules:
+
+positive = show as Positive
+negative = show as Negative
+
+Handle casing safely:
+
+Positive
+POSITIVE
+positive
+
+should all be treated as positive.
+
+Negative
+NEGATIVE
+negative
+
+should all be treated as negative.
+
+Requirement 3: Qualified Leads page logic
+
+The Qualified Leads page must only show leads that have positive sentiment.
+
+Do not include neutral sentiment.
+
+Do not include negative sentiment.
+
+Do not include unknown sentiment.
+
+Do not mark neutral leads as qualified.
+
+Qualification rule:
+
+qualified = sentiment is positive
+
+Only positive sentiment should be treated as qualified for Webuyanyhouse.
+
+Requirement 4: Data normalization
+
+Add or update a shared helper for sentiment normalization:
+
+normalizeSentiment(value)
+
+It should return:
+
+positive
+negative
+neutral
+unknown
+
+Use this helper wherever sentiment is filtered or displayed.
+
+Requirement 5: Do not break existing logic
+
+Before implementing, audit current table/pagination logic on:
+
+- People
+- Calls
+- Leads
+- Qualified Leads
+
+Reuse existing pagination/table components if possible.
+
+Do not duplicate table systems.
+
+Do not create Webuyanyhouse-only duplicate pages.
+
+If changes are Webuyanyhouse-specific, guard them by workspace/client config.
+
+Requirement 6: Final validation
+
+Confirm:
+
+- People table rows-per-page works with 10, 25, 50, 75, 100
+- Calls table rows-per-page works with 10, 25, 50, 75, 100
+- Leads table rows-per-page works with 10, 25, 50, 75, 100
+- Qualified Leads table rows-per-page works with 10, 25, 50, 75, 100
+- Changing page size resets to page 1
+- Search/filter still works
+- Leads page shows Sentiment column
+- Leads page only shows positive and negative sentiment
+- Qualified Leads page only shows positive sentiment
+- Neutral is not treated as qualified
+- Other clients are not affected

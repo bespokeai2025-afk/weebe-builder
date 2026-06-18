@@ -342,7 +342,7 @@ function CallsPage() {
     });
   }, [rows, search, statusFilter, callTypeFilter, sentimentFilter]);
 
-  const callsPag = useTablePagination(filteredRows, 25);
+  const callsPag = useTablePagination(filteredRows, 50);
 
   const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter;
 
