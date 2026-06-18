@@ -40,3 +40,4 @@
 - [Import-protection file pattern trap](import-protection-trap.md) — project has a Vite plugin blocking `**/*.client.*` imports in SSR; any route/component file with `.client.` in its name (e.g. `admin.accounts.client.$id.tsx`) will crash SSR. Rename to avoid `.client.` segment.
 - [Onboarding V2 Architecture](onboarding-v2-arch.md) — path modal + checklist + gated tour; workspace_onboarding table; knowledge tier rules (no WEBEE content in SEED_TOPICS).
 - [Build — Node.js externals](build-node-externals.md) — Node built-ins must be in vite build.rollupOptions.external or client bundle fails; @vite-ignore alone is NOT enough; stale dynamic import paths only surface in SSR build.
+- [WeeBespoke API totalPages bug](webespokeapi-totalpages-bug.md) — API's `pagination.totalPages` is wrong (says 13, actual is 203+); always compute from `totalItems ÷ pageSize` in extractTotalPages.

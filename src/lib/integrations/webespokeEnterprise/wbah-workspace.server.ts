@@ -368,20 +368,30 @@ function extractRecords(raw: any): any[] {
   return [];
 }
 
-/** Read totalPages from WeeBespoke pagination object. Returns null if unknown. */
+/** Read totalPages from WeeBespoke pagination object. Returns null if unknown.
+ *
+ * IMPORTANT: the WeeBespoke API's `totalPages` field is known to be wrong
+ * (e.g. it may say 13 when there are actually 203 pages worth of data).
+ * We therefore ALWAYS prefer computing the page count from totalItems ÷ pageSize,
+ * and only fall back to the API-provided `totalPages` if we have nothing better.
+ */
 function extractTotalPages(raw: any): number | null {
   const p = raw?.pagination;
   if (!p) return null;
+
+  // Prefer computed value — totalItems (10149) / pageSize (50) = 203 pages.
+  // This is more reliable than the API's totalPages which can be stale/wrong.
+  const totalItems = p.totalItems ?? p.totalRecords ?? p.total_records ?? p.total_count ?? p.count ?? p.total;
+  const pageSize   = p.pageSize ?? p.page_size ?? p.limit ?? p.perPage ?? p.per_page;
+  if (typeof totalItems === "number" && typeof pageSize === "number" && pageSize > 0) {
+    return Math.ceil(totalItems / pageSize);
+  }
+
+  // Fall back to API-provided field
   if (typeof p.totalPages  === "number") return p.totalPages;
   if (typeof p.total_pages === "number") return p.total_pages;
   if (typeof p.lastPage    === "number") return p.lastPage;
   if (typeof p.pages       === "number") return p.pages;
-  // Calculate from totalRecords + limit
-  const total = p.totalRecords ?? p.total_records ?? p.count ?? p.total;
-  const limit = p.limit ?? p.perPage ?? p.per_page ?? 50;
-  if (typeof total === "number" && typeof limit === "number" && limit > 0) {
-    return Math.ceil(total / limit);
-  }
   return null;
 }
 
