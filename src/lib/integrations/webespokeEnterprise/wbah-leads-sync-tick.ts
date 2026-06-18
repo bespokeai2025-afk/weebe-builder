@@ -1,0 +1,348 @@
+/**
+ * WBAH Leads Sync Tick — self-contained, no @/ aliases.
+ *
+ * Safe to import from vite.config.ts at config-load time (same pattern as
+ * ads-sync-tick.ts). Uses createClient directly and relative paths only.
+ *
+ * Called by:
+ *  - wbah-leads-sync.plugin.ts  (dev: every 30 min via Vite plugin)
+ */
+import { createClient } from "@supabase/supabase-js";
+
+// ── Supabase admin client ─────────────────────────────────────────────────────
+
+function getAdminClient() {
+  const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+// ── WeeBespoke API constants ──────────────────────────────────────────────────
+
+const BASE_URL        = "https://uat-api.webespokeai.com";
+const INTEGRATION_KEY = "webespoke_enterprise";
+const CLIENT_NAME     = "Webuyanyhouse";
+const WBAH_SLUG       = "webuyanyhouse";
+const SOURCE_DETAIL   = "webespoke_enterprise";
+
+// ── Low-level fetch helpers ───────────────────────────────────────────────────
+
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<{ ok: boolean; status: number; data: T | null; error?: string }> {
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
+    });
+    if (res.status === 204) return { ok: true, status: 204, data: null };
+    const text = await res.text();
+    let data: T | null = null;
+    try { data = JSON.parse(text) as T; } catch { /**/ }
+    return { ok: res.ok, status: res.status, data, error: res.ok ? undefined : text.slice(0, 300) };
+  } catch (err: any) {
+    return { ok: false, status: 0, data: null, error: err?.message ?? "Network error" };
+  }
+}
+
+async function loginWithPassword(email: string, password: string) {
+  return apiFetch<any>("/admin/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+// ── Token management ─────────────────────────────────────────────────────────
+
+async function getStoredTokens(sb: ReturnType<typeof getAdminClient>): Promise<{ accessToken: string; refreshToken: string } | null> {
+  const { data } = await (sb as any).from("enterprise_integrations")
+    .select("access_token, refresh_token, status")
+    .eq("integration_key", INTEGRATION_KEY)
+    .eq("client_name", CLIENT_NAME)
+    .maybeSingle();
+  if (!data || data.status !== "connected" || !data.access_token) return null;
+  return { accessToken: data.access_token, refreshToken: data.refresh_token ?? "" };
+}
+
+async function saveToken(sb: ReturnType<typeof getAdminClient>, token: string): Promise<void> {
+  await (sb as any).from("enterprise_integrations")
+    .update({ access_token: token, status: "connected" })
+    .eq("integration_key", INTEGRATION_KEY)
+    .eq("client_name", CLIENT_NAME);
+}
+
+async function ensureFreshToken(sb: ReturnType<typeof getAdminClient>): Promise<void> {
+  const email    = process.env.WEBESPOKE_ADMIN_EMAIL;
+  const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
+  if (!email || !password) throw new Error("Set WEBESPOKE_ADMIN_EMAIL + WEBESPOKE_ADMIN_PASSWORD in Replit Secrets.");
+
+  const res = await loginWithPassword(email, password);
+  if (!res.ok || !res.data) throw new Error(`WeeBespoke re-login failed (HTTP ${res.status}): ${res.error ?? "no body"}`);
+
+  const d = res.data as any;
+  const accessToken =
+    d.accessToken ?? d.token ?? d.access_token ??
+    d.data?.accessToken ?? d.data?.token ?? d.data?.access_token ?? null;
+  const refreshToken =
+    d.refreshToken ?? d.refresh_token ?? d.data?.refreshToken ?? d.data?.refresh_token ?? "";
+  if (!accessToken) throw new Error("Re-login succeeded but no token in response");
+
+  await (sb as any).from("enterprise_integrations").upsert(
+    { integration_key: INTEGRATION_KEY, client_name: CLIENT_NAME, access_token: accessToken, refresh_token: refreshToken, status: "connected" },
+    { onConflict: "integration_key,client_name" },
+  );
+}
+
+// ── Data classification helpers ───────────────────────────────────────────────
+
+function pickStr(raw: any, ...keys: string[]): string | null {
+  for (const k of keys) {
+    const v = raw?.[k];
+    if (v != null && String(v).trim() && String(v) !== "null" && String(v) !== "undefined") return String(v).trim();
+  }
+  return null;
+}
+
+function statusHaystack(raw: any): string {
+  return [
+    raw?.status, raw?.leadStatus, raw?.crmStatus, raw?.callStatus,
+    raw?.qualificationStatus, raw?.sentiment, raw?.sentimentAnalysis, raw?.disconnectionReason,
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function classifyStatus(raw: any): string {
+  const cs = (raw?.callStatus ?? "").toLowerCase();
+  const sa = (raw?.sentimentAnalysis ?? "").toLowerCase();
+  if (raw?.need_to_call === true) return "need_to_call";
+  if (raw?.is_negative_sentiment === true) return "not_interested";
+  if (cs === "need_to_call") return "need_to_call";
+  if (cs === "ended" || cs === "call_analyzed") {
+    if (/negative/.test(sa)) return "not_interested";
+    if (/positive|neutral/.test(sa)) return "qualified";
+    const dr = (raw?.disconnectionReason ?? "").toLowerCase();
+    if (/voicemail|no_answer|no_input|dial_no_answer/.test(dr)) return "not_connected";
+    return "qualified";
+  }
+  if (cs === "not_connected" || cs === "no_answer" || cs === "voicemail") return "not_connected";
+  const h = statusHaystack(raw);
+  if (/disqualif|reject|unsuitable|do[_\s]?not[_\s]?call/.test(h)) return "not_interested";
+  if (/tried.{0,10}contact|no[_\s]answer|voicemail/.test(h)) return "not_connected";
+  if (/qualified|positive|neutral/.test(h)) return "qualified";
+  return "need_to_call";
+}
+
+function classifySentiment(raw: any): string | null {
+  const sa = (raw?.sentimentAnalysis ?? raw?.sentiment ?? "").toLowerCase();
+  if (/positive|interested|keen|motivated/.test(sa)) return "positive";
+  if (/neutral|maybe|unsure|undecided/.test(sa)) return "neutral";
+  if (/negative|disqualif|not[_\s]interested|hostile/.test(sa)) return "negative";
+  return null;
+}
+
+function classifyPipelineStage(status: string): string {
+  if (status === "not_interested") return "lost";
+  if (status === "not_connected")  return "discovery";
+  if (status === "qualified")      return "proposal";
+  return "new_lead";
+}
+
+function classifyQualificationStatus(raw: any): string | null {
+  const h = statusHaystack(raw);
+  if (/qualified|positive|neutral/.test(h)) return "qualified";
+  if (/disqualif|reject|unsuitable/.test(h)) return "not_qualified";
+  return null;
+}
+
+// ── Row builders ─────────────────────────────────────────────────────────────
+
+function buildLeadRow(raw: any, workspaceId: string) {
+  const status     = classifyStatus(raw);
+  const crm        = raw?.crmData ?? {};
+  const externalId = pickStr(raw, "lead_id", "id", "_id", "leadId", "sellerId") ?? null;
+  const callbackAt = raw?.appointment_date || raw?.callbackDate || raw?.callback_date || null;
+  return {
+    workspace_id:         workspaceId,
+    full_name:            pickStr(raw, "name", "fullName", "leadName", "customerName") ?? pickStr(crm, "name", "firstname") ?? "Unknown",
+    phone:                pickStr(raw, "toNumber", "fromNumber", "phone", "phoneNumber", "mobile") ?? pickStr(crm, "mobile_number", "mobileNumber") ?? "",
+    email:                pickStr(raw, "email", "emailAddress") ?? pickStr(crm, "email") ?? null,
+    company_name:         null as string | null,
+    status,
+    sentiment:            classifySentiment(raw),
+    pipeline_stage:       classifyPipelineStage(status),
+    qualification_status: classifyQualificationStatus(raw),
+    source:               "import",
+    source_detail:        SOURCE_DETAIL,
+    notes:                pickStr(raw, "notes", "description", "comments"),
+    call_summary:         pickStr(raw, "transcript", "callSummary", "summary"),
+    callback_date:        callbackAt ?? null,
+    meta: {
+      wbah_external_id:     externalId,
+      wbah_synced_at:       new Date().toISOString(),
+      property_address:     pickStr(crm, "new_propinfo_street2", "address1_line1") ?? pickStr(raw, "address", "propertyAddress"),
+      property_city:        pickStr(crm, "new_propinfo_city", "address1_city"),
+      postcode:             pickStr(crm, "new_propinfo_postalcode", "address1_postalcode") ?? pickStr(raw, "postcode", "postCode"),
+      property_type:        pickStr(crm, "property_type"),
+      expected_price:       pickStr(raw, "askingPrice", "expectedPrice", "price"),
+      assigned_agent:       pickStr(raw, "agentName", "assignedAgent", "agent"),
+      call_status:          raw?.callStatus ?? null,
+      call_id:              pickStr(raw, "callId"),
+      recording_url:        pickStr(raw, "recordingUrl"),
+      disconnection_reason: pickStr(raw, "disconnectionReason"),
+      duration_ms:          raw?.durationMs ?? null,
+      appointment_date:     pickStr(raw, "appointment_date"),
+      appointment_time:     pickStr(raw, "appointment_time"),
+      booking_status:       pickStr(raw, "booking_status"),
+    },
+  };
+}
+
+function buildContactRow(raw: any, workspaceId: string) {
+  const externalId = pickStr(raw, "id", "_id", "lead_id", "buyerId", "contactId") ?? null;
+  return {
+    workspace_id:     workspaceId,
+    name:             pickStr(raw, "name", "fullName", "contact_name", "firstname") ?? "Unknown",
+    first_name:       pickStr(raw, "firstname", "firstName", "first_name"),
+    last_name:        pickStr(raw, "lastname", "lastName", "last_name"),
+    mobile_number:    pickStr(raw, "mobile_number", "mobileNumber", "phone", "phoneNumber") ?? "",
+    email:            pickStr(raw, "email", "emailAddress"),
+    address_line1:    pickStr(raw, "new_propinfo_street2", "address1_line1", "address"),
+    postal_code:      pickStr(raw, "new_propinfo_postalcode", "address1_postalcode", "postcode"),
+    city:             pickStr(raw, "new_propinfo_city", "address1_city", "city"),
+    client_name:      "Webuyanyhouse",
+    lead_external_id: externalId,
+    is_active:        raw?.isActive ?? true,
+    need_to_call:     raw?.need_to_call ?? false,
+    meta: {
+      wbah_source:   "crm",
+      wbah_synced_at: new Date().toISOString(),
+      lead_status:   raw?.lead_status ?? null,
+      crm_type:      raw?.crm_type ?? null,
+      property_type: raw?.property_type ?? null,
+      unique_id:     raw?.unique_id ?? null,
+    },
+  };
+}
+
+// ── Upsert helpers ────────────────────────────────────────────────────────────
+
+async function upsertLeadsRows(sb: ReturnType<typeof getAdminClient>, rows: ReturnType<typeof buildLeadRow>[]): Promise<number> {
+  if (!rows.length) return 0;
+  const workspaceId = rows[0].workspace_id;
+  const { data: existing } = await (sb as any).from("leads").select("id, phone")
+    .eq("workspace_id", workspaceId).eq("source", "import").eq("source_detail", SOURCE_DETAIL);
+  const byPhone = new Map<string, string>((existing ?? []).map((l: any) => [String(l.phone).trim(), String(l.id)]));
+  const toInsert: typeof rows = [];
+  const toUpdate: Array<{ id: string } & (typeof rows)[0]> = [];
+  for (const row of rows) {
+    const phone = String(row.phone).trim();
+    const existingId = phone ? byPhone.get(phone) : undefined;
+    if (existingId) toUpdate.push({ ...row, id: existingId });
+    else toInsert.push(row);
+  }
+  if (toInsert.length) {
+    const { error } = await (sb as any).from("leads").insert(toInsert);
+    if (error) console.error("[wbah-leads-sync] leads insert error:", error.message);
+  }
+  for (let i = 0; i < toUpdate.length; i += 50) {
+    const batch = toUpdate.slice(i, i + 50);
+    await Promise.allSettled(batch.map(({ id, ...row }) => (sb as any).from("leads").update(row).eq("id", id)));
+  }
+  return rows.length;
+}
+
+async function upsertContactRows(sb: ReturnType<typeof getAdminClient>, rows: ReturnType<typeof buildContactRow>[]): Promise<number> {
+  if (!rows.length) return 0;
+  const workspaceId = rows[0].workspace_id;
+  const withId    = rows.filter(r => r.lead_external_id);
+  const withoutId = rows.filter(r => !r.lead_external_id);
+  if (withId.length) {
+    const ids = withId.map(r => r.lead_external_id);
+    const { data: existing } = await (sb as any).from("data_records").select("id, lead_external_id")
+      .eq("workspace_id", workspaceId).in("lead_external_id", ids);
+    const existingSet = new Set((existing ?? []).map((r: any) => r.lead_external_id));
+    const existingMap = new Map((existing ?? []).map((r: any) => [r.lead_external_id, r.id]));
+    const toInsert = withId.filter(r => !existingSet.has(r.lead_external_id));
+    const toUpdate = withId.filter(r =>  existingSet.has(r.lead_external_id));
+    if (toInsert.length) await (sb as any).from("data_records").insert(toInsert);
+    await Promise.allSettled(toUpdate.map(row => (sb as any).from("data_records").update(row).eq("id", existingMap.get(row.lead_external_id))));
+  }
+  if (withoutId.length) await (sb as any).from("data_records").insert(withoutId);
+  return rows.length;
+}
+
+// ── Paginated lead fetch ──────────────────────────────────────────────────────
+
+async function fetchAllLeadRecords(
+  getTokens: () => Promise<{ accessToken: string; refreshToken: string }>,
+  saveNewAccessToken: (t: string) => Promise<void>,
+): Promise<{ ok: boolean; data: any[] }> {
+  const { accessToken } = await getTokens();
+  const p1 = await apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=1`, {
+    method: "GET", headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!p1.ok || !p1.data) return { ok: false, data: [] };
+  const totalPages = p1.data?.pagination?.totalPages ?? p1.data?.totalPages ?? 1;
+  const all: any[] = Array.isArray(p1.data?.data) ? [...p1.data.data] : Array.isArray(p1.data) ? [...p1.data] : [];
+  for (let page = 2; page <= totalPages; page += 20) {
+    const batch = Array.from({ length: Math.min(20, totalPages - page + 1) }, (_, i) => page + i);
+    const results = await Promise.allSettled(
+      batch.map(p => apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=${p}`, {
+        method: "GET", headers: { Authorization: `Bearer ${accessToken}` },
+      }))
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value.ok && r.value.data) {
+        const records = Array.isArray(r.value.data?.data) ? r.value.data.data : Array.isArray(r.value.data) ? r.value.data : [];
+        all.push(...records);
+      }
+    }
+  }
+  return { ok: true, data: all };
+}
+
+async function fetchAllBuyers(getTokens: () => Promise<{ accessToken: string; refreshToken: string }>): Promise<{ ok: boolean; data: any[] }> {
+  const { accessToken } = await getTokens();
+  const res = await apiFetch<any>("/crm-data/get-crm-data", {
+    method: "GET", headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok || !res.data) return { ok: false, data: [] };
+  const records = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
+  return { ok: true, data: records };
+}
+
+// ── Main exported tick function ───────────────────────────────────────────────
+
+export async function runWbahLeadsSyncTick(): Promise<{ sellers: number; contacts: number; errors: string[] }> {
+  const sb = getAdminClient();
+
+  // Get workspace
+  const { data: ws } = await (sb as any).from("workspaces").select("id").eq("slug", WBAH_SLUG).maybeSingle();
+  if (!ws?.id) throw new Error("Webuyanyhouse workspace not found");
+  const workspaceId: string = ws.id;
+
+  // Always refresh the token first
+  await ensureFreshToken(sb);
+
+  const getTokens = async () => {
+    const tokens = await getStoredTokens(sb);
+    if (!tokens) throw new Error("Not connected — no token stored");
+    return tokens;
+  };
+  const saveTok = (t: string) => saveToken(sb, t);
+
+  const [sellersRes, buyersRes] = await Promise.allSettled([
+    fetchAllLeadRecords(getTokens, saveTok),
+    fetchAllBuyers(getTokens),
+  ]);
+
+  const results = { sellers: 0, contacts: 0, errors: [] as string[] };
+
+  if (sellersRes.status === "fulfilled" && sellersRes.value.ok) {
+    results.sellers = await upsertLeadsRows(sb, sellersRes.value.data.map((r: any) => buildLeadRow(r, workspaceId)));
+  } else {
+    results.errors.push(sellersRes.status === "rejected" ? sellersRes.reason?.message : "Sellers sync failed");
+  }
+
+  if (buyersRes.status === "fulfilled" && buyersRes.value.ok) {
+    results.contacts = await upsertContactRows(sb, buyersRes.value.data.map((r: any) => buildContactRow(r, workspaceId)));
+  } else {
+    results.errors.push(buyersRes.status === "rejected" ? buyersRes.reason?.message : "Contacts sync failed");
+  }
+
+  return results;
+}

@@ -748,6 +748,51 @@ export const adminSyncWebuyanyhouseLeads = createServerFn({ method: "POST" })
     return results;
   });
 
+// ── Scheduled background sync (called by Vite plugin + prod cron) ─────────────
+// Plain async — no server-fn middleware so the plugin can import it directly.
+export async function runWbahLeadsSync(): Promise<{
+  sellers: number;
+  contacts: number;
+  errors: string[];
+}> {
+  const workspaceId = await getWebuyanyhouseWorkspaceId();
+  if (!workspaceId) throw new Error("Webuyanyhouse workspace not found");
+
+  await ensureFreshToken();
+  const { getTokens, saveNewAccessToken: saveToken } = makeTokenCallbacks();
+
+  const [sellersRes, buyersRes] = await Promise.allSettled([
+    fetchAllLeadRecords(getTokens, saveToken),
+    getAllBuyers(getTokens, saveToken),
+  ]);
+
+  const results = { sellers: 0, contacts: 0, errors: [] as string[] };
+
+  if (sellersRes.status === "fulfilled" && sellersRes.value.ok) {
+    const records = Array.isArray(sellersRes.value.data) ? sellersRes.value.data : [];
+    results.sellers = await upsertLeadsRows(records.map((r: any) => buildLeadRow(r, workspaceId)));
+  } else {
+    results.errors.push(
+      sellersRes.status === "rejected"
+        ? sellersRes.reason?.message
+        : sellersRes.value?.error ?? "Sellers sync failed",
+    );
+  }
+
+  if (buyersRes.status === "fulfilled" && buyersRes.value.ok) {
+    const records = Array.isArray(buyersRes.value.data) ? buyersRes.value.data : [];
+    results.contacts = await upsertContactRows(records.map((r: any) => buildContactRow(r, workspaceId)));
+  } else {
+    results.errors.push(
+      buyersRes.status === "rejected"
+        ? buyersRes.reason?.message
+        : buyersRes.value?.error ?? "Contacts sync failed",
+    );
+  }
+
+  return results;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORKSPACE SERVER FUNCTIONS (used by workspace-user checks)
 // ═══════════════════════════════════════════════════════════════════════════════
