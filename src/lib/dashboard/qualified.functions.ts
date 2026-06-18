@@ -18,12 +18,12 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    // Only show leads that have been MANUALLY promoted to "qualified"
+    // Only show leads with positive sentiment (neutral is NOT qualified)
     let q = sb
       .from("leads")
       .select("*")
       .eq("workspace_id", workspaceId)
-      .eq("status", "qualified")
+      .eq("sentiment", "positive")
       .order("updated_at", { ascending: false })
       .limit(data.limit);
 
@@ -66,7 +66,7 @@ export const listQualifiedRecords = createServerFn({ method: "GET" })
       .from("calls")
       .select("id, to_number")
       .eq("workspace_id", workspaceId)
-      .in("sentiment", ["neutral", "positive"])
+      .eq("sentiment", "positive")
       .order("started_at", { ascending: false, nullsFirst: false })
       .limit(2000);
     if (callsErr) throw new Error(callsErr.message);
