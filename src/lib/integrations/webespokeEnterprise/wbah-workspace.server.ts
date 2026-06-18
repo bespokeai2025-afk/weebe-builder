@@ -1037,14 +1037,25 @@ export const listWbahCallsFromDb = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const { data, error } = await (supabase as any)
-      .from("wbah_calls")
-      .select("*")
-      .eq("workspace_id", workspaceId)
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .limit(15000);
-    if (error) throw new Error(error.message);
-    return (data ?? []).map((r: any) => ({
+    const sb = supabase as any;
+    // Supabase PostgREST caps rows at 1000 by default — paginate to fetch all.
+    const PAGE = 1000;
+    const allRows: any[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await sb
+        .from("wbah_calls")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      const rows = data ?? [];
+      allRows.push(...rows);
+      if (rows.length < PAGE) break;
+      from += PAGE;
+    }
+    return allRows.map((r: any) => ({
       id:                   r.id,
       agent_id:             null,
       agent_name:           r.agent_name,

@@ -18,6 +18,7 @@ import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSect
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
 import { setLeadStatus } from "@/lib/dashboard/leads.functions";
