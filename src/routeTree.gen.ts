@@ -37,6 +37,7 @@ import { Route as AuthenticatedHivemindRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedHexmailRouteImport } from './routes/_authenticated/hexmail'
 import { Route as AuthenticatedGrowthmindRouteImport } from './routes/_authenticated/growthmind'
 import { Route as AuthenticatedFollowUpRouteImport } from './routes/_authenticated/follow-up'
+import { Route as AuthenticatedEnterpriseRouteImport } from './routes/_authenticated/enterprise'
 import { Route as AuthenticatedDataRouteImport } from './routes/_authenticated/data'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
@@ -155,6 +156,7 @@ import { Route as AuthenticatedGrowthmindBusinessDnaRouteImport } from './routes
 import { Route as AuthenticatedGrowthmindBlogWriterRouteImport } from './routes/_authenticated/growthmind.blog-writer'
 import { Route as AuthenticatedGrowthmindAdsPerformanceRouteImport } from './routes/_authenticated/growthmind.ads-performance'
 import { Route as AuthenticatedGrowthmindAdsRouteImport } from './routes/_authenticated/growthmind.ads'
+import { Route as AuthenticatedEnterpriseWebuyanyhouseRouteImport } from './routes/_authenticated/enterprise.webuyanyhouse'
 import { Route as AuthenticatedBillingUsageRouteImport } from './routes/_authenticated/billing.usage'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminWorkspacesRouteImport } from './routes/_authenticated/admin.workspaces'
@@ -369,6 +371,11 @@ const AuthenticatedGrowthmindRoute = AuthenticatedGrowthmindRouteImport.update({
 const AuthenticatedFollowUpRoute = AuthenticatedFollowUpRouteImport.update({
   id: '/follow-up',
   path: '/follow-up',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedEnterpriseRoute = AuthenticatedEnterpriseRouteImport.update({
+  id: '/enterprise',
+  path: '/enterprise',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedDataRoute = AuthenticatedDataRouteImport.update({
@@ -1041,6 +1048,12 @@ const AuthenticatedGrowthmindAdsRoute =
     path: '/ads',
     getParentRoute: () => AuthenticatedGrowthmindRoute,
   } as any)
+const AuthenticatedEnterpriseWebuyanyhouseRoute =
+  AuthenticatedEnterpriseWebuyanyhouseRouteImport.update({
+    id: '/webuyanyhouse',
+    path: '/webuyanyhouse',
+    getParentRoute: () => AuthenticatedEnterpriseRoute,
+  } as any)
 const AuthenticatedBillingUsageRoute =
   AuthenticatedBillingUsageRouteImport.update({
     id: '/usage',
@@ -1466,6 +1479,7 @@ export interface FileRoutesByFullPath {
   '/contacts': typeof AuthenticatedContactsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/data': typeof AuthenticatedDataRoute
+  '/enterprise': typeof AuthenticatedEnterpriseRouteWithChildren
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/growthmind': typeof AuthenticatedGrowthmindRouteWithChildren
   '/hexmail': typeof AuthenticatedHexmailRouteWithChildren
@@ -1496,6 +1510,7 @@ export interface FileRoutesByFullPath {
   '/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/billing/usage': typeof AuthenticatedBillingUsageRoute
+  '/enterprise/webuyanyhouse': typeof AuthenticatedEnterpriseWebuyanyhouseRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
@@ -1683,6 +1698,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof AuthenticatedContactsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/data': typeof AuthenticatedDataRoute
+  '/enterprise': typeof AuthenticatedEnterpriseRouteWithChildren
   '/follow-up': typeof AuthenticatedFollowUpRoute
   '/my-agents': typeof AuthenticatedMyAgentsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -1706,6 +1722,7 @@ export interface FileRoutesByTo {
   '/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/billing/usage': typeof AuthenticatedBillingUsageRoute
+  '/enterprise/webuyanyhouse': typeof AuthenticatedEnterpriseWebuyanyhouseRoute
   '/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
@@ -1896,6 +1913,7 @@ export interface FileRoutesById {
   '/_authenticated/contacts': typeof AuthenticatedContactsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/data': typeof AuthenticatedDataRoute
+  '/_authenticated/enterprise': typeof AuthenticatedEnterpriseRouteWithChildren
   '/_authenticated/follow-up': typeof AuthenticatedFollowUpRoute
   '/_authenticated/growthmind': typeof AuthenticatedGrowthmindRouteWithChildren
   '/_authenticated/hexmail': typeof AuthenticatedHexmailRouteWithChildren
@@ -1926,6 +1944,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
   '/_authenticated/billing/usage': typeof AuthenticatedBillingUsageRoute
+  '/_authenticated/enterprise/webuyanyhouse': typeof AuthenticatedEnterpriseWebuyanyhouseRoute
   '/_authenticated/growthmind/ads': typeof AuthenticatedGrowthmindAdsRoute
   '/_authenticated/growthmind/ads-performance': typeof AuthenticatedGrowthmindAdsPerformanceRoute
   '/_authenticated/growthmind/blog-writer': typeof AuthenticatedGrowthmindBlogWriterRoute
@@ -2116,6 +2135,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/dashboard'
     | '/data'
+    | '/enterprise'
     | '/follow-up'
     | '/growthmind'
     | '/hexmail'
@@ -2146,6 +2166,7 @@ export interface FileRouteTypes {
     | '/admin/workspaces'
     | '/agents/new'
     | '/billing/usage'
+    | '/enterprise/webuyanyhouse'
     | '/growthmind/ads'
     | '/growthmind/ads-performance'
     | '/growthmind/blog-writer'
@@ -2333,6 +2354,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/dashboard'
     | '/data'
+    | '/enterprise'
     | '/follow-up'
     | '/my-agents'
     | '/phone-numbers'
@@ -2356,6 +2378,7 @@ export interface FileRouteTypes {
     | '/admin/workspaces'
     | '/agents/new'
     | '/billing/usage'
+    | '/enterprise/webuyanyhouse'
     | '/growthmind/ads'
     | '/growthmind/ads-performance'
     | '/growthmind/blog-writer'
@@ -2545,6 +2568,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contacts'
     | '/_authenticated/dashboard'
     | '/_authenticated/data'
+    | '/_authenticated/enterprise'
     | '/_authenticated/follow-up'
     | '/_authenticated/growthmind'
     | '/_authenticated/hexmail'
@@ -2575,6 +2599,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/workspaces'
     | '/_authenticated/agents/new'
     | '/_authenticated/billing/usage'
+    | '/_authenticated/enterprise/webuyanyhouse'
     | '/_authenticated/growthmind/ads'
     | '/_authenticated/growthmind/ads-performance'
     | '/_authenticated/growthmind/blog-writer'
@@ -3027,6 +3052,13 @@ declare module '@tanstack/react-router' {
       path: '/follow-up'
       fullPath: '/follow-up'
       preLoaderRoute: typeof AuthenticatedFollowUpRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/enterprise': {
+      id: '/_authenticated/enterprise'
+      path: '/enterprise'
+      fullPath: '/enterprise'
+      preLoaderRoute: typeof AuthenticatedEnterpriseRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/data': {
@@ -3855,6 +3887,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedGrowthmindAdsRouteImport
       parentRoute: typeof AuthenticatedGrowthmindRoute
     }
+    '/_authenticated/enterprise/webuyanyhouse': {
+      id: '/_authenticated/enterprise/webuyanyhouse'
+      path: '/webuyanyhouse'
+      fullPath: '/enterprise/webuyanyhouse'
+      preLoaderRoute: typeof AuthenticatedEnterpriseWebuyanyhouseRouteImport
+      parentRoute: typeof AuthenticatedEnterpriseRoute
+    }
     '/_authenticated/billing/usage': {
       id: '/_authenticated/billing/usage'
       path: '/usage'
@@ -4428,6 +4467,21 @@ const AuthenticatedBillingRouteChildren: AuthenticatedBillingRouteChildren = {
 const AuthenticatedBillingRouteWithChildren =
   AuthenticatedBillingRoute._addFileChildren(AuthenticatedBillingRouteChildren)
 
+interface AuthenticatedEnterpriseRouteChildren {
+  AuthenticatedEnterpriseWebuyanyhouseRoute: typeof AuthenticatedEnterpriseWebuyanyhouseRoute
+}
+
+const AuthenticatedEnterpriseRouteChildren: AuthenticatedEnterpriseRouteChildren =
+  {
+    AuthenticatedEnterpriseWebuyanyhouseRoute:
+      AuthenticatedEnterpriseWebuyanyhouseRoute,
+  }
+
+const AuthenticatedEnterpriseRouteWithChildren =
+  AuthenticatedEnterpriseRoute._addFileChildren(
+    AuthenticatedEnterpriseRouteChildren,
+  )
+
 interface AuthenticatedGrowthmindRouteChildren {
   AuthenticatedGrowthmindAdsRoute: typeof AuthenticatedGrowthmindAdsRoute
   AuthenticatedGrowthmindAdsPerformanceRoute: typeof AuthenticatedGrowthmindAdsPerformanceRoute
@@ -4689,6 +4743,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDataRoute: typeof AuthenticatedDataRoute
+  AuthenticatedEnterpriseRoute: typeof AuthenticatedEnterpriseRouteWithChildren
   AuthenticatedFollowUpRoute: typeof AuthenticatedFollowUpRoute
   AuthenticatedGrowthmindRoute: typeof AuthenticatedGrowthmindRouteWithChildren
   AuthenticatedHexmailRoute: typeof AuthenticatedHexmailRouteWithChildren
@@ -4725,6 +4780,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedContactsRoute: AuthenticatedContactsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDataRoute: AuthenticatedDataRoute,
+  AuthenticatedEnterpriseRoute: AuthenticatedEnterpriseRouteWithChildren,
   AuthenticatedFollowUpRoute: AuthenticatedFollowUpRoute,
   AuthenticatedGrowthmindRoute: AuthenticatedGrowthmindRouteWithChildren,
   AuthenticatedHexmailRoute: AuthenticatedHexmailRouteWithChildren,

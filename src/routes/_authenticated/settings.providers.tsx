@@ -7,7 +7,8 @@ import {
   Cpu, Mic, Phone, MessageSquare, Mail, Database, CalendarCheck,
   BookOpen, Video, Image, BarChart3, Megaphone, AlertTriangle,
   DollarSign, Zap, Star, ArrowDownToLine, PowerOff, ChevronDown,
-  ChevronUp, FlaskConical, Save, Eye, EyeOff,
+  ChevronUp, FlaskConical, Save, Eye, EyeOff, Building2,
+  Car, Users, UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,11 +28,233 @@ import type { ProviderUsageStat } from "@/lib/providers/providers.functions";
 import {
   saveProviderCostRate,
 } from "@/lib/cost-engine/cost-engine.functions";
+import {
+  requestWebespokeEnterpriseOtp,
+  verifyWebespokeEnterpriseOtp,
+  getWebespokeEnterpriseStatus,
+  disconnectWebespokeEnterprise,
+  syncWebespokeEnterpriseCars,
+  syncWebespokeEnterpriseBuyers,
+  syncWebespokeEnterpriseDealers,
+} from "@/lib/integrations/webespokeEnterprise/enterprise.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/providers")({
   head: () => ({ meta: [{ title: "Provider Settings — Webee" }] }),
   component: ProvidersSettingsPage,
 });
+
+// ── WeeBespoke AI Enterprise integration card ─────────────────────────────────
+
+type WbsFlow = "idle" | "otp_sent" | "verifying" | "connected" | "disconnected";
+
+function WebespokeEnterpriseSection() {
+  const qc = useQueryClient();
+  const [email, setEmail]   = useState("");
+  const [otp, setOtp]       = useState("");
+  const [flow, setFlow]     = useState<WbsFlow>("idle");
+  const [busy, setBusy]     = useState(false);
+
+  const getStatusFn     = useServerFn(getWebespokeEnterpriseStatus);
+  const requestOtpFn    = useServerFn(requestWebespokeEnterpriseOtp);
+  const verifyOtpFn     = useServerFn(verifyWebespokeEnterpriseOtp);
+  const disconnectFn    = useServerFn(disconnectWebespokeEnterprise);
+  const syncCarsFn      = useServerFn(syncWebespokeEnterpriseCars);
+  const syncBuyersFn    = useServerFn(syncWebespokeEnterpriseBuyers);
+  const syncDealersFn   = useServerFn(syncWebespokeEnterpriseDealers);
+
+  const statusQ = useQuery({
+    queryKey: ["wbs-enterprise-status"],
+    queryFn:  () => getStatusFn(),
+    refetchInterval: flow === "connected" ? false : 30_000,
+  });
+
+  const serverStatus = statusQ.data?.status ?? "disconnected";
+  const isConnected  = serverStatus === "connected" || flow === "connected";
+  const isOtpSent    = serverStatus === "otp_sent"  || flow === "otp_sent";
+
+  async function handleRequestOtp() {
+    if (!email.trim()) { toast.error("Enter an admin email address"); return; }
+    setBusy(true);
+    try {
+      await requestOtpFn({ data: { email: email.trim() } });
+      setFlow("otp_sent");
+      toast.success("OTP sent — check your email");
+    } catch (e: any) { toast.error(e?.message ?? "OTP request failed"); }
+    finally { setBusy(false); }
+  }
+
+  async function handleVerifyOtp() {
+    if (!otp.trim()) { toast.error("Enter the OTP from your email"); return; }
+    setBusy(true);
+    try {
+      await verifyOtpFn({ data: { email: email.trim(), otp: otp.trim() } });
+      setFlow("connected");
+      setOtp("");
+      toast.success("WeeBespoke AI Enterprise connected");
+      qc.invalidateQueries({ queryKey: ["wbs-enterprise-status"] });
+      qc.invalidateQueries({ queryKey: ["wbs-status"] });
+    } catch (e: any) { toast.error(e?.message ?? "OTP verification failed"); }
+    finally { setBusy(false); }
+  }
+
+  async function handleDisconnect() {
+    if (!confirm("Disconnect WeeBespoke AI Enterprise and clear all cached data?")) return;
+    setBusy(true);
+    try {
+      await disconnectFn();
+      setFlow("idle");
+      setEmail(""); setOtp("");
+      toast.success("Disconnected");
+      qc.invalidateQueries({ queryKey: ["wbs-enterprise-status"] });
+    } catch (e: any) { toast.error(e?.message ?? "Disconnect failed"); }
+    finally { setBusy(false); }
+  }
+
+  async function handleSync(type: "cars" | "buyers" | "dealers") {
+    setBusy(true);
+    try {
+      const fn = type === "cars" ? syncCarsFn : type === "buyers" ? syncBuyersFn : syncDealersFn;
+      const res = await fn();
+      toast.success(`Synced ${(res as any).count} ${type} from WeeBespoke AI`);
+      qc.invalidateQueries({ queryKey: ["wbs-enterprise-status"] });
+    } catch (e: any) { toast.error(e?.message ?? `${type} sync failed`); }
+    finally { setBusy(false); }
+  }
+
+  const stat = statusQ.data;
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/[0.04] border border-white/[0.06]">
+          <Building2 className="h-3.5 w-3.5 text-violet-400" />
+        </div>
+        <h2 className="text-sm font-semibold">Enterprise Integrations</h2>
+        <span className="text-[10px] text-muted-foreground">isolated from platform data</span>
+      </div>
+
+      <div className="rounded-xl border border-white/[0.06] bg-card/60 p-4 space-y-4">
+        {/* Header row */}
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 border border-violet-500/20 shrink-0">
+            <Building2 className="h-4 w-4 text-violet-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-semibold">WeeBespoke AI Enterprise</span>
+              <span className="text-[10px] text-muted-foreground">Webuyanyhouse</span>
+              <span className={cn(
+                "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border",
+                isConnected
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  : isOtpSent
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                  : "bg-muted text-muted-foreground border-border",
+              )}>
+                {isConnected ? "Connected" : isOtpSent ? "OTP Sent" : "Disconnected"}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Vehicle marketplace CRM backend — data stays isolated under the Webuyanyhouse client profile.
+            </p>
+          </div>
+          {isConnected && (
+            <Link
+              to="/enterprise/webuyanyhouse"
+              className="text-[11px] text-violet-400 hover:text-violet-300 underline underline-offset-2 shrink-0"
+            >
+              View client data →
+            </Link>
+          )}
+        </div>
+
+        {/* Connected state */}
+        {isConnected ? (
+          <div className="space-y-3">
+            {stat && (
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {([
+                  { icon: Car,       label: "Cars",    count: stat.carsCount    },
+                  { icon: Users,     label: "Buyers",  count: stat.buyersCount  },
+                  { icon: UserCheck, label: "Dealers", count: stat.dealersCount },
+                ]).map(c => (
+                  <div key={c.label} className="rounded-lg bg-muted/40 p-2">
+                    <p className="text-[10px] text-muted-foreground mb-0.5">{c.label}</p>
+                    <p className="text-sm font-semibold">{c.count}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {stat?.userEmail && (
+              <p className="text-[11px] text-muted-foreground">
+                Logged in as <span className="font-medium">{stat.userEmail}</span>
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={busy} onClick={() => handleSync("cars")}>
+                <Car className="w-3 h-3" />Sync Cars
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={busy} onClick={() => handleSync("buyers")}>
+                <Users className="w-3 h-3" />Sync Buyers
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={busy} onClick={() => handleSync("dealers")}>
+                <UserCheck className="w-3 h-3" />Sync Dealers
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-destructive hover:text-destructive ml-auto" disabled={busy} onClick={handleDisconnect}>
+                {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <PowerOff className="w-3 h-3" />}
+                Disconnect
+              </Button>
+            </div>
+          </div>
+        ) : isOtpSent ? (
+          /* OTP verify step */
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              OTP sent to <span className="font-medium">{email || "your email"}</span>. Enter the code below.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                className="h-8 text-sm flex-1 max-w-[200px]"
+                placeholder="123456"
+                value={otp}
+                onChange={e => setOtp(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleVerifyOtp()}
+              />
+              <Button size="sm" className="h-8 text-xs" disabled={busy || !otp.trim()} onClick={handleVerifyOtp}>
+                {busy ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                Verify OTP
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setFlow("idle")}>
+                Back
+              </Button>
+            </div>
+          </div>
+        ) : (
+          /* Connect step */
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                className="h-8 text-sm flex-1 max-w-[280px]"
+                type="email"
+                placeholder="admin@webespokeai.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleRequestOtp()}
+              />
+              <Button size="sm" className="h-8 text-xs" disabled={busy || !email.trim()} onClick={handleRequestOtp}>
+                {busy ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                Send OTP
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Enter the WeeBespoke AI admin email. An OTP will be sent — tokens are stored server-side only.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const CATEGORY_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   llm:         { label: "LLM / AI Models",   icon: Cpu,           color: "text-violet-400" },
@@ -809,6 +1032,9 @@ function ProvidersSettingsPage() {
                 </div>
               ))}
             </div>
+
+            {/* Enterprise Integrations section */}
+            <WebespokeEnterpriseSection />
 
             {/* Category sections */}
             {categoryOrder.map((cat) => {

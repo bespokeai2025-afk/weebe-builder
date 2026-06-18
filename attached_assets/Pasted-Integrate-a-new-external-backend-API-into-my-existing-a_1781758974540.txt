@@ -1,0 +1,285 @@
+Integrate a new external backend API into my existing app.
+
+Backend API base URL:
+https://uat-api.webespokeai.com
+
+Create a new isolated integration called:
+WebespokeAI Enterprise
+
+This integration must appear in the Integrations panel only, and its data must be shown only under a client register/client profile called:
+Webuyanyhouse
+
+Important:
+Do not merge this data into my existing dashboard, HiveMind, normal CRM, leads, calls, analytics, or global workspace data.
+Do not interfere with existing Retell, Supabase, OpenAI, Twilio, Cal.com, WhatsApp, HiveMind, or dashboard logic.
+This must be a separate enterprise integration module.
+
+Build the integration in this order:
+
+1. Create API client
+
+Create a server-side API client file:
+
+src/lib/integrations/webespokeEnterprise/client.server.ts
+
+Use:
+
+BASE_URL = "https://uat-api.webespokeai.com"
+
+The client must support:
+
+Authentication:
+POST /admin/auth/request-otp
+Body:
+{ "email": "..." }
+
+POST /admin/auth/verify-otp
+Body:
+{ "email": "...", "otp": "..." }
+
+POST /admin/refresh-token
+Body:
+{ "refreshToken": "..." }
+
+Cars:
+GET /product/carRoutes/get_cars_by_admin
+PUT /product/carRoutes/update_car_by_Admin/:id
+PATCH /product/carRoutes/update_car_images/:id
+POST /product/carRoutes/cars_by_dealerid_for_admin
+Body:
+{ "dealerId": "<id>" }
+
+Buyers:
+GET /buyer/buyerRoute/get-all-buyers
+
+Dealers:
+GET /dealer/auth/get-all-dealers
+
+Bikes:
+Add placeholder client methods using the same route pattern under:
+/product/bikeRoutes/
+
+Spare Parts:
+Add placeholder client methods using the same route pattern under:
+/product/sparePartsRoutes/
+
+2. Authentication flow
+
+Add a secure authentication flow for WebespokeAI Enterprise:
+
+Step 1:
+Admin enters email.
+
+Step 2:
+Call:
+POST /admin/auth/request-otp
+
+Step 3:
+Show OTP input.
+
+Step 4:
+Call:
+POST /admin/auth/verify-otp
+
+Step 5:
+Save returned:
+accessToken
+refreshToken
+user
+
+Tokens must be stored server-side only.
+Do not expose tokens to the browser.
+Do not store these tokens in localStorage.
+
+If the app already has a workspace_settings or integration_settings table, store the encrypted tokens there against:
+integration_key = "webespoke_enterprise"
+client_name = "Webuyanyhouse"
+
+If no suitable table exists, create one using Supabase migration:
+
+enterprise_integrations:
+- id uuid primary key
+- workspace_id uuid nullable
+- client_name text not null
+- integration_key text not null
+- access_token text
+- refresh_token text
+- user_payload jsonb
+- status text default 'disconnected'
+- created_at timestamptz default now()
+- updated_at timestamptz default now()
+
+Add RLS so only the correct workspace/admin can access it.
+
+3. Auto refresh token logic
+
+Every authenticated API request must include:
+
+Authorization: Bearer <accessToken>
+
+If any request returns 401:
+- call POST /admin/refresh-token with the stored refreshToken
+- save the new accessToken
+- retry the original request once
+- if retry still fails, mark integration as disconnected and show a reconnect message
+
+4. Server routes/actions
+
+Create server-side actions/routes for:
+
+requestWebespokeEnterpriseOtp(email)
+verifyWebespokeEnterpriseOtp(email, otp)
+getWebespokeEnterpriseStatus()
+disconnectWebespokeEnterprise()
+syncWebespokeEnterpriseCars()
+syncWebespokeEnterpriseBuyers()
+syncWebespokeEnterpriseDealers()
+getWebespokeEnterpriseCars()
+getWebespokeEnterpriseBuyers()
+getWebespokeEnterpriseDealers()
+
+All external API calls must happen server-side only.
+
+5. Integrations panel UI
+
+In the Integrations panel, add a new card:
+
+Title:
+WebespokeAI Enterprise
+
+Subtitle:
+Vehicle marketplace CRM backend for Webuyanyhouse
+
+Status states:
+Disconnected
+OTP Sent
+Connected
+Token Expired
+Sync Failed
+
+Buttons:
+Connect
+Verify OTP
+Sync Cars
+Sync Buyers
+Sync Dealers
+Disconnect
+
+The connect flow:
+- user enters admin/superadmin email
+- clicks Send OTP
+- enters OTP
+- clicks Verify
+- if successful, show Connected
+
+6. Client register section
+
+Create or update a client register/profile called:
+
+Webuyanyhouse
+
+Inside that client profile only, add a tab or section called:
+
+Enterprise Data
+
+Inside Enterprise Data, show:
+
+Cars
+Buyers
+Dealers
+Bikes
+Spare Parts
+
+For now, implement live views for:
+Cars
+Buyers
+Dealers
+
+Bikes and Spare Parts can show:
+"Coming soon - endpoint pattern prepared"
+
+7. Data display
+
+Cars table should show sensible available fields returned by the API, including fallback-safe rendering.
+
+Buyers table should show:
+name
+email
+phone
+created date
+status if available
+
+Dealers table should show:
+dealer name
+email
+phone
+company
+status if available
+
+Because the exact response shape may vary, build flexible render helpers that safely handle missing fields.
+
+Do not crash if fields are missing.
+Show raw JSON in an expandable "View Raw Data" drawer for each record.
+
+8. Isolation rule
+
+This integration data must stay separate from my normal dashboard data.
+
+Do not insert vehicle marketplace cars, buyers, or dealers into my normal leads, qualified, calls, contacts, or HiveMind tables.
+
+Only store cached copies if needed in a dedicated table:
+
+webespoke_enterprise_cache:
+- id uuid primary key
+- workspace_id uuid nullable
+- client_name text not null default 'Webuyanyhouse'
+- data_type text not null
+- external_id text nullable
+- payload jsonb not null
+- synced_at timestamptz default now()
+
+data_type values:
+cars
+buyers
+dealers
+bikes
+spare_parts
+
+9. Error handling
+
+Add clear user-facing errors for:
+- OTP request failed
+- OTP verification failed
+- token expired
+- refresh token failed
+- API unavailable
+- unauthorized role
+- empty data returned
+
+10. Security
+
+Do not expose:
+accessToken
+refreshToken
+API response headers
+server logs with tokens
+
+Do not hardcode admin email or OTP.
+Do not use localStorage for tokens.
+Do not call this API directly from frontend components.
+
+11. Final test requirements
+
+After implementation, verify:
+
+- WebespokeAI Enterprise appears in Integrations panel
+- OTP request works
+- OTP verification stores tokens securely
+- Connected status is displayed
+- Cars sync works from GET /product/carRoutes/get_cars_by_admin
+- Buyers sync works from GET /buyer/buyerRoute/get-all-buyers
+- Dealers sync works from GET /dealer/auth/get-all-dealers
+- Data appears only under Webuyanyhouse > Enterprise Data
+- Existing dashboard and HiveMind are untouched
+- 401 refresh-token retry works
+- Disconnect removes/clears saved tokens
