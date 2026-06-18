@@ -110,3 +110,43 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
     if (!res.ok) throw new Error(res.error ?? "Failed to delete campaign");
     return res.data;
   });
+
+// ── Call Logs — read from synced leads table (workspace-scoped) ───────────────
+
+export const getWbahCallLogs = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // Verify the user has access to the webuyanyhouse workspace
+    const { data: memberships } = await (supabaseAdmin as any)
+      .from("workspace_members")
+      .select("workspace_id, workspaces(id, slug)")
+      .eq("user_id", context.userId);
+
+    const wbahMembership = (memberships ?? []).find(
+      (m: any) => m.workspaces?.slug === "webuyanyhouse",
+    );
+    if (!wbahMembership) throw new Error("Access denied");
+
+    const wsId = wbahMembership.workspace_id as string;
+
+    // Leads synced from /call-output-data/get-userCall-lead are stored as call logs
+    const { data: rows, error } = await (supabaseAdmin as any)
+      .from("leads")
+      .select("id, full_name, phone, call_status, sentiment, call_summary, callback_date, created_at, metadata")
+      .eq("workspace_id", wsId)
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as Array<{
+      id: string;
+      full_name: string | null;
+      phone: string | null;
+      call_status: string | null;
+      sentiment: string | null;
+      call_summary: string | null;
+      callback_date: string | null;
+      created_at: string | null;
+      metadata: Record<string, unknown> | null;
+    }>;
+  });

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -14,14 +14,17 @@ import {
   RefreshCw,
   StickyNote,
   X,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
+import { getWbahCallLogs } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -227,7 +230,31 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
 }
 
 function CallsPage() {
-  const [tab, setTab] = useState<"live" | "test">("live");
+  const [tab, setTab] = useState<"live" | "test" | "wbah">("live");
+  const [isWbah, setIsWbah] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("default_workspace_id")
+          .eq("user_id", sess.session.user.id)
+          .maybeSingle();
+        if (!profile?.default_workspace_id || !active) return;
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("slug")
+          .eq("id", profile.default_workspace_id)
+          .maybeSingle();
+        if (active) setIsWbah(ws?.slug === "webuyanyhouse");
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
 
   const fn = useServerFn(listCalls);
   const q = useQuery({
@@ -286,6 +313,20 @@ function CallsPage() {
         <div className="flex items-center gap-2">
           {/* Tab switcher */}
           <div className="flex items-center rounded-lg border border-white/[0.06] bg-card/40 p-0.5">
+            {isWbah && (
+              <button
+                onClick={() => setTab("wbah")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                  tab === "wbah"
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Building2 className="h-3 w-3" />
+                WeeBespoke Calls
+              </button>
+            )}
             <button
               onClick={() => setTab("live")}
               className={cn(
@@ -322,13 +363,15 @@ function CallsPage() {
             size="sm"
             className="h-8 gap-1.5 text-xs"
             onClick={() => (tab === "live" ? q.refetch() : testQ.refetch())}
-            disabled={isRefetching}
+            disabled={isRefetching || tab === "wbah"}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isRefetching && "animate-spin")} />
             Refresh
           </Button>
         </div>
       </div>
+
+      {tab === "wbah" && <WbahCallLogsSection />}
 
       {tab === "live" ? (
         <>
@@ -530,6 +573,134 @@ function CallsPage() {
           leadId={panel.leadId}
         />
       )}
+    </div>
+  );
+}
+
+// ── WeeBespoke Call Logs (only shown for webuyanyhouse workspace) ──────────────
+
+function wbahCallStatusClass(s?: string | null) {
+  if (!s) return "bg-muted/40 text-muted-foreground";
+  const v = s.toLowerCase();
+  if (v === "completed" || v === "answered" || v === "called") return "bg-emerald-500/15 text-emerald-400";
+  if (v === "failed" || v === "no_answer" || v === "busy") return "bg-destructive/15 text-destructive";
+  if (v === "callback" || v === "pending") return "bg-amber-500/15 text-amber-400";
+  if (v === "in_progress" || v === "ringing") return "bg-primary/15 text-primary";
+  return "bg-muted/40 text-muted-foreground";
+}
+
+function wbahSentimentClass(v?: string | null) {
+  if (v === "positive") return "bg-emerald-500/15 text-emerald-400";
+  if (v === "negative") return "bg-destructive/15 text-destructive";
+  if (v === "neutral") return "bg-muted text-muted-foreground";
+  return "";
+}
+
+function WbahCallLogsSection() {
+  const getFn = useServerFn(getWbahCallLogs);
+  const { data: rows = [], isLoading, error, refetch, isFetching } = useQuery({
+    queryKey: ["wbah-call-logs"],
+    queryFn: () => getFn(),
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const completed = rows.filter(r => {
+    const v = (r.call_status ?? "").toLowerCase();
+    return v === "completed" || v === "answered" || v === "called";
+  }).length;
+  const withCallback = rows.filter(r => r.callback_date).length;
+  const positive = rows.filter(r => r.sentiment === "positive").length;
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
+      <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Loading WeeBespoke call logs…
+    </div>
+  );
+
+  if (error) return (
+    <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+      {(error as Error).message}
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <Building2 className="h-3.5 w-3.5" />
+          Call records synced from WeeBespoke AI — Webuyanyhouse workspace
+        </p>
+        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} /> Refresh
+        </Button>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiCard label="Total Records" value={rows.length} icon={Phone} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+        <KpiCard label="Completed" value={completed} icon={Phone} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
+        <KpiCard label="Callbacks Needed" value={withCallback} icon={Phone} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
+        <KpiCard label="Positive Sentiment" value={positive} icon={Phone} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-16">
+            <Building2 className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm font-medium">No call records synced yet</p>
+            <p className="text-xs text-muted-foreground">Run a sync from the admin panel to import WeeBespoke call data.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/[0.06] bg-card/30">
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Call Status</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Callback Date</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Synced</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                    <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{r.full_name ?? "—"}</td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.phone ?? "—"}</td>
+                    <td className="px-3 py-1.5">
+                      {r.call_status ? (
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", wbahCallStatusClass(r.call_status))}>
+                          {r.call_status.replace(/_/g, " ")}
+                        </span>
+                      ) : <span className="text-[11px] text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      {r.sentiment ? (
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", wbahSentimentClass(r.sentiment))}>
+                          {r.sentiment}
+                        </span>
+                      ) : <span className="text-[11px] text-muted-foreground">—</span>}
+                    </td>
+                    <td className="max-w-[280px] px-3 py-1.5 text-xs text-muted-foreground">
+                      <SummaryTooltip text={r.call_summary} lines={2} />
+                    </td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                      {r.callback_date ? new Date(r.callback_date).toLocaleDateString() : "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
+                      <RelativeTime date={r.created_at} fallback="—" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
