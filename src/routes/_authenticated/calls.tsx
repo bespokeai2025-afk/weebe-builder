@@ -17,6 +17,7 @@ import {
   Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
@@ -306,7 +307,7 @@ function CallsPage() {
   }, [wbahQ.data]);
 
   const rows = (isWbah ? wbahRows : (q.data ?? [])) as any[];
-  const callsPag = useTablePagination(rows, 25);
+  const callsPag = useTablePagination(filteredRows, 25);
 
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
@@ -322,6 +323,27 @@ function CallsPage() {
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [callTypeFilter, setCallTypeFilter] = useState("");
+  const [sentimentFilter, setSentimentFilter] = useState("");
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((r: any) => {
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const name = (r.wbah_name ?? r.lead?.full_name ?? r.to_number ?? r.from_number ?? "").toLowerCase();
+        const phone = (r.wbah_contact ?? r.to_number ?? r.from_number ?? "").toLowerCase();
+        if (!name.includes(q) && !phone.includes(q)) return false;
+      }
+      if (statusFilter && r.call_status !== statusFilter) return false;
+      if (callTypeFilter && r.call_type !== callTypeFilter) return false;
+      if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
+      return true;
+    });
+  }, [rows, search, statusFilter, callTypeFilter, sentimentFilter]);
+
+  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter;
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
@@ -442,6 +464,64 @@ function CallsPage() {
             <KpiCard label="Completed" value={completed} icon={Phone} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
             <KpiCard label="Failed" value={failed} icon={Phone} iconBg="bg-red-500/15" iconColor="text-red-400" />
             <KpiCard label="Total Talk" value={fmtDuration(totalSec)} icon={Phone} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+          </div>
+
+          {/* Filter bar */}
+          <div className="mb-3 flex items-center gap-2 flex-wrap">
+            <Input
+              placeholder="Search name or phone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-7 w-44 text-xs"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+            >
+              <option value="">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="no_answer">No Answer</option>
+              <option value="busy">Busy</option>
+              <option value="voicemail">Voicemail</option>
+            </select>
+            {!isWbah && (
+              <select
+                value={callTypeFilter}
+                onChange={(e) => setCallTypeFilter(e.target.value)}
+                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                <option value="">All Types</option>
+                <option value="inbound">Inbound</option>
+                <option value="outbound">Outbound</option>
+              </select>
+            )}
+            <select
+              value={sentimentFilter}
+              onChange={(e) => setSentimentFilter(e.target.value)}
+              className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+            >
+              <option value="">All Sentiments</option>
+              <option value="positive">Positive</option>
+              <option value="neutral">Neutral</option>
+              <option value="negative">Negative</option>
+            </select>
+            {hasCallFilters && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); }}
+              >
+                Clear filters
+              </Button>
+            )}
+            {hasCallFilters && (
+              <span className="text-[11px] text-muted-foreground">
+                {filteredRows.length} of {rows.length}
+              </span>
+            )}
           </div>
 
           {/* Calls table */}

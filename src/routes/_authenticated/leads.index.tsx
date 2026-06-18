@@ -180,6 +180,9 @@ function LeadsPage() {
 
   const [tab, setTab] = useState<"leads" | "campaigns">("leads");
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sentimentFilter, setSentimentFilter] = useState("");
+  const [callStatusFilter, setCallStatusFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
   const [qualAgentId, setQualAgentId] = useState<string>("");
@@ -247,15 +250,27 @@ function LeadsPage() {
   );
 
   const filtered = leads.filter((l: any) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      (l.full_name ?? "").toLowerCase().includes(q) ||
-      (l.phone ?? "").includes(q) ||
-      (l.email ?? "").toLowerCase().includes(q) ||
-      (l.company_name ?? "").toLowerCase().includes(q)
-    );
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      if (!(
+        (l.full_name ?? "").toLowerCase().includes(q) ||
+        (l.phone ?? "").includes(q) ||
+        (l.email ?? "").toLowerCase().includes(q) ||
+        (l.company_name ?? "").toLowerCase().includes(q)
+      )) return false;
+    }
+    if (statusFilter && l.status !== statusFilter) return false;
+    if (sentimentFilter && l.sentiment !== sentimentFilter) return false;
+    if (callStatusFilter) {
+      const cs = isRetell
+        ? l.retell_call?.call_status
+        : (isWbah ? l.meta?.call_status : null);
+      if (cs !== callStatusFilter) return false;
+    }
+    return true;
   });
+
+  const hasLeadFilters = search.trim() || statusFilter || sentimentFilter || callStatusFilter;
 
   const positive = leads.filter((l: any) => l.sentiment === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -478,7 +493,7 @@ function LeadsPage() {
                 <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selectedIds.size} selected</span>
               )}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {selectedIds.size > 0 && (
                 <Button
                   size="sm"
@@ -493,8 +508,51 @@ function LeadsPage() {
                 placeholder="Search name, phone, email…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-7 w-48 text-xs"
+                className="h-7 w-44 text-xs"
               />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                <option value="">All Statuses</option>
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <select
+                value={sentimentFilter}
+                onChange={(e) => setSentimentFilter(e.target.value)}
+                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                <option value="">All Sentiments</option>
+                <option value="positive">Positive</option>
+                <option value="neutral">Neutral</option>
+                <option value="negative">Negative</option>
+              </select>
+              {(isRetell || isWbah) && (
+                <select
+                  value={callStatusFilter}
+                  onChange={(e) => setCallStatusFilter(e.target.value)}
+                  className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                >
+                  <option value="">All Call Statuses</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                  <option value="no_answer">No Answer</option>
+                  <option value="busy">Busy</option>
+                </select>
+              )}
+              {hasLeadFilters && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => { setSearch(""); setStatusFilter(""); setSentimentFilter(""); setCallStatusFilter(""); }}
+                >
+                  Clear filters
+                </Button>
+              )}
             </div>
           </div>
           <div className="p-0">
