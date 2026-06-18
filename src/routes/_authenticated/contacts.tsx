@@ -145,6 +145,7 @@ function WbahLeadsSection() {
   const [showFilters, setShowFilters]   = useState(false);
   const [sentFilters, setSentFilters]   = useState<Set<string>>(new Set());
   const [agentFilters, setAgentFilters] = useState<Set<string>>(new Set());
+  const [typeFilters, setTypeFilters]   = useState<Set<string>>(new Set());
 
   const getFn = useServerFn(listWbahLeads);
 
@@ -159,20 +160,37 @@ function WbahLeadsSection() {
   const records = (data ?? []) as any[];
 
   const uniqueAgents = useMemo(() => {
-    const names = new Set<string>();
-    for (const r of records) {
-      if (r.agentName) names.add(r.agentName);
-    }
-    return [...names].sort();
+    const s = new Set<string>();
+    for (const r of records) if (r.agentName) s.add(r.agentName);
+    return [...s].sort();
   }, [records]);
 
-  const activeFilterCount = sentFilters.size + agentFilters.size;
+  const uniqueTypes = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of records) if (r.type) s.add(r.type);
+    return [...s].sort();
+  }, [records]);
+
+  // Business rule: "Qualified" type always shows only Positive sentiment
+  const qualifiedSelected = [...typeFilters].some(t => t.toLowerCase() === "qualified");
+
+  const activeFilterCount = sentFilters.size + agentFilters.size + typeFilters.size;
 
   const filtered = useMemo(() => {
     let out = records;
     const q = search.trim().toLowerCase();
     if (q) out = out.filter((r: any) =>
       r.name?.toLowerCase().includes(q) || r.contact?.toLowerCase().includes(q));
+    if (typeFilters.size > 0) out = out.filter((r: any) =>
+      typeFilters.has(r.type ?? "Lead"));
+    // Business rule: any Qualified record only shows if sentiment is Positive
+    out = out.filter((r: any) => {
+      const isQualified = (r.type ?? "").toLowerCase() === "qualified";
+      if (isQualified) {
+        return (r.sentiment ?? "").toLowerCase().includes("positive");
+      }
+      return true;
+    });
     if (sentFilters.size > 0) out = out.filter((r: any) => {
       const s = (r.sentiment ?? "").toString().toLowerCase();
       return [...sentFilters].some(f => s.includes(f.toLowerCase()));
@@ -180,7 +198,7 @@ function WbahLeadsSection() {
     if (agentFilters.size > 0) out = out.filter((r: any) =>
       agentFilters.has(r.agentName ?? ""));
     return out;
-  }, [records, search, sentFilters, agentFilters]);
+  }, [records, search, typeFilters, sentFilters, agentFilters]);
 
   function toggleSent(v: string) {
     setSentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
@@ -188,7 +206,10 @@ function WbahLeadsSection() {
   function toggleAgent(v: string) {
     setAgentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
   }
-  function clearFilters() { setSentFilters(new Set()); setAgentFilters(new Set()); }
+  function toggleType(v: string) {
+    setTypeFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
+  }
+  function clearFilters() { setSentFilters(new Set()); setAgentFilters(new Set()); setTypeFilters(new Set()); }
 
   const sentimentDot: Record<string, string> = {
     positive: "bg-emerald-400",
@@ -236,7 +257,7 @@ function WbahLeadsSection() {
         </div>
       )}
 
-      {/* Toolbar: search + filter toggle + count + refresh */}
+      {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[160px] max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -247,8 +268,6 @@ function WbahLeadsSection() {
             className="h-7 pl-8 text-xs"
           />
         </div>
-
-        {/* Filter toggle */}
         <button
           onClick={() => setShowFilters(v => !v)}
           className={cn(
@@ -266,7 +285,6 @@ function WbahLeadsSection() {
             </span>
           )}
         </button>
-
         <p className="ml-auto text-[11px] text-muted-foreground flex items-center gap-1.5 shrink-0">
           <Building2 className="h-3.5 w-3.5" />
           {records.length > 0
@@ -281,17 +299,48 @@ function WbahLeadsSection() {
       {/* Filter panel */}
       {showFilters && (
         <div className="rounded-xl border border-white/[0.06] bg-card/50 px-4 py-3 flex flex-wrap gap-x-8 gap-y-3">
+
+          {/* Type */}
+          {uniqueTypes.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</p>
+              <div className="flex flex-col gap-1">
+                {uniqueTypes.map(t => {
+                  const isQual = t.toLowerCase() === "qualified";
+                  return (
+                    <label key={t} className="flex items-center gap-2 cursor-pointer select-none group">
+                      <input type="checkbox" className="sr-only" checked={typeFilters.has(t)} onChange={() => toggleType(t)} />
+                      <span className={cn(
+                        "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
+                        typeFilters.has(t) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
+                      )}>
+                        {typeFilters.has(t) && <span className="block h-1.5 w-1.5 rounded-sm bg-primary-foreground" />}
+                      </span>
+                      <span className="text-xs text-foreground/80 whitespace-nowrap">{t}</span>
+                      {isQual && (
+                        <span className="text-[9px] font-medium px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400 whitespace-nowrap">
+                          Positive only
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Sentiment */}
           <div className="flex flex-col gap-1.5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</p>
             <div className="flex flex-col gap-1">
               {SENTIMENTS.map(s => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer select-none group">
+                <label key={s} className={cn("flex items-center gap-2 cursor-pointer select-none group", qualifiedSelected && "opacity-40 pointer-events-none")}>
                   <input
                     type="checkbox"
                     className="sr-only"
                     checked={sentFilters.has(s)}
                     onChange={() => toggleSent(s)}
+                    disabled={qualifiedSelected}
                   />
                   <span className={cn(
                     "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
@@ -303,6 +352,9 @@ function WbahLeadsSection() {
                   <span className="text-xs text-foreground/80">{s}</span>
                 </label>
               ))}
+              {qualifiedSelected && (
+                <p className="text-[10px] text-emerald-400/80 mt-0.5">Locked to Positive for Qualified</p>
+              )}
             </div>
           </div>
 
@@ -313,12 +365,7 @@ function WbahLeadsSection() {
               <div className="flex flex-col gap-1 max-h-36 overflow-y-auto pr-1">
                 {uniqueAgents.map(agent => (
                   <label key={agent} className="flex items-center gap-2 cursor-pointer select-none group">
-                    <input
-                      type="checkbox"
-                      className="sr-only"
-                      checked={agentFilters.has(agent)}
-                      onChange={() => toggleAgent(agent)}
-                    />
+                    <input type="checkbox" className="sr-only" checked={agentFilters.has(agent)} onChange={() => toggleAgent(agent)} />
                     <span className={cn(
                       "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
                       agentFilters.has(agent) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
@@ -335,10 +382,7 @@ function WbahLeadsSection() {
           {/* Clear */}
           {activeFilterCount > 0 && (
             <div className="flex items-end">
-              <button
-                onClick={clearFilters}
-                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-              >
+              <button onClick={clearFilters} className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
                 Clear all
               </button>
             </div>
