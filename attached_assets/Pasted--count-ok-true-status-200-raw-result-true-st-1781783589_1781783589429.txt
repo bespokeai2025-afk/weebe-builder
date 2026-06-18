@@ -1,0 +1,246 @@
+{
+  "count": {
+    "ok": true,
+    "status": 200,
+    "raw": {
+      "result": true,
+      "statuscode": 200,
+      "message": "User call detail count fetched successfully",
+      "data": {
+        "totalCall": {
+          "lead": 609,
+          "opportunity": 0
+        },
+        "successCounts": {
+          "lead": 328,
+          "opportunity": 0
+        },
+        "failureCounts": {
+          "lead": 20,
+          "opportunity": 0
+        },
+        "notConnectedCounts": {
+          "lead": 220,
+          "opportunity": 0
+        },
+        "needToCall": {
+          "lead": 601,
+          "opportunity": 0
+        }
+      }
+    }
+  },
+  "callsPage1": {
+    "label": "GET /get-all-calldata?page=1",
+    "ok": true,
+    "status": 200,
+    "recordCount": 50,
+    "topLevelKeys": [
+      "result",
+      "statuscode",
+      "message",
+      "data",
+      "pagination"
+    ],
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": [
+      "id",
+      "vendor_id",
+      "event",
+      "callId",
+      "callType",
+      "agentId",
+      "agentVersion",
+      "agentName"
+    ]
+  },
+  "callsPage2": {
+    "label": "GET /get-all-calldata?page=2",
+    "ok": true,
+    "status": 200,
+    "recordCount": 50,
+    "topLevelKeys": [
+      "result",
+      "statuscode",
+      "message",
+      "data",
+      "pagination"
+    ],
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": [
+      "id",
+      "vendor_id",
+      "event",
+      "callId",
+      "callType",
+      "agentId",
+      "agentVersion",
+      "agentName"
+    ]
+  },
+  "callsPage3": {
+    "label": "GET /get-all-calldata?page=3",
+    "ok": true,
+    "status": 200,
+    "recordCount": 50,
+    "topLevelKeys": [
+      "result",
+      "statuscode",
+      "message",
+      "data",
+      "pagination"
+    ],
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": [
+      "id",
+      "vendor_id",
+      "event",
+      "callId",
+      "callType",
+      "agentId",
+      "agentVersion",
+      "agentName"
+    ]
+  },
+  "callsNoParams": {
+    "label": "GET /get-all-calldata (no params)",
+    "ok": true,
+    "status": 200,
+    "recordCount": 50,
+    "topLevelKeys": [
+      "result",
+      "statuscode",
+      "message",
+      "data",
+      "pagination"
+    ],
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": [
+      "id",
+      "vendor_id",
+      "event",
+      "callId",
+      "callType",
+      "agentId",
+      "agentVersion",
+      "agentName"
+    ]
+  },
+  "callsAll": {
+    "label": "GET /call-output-data/all",
+    "ok": false,
+    "status": 404,
+    "recordCount": "N/A — raw is not an array under any known key",
+    "topLevelKeys": null,
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": null,
+    "rawWhenEmpty": null
+  },
+  "leadsPage1": {
+    "label": "GET /get-userCall-lead?page=1",
+    "ok": true,
+    "status": 200,
+    "recordCount": 50,
+    "topLevelKeys": [
+      "result",
+      "statuscode",
+      "message",
+      "data",
+      "pagination"
+    ],
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": [
+      "id",
+      "vendor_id",
+      "event",
+      "callId",
+      "callType",
+      "agentId",
+      "agentVersion",
+      "agentName"
+    ]
+  },
+  "leadsPage2": {
+    "label": "GET /get-userCall-lead?page=2",
+    "ok": true,
+    "status": 200,
+    "recordCount": 50,
+    "topLevelKeys": [
+      "result",
+      "statuscode",
+      "message",
+      "data",
+      "pagination"
+    ],
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": [
+      "id",
+      "vendor_id",
+      "event",
+      "callId",
+      "callType",
+      "agentId",
+      "agentVersion",
+      "agentName"
+    ]
+  },
+  "leadsLimit10k": {
+    "label": "GET /get-userCall-lead?limit=10000",
+    "ok": true,
+    "status": 200,
+    "recordCount": 50,
+    "topLevelKeys": [
+      "result",
+      "statuscode",
+      "message",
+      "data",
+      "pagination"
+    ],
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": [
+      "id",
+      "vendor_id",
+      "event",
+      "callId",
+      "callType",
+      "agentId",
+      "agentVersion",
+      "agentName"
+    ]
+  },
+  "crmData": {
+    "label": "GET /crm-data/get-crm-data",
+    "ok": true,
+    "status": 200,
+    "recordCount": 3720,
+    "topLevelKeys": [
+      "result",
+      "statuscode",
+      "message",
+      "data"
+    ],
+    "isArray": false,
+    "totalField": null,
+    "pageField": null,
+    "sampleKeys": [
+      "name",
+      "mobile_number"
+    ]
+  }
+}
