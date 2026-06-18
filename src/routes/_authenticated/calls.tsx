@@ -264,12 +264,16 @@ function CallsPage() {
     enabled: !isWbah,
   });
 
-  // WeeBespoke calls — fetches every page in parallel for WBAH workspace
+  // WeeBespoke calls — fetches every page in parallel for WBAH workspace.
+  // staleTime: 5 min so navigating away and back uses cached data instantly.
+  // refetchOnWindowFocus: false prevents a full re-fetch on every tab switch.
   const wbahFn = useServerFn(listWbahCalls);
   const wbahQ = useQuery({
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
     enabled: isWbah,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const rows = (isWbah ? (wbahQ.data ?? []) : (q.data ?? [])) as any[];
