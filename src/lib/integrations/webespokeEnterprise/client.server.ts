@@ -177,7 +177,7 @@ export const wbahGetAllCallData = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/get-all-calldata", gt, st);
 
 export const wbahGetAllCallDataPaged = (page: number, gt: GetTokens, st: SaveToken) =>
-  aGet<unknown>(`/call-output-data/get-all-calldata?page=${page}`, gt, st);
+  aGet<unknown>(`/call-output-data/get-all-calldata?currentPage=${page}`, gt, st);
 
 // ── Page-param discovery variants (used only by the diagnostic probe) ──────────
 export const wbahCallsParamTest = (paramName: string, value: number | string, gt: GetTokens, st: SaveToken) =>
@@ -197,7 +197,7 @@ export const wbahGetUserCallLead = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/get-userCall-lead", gt, st);
 
 export const wbahGetUserCallLeadPaged = (page: number, gt: GetTokens, st: SaveToken) =>
-  aGet<unknown>(`/call-output-data/get-userCall-lead?page=${page}`, gt, st);
+  aGet<unknown>(`/call-output-data/get-userCall-lead?currentPage=${page}`, gt, st);
 
 export const wbahGetUserCallLeadAll = (gt: GetTokens, st: SaveToken) =>
   aGet<unknown>(`/call-output-data/get-userCall-lead?limit=10000`, gt, st);
