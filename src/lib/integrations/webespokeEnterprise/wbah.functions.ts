@@ -300,24 +300,30 @@ async function upsertLeadsRows(rows: ReturnType<typeof buildLeadRow>[]): Promise
   const sb = supabaseAdmin as any;
   const workspaceId = rows[0].workspace_id;
 
-  // Fetch existing records by phone to determine insert vs update
+  // Fetch existing records — dedup by external ID first, then phone
   const { data: existing } = await sb
     .from("leads")
-    .select("id, phone")
+    .select("id, phone, meta")
     .eq("workspace_id", workspaceId)
     .eq("source", "import")
     .eq("source_detail", SOURCE_DETAIL);
 
-  const existingByPhone = new Map<string, string>(
-    (existing ?? []).map((l: any) => [String(l.phone).trim(), String(l.id)])
-  );
+  const byExternalId = new Map<string, string>();
+  const byPhone      = new Map<string, string>();
+  for (const l of existing ?? []) {
+    const extId = l.meta?.wbah_external_id;
+    if (extId) byExternalId.set(String(extId), String(l.id));
+    const phone = String(l.phone ?? "").trim();
+    if (phone) byPhone.set(phone, String(l.id));
+  }
 
   const toInsert: typeof rows = [];
   const toUpdate: Array<{ id: string } & (typeof rows)[0]> = [];
 
   for (const row of rows) {
-    const phone = String(row.phone).trim();
-    const existingId = phone ? existingByPhone.get(phone) : undefined;
+    const extId = row.meta?.wbah_external_id ? String(row.meta.wbah_external_id) : null;
+    const phone = String(row.phone ?? "").trim();
+    const existingId = (extId && byExternalId.get(extId)) ?? (phone && byPhone.get(phone)) ?? undefined;
     if (existingId) {
       toUpdate.push({ ...row, id: existingId });
     } else {
@@ -796,6 +802,62 @@ export async function runWbahLeadsSync(): Promise<{
 // ═══════════════════════════════════════════════════════════════════════════════
 // WORKSPACE SERVER FUNCTIONS (used by workspace-user checks)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+export const cleanupWbahDuplicateLeads = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requirePlatformAdmin])
+  .handler(async () => {
+    const sb = supabaseAdmin as any;
+    const workspaceId = await getWebuyanyhouseWorkspaceId();
+    if (!workspaceId) throw new Error("Webuyanyhouse workspace not found.");
+
+    // Fetch all WBAH leads in paginated chunks (Supabase cap = 1000/req)
+    const allLeads: { id: string; phone: string | null; meta: any; updated_at: string }[] = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      const { data, error } = await sb.from("leads")
+        .select("id, phone, meta, updated_at")
+        .eq("workspace_id", workspaceId)
+        .eq("source", "import")
+        .eq("source_detail", SOURCE_DETAIL)
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      if (!data || data.length === 0) break;
+      allLeads.push(...data);
+      if (data.length < PAGE) break;
+      from += PAGE;
+    }
+
+    // Group by external ID (primary) or phone (fallback) or raw id
+    const groups = new Map<string, { id: string; updated_at: string }[]>();
+    for (const l of allLeads) {
+      const extId = l.meta?.wbah_external_id ? `ext:${String(l.meta.wbah_external_id)}` : null;
+      const phone = String(l.phone ?? "").trim();
+      const key = extId ?? (phone ? `ph:${phone}` : `id:${l.id}`);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push({ id: l.id, updated_at: l.updated_at });
+    }
+
+    // Collect IDs to delete (all but the most-recently-updated per group)
+    const toDelete: string[] = [];
+    for (const recs of groups.values()) {
+      if (recs.length <= 1) continue;
+      const sorted = [...recs].sort(
+        (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+      );
+      toDelete.push(...sorted.slice(1).map((r) => r.id));
+    }
+
+    // Delete in batches of 200
+    for (let i = 0; i < toDelete.length; i += 200) {
+      const batch = toDelete.slice(i, i + 200);
+      const { error } = await sb.from("leads").delete().in("id", batch);
+      if (error) console.error("[wbah-cleanup] delete error:", error.message);
+    }
+
+    console.log(`[wbah-cleanup] removed ${toDelete.length} duplicates; ${allLeads.length - toDelete.length} unique leads remain`);
+    return { deleted: toDelete.length, remaining: allLeads.length - toDelete.length };
+  });
 
 export const checkWebuyanyhouseWorkspace = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

@@ -18,6 +18,7 @@ import {
   adminConnectWebuyanyhouseApi,
   adminDisconnectWebuyanyhouseApi,
   adminSyncWebuyanyhouseLeads,
+  cleanupWbahDuplicateLeads,
 } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
 import { wbahProbeApi } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 
@@ -85,6 +86,7 @@ function WebuyanyhouseAdminPanel() {
   const connectFn     = useServerFn(adminConnectWebuyanyhouseApi);
   const disconnectFn  = useServerFn(adminDisconnectWebuyanyhouseApi);
   const syncFn        = useServerFn(adminSyncWebuyanyhouseLeads);
+  const cleanupFn     = useServerFn(cleanupWbahDuplicateLeads);
   const probeFn       = useServerFn(wbahProbeApi);
 
   const [probing, setProbing]       = useState(false);
@@ -142,6 +144,17 @@ function WebuyanyhouseAdminPanel() {
       setProbeResult(r);
     } catch (e: any) { toast.error(e?.message ?? "Probe failed"); }
     finally { setProbing(false); }
+  }
+
+  async function handleCleanup() {
+    if (!confirm("This will permanently delete duplicate leads from the database, keeping one record per lead. Continue?")) return;
+    setBusy("cleanup");
+    try {
+      const r = await cleanupFn() as any;
+      toast.success(`Cleanup complete — removed ${r.deleted} duplicates, ${r.remaining} unique leads remain`);
+      invalidate();
+    } catch (e: any) { toast.error(e?.message ?? "Cleanup failed"); }
+    finally { setBusy(null); }
   }
 
   async function handleSync() {
@@ -332,16 +345,29 @@ function WebuyanyhouseAdminPanel() {
                     stores in Webuyanyhouse's isolated workspace.
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs gap-1.5 shrink-0"
-                  disabled={isBusy || !canSync}
-                  onClick={handleSync}
-                >
-                  {busy === "sync"
-                    ? <><Loader2 className="w-3 h-3 animate-spin" />Syncing…</>
-                    : <><RefreshCw className="w-3 h-3" />Sync Now</>}
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-rose-500/30 text-rose-400 hover:bg-rose-500/10 h-8 text-xs gap-1.5"
+                    disabled={isBusy}
+                    onClick={handleCleanup}
+                  >
+                    {busy === "cleanup"
+                      ? <><Loader2 className="w-3 h-3 animate-spin" />Cleaning…</>
+                      : <><RefreshCw className="w-3 h-3" />Remove Duplicates</>}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs gap-1.5"
+                    disabled={isBusy || !canSync}
+                    onClick={handleSync}
+                  >
+                    {busy === "sync"
+                      ? <><Loader2 className="w-3 h-3 animate-spin" />Syncing…</>
+                      : <><RefreshCw className="w-3 h-3" />Sync Now</>}
+                  </Button>
+                </div>
               </div>
 
               {/* Lead counts — sourced from standard leads table */}

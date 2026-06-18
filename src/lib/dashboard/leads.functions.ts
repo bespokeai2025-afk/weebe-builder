@@ -82,6 +82,14 @@ export const getOverviewStats = createServerFn({ method: "GET" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
+    // Detect WBAH workspace — it uses sentiment-based KPIs, not status-based
+    const { data: wsRow } = await (supabase as any)
+      .from("workspaces")
+      .select("slug")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    const isWbah = wsRow?.slug === "webuyanyhouse";
+
     const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes] = await Promise.all([
       (supabase as any)
         .from("leads" as never)
@@ -95,11 +103,18 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .from("calendar_bookings" as never)
         .select("id, status, start_at")
         .eq("workspace_id", workspaceId),
-      (supabase as any)
-        .from("leads" as never)
-        .select("id")
-        .eq("workspace_id", workspaceId)
-        .in("status", ["interested", "qualified"]),
+      // For WBAH: "qualified" = positive sentiment. For others: status-based.
+      isWbah
+        ? (supabase as any)
+            .from("leads" as never)
+            .select("id")
+            .eq("workspace_id", workspaceId)
+            .eq("sentiment", "positive")
+        : (supabase as any)
+            .from("leads" as never)
+            .select("id")
+            .eq("workspace_id", workspaceId)
+            .in("status", ["interested", "qualified"]),
       // Closed leads = status "not_interested" (displayed as "Closed" in the UI)
       (supabase as any)
         .from("leads" as never)

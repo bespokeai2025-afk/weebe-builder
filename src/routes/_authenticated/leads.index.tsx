@@ -307,7 +307,7 @@ function LeadsPage() {
 
   const hasLeadFilters = search.trim() || statusFilter || sentimentFilter || callStatusFilter;
 
-  const positive = leads.filter((l: any) => l.sentiment === "positive").length;
+  const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
   const avgScore =
     withScore.length > 0
