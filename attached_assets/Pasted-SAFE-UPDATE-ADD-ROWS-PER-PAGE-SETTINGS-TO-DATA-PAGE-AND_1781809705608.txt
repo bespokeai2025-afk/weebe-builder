@@ -1,0 +1,258 @@
+SAFE UPDATE: ADD ROWS-PER-PAGE SETTINGS TO DATA PAGE AND ALL DATA SUB-PAGES
+
+Important:
+
+Do not break the current Webuyanyhouse setup.
+
+Do not rebuild the Data page.
+
+Do not create new pages.
+
+Do not change API authentication.
+
+Do not change API endpoints.
+
+Do not change workspace isolation.
+
+Do not change sentiment or qualification logic.
+
+Do not affect other clients unless they already use the same reusable table component safely.
+
+Current issue:
+
+The Data page is showing all records in one continuous pull, for example 397 “Need To Call” records, instead of paginating them properly.
+
+Required change:
+
+Add a rows-per-page selector to the Data page and all sub-pages/tabs within the Data section.
+
+Rows-per-page options:
+
+10
+25
+50
+75
+100
+
+Default:
+
+50
+
+---
+
+1. CATALOGUE CURRENT DATA PAGE STRUCTURE FIRST
+
+---
+
+Before changing anything, inspect and document:
+
+* Data page route
+* Data page component file
+* all Data sub-pages/tabs
+* table components used
+* API/data hooks used
+* current pagination state
+* current filtering/search logic
+* current row selection logic
+* current bulk actions
+* current workspace guard
+* current permission guard
+
+Do not modify anything until this is catalogued.
+
+---
+
+2. APPLY TO ALL DATA SECTION VIEWS
+
+---
+
+Find every table/list inside the Data section, including sub-pages/tabs such as:
+
+* All Data
+* Need To Call
+* Tried To Contact
+* Disqualified
+* New Leads
+* Uploaded Data
+* Imported Data
+* Any other existing Data tab/sub-page
+
+Do not rename these unless already required elsewhere.
+
+Each table/list must support:
+
+* page number
+* rows per page
+* total count if available
+* next/previous controls
+* rows-per-page selector
+
+---
+
+3. ROWS-PER-PAGE BEHAVIOUR
+
+---
+
+Add selector options:
+
+10
+25
+50
+75
+100
+
+Default:
+
+50
+
+When rows per page changes:
+
+* reset current page to page 1
+* preserve current tab/sub-page
+* preserve current search
+* preserve current filters
+* preserve current sort
+* preserve selected workspace
+* preserve source/category filters
+
+Do not clear user filters unnecessarily.
+
+---
+
+4. SERVER-SIDE VS CLIENT-SIDE PAGINATION
+
+---
+
+If the Data page already loads all records client-side:
+
+* keep the existing data load untouched
+* paginate the displayed rows client-side
+* do not alter the API call
+* do not reduce records fetched unless there is already safe server-side support
+
+If the Data page already uses server-side pagination:
+
+* pass page and pageSize safely to the existing data service
+* preserve the existing response structure
+* do not change endpoint behaviour unless required
+
+Important distinction:
+
+It is acceptable to fetch 397 records if that is the current working setup.
+
+It is not acceptable to display all 397 at once.
+
+Paginate the display safely.
+
+---
+
+5. REUSE EXISTING TABLE COMPONENTS
+
+---
+
+If there is already a shared table component or pagination component used by:
+
+* People
+* Calls
+* Leads
+* Qualified Leads
+
+reuse it for the Data page where safe.
+
+Do not create a second table system.
+
+Do not duplicate pagination logic if reusable pagination already exists.
+
+If the Data page uses a different table structure, add the rows-per-page selector locally without disrupting the working table.
+
+---
+
+6. SELECTION AND BULK ACTION SAFETY
+
+---
+
+If the Data page has checkboxes or bulk actions:
+
+* preserve selected rows correctly
+* do not accidentally select all records across all pages unless that behaviour already exists
+* make it clear whether selection applies to current page or all filtered records
+* do not break delete/upload/start-calling actions
+
+If there is a “select all” function, confirm whether it means:
+
+* select visible page only
+  or
+* select all filtered records
+
+Do not change behaviour silently.
+
+---
+
+7. WEBUYANYHOUSE SCOPE
+
+---
+
+For Webuyanyhouse:
+
+Apply rows-per-page selector to the Data page and sub-pages so that “Need To Call” and similar tabs do not render hundreds of records at once.
+
+For other clients:
+
+Only apply this if the same reusable component safely supports it.
+
+Do not break other clients’ Data pages.
+
+---
+
+8. PERFORMANCE SAFETY
+
+---
+
+Rendering hundreds or thousands of records at once should be avoided.
+
+The UI should render only the selected page size.
+
+Example:
+
+If rowsPerPage = 50 and total records = 397:
+
+* show 50 rows
+* show page controls
+* show total 397 records
+* show page 1 of 8
+
+Do not render all 397 rows in the DOM at once.
+
+---
+
+9. FINAL VALIDATION
+
+---
+
+After implementation, confirm:
+
+* Data page loads successfully
+* All Data tab paginates correctly
+* Need To Call tab paginates correctly
+* Tried To Contact tab paginates correctly, if present
+* Disqualified tab paginates correctly, if present
+* New Leads tab paginates correctly, if present
+* Uploaded/Imported Data tab paginates correctly, if present
+* Rows-per-page options show 10, 25, 50, 75, 100
+* Default is 50
+* Changing rows per page resets to page 1
+* Search still works
+* Filters still work
+* Sorting still works
+* Bulk actions still work
+* Workspace isolation still works
+* Webuyanyhouse data still loads
+* Other clients are not broken
+
+Provide a final report listing:
+
+* files changed
+* tables updated
+* sub-pages/tabs found
+* pagination method used
+* any risks or follow-up items

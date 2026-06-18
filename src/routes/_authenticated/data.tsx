@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 import {
   listDataRecords,
@@ -504,6 +505,20 @@ function DataPage() {
   }, [records]);
 
   const allSelected = records.length > 0 && selected.size === records.length;
+
+  const wbahFiltered = useMemo(() => {
+    return wbahCallData.filter(r => {
+      if (wbahPeopleSearch) {
+        const q = wbahPeopleSearch.toLowerCase();
+        if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
+      }
+      return true;
+    });
+  }, [wbahCallData, wbahPeopleSearch]);
+
+  const recordsPag = useTablePagination(records);
+  const wbahPag    = useTablePagination(wbahFiltered);
+  const crmPag     = useTablePagination(crmPeople);
 
   function toggleAll() {
     if (allSelected) setSelected(new Set());
@@ -1117,15 +1132,18 @@ function DataPage() {
             </p>
           </div>
         ) : (
-          <DynamicDataTable
-            records={records}
-            agents={agents}
-            selected={selected}
-            allSelected={allSelected}
-            toggleAll={toggleAll}
-            toggleOne={toggleOne}
-            onReset={handleReset}
-          />
+          <>
+            <DynamicDataTable
+              records={recordsPag.sliced}
+              agents={agents}
+              selected={selected}
+              allSelected={allSelected}
+              toggleAll={toggleAll}
+              toggleOne={toggleOne}
+              onReset={handleReset}
+            />
+            <TablePagBar {...recordsPag} />
+          </>
         )}
       </div>
       </>
@@ -1354,20 +1372,13 @@ function DataPage() {
               </div>
             ) : (() => {
               const isSweepTab = wbahPeopleSubTab === "disqualified_sweep";
-              const filtered = wbahCallData.filter(r => {
-                if (wbahPeopleSearch) {
-                  const q = wbahPeopleSearch.toLowerCase();
-                  if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
-                }
-                return true;
-              });
 
               return (
                 <div className="overflow-x-auto">
                   {isSweepTab && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/5 border-b border-rose-500/10 text-[11px] text-rose-400">
                       <AlertCircle className="h-3 w-3" />
-                      Disqualified Sweep — review all {filtered.length} record{filtered.length !== 1 ? "s" : ""} and assign the qualification agent to disqualify leads
+                      Disqualified Sweep — review all {wbahFiltered.length} record{wbahFiltered.length !== 1 ? "s" : ""} and assign the qualification agent to disqualify leads
                     </div>
                   )}
                   <table className="w-full text-xs">
@@ -1375,10 +1386,10 @@ function DataPage() {
                       <tr className="border-b border-white/[0.06] bg-card/30">
                         <th className="w-8 px-3 py-2">
                           <Checkbox
-                            checked={filtered.length > 0 && filtered.every(r => wbahSelected.has(r.id))}
+                            checked={wbahFiltered.length > 0 && wbahFiltered.every(r => wbahSelected.has(r.id))}
                             onCheckedChange={(v) => {
-                              if (v) setWbahSelected(prev => new Set([...prev, ...filtered.map((r: any) => r.id)]));
-                              else setWbahSelected(prev => { const n = new Set(prev); filtered.forEach((r: any) => n.delete(r.id)); return n; });
+                              if (v) setWbahSelected(prev => new Set([...prev, ...wbahFiltered.map((r: any) => r.id)]));
+                              else setWbahSelected(prev => { const n = new Set(prev); wbahFiltered.forEach((r: any) => n.delete(r.id)); return n; });
                             }}
                           />
                         </th>
@@ -1388,7 +1399,7 @@ function DataPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map((r: any) => {
+                      {wbahPag.sliced.map((r: any) => {
                         const statusBadge   = wbahCallStatusBadge(r.callStatus);
                         const sentBadge     = wbahSentimentBadge(r.sentimentAnalysis);
                         const isSelected    = wbahSelected.has(r.id);
@@ -1495,7 +1506,8 @@ function DataPage() {
                       })}
                     </tbody>
                   </table>
-                  {filtered.length === 0 && (
+                  {wbahFiltered.length > 0 && <TablePagBar {...wbahPag} />}
+                  {wbahFiltered.length === 0 && (
                     <div className="flex flex-col items-center gap-2 py-12 text-sm text-muted-foreground">
                       <Search className="h-6 w-6" />
                       <p>No records match your filters</p>
@@ -1628,7 +1640,7 @@ function DataPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {crmPeople.map((p) => (
+                  {crmPag.sliced.map((p) => (
                     <tr
                       key={p.external_id}
                       className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
@@ -1662,6 +1674,7 @@ function DataPage() {
                   ))}
                 </tbody>
               </table>
+              <TablePagBar {...crmPag} />
             </div>
           )}
         </div>
