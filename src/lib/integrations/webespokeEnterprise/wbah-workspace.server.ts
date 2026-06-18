@@ -105,44 +105,63 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    const [countRes, callsP1Res, callsP2Res, leadsP1Res, leadsP2Res, unlimitedCallsRes, unlimitedLeadsRes] = await Promise.all([
+    const [
+      countRes, callsP1Res, callsP2Res, callsP3Res,
+      leadsP1Res, leadsP2Res,
+      unlimitedCallsRes, unlimitedLeadsRes,
+      callsAllRes, crmRes,
+    ] = await Promise.all([
       api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetAllCallDataPaged(2, cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetAllCallDataPaged(3, cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetUserCallLeadPaged(2, cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetAllCallData(cbs.getTokens, cbs.saveNewAccessToken),
       api.wbahGetUserCallLeadAll(cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetAllCallOutput(cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetCrmData(cbs.getTokens, cbs.saveNewAccessToken),
     ]);
 
     function summarise(res: any, label: string) {
       const raw = res.data as any;
+      // Try all known response shapes
       const arr = Array.isArray(raw) ? raw
-        : Array.isArray(raw?.data) ? raw.data
-        : Array.isArray(raw?.calls) ? raw.calls
-        : Array.isArray(raw?.leads) ? raw.leads
-        : Array.isArray(raw?.records) ? raw.records
+        : Array.isArray(raw?.data)       ? raw.data
+        : Array.isArray(raw?.calls)      ? raw.calls
+        : Array.isArray(raw?.leads)      ? raw.leads
+        : Array.isArray(raw?.records)    ? raw.records
+        : Array.isArray(raw?.result)     ? raw.result
+        : Array.isArray(raw?.items)      ? raw.items
+        : Array.isArray(raw?.list)       ? raw.list
+        : Array.isArray(raw?.callData)   ? raw.callData
+        : Array.isArray(raw?.userData)   ? raw.userData
         : null;
       return {
         label,
-        ok:         res.ok,
-        status:     res.status,
-        recordCount: arr ? arr.length : "N/A (not an array)",
-        topLevelKeys: raw && typeof raw === "object" && !Array.isArray(raw) ? Object.keys(raw) : null,
-        totalField:   raw?.total ?? raw?.totalCount ?? raw?.count ?? null,
-        sampleId:     arr?.[0]?._id ?? arr?.[0]?.id ?? null,
-        rawIfSmall:   arr && arr.length <= 2 ? raw : undefined,
+        ok:           res.ok,
+        status:       res.status,
+        recordCount:  arr ? arr.length : "N/A — raw is not an array under any known key",
+        topLevelKeys: raw && typeof raw === "object" && !Array.isArray(raw) ? Object.keys(raw) : (Array.isArray(raw) ? ["(bare array)"] : null),
+        isArray:      Array.isArray(raw),
+        totalField:   raw?.total ?? raw?.totalCount ?? raw?.count ?? raw?.pagination?.total ?? null,
+        pageField:    raw?.page ?? raw?.currentPage ?? raw?.pagination?.page ?? null,
+        sampleKeys:   arr?.[0] ? Object.keys(arr[0]).slice(0, 8) : null,
+        rawWhenEmpty: (!arr || arr.length === 0) ? raw : undefined,
       };
     }
 
     return {
       count:           { ok: countRes.ok, status: countRes.status, raw: countRes.data },
-      callsPage1:      summarise(callsP1Res, "calls page 1"),
-      callsPage2:      summarise(callsP2Res, "calls page 2"),
-      leadsPage1:      summarise(leadsP1Res, "leads page 1"),
-      leadsPage2:      summarise(leadsP2Res, "leads page 2"),
-      unlimitedCalls:  summarise(unlimitedCallsRes, "calls unlimited (no params)"),
-      unlimitedLeads:  summarise(unlimitedLeadsRes, "leads unlimited (?limit=10000)"),
+      callsPage1:      summarise(callsP1Res,      "GET /get-all-calldata?page=1"),
+      callsPage2:      summarise(callsP2Res,      "GET /get-all-calldata?page=2"),
+      callsPage3:      summarise(callsP3Res,      "GET /get-all-calldata?page=3"),
+      callsNoParams:   summarise(unlimitedCallsRes,"GET /get-all-calldata (no params)"),
+      callsAll:        summarise(callsAllRes,      "GET /call-output-data/all"),
+      leadsPage1:      summarise(leadsP1Res,       "GET /get-userCall-lead?page=1"),
+      leadsPage2:      summarise(leadsP2Res,       "GET /get-userCall-lead?page=2"),
+      leadsLimit10k:   summarise(unlimitedLeadsRes,"GET /get-userCall-lead?limit=10000"),
+      crmData:         summarise(crmRes,           "GET /crm-data/get-crm-data"),
     };
   });
 

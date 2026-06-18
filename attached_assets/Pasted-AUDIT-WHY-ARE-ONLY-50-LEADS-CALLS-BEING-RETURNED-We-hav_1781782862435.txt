@@ -1,0 +1,290 @@
+AUDIT: WHY ARE ONLY 50 LEADS/CALLS BEING RETURNED?
+
+We have connected the Webuyanyhouse API into WEBEE.
+
+The system is currently only returning approximately 50 records instead of the full dataset.
+
+Perform a complete end-to-end audit and identify exactly where records are being limited, filtered, paginated, truncated, cached, or dropped.
+
+Do not make assumptions.
+
+Trace the entire data path.
+
+---
+
+## GOAL
+
+Determine why WEBEE is not showing all available:
+
+* Leads
+* CRM Records
+* Calls
+* Call History
+* Callbacks
+* Qualified Leads
+
+from the connected API.
+
+Identify the exact bottleneck.
+
+---
+
+## STEP 1 - API RESPONSE AUDIT
+
+Inspect every API endpoint currently used.
+
+For each endpoint:
+
+* endpoint URL
+* request method
+* request payload
+* response size
+* total records returned
+* pagination metadata
+* next page token
+* page number
+* page size
+* offset
+* limit
+
+Check whether the API itself is only returning:
+
+50
+100
+200
+
+records.
+
+Example:
+
+GET /call-output-data/get-all-calldata
+
+Determine:
+
+* how many records exist
+* how many are returned
+* whether pagination exists
+* whether next page exists
+
+Do this for all lead and call endpoints.
+
+---
+
+## STEP 2 - CLIENT FETCH AUDIT
+
+Inspect all API calls in WEBEE.
+
+Check for:
+
+limit: 50
+pageSize: 50
+take: 50
+perPage: 50
+first: 50
+
+hardcoded anywhere.
+
+Search entire codebase for:
+
+50
+100
+pageSize
+limit
+offset
+pagination
+take
+per_page
+
+Identify all occurrences.
+
+---
+
+## STEP 3 - REACT QUERY AUDIT
+
+Inspect React Query hooks.
+
+Check whether:
+
+* only first page is loaded
+* infinite queries are missing
+* next page is ignored
+* pagination metadata is discarded
+
+Verify:
+
+queryFn
+queryKey
+getNextPageParam
+
+if applicable.
+
+---
+
+## STEP 4 - TABLE AUDIT
+
+Inspect:
+
+People page
+Calls page
+CRM page
+Qualified Leads page
+Callbacks page
+
+Determine:
+
+* records fetched
+* records displayed
+* records filtered out
+
+Check whether table components are:
+
+* limiting rows
+* defaulting to 50 rows
+* truncating datasets
+* using client-side pagination incorrectly
+
+---
+
+## STEP 5 - SERVER AUDIT
+
+Inspect all backend services.
+
+Check for:
+
+LIMIT 50
+LIMIT 100
+TOP 50
+OFFSET
+PAGINATION
+
+in:
+
+* SQL
+* Supabase queries
+* API adapters
+* Retell services
+* Webuyanyhouse services
+
+Identify every query limiting record counts.
+
+---
+
+## STEP 6 - DATA MAPPING AUDIT
+
+Trace:
+
+API Response
+↓
+Adapter
+↓
+Mapper
+↓
+React Query
+↓
+Page
+
+Check whether:
+
+records are dropped during mapping.
+
+Examples:
+
+filter(Boolean)
+slice(0, 50)
+take(50)
+unique()
+dedupe()
+
+or any transformation removing records.
+
+---
+
+## STEP 7 - WORKSPACE FILTER AUDIT
+
+Inspect workspace filtering.
+
+Determine:
+
+* total records available
+* records assigned to Webuyanyhouse workspace
+* records filtered by workspace
+
+Verify records are not being excluded incorrectly.
+
+---
+
+## STEP 8 - RETELL AUDIT
+
+If calls are coming from Retell:
+
+Determine:
+
+* total calls available
+* total calls fetched
+* Retell page size
+* Retell pagination implementation
+
+Verify we are retrieving:
+
+ALL pages
+
+not just page 1.
+
+---
+
+## STEP 9 - API PAGINATION FIX
+
+If pagination exists:
+
+Implement automatic pagination retrieval.
+
+Continue requesting pages until:
+
+* no next page
+* no next cursor
+* no additional records
+
+Aggregate results.
+
+Return complete dataset.
+
+Do not stop after first page.
+
+---
+
+## STEP 10 - PERFORMANCE SAFETY
+
+Do not blindly load 50,000 records into the browser.
+
+Implement:
+
+Server:
+
+* fetch complete dataset
+* store/cache appropriately
+
+Frontend:
+
+* paginated table
+* virtualized rendering where needed
+
+The UI should display paginated results while the backend still has access to the full dataset.
+
+---
+
+## STEP 11 - FINAL REPORT
+
+Provide a report showing:
+
+1. Total records available from source
+2. Total records returned by API
+3. Total records reaching WEBEE
+4. Total records displayed in UI
+5. Exact bottleneck location
+6. Exact file names causing limitation
+7. Exact code causing limitation
+8. Recommended fix
+9. Fix implemented
+10. Final record counts after fix
+
+Do not stop until the exact reason only 50 records are visible has been identified.
