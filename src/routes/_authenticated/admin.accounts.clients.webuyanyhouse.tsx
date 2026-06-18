@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import {
-  ChevronLeft, Building2, Car, Users, UserCheck, Bike, Wrench,
+  ChevronLeft, Building2, Home, Users, UserCheck,
   RefreshCw, Loader2, ChevronDown, ChevronUp, AlertTriangle,
-  ShieldCheck, PowerOff,
+  ShieldCheck, PowerOff, Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ export const Route = createFileRoute(
   "/_authenticated/admin/accounts/clients/webuyanyhouse",
 )({
   head: () => ({ meta: [{ title: "Webuyanyhouse — Enterprise Client" }] }),
-  component: WebuyanyhousenProfile,
+  component: WebuyanyhouseProfile,
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -60,11 +60,11 @@ function StatusPill({ value }: { value: string }) {
   if (value === "—") return <span className="text-gray-600">—</span>;
   const lower = value.toLowerCase();
   const cls =
-    lower.includes("active") || lower.includes("available") || lower.includes("approved")
+    lower.includes("active") || lower.includes("available") || lower.includes("approved") || lower.includes("listed")
       ? "bg-emerald-500/20 text-emerald-400"
-      : lower.includes("pending") || lower.includes("review")
+      : lower.includes("pending") || lower.includes("review") || lower.includes("offer")
       ? "bg-yellow-500/20 text-yellow-400"
-      : lower.includes("inactive") || lower.includes("sold") || lower.includes("rejected")
+      : lower.includes("sold") || lower.includes("inactive") || lower.includes("rejected") || lower.includes("withdrawn")
       ? "bg-red-500/20 text-red-400"
       : "bg-gray-700 text-gray-400";
   return (
@@ -86,7 +86,7 @@ function RawRow({ record }: { record: unknown }) {
         {open ? "hide" : "raw"}
       </button>
       {open && (
-        <pre className="mt-1 text-[9px] bg-gray-900 rounded p-2 overflow-auto max-h-40 whitespace-pre-wrap break-all text-gray-400">
+        <pre className="mt-1 text-[9px] bg-gray-950 rounded p-2 overflow-auto max-h-40 whitespace-pre-wrap break-all text-gray-400">
           {JSON.stringify(record, null, 2)}
         </pre>
       )}
@@ -94,47 +94,61 @@ function RawRow({ record }: { record: unknown }) {
   );
 }
 
-// ── Tab tables ────────────────────────────────────────────────────────────────
+function SyncBtn({ syncing, onClick }: { syncing: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick} disabled={syncing}
+      className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+    >
+      {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+      Sync
+    </button>
+  );
+}
 
-function CarsTable({ records, syncing, onSync }: { records: any[]; syncing: boolean; onSync: () => void }) {
+// ── Tab: Properties (backed by the "cars" endpoint from WeeBespoke API) ───────
+
+function PropertiesTable({ records, syncing, onSync }: { records: any[]; syncing: boolean; onSync: () => void }) {
   if (!records.length) return (
-    <EmptyTab icon={Car} label="No cars synced" onSync={onSync} syncing={syncing} syncLabel="Sync Cars" />
+    <EmptyTab icon={Home} label="No properties synced yet" onSync={onSync} syncing={syncing} syncLabel="Sync Properties" />
   );
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">{records.length} vehicle{records.length !== 1 ? "s" : ""}</p>
-        <button
-          onClick={onSync} disabled={syncing}
-          className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors disabled:opacity-50"
-        >
-          {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-          Sync
-        </button>
+        <p className="text-xs text-gray-500">{records.length} propert{records.length !== 1 ? "ies" : "y"}</p>
+        <SyncBtn syncing={syncing} onClick={onSync} />
       </div>
       <div className="rounded-lg border border-gray-800 overflow-auto">
-        <table className="w-full text-xs min-w-[580px]">
+        <table className="w-full text-xs min-w-[600px]">
           <thead className="bg-gray-900 border-b border-gray-800">
             <tr>
-              {["Make / Model", "Year", "Registration", "Price", "Status", "Dealer", ""].map(h => (
+              {["Address", "Type", "Bedrooms", "Asking Price", "Status", "Agent", ""].map(h => (
                 <th key={h} className="text-left px-3 py-2 font-medium text-gray-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/60">
-            {records.map((car: any, i: number) => (
-              <tr key={car?.id ?? car?._id ?? i} className="hover:bg-gray-900/60">
-                <td className="px-3 py-2 font-medium text-white">
-                  {safeStr(car, "make", "brand", "manufacturer")} {safeStr(car, "model", "carModel")}
+            {records.map((p: any, i: number) => (
+              <tr key={p?.id ?? p?._id ?? i} className="hover:bg-gray-900/60">
+                <td className="px-3 py-2 font-medium text-white max-w-[200px] truncate">
+                  {safeStr(p, "address", "fullAddress", "propertyAddress", "make", "title", "name")}
                 </td>
-                <td className="px-3 py-2 text-gray-400">{safeStr(car, "year", "manufacturedYear")}</td>
-                <td className="px-3 py-2 text-gray-400 font-mono text-[11px]">
-                  {safeStr(car, "registration", "reg", "licensePlate", "registrationNumber")}
+                <td className="px-3 py-2 text-gray-400">
+                  {safeStr(p, "propertyType", "type", "category", "model")}
                 </td>
-                <td className="px-3 py-2 text-gray-300">{safeStr(car, "price", "askingPrice", "salePrice")}</td>
-                <td className="px-3 py-2"><StatusPill value={safeStr(car, "status", "carStatus", "listingStatus")} /></td>
-                <td className="px-3 py-2 text-gray-500">{safeStr(car, "dealerName", "dealer", "dealerId")}</td>
-                <td className="px-3 py-2"><RawRow record={car} /></td>
+                <td className="px-3 py-2 text-gray-400">
+                  {safeStr(p, "bedrooms", "beds", "numBedrooms", "year")}
+                </td>
+                <td className="px-3 py-2 text-gray-300">
+                  {safeStr(p, "askingPrice", "price", "salePrice", "offerPrice")}
+                </td>
+                <td className="px-3 py-2">
+                  <StatusPill value={safeStr(p, "status", "propertyStatus", "listingStatus")} />
+                </td>
+                <td className="px-3 py-2 text-gray-500">
+                  {safeStr(p, "agentName", "agent", "assignedAgent", "dealerName", "dealer")}
+                </td>
+                <td className="px-3 py-2"><RawRow record={p} /></td>
               </tr>
             ))}
           </tbody>
@@ -144,23 +158,23 @@ function CarsTable({ records, syncing, onSync }: { records: any[]; syncing: bool
   );
 }
 
+// ── Tab: Buyers ───────────────────────────────────────────────────────────────
+
 function BuyersTable({ records, syncing, onSync }: { records: any[]; syncing: boolean; onSync: () => void }) {
   if (!records.length) return (
-    <EmptyTab icon={Users} label="No buyers synced" onSync={onSync} syncing={syncing} syncLabel="Sync Buyers" />
+    <EmptyTab icon={Users} label="No buyers synced yet" onSync={onSync} syncing={syncing} syncLabel="Sync Buyers" />
   );
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-500">{records.length} buyer{records.length !== 1 ? "s" : ""}</p>
-        <button onClick={onSync} disabled={syncing} className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors disabled:opacity-50">
-          {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Sync
-        </button>
+        <SyncBtn syncing={syncing} onClick={onSync} />
       </div>
       <div className="rounded-lg border border-gray-800 overflow-auto">
-        <table className="w-full text-xs min-w-[480px]">
+        <table className="w-full text-xs min-w-[520px]">
           <thead className="bg-gray-900 border-b border-gray-800">
             <tr>
-              {["Name", "Email", "Phone", "Joined", "Status", ""].map(h => (
+              {["Name", "Email", "Phone", "Enquiry Date", "Status", ""].map(h => (
                 <th key={h} className="text-left px-3 py-2 font-medium text-gray-500">{h}</th>
               ))}
             </tr>
@@ -173,8 +187,8 @@ function BuyersTable({ records, syncing, onSync }: { records: any[]; syncing: bo
                 </td>
                 <td className="px-3 py-2 text-gray-400">{safeStr(b, "email", "emailAddress")}</td>
                 <td className="px-3 py-2 text-gray-400">{safeStr(b, "phone", "phoneNumber", "mobile")}</td>
-                <td className="px-3 py-2 text-gray-500">{safeDate(b, "createdAt", "created_at", "joinedAt")}</td>
-                <td className="px-3 py-2"><StatusPill value={safeStr(b, "status", "buyerStatus")} /></td>
+                <td className="px-3 py-2 text-gray-500">{safeDate(b, "enquiryDate", "createdAt", "created_at", "joinedAt")}</td>
+                <td className="px-3 py-2"><StatusPill value={safeStr(b, "status", "buyerStatus", "leadStatus")} /></td>
                 <td className="px-3 py-2"><RawRow record={b} /></td>
               </tr>
             ))}
@@ -185,36 +199,40 @@ function BuyersTable({ records, syncing, onSync }: { records: any[]; syncing: bo
   );
 }
 
-function DealersTable({ records, syncing, onSync }: { records: any[]; syncing: boolean; onSync: () => void }) {
+// ── Tab: Agents (backed by the "dealers" endpoint from WeeBespoke API) ────────
+
+function AgentsTable({ records, syncing, onSync }: { records: any[]; syncing: boolean; onSync: () => void }) {
   if (!records.length) return (
-    <EmptyTab icon={UserCheck} label="No dealers synced" onSync={onSync} syncing={syncing} syncLabel="Sync Dealers" />
+    <EmptyTab icon={UserCheck} label="No agents synced yet" onSync={onSync} syncing={syncing} syncLabel="Sync Agents" />
   );
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">{records.length} dealer{records.length !== 1 ? "s" : ""}</p>
-        <button onClick={onSync} disabled={syncing} className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors disabled:opacity-50">
-          {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Sync
-        </button>
+        <p className="text-xs text-gray-500">{records.length} agent{records.length !== 1 ? "s" : ""}</p>
+        <SyncBtn syncing={syncing} onClick={onSync} />
       </div>
       <div className="rounded-lg border border-gray-800 overflow-auto">
         <table className="w-full text-xs min-w-[520px]">
           <thead className="bg-gray-900 border-b border-gray-800">
             <tr>
-              {["Dealer Name", "Email", "Phone", "Company", "Status", ""].map(h => (
+              {["Agent Name", "Email", "Phone", "Branch / Office", "Status", ""].map(h => (
                 <th key={h} className="text-left px-3 py-2 font-medium text-gray-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-800/60">
-            {records.map((d: any, i: number) => (
-              <tr key={d?.id ?? d?._id ?? i} className="hover:bg-gray-900/60">
-                <td className="px-3 py-2 font-medium text-white">{safeStr(d, "dealerName", "name", "fullName")}</td>
-                <td className="px-3 py-2 text-gray-400">{safeStr(d, "email", "emailAddress")}</td>
-                <td className="px-3 py-2 text-gray-400">{safeStr(d, "phone", "phoneNumber", "mobile")}</td>
-                <td className="px-3 py-2 text-gray-400">{safeStr(d, "company", "companyName", "businessName")}</td>
-                <td className="px-3 py-2"><StatusPill value={safeStr(d, "status", "dealerStatus")} /></td>
-                <td className="px-3 py-2"><RawRow record={d} /></td>
+            {records.map((a: any, i: number) => (
+              <tr key={a?.id ?? a?._id ?? i} className="hover:bg-gray-900/60">
+                <td className="px-3 py-2 font-medium text-white">
+                  {safeStr(a, "name", "fullName", "agentName", "dealerName")}
+                </td>
+                <td className="px-3 py-2 text-gray-400">{safeStr(a, "email", "emailAddress")}</td>
+                <td className="px-3 py-2 text-gray-400">{safeStr(a, "phone", "phoneNumber", "mobile")}</td>
+                <td className="px-3 py-2 text-gray-400">
+                  {safeStr(a, "branch", "office", "company", "companyName", "businessName")}
+                </td>
+                <td className="px-3 py-2"><StatusPill value={safeStr(a, "status", "agentStatus", "dealerStatus")} /></td>
+                <td className="px-3 py-2"><RawRow record={a} /></td>
               </tr>
             ))}
           </tbody>
@@ -223,6 +241,8 @@ function DealersTable({ records, syncing, onSync }: { records: any[]; syncing: b
     </div>
   );
 }
+
+// ── Empty state ───────────────────────────────────────────────────────────────
 
 function EmptyTab({
   icon: Icon, label, syncing, onSync, syncLabel,
@@ -247,34 +267,32 @@ function EmptyTab({
 const ADMIN_EMAIL = "nathan@bespoke.ai";
 
 const TABS = [
-  { id: "cars",        label: "Cars",        icon: Car       },
-  { id: "buyers",      label: "Buyers",      icon: Users     },
-  { id: "dealers",     label: "Dealers",     icon: UserCheck },
-  { id: "bikes",       label: "Bikes",       icon: Bike      },
-  { id: "spare-parts", label: "Spare Parts", icon: Wrench    },
+  { id: "properties", label: "Properties", icon: Home      },
+  { id: "buyers",     label: "Buyers",     icon: Users     },
+  { id: "agents",     label: "Agents",     icon: UserCheck },
 ] as const;
 type TabId = typeof TABS[number]["id"];
 
-function WebuyanyhousenProfile() {
+function WebuyanyhouseProfile() {
   const qc = useQueryClient();
-  const [tab, setTab]   = useState<TabId>("cars");
+  const [tab, setTab]   = useState<TabId>("properties");
   const [busy, setBusy] = useState<string | null>(null);
 
-  const getStatusFn     = useServerFn(getWebespokeEnterpriseStatus);
-  const getCarsF        = useServerFn(getWebespokeEnterpriseCars);
-  const getBuyersF      = useServerFn(getWebespokeEnterpriseBuyers);
-  const getDealersF     = useServerFn(getWebespokeEnterpriseDealers);
-  const syncCarsF       = useServerFn(syncWebespokeEnterpriseCars);
-  const syncBuyersF     = useServerFn(syncWebespokeEnterpriseBuyers);
-  const syncDealersF    = useServerFn(syncWebespokeEnterpriseDealers);
-  const syncAllF        = useServerFn(syncAllWebespokeEnterpriseData);
-  const adminConnectF   = useServerFn(adminOverrideConnectWebespokeEnterprise);
-  const disconnectF     = useServerFn(disconnectWebespokeEnterprise);
+  const getStatusFn   = useServerFn(getWebespokeEnterpriseStatus);
+  const getPropsF     = useServerFn(getWebespokeEnterpriseCars);
+  const getBuyersF    = useServerFn(getWebespokeEnterpriseBuyers);
+  const getAgentsF    = useServerFn(getWebespokeEnterpriseDealers);
+  const syncPropsF    = useServerFn(syncWebespokeEnterpriseCars);
+  const syncBuyersF   = useServerFn(syncWebespokeEnterpriseBuyers);
+  const syncAgentsF   = useServerFn(syncWebespokeEnterpriseDealers);
+  const syncAllF      = useServerFn(syncAllWebespokeEnterpriseData);
+  const adminConnectF = useServerFn(adminOverrideConnectWebespokeEnterprise);
+  const disconnectF   = useServerFn(disconnectWebespokeEnterprise);
 
-  const statusQ  = useQuery({ queryKey: ["wbs-status"],   queryFn: () => getStatusFn(), refetchInterval: 60_000 });
-  const carsQ    = useQuery({ queryKey: ["wbs-cars"],    queryFn: () => getCarsF(),    enabled: tab === "cars" });
-  const buyersQ  = useQuery({ queryKey: ["wbs-buyers"],  queryFn: () => getBuyersF(),  enabled: tab === "buyers" });
-  const dealersQ = useQuery({ queryKey: ["wbs-dealers"], queryFn: () => getDealersF(), enabled: tab === "dealers" });
+  const statusQ     = useQuery({ queryKey: ["wbs-status"],      queryFn: () => getStatusFn(),  refetchInterval: 60_000 });
+  const propertiesQ = useQuery({ queryKey: ["wbs-properties"],  queryFn: () => getPropsF(),    enabled: tab === "properties" });
+  const buyersQ     = useQuery({ queryKey: ["wbs-buyers"],      queryFn: () => getBuyersF(),   enabled: tab === "buyers" });
+  const agentsQ     = useQuery({ queryKey: ["wbs-agents"],      queryFn: () => getAgentsF(),   enabled: tab === "agents" });
 
   const isConnected = statusQ.data?.status === "connected";
   const stat = statusQ.data;
@@ -282,22 +300,23 @@ function WebuyanyhousenProfile() {
   function invalidate() {
     qc.invalidateQueries({ queryKey: ["wbs-status"] });
     qc.invalidateQueries({ queryKey: ["wbs-enterprise-status"] });
-    qc.invalidateQueries({ queryKey: ["wbs-cars"] });
+    qc.invalidateQueries({ queryKey: ["wbs-properties"] });
     qc.invalidateQueries({ queryKey: ["wbs-buyers"] });
-    qc.invalidateQueries({ queryKey: ["wbs-dealers"] });
+    qc.invalidateQueries({ queryKey: ["wbs-agents"] });
   }
 
   async function handleAdminConnect() {
     setBusy("connect");
     try {
       await adminConnectF();
-      toast.success("Connected as Webuyanyhouse — syncing all data…");
+      toast.success("Connected — syncing all Webuyanyhouse data…");
       invalidate();
       try {
         const r = await syncAllF() as Record<string, number | string>;
-        const parts = (["cars","buyers","dealers"] as const)
-          .filter(k => typeof r[k] === "number")
-          .map(k => `${r[k]} ${k}`);
+        const parts: string[] = [];
+        if (typeof r.cars    === "number") parts.push(`${r.cars} properties`);
+        if (typeof r.buyers  === "number") parts.push(`${r.buyers} buyers`);
+        if (typeof r.dealers === "number") parts.push(`${r.dealers} agents`);
         if (parts.length) toast.success(`Synced: ${parts.join(", ")}`);
         invalidate();
       } catch { /* non-fatal */ }
@@ -309,28 +328,30 @@ function WebuyanyhousenProfile() {
     setBusy("sync-all");
     try {
       const r = await syncAllF() as Record<string, number | string>;
-      const parts = (["cars","buyers","dealers"] as const)
-        .filter(k => typeof r[k] === "number")
-        .map(k => `${r[k]} ${k}`);
+      const parts: string[] = [];
+      if (typeof r.cars    === "number") parts.push(`${r.cars} properties`);
+      if (typeof r.buyers  === "number") parts.push(`${r.buyers} buyers`);
+      if (typeof r.dealers === "number") parts.push(`${r.dealers} agents`);
       toast.success(parts.length ? `Synced: ${parts.join(", ")}` : "Sync complete");
       invalidate();
     } catch (e: any) { toast.error(e?.message ?? "Sync failed"); }
     finally { setBusy(null); }
   }
 
-  async function handleSync(type: "cars" | "buyers" | "dealers") {
+  async function handleSync(type: "properties" | "buyers" | "agents") {
     setBusy(`sync-${type}`);
     try {
-      const fn = type === "cars" ? syncCarsF : type === "buyers" ? syncBuyersF : syncDealersF;
+      const fn = type === "properties" ? syncPropsF : type === "buyers" ? syncBuyersF : syncAgentsF;
+      const label = type === "properties" ? "properties" : type;
       const res = await fn();
-      toast.success(`Synced ${(res as any).count} ${type}`);
+      toast.success(`Synced ${(res as any).count} ${label}`);
       invalidate();
     } catch (e: any) { toast.error(e?.message ?? "Sync failed"); }
     finally { setBusy(null); }
   }
 
   async function handleDisconnect() {
-    if (!confirm("Disconnect WeeBespoke AI and clear all cached Webuyanyhouse data?")) return;
+    if (!confirm("Disconnect and clear all cached Webuyanyhouse data?")) return;
     setBusy("disconnect");
     try {
       await disconnectF();
@@ -347,7 +368,7 @@ function WebuyanyhousenProfile() {
       <div className="p-6 space-y-5">
 
         {/* ── Header ── */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Link to="/admin/accounts/clients" className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </Link>
@@ -370,11 +391,11 @@ function WebuyanyhousenProfile() {
               )}
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              WeeBespoke AI Enterprise — vehicle marketplace CRM&nbsp;·&nbsp;<span className="font-mono">{ADMIN_EMAIL}</span>
+              Real estate client on WeeBee AI&nbsp;·&nbsp;Microsoft Dynamics AI calling&nbsp;·&nbsp;
+              <span className="font-mono">{ADMIN_EMAIL}</span>
             </p>
           </div>
 
-          {/* Action buttons */}
           {isConnected ? (
             <div className="flex items-center gap-2 shrink-0">
               <Button
@@ -410,13 +431,20 @@ function WebuyanyhousenProfile() {
           )}
         </div>
 
+        {/* ── Info strip ── */}
+        <div className="rounded-lg bg-gray-900 border border-gray-800 px-4 py-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5 text-emerald-500" /> Real Estate</span>
+          <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-blue-400" /> Microsoft Dynamics AI Calling</span>
+          <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-purple-400" /> WeeBee Enterprise</span>
+        </div>
+
         {/* ── Stats row (when connected) ── */}
         {isConnected && stat && (
           <div className="grid grid-cols-3 gap-3">
             {([
-              { icon: Car,       label: "Cars",    count: stat.carsCount    },
-              { icon: Users,     label: "Buyers",  count: stat.buyersCount  },
-              { icon: UserCheck, label: "Dealers", count: stat.dealersCount },
+              { icon: Home,      label: "Properties", count: stat.carsCount    },
+              { icon: Users,     label: "Buyers",     count: stat.buyersCount  },
+              { icon: UserCheck, label: "Agents",     count: stat.dealersCount },
             ] as const).map(c => (
               <div key={c.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-3">
                 <c.icon className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -434,21 +462,20 @@ function WebuyanyhousenProfile() {
           <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 flex items-center gap-3">
             <AlertTriangle className="w-4 h-4 text-yellow-400 shrink-0" />
             <p className="text-sm text-yellow-200">
-              Not connected. Click <strong>Admin Connect</strong> above to authenticate and load all data automatically.
+              Not connected to WeeBespoke AI Enterprise. Click <strong>Admin Connect</strong> to authenticate and load all data.
             </p>
           </div>
         )}
 
         {/* ── Data tabs ── */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          {/* Tab bar */}
-          <div className="flex border-b border-gray-800 overflow-x-auto">
+          <div className="flex border-b border-gray-800">
             {TABS.map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={cn(
-                  "flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                  "flex items-center gap-1.5 px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                   tab === t.id
                     ? "border-emerald-500 text-emerald-400"
                     : "border-transparent text-gray-500 hover:text-gray-300",
@@ -460,15 +487,14 @@ function WebuyanyhousenProfile() {
             ))}
           </div>
 
-          {/* Tab content */}
           <div className="p-4 min-h-[280px]">
-            {tab === "cars" && (
-              carsQ.isLoading
+            {tab === "properties" && (
+              propertiesQ.isLoading
                 ? <Loading />
-                : <CarsTable
-                    records={(carsQ.data ?? []) as any[]}
-                    syncing={busy === "sync-cars"}
-                    onSync={() => handleSync("cars")}
+                : <PropertiesTable
+                    records={(propertiesQ.data ?? []) as any[]}
+                    syncing={busy === "sync-properties"}
+                    onSync={() => handleSync("properties")}
                   />
             )}
             {tab === "buyers" && (
@@ -480,26 +506,20 @@ function WebuyanyhousenProfile() {
                     onSync={() => handleSync("buyers")}
                   />
             )}
-            {tab === "dealers" && (
-              dealersQ.isLoading
+            {tab === "agents" && (
+              agentsQ.isLoading
                 ? <Loading />
-                : <DealersTable
-                    records={(dealersQ.data ?? []) as any[]}
-                    syncing={busy === "sync-dealers"}
-                    onSync={() => handleSync("dealers")}
+                : <AgentsTable
+                    records={(agentsQ.data ?? []) as any[]}
+                    syncing={busy === "sync-agents"}
+                    onSync={() => handleSync("agents")}
                   />
-            )}
-            {tab === "bikes" && (
-              <ComingSoon icon={Bike} label="Bikes" />
-            )}
-            {tab === "spare-parts" && (
-              <ComingSoon icon={Wrench} label="Spare Parts" />
             )}
           </div>
         </div>
 
         <p className="text-[10px] text-gray-700 border-t border-gray-800 pt-3">
-          Enterprise data is isolated to this client profile and is not merged into platform leads, contacts, calls, or analytics.
+          Data is synced from WeeBespoke AI Enterprise and isolated to this client profile. It is not merged into platform leads, contacts, calls, or analytics.
         </p>
       </div>
     </AccountsMindShell>
@@ -511,16 +531,6 @@ function Loading() {
     <div className="flex items-center gap-2 py-12 text-gray-500">
       <Loader2 className="w-4 h-4 animate-spin" />
       <span className="text-sm">Loading…</span>
-    </div>
-  );
-}
-
-function ComingSoon({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
-  return (
-    <div className="text-center py-14 text-gray-700 border border-gray-800 border-dashed rounded-lg">
-      <Icon className="w-8 h-8 mx-auto mb-2 opacity-20" />
-      <p className="text-sm">{label}</p>
-      <p className="text-xs mt-1 text-gray-700">Coming soon</p>
     </div>
   );
 }

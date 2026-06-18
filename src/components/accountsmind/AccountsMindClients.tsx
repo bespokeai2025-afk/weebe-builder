@@ -19,7 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Settings, ChevronRight, RefreshCw, PoundSterling, Building2, Car, UserCheck } from "lucide-react";
+import { Users, Settings, ChevronRight, RefreshCw, PoundSterling, Building2, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BillingForm {
@@ -161,13 +161,13 @@ export function AccountsMindClients() {
                   {wbsConnected ? "● Connected" : "○ Disconnected"}
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">WeeBespoke AI Enterprise — vehicle marketplace CRM</p>
+              <p className="text-xs text-gray-500 mt-0.5">Real estate client · Microsoft Dynamics AI calling · WeeBee Enterprise</p>
             </div>
             {wbsConnected && wbs && (
               <div className="hidden sm:flex items-center gap-3 text-xs text-gray-500 shrink-0">
-                <span className="flex items-center gap-1"><Car className="w-3 h-3" />{wbs.carsCount}</span>
-                <span className="flex items-center gap-1"><Users className="w-3 h-3" />{wbs.buyersCount}</span>
-                <span className="flex items-center gap-1"><UserCheck className="w-3 h-3" />{wbs.dealersCount}</span>
+                <span className="flex items-center gap-1 gap-1" title="Properties"><Building2 className="w-3 h-3" />{wbs.carsCount}</span>
+                <span className="flex items-center gap-1" title="Buyers"><Users className="w-3 h-3" />{wbs.buyersCount}</span>
+                <span className="flex items-center gap-1" title="Agents"><UserCheck className="w-3 h-3" />{wbs.dealersCount}</span>
               </div>
             )}
             <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors shrink-0" />
