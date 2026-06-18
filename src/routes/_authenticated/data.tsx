@@ -1190,7 +1190,7 @@ function DataPage() {
                   onClick={() => setWbahDisqualifiedSweep(v => !v)}
                   className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${wbahDisqualifiedSweep ? "border-rose-500/40 bg-rose-500/10 text-rose-400" : "border-white/[0.08] bg-muted/30 text-muted-foreground hover:text-foreground"}`}
                 >
-                  <X className="h-3 w-3" />
+                  <AlertCircle className="h-3 w-3" />
                   Disqualified Sweep
                 </button>
 
@@ -1235,7 +1235,7 @@ function DataPage() {
                     className="h-7 text-xs"
                     onClick={() => {
                       const visible = wbahCallData.filter(r => {
-                        if (wbahDisqualifiedSweep && isWbahDisqualified(r)) return false;
+                        if (wbahDisqualifiedSweep && !isWbahDisqualified(r)) return false;
                         if (wbahPeopleSearch) {
                           const q = wbahPeopleSearch.toLowerCase();
                           return (r.name ?? "").toLowerCase().includes(q) || (r.contact ?? "").includes(q);
@@ -1298,7 +1298,9 @@ function DataPage() {
               </div>
             ) : (() => {
               const filtered = wbahCallData.filter(r => {
-                if (wbahDisqualifiedSweep && isWbahDisqualified(r)) return false;
+                if (wbahDisqualifiedSweep) {
+                  if (!isWbahDisqualified(r)) return false;
+                }
                 if (wbahPeopleSearch) {
                   const q = wbahPeopleSearch.toLowerCase();
                   if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
@@ -1310,8 +1312,8 @@ function DataPage() {
                 <div className="overflow-x-auto">
                   {wbahDisqualifiedSweep && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/5 border-b border-rose-500/10 text-[11px] text-rose-400">
-                      <X className="h-3 w-3" />
-                      Disqualified sweep active — hiding {wbahCallData.length - filtered.length} disqualified / negative-sentiment record{wbahCallData.length - filtered.length !== 1 ? "s" : ""}
+                      <AlertCircle className="h-3 w-3" />
+                      Disqualified Sweep — showing {filtered.length} disqualified / negative-sentiment lead{filtered.length !== 1 ? "s" : ""}
                     </div>
                   )}
                   <table className="w-full text-xs">
