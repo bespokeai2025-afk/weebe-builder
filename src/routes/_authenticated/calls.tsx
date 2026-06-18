@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect } from "react";
 import {
-  Bot,
   ChevronDown,
   ChevronRight,
   Download,
@@ -12,7 +11,6 @@ import {
   PhoneIncoming,
   PhoneOutgoing,
   PlayCircle,
-  Radio,
   RefreshCw,
   StickyNote,
   X,
@@ -22,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { getWbahRetellCalls, getWbahRetellAgents } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -232,31 +229,8 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
 }
 
 function CallsPage() {
-  const [tab, setTab] = useState<"live" | "test" | "wbah">("live");
-  const [isWbah, setIsWbah] = useState(false);
+  const [tab, setTab] = useState<"live" | "test">("live");
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const { data: sess } = await supabase.auth.getSession();
-        if (!sess.session) return;
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("default_workspace_id")
-          .eq("user_id", sess.session.user.id)
-          .maybeSingle();
-        if (!profile?.default_workspace_id || !active) return;
-        const { data: ws } = await supabase
-          .from("workspaces")
-          .select("slug")
-          .eq("id", profile.default_workspace_id)
-          .maybeSingle();
-        if (active) setIsWbah(ws?.slug === "webuyanyhouse");
-      } catch {}
-    })();
-    return () => { active = false; };
-  }, []);
 
   const fn = useServerFn(listCalls);
   const q = useQuery({
@@ -315,20 +289,6 @@ function CallsPage() {
         <div className="flex items-center gap-2">
           {/* Tab switcher */}
           <div className="flex items-center rounded-lg border border-white/[0.06] bg-card/40 p-0.5">
-            {isWbah && (
-              <button
-                onClick={() => setTab("wbah")}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                  tab === "wbah"
-                    ? "bg-emerald-500/15 text-emerald-400"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Building2 className="h-3 w-3" />
-                WeeBespoke Calls
-              </button>
-            )}
             <button
               onClick={() => setTab("live")}
               className={cn(
@@ -365,15 +325,13 @@ function CallsPage() {
             size="sm"
             className="h-8 gap-1.5 text-xs"
             onClick={() => (tab === "live" ? q.refetch() : testQ.refetch())}
-            disabled={isRefetching || tab === "wbah"}
+            disabled={isRefetching}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isRefetching && "animate-spin")} />
             Refresh
           </Button>
         </div>
       </div>
-
-      {tab === "wbah" && <WbahCallLogsSection />}
 
       {tab === "live" ? (
         <>
@@ -575,254 +533,6 @@ function CallsPage() {
           leadId={panel.leadId}
         />
       )}
-    </div>
-  );
-}
-
-// ── WeeBespoke Call Logs (only shown for webuyanyhouse workspace) ──────────────
-
-// ── WeeBespoke / Retell helpers ──────────────────────────────────────────────
-
-function retellStatusBadge(v?: string | null) {
-  if (!v) return <span className="text-[11px] text-muted-foreground">—</span>;
-  const s = v.toLowerCase();
-  const cls =
-    s === "ended"    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" :
-    s === "ongoing"  ? "bg-primary/20 text-primary border border-primary/30 animate-pulse" :
-    s === "error"    ? "bg-destructive/15 text-destructive border border-destructive/30" :
-    s === "registered" ? "bg-amber-500/15 text-amber-400 border border-amber-500/30" :
-                       "bg-muted/40 text-muted-foreground border border-white/[0.06]";
-  return (
-    <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${cls}`}>
-      {s.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function retellSentimentBadge(v?: string | null) {
-  if (!v || v === "N/A") return <span className="text-[11px] text-muted-foreground">—</span>;
-  const cls =
-    v.toLowerCase() === "positive" ? "text-emerald-400" :
-    v.toLowerCase() === "negative" ? "text-destructive" :
-    "text-muted-foreground";
-  return <span className={`text-[11px] capitalize ${cls}`}>{v}</span>;
-}
-
-// ── WBAH Agents Bar ───────────────────────────────────────────────────────────
-
-function WbahAgentsBar() {
-  const getFn = useServerFn(getWbahRetellAgents);
-  const { data: agents, isLoading } = useQuery({
-    queryKey: ["wbah-retell-agents"],
-    queryFn: () => getFn(),
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-    refetchIntervalInBackground: false,
-  });
-
-  if (isLoading || !agents?.length) return null;
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {agents.map((a) => (
-        <div
-          key={a.id}
-          className={cn(
-            "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs",
-            a.isLive
-              ? "border-primary/40 bg-primary/10 text-primary"
-              : "border-white/[0.06] bg-card/40 text-muted-foreground",
-          )}
-        >
-          {a.isLive
-            ? <Radio className="h-3 w-3 animate-pulse" />
-            : <Bot className="h-3 w-3" />}
-          <span className="font-medium">{a.name}</span>
-          {a.isLive && <span className="text-[10px] font-semibold uppercase tracking-wide ml-0.5 text-primary">LIVE</span>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── WBAH Call Logs (from Retell) ──────────────────────────────────────────────
-
-function WbahCallLogsSection() {
-  // Cursor-based pagination: stack of cursors; index 0 = page 1 (null cursor)
-  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null]);
-  const [transcript, setTranscript] = useState<{ text: string; name: string } | null>(null);
-  const getFn = useServerFn(getWbahRetellCalls);
-
-  const currentCursor = cursorStack[cursorStack.length - 1];
-  const currentPage   = cursorStack.length;
-
-  const { data, isLoading, error, refetch, isFetching, dataUpdatedAt } = useQuery({
-    queryKey: ["wbah-retell-calls", currentCursor],
-    queryFn: () => getFn({ data: { paginationKey: currentCursor } }),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
-    retry: 1,
-    placeholderData: (prev) => prev,
-  });
-
-  const records = data?.records ?? [];
-  const hasMore = data?.hasMore ?? false;
-
-  const lastUpdated = dataUpdatedAt
-    ? new Date(dataUpdatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-    : null;
-
-  const goNext = () => {
-    if (data?.nextPaginationKey) {
-      setCursorStack(s => [...s, data.nextPaginationKey!]);
-    }
-  };
-  const goPrev = () => {
-    if (cursorStack.length > 1) setCursorStack(s => s.slice(0, -1));
-  };
-
-  if (isLoading && !data) return (
-    <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
-      <RefreshCw className="h-4 w-4 animate-spin mr-2" /> Loading WeeBespoke call logs…
-    </div>
-  );
-
-  if (error) return (
-    <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-      {(error as Error).message}
-    </div>
-  );
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Transcript modal */}
-      {transcript && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setTranscript(null)}>
-          <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold">Transcript</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">{transcript.name}</p>
-              </div>
-              <button onClick={() => setTranscript(null)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="max-h-96 overflow-y-auto rounded-lg bg-black/30 border border-white/[0.06] p-3 font-mono text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
-              {transcript.text || "No transcript available."}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Live agents bar */}
-      <WbahAgentsBar />
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-          <Building2 className="h-3.5 w-3.5" />
-          {records.length > 0
-            ? `Page ${currentPage} · ${records.length} calls${hasMore ? "+" : ""}`
-            : "WeeBespoke call logs via Retell"}
-          {lastUpdated && <span className="ml-2 opacity-50">· updated {lastUpdated}</span>}
-        </p>
-        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setCursorStack([null]); refetch(); }} disabled={isFetching}>
-          <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} /> Refresh
-        </Button>
-      </div>
-
-      {/* Table */}
-      <div className={cn("rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden transition-opacity", isFetching && "opacity-60")}>
-        {records.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-16">
-            <Building2 className="h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">No call records found</p>
-            <p className="text-xs text-muted-foreground">WeeBespoke call data will appear here once available.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-white/[0.06] bg-card/30">
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">From</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">To</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Started At</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r) => (
-                  <tr key={r.id} className="h-10 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
-                    <td className="px-3 py-2 text-[11px] font-medium whitespace-nowrap max-w-[140px] truncate" title={r.agentName ?? undefined}>{r.agentName ?? "—"}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.from ?? "—"}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.to ?? "—"}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap capitalize">{(r.type ?? "phone_call").replace(/_/g, " ")}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
-                      {r.lastCalledAt
-                        ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2">{retellStatusBadge(r.status)}</td>
-                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">{r.duration ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      {r.recordingUrl ? (
-                        <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline whitespace-nowrap"
-                          onClick={e => e.stopPropagation()}>
-                          <PlayCircle className="h-3 w-3" /> Play
-                        </a>
-                      ) : <span className="text-[11px] text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      {r.transcript ? (
-                        <button
-                          onClick={() => setTranscript({ text: r.transcript!, name: r.agentName ?? r.from ?? "Call" })}
-                          className="inline-flex items-center gap-1 text-[11px] text-violet-400 hover:underline whitespace-nowrap"
-                        >
-                          <ChevronRight className="h-3 w-3" /> View
-                        </button>
-                      ) : <span className="text-[11px] text-muted-foreground">—</span>}
-                    </td>
-                    <td className="px-3 py-2">{retellSentimentBadge(r.sentiment)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span>{hasMore ? `Page ${currentPage} · more records available` : `Page ${currentPage} · end of records`}</span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={goPrev}
-            disabled={currentPage === 1}
-            className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight className="h-3.5 w-3.5 rotate-180" />
-          </button>
-          <span className="flex h-7 min-w-[28px] items-center justify-center rounded-md border border-primary/40 bg-primary/15 text-primary font-semibold px-2">
-            {currentPage}
-          </span>
-          <button
-            onClick={goNext}
-            disabled={!hasMore}
-            className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.06] bg-card/40 hover:bg-white/[0.06] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
