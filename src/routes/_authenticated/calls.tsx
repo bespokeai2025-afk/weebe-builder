@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
+import { listWbahCalls } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -230,14 +231,48 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
 
 function CallsPage() {
   const [tab, setTab] = useState<"live" | "test">("live");
+  const [isWbah, setIsWbah] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("default_workspace_id")
+          .eq("user_id", sess.session.user.id)
+          .maybeSingle();
+        if (!profile?.default_workspace_id || !active) return;
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("slug")
+          .eq("id", profile.default_workspace_id)
+          .maybeSingle();
+        if (active) setIsWbah(ws?.slug === "webuyanyhouse");
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
 
+  // Native WEBEE calls (all workspaces except WBAH)
   const fn = useServerFn(listCalls);
   const q = useQuery({
     queryKey: ["calls"],
     queryFn: () => fn({ data: {} }),
+    enabled: !isWbah,
   });
-  const rows = (q.data ?? []) as any[];
+
+  // WeeBespoke calls — fetches every page in parallel for WBAH workspace
+  const wbahFn = useServerFn(listWbahCalls);
+  const wbahQ = useQuery({
+    queryKey: ["wbah-calls"],
+    queryFn: () => wbahFn(),
+    enabled: isWbah,
+  });
+
+  const rows = (isWbah ? (wbahQ.data ?? []) : (q.data ?? [])) as any[];
 
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
@@ -268,7 +303,9 @@ function CallsPage() {
     });
   }
 
-  const isRefetching = tab === "live" ? q.isRefetching : testQ.isRefetching;
+  const isRefetching = tab === "live"
+    ? (isWbah ? wbahQ.isFetching : q.isRefetching)
+    : testQ.isRefetching;
 
   return (
     <div className="mx-auto w-full max-w-7xl px-6 py-5">
@@ -324,7 +361,10 @@ function CallsPage() {
             variant="ghost"
             size="sm"
             className="h-8 gap-1.5 text-xs"
-            onClick={() => (tab === "live" ? q.refetch() : testQ.refetch())}
+            onClick={() => {
+              if (tab === "live") isWbah ? wbahQ.refetch() : q.refetch();
+              else testQ.refetch();
+            }}
             disabled={isRefetching}
           >
             <RefreshCw className={cn("h-3.5 w-3.5", isRefetching && "animate-spin")} />
@@ -345,7 +385,13 @@ function CallsPage() {
 
           {/* Calls table */}
           <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-            {rows.length === 0 ? (
+            {isWbah && wbahQ.isFetching && rows.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-16">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                <p className="text-sm font-medium">Loading WeeBespoke calls…</p>
+                <p className="text-xs text-muted-foreground">Fetching all call records — this takes a moment.</p>
+              </div>
+            ) : rows.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-16">
                 <Phone className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">No calls yet</p>

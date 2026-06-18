@@ -221,6 +221,114 @@ function formatDurationMs(ms: number | null | undefined): string | null {
   return `${m}m ${sec}s`;
 }
 
+// ── All WeeBespoke calls — fetches every page in parallel, returns WEBEE shape ─
+
+export const listWbahCalls = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+
+    // Page 1 first — tells us the total so we know how many pages to grab
+    const firstRes = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
+    if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch calls from WeeBespoke");
+
+    const firstRaw  = firstRes.data as any;
+    const firstRecs = extractRecords(firstRaw);
+    const total     = extractCountFromResponse(firstRaw, firstRecs.length);
+    const pageSize  = firstRecs.length || 50;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    // Fetch remaining pages in parallel
+    let allRecs = [...firstRecs];
+    if (totalPages > 1) {
+      const remaining = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+      const results = await Promise.all(
+        remaining.map((p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
+      );
+      for (const r of results) {
+        if (r.ok && r.data) allRecs.push(...extractRecords(r.data));
+      }
+    }
+
+    // Normalise every record to the WEBEE `calls` table shape
+    const calls = allRecs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
+
+    // Sort newest-first
+    calls.sort((a, b) => {
+      const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
+      const tb = b.started_at ? new Date(b.started_at).getTime() : 0;
+      return tb - ta;
+    });
+
+    return calls;
+  });
+
+function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
+  // ── Identity ──────────────────────────────────────────────────────────────
+  const id    = String(r._id ?? r.id ?? `wbah-${idx}`);
+  const name  = r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null;
+  const phone = r.toNumber ?? r.mobile_number ?? r.phone ?? r.phoneNumber ?? null;
+  const agentName = r.agentName ?? r.agent_name ?? r.assignedAgent ?? null;
+
+  // ── Call status ───────────────────────────────────────────────────────────
+  const rawStatus = (r.callStatus ?? r.status ?? "").toLowerCase();
+  let callStatus: string;
+  if (rawStatus === "ended" || rawStatus === "call_analyzed" || rawStatus === "completed") {
+    callStatus = "completed";
+  } else if (rawStatus === "not_connected" || rawStatus === "voicemail" || rawStatus === "no_answer") {
+    callStatus = "no_answer";
+  } else if (rawStatus === "failed") {
+    callStatus = "failed";
+  } else {
+    callStatus = rawStatus || "completed";
+  }
+
+  // ── Sentiment ─────────────────────────────────────────────────────────────
+  const rawSentiment = (r.sentimentAnalysis ?? r.sentiment ?? "").toLowerCase();
+  let sentiment: string | null = null;
+  if (/positive/.test(rawSentiment))       sentiment = "positive";
+  else if (/neutral/.test(rawSentiment))   sentiment = "neutral";
+  else if (/negative/.test(rawSentiment))  sentiment = "negative";
+
+  // ── Duration ──────────────────────────────────────────────────────────────
+  let durationSeconds: number | null = null;
+  if (r.durationMs && Number(r.durationMs) > 0) {
+    durationSeconds = Math.round(Number(r.durationMs) / 1000);
+  } else if (r.callDuration) {
+    durationSeconds = Number(r.callDuration) || null;
+  } else if (r.duration) {
+    durationSeconds = Number(r.duration) || null;
+  }
+
+  // ── Timestamps ────────────────────────────────────────────────────────────
+  const startedAt = r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.createdAt ?? r.created_at ?? null;
+
+  // ── Direction ─────────────────────────────────────────────────────────────
+  const dir = (r.direction ?? r.callDirection ?? r.type ?? "outbound").toLowerCase();
+  const callType = dir.includes("inbound") ? "inbound" : "outbound";
+
+  return {
+    id,
+    agent_id:             null,
+    agent_name:           agentName,
+    call_status:          callStatus,
+    call_type:            callType,
+    duration_seconds:     durationSeconds,
+    started_at:           startedAt,
+    ended_at:             null,
+    recording_url:        r.recordingUrl ?? r.recording_url ?? null,
+    transcript:           r.transcript ?? r.callTranscript ?? null,
+    call_summary:         r.transcript ?? r.callTranscript ?? r.callSummary ?? null,
+    from_number:          callType === "inbound"  ? phone : null,
+    to_number:            callType === "outbound" ? phone : null,
+    sentiment,
+    disconnection_reason: r.disconnectionReason ?? r.disconnection_reason ?? null,
+    cost_cents:           null,
+    retell_call_id:       null,
+    lead:                 name ? { id, full_name: name, phone: phone ?? "" } : null,
+  };
+}
+
 // ── Retell helper — get WBAH workspace's Retell API key ───────────────────────
 
 const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
