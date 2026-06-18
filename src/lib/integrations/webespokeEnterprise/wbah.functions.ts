@@ -490,12 +490,45 @@ export const adminConnectWebuyanyhouseApi = createServerFn({ method: "POST" })
     }
 
     const d = res.data as any;
-    const accessToken  = d.accessToken ?? d.token ?? d.data?.accessToken ?? d.data?.token;
-    const refreshToken = d.refreshToken ?? d.data?.refreshToken ?? "";
+
+    // Try every known token shape from WeeBespoke API
+    const accessToken =
+      d.accessToken       ??
+      d.token             ??
+      d.access_token      ??
+      d.jwt               ??
+      d.data?.accessToken ??
+      d.data?.token       ??
+      d.data?.access_token ??
+      d.data?.jwt         ??
+      d.result?.accessToken ??
+      d.result?.token     ??
+      d.auth?.accessToken ??
+      d.auth?.token       ??
+      d.user?.token       ??
+      d.user?.accessToken ??
+      null;
+
+    const refreshToken =
+      d.refreshToken       ??
+      d.refresh_token      ??
+      d.data?.refreshToken ??
+      d.data?.refresh_token ??
+      d.result?.refreshToken ??
+      d.auth?.refreshToken ??
+      "";
+
     if (!accessToken) {
+      // Show full structure (mask any long strings that look like tokens)
+      function safeKeys(obj: any, depth = 0): string {
+        if (depth > 3 || !obj || typeof obj !== "object") return String(typeof obj);
+        return "{" + Object.entries(obj).map(([k, v]) => {
+          const vStr = typeof v === "string" && v.length > 20 ? `"[string len=${v.length}]"` : JSON.stringify(v);
+          return `${k}: ${typeof v === "object" && v ? safeKeys(v, depth + 1) : vStr}`;
+        }).join(", ") + "}";
+      }
       throw new Error(
-        `Login succeeded (HTTP ${res.status}) but no token in response. ` +
-        `Top-level keys: ${Object.keys(d).join(", ")}`
+        `Login OK (HTTP ${res.status}) but no token found. Full response structure: ${safeKeys(d)}`
       );
     }
 
