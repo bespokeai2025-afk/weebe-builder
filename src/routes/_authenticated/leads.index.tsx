@@ -19,7 +19,8 @@ import {
   PlayCircle,
   StickyNote,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { KpiCard, MiniKpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -240,10 +241,30 @@ function LeadsPage() {
   const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
   const scheduledCount = leads.filter((l: any) => l.status === "scheduled").length;
 
-  const isWbah = useMemo(() =>
-    leads.some((l: any) => l.source_detail === "WeeBespoke Enterprise" || (l.meta as any)?.wbah_external_id),
-    [leads],
-  );
+  const [isWbah, setIsWbah] = useState(false);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("default_workspace_id")
+          .eq("user_id", sess.session.user.id)
+          .maybeSingle();
+        if (!profile?.default_workspace_id || !active) return;
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("slug")
+          .eq("id", profile.default_workspace_id)
+          .maybeSingle();
+        if (!active) return;
+        setIsWbah(ws?.slug === "webuyanyhouse");
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
 
   const isRetell = useMemo(() =>
     !isWbah && leads.some((l: any) => l.retell_call != null),
@@ -638,9 +659,15 @@ function LeadsPage() {
                         {/* Status picker */}
                         <td className="px-3 py-1.5">
                           <div className="flex flex-col gap-1">
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${statusDisplay(lead.status).color}`}>
-                              {statusDisplay(lead.status).label}
-                            </span>
+                            {(() => {
+                              const sd = statusDisplay(lead.status);
+                              const isPartial = isWbah && (lead.sentiment ?? "").toLowerCase() === "neutral";
+                              return (
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${isPartial ? "bg-amber-500/15 text-amber-400 ring-amber-500/20" : sd.color}`}>
+                                  {isPartial ? "Partly Qualified" : sd.label}
+                                </span>
+                              );
+                            })()}
                             <div className="flex gap-1 mt-0.5">
                               {STATUS_OPTIONS.map((opt) => (
                                 <button

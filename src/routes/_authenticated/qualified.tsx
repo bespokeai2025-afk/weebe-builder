@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -204,10 +205,30 @@ function QualifiedPage() {
   const rows = (leadsQ.data ?? []) as any[];
   const stats = statsQ.data;
 
-  const isWbah = useMemo(() =>
-    rows.some((l: any) => l.source_detail === "WeeBespoke Enterprise" || (l.meta as any)?.wbah_external_id),
-    [rows],
-  );
+  const [isWbah, setIsWbah] = useState(false);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) return;
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("default_workspace_id")
+          .eq("user_id", sess.session.user.id)
+          .maybeSingle();
+        if (!profile?.default_workspace_id || !active) return;
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("slug")
+          .eq("id", profile.default_workspace_id)
+          .maybeSingle();
+        if (!active) return;
+        setIsWbah(ws?.slug === "webuyanyhouse");
+      } catch {}
+    })();
+    return () => { active = false; };
+  }, []);
 
   const isRetell = useMemo(() =>
     !isWbah && rows.some((l: any) => l.retell_call != null),
