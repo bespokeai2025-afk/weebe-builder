@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Radio, Search, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { DeployAgentDialog } from "@/components/agents/DeployAgentDialog";
 import { AgentCard, type AgentCardData, deriveVoiceProvider } from "@/components/agents/AgentCard";
 import {
@@ -151,6 +152,7 @@ function MyAgentsPage() {
     if (voiceFilter !== "ALL" && deriveVoiceProvider(a) !== voiceFilter) return false;
     return true;
   });
+  const agentsPag = useTablePagination(filtered, 25);
 
   return (
     <main className="min-h-screen">
@@ -248,7 +250,7 @@ function MyAgentsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            {filtered.map((a) => (
+            {agentsPag.sliced.map((a) => (
               <AgentCard
                 key={a.id}
                 agent={a}
@@ -268,6 +270,7 @@ function MyAgentsPage() {
             ))}
           </div>
         )}
+        {filtered.length > 0 && <TablePagBar {...agentsPag} />}
       </div>
 
       <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(o) => !o && setDeleteTarget(null)}>

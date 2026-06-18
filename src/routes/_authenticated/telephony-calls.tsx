@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import {
   Phone,
   PhoneIncoming,
@@ -150,6 +151,7 @@ function TelephonyCallsPage() {
   const totalCalls = calls.length;
   const answered = calls.filter((c: any) => c.status === "completed" || c.status === "answered").length;
   const totalDuration = calls.reduce((acc: number, c: any) => acc + (c.duration_seconds ?? 0), 0);
+  const callsPag = useTablePagination(calls, 50);
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -213,7 +215,7 @@ function TelephonyCallsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {calls.map((c: any) => (
+              {callsPag.sliced.map((c: any) => (
                 <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3">
                     {c.direction === "inbound"
@@ -255,6 +257,7 @@ function TelephonyCallsPage() {
               ))}
             </tbody>
           </table>
+          <TablePagBar {...callsPag} />
         </div>
       )}
 

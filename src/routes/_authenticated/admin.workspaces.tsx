@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -86,9 +87,11 @@ function AdminWorkspacesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const filtered = (workspaces as any[]).filter((ws) =>
+  const filteredAll = (workspaces as any[]).filter((ws) =>
     ws.name?.toLowerCase().includes(search.toLowerCase())
   );
+  const wsPag = useTablePagination(filteredAll, 25);
+  const filtered = wsPag.sliced;
 
   const pending = (requests as any[]).filter((r) => r.status === "pending");
 
@@ -286,12 +289,13 @@ function AdminWorkspacesPage() {
                   </div>
                 );
               })}
-              {filtered.length === 0 && (
+              {filteredAll.length === 0 && (
                 <div className="py-12 text-center text-sm text-muted-foreground">
                   <Layers className="mx-auto h-8 w-8 mb-3 opacity-30" />
                   No workspaces found
                 </div>
               )}
+              {filteredAll.length > 0 && <TablePagBar {...wsPag} />}
             </div>
           )}
         </div>

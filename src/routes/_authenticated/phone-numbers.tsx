@@ -13,6 +13,7 @@ import {
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import {
   listPhoneNumbers,
   savePhoneNumber,
@@ -46,6 +47,7 @@ function PhoneNumbersPage() {
     queryKey: ["phone-numbers"],
     queryFn: () => listFn({}),
   });
+  const numbersPag = useTablePagination(numbers, 50);
 
   const { data: agents = [] } = useQuery({
     queryKey: ["agents-list"],
@@ -117,7 +119,7 @@ function PhoneNumbersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {numbers.map((n: any) => (
+              {numbersPag.sliced.map((n: any) => (
                 <tr key={n.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-4 py-3 font-mono">{n.phone_number}</td>
                   <td className="px-4 py-3 text-muted-foreground">{n.friendly_name ?? "—"}</td>
@@ -162,6 +164,7 @@ function PhoneNumbersPage() {
               ))}
             </tbody>
           </table>
+          <TablePagBar {...numbersPag} />
         </div>
       )}
     </div>

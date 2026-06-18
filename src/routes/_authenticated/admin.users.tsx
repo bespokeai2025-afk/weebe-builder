@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,8 @@ function AdminUsersPage() {
 
   // Workspace requests
   const [wsRequests, setWsRequests] = useState<WsRequest[]>([]);
+  const usersPag = useTablePagination(users, 25);
+  const wsReqPag = useTablePagination(wsRequests, 25);
   const [wsLoading, setWsLoading] = useState(true);
   // Per-request approve form state: requestId → retell api key being typed
   const [approveKeys, setApproveKeys] = useState<Record<string, string>>({});
@@ -239,7 +242,7 @@ function AdminUsersPage() {
             <div className="p-4 text-sm text-muted-foreground">No workspace requests.</div>
           ) : (
             <div className="divide-y">
-              {wsRequests.map((r) => {
+              {wsReqPag.sliced.map((r) => {
                 const isPending = r.status === "pending";
                 const isApproved = r.status === "approved";
                 const isOpen = !!approveOpen[r.id];
@@ -351,6 +354,7 @@ function AdminUsersPage() {
                   </div>
                 );
               })}
+              <TablePagBar {...wsReqPag} />
             </div>
           )}
         </div>
@@ -405,7 +409,7 @@ function AdminUsersPage() {
           ) : users.length === 0 ? (
             <div className="p-4 text-sm text-muted-foreground">No users found.</div>
           ) : (
-            users.map((u) => {
+            usersPag.sliced.map((u) => {
               const limit = (u.spend_limit_cents ?? 0) / 100;
               const used = (u.spend_used_cents ?? 0) / 100;
               return (
@@ -487,6 +491,7 @@ function AdminUsersPage() {
               );
             })
           )}
+          <TablePagBar {...usersPag} />
         </div>
       </div>
     </main>

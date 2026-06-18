@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Trash2, Plus, Globe2, User, Radio, Zap } from "lucide-react";
@@ -455,6 +456,7 @@ function TemplateGrid({
   loadingId: string | null;
   empty: string;
 }) {
+  const pag = useTablePagination(items, 25);
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
@@ -463,8 +465,9 @@ function TemplateGrid({
     );
   }
   return (
+    <div>
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {items.map((t) => (
+      {pag.sliced.map((t) => (
         <Card key={t.id} data-tour={t.name.toLowerCase().includes("receptionist") ? "template-receptionist" : undefined}>
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-2">
@@ -513,6 +516,8 @@ function TemplateGrid({
           </CardContent>
         </Card>
       ))}
+    </div>
+    <TablePagBar {...pag} />
     </div>
   );
 }

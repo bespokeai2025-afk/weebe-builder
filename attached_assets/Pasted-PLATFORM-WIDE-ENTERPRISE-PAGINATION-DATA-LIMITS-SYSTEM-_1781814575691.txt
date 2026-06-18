@@ -1,0 +1,407 @@
+PLATFORM-WIDE ENTERPRISE PAGINATION, DATA LIMITS & SYSTEM MIND MONITORING
+
+Important:
+
+This must apply platform-wide.
+
+Do not make this Webuyanyhouse-only.
+
+Every user account, every workspace, and every data-heavy page should use enterprise-safe pagination and limit monitoring.
+
+Do not rebuild pages.
+
+Do not create duplicate pages.
+
+Do not break existing Webuyanyhouse setup.
+
+Do not break other client workspaces.
+
+Do not change authentication, workspace isolation, or permissions.
+
+---
+
+1. PLATFORM-WIDE PAGINATION STANDARD
+
+---
+
+Apply this to every data-heavy table/list across WEBEE:
+
+Rows per page options:
+
+10
+25
+50
+75
+100
+
+Default:
+
+50
+
+Maximum frontend render size:
+
+100 rows per page
+
+No page should render hundreds or thousands of rows continuously in the browser.
+
+This applies to:
+
+* Dashboard tables
+* Data page
+* Data sub-pages/tabs
+* Leads
+* People
+* Calls
+* Qualified Leads
+* CRM
+* Contacts
+* Campaigns
+* Callbacks
+* Credits history
+* User Management
+* Phone Numbers
+* Agents
+* Any other table/list that can grow over time
+
+---
+
+2. ENTERPRISE DATA FETCHING STANDARD
+
+---
+
+Frontend display:
+
+* max 100 records rendered per table page
+
+Server/API fetching:
+
+* use server-side pagination where supported
+* use Supabase range pagination where Supabase-backed
+* use API Engine pagination where external API-backed
+
+Background sync/import jobs:
+
+* may fetch larger batches such as 1,000 / 5,000 / 10,000 where safe
+* must not send all records to frontend at once
+
+Separate:
+
+Viewing data
+= paginated, max 100 rows
+
+Syncing/importing data
+= safe server-side batches
+
+---
+
+3. NORMALISED PAGINATION CONTRACT
+
+---
+
+Every data service should return:
+
+{
+rows: [],
+totalCount: 0,
+page: 1,
+pageSize: 50,
+totalPages: 0,
+hasNextPage: false,
+hasPreviousPage: false
+}
+
+Pages should consume this standard shape regardless of source:
+
+* Supabase
+* WEBEE API Engine
+* External API
+* Local cache
+
+---
+
+4. UPDATE ALL EXISTING TABLES SAFELY
+
+---
+
+Before changing each page:
+
+Catalogue:
+
+* component file
+* table component used
+* data hook used
+* data service used
+* current pagination method
+* current filters/search/sort
+* current permissions
+
+Then add/reuse pagination without changing existing business logic.
+
+Preserve:
+
+* search
+* filters
+* sort
+* active tab
+* selected workspace
+* selected date range
+* row selection
+* bulk actions
+* permissions
+
+---
+
+5. SUPABASE STANDARD
+
+---
+
+For Supabase-backed data:
+
+Use:
+
+select("*", { count: "exact" })
+
+with:
+
+range(start, end)
+
+Example:
+
+page 1, pageSize 50:
+
+range(0, 49)
+
+page 2, pageSize 50:
+
+range(50, 99)
+
+Do not use unbounded select("*") for enterprise tables.
+
+---
+
+6. EXTERNAL API STANDARD
+
+---
+
+For external API-backed data:
+
+Use the WEBEE API Engine pagination strategy.
+
+Endpoint mappings should define:
+
+* pagination_strategy
+* pageParamName
+* limitParamName
+* offsetParamName
+* cursorParamName
+* defaultPageSize
+* maxPageSize
+* supportsBulkFetch
+* bulkLimit
+* totalCountPath
+* detectedArrayPath
+
+Do not hardcode pagination inside page components.
+
+---
+
+7. SYSTEM MIND DATA LIMIT MONITORING
+
+---
+
+Add monitoring inside:
+
+System Mind
+→ Data Limits / Capacity Monitor
+
+or add to existing System Health if more appropriate.
+
+System Mind should monitor all workspaces and key tables/modules.
+
+Track:
+
+* workspace_id
+* workspace name
+* module/page
+* table/source name
+* total records
+* current frontend page size
+* current max allowed page size
+* current API limit
+* current sync batch size
+* estimated storage usage
+* last checked at
+* warning level
+
+Warning levels:
+
+OK
+Warning
+Near Limit
+Critical
+
+---
+
+8. LIMIT THRESHOLDS
+
+---
+
+Default thresholds:
+
+OK:
+below 50% of configured capacity
+
+Warning:
+50% to 75%
+
+Near Limit:
+75% to 90%
+
+Critical:
+90%+
+
+Monitor against configurable limits such as:
+
+* table record limits
+* API fetch limits
+* sync batch limits
+* workspace package limits
+* credits/package limits if applicable
+
+These should be configurable, not hardcoded forever.
+
+---
+
+9. AUTOMATIC RECOMMENDATIONS
+
+---
+
+When a workspace/module reaches near limit or critical:
+
+System Mind should show recommended actions:
+
+Examples:
+
+* Increase sync batch size
+* Enable server-side pagination
+* Add database index
+* Archive old records
+* Move old records to cold storage
+* Increase workspace package limit
+* Review API pagination strategy
+* Review endpoint mapping
+* Optimise query
+* Reduce frontend page size
+* Enable cache
+
+Do not automatically delete or archive data.
+
+Only recommend unless an admin explicitly approves an action.
+
+---
+
+10. HIVEMIND / SYSTEM MIND ALERTS
+
+---
+
+If HiveMind/System Mind alerts already exist, use them.
+
+Create alerts such as:
+
+"Webuyanyhouse CRM records are at 87% of configured limit."
+
+"Calls table has exceeded safe unpaginated render threshold."
+
+"Data page is attempting to render 397 rows at once."
+
+"External API endpoint is returning only 50 records but source count is higher."
+
+Alerts should appear only to platform admin users.
+
+---
+
+11. ADMIN ACCESS
+
+---
+
+System Mind monitoring should only be visible to platform admin users.
+
+Restrict to:
+
+[admin@webespokeai.com](mailto:admin@webespokeai.com)
+
+unless a broader platform_admin role already exists.
+
+Use both:
+
+* frontend visibility control
+* server-side access enforcement
+
+---
+
+12. DO NOT BREAK CURRENT SETUP
+
+---
+
+Do not change:
+
+* Webuyanyhouse API mappings
+* sentiment logic
+* qualification logic
+* workspace isolation
+* authentication
+* token handling
+* existing working dashboards
+* existing client-specific rules
+
+This is a pagination/limit/monitoring enhancement only.
+
+---
+
+13. FINAL VALIDATION
+
+---
+
+Confirm:
+
+* every major table has rows-per-page selector
+* options are 10, 25, 50, 75, 100
+* default is 50
+* no page renders hundreds/thousands of rows continuously
+* Data page and sub-pages paginate correctly
+* Leads paginate correctly
+* People paginate correctly
+* Calls paginate correctly
+* Qualified Leads paginate correctly
+* CRM paginates correctly
+* Campaigns paginate where needed
+* Credits history paginates where needed
+* User Management paginates where needed
+* System Mind shows data limit monitoring
+* System Mind detects near-limit conditions
+* System Mind shows recommendations
+* Other clients are unaffected
+* Webuyanyhouse still works
+
+---
+
+14. FINAL REPORT
+
+---
+
+Provide a report showing:
+
+* pages updated
+* table components updated
+* services updated
+* hardcoded limits removed
+* pagination standard applied
+* System Mind monitoring added
+* thresholds configured
+* alerts added
+* remaining risks
+* enterprise-readiness status
+
+Goal:
+
+WEBEE should now support enterprise-scale datasets across all clients and workspaces, while keeping every frontend table safely paginated and monitored by System Mind.

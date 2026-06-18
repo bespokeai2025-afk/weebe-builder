@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import {
   listCampaigns,
   saveCampaign,
@@ -106,6 +107,7 @@ function CampaignsPage() {
     queryKey: ["campaigns"],
     queryFn: () => listFn({}),
   });
+  const campPag = useTablePagination(campaigns, 25);
 
   const { data: agents = [] } = useQuery({
     queryKey: ["agents-list"],
@@ -228,7 +230,7 @@ function CampaignsPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {campaigns.map((c: any) => (
+            {campPag.sliced.map((c: any) => (
               <div key={c.id} className="rounded-xl border border-border bg-card p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -291,6 +293,7 @@ function CampaignsPage() {
                 </div>
               </div>
             ))}
+            <TablePagBar {...campPag} />
           </div>
         )}
       </>)}
@@ -332,6 +335,7 @@ function ScheduledCampaignsTab() {
     queryKey: ["all-call-campaigns"],
     queryFn: () => listAllFn({}),
   });
+  const schedPag = useTablePagination(campaigns, 25);
 
   const toggleMut = useMutation({
     mutationFn: (c: CallCampaignWithAgent) =>
@@ -375,7 +379,7 @@ function ScheduledCampaignsTab() {
         </Button>
       </div>
 
-      {campaigns.map((c) => {
+      {schedPag.sliced.map((c) => {
         const ptMeta = PAGE_TYPE_META[c.config.pageType] ?? PAGE_TYPE_META.data;
         const isActive = c.status === "active";
         const toggling = toggleMut.isPending && toggleMut.variables?.id === c.id;
@@ -470,6 +474,7 @@ function ScheduledCampaignsTab() {
           </div>
         );
       })}
+      <TablePagBar {...schedPag} />
     </div>
   );
 }
@@ -650,6 +655,7 @@ function WbahCampaignsTab() {
     staleTime: 60_000,
     retry: 1,
   });
+  const wbahCampPag = useTablePagination(campaigns, 25);
 
   const pauseMut  = useMutation({ mutationFn: (id: string) => pauseFn({ data: { id } }),  onSuccess: () => qc.invalidateQueries({ queryKey: ["wbah-campaigns"] }) });
   const resumeMut = useMutation({ mutationFn: (id: string) => resumeFn({ data: { id } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["wbah-campaigns"] }) });
@@ -685,7 +691,8 @@ function WbahCampaignsTab() {
           <p className="text-sm">No WeeBespoke campaigns found.</p>
         </div>
       ) : (
-        campaigns.map((c: any) => (
+        <>
+          {wbahCampPag.sliced.map((c: any) => (
           <div key={c.id} className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
@@ -722,7 +729,9 @@ function WbahCampaignsTab() {
               </div>
             </div>
           </div>
-        ))
+        ))}
+        <TablePagBar {...wbahCampPag} />
+        </>
       )}
     </div>
   );

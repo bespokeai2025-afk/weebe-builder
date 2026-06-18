@@ -1,0 +1,449 @@
+MOVE CLIENT SETUP TO SYSTEM MIND + ADD CLIENT API PROBE
+
+Current issue:
+
+The function for creating/activating a client WEBEE account is currently located in:
+
+Accounts Mind → Clients
+
+This is not the correct long-term location.
+
+---
+
+1. MOVE CLIENT WORKSPACE SETUP TO SYSTEM MIND
+
+---
+
+Move all WEBEE operational client setup functionality into:
+
+System Mind
+→ Clients
+
+This should become the master location for future client onboarding and workspace management.
+
+System Mind → Clients should manage:
+
+* Create WEBEE Workspace
+* Activate WEBEE Workspace
+* Assign Workspace Templates
+* Configure Workspace Modules
+* Configure Smart Dash
+* Configure Client Integrations
+* Configure API Connections
+* Configure Workflow Templates
+* Configure Data Sources
+* Configure Workspace Settings
+* Manage Workspace Status
+* Manage Workspace Health
+* Manage Workspace Integrations
+
+This will become the reusable client onboarding area for all future clients.
+
+---
+
+2. KEEP ENTERPRISE PROFILE CREATION IN ACCOUNTS MIND
+
+---
+
+Accounts Mind should remain responsible for:
+
+* Enterprise Profile Creation
+* Billing Profiles
+* Stripe Billing Setup
+* Subscription Management
+* Package Assignment
+* Credit Allocation
+* Commercial Information
+* Company Information
+* Account Ownership
+* Finance Settings
+
+Do NOT move billing functions into System Mind.
+
+Maintain clear separation:
+
+System Mind
+= Operations + Workspace Setup
+
+Accounts Mind
+= Commercial + Billing Setup
+
+---
+
+3. ADMIN ACCESS RESTRICTION
+
+---
+
+Restrict these platform functions to:
+
+[admin@webespokeai.com](mailto:admin@webespokeai.com)
+
+Only.
+
+The following areas should only be visible and actionable by:
+
+[admin@webespokeai.com](mailto:admin@webespokeai.com)
+
+System Mind:
+
+* Client Setup
+* API Probe
+* Workspace Activation
+* Integration Management
+
+Accounts Mind:
+
+* Enterprise Profile Creation
+* Billing Configuration
+* Package Management
+
+Implement:
+
+* Frontend visibility controls
+* Route guards
+* Server-side permission checks
+
+Do not rely solely on frontend hiding.
+
+---
+
+4. CLIENT API PROBE
+
+---
+
+Add a new feature:
+
+System Mind
+→ Clients
+→ API Probe
+
+Purpose:
+
+Allow platform admin to connect, test and analyse client APIs before integrating them into WEBEE.
+
+This should become the standard onboarding process for future clients.
+
+---
+
+5. API PROBE FEATURES
+
+---
+
+For each client:
+
+Allow admin to:
+
+* Save Base API URL
+* Configure Authentication
+* Test Connectivity
+* Test Authentication
+* Probe Endpoints
+* Analyse Response Shapes
+* Detect Pagination
+* Detect Record Counts
+* Detect Common Fields
+* Suggest WEBEE Module Mapping
+* Save Endpoint Mapping
+
+---
+
+6. SUPPORTED AUTH TYPES
+
+---
+
+Support:
+
+* Bearer Token
+* API Key Header
+* Basic Auth
+* OAuth Placeholder
+* OTP Authentication
+* Custom Headers
+
+For Webuyanyhouse support:
+
+POST /admin/auth/request-otp
+POST /admin/auth/verify-otp
+POST /admin/refresh-token
+
+All credentials must be stored server-side only.
+
+Never expose credentials in the browser.
+
+---
+
+7. API PROBE UI
+
+---
+
+Add UI containing:
+
+Connection Settings
+
+* Base URL
+* Auth Type
+* Credentials
+* Test Connection Button
+
+Request Builder
+
+* Endpoint Path
+* HTTP Method
+* Query Params
+* Headers
+* Request Body
+
+Response Analysis
+
+* Status Code
+* Response Time
+* Top-Level Keys
+* Detected Array Path
+* Record Count
+* Pagination Metadata
+* Sample Record
+* Save Mapping Button
+
+Do not display stored tokens after save.
+
+---
+
+8. PAGINATION DETECTION
+
+---
+
+Probe should automatically test:
+
+* page
+* currentPage
+* limit
+* offset
+* pageSize
+* cursor
+* nextPage
+* totalPages
+* total
+
+Also test:
+
+?limit=10000
+
+to determine whether bulk retrieval is supported.
+
+Detect:
+
+* ignored pagination
+* cursor pagination
+* page pagination
+* bulk-fetch support
+
+Generate recommendations.
+
+---
+
+9. MODULE MAPPING SYSTEM
+
+---
+
+Allow endpoint mappings to be assigned to:
+
+* dashboard
+* people
+* leads
+* crm
+* calls
+* campaigns
+* agents
+* phone_numbers
+* credits
+* user_management
+* callbacks
+* qualified_leads
+
+Example:
+
+GET /crm-data/get-crm-data
+→ CRM
+
+GET /call-output-data/all
+→ Calls
+
+POST /dashboard/leads
+→ Dashboard
+
+Mappings should be configurable.
+
+Do not hardcode endpoint assignments.
+
+---
+
+10. DATABASE STRUCTURE
+
+---
+
+Create:
+
+client_api_connections
+
+Fields:
+
+* id
+* client_id
+* workspace_id nullable
+* name
+* base_url
+* auth_type
+* encrypted_credentials
+* status
+* created_at
+* updated_at
+
+Create:
+
+client_api_endpoint_mappings
+
+Fields:
+
+* id
+* client_api_connection_id
+* workspace_id nullable
+* module_key
+* endpoint_path
+* method
+* query_params jsonb
+* body_template jsonb
+* detected_array_path
+* pagination_strategy
+* field_mapping jsonb
+* created_at
+* updated_at
+
+All credentials must be encrypted.
+
+---
+
+11. WEBUYANYHOUSE IMPLEMENTATION
+
+---
+
+Use Webuyanyhouse as the first client using this architecture.
+
+Move current API integration management into:
+
+System Mind → Clients → API Probe
+
+Use the probe to:
+
+* Test endpoints
+* Detect counts
+* Detect pagination
+* Detect response structure
+* Save mappings
+
+Do not hardcode Webuyanyhouse logic directly into page components if avoidable.
+
+Use stored endpoint mappings instead.
+
+---
+
+12. REFACTOR EXISTING IMPLEMENTATION
+
+---
+
+Before making changes:
+
+Audit:
+
+* routes
+* pages
+* components
+* services
+* API clients
+* workspace setup logic
+* enterprise profile logic
+* permissions
+
+Refactor:
+
+Move reusable setup functionality into shared services.
+
+Suggested separation:
+
+clientWorkspaceSetupService
+→ System Mind
+
+enterpriseBillingProfileService
+→ Accounts Mind
+
+Avoid duplicated logic.
+
+---
+
+13. DO NOT BREAK EXISTING CLIENTS
+
+---
+
+Do not affect:
+
+* Webuyanyhouse workspace
+* Existing API integrations
+* Existing Smart Dash pages
+* Existing dashboard data
+* Existing client workspaces
+* Existing billing profiles
+* Existing enterprise profiles
+
+Migration must be safe.
+
+---
+
+14. FINAL RESULT
+
+---
+
+System Mind
+→ Clients
+
+becomes the operational client onboarding and integration centre.
+
+Features:
+
+* Workspace Creation
+* Workspace Activation
+* API Probe
+* Endpoint Mapping
+* Workflow Assignment
+* Integration Management
+
+Accounts Mind
+
+remains:
+
+* Enterprise Profile Creation
+* Billing Profiles
+* Subscription Management
+* Commercial Configuration
+
+Both areas restricted to:
+
+[admin@webespokeai.com](mailto:admin@webespokeai.com)
+
+---
+
+15. FINAL REPORT
+
+---
+
+Provide a report showing:
+
+* Functionality moved to System Mind
+* Functionality retained in Accounts Mind
+* API Probe created
+* Endpoint Mapping system created
+* Permissions added
+* Server-side access controls added
+* Routes updated
+* Duplicate logic removed
+* Existing clients verified unaffected
+* Webuyanyhouse integration verified operational
+* Workspace setup architecture verified reusable for future clients

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,6 +92,7 @@ const REQUEST_TYPE_LABELS: Record<string, string> = {
 
 function AdminChangeRequestsPage() {
   const [requests, setRequests] = useState<ChangeRequest[]>([]);
+  const reqPag = useTablePagination(requests, 25);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
   const [selected, setSelected] = useState<ChangeRequest | null>(null);
@@ -205,6 +207,7 @@ function AdminChangeRequestsPage() {
               <p className="text-sm text-muted-foreground">No change requests</p>
             </div>
           ) : (
+            <>
             <Table>
               <TableHeader>
                 <TableRow className="border-white/[0.06]">
@@ -219,7 +222,7 @@ function AdminChangeRequestsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {requests.map((r) => {
+                {reqPag.sliced.map((r) => {
                   const sc = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.open;
                   const bc = BILLING_CONFIG[r.billing_status] ?? BILLING_CONFIG.pending_quote;
                   return (
@@ -266,6 +269,8 @@ function AdminChangeRequestsPage() {
                 })}
               </TableBody>
             </Table>
+            {requests.length > 0 && <TablePagBar {...reqPag} />}
+            </>
           )}
         </div>
       </div>

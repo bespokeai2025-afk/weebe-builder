@@ -101,6 +101,7 @@ import { Route as AuthenticatedSystemmindPlaybooksRouteImport } from './routes/_
 import { Route as AuthenticatedSystemmindKnowledgeRouteImport } from './routes/_authenticated/systemmind.knowledge'
 import { Route as AuthenticatedSystemmindIssuesRouteImport } from './routes/_authenticated/systemmind.issues'
 import { Route as AuthenticatedSystemmindFixPlansRouteImport } from './routes/_authenticated/systemmind.fix-plans'
+import { Route as AuthenticatedSystemmindDataLimitsRouteImport } from './routes/_authenticated/systemmind.data-limits'
 import { Route as AuthenticatedSystemmindChatRouteImport } from './routes/_authenticated/systemmind.chat'
 import { Route as AuthenticatedSystemmindAuditsRouteImport } from './routes/_authenticated/systemmind.audits'
 import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './routes/_authenticated/systemmind.architecture'
@@ -718,6 +719,12 @@ const AuthenticatedSystemmindFixPlansRoute =
   AuthenticatedSystemmindFixPlansRouteImport.update({
     id: '/fix-plans',
     path: '/fix-plans',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindDataLimitsRoute =
+  AuthenticatedSystemmindDataLimitsRouteImport.update({
+    id: '/data-limits',
+    path: '/data-limits',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindChatRoute =
@@ -1580,6 +1587,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
+  '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
   '/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
@@ -1794,6 +1802,7 @@ export interface FileRoutesByTo {
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
+  '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
   '/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
@@ -2017,6 +2026,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/_authenticated/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
+  '/_authenticated/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/_authenticated/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
   '/_authenticated/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/_authenticated/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
@@ -2241,6 +2251,7 @@ export interface FileRouteTypes {
     | '/systemmind/architecture'
     | '/systemmind/audits'
     | '/systemmind/chat'
+    | '/systemmind/data-limits'
     | '/systemmind/fix-plans'
     | '/systemmind/issues'
     | '/systemmind/knowledge'
@@ -2455,6 +2466,7 @@ export interface FileRouteTypes {
     | '/systemmind/architecture'
     | '/systemmind/audits'
     | '/systemmind/chat'
+    | '/systemmind/data-limits'
     | '/systemmind/fix-plans'
     | '/systemmind/issues'
     | '/systemmind/knowledge'
@@ -2677,6 +2689,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/architecture'
     | '/_authenticated/systemmind/audits'
     | '/_authenticated/systemmind/chat'
+    | '/_authenticated/systemmind/data-limits'
     | '/_authenticated/systemmind/fix-plans'
     | '/_authenticated/systemmind/issues'
     | '/_authenticated/systemmind/knowledge'
@@ -3524,6 +3537,13 @@ declare module '@tanstack/react-router' {
       path: '/fix-plans'
       fullPath: '/systemmind/fix-plans'
       preLoaderRoute: typeof AuthenticatedSystemmindFixPlansRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/data-limits': {
+      id: '/_authenticated/systemmind/data-limits'
+      path: '/data-limits'
+      fullPath: '/systemmind/data-limits'
+      preLoaderRoute: typeof AuthenticatedSystemmindDataLimitsRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/chat': {
@@ -4725,6 +4745,7 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindArchitectureRoute: typeof AuthenticatedSystemmindArchitectureRoute
   AuthenticatedSystemmindAuditsRoute: typeof AuthenticatedSystemmindAuditsRoute
   AuthenticatedSystemmindChatRoute: typeof AuthenticatedSystemmindChatRoute
+  AuthenticatedSystemmindDataLimitsRoute: typeof AuthenticatedSystemmindDataLimitsRoute
   AuthenticatedSystemmindFixPlansRoute: typeof AuthenticatedSystemmindFixPlansRoute
   AuthenticatedSystemmindIssuesRoute: typeof AuthenticatedSystemmindIssuesRoute
   AuthenticatedSystemmindKnowledgeRoute: typeof AuthenticatedSystemmindKnowledgeRoute
@@ -4746,6 +4767,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
       AuthenticatedSystemmindArchitectureRoute,
     AuthenticatedSystemmindAuditsRoute: AuthenticatedSystemmindAuditsRoute,
     AuthenticatedSystemmindChatRoute: AuthenticatedSystemmindChatRoute,
+    AuthenticatedSystemmindDataLimitsRoute:
+      AuthenticatedSystemmindDataLimitsRoute,
     AuthenticatedSystemmindFixPlansRoute: AuthenticatedSystemmindFixPlansRoute,
     AuthenticatedSystemmindIssuesRoute: AuthenticatedSystemmindIssuesRoute,
     AuthenticatedSystemmindKnowledgeRoute:

@@ -2,7 +2,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield,
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
-  CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2,
+  CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2, Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,7 @@ const NAV_GROUPS: Array<{ title?: string; items: NavItem[] }> = [
       { label: "Issues",          href: "/systemmind/issues",           icon: AlertTriangle },
       { label: "Providers",       href: "/systemmind/providers",        icon: PlugZap       },
       { label: "Audits",          href: "/systemmind/audits",           icon: ClipboardList },
+      { label: "Data Limits",     href: "/systemmind/data-limits",      icon: Database      },
     ],
   },
   {

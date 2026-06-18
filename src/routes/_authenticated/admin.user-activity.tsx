@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ function UserActivityPage() {
   });
 
   const rows = query.data ?? [];
+  const rowsPag = useTablePagination(rows, 25);
 
   return (
     <main className="min-h-screen bg-background">
@@ -93,7 +95,7 @@ function UserActivityPage() {
                   : "No recent users."}
               </div>
             ) : (
-              rows.map((r) => (
+              rowsPag.sliced.map((r) => (
                 <div key={r.profileId} className="rounded-lg border p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -181,6 +183,7 @@ function UserActivityPage() {
                 </div>
               ))
             )}
+            {rows.length > 0 && <TablePagBar {...rowsPag} />}
           </TabsContent>
         </Tabs>
       </div>

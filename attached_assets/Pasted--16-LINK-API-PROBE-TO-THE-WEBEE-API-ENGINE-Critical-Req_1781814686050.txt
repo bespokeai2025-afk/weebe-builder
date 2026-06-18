@@ -1,0 +1,283 @@
+---
+
+16. LINK API PROBE TO THE WEBEE API ENGINE
+
+---
+
+Critical Requirement:
+
+Do not build the API Probe as a standalone tool.
+
+Do not create a second API connection system.
+
+Do not create a separate API management layer.
+
+The API Probe must become the discovery and configuration interface for the existing WEBEE API Engine.
+
+Architecture:
+
+System Mind
+→ Clients
+→ API Probe
+↓
+WEBEE API Engine
+↓
+Data Source Router
+↓
+Smart Dash Modules
+
+The API Probe should not call page components directly.
+
+Instead it should configure the API Engine.
+
+---
+
+## WEBEE API ENGINE
+
+The API Engine becomes the central platform service responsible for:
+
+* External API Connections
+* Authentication
+* Token Refresh
+* Endpoint Mapping
+* Pagination Handling
+* Bulk Fetch Logic
+* Rate Limiting
+* Retry Logic
+* Response Normalisation
+* Data Routing
+* Caching
+* Error Handling
+
+All external client APIs should pass through this engine.
+
+Examples:
+
+Webuyanyhouse API
+Dynamics API
+Pipedrive API
+HubSpot API
+Custom CRM APIs
+Future Integrations
+
+---
+
+## API PROBE RESPONSIBILITY
+
+The API Probe should:
+
+Discover APIs
+
+Analyse APIs
+
+Test APIs
+
+Map APIs
+
+Configure APIs
+
+Save API configurations
+
+The Probe should NOT become the runtime data fetch layer.
+
+The API Engine is the runtime layer.
+
+---
+
+## DATA SOURCE ROUTER
+
+Create a reusable Data Source Router.
+
+Example:
+
+getDashboardData(workspaceId)
+
+getPeopleData(workspaceId)
+
+getCRMData(workspaceId)
+
+getCallsData(workspaceId)
+
+getCampaignData(workspaceId)
+
+The Data Source Router should determine:
+
+Which API connection to use
+
+Which endpoint mapping to use
+
+Which authentication method to use
+
+Which pagination strategy to use
+
+Which transformation rules to use
+
+Pages should not know where data originates.
+
+Pages should simply request:
+
+Dashboard Data
+
+CRM Data
+
+People Data
+
+Calls Data
+
+etc.
+
+---
+
+## ENDPOINT MAPPING ENGINE
+
+When API Probe saves a mapping:
+
+Example:
+
+GET /crm-data/get-crm-data
+→ CRM Module
+
+The mapping should be stored centrally.
+
+At runtime:
+
+CRM Page
+↓
+API Engine
+↓
+Endpoint Mapping
+↓
+External API
+
+This prevents hardcoded integrations.
+
+---
+
+## RESPONSE NORMALISATION
+
+The API Engine should normalise responses into a standard WEBEE structure.
+
+Example:
+
+CRM Response:
+
+{
+rows: [],
+total: 0,
+page: 1,
+totalPages: 1
+}
+
+Calls Response:
+
+{
+rows: [],
+total: 0,
+page: 1,
+totalPages: 1
+}
+
+Dashboard Response:
+
+{
+metrics: {}
+}
+
+Regardless of the external API shape.
+
+Pages should consume normalised data only.
+
+---
+
+## PAGINATION ENGINE
+
+The API Probe should detect:
+
+* page
+* currentPage
+* offset
+* cursor
+* limit
+* totalPages
+* nextPage
+
+and save the strategy.
+
+The API Engine should execute that strategy at runtime.
+
+Do not duplicate pagination logic inside page components.
+
+---
+
+## WORKSPACE CONFIGURATION
+
+Each workspace should store:
+
+workspace_api_profile
+
+Example:
+
+Webuyanyhouse
+
+Data Source:
+webuyanyhouse_api
+
+Mappings:
+dashboard
+people
+crm
+calls
+campaigns
+credits
+
+Authentication:
+otp
+
+Pagination:
+bulk_limit_10000
+
+The API Engine reads this profile.
+
+---
+
+## HIVEMIND INTEGRATION
+
+HiveMind should monitor the API Engine.
+
+Examples:
+
+"Webuyanyhouse API returned 50 records but expected 10,000."
+
+"CRM endpoint pagination appears broken."
+
+"Calls endpoint supports bulk retrieval."
+
+"Authentication token expires every 24 hours."
+
+"API latency increased by 40%."
+
+HiveMind should recommend fixes.
+
+---
+
+## FINAL ARCHITECTURE
+
+System Mind
+↓
+Clients
+↓
+API Probe
+↓
+WEBEE API Engine
+↓
+Data Source Router
+↓
+Smart Dash Modules
+
+The API Probe becomes the configuration layer.
+
+The API Engine becomes the execution layer.
+
+The Smart Dash becomes the presentation layer.
+
+This architecture must support all future client integrations without creating new custom code paths for every client.
