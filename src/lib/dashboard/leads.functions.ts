@@ -173,22 +173,35 @@ export const listLeads = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    let q = supabase
-      .from("leads" as never)
-      .select("*")
-      .eq("workspace_id", workspaceId)
-      .order("updated_at", { ascending: false })
-      .limit(data.limit);
-    if (data.qualifiedOnly) q = q.in("status", ["interested", "qualified"]);
-    if (data.status && data.status !== "all") q = q.eq("status", data.status as any);
-    if (data.search)
-      q = q.or(
-        `full_name.ilike.%${data.search}%,phone.ilike.%${data.search}%,email.ilike.%${data.search}%`,
-      );
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
 
-    const leads = rows ?? [];
+    // Supabase PostgREST caps single responses at 1000 rows regardless of .limit().
+    // For larger requests we page in 1000-row chunks using .range() and combine.
+    const PAGE = 1000;
+    const allLeads: any[] = [];
+    let offset = 0;
+
+    while (allLeads.length < data.limit) {
+      const batchSize = Math.min(PAGE, data.limit - allLeads.length);
+      let q = (supabase as any)
+        .from("leads")
+        .select("*")
+        .eq("workspace_id", workspaceId)
+        .order("updated_at", { ascending: false })
+        .range(offset, offset + batchSize - 1);
+      if (data.qualifiedOnly) q = q.in("status", ["interested", "qualified"]);
+      if (data.status && data.status !== "all") q = q.eq("status", data.status);
+      if (data.search)
+        q = q.or(`full_name.ilike.%${data.search}%,phone.ilike.%${data.search}%,email.ilike.%${data.search}%`);
+
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      const batch = rows ?? [];
+      allLeads.push(...batch);
+      if (batch.length < batchSize) break; // no more rows
+      offset += batchSize;
+    }
+
+    const leads = allLeads;
     if (leads.length > 0) {
       const leadIds = leads.map((r: any) => r.id);
       const { data: callRows } = await (supabase as any)
