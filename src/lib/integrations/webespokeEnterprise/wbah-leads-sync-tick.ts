@@ -278,7 +278,10 @@ async function fetchAllLeadRecords(
     method: "GET", headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!p1.ok || !p1.data) return { ok: false, data: [] };
-  const totalPages = p1.data?.pagination?.totalPages ?? p1.data?.totalPages ?? 1;
+  const pagination = (p1.data as any)?.pagination ?? {};
+  const totalItems = pagination?.totalItems ?? 0;
+  // WeeBespoke's API reports totalPages incorrectly — always compute from totalItems ÷ pageSize (10)
+  const totalPages = totalItems > 0 ? Math.ceil(totalItems / 10) : (pagination?.totalPages ?? (p1.data as any)?.totalPages ?? 1);
   const all: any[] = Array.isArray(p1.data?.data) ? [...p1.data.data] : Array.isArray(p1.data) ? [...p1.data] : [];
   for (let page = 2; page <= totalPages; page += 20) {
     const batch = Array.from({ length: Math.min(20, totalPages - page + 1) }, (_, i) => page + i);
