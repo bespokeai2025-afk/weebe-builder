@@ -107,12 +107,12 @@ export const getOverviewStats = createServerFn({ method: "GET" })
       isWbah
         ? (supabase as any)
             .from("leads" as never)
-            .select("id")
+            .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
             .eq("sentiment", "positive")
         : (supabase as any)
             .from("leads" as never)
-            .select("id")
+            .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
             .in("status", ["interested", "qualified"]),
       // Closed leads = status "not_interested" (displayed as "Closed" in the UI)
@@ -152,8 +152,8 @@ export const getOverviewStats = createServerFn({ method: "GET" })
     return {
       workspaceId,
       totals: {
-        leads: leads.length,
-        qualified: (qualifiedRes.data ?? []).length,
+        leads: leadsRes.count ?? leads.length,
+        qualified: qualifiedRes.count ?? (qualifiedRes.data ?? []).length,
         calls: calls.length,
         callsCompleted: calls.filter((c: any) => c.call_status === "completed").length,
         callsFailed: calls.filter((c: any) =>
