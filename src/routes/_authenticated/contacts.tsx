@@ -181,7 +181,7 @@ function WbahLeadsSection() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["wbah-leads-all"],
     queryFn:  () => getFn(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     refetchOnWindowFocus: false,
     retry: 1,
   });
@@ -212,11 +212,11 @@ function WbahLeadsSection() {
       r.name?.toLowerCase().includes(q) || r.contact?.toLowerCase().includes(q));
     if (statusFilters.size > 0) out = out.filter((r: any) =>
       statusFilters.has(r.callStatus ?? ""));
-    // Business rule: any record with type === "Qualified" only shows if sentiment is Positive
+    // Leads page shows only Neutral + Positive sentiment (matching WeeBespoke "Positive/Neutral Leads").
+    // Negative sentiment records are excluded here; they remain visible on the Calls page.
     out = out.filter((r: any) => {
-      const isQualified = (r.type ?? "").toLowerCase() === "qualified";
-      if (isQualified) return (r.sentiment ?? "").toLowerCase().includes("positive");
-      return true;
+      const s = (r.sentiment ?? "").toString().toLowerCase().trim();
+      return s === "" || s === "neutral" || s === "positive";
     });
     if (sentFilters.size > 0) out = out.filter((r: any) => {
       const s = (r.sentiment ?? "").toString().toLowerCase();

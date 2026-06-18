@@ -266,13 +266,13 @@ function CallsPage() {
   });
 
   // WeeBespoke calls — full bulk load (up to 15,000 records).
-  // staleTime: 30 min so navigating away and back uses cache, but errors can recover.
+  // staleTime: 0 → always fetch fresh data on mount (avoids stale cache after server restarts).
   const wbahFn = useServerFn(listWbahCalls);
   const wbahQ = useQuery({
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
     enabled: isWbah,
-    staleTime: 30 * 60 * 1000,
+    staleTime: 0,
     refetchOnWindowFocus: false,
   });
 

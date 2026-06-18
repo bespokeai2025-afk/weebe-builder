@@ -195,7 +195,7 @@ function QualifiedPage() {
   const wbahQ = useQuery({
     queryKey: ["wbah-leads-all"],
     queryFn: () => wbahFn(),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     enabled: isWbah && qualTab === "contacts",
     refetchOnWindowFocus: false,
   });
@@ -204,6 +204,11 @@ function QualifiedPage() {
 
   const wbahFiltered = useMemo(() => {
     let out = wbahRows;
+    // Qualified page shows only Neutral + Positive sentiment (matching WeeBespoke "Positive/Neutral Leads").
+    out = out.filter((r: any) => {
+      const s = (r.sentiment ?? "").toString().toLowerCase().trim();
+      return s === "" || s === "neutral" || s === "positive";
+    });
     const q = search.trim().toLowerCase();
     if (q) out = out.filter((r: any) =>
       (r.name ?? "").toLowerCase().includes(q) ||
