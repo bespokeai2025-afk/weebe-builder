@@ -69,6 +69,46 @@ function makeTokenCallbacks() {
   };
 }
 
+// ── Auto-relogin — always get a fresh token before bulk sync operations ───────
+async function ensureFreshToken(): Promise<void> {
+  const email    = process.env.WEBESPOKE_ADMIN_EMAIL;
+  const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
+  if (!email || !password) {
+    throw new Error("Set WEBESPOKE_ADMIN_EMAIL + WEBESPOKE_ADMIN_PASSWORD in Replit Secrets.");
+  }
+  const res = await loginWithPassword(email, password);
+  if (!res.ok || !res.data) {
+    throw new Error(
+      `WeeBespoke re-login failed (HTTP ${res.status}): ${res.error ?? "no body"}`
+    );
+  }
+  const d = res.data as any;
+  const accessToken =
+    d.accessToken       ?? d.token             ?? d.access_token      ?? d.jwt               ??
+    d.data?.accessToken ?? d.data?.token        ?? d.data?.access_token ??
+    d.result?.accessToken ?? d.result?.token    ??
+    d.auth?.accessToken  ?? d.auth?.token       ??
+    null;
+  const refreshToken =
+    d.refreshToken       ?? d.refresh_token      ??
+    d.data?.refreshToken ?? d.data?.refresh_token ??
+    d.result?.refreshToken ?? d.auth?.refreshToken ?? "";
+  if (!accessToken) {
+    throw new Error("Re-login succeeded but no token found in response");
+  }
+  await (supabaseAdmin as any).from("enterprise_integrations").upsert(
+    {
+      integration_key: INTEGRATION_KEY,
+      client_name:     CLIENT_NAME,
+      access_token:    accessToken,
+      refresh_token:   refreshToken,
+      status:          "connected",
+    },
+    { onConflict: "integration_key,client_name" },
+  );
+  console.log("[wbah-sync] ensureFreshToken ✓ — new token stored");
+}
+
 // ── Classification helpers ────────────────────────────────────────────────────
 
 type LeadStatus   = "need_to_call" | "not_interested" | "not_connected" | "qualified";
@@ -655,6 +695,9 @@ export const adminSyncWebuyanyhouseLeads = createServerFn({ method: "POST" })
     if (!workspaceId) {
       throw new Error("Webuyanyhouse workspace not found — create the account first.");
     }
+
+    // Always re-login before syncing so the token is guaranteed fresh
+    await ensureFreshToken();
 
     const { getTokens, saveNewAccessToken: saveToken } = makeTokenCallbacks();
 
