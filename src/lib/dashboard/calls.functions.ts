@@ -9,7 +9,7 @@ export const listCalls = createServerFn({ method: "POST" })
       .object({
         status: z.string().optional(),
         direction: z.enum(["inbound", "outbound"]).optional(),
-        limit: z.number().int().min(1).max(500).default(100),
+        limit: z.number().int().min(1).max(10000).default(5000),
       })
       .parse(input ?? {}),
   )
@@ -37,7 +37,7 @@ export const listTestCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     z
-      .object({ limit: z.number().int().min(1).max(500).default(100) })
+      .object({ limit: z.number().int().min(1).max(10000).default(5000) })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {

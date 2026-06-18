@@ -9,7 +9,7 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
       .object({
         search: z.string().optional(),
         qualificationStatus: z.string().optional(),
-        limit: z.number().int().min(1).max(500).default(200),
+        limit: z.number().int().min(1).max(10000).default(5000),
       })
       .parse(input ?? {}),
   )

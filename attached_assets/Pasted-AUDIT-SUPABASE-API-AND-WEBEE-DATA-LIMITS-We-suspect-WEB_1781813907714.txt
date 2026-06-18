@@ -1,0 +1,291 @@
+AUDIT SUPABASE, API AND WEBEE DATA LIMITS
+
+We suspect WEBEE may be limited to approximately 1,000 records somewhere in the stack.
+
+Before changing anything, perform a complete audit.
+
+Do not modify code yet.
+
+Do not apply fixes yet.
+
+First identify the exact bottleneck.
+
+---
+
+## GOAL
+
+Determine whether record limits are being imposed by:
+
+1. Supabase
+2. External APIs
+3. WEBEE API Engine
+4. Server Services
+5. React Query
+6. Table Components
+7. Pagination Logic
+8. Cached Data
+9. Workspace Filters
+
+We need the exact source of any limitation.
+
+---
+
+## STEP 1 - SUPABASE TABLE AUDIT
+
+Inspect all tables involved in:
+
+* Leads
+* Calls
+* CRM Data
+* Qualified Leads
+* People
+* Data Page
+
+Run count queries and report actual totals.
+
+Examples:
+
+SELECT COUNT(*) FROM leads;
+
+SELECT COUNT(*) FROM calls;
+
+SELECT COUNT(*) FROM crm_data;
+
+SELECT COUNT(*) FROM qualified_leads;
+
+SELECT COUNT(*) FROM people;
+
+Determine:
+
+* actual row count
+* estimated table size
+* whether rows exceed 1,000
+* whether rows exceed 10,000
+
+Report findings.
+
+---
+
+## STEP 2 - SEARCH FOR QUERY LIMITS
+
+Search entire codebase for:
+
+.limit(
+.range(
+pageSize
+rowsPerPage
+perPage
+take(
+skip(
+offset
+slice(
+1000
+999
+1001
+500
+250
+100
+
+Check:
+
+* Supabase queries
+* API services
+* React Query hooks
+* Data services
+* Repositories
+* Server functions
+
+Report:
+
+File
+Line
+Limit Found
+Purpose
+
+---
+
+## STEP 3 - API RESPONSE AUDIT
+
+Inspect all external API integrations.
+
+For each endpoint:
+
+Log:
+
+* records returned
+* total count
+* pagination metadata
+* page number
+* limit
+* next page
+* total pages
+
+Check whether APIs are capped at:
+
+50
+100
+250
+500
+1000
+
+records.
+
+Determine actual maximum records available.
+
+---
+
+## STEP 4 - WEBEE API ENGINE AUDIT
+
+Inspect:
+
+* API Engine
+* Data Source Router
+* Endpoint Mapping Layer
+* Data Normalisation Layer
+
+Determine whether:
+
+* data is truncated
+* data is sliced
+* records are dropped
+* pagination metadata is lost
+
+Report exact file locations.
+
+---
+
+## STEP 5 - REACT QUERY AUDIT
+
+Inspect all queries used by:
+
+* Data Page
+* Leads
+* Calls
+* People
+* Qualified Leads
+
+Determine:
+
+* records fetched
+* records cached
+* records rendered
+
+Check whether:
+
+* only first page is loaded
+* pagination is ignored
+* stale cache is limiting results
+
+---
+
+## STEP 6 - TABLE COMPONENT AUDIT
+
+Inspect table components.
+
+Determine:
+
+* records received
+* records displayed
+* rows per page
+* default page size
+* maximum page size
+
+Check whether tables are rendering:
+
+50
+100
+250
+1000
+
+records only.
+
+---
+
+## STEP 7 - DATA PAGE AUDIT
+
+The Data page currently contains approximately 397 "Need To Call" records.
+
+Determine:
+
+* how many exist in source
+* how many reach WEBEE
+* how many are displayed
+* whether pagination is working correctly
+
+Repeat for every Data sub-page.
+
+---
+
+## STEP 8 - PERFORMANCE REVIEW
+
+Estimate:
+
+Current record counts
+
+Potential record counts:
+
+* 10,000
+* 25,000
+* 50,000
+* 100,000
+
+Determine whether current architecture can support these volumes safely.
+
+Identify:
+
+* bottlenecks
+* slow queries
+* missing indexes
+* inefficient filters
+* unnecessary client-side rendering
+
+---
+
+## STEP 9 - FUTURE SCALE READINESS
+
+Provide recommendations for supporting:
+
+50,000+
+lead records
+
+50,000+
+call records
+
+without degrading:
+
+* Dashboard
+* Calls
+* Leads
+* Qualified Leads
+* Data Page
+* CRM
+
+Recommend:
+
+* pagination strategy
+* indexing strategy
+* caching strategy
+* API strategy
+
+---
+
+## STEP 10 - FINAL REPORT
+
+Provide a report showing:
+
+1. Actual Supabase row counts
+2. Actual API row counts
+3. Any hardcoded limits found
+4. Any 1,000-row limits found
+5. Any 50-row limits found
+6. Any pagination issues found
+7. Files causing limitations
+8. Recommended fixes
+9. Estimated capacity for:
+
+   * 10,000 records
+   * 50,000 records
+   * 100,000 records
+10. Whether WEBEE is currently enterprise-ready for large lead datasets
+
+Do not make changes until the audit is complete and the exact bottleneck has been identified.

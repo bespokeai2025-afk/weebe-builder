@@ -188,7 +188,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
         .eq("provider" as never, "ELEVENLABS" as never)
         .gte("started_at", sinceIso)
         .order("started_at", { ascending: false })
-        .limit(data.limit);
+        .limit(10000);
 
       elCalls = (elRows ?? []).map((c: any) => {
         // Populate agentNames / agentIds from DB rows so the per-agent

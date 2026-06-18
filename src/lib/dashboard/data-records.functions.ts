@@ -40,7 +40,7 @@ export const listDataRecords = createServerFn({ method: "POST" })
           .optional(),
         assignedAgentId: z.string().uuid().nullable().optional(),
         unassignedOnly: z.boolean().optional(),
-        limit: z.number().int().min(1).max(2000).default(500),
+        limit: z.number().int().min(1).max(10000).default(5000),
       })
       .parse(input ?? {}),
   )
