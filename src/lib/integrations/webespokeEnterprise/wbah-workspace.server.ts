@@ -424,37 +424,110 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
     return res.data;
   });
 
-// ── Leads — fetch ALL pages using pagination metadata, return flat list ────────
+// ── Leads — self-healing paginated fetch (same pattern as listWbahCalls) ───────
 
 export const listWbahLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
+    const gt  = cbs.getTokens;
+    const st  = cbs.saveNewAccessToken;
 
-    // ── Strategy 1: bulk ?limit=10000 (single request, fastest) ──────────────
-    const bulkRes = await api.wbahGetUserCallLeadAll(cbs.getTokens, cbs.saveNewAccessToken);
-    const bulkRecs = extractRecords(bulkRes.data);
-    console.log(`[WBAH leads] bulk ?limit=10000 → ok=${bulkRes.ok} status=${bulkRes.status} records=${bulkRecs.length} paginationKeys=${bulkRes.data && typeof bulkRes.data === "object" ? Object.keys(bulkRes.data as object).join(",") : "n/a"} pagination=${JSON.stringify((bulkRes.data as any)?.pagination ?? null)}`);
+    // ── Pages 1 & 2 in parallel — validates that ?currentPage=N advances ──
+    const [p1Res, p2Res] = await Promise.all([
+      api.wbahGetUserCallLeadPaged(1, gt, st),
+      api.wbahGetUserCallLeadPaged(2, gt, st),
+    ]);
+    if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch leads from WeeBespoke");
 
-    let allRecs: any[];
-    if (bulkRes.ok && bulkRecs.length > 50) {
-      console.log(`[WBAH leads] using bulk result: ${bulkRecs.length} records`);
-      allRecs = bulkRecs;
-    } else {
-      // ── Strategy 2: paginated fetch (all pages) ──────────────────────────
-      console.log(`[WBAH leads] bulk returned ≤50 — falling back to paginated fetch`);
-      const firstRes = await api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
-      if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch leads");
-      const p1Raw = firstRes.data as any;
-      console.log(`[WBAH leads] page1 → records=${extractRecords(p1Raw).length} pagination=${JSON.stringify(p1Raw?.pagination ?? null)}`);
-      allRecs = await fetchAllPages(
-        (p) => api.wbahGetUserCallLeadPaged(p, cbs.getTokens, cbs.saveNewAccessToken),
-        p1Raw,
-        "leads",
-      );
-      console.log(`[WBAH leads] paginated fetch total: ${allRecs.length} records`);
+    const p1Raw      = p1Res.data as any;
+    const p1Recs     = extractRecords(p1Raw);
+    const p2Recs     = p2Res.ok ? extractRecords(p2Res.data) : [];
+    const pagination = p1Raw?.pagination;
+    const totalItems = pagination?.totalItems ?? pagination?.totalRecords ?? pagination?.total_count ?? pagination?.count ?? 0;
+    const pageSize   = pagination?.pageSize ?? pagination?.page_size ?? pagination?.limit ?? pagination?.perPage ?? (p1Recs.length || 50);
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : (pagination?.totalPages ?? 1);
+
+    // Detect pagination advance by comparing the first record's _id on each page
+    const p1FirstId = p1Recs[0]?._id ?? p1Recs[0]?.id ?? null;
+    const p2FirstId = p2Recs[0]?._id ?? p2Recs[0]?.id ?? null;
+    const paginationWorks = p2FirstId !== null && p2FirstId !== p1FirstId;
+    console.log(
+      `[WBAH leads] page1: records=${p1Recs.length} totalItems=${totalItems} pageSize=${pageSize} totalPages=${totalPages}` +
+      ` | page2: records=${p2Recs.length} firstId=${p2FirstId} | paginationWorks=${paginationWorks}`,
+    );
+
+    // ── If ?currentPage=N didn't advance, probe alternative GET param names ──
+    type PageFn = (page: number) => Promise<any>;
+    let pageFn: PageFn = (p) => api.wbahGetUserCallLeadPaged(p, gt, st);
+
+    if (!paginationWorks && totalPages > 1) {
+      console.log(`[WBAH leads] ⚠ ?currentPage=2 did not advance — probing alternative pagination keys…`);
+      const LEAD_BASE = "/call-output-data/get-userCall-lead";
+      const candidates: Array<{ label: string; fn: PageFn }> = [
+        { label: "?page=N",        fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?page=${p}`,        { method: "GET" }, gt, st) },
+        { label: "?pageNumber=N",  fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?pageNumber=${p}`,  { method: "GET" }, gt, st) },
+        { label: "?pageNo=N",      fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?pageNo=${p}`,      { method: "GET" }, gt, st) },
+        { label: "?offset=N*ps",   fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?offset=${(p - 1) * pageSize}&limit=${pageSize}`, { method: "GET" }, gt, st) },
+      ];
+
+      const probeResults = await Promise.all(candidates.map((c) => c.fn(2)));
+      let foundKey: typeof candidates[number] | null = null;
+
+      for (let i = 0; i < candidates.length; i++) {
+        const res   = probeResults[i];
+        const recs  = res?.ok ? extractRecords(res.data) : [];
+        const first = recs[0]?._id ?? recs[0]?.id ?? null;
+        console.log(`[WBAH leads] probe ${candidates[i].label} → records=${recs.length} firstId=${first}`);
+        if (first && first !== p1FirstId) {
+          foundKey = candidates[i];
+          p2Recs.length = 0;
+          p2Recs.push(...recs);
+          break;
+        }
+      }
+
+      if (foundKey) {
+        console.log(`[WBAH leads] ✓ working pagination key: ${foundKey.label}`);
+        pageFn = foundKey.fn;
+      } else {
+        console.log(`[WBAH leads] ✗ no key advanced — returning page1 only (${p1Recs.length} records)`);
+      }
     }
 
+    // ── Fetch remaining pages in parallel batches of 20 ───────────────────
+    const effectivelyWorks = paginationWorks || (p2Recs.length > 0 && (p2Recs[0]?._id ?? p2Recs[0]?.id) !== p1FirstId);
+    const allRecs: any[] = effectivelyWorks ? [...p1Recs, ...p2Recs] : [...p1Recs];
+
+    if (effectivelyWorks && totalPages > 2) {
+      const remaining = Array.from({ length: totalPages - 2 }, (_, i) => i + 3);
+      const BATCH = 20;
+      let firstEmptyLogged = false;
+      for (let i = 0; i < remaining.length; i += BATCH) {
+        const batch   = remaining.slice(i, i + BATCH);
+        const results = await Promise.all(batch.map((p) => pageFn(p)));
+        let   found   = 0;
+        for (const res of results) {
+          if (res?.ok) {
+            const recs = extractRecords(res.data);
+            allRecs.push(...recs);
+            found += recs.length;
+          }
+        }
+        console.log(`[WBAH leads] batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} (total: ${allRecs.length})`);
+        if (found === 0 && !firstEmptyLogged) {
+          firstEmptyLogged = true;
+          const diag = results.slice(0, 3).map((r, ri) => `p${batch[ri]}:HTTP${r?.status}ok=${r?.ok}recs=${r?.ok ? extractRecords(r.data).length : "FAIL"}`).join(" | ");
+          console.log(`[WBAH leads] ⚠ FIRST EMPTY BATCH: ${diag} | raw: ${JSON.stringify((results[0]?.data as any) ?? results[0]?.error).slice(0, 300)}`);
+        }
+        if (found === 0 && allRecs.length > 0) {
+          console.log(`[WBAH leads] ℹ all-zero batch at page ${batch[0]} — stopping early.`);
+          break;
+        }
+      }
+    }
+
+    console.log(`[WBAH leads] final total: ${allRecs.length} records`);
     const leads = allRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
 
     // Count how many times each phone number appears (for "Times Called" column).
