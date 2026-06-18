@@ -1003,29 +1003,7 @@ function DataPage() {
         </Card>
       )}
 
-      {dataTab === "records" && recordsQ.isLoading && (
-        <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-          Loading records…
-        </div>
-      )}
-
-      {dataTab === "records" && !recordsQ.isLoading && records.length === 0 && !showCsvImport && (
-        <div className="flex flex-col items-center gap-4 py-24 text-center">
-          <div className="rounded-full bg-white/[0.04] p-4">
-            <Database className="h-8 w-8 text-muted-foreground/40" />
-          </div>
-          <div>
-            <p className="text-sm font-medium">No records yet</p>
-            <p className="text-xs text-muted-foreground mt-1">Upload a CSV file to import your calling data and get started.</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setShowCsvImport(true)}>
-            <Database className="mr-1.5 h-3.5 w-3.5" />
-            Import CSV
-          </Button>
-        </div>
-      )}
-
-      {dataTab === "records" && !recordsQ.isLoading && records.length > 0 && (
+      {dataTab === "records" && (
       <>
       {/* KPI strip — matches Leads page */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1126,15 +1104,29 @@ function DataPage() {
         </div>
 
         {/* Table body */}
-        <DynamicDataTable
-          records={records}
-          agents={agents}
-          selected={selected}
-          allSelected={allSelected}
-          toggleAll={toggleAll}
-          toggleOne={toggleOne}
-          onReset={handleReset}
-        />
+        {recordsQ.isLoading ? (
+          <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+            Loading records…
+          </div>
+        ) : records.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-16">
+            <Database className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm font-medium">No data records</p>
+            <p className="text-xs text-muted-foreground">
+              Import a CSV to get started or adjust your filters.
+            </p>
+          </div>
+        ) : (
+          <DynamicDataTable
+            records={records}
+            agents={agents}
+            selected={selected}
+            allSelected={allSelected}
+            toggleAll={toggleAll}
+            toggleOne={toggleOne}
+            onReset={handleReset}
+          />
+        )}
       </div>
       </>
       )}
