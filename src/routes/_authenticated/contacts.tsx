@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect, Component, type ReactNode } from "react";
 import {
   BookUser, RefreshCw, Search, StickyNote, FolderOpen, Loader2,
   Building2, PlayCircle, ChevronRight, X, Phone, SlidersHorizontal,
+  Download, Calendar, CheckCircle2, TrendingUp,
 } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Input } from "@/components/ui/input";
@@ -109,33 +110,53 @@ function ContactDocsDialog({
 
 // ── WeeBespoke Leads Section ──────────────────────────────────────────────────
 
-function wbahLeadStatusBadge(s?: string | null) {
-  if (!s) return <span className="text-[11px] text-muted-foreground">—</span>;
+function leadStatusClass(s?: string | null) {
+  if (!s) return "bg-muted text-muted-foreground";
   const v = s.toLowerCase();
-  const cls =
-    v === "completed" || v === "answered" || v === "called"
-      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-      : v === "not connected" || v === "not_connected" || v === "failed" || v === "no_answer" || v === "busy"
-        ? "bg-destructive/20 text-destructive border border-destructive/30"
-        : v === "callback" || v === "pending"
-          ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-          : v === "in_progress" || v === "ringing"
-            ? "bg-primary/20 text-primary border border-primary/30"
-            : "bg-muted/40 text-muted-foreground border border-white/[0.06]";
-  return (
-    <span className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${cls}`}>
-      {s.replace(/_/g, " ")}
-    </span>
-  );
+  if (v === "completed" || v === "answered" || v === "called" || v === "new" || v === "new_lead" || v === "new lead")
+    return "bg-emerald-500/15 text-emerald-400";
+  if (v === "not connected" || v === "not_connected" || v === "failed" || v === "no_answer" || v === "busy" || v === "disqualified" || v === "dis-qualified" || v === "dis_qualified")
+    return "bg-destructive/15 text-destructive";
+  if (v === "callback" || v === "pending" || v === "tried_to_contact" || v === "tried to contact" || v === "rebooking" || v === "re_booking" || v === "re-booking")
+    return "bg-amber-500/15 text-amber-400";
+  if (v === "in_progress" || v === "ringing")
+    return "bg-primary/15 text-primary";
+  return "bg-muted text-muted-foreground";
 }
 
-function wbahLeadSentiment(v?: string | null) {
-  if (!v || v === "N/A" || v === "n/a") return <span className="text-[11px] text-muted-foreground">—</span>;
-  const cls =
-    v.toLowerCase() === "positive" ? "text-emerald-400" :
-    v.toLowerCase() === "negative" ? "text-destructive" :
-    "text-muted-foreground";
-  return <span className={`text-[11px] capitalize ${cls}`}>{v}</span>;
+function leadSentimentClass(v?: string | null) {
+  if (!v || v === "N/A" || v === "n/a") return null;
+  const l = v.toLowerCase();
+  if (l === "positive") return "bg-emerald-500/15 text-emerald-400";
+  if (l === "negative") return "bg-destructive/15 text-destructive";
+  return "bg-muted text-muted-foreground";
+}
+
+function LeadRecordingDialog({ url, contact, onClose }: { url: string; contact: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Call Recording</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">{contact}</p>
+          </div>
+          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <audio controls autoPlay={false} className="w-full" src={url} style={{ colorScheme: "dark" }}>
+          Your browser does not support audio playback.
+        </audio>
+        <a href={url} download className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-muted/40 px-4 py-2 text-sm font-medium hover:bg-muted">
+          <Download className="h-4 w-4" /> Download recording
+        </a>
+      </div>
+    </div>
+  );
 }
 
 // Class-based error boundary — catches render-time throws (e.g. stale TanStack
@@ -201,6 +222,7 @@ function WbahLeadsSection() {
   const [search, setSearch]               = useState("");
   const [transcript, setTranscript]       = useState<{ text: string; name: string } | null>(null);
   const [viewRecord, setViewRecord]       = useState<any | null>(null);
+  const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [showFilters, setShowFilters]     = useState(false);
   const [sentFilters, setSentFilters]     = useState<Set<string>>(new Set());
   const [agentFilters, setAgentFilters]   = useState<Set<string>>(new Set());
@@ -212,7 +234,8 @@ function WbahLeadsSection() {
     queryKey: ["wbah-leads-all"],
     queryFn:  () => getFn(),
     staleTime: 0,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
+    refetchInterval: 5 * 60 * 1000,
     retry: 0,
   });
 
@@ -242,9 +265,6 @@ function WbahLeadsSection() {
     for (const r of records) if (r.callStatus) s.add(r.callStatus);
     return [...s].sort();
   }, [records]);
-
-  // Business rule: "Qualified" type always shows only Positive sentiment
-  const qualifiedSelected = false; // callStatus filter no longer locks sentiment
 
   const activeFilterCount = sentFilters.size + agentFilters.size + statusFilters.size;
 
@@ -301,8 +321,25 @@ function WbahLeadsSection() {
     </div>
   );
 
+  // ── KPI metrics (from all records, not filtered) ──────────────────────────
+  const kpiPositive    = records.filter(r => (r.sentiment ?? "").toLowerCase() === "positive").length;
+  const kpiAppointed  = records.filter(r => r.appointmentDate && r.appointmentDate !== "N/A").length;
+  const kpiBooked     = records.filter(r => {
+    const s = (r.bookingStatus ?? "").toLowerCase();
+    return s && s !== "n/a" && s !== "pending" && s !== "none";
+  }).length;
+
   return (
     <div className="flex flex-col gap-3">
+      {/* Recording player dialog */}
+      {recordingPlayer && (
+        <LeadRecordingDialog
+          url={recordingPlayer.url}
+          contact={recordingPlayer.contact}
+          onClose={() => setRecordingPlayer(null)}
+        />
+      )}
+
       {/* Transcript modal */}
       {transcript && (
         <div
@@ -326,6 +363,16 @@ function WbahLeadsSection() {
               {transcript.text || "No transcript available."}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* KPI strip */}
+      {records.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-1">
+          <KpiCard label="Total Leads"     value={records.length}  icon={Phone}         iconBg="bg-blue-500/15"    iconColor="text-blue-400"    />
+          <KpiCard label="Positive"        value={kpiPositive}     icon={TrendingUp}    iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
+          <KpiCard label="Appointments"    value={kpiAppointed}    icon={Calendar}      iconBg="bg-violet-500/15"  iconColor="text-violet-400"  />
+          <KpiCard label="Bookings"        value={kpiBooked}       icon={CheckCircle2}  iconBg="bg-amber-500/15"   iconColor="text-amber-400"   />
         </div>
       )}
 
@@ -547,16 +594,27 @@ function WbahLeadsSection() {
                         ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
                         : "N/A"}
                     </td>
-                    <td className="px-3 py-1.5">{wbahLeadStatusBadge(r.callStatus)}</td>
-                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">{r.callDuration ?? "N/A"}</td>
                     <td className="px-3 py-1.5">
+                      {r.callStatus
+                        ? <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", leadStatusClass(r.callStatus))}>{String(r.callStatus).replace(/_/g, " ")}</span>
+                        : <span className="text-[11px] text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap tabular-nums">{r.callDuration ?? "N/A"}</td>
+                    <td className="px-3 py-1.5" onClick={e => e.stopPropagation()}>
                       {r.recordingUrl ? (
-                        <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => setRecordingPlayer({ url: r.recordingUrl, contact: r.name ?? r.contact ?? "Lead" })}
+                          className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline whitespace-nowrap"
+                        >
                           <PlayCircle className="h-3 w-3" /> Play
-                        </a>
+                        </button>
                       ) : <span className="text-[11px] text-muted-foreground">N/A</span>}
                     </td>
-                    <td className="px-3 py-1.5">{wbahLeadSentiment(r.sentiment)}</td>
+                    <td className="px-3 py-1.5">
+                      {leadSentimentClass(r.sentiment)
+                        ? <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", leadSentimentClass(r.sentiment)!)}>{r.sentiment}</span>
+                        : <span className="text-[11px] text-muted-foreground">—</span>}
+                    </td>
                     <td className="px-3 py-1.5">
                       {r.transcript ? (
                         <button onClick={() => setTranscript({ text: r.transcript, name: r.name ?? "Lead" })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">
