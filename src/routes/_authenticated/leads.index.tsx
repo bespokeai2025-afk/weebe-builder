@@ -241,6 +241,11 @@ function LeadsPage() {
     [leads],
   );
 
+  const isRetell = useMemo(() =>
+    !isWbah && leads.some((l: any) => l.retell_call != null),
+    [leads, isWbah],
+  );
+
   const filtered = leads.filter((l: any) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
@@ -523,6 +528,13 @@ function LeadsPage() {
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
+                      {isRetell && <>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
+                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                      </>}
                       {isWbah && <>
                         <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
                         <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
@@ -591,6 +603,23 @@ function LeadsPage() {
                         <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtDate(lead.last_contacted_at)}
                         </td>
+                        {isRetell && <>
+                          <td className="px-3 py-1.5">{callStatusBadge(lead.retell_call?.call_status)}</td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
+                          <td className="px-3 py-1.5">
+                            {lead.retell_call?.recording_url
+                              ? <a href={lead.retell_call.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
+                              : <span className="text-muted-foreground text-[11px]">—</span>}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {lead.retell_call?.transcript
+                              ? <button onClick={() => setWbahTranscript(lead.retell_call.transcript)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
+                              : <span className="text-muted-foreground text-[11px]">—</span>}
+                          </td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                            {lead.retell_call?.disconnection_reason ? String(lead.retell_call.disconnection_reason).replace(/_/g, " ") : "—"}
+                          </td>
+                        </>}
                         {isWbah && <>
                           <td className="px-3 py-1.5">{callStatusBadge(lead.meta?.call_status)}</td>
                           <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>

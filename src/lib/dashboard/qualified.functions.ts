@@ -36,7 +36,23 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
 
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
-    return rows ?? [];
+
+    const leads = rows ?? [];
+    if (leads.length > 0) {
+      const leadIds = leads.map((r: any) => r.id);
+      const { data: callRows } = await sb
+        .from("calls")
+        .select("lead_id, call_status, duration_seconds, recording_url, transcript, disconnection_reason, call_summary, sentiment, started_at")
+        .in("lead_id", leadIds)
+        .order("started_at", { ascending: false });
+
+      const latestCallByLead = new Map<string, any>();
+      for (const c of callRows ?? []) {
+        if (!latestCallByLead.has(c.lead_id)) latestCallByLead.set(c.lead_id, c);
+      }
+      return leads.map((r: any) => ({ ...r, retell_call: latestCallByLead.get(r.id) ?? null }));
+    }
+    return leads;
   });
 
 export const listQualifiedRecords = createServerFn({ method: "GET" })

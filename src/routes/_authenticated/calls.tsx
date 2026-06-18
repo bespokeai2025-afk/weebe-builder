@@ -551,6 +551,8 @@ function CallsPage() {
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Duration</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
                       <th className="sticky right-0 bg-card/80 px-3 py-2 w-20 backdrop-blur-sm"></th>
                     </tr>
@@ -592,6 +594,14 @@ function CallsPage() {
                             {c.recording_url
                               ? <button onClick={() => setRecordingPlayer({ url: c.recording_url, contact })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"><PlayCircle className="h-3 w-3" /> Play</button>
                               : <span className="text-[11px] text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                            {c.transcript
+                              ? <button onClick={() => setWbahTranscript({ text: c.transcript, name: contact })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
+                              : <span className="text-[11px] text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                            {c.disconnection_reason ? String(c.disconnection_reason).replace(/_/g, " ") : "—"}
                           </td>
                           <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]"><RelativeTime date={c.started_at} fallback="—" /></td>
                           <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
