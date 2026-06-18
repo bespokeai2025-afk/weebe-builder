@@ -650,30 +650,91 @@ export const listWbahCalls = createServerFn({ method: "GET" })
       ` | page2: records=${p2Recs.length} firstId=${p2FirstId} | paginationWorks=${paginationWorks}`,
     );
 
-    // ── Fetch remaining pages in parallel batches of 20 ──────────────────
-    const allRecs: any[] = [...p1Recs, ...p2Recs];
+    // ── If currentPage didn't advance, discover the real pagination key ──
+    type PageFn = (page: number) => Promise<any>;
+    let pageFn: PageFn = (p) => api.wbahGetUserHistoryPaged(p, gt, st);
 
-    if (paginationWorks && totalPages > 2) {
+    if (!paginationWorks && totalPages > 1) {
+      console.log(`[WBAH calls] ⚠ { currentPage: 2 } did not advance — probing alternative pagination keys…`);
+
+      // Try URL query-param variants (body params are ignored by this endpoint)
+      // Note: ?currentPage=N is already tried via wbahGetUserHistoryPaged above
+      const candidates: Array<{ label: string; fn: PageFn }> = [
+        { label: "?page=N",       fn: (p) => api.authenticatedFetch(`/call-output-data/get-user-history?page=${p}`,       { method: "POST", body: "{}" }, gt, st) },
+        { label: "?pageNumber=N", fn: (p) => api.authenticatedFetch(`/call-output-data/get-user-history?pageNumber=${p}`, { method: "POST", body: "{}" }, gt, st) },
+        { label: "?pageNo=N",     fn: (p) => api.authenticatedFetch(`/call-output-data/get-user-history?pageNo=${p}`,     { method: "POST", body: "{}" }, gt, st) },
+        { label: "?offset=N*10",  fn: (p) => api.authenticatedFetch(`/call-output-data/get-user-history?offset=${(p-1)*10}`, { method: "POST", body: "{}" }, gt, st) },
+        { label: "body{page:N}",  fn: (p) => api.wbahGetUserHistory({ page: p }, gt, st) },
+      ];
+
+      const probeResults = await Promise.all(candidates.map((c) => c.fn(2)));
+      let foundKey: typeof candidates[number] | null = null;
+
+      for (let i = 0; i < candidates.length; i++) {
+        const res = probeResults[i];
+        if (res?.ok) {
+          const recs = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
+          const firstId = recs[0]?.call_id ?? null;
+          console.log(`[WBAH calls] probe ${candidates[i].label} → records=${recs.length} firstId=${firstId}`);
+          if (firstId && firstId !== p1FirstId) {
+            foundKey = candidates[i];
+            // Add the page-2 results we already have
+            p2Recs.length = 0;
+            p2Recs.push(...recs);
+            break;
+          }
+        }
+      }
+
+      if (foundKey) {
+        console.log(`[WBAH calls] ✓ working pagination key: ${foundKey.label}`);
+        pageFn = foundKey.fn;
+      } else {
+        console.log(`[WBAH calls] ✗ no pagination key advanced the page — will return page1 only (${p1Recs.length} records)`);
+      }
+    }
+
+    // ── Fetch remaining pages in parallel batches of 20 ──────────────────
+    const effectivePaginationWorks = paginationWorks || (p2Recs.length > 0 && p2Recs[0]?.call_id !== p1FirstId);
+    const allRecs: any[] = effectivePaginationWorks ? [...p1Recs, ...p2Recs] : [...p1Recs];
+
+    if (effectivePaginationWorks && totalPages > 2) {
       const remaining = Array.from({ length: totalPages - 2 }, (_, i) => i + 3);
       const BATCH = 20;
+      let   firstEmptyBatchLogged = false;
       for (let i = 0; i < remaining.length; i += BATCH) {
         const batch   = remaining.slice(i, i + BATCH);
-        const results = await Promise.all(batch.map((p) => api.wbahGetUserHistoryPaged(p, gt, st)));
+        const results = await Promise.all(batch.map((p) => pageFn(p)));
         let   found   = 0;
         for (const res of results) {
-          if (res.ok) {
+          if (res?.ok) {
             const recs = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
             allRecs.push(...recs);
             found += recs.length;
           }
         }
         console.log(`[WBAH calls] get-user-history batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} (total: ${allRecs.length})`);
+
+        // On the first batch that returns zero — log HTTP statuses + raw data to diagnose the cause
+        if (found === 0 && !firstEmptyBatchLogged) {
+          firstEmptyBatchLogged = true;
+          const statusSummary = results.slice(0, 3).map((r, ri) => {
+            const recs = r?.ok ? (Array.isArray((r.data as any)?.data) ? (r.data as any).data?.length : "non-array") : "FAIL";
+            return `p${batch[ri]}: HTTP${r?.status} ok=${r?.ok} recs=${recs}`;
+          }).join(" | ");
+          const rawSample = JSON.stringify((results[0]?.data as any) ?? results[0]?.error).slice(0, 400);
+          console.log(`[WBAH calls] ⚠ FIRST EMPTY BATCH diagnosis: ${statusSummary}`);
+          console.log(`[WBAH calls] ⚠ raw response sample: ${rawSample}`);
+        }
+
+        // Stop early if many consecutive empty batches — no more data on the server
+        if (found === 0 && i > 0 && allRecs.length > 0) {
+          const prevBatchStart = remaining[i - BATCH] ?? 3;
+          const prevBatchEnd   = remaining[Math.min(i - 1, remaining.length - 1)];
+          console.log(`[WBAH calls] ℹ all-zero batches starting at page ${batch[0]} — likely server max. Stopping early.`);
+          break;
+        }
       }
-    } else if (!paginationWorks && totalPages > 1) {
-      console.log(`[WBAH calls] ⚠ pagination did NOT advance (page2 firstId === page1 firstId). Using only page1 data (${p1Recs.length} records). Investigate API pagination key.`);
-      // Reset to only p1Recs — p2Recs are duplicates
-      allRecs.length = 0;
-      allRecs.push(...p1Recs);
     }
 
     // ── Deduplicate by call_id (safety net for overlapping pages) ─────────

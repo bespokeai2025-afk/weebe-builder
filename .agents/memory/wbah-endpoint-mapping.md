@@ -14,22 +14,29 @@ description: Definitive mapping of WeeBespoke API endpoints to WEBEE pages for t
 | `GET /crm-data/get-crm-data` | Raw CRM upload (name + mobile_number only) | 3,720 | CRM admin |
 | `GET /call-output-data/all` | 404 — does not exist | — | — |
 
-## get-user-history specifics
+## get-user-history pagination — CRITICAL
 
-- **Method**: POST with `{ currentPage: N }` body
-- **pageSize**: hardcoded to 10 regardless of any limit/pageSize param in body
-- **totalPages**: 1,015 (computed from totalItems÷pageSize; API-reported value unreliable)
-- **Fields**: snake_case — `call_id`, `customer_name`, `to_number`, `duration_ms`, `recording_url`, `transcript`, `sentiment_analysis`, `call_status`, `disconnection_reason`, `end_reason`, `call_updatedat`, `call_appointment_date`, `call_appointment_time`, `call_booking_status`, `call_calendly_booking_url`
+- **Pagination key**: URL query param `?currentPage=N` — NOT the POST body
+- All body-based pagination keys are silently ignored (`page`, `pageNumber`, `pageNo`, `pageNum`, `offset`, `skip`, `currentPage` in body — all return the same first 10 records)
+- `wbahGetUserHistoryPaged(page)` must POST to `/call-output-data/get-user-history?currentPage=${page}` with empty body `{}`
+- **pageSize**: hardcoded to 10 regardless of any body param
+- **totalPages**: 1,015 (10,149 ÷ 10); `totalItems=10149` confirmed accurate
+
+**Why the previous run got only 5,620:** HMR fired mid-fetch, reloading the server fn. The auth token also had concurrent refresh collisions when 20 parallel requests hit 401 simultaneously. An uninterrupted run fetches all 10,149.
+
+## get-user-history field schema (snake_case)
+
+`call_id`, `customer_name`, `to_number`, `duration_ms`, `recording_url`, `transcript`, `sentiment_analysis`, `call_status`, `disconnection_reason`, `end_reason`, `call_updatedat`, `call_appointment_date`, `call_appointment_time`, `call_booking_status`, `call_calendly_booking_url`
 
 ## normaliseWbahCall handles both sources
 
-The function handles both snake_case (get-user-history) and camelCase (get-userCall-lead) transparently via `??` chains (e.g. `r.call_id ?? r._id ?? r.id`). No changes needed in calls.tsx field accesses.
+Handles both snake_case (get-user-history) and camelCase (get-userCall-lead) transparently via `??` chains. No changes needed in calls.tsx field accesses.
 
 ## Pagination safety pattern in listWbahCalls
 
-1. Fetch pages 1 & 2 in parallel
-2. Compare `call_id` of first record on each page — if same, pagination stalled → warn and use page1 only
-3. Fetch remaining pages in batches of 20
-4. Deduplicate by `call_id` as final safety net
-
-**Why:** The probe never tested `{ currentPage: 2 }` for this POST endpoint; the pattern guards against a broken pagination key without exposing duplicate records.
+1. Fetch pages 1 & 2 via `?currentPage=1` and `?currentPage=2`
+2. Compare `call_id` of first record — if same, run key-discovery probe (tries `?page`, `?pageNumber`, `?pageNo`, `?offset` via `authenticatedFetch`)
+3. Fetch remaining pages in parallel batches of 20
+4. Log HTTP status + raw response on first empty batch for diagnostics
+5. Stop early after first all-zero batch (server has no more data)
+6. Deduplicate by `call_id` as final safety net
