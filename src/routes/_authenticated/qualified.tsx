@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -137,6 +138,20 @@ function QualifiedPage() {
 
   const rows = (leadsQ.data ?? []) as any[];
   const stats = statsQ.data;
+
+  const filtered = useMemo(() => {
+    let out = rows;
+    const q = search.trim().toLowerCase();
+    if (q) out = out.filter((r: any) =>
+      (r.full_name ?? "").toLowerCase().includes(q) ||
+      (r.phone ?? "").toLowerCase().includes(q) ||
+      (r.company_name ?? "").toLowerCase().includes(q));
+    if (qualFilter !== "all") out = out.filter((r: any) =>
+      (r.qualification_status ?? r.status) === qualFilter);
+    return out;
+  }, [rows, search, qualFilter]);
+
+  const qualPag = useTablePagination(filtered, 25);
 
   async function handleSetStatus(id: string, status: typeof STATUS_ACTIONS[number]["value"]) {
     try {
@@ -298,7 +313,7 @@ function QualifiedPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((lead: any) => (
+                  {qualPag.sliced.map((lead: any) => (
                     <tr
                       key={lead.id}
                       className="h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
@@ -361,6 +376,7 @@ function QualifiedPage() {
                   ))}
                 </tbody>
               </table>
+              <TablePagBar page={qualPag.page} pageSize={qualPag.pageSize} totalPages={qualPag.totalPages} total={qualPag.total} setPage={qualPag.setPage} changePageSize={qualPag.changePageSize} />
             </div>
           )}
         </div>

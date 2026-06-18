@@ -25,6 +25,7 @@ import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { supabase } from "@/integrations/supabase/client";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
@@ -303,6 +304,7 @@ function CallsPage() {
   }, [wbahQ.data, wbahLatestQ.data]);
 
   const rows = (isWbah ? wbahRows : (q.data ?? [])) as any[];
+  const callsPag = useTablePagination(rows, 25);
 
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
@@ -466,7 +468,7 @@ function CallsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((c: any, idx: number) => {
+                    {callsPag.sliced.map((c: any, idx: number) => {
                       const name = c.wbah_name ?? c.lead?.full_name ?? "—";
                       const phone = c.wbah_contact ?? c.to_number ?? c.from_number ?? null;
                       const callType = c.call_type === "inbound" ? "Inbound" : "Outbound";
@@ -537,6 +539,7 @@ function CallsPage() {
                     })}
                   </tbody>
                 </table>
+                <TablePagBar page={callsPag.page} pageSize={callsPag.pageSize} totalPages={callsPag.totalPages} total={callsPag.total} setPage={callsPag.setPage} changePageSize={callsPag.changePageSize} />
               </div>
             ) : (
               /* ── Standard WEBEE calls table ──────────────────────────────── */
@@ -557,7 +560,7 @@ function CallsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((c: any) => {
+                    {callsPag.sliced.map((c: any) => {
                       const inbound = c.call_type === "inbound";
                       const rawContact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
                       const contact = typeof rawContact === "string" && rawContact.startsWith("web:") ? "Web session" : rawContact;
@@ -608,6 +611,7 @@ function CallsPage() {
                     })}
                   </tbody>
                 </table>
+                <TablePagBar page={callsPag.page} pageSize={callsPag.pageSize} totalPages={callsPag.totalPages} total={callsPag.total} setPage={callsPag.setPage} changePageSize={callsPag.changePageSize} />
               </div>
             )}
           </div>

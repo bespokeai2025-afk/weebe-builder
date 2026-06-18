@@ -21,6 +21,7 @@ import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import { ContactDocumentsPanel } from "@/components/contacts/ContactDocumentsPanel";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { cn } from "@/lib/utils";
 import { createClient } from "@supabase/supabase-js";
 
@@ -225,6 +226,8 @@ function WbahLeadsSection() {
       agentFilters.has(r.agentName ?? ""));
     return out;
   }, [records, search, statusFilters, sentFilters, agentFilters]);
+
+  const leadsPag = useTablePagination(filtered, 25);
 
   function toggleSent(v: string) {
     setSentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
@@ -478,7 +481,7 @@ function WbahLeadsSection() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r: any, idx: number) => (
+                {leadsPag.sliced.map((r: any, idx: number) => (
                   <tr key={r.id ?? idx} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
                     <td className="px-3 py-1.5 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
                     <td className="px-3 py-1.5">
@@ -539,6 +542,7 @@ function WbahLeadsSection() {
                 ))}
               </tbody>
             </table>
+            <TablePagBar page={leadsPag.page} pageSize={leadsPag.pageSize} totalPages={leadsPag.totalPages} total={leadsPag.total} setPage={leadsPag.setPage} changePageSize={leadsPag.changePageSize} />
           </div>
         )}
       </div>
@@ -607,6 +611,8 @@ function ContactsPage() {
         r.last_name?.toLowerCase().includes(q),
     );
   }, [deduped, search]);
+
+  const contactsPag = useTablePagination(filtered, 25);
 
   const total       = deduped.length;
   const withAddress = deduped.filter((r: any) => r.address_line1).length;
@@ -726,7 +732,7 @@ function ContactsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((r: any) => (
+                    {contactsPag.sliced.map((r: any) => (
                       <tr
                         key={r.id}
                         className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors"
@@ -768,6 +774,7 @@ function ContactsPage() {
                     ))}
                   </tbody>
                 </table>
+                <TablePagBar page={contactsPag.page} pageSize={contactsPag.pageSize} totalPages={contactsPag.totalPages} total={contactsPag.total} setPage={contactsPag.setPage} changePageSize={contactsPag.changePageSize} />
               </div>
             )}
           </div>
