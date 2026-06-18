@@ -16,6 +16,7 @@ import {
   saveCrmSettings,
   validateHubspotKey,
   validateGhlKey,
+  validateWebespokeKey,
 } from "@/lib/crm/crm-settings.functions";
 
 export const Route = createFileRoute("/_authenticated/settings/crm")({
@@ -46,6 +47,7 @@ function CrmSettingsPage() {
   const saveSettings = useServerFn(saveCrmSettings);
   const validateHs = useServerFn(validateHubspotKey);
   const validateGhl = useServerFn(validateGhlKey);
+  const validateWbs = useServerFn(validateWebespokeKey);
 
   const settingsQ = useQuery({ queryKey: ["crm-settings"], queryFn: () => getSettings() });
 
@@ -57,6 +59,11 @@ function CrmSettingsPage() {
   const [ghlLocationId, setGhlLocationId] = useState("");
   const [ghlState, setGhlState] = useState<ValidationState>("idle");
   const [ghlSaving, setGhlSaving] = useState(false);
+
+  const [wbsKey, setWbsKey] = useState("");
+  const [wbsUrl, setWbsUrl] = useState("");
+  const [wbsState, setWbsState] = useState<ValidationState>("idle");
+  const [wbsSaving, setWbsSaving] = useState(false);
 
   async function handleSaveHubspot() {
     const key = hsKey.trim();
@@ -148,8 +155,57 @@ function CrmSettingsPage() {
     }
   }
 
+  async function handleSaveWebespoke() {
+    const key = wbsKey.trim();
+    const url = wbsUrl.trim();
+    if (!key || !url) {
+      toast.error("Both API key and Base URL are required");
+      return;
+    }
+    setWbsSaving(true);
+    setWbsState("validating");
+    try {
+      const { ok } = await validateWbs({ data: { apiKey: key, apiUrl: url } });
+      if (!ok) {
+        setWbsState("error");
+        toast.error("WeeBespoke AI connection failed", {
+          description: "Check that your API key and Base URL are correct.",
+        });
+        return;
+      }
+      await saveSettings({ data: { webespoke_api_key: key, webespoke_api_url: url } });
+      setWbsState("connected");
+      setWbsKey("");
+      setWbsUrl("");
+      toast.success("WeeBespoke AI connected");
+      qc.invalidateQueries({ queryKey: ["crm-settings"] });
+    } catch (e) {
+      setWbsState("error");
+      toast.error("Save failed", { description: (e as Error).message });
+    } finally {
+      setWbsSaving(false);
+    }
+  }
+
+  async function handleDisconnectWebespoke() {
+    setWbsSaving(true);
+    try {
+      await saveSettings({ data: { webespoke_api_key: null, webespoke_api_url: null } });
+      setWbsState("idle");
+      setWbsKey("");
+      setWbsUrl("");
+      toast.success("WeeBespoke AI disconnected");
+      qc.invalidateQueries({ queryKey: ["crm-settings"] });
+    } catch (e) {
+      toast.error("Failed to disconnect", { description: (e as Error).message });
+    } finally {
+      setWbsSaving(false);
+    }
+  }
+
   const isHsConnected = settingsQ.data?.hasHubspot && hsState !== "error";
   const isGhlConnected = settingsQ.data?.hasGhl && ghlState !== "error";
+  const isWbsConnected = settingsQ.data?.hasWebespoke && wbsState !== "error";
 
   return (
     <main className="min-h-screen bg-background flex flex-col">
@@ -343,6 +399,99 @@ function CrmSettingsPage() {
                     </>
                   ) : (
                     "Connect GoHighLevel"
+                  )}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* WeeBespoke AI */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-violet-500" />
+              WeeBespoke AI
+              {isWbsConnected && <ConnectedBadge />}
+              {wbsState === "error" && (
+                <span className="text-xs font-medium text-destructive">Connection failed</span>
+              )}
+            </CardTitle>
+            <CardDescription>
+              Connect your WeeBespoke AI workspace to automatically sync contacts and call activity.
+              Enter the Base URL of your WeeBespoke AI instance and your API key.
+              Each workspace connects to its own isolated WeeBespoke AI account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isWbsConnected ? (
+              <div className="flex items-center gap-4">
+                <p className="text-sm text-muted-foreground flex-1">
+                  WeeBespoke AI is active. Base URL:{" "}
+                  <code className="text-xs bg-muted px-1 rounded">
+                    {settingsQ.data?.webespoke_api_url ?? "—"}
+                  </code>
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={wbsSaving}
+                  onClick={handleDisconnectWebespoke}
+                  className="gap-1 text-destructive hover:text-destructive"
+                >
+                  {wbsSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Unplug className="h-4 w-4" />
+                  )}
+                  Disconnect
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="wbs-url">Base URL</Label>
+                    <Input
+                      id="wbs-url"
+                      placeholder="https://app.webespokeai.com"
+                      value={wbsUrl}
+                      onChange={(e) => {
+                        setWbsUrl(e.target.value);
+                        setWbsState("idle");
+                      }}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="wbs-key">
+                      API Key{" "}
+                      {settingsQ.data?.hasWebespoke && (
+                        <span className="text-xs text-muted-foreground">(leave blank to keep current)</span>
+                      )}
+                    </Label>
+                    <Input
+                      id="wbs-key"
+                      type="password"
+                      placeholder="wbs_••••••••"
+                      value={wbsKey}
+                      onChange={(e) => {
+                        setWbsKey(e.target.value);
+                        setWbsState("idle");
+                      }}
+                    />
+                  </div>
+                </div>
+                <Button
+                  onClick={handleSaveWebespoke}
+                  disabled={wbsSaving || !wbsKey.trim() || !wbsUrl.trim()}
+                >
+                  {wbsState === "validating" ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    "Connect WeeBespoke AI"
                   )}
                 </Button>
               </div>

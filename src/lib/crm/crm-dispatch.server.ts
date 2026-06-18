@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { HubSpotAdapter } from "./hubspot.adapter";
 import { GoHighLevelAdapter } from "./gohighlevel.adapter";
+import { WeeBespokeAiAdapter } from "./webespoke-ai.adapter";
 import type { CrmContactInput, CrmCallActivityInput } from "./crm-adapter.interface";
 
 export async function dispatchCrmPostCall(
@@ -10,7 +11,7 @@ export async function dispatchCrmPostCall(
 ): Promise<void> {
   const { data: settings } = await (supabaseAdmin as any)
     .from("workspace_settings")
-    .select("hubspot_api_key, ghl_api_key, ghl_location_id")
+    .select("hubspot_api_key, ghl_api_key, ghl_location_id, webespoke_api_key, webespoke_api_url")
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -24,6 +25,10 @@ export async function dispatchCrmPostCall(
 
   if (settings.ghl_api_key && settings.ghl_location_id) {
     adapters.push(new GoHighLevelAdapter(settings.ghl_api_key, settings.ghl_location_id));
+  }
+
+  if (settings.webespoke_api_key && settings.webespoke_api_url) {
+    adapters.push(new WeeBespokeAiAdapter(settings.webespoke_api_key, settings.webespoke_api_url));
   }
 
   if (adapters.length === 0) return;

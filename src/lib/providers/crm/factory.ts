@@ -1,18 +1,20 @@
 import type { CrmAdapter, CrmContactInput, CrmCallActivityInput } from "@/lib/crm/crm-adapter.interface";
 import { HubSpotAdapter } from "@/lib/crm/hubspot.adapter";
 import { GoHighLevelAdapter } from "@/lib/crm/gohighlevel.adapter";
+import { WeeBespokeAiAdapter } from "@/lib/crm/webespoke-ai.adapter";
 import { SalesforceAdapter } from "./adapters/salesforce.adapter";
 import { PipedriveAdapter } from "./adapters/pipedrive.adapter";
 import { withProviderTracking } from "@/lib/providers/instrumentation";
 
-export type CRMProviderName = "hubspot" | "gohighlevel" | "salesforce" | "pipedrive" | "dynamics";
+export type CRMProviderName = "hubspot" | "gohighlevel" | "salesforce" | "pipedrive" | "dynamics" | "webespoke";
 
 export type CRMConfig =
   | { provider: "hubspot"; apiKey: string }
   | { provider: "gohighlevel"; apiKey: string; locationId: string }
   | { provider: "salesforce"; instanceUrl: string; accessToken: string }
   | { provider: "pipedrive"; apiToken: string }
-  | { provider: "dynamics"; tenantId: string; clientId: string; clientSecret: string };
+  | { provider: "dynamics"; tenantId: string; clientId: string; clientSecret: string }
+  | { provider: "webespoke"; apiKey: string; apiUrl: string };
 
 /**
  * Create a CrmAdapter. When `workspaceId` is included in `config`, every
@@ -33,6 +35,9 @@ export function createCRMProvider(config: CRMConfig & { workspaceId?: string }):
       break;
     case "pipedrive":
       inner = new PipedriveAdapter(config.apiToken);
+      break;
+    case "webespoke":
+      inner = new WeeBespokeAiAdapter(config.apiKey, config.apiUrl);
       break;
     case "dynamics":
       throw new Error("Microsoft Dynamics CRM adapter not yet implemented.");
