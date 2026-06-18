@@ -681,18 +681,20 @@ function LeadsPage() {
                               const sd = statusDisplay(lead.status);
                               return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${sd.color}`}>{sd.label}</span>;
                             })()}
-                            <div className="flex gap-1 mt-0.5">
-                              {STATUS_OPTIONS.map((opt) => (
-                                <button
-                                  key={opt.value}
-                                  title={`Mark as ${opt.label}`}
-                                  onClick={() => handleSetStatus(lead.id, opt.value)}
-                                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-opacity ring-1 ${opt.color} ${lead.status === opt.value ? "opacity-100" : "opacity-40 hover:opacity-80"}`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
+                            {!isWbah && (
+                              <div className="flex gap-1 mt-0.5">
+                                {STATUS_OPTIONS.map((opt) => (
+                                  <button
+                                    key={opt.value}
+                                    title={`Mark as ${opt.label}`}
+                                    onClick={() => handleSetStatus(lead.id, opt.value)}
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-opacity ring-1 ${opt.color} ${lead.status === opt.value ? "opacity-100" : "opacity-40 hover:opacity-80"}`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-1.5">{sentimentBadge(lead.sentiment)}</td>

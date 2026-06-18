@@ -176,18 +176,20 @@ function QualifiedPage() {
   const listAgentsFn = useServerFn(listLiveAgents);
 
   const [isWbah, setIsWbah] = useState(false);
+  const [isWbahResolved, setIsWbahResolved] = useState(false);
   useEffect(() => {
     let active = true;
     (async () => {
       try {
         const { data: sess } = await supabase.auth.getSession();
-        if (!sess.session) return;
+        if (!sess.session) { if (active) setIsWbahResolved(true); return; }
         const { data: profile } = await supabase
           .from("profiles")
           .select("default_workspace_id")
           .eq("user_id", sess.session.user.id)
           .maybeSingle();
-        if (!profile?.default_workspace_id || !active) return;
+        if (!active) return;
+        if (!profile?.default_workspace_id) { setIsWbahResolved(true); return; }
         const { data: ws } = await supabase
           .from("workspaces")
           .select("slug")
@@ -195,7 +197,8 @@ function QualifiedPage() {
           .maybeSingle();
         if (!active) return;
         setIsWbah(ws?.slug === "webuyanyhouse");
-      } catch {}
+        setIsWbahResolved(true);
+      } catch { if (active) setIsWbahResolved(true); }
     })();
     return () => { active = false; };
   }, []);
@@ -218,7 +221,7 @@ function QualifiedPage() {
           limit: 200,
         },
       }),
-    enabled: !isWbah,
+    enabled: isWbahResolved && !isWbah,
     refetchOnWindowFocus: false,
     throwOnError: false,
   });
@@ -226,7 +229,7 @@ function QualifiedPage() {
   const wbahLeadsQ = useQuery({
     queryKey: ["leads-wbah-all-qual"],
     queryFn: () => getAllLeads({ data: { limit: 5000 } }),
-    enabled: isWbah,
+    enabled: isWbahResolved && isWbah,
     refetchOnWindowFocus: false,
     throwOnError: false,
   });
