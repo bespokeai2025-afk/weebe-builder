@@ -94,14 +94,47 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     const workspaceRetellKey = (wsSettings?.retell_workspace_id as string | undefined)?.trim() || undefined;
     const apiKey = workspaceRetellKey || process.env.RETELL_API_KEY;
 
+    // When using the platform key (shared account), limit to only agents
+    // that have been deployed in this workspace so we don't mix data across
+    // all workspaces on the account.
+    let deployedAgentIds: Set<string> | null = null;
+    if (!workspaceRetellKey && apiKey) {
+      try {
+        const { data: deps } = await sb
+          .from("deployments")
+          .select("provider_agent_id")
+          .eq("workspace_id", workspaceId)
+          .eq("provider", "retell")
+          .not("provider_agent_id", "is", null);
+        if (deps && deps.length > 0) {
+          deployedAgentIds = new Set((deps as any[]).map((d: any) => d.provider_agent_id as string));
+        }
+      } catch (e) {
+        console.warn("[analytics] Could not fetch workspace deployments:", e);
+      }
+    }
+
     if (apiKey) {
-      // Fetch agent list using the workspace key so we get all their agents
+      // Fetch agent list — when using a workspace-specific key every agent
+      // belongs to that workspace; when using the platform key restrict to
+      // agents that are actually deployed in this workspace.
       try {
         const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey);
         for (const a of agentList ?? []) {
-          if (a.agent_id) {
-            agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
-            agentIds.push(a.agent_id);
+          if (!a.agent_id) continue;
+          // Platform key: skip agents not deployed in this workspace
+          if (deployedAgentIds !== null && !deployedAgentIds.has(a.agent_id)) continue;
+          agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
+          agentIds.push(a.agent_id);
+        }
+        // If deployedAgentIds has entries but none matched agent list (e.g.
+        // agents deployed via a workspace key not the platform key), seed
+        // agentIds directly from the DB deployments so calls can still be
+        // fetched by agent_id filter even without a name match.
+        if (deployedAgentIds !== null && agentIds.length === 0 && deployedAgentIds.size > 0) {
+          for (const id of deployedAgentIds) {
+            agentIds.push(id);
+            agentNames[id] = id;
           }
         }
       } catch (e: any) {
