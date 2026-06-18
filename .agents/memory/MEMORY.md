@@ -42,3 +42,4 @@
 - [Onboarding V2 Architecture](onboarding-v2-arch.md) — path modal + checklist + gated tour; workspace_onboarding table; knowledge tier rules (no WEBEE content in SEED_TOPICS).
 - [Build — Node.js externals](build-node-externals.md) — Node built-ins must be in vite build.rollupOptions.external or client bundle fails; @vite-ignore alone is NOT enough; stale dynamic import paths only surface in SSR build.
 - [WeeBespoke API totalPages bug](webespokeapi-totalpages-bug.md) — API's `pagination.totalPages` is wrong (says 13, actual is 203+); always compute from `totalItems ÷ pageSize` in extractTotalPages.
+- [WBAH endpoint mapping](wbah-endpoint-mapping.md) — Calls page = POST /get-user-history (10,149, snake_case fields, pageSize hardcoded 10); Contacts/Leads = GET /get-userCall-lead (1,201); get-all-calldata (609) = CRM contacts, NOT call log.

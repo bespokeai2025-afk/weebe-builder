@@ -221,15 +221,16 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
       api.wbahGetUserCallLeadAll(      gt, st),   // GET /get-userCall-lead?limit=10000
     ]);
 
-    // ── Round 2: POST /get-user-history with multiple payload variants ─────────
+    // ── Round 2: POST /get-user-history — page 1 variants + explicit page 2 ─────
     const [
-      histEmpty, histLimit100, histLimitBig, histLeadId, histPage1,
+      histEmpty, histLimit100, histLimitBig, histLeadId, histPage1, histPage2,
     ] = await Promise.all([
-      api.wbahGetUserHistory({},                         gt, st),
-      api.wbahGetUserHistory({ limit: 100 },             gt, st),
-      api.wbahGetUserHistory({ limit: 10000 },           gt, st),
-      api.wbahGetUserHistory({ page: 1, limit: 50 },    gt, st),
-      api.wbahGetUserHistory({ currentPage: 1, pageSize: 50 }, gt, st),
+      api.wbahGetUserHistory({},                                  gt, st),
+      api.wbahGetUserHistory({ limit: 100 },                     gt, st),
+      api.wbahGetUserHistory({ limit: 10000 },                   gt, st),
+      api.wbahGetUserHistory({ page: 1, limit: 50 },             gt, st),
+      api.wbahGetUserHistory({ currentPage: 1, pageSize: 50 },   gt, st),
+      api.wbahGetUserHistory({ currentPage: 2 },                 gt, st),  // ← KEY: pagination validation
     ]);
 
     // ── Round 3: page-2 of /get-all-calldata to find pagination key ───────────
@@ -337,6 +338,9 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
 
       "POST /call-output-data/get-user-history (currentPage:1 pageSize:50)":
         analyseEndpoint(histLeadId,    "/call-output-data/get-user-history",          "POST", "body={currentPage:1,pageSize:50}"),
+
+      "POST /call-output-data/get-user-history (currentPage:2 — pagination test)":
+        analyseEndpoint(histPage2,     "/call-output-data/get-user-history",          "POST", "body={currentPage:2}"),
 
       "GET /call-output-data/get-userCall-lead (page 1)":
         analyseEndpoint(leadsP1Res,    "/call-output-data/get-userCall-lead",         "GET", "?currentPage=1"),
