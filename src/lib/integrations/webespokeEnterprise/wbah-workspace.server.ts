@@ -441,12 +441,14 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch leads from WeeBespoke");
 
     const p1Raw      = p1Res.data as any;
+    const p2Raw      = p2Res.ok ? p2Res.data as any : null;
     const p1Recs     = extractRecords(p1Raw);
-    const p2Recs     = p2Res.ok ? extractRecords(p2Res.data) : [];
-    // Log the raw shape of the response so we know which key holds records + what pagination says
+    const p2Recs     = p2Raw ? extractRecords(p2Raw) : [];
+    // Log the raw shape of both pages so we know the record key, pagination, and whether page 2 differs
     console.log(`[WBAH leads] p1 raw top-level keys: ${p1Raw && typeof p1Raw === "object" ? Object.keys(p1Raw).join(",") : typeof p1Raw}`);
     console.log(`[WBAH leads] p1 sample record keys: ${p1Recs[0] ? Object.keys(p1Recs[0]).join(",") : "no records"}`);
     console.log(`[WBAH leads] p1 pagination object: ${JSON.stringify(p1Raw?.pagination ?? null)}`);
+    console.log(`[WBAH leads] p2 ok=${p2Res.ok} status=${p2Res.status} raw keys: ${p2Raw && typeof p2Raw === "object" ? Object.keys(p2Raw).join(",") : typeof p2Raw} records=${p2Recs.length}`);
     const pagination = p1Raw?.pagination;
     const totalItems = pagination?.totalItems ?? pagination?.totalRecords ?? pagination?.total_count ?? pagination?.count ?? 0;
     const pageSize   = pagination?.pageSize ?? pagination?.page_size ?? pagination?.limit ?? pagination?.perPage ?? (p1Recs.length || 50);
@@ -608,13 +610,28 @@ function normaliseLeadRecord(r: any, idx: number) {
 }
 
 function extractRecords(raw: any): any[] {
-  if (Array.isArray(raw))          return raw;
-  if (Array.isArray(raw?.data))    return raw.data;
-  if (Array.isArray(raw?.calls))   return raw.calls;
-  if (Array.isArray(raw?.records)) return raw.records;
-  if (Array.isArray(raw?.leads))   return raw.leads;
-  if (Array.isArray(raw?.result))  return raw.result;
-  if (Array.isArray(raw?.items))   return raw.items;
+  if (Array.isArray(raw))                 return raw;
+  if (Array.isArray(raw?.data))           return raw.data;
+  if (Array.isArray(raw?.calls))          return raw.calls;
+  if (Array.isArray(raw?.records))        return raw.records;
+  if (Array.isArray(raw?.leads))          return raw.leads;
+  if (Array.isArray(raw?.result))         return raw.result;
+  if (Array.isArray(raw?.items))          return raw.items;
+  // Additional keys seen in WeeBespoke lead/call endpoints
+  if (Array.isArray(raw?.callLeads))      return raw.callLeads;
+  if (Array.isArray(raw?.callData))       return raw.callData;
+  if (Array.isArray(raw?.userCallLeads))  return raw.userCallLeads;
+  if (Array.isArray(raw?.list))           return raw.list;
+  if (Array.isArray(raw?.rows))           return raw.rows;
+  if (Array.isArray(raw?.docs))           return raw.docs;
+  if (Array.isArray(raw?.payload))        return raw.payload;
+  if (Array.isArray(raw?.response))       return raw.response;
+  // Last-resort: find the first array-valued property on the object
+  if (raw && typeof raw === "object") {
+    for (const v of Object.values(raw)) {
+      if (Array.isArray(v) && (v as any[]).length > 0) return v as any[];
+    }
+  }
   return [];
 }
 
