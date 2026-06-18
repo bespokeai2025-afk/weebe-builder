@@ -8,7 +8,7 @@ description: Definitive mapping of WeeBespoke API endpoints to WEBEE pages for t
 | Endpoint | Purpose | Count | Page |
 |---|---|---|---|
 | `POST /call-output-data/get-user-history` | **Real completed call log** | 10,149 | Calls page |
-| `GET /call-output-data/get-userCall-lead` | **Analyzed leads** (event=call_analyzed) | 1,201 | Contacts / Qualified |
+| `GET /call-output-data/get-userCall-lead` | **Analyzed leads** (event=call_analyzed) | **1,200** | /leads (Supabase sync) + /qualified (direct) |
 | `GET /call-output-data/get-all-calldata` | CRM contacts-to-call (callId=null for most) | 609 | Dashboard metric only |
 | `GET /call-output-data/get-call-count` | Dashboard scalars (totalCall, successCounts, etc.) | scalar | Dashboard |
 | `GET /crm-data/get-crm-data` | Raw CRM upload (name + mobile_number only) | 3,720 | CRM admin |
@@ -23,6 +23,22 @@ description: Definitive mapping of WeeBespoke API endpoints to WEBEE pages for t
 - **totalPages**: 1,015 (10,149 ÷ 10); `totalItems=10149` confirmed accurate
 
 **Why the previous run got only 5,620:** HMR fired mid-fetch, reloading the server fn. The auth token also had concurrent refresh collisions when 20 parallel requests hit 401 simultaneously. An uninterrupted run fetches all 10,149.
+
+## get-userCall-lead pagination — CONFIRMED
+
+- **Pagination key**: URL query param `?currentPage=N` on a GET request — WORKS
+- **pageSize**: hardcoded to 50
+- **totalItems**: 1,200 (confirmed by live API response — not 1,201)
+- **totalPages**: 24 (1200 ÷ 50)
+- `wbahGetUserCallLeadPaged(page, gt, st)` = `GET /call-output-data/get-userCall-lead?currentPage=${page}`
+
+**Why the page previously showed 50:** The admin sync called `getAllCars` = a single GET with no currentPage param. Fixed by `fetchAllLeadRecords` which paginates 24 pages in batches of 20 with ID dedup.
+
+## Token expiry handling — CONFIRMED
+
+- WeeBespoke JWT tokens expire. Both accessToken and refreshToken can expire together.
+- `authenticatedFetch` tries refresh token first, then `reloginFn` if provided — but `aGet`/`aPost` don't pass `reloginFn`.
+- **Fix**: `ensureFreshToken()` in `wbah.functions.ts` re-logins via `POST /admin/login` with env-var creds (`WEBESPOKE_ADMIN_EMAIL` + `WEBESPOKE_ADMIN_PASSWORD`) and upserts the new token into `enterprise_integrations`. Call it at the start of any bulk sync operation.
 
 ## get-user-history field schema (snake_case)
 
@@ -40,3 +56,10 @@ Handles both snake_case (get-user-history) and camelCase (get-userCall-lead) tra
 4. Log HTTP status + raw response on first empty batch for diagnostics
 5. Stop early after first all-zero batch (server has no more data)
 6. Deduplicate by `call_id` as final safety net
+
+## /leads page architecture
+
+- `/leads` (leads.index.tsx) shows Supabase `leads` table, filtered to the current workspace
+- WBAH leads are populated via `adminSyncWebuyanyhouseLeads` → `fetchAllLeadRecords` → upserts into `leads` table
+- `/qualified` (qualified.tsx) fetches WeeBespoke directly via `listWbahLeads` server fn
+- After sync, `/leads` shows 1,200 records; sync must be re-triggered manually from Admin → WBAH → "Sync Leads"

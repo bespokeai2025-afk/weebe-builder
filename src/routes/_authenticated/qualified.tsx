@@ -136,6 +136,7 @@ function QualifiedPage() {
     queryKey: ["qual-agents"],
     queryFn: () => listAgentsFn(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
   const qualAgents = (agentsQ.data ?? []) as Array<{ id: string; name: string; retell_agent_id?: string | null }>;
 
@@ -150,12 +151,14 @@ function QualifiedPage() {
         },
       }),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   const statsQ = useQuery({
     queryKey: ["qualification-stats"],
     queryFn: () => getStats(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   const rows = (leadsQ.data ?? []) as any[];
