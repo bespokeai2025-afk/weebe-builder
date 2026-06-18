@@ -292,12 +292,43 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     );
 
     const leads = allRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
-    leads.sort((a, b) => {
-      const ta = a.lastCalledAt ? new Date(a.lastCalledAt).getTime() : 0;
-      const tb = b.lastCalledAt ? new Date(b.lastCalledAt).getTime() : 0;
+
+    // Deduplicate by phone number — keep the most recent row per contact,
+    // attach callCount so the UI can show how many times they were called.
+    const byPhone = new Map<string, { record: typeof leads[0]; count: number }>();
+    const noPhoneRows: typeof leads = [];
+
+    for (const lead of leads) {
+      const phone = (lead.contact as string | null) ?? "";
+      if (!phone) {
+        noPhoneRows.push({ ...lead, callCount: 1 });
+        continue;
+      }
+      const existing = byPhone.get(phone);
+      if (!existing) {
+        byPhone.set(phone, { record: lead, count: 1 });
+      } else {
+        existing.count++;
+        // Keep the most recently-called row as the representative
+        const existingTs = existing.record.lastCalledAt
+          ? new Date(existing.record.lastCalledAt as string).getTime() : 0;
+        const newTs = lead.lastCalledAt
+          ? new Date(lead.lastCalledAt as string).getTime() : 0;
+        if (newTs > existingTs) existing.record = lead;
+      }
+    }
+
+    const deduped = [
+      ...[...byPhone.values()].map(({ record, count }) => ({ ...record, callCount: count })),
+      ...noPhoneRows,
+    ];
+
+    deduped.sort((a, b) => {
+      const ta = a.lastCalledAt ? new Date(a.lastCalledAt as string).getTime() : 0;
+      const tb = b.lastCalledAt ? new Date(b.lastCalledAt as string).getTime() : 0;
       return tb - ta;
     });
-    return leads;
+    return deduped;
   });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
