@@ -295,8 +295,9 @@ async function fetchAllLeadRecords(
   // WeeBespoke's API reports totalPages incorrectly — always compute from totalItems ÷ pageSize (10)
   const totalPages = totalItems > 0 ? Math.ceil(totalItems / 10) : (pagination?.totalPages ?? (p1.data as any)?.totalPages ?? 1);
   const all: any[] = Array.isArray(p1.data?.data) ? [...p1.data.data] : Array.isArray(p1.data) ? [...p1.data] : [];
-  for (let page = 2; page <= totalPages; page += 20) {
-    const batch = Array.from({ length: Math.min(20, totalPages - page + 1) }, (_, i) => page + i);
+  // Fetch remaining pages sequentially in small batches to avoid API rate limits
+  for (let page = 2; page <= totalPages; page += 5) {
+    const batch = Array.from({ length: Math.min(5, totalPages - page + 1) }, (_, i) => page + i);
     const results = await Promise.allSettled(
       batch.map(p => apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=${p}`, {
         method: "GET", headers: { Authorization: `Bearer ${accessToken}` },
@@ -308,6 +309,8 @@ async function fetchAllLeadRecords(
         all.push(...records);
       }
     }
+    // Brief pause between batches to avoid hammering the API
+    if (page + 5 <= totalPages) await new Promise(res => setTimeout(res, 200));
   }
   return { ok: true, data: all };
 }
@@ -448,6 +451,61 @@ export async function runWbahCallsSyncTick(): Promise<{ calls: number; errors: s
   } catch (e: any) {
     results.errors.push(e?.message ?? "Unknown error");
   }
+  return results;
+}
+
+export async function runWbahFullResync(): Promise<{ deleted: number; sellers: number; errors: string[] }> {
+  const sb = getAdminClient();
+  const { data: ws } = await (sb as any).from("workspaces").select("id").eq("slug", WBAH_SLUG).maybeSingle();
+  if (!ws?.id) throw new Error("Webuyanyhouse workspace not found");
+  const workspaceId: string = ws.id;
+
+  // 1. Count then delete all existing seller leads for this workspace
+  const { count: existing } = await (sb as any)
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .eq("source", "import")
+    .eq("source_detail", SOURCE_DETAIL);
+
+  const { error: delErr } = await (sb as any)
+    .from("leads")
+    .delete()
+    .eq("workspace_id", workspaceId)
+    .eq("source", "import")
+    .eq("source_detail", SOURCE_DETAIL);
+
+  if (delErr) throw new Error(`Delete failed: ${delErr.message}`);
+  console.log(`[wbah-full-resync] deleted ${existing ?? "?"} stale seller leads`);
+
+  // 2. Refresh token + fetch fresh data
+  await ensureFreshToken(sb);
+  const getTokens = async () => {
+    const tokens = await getStoredTokens(sb);
+    if (!tokens) throw new Error("Not connected — no token stored");
+    return tokens;
+  };
+  const saveTok = (t: string) => saveToken(sb, t);
+
+  const sellersRes = await fetchAllLeadRecords(getTokens, saveTok);
+  const results = { deleted: existing ?? 0, sellers: 0, errors: [] as string[] };
+
+  if (sellersRes.ok && sellersRes.data) {
+    // Fresh insert — no existing rows so all will insert
+    const rows = sellersRes.data.map((r: any) => buildLeadRow(r, workspaceId));
+    if (rows.length) {
+      const CHUNK = 500;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const { error } = await (sb as any).from("leads").insert(rows.slice(i, i + CHUNK));
+        if (error) results.errors.push(`Insert chunk ${i}: ${error.message}`);
+      }
+      results.sellers = rows.length;
+    }
+  } else {
+    results.errors.push("Sellers fetch failed — DB was wiped, resync needed");
+  }
+
+  console.log(`[wbah-full-resync] inserted ${results.sellers} sellers, ${results.errors.length} errors`);
   return results;
 }
 

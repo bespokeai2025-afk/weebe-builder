@@ -6,10 +6,14 @@
  * ready by the time the user signs in, then repeats every 30 minutes.
  */
 import type { Plugin } from "vite";
-import { runWbahLeadsSyncTick } from "./src/lib/integrations/webespokeEnterprise/wbah-leads-sync-tick";
+import { runWbahLeadsSyncTick, runWbahFullResync } from "./src/lib/integrations/webespokeEnterprise/wbah-leads-sync-tick";
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000;
 const INITIAL_DELAY_MS = 5_000;
+
+// Set to true to wipe + re-insert all seller leads on next server start.
+// Flip back to false after the resync completes.
+const FULL_RESYNC_ON_START = false;
 
 export function wbahLeadsSyncPlugin(): Plugin {
   return {
@@ -30,8 +34,23 @@ export function wbahLeadsSyncPlugin(): Plugin {
         }
       }
 
+      async function firstTick() {
+        if (FULL_RESYNC_ON_START) {
+          try {
+            console.log("[wbah-leads-sync] FULL RESYNC starting — wiping stale seller leads...");
+            const r = await runWbahFullResync();
+            console.log(`[wbah-leads-sync] full resync done — deleted=${r.deleted} inserted=${r.sellers}` +
+              (r.errors.length ? ` errors=${r.errors.join("; ")}` : ""));
+          } catch (e: any) {
+            console.error("[wbah-leads-sync] full resync error:", e?.message ?? e);
+          }
+        } else {
+          await tick();
+        }
+      }
+
       timeoutId = setTimeout(() => {
-        tick();
+        firstTick();
         intervalId = setInterval(tick, TICK_INTERVAL_MS);
       }, INITIAL_DELAY_MS);
 
