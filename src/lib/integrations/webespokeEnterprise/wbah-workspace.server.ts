@@ -234,6 +234,7 @@ export const listWbahLeads = createServerFn({ method: "GET" })
       sentiment:       r.sentimentAnalysis ?? r.sentiment ?? null,
       direction:       r.direction ?? r.callDirection ?? null,
       appointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
+      agentName:       r.agentName ?? r.agent_name ?? r.assignedAgent ?? r.agent ?? null,
     }));
   });
 

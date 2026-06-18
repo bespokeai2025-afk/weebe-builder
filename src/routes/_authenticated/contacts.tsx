@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useEffect } from "react";
 import {
   BookUser, RefreshCw, Search, StickyNote, FolderOpen, Loader2,
-  Building2, PlayCircle, ChevronRight, X, Phone,
+  Building2, PlayCircle, ChevronRight, X, Phone, SlidersHorizontal,
 } from "lucide-react";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Input } from "@/components/ui/input";
@@ -138,8 +138,14 @@ function wbahLeadSentiment(v?: string | null) {
 }
 
 function WbahLeadsSection() {
-  const [search, setSearch]         = useState("");
-  const [transcript, setTranscript] = useState<{ text: string; name: string } | null>(null);
+  const SENTIMENTS = ["Positive", "Neutral", "Negative"] as const;
+
+  const [search, setSearch]             = useState("");
+  const [transcript, setTranscript]     = useState<{ text: string; name: string } | null>(null);
+  const [showFilters, setShowFilters]   = useState(false);
+  const [sentFilters, setSentFilters]   = useState<Set<string>>(new Set());
+  const [agentFilters, setAgentFilters] = useState<Set<string>>(new Set());
+
   const getFn = useServerFn(listWbahLeads);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -152,15 +158,43 @@ function WbahLeadsSection() {
 
   const records = (data ?? []) as any[];
 
+  const uniqueAgents = useMemo(() => {
+    const names = new Set<string>();
+    for (const r of records) {
+      if (r.agentName) names.add(r.agentName);
+    }
+    return [...names].sort();
+  }, [records]);
+
+  const activeFilterCount = sentFilters.size + agentFilters.size;
+
   const filtered = useMemo(() => {
+    let out = records;
     const q = search.trim().toLowerCase();
-    if (!q) return records;
-    return records.filter(
-      (r: any) =>
-        r.name?.toLowerCase().includes(q) ||
-        r.contact?.toLowerCase().includes(q),
-    );
-  }, [records, search]);
+    if (q) out = out.filter((r: any) =>
+      r.name?.toLowerCase().includes(q) || r.contact?.toLowerCase().includes(q));
+    if (sentFilters.size > 0) out = out.filter((r: any) => {
+      const s = (r.sentiment ?? "").toString().toLowerCase();
+      return [...sentFilters].some(f => s.includes(f.toLowerCase()));
+    });
+    if (agentFilters.size > 0) out = out.filter((r: any) =>
+      agentFilters.has(r.agentName ?? ""));
+    return out;
+  }, [records, search, sentFilters, agentFilters]);
+
+  function toggleSent(v: string) {
+    setSentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
+  }
+  function toggleAgent(v: string) {
+    setAgentFilters(prev => { const n = new Set(prev); n.has(v) ? n.delete(v) : n.add(v); return n; });
+  }
+  function clearFilters() { setSentFilters(new Set()); setAgentFilters(new Set()); }
+
+  const sentimentDot: Record<string, string> = {
+    positive: "bg-emerald-400",
+    neutral:  "bg-yellow-400",
+    negative: "bg-red-400",
+  };
 
   if (isLoading && records.length === 0) return (
     <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">
@@ -175,7 +209,7 @@ function WbahLeadsSection() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {/* Transcript modal */}
       {transcript && (
         <div
@@ -202,9 +236,9 @@ function WbahLeadsSection() {
         </div>
       )}
 
-      {/* Header + search */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
+      {/* Toolbar: search + filter toggle + count + refresh */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[160px] max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
             value={search}
@@ -213,16 +247,104 @@ function WbahLeadsSection() {
             className="h-7 pl-8 text-xs"
           />
         </div>
-        <p className="ml-auto text-[11px] text-muted-foreground flex items-center gap-1.5">
+
+        {/* Filter toggle */}
+        <button
+          onClick={() => setShowFilters(v => !v)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-lg border px-2.5 h-7 text-[11px] font-medium transition-colors",
+            showFilters
+              ? "border-primary/50 bg-primary/10 text-primary"
+              : "border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+          )}
+        >
+          <SlidersHorizontal className="h-3 w-3" />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+
+        <p className="ml-auto text-[11px] text-muted-foreground flex items-center gap-1.5 shrink-0">
           <Building2 className="h-3.5 w-3.5" />
           {records.length > 0
             ? `${filtered.length < records.length ? `${filtered.length} of ` : ""}${records.length.toLocaleString()} leads`
             : "WeeBespoke leads"}
         </p>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => refetch()} disabled={isFetching}>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => refetch()} disabled={isFetching}>
           <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
         </Button>
       </div>
+
+      {/* Filter panel */}
+      {showFilters && (
+        <div className="rounded-xl border border-white/[0.06] bg-card/50 px-4 py-3 flex flex-wrap gap-x-8 gap-y-3">
+          {/* Sentiment */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</p>
+            <div className="flex flex-col gap-1">
+              {SENTIMENTS.map(s => (
+                <label key={s} className="flex items-center gap-2 cursor-pointer select-none group">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={sentFilters.has(s)}
+                    onChange={() => toggleSent(s)}
+                  />
+                  <span className={cn(
+                    "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
+                    sentFilters.has(s) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
+                  )}>
+                    {sentFilters.has(s) && <span className="block h-1.5 w-1.5 rounded-sm bg-primary-foreground" />}
+                  </span>
+                  <span className={cn("h-2 w-2 rounded-full shrink-0", sentimentDot[s.toLowerCase()] ?? "bg-muted-foreground")} />
+                  <span className="text-xs text-foreground/80">{s}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Agent */}
+          {uniqueAgents.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</p>
+              <div className="flex flex-col gap-1 max-h-36 overflow-y-auto pr-1">
+                {uniqueAgents.map(agent => (
+                  <label key={agent} className="flex items-center gap-2 cursor-pointer select-none group">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={agentFilters.has(agent)}
+                      onChange={() => toggleAgent(agent)}
+                    />
+                    <span className={cn(
+                      "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-white/20 transition-colors",
+                      agentFilters.has(agent) ? "bg-primary border-primary" : "bg-transparent group-hover:border-white/40",
+                    )}>
+                      {agentFilters.has(agent) && <span className="block h-1.5 w-1.5 rounded-sm bg-primary-foreground" />}
+                    </span>
+                    <span className="text-xs text-foreground/80 whitespace-nowrap">{agent}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Clear */}
+          {activeFilterCount > 0 && (
+            <div className="flex items-end">
+              <button
+                onClick={clearFilters}
+                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className={cn("rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden transition-opacity", isFetching && "opacity-60")}>
@@ -230,7 +352,11 @@ function WbahLeadsSection() {
           <div className="flex flex-col items-center gap-2 py-16">
             <Phone className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm font-medium">{records.length === 0 ? "No leads found" : "No matches"}</p>
-            <p className="text-xs text-muted-foreground">WeeBespoke lead data will appear here once available.</p>
+            <p className="text-xs text-muted-foreground">
+              {records.length === 0
+                ? "WeeBespoke lead data will appear here once available."
+                : "Try adjusting your search or filters."}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -241,21 +367,23 @@ function WbahLeadsSection() {
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contact</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Type</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Called At</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Call Status</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Call Duration</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment Analysis</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
                   <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r: any, idx: number) => (
-                  <tr key={r.id} className="h-10 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
+                  <tr key={r.id ?? idx} className="h-10 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
                     <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums">{r.srNo ?? idx + 1}</td>
                     <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{r.name ?? "—"}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">{r.contact ?? "—"}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">{r.type ?? "Lead"}</td>
+                    <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">{r.agentName ?? "—"}</td>
                     <td className="px-3 py-2 text-[11px] text-muted-foreground whitespace-nowrap">
                       {r.lastCalledAt
                         ? new Date(r.lastCalledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
