@@ -174,6 +174,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
 
     return {
       workspaceId,
+      isWbah,
       totals: {
         leads: leadsRes.count ?? leads.length,
         qualified: qualifiedRes.count ?? (qualifiedRes.data ?? []).length,

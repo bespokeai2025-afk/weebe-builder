@@ -634,7 +634,7 @@ function CallsPage() {
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Rec</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">When</th>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
                       <th className="sticky right-0 bg-card/80 px-3 py-2 w-20 backdrop-blur-sm"></th>
                     </tr>
                   </thead>
@@ -684,7 +684,11 @@ function CallsPage() {
                           <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
                             {c.disconnection_reason ? String(c.disconnection_reason).replace(/_/g, " ") : "—"}
                           </td>
-                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]"><RelativeTime date={c.started_at} fallback="—" /></td>
+                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
+                            {c.started_at
+                              ? new Date(c.started_at).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                              : "Not called yet"}
+                          </td>
                           <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
                             <div className="relative group/notes flex justify-center">
                               <button onClick={() => openPanel(c)} className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">

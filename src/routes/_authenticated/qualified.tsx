@@ -65,6 +65,15 @@ function fmtDate(d: string | null) {
   if (!d) return "—";
   try { return new Date(d).toLocaleString(); } catch { return d; }
 }
+function fmtCallDate(iso: string | null | undefined) {
+  if (!iso) return "Not called yet";
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch { return iso; }
+}
 
 function qualStatusBadge(s: string | null) {
   if (!s) return <span className="text-muted-foreground text-xs">—</span>;
@@ -424,7 +433,8 @@ function QualifiedPage() {
                     <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Urgency</th>
                     <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
                     <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Step</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Last Contact</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Contact</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
                     {isRetell && <>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
@@ -482,6 +492,13 @@ function QualifiedPage() {
                       </td>
                       <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
                         {fmtDate(lead.last_contacted_at)}
+                      </td>
+                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
+                        {fmtCallDate(
+                          isWbah ? lead.meta?.last_called_at
+                          : isRetell ? lead.retell_call?.started_at
+                          : lead.last_contacted_at
+                        )}
                       </td>
                       {isRetell && <>
                         <td className="px-3 py-1.5">{callStatusBadge(lead.retell_call?.call_status)}</td>

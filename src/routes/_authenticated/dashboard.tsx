@@ -191,8 +191,8 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* Recent leads */}
-      {data?.recentLeads && data.recentLeads.length > 0 && (
+      {/* Recent leads — hidden for WBAH (summaries managed separately) */}
+      {!data?.isWbah && data?.recentLeads && data.recentLeads.length > 0 && (
         <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden mb-4">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">

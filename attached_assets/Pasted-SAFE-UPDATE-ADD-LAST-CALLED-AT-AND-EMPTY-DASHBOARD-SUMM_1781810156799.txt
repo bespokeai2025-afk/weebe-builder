@@ -1,0 +1,131 @@
+SAFE UPDATE: ADD “LAST CALLED AT” AND EMPTY DASHBOARD SUMMARY SECTION
+
+Do not rebuild pages.
+Do not create new pages.
+Do not change API authentication.
+Do not change workspace isolation.
+Do not change sentiment/qualification logic.
+Do not break the current Webuyanyhouse setup.
+
+Apply only to existing WEBEE pages:
+
+- Calls
+- Leads
+- Qualified Leads
+- Dashboard summary section
+
+1. Add “Last Called At” column/field
+
+Add a visible field called:
+
+Last Called At
+
+to:
+
+- Calls page/table
+- Leads page/table
+- Qualified Leads page/table
+
+Use the existing API payload fields if available.
+
+Before implementing, inspect current raw payloads and identify the best source field from possible names:
+
+- lastCalledAt
+- last_called_at
+- lastCallAt
+- last_call_at
+- calledAt
+- called_at
+- callDate
+- call_date
+- createdAt
+- created_at
+- updatedAt
+- updated_at
+- callStartedAt
+- call_started_at
+- callEndedAt
+- call_ended_at
+
+If multiple fields exist, prefer the most specific call timestamp:
+
+1. lastCalledAt / last_called_at
+2. callEndedAt / call_ended_at
+3. callStartedAt / call_started_at
+4. callDate / call_date
+5. createdAt / created_at only as fallback
+
+If no call timestamp exists, show:
+
+Not called yet
+
+Do not crash if the field is missing.
+
+Format date/time in readable format:
+
+DD MMM YYYY, HH:mm
+
+Use the user/workspace timezone if available.
+Otherwise use browser/local timezone.
+
+2. Keep existing data mappings
+
+Do not change which endpoint each page uses.
+
+Only add the field display/mapping.
+
+Do not alter pagination, filters, search, rows-per-page, or sentiment logic.
+
+3. Qualified Leads source rule
+
+Qualified Leads must still only show positive sentiment leads.
+
+Adding Last Called At must not cause neutral or negative leads to appear.
+
+4. Dashboard summary section
+
+The summary section of the WEBEE Dashboard should be empty for Webuyanyhouse for now.
+
+Reason:
+We are currently pulling summaries in the other dashboard and do not want duplicate/conflicting summaries inside WEBEE yet.
+
+For Webuyanyhouse only:
+
+- Do not fetch summaries
+- Do not display imported summaries
+- Do not show fake/default summaries
+- Do not show old cached summaries
+
+Instead show an empty state:
+
+“No summary available yet”
+
+or leave the summary panel blank if that is more consistent with the current UI.
+
+Do not remove dashboard KPI cards or charts.
+Only empty/disable the summary section.
+
+5. Scope
+
+Apply the empty dashboard summary rule only when:
+
+workspace/client = Webuyanyhouse
+
+Other clients should keep existing summary behaviour.
+
+6. Final validation
+
+Confirm:
+
+- Calls page shows Last Called At
+- Leads page shows Last Called At
+- Qualified Leads page shows Last Called At
+- Missing call dates show Not called yet
+- Dates are formatted correctly
+- Existing pagination still works
+- Existing filters/search still work
+- Leads sentiment logic unchanged
+- Qualified Leads still positive-only
+- Webuyanyhouse dashboard summary section is empty
+- Dashboard KPIs/charts still work
+- Other clients unaffected
