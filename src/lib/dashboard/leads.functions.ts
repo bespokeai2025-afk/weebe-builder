@@ -90,7 +90,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
       .maybeSingle();
     const isWbah = wsRow?.slug === "webuyanyhouse";
 
-    const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes] = await Promise.all([
+    const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes, recentLeadsRes] = await Promise.all([
       (supabase as any)
         .from("leads" as never)
         .select("id, status, created_at", { count: "exact", head: false })
@@ -127,6 +127,13 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .select("to_number")
         .eq("workspace_id", workspaceId)
         .eq("call_status", "completed"),
+      // 5 most recent leads with display fields
+      (supabase as any)
+        .from("leads" as never)
+        .select("id, full_name, phone, status, sentiment, created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at", { ascending: false })
+        .limit(5),
     ]);
 
     if (leadsRes.error) throw new Error(leadsRes.error.message);
@@ -169,7 +176,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         closedLeads: closedLeads.length,
         closedLeadsReached,
       },
-      recentLeads: leads.slice(-5).reverse(),
+      recentLeads: recentLeadsRes.data ?? [],
     };
   });
 

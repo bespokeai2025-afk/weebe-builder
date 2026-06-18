@@ -1,13 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, Users, Calendar, TrendingUp, ArrowUpRight, Radio, PhoneCall, PhoneMissed } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Phone, Users, Calendar, TrendingUp, ArrowUpRight,
+  Radio, PhoneCall, PhoneMissed, Bot, CheckCircle2, Circle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { getOverviewStats } from "@/lib/dashboard/leads.functions";
-import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
+import { getWorkspaceAgents } from "@/lib/agents/agents.functions";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Webee" }] }),
@@ -15,67 +17,70 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 const FLOW_LABELS: Record<string, string> = {
-  receptionist: "Receptionist",
-  lead_generation: "Lead Generation",
+  receptionist:         "Receptionist",
+  lead_generation:      "Lead Generation",
   client_qualification: "Client Qualification",
 };
 
 function DashboardPage() {
-  const getStats = useServerFn(getOverviewStats);
-  const getLiveAgents = useServerFn(getDashboardLiveAgents);
+  const getStats      = useServerFn(getOverviewStats);
+  const getAgentsFn   = useServerFn(getWorkspaceAgents);
 
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-overview"],
-    queryFn: () => getStats(),
+    queryFn:  () => getStats(),
+    throwOnError: false,
   });
 
-  const liveAgentsQ = useQuery({
-    queryKey: ["dashboard-live-agents"],
-    queryFn: () => getLiveAgents(),
-    refetchOnWindowFocus: true,
+  const agentsQ = useQuery({
+    queryKey:         ["dashboard-workspace-agents"],
+    queryFn:          () => getAgentsFn(),
+    refetchInterval:  30_000,
+    throwOnError:     false,
   });
 
-  const liveAgents = liveAgentsQ.data ?? [];
+  const agents     = agentsQ.data ?? [];
+  const liveAgents = agents.filter((a) => a.isLive);
 
-  const closedReached  = data?.totals.closedLeadsReached ?? 0;
-  const closedTotal    = data?.totals.closedLeads ?? 0;
-  const closedPct      = closedTotal > 0 ? Math.round((closedReached / closedTotal) * 100) : 0;
+  const closedReached = data?.totals.closedLeadsReached ?? 0;
+  const closedTotal   = data?.totals.closedLeads ?? 0;
+  const closedPct     = closedTotal > 0 ? Math.round((closedReached / closedTotal) * 100) : 0;
 
   const kpis = [
     {
-      title: "Total Leads",
-      value: isLoading ? "—" : (data?.totals.leads ?? 0),
-      icon: Users,
-      iconBg: "bg-blue-500/15",
+      title:     "Total Leads",
+      value:     isLoading ? "—" : (data?.totals.leads ?? 0),
+      icon:      Users,
+      iconBg:    "bg-blue-500/15",
       iconColor: "text-blue-400",
     },
     {
-      title: "Qualified",
-      value: isLoading ? "—" : (data?.totals.qualified ?? 0),
-      icon: TrendingUp,
-      iconBg: "bg-emerald-500/15",
+      title:     "Qualified",
+      value:     isLoading ? "—" : (data?.totals.qualified ?? 0),
+      icon:      TrendingUp,
+      iconBg:    "bg-emerald-500/15",
       iconColor: "text-emerald-400",
     },
     {
-      title: "Calls Completed",
-      value: isLoading ? "—" : (data?.totals.callsCompleted ?? 0),
-      icon: Phone,
-      iconBg: "bg-violet-500/15",
+      title:     "Calls Completed",
+      value:     isLoading ? "—" : (data?.totals.callsCompleted ?? 0),
+      icon:      Phone,
+      iconBg:    "bg-violet-500/15",
       iconColor: "text-violet-400",
     },
     {
-      title: "Bookings",
-      value: isLoading ? "—" : (data?.totals.bookings ?? 0),
-      icon: Calendar,
-      iconBg: "bg-amber-500/15",
+      title:     "Bookings",
+      value:     isLoading ? "—" : (data?.totals.bookings ?? 0),
+      icon:      Calendar,
+      iconBg:    "bg-amber-500/15",
       iconColor: "text-amber-400",
     },
     {
-      title: "Closed Leads Reached",
-      value: isLoading ? "—" : `${closedReached} / ${closedTotal}`,
-      hint: isLoading ? undefined : `${closedPct}% contacted`,
-      icon: PhoneMissed,
-      iconBg: "bg-rose-500/15",
+      title:     "Closed Leads Reached",
+      value:     isLoading ? "—" : `${closedReached} / ${closedTotal}`,
+      hint:      isLoading ? undefined : `${closedPct}% contacted`,
+      icon:      PhoneMissed,
+      iconBg:    "bg-rose-500/15",
       iconColor: "text-rose-400",
     },
   ];
@@ -88,44 +93,18 @@ function DashboardPage() {
         <p className="text-[11px] text-muted-foreground mt-0.5">Overview of your receptionist activity</p>
       </div>
 
-      {/* Live Agents strip */}
-      {(liveAgents.length > 0 || liveAgentsQ.isLoading) && (
-        <div className="mb-5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
-            Live Agents
-          </p>
-          {liveAgentsQ.isLoading ? (
-            <div className="h-[52px] animate-pulse rounded-xl bg-muted" />
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {liveAgents.map((agent) => (
-                <div
-                  key={agent.id}
-                  className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5"
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
-                    <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold truncate">{agent.name}</p>
-                      <span className="text-[10px] text-emerald-500 font-medium shrink-0">Live</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-                        {FLOW_LABELS[agent.agentType] ?? agent.agentType}
-                      </Badge>
-                      {agent.phoneNumber && (
-                        <span className="font-mono text-[10px] text-muted-foreground flex items-center gap-1">
-                          <PhoneCall className="h-2.5 w-2.5" />{agent.phoneNumber}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+      {/* Live call banner — only visible when agents are actively on calls */}
+      {liveAgents.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {liveAgents.map((agent) => (
+            <div
+              key={agent.id}
+              className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/5 px-3 py-1"
+            >
+              <Radio className="h-3 w-3 text-emerald-400 animate-pulse" />
+              <span className="text-xs font-medium text-emerald-400">{agent.name} — Live</span>
             </div>
-          )}
+          ))}
         </div>
       )}
 
@@ -143,6 +122,74 @@ function DashboardPage() {
           />
         ))}
       </div>
+
+      {/* Agents */}
+      {(agentsQ.isLoading || agents.length > 0) && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Agents
+            </p>
+            <Button asChild variant="ghost" size="sm" className="h-6 text-xs gap-1 text-muted-foreground hover:text-foreground">
+              <Link to="/my-agents">
+                Manage <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </Button>
+          </div>
+
+          {agentsQ.isLoading ? (
+            <div className="h-[52px] animate-pulse rounded-xl bg-muted" />
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {agents.map((agent) => (
+                <div
+                  key={agent.id}
+                  className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 transition-colors ${
+                    agent.isLive
+                      ? "border-emerald-500/20 bg-emerald-500/5"
+                      : "border-white/[0.06] bg-card/60"
+                  }`}
+                >
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                    agent.isLive ? "bg-emerald-500/15" : "bg-muted"
+                  }`}>
+                    {agent.isLive
+                      ? <Radio className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
+                      : <Bot className="h-3.5 w-3.5 text-muted-foreground" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold truncate">{agent.name}</p>
+                      {agent.isLive && (
+                        <span className="text-[10px] text-emerald-500 font-medium shrink-0">Live</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                        {FLOW_LABELS[agent.agentType] ?? agent.agentType}
+                      </Badge>
+                      {agent.isDeployed ? (
+                        <span className="flex items-center gap-1 text-[10px] text-emerald-500/70 font-medium">
+                          <CheckCircle2 className="h-2.5 w-2.5" />Deployed
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <Circle className="h-2.5 w-2.5" />Draft
+                        </span>
+                      )}
+                      {agent.phoneNumber && (
+                        <span className="font-mono text-[10px] text-muted-foreground flex items-center gap-1">
+                          <PhoneCall className="h-2.5 w-2.5" />{agent.phoneNumber}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Recent leads */}
       {data?.recentLeads && data.recentLeads.length > 0 && (
@@ -166,10 +213,10 @@ function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {data.recentLeads.slice(0, 5).map((lead: any) => (
+              {data.recentLeads.map((lead: any) => (
                 <tr key={lead.id} className="h-11 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02] transition-colors">
-                  <td className="px-4 py-2.5 font-medium text-sm">{lead.full_name ?? lead.name ?? "—"}</td>
-                  <td className="px-4 py-2.5 text-xs text-muted-foreground font-mono">{lead.phone ?? "—"}</td>
+                  <td className="px-4 py-2.5 font-medium text-sm">{lead.full_name?.trim() || "—"}</td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground font-mono">{lead.phone || "—"}</td>
                   <td className="px-4 py-2.5">
                     <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
                       {lead.status ?? "—"}
@@ -181,14 +228,6 @@ function DashboardPage() {
           </table>
         </div>
       )}
-
-      <div className="flex gap-2">
-        <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1">
-          <Link to="/my-agents">
-            View agents <ArrowUpRight className="h-3 w-3" />
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }

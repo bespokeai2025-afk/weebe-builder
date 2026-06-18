@@ -92,6 +92,28 @@ export const listLiveAgents = createServerFn({ method: "GET" })
   });
 
 /** Return ALL live agents for the dashboard (all flow types). */
+export const getWorkspaceAgents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase } = context;
+    const { data, error } = await supabase
+      .from("agents")
+      .select("id, name, settings, inbound_phone_number, retell_agent_id, created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r: any) => {
+      const s = (r.settings ?? {}) as Record<string, unknown>;
+      return {
+        id:         r.id as string,
+        name:       r.name as string,
+        agentType:  (s.dashboardAgentType as string | undefined) ?? "receptionist",
+        phoneNumber: (s.phoneNumber as string | undefined) ?? (r.inbound_phone_number as string | null) ?? null,
+        isLive:     s.isLive === true,
+        isDeployed: !!(s.deployedRetellAgentId || r.retell_agent_id),
+      };
+    });
+  });
+
 export const getDashboardLiveAgents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
