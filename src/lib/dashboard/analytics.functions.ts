@@ -65,7 +65,6 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     z
       .object({
         days: z.number().int().min(1).max(90).default(30),
-        limit: z.number().int().min(1).max(1000).default(1000),
       })
       .parse(input ?? {}),
   )
@@ -142,22 +141,31 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       }
 
       if (agentIds.length > 0) {
-        // Fetch calls for all workspace agents
+        // Paginate through Retell /v2/list-calls using pagination_key.
+        // Each page returns up to 1000 records. Cap at 20 pages (20 000
+        // calls) so a single request can never run indefinitely.
+        const PAGE_SIZE = 1000;
+        const MAX_PAGES = 20;
+        let paginationKey: string | undefined;
+        let page = 0;
         try {
-          const res = await retellFetch<any>(
-            "/v2/list-calls",
-            {
+          do {
+            const body: Record<string, any> = {
               filter_criteria: {
                 agent_id: agentIds,
                 start_timestamp: { lower_threshold: sinceMs },
               },
-              limit: data.limit,
+              limit: PAGE_SIZE,
               sort_order: "descending",
-            },
-            "POST",
-            apiKey,
-          );
-          calls = Array.isArray(res) ? res : (res?.calls ?? []);
+            };
+            if (paginationKey) body.pagination_key = paginationKey;
+
+            const res = await retellFetch<any>("/v2/list-calls", body, "POST", apiKey);
+            const page_calls: any[] = Array.isArray(res) ? res : (res?.calls ?? []);
+            calls.push(...page_calls);
+            paginationKey = res?.pagination_key ?? undefined;
+            page++;
+          } while (paginationKey && page < MAX_PAGES);
         } catch (e: any) {
           error = e?.message || "Failed to load Retell analytics";
           console.error("Retell list-calls failed:", e);

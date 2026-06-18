@@ -297,7 +297,7 @@ function AnalyticsPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectorOpen, setSelectorOpen] = useState(false);
 
-  const q = useQuery({ queryKey: ["retell-analytics", days], queryFn: () => fn({ data: { days, limit: 1000 } }) });
+  const q = useQuery({ queryKey: ["retell-analytics", days], queryFn: () => fn({ data: { days } }), throwOnError: false });
   const liveAgentsQ = useQuery({ queryKey: ["dashboard-live-agents"], queryFn: () => getLiveAgentsFn({ data: undefined }), staleTime: 60_000 });
 
   const result   = q.data;
