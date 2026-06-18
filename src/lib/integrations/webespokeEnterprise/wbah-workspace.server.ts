@@ -18,6 +18,10 @@ import * as api from "./client.server";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
 
+// Module-level cache: only proactively relogin once every 30 minutes
+let _wbahReloginAt = 0;
+const RELOGIN_TTL_MS = 30 * 60 * 1000;
+
 async function requireWbahCbs(userId: string) {
   if (!userId) throw new Error("Unauthorized");
 
@@ -36,7 +40,7 @@ async function requireWbahCbs(userId: string) {
 
   const { data: integration } = await (supabaseAdmin as any)
     .from("enterprise_integrations")
-    .select("access_token, refresh_token, status")
+    .select("access_token, refresh_token, status, user_payload")
     .eq("integration_key", "webespoke_enterprise")
     .eq("client_name", "Webuyanyhouse")
     .maybeSingle();
@@ -45,17 +49,50 @@ async function requireWbahCbs(userId: string) {
     throw new Error("WeeBespoke API not connected — contact your administrator");
   }
 
+  let currentAccessToken  = integration.access_token as string;
+  let currentRefreshToken = (integration.refresh_token ?? "") as string;
+
+  // Proactively relogin using stored credentials when cache has expired.
+  // This prevents "token expired" errors without adding latency to every call.
+  const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
+  const email    = (integration.user_payload as any)?.email
+                ?? process.env.WEBESPOKE_ADMIN_EMAIL;
+
+  if (password && email && Date.now() - _wbahReloginAt > RELOGIN_TTL_MS) {
+    try {
+      const loginRes = await api.loginWithPassword(email, password);
+      if (loginRes.ok && loginRes.data) {
+        const d = loginRes.data as any;
+        const at = d.accessToken ?? d.token ?? d.data?.accessToken ?? d.data?.token;
+        const rt = d.refreshToken ?? d.data?.refreshToken ?? currentRefreshToken;
+        if (at) {
+          await (supabaseAdmin as any)
+            .from("enterprise_integrations")
+            .update({ access_token: at, refresh_token: rt, status: "connected" })
+            .eq("integration_key", "webespoke_enterprise")
+            .eq("client_name", "Webuyanyhouse");
+          currentAccessToken  = at;
+          currentRefreshToken = rt;
+          _wbahReloginAt = Date.now();
+        }
+      }
+    } catch {
+      // Ignore relogin errors — use existing token, will fall through to refresh on 401
+    }
+  }
+
   const getTokens = async () => ({
-    accessToken:  integration.access_token as string,
-    refreshToken: (integration.refresh_token ?? "") as string,
+    accessToken:  currentAccessToken,
+    refreshToken: currentRefreshToken,
   });
 
   const saveNewAccessToken = async (token: string) => {
     await (supabaseAdmin as any)
       .from("enterprise_integrations")
-      .update({ access_token: token })
+      .update({ access_token: token, status: "connected" })
       .eq("integration_key", "webespoke_enterprise")
       .eq("client_name", "Webuyanyhouse");
+    currentAccessToken = token;
   };
 
   return { getTokens, saveNewAccessToken };

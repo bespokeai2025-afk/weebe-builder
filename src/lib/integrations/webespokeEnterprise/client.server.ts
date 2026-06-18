@@ -53,11 +53,18 @@ function authHeader(token: string): Record<string, string> {
 
 // ── Auto-refresh wrapper ──────────────────────────────────────────────────────
 
+function extractToken(d: unknown): string | null {
+  const o = d as any;
+  if (!o) return null;
+  return o.accessToken ?? o.token ?? o.data?.accessToken ?? o.data?.token ?? null;
+}
+
 export async function authenticatedFetch<T>(
   path: string,
   options: RequestInit,
   getTokens: GetTokens,
   saveNewAccessToken: SaveToken,
+  reloginFn?: () => Promise<{ accessToken: string } | null>,
 ): Promise<ApiResponse<T>> {
   const { accessToken, refreshToken } = await getTokens();
   const first = await apiFetch<T>(path, {
@@ -66,19 +73,34 @@ export async function authenticatedFetch<T>(
   });
   if (first.status !== 401) return first;
 
-  const refreshRes = await refreshTokenRequest(refreshToken);
-  if (!refreshRes.ok || !refreshRes.data) {
-    return { ok: false, status: 401, data: null, error: "Token expired — reconnect required" };
+  // Step 1: try refresh token
+  if (refreshToken) {
+    const refreshRes = await refreshTokenRequest(refreshToken);
+    const newToken = extractToken(refreshRes.data);
+    if (refreshRes.ok && newToken) {
+      await saveNewAccessToken(newToken);
+      return apiFetch<T>(path, {
+        ...options,
+        headers: { ...(options.headers ?? {}), ...authHeader(newToken) },
+      });
+    }
   }
-  const newToken = (refreshRes.data as any)?.accessToken ?? (refreshRes.data as any)?.token;
-  if (!newToken) {
-    return { ok: false, status: 401, data: null, error: "Refresh response missing token" };
+
+  // Step 2: try full relogin if provided
+  if (reloginFn) {
+    try {
+      const fresh = await reloginFn();
+      if (fresh?.accessToken) {
+        await saveNewAccessToken(fresh.accessToken);
+        return apiFetch<T>(path, {
+          ...options,
+          headers: { ...(options.headers ?? {}), ...authHeader(fresh.accessToken) },
+        });
+      }
+    } catch { /* fall through */ }
   }
-  await saveNewAccessToken(newToken);
-  return apiFetch<T>(path, {
-    ...options,
-    headers: { ...(options.headers ?? {}), ...authHeader(newToken) },
-  });
+
+  return { ok: false, status: 401, data: null, error: "Token expired — reconnect required" };
 }
 
 // Shorthand helpers
