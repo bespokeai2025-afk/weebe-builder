@@ -307,7 +307,6 @@ function CallsPage() {
   }, [wbahQ.data]);
 
   const rows = (isWbah ? wbahRows : (q.data ?? [])) as any[];
-  const callsPag = useTablePagination(filteredRows, 25);
 
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
@@ -342,6 +341,8 @@ function CallsPage() {
       return true;
     });
   }, [rows, search, statusFilter, callTypeFilter, sentimentFilter]);
+
+  const callsPag = useTablePagination(filteredRows, 25);
 
   const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter;
 

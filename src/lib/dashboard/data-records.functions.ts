@@ -36,7 +36,7 @@ export const listDataRecords = createServerFn({ method: "POST" })
         search: z.string().optional(),
         activeOnly: z.boolean().optional(),
         callStatus: z
-          .enum(["all", "needs_to_call", "queued", "calling", "completed", "failed", "do_not_call"])
+          .enum(["all", "needs_to_call", "queued", "calling", "completed", "failed", "do_not_call", "disqualified"])
           .optional(),
         assignedAgentId: z.string().uuid().nullable().optional(),
         unassignedOnly: z.boolean().optional(),
@@ -135,7 +135,7 @@ export const setRecordCallStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
     RecordIdsSchema.extend({
-      status: z.enum(["needs_to_call", "queued", "calling", "completed", "failed", "do_not_call"]),
+      status: z.enum(["needs_to_call", "queued", "calling", "completed", "failed", "do_not_call", "disqualified"]),
     }).parse(input),
   )
   .handler(async ({ context, data }) => {
@@ -539,4 +539,94 @@ export const importDataRecords = createServerFn({ method: "POST" })
       inserted += count ?? slice.length;
     }
     return { inserted, skipped: uniqueRows.length - newRows.length };
+  });
+
+export type CrmPersonRow = {
+  external_id: string;
+  name: string;
+  phone: string;
+  email: string;
+  source: string;
+  created_at: string;
+  status: string;
+};
+
+export const fetchCrmPeople = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) => z.object({}).parse(input ?? {}))
+  .handler(async ({ context }): Promise<CrmPersonRow[]> => {
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    const { data: settings, error: sErr } = await (supabaseAdmin as any)
+      .from("workspace_settings")
+      .select("webespoke_api_key, webespoke_api_url, hubspot_api_key, ghl_api_key, ghl_location_id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (sErr) throw new Error(sErr.message);
+
+    const wsKey = ((settings?.webespoke_api_key as string | undefined) ?? "").trim();
+    const wsUrl = ((settings?.webespoke_api_url as string | undefined) ?? "").trim();
+    const hsKey = ((settings?.hubspot_api_key as string | undefined) ?? "").trim();
+    const ghlKey = ((settings?.ghl_api_key as string | undefined) ?? "").trim();
+    const ghlLoc = ((settings?.ghl_location_id as string | undefined) ?? "").trim();
+
+    let raw: any[] = [];
+
+    if (wsKey && wsUrl) {
+      const base = wsUrl.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/crm/leads`, {
+        headers: { Authorization: `Bearer ${wsKey}`, "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`WeeBespoke CRM returned ${res.status}: ${body.slice(0, 200)}`);
+      }
+      const json = await res.json();
+      raw = Array.isArray(json) ? json : (Array.isArray(json?.leads) ? json.leads : []);
+    } else if (hsKey) {
+      const res = await fetch(
+        "https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,phone,email,hs_lead_status,createdate,hs_analytics_source",
+        { headers: { Authorization: `Bearer ${hsKey}`, "Content-Type": "application/json" } },
+      );
+      if (!res.ok) throw new Error(`HubSpot returned ${res.status}`);
+      const json = await res.json();
+      raw = (json.results ?? []).map((c: any) => ({
+        external_id: c.id,
+        name: [c.properties?.firstname, c.properties?.lastname].filter(Boolean).join(" ") || c.id,
+        phone: c.properties?.phone ?? "",
+        email: c.properties?.email ?? "",
+        source: c.properties?.hs_analytics_source ?? "HubSpot",
+        status: c.properties?.hs_lead_status ?? "",
+        created_at: c.properties?.createdate ?? "",
+      }));
+    } else if (ghlKey && ghlLoc) {
+      const res = await fetch(
+        `https://services.leadconnectorhq.com/contacts/?locationId=${ghlLoc}&limit=100`,
+        { headers: { Authorization: `Bearer ${ghlKey}`, Version: "2021-07-28", "Content-Type": "application/json" } },
+      );
+      if (!res.ok) throw new Error(`GHL returned ${res.status}`);
+      const json = await res.json();
+      raw = (json.contacts ?? []).map((c: any) => ({
+        external_id: c.id,
+        name: c.contactName ?? ([c.firstName, c.lastName].filter(Boolean).join(" ") || c.id),
+        phone: c.phone ?? "",
+        email: c.email ?? "",
+        source: c.source ?? "GoHighLevel",
+        status: c.tags?.join(", ") ?? "",
+        created_at: c.dateAdded ?? "",
+      }));
+    } else {
+      throw new Error("No CRM connected. Go to Settings → CRM to connect WeeBespoke, HubSpot, or GoHighLevel.");
+    }
+
+    return raw.map((l: any) => ({
+      external_id: String(l.external_id ?? l.id ?? ""),
+      name: String(l.name ?? l.full_name ?? l.contact_name ?? "").trim(),
+      phone: String(l.phone ?? l.mobile ?? l.mobile_number ?? "").trim(),
+      email: String(l.email ?? "").trim(),
+      source: String(l.source ?? l.lead_source ?? "CRM").trim(),
+      created_at: String(l.created_at ?? l.date_added ?? l.dateAdded ?? ""),
+      status: String(l.status ?? l.lead_status ?? "").trim(),
+    })).filter((l) => l.name || l.phone);
   });

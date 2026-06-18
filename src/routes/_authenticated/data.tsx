@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3 } from "lucide-react";
+import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle } from "lucide-react";
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +35,9 @@ import {
   scheduleCallsForRecords,
   startCallingRecords,
   resetDataRecord,
+  fetchCrmPeople,
+  setRecordCallStatus,
+  type CrmPersonRow,
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
@@ -54,6 +57,7 @@ const CALL_STATUSES = [
   { value: "completed", label: "Completed" },
   { value: "failed", label: "Failed" },
   { value: "do_not_call", label: "Do not call" },
+  { value: "disqualified", label: "Disqualified" },
 ] as const;
 
 const SYSTEM_FIELDS: Array<{ value: string; label: string; required?: boolean; custom?: boolean }> = [
@@ -203,6 +207,7 @@ function statusBadgeClass(status?: string | null) {
     completed: "bg-emerald-500/15 text-emerald-400",
     failed: "bg-destructive/15 text-destructive",
     do_not_call: "bg-muted/60 text-muted-foreground line-through",
+    disqualified: "bg-rose-500/15 text-rose-400 line-through",
   };
   return map[status ?? ""] ?? "bg-muted text-muted-foreground";
 }
@@ -337,7 +342,14 @@ function DataPage() {
   const [startCallingOpen, setStartCallingOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [callScheduleOpen, setCallScheduleOpen] = useState(false);
-  const [dataTab, setDataTab] = useState<"records" | "campaigns">("records");
+  const [dataTab, setDataTab] = useState<"records" | "campaigns" | "people">("records");
+
+  const [crmPeople, setCrmPeople] = useState<CrmPersonRow[]>([]);
+  const [crmPeopleLoading, setCrmPeopleLoading] = useState(false);
+  const [crmPeopleError, setCrmPeopleError] = useState<string | null>(null);
+  const [crmPeopleSelected, setCrmPeopleSelected] = useState<Set<string>>(new Set());
+  const [crmImporting, setCrmImporting] = useState(false);
+  const [crmImportAgentId, setCrmImportAgentId] = useState<string>("");
 
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -355,6 +367,8 @@ function DataPage() {
   const getScheduleFn = useServerFn(getCallSchedule);
   const setScheduleFn = useServerFn(setCallSchedule);
   const listAgentsFn = useServerFn(listLiveAgents);
+  const fetchCrmPeopleFn = useServerFn(fetchCrmPeople);
+  const setStatusFn = useServerFn(setRecordCallStatus);
   const qc = useQueryClient();
 
   const filters = useMemo(() => {
@@ -601,6 +615,72 @@ function DataPage() {
     }
   }
 
+  async function handleDisqualify() {
+    if (selected.size === 0) return;
+    try {
+      const result = await setStatusFn({
+        data: { recordIds: Array.from(selected), status: "disqualified" },
+      });
+      toast.success(`Marked ${result.updated} record${result.updated !== 1 ? "s" : ""} as disqualified`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["data-records"] });
+    } catch (err) {
+      toast.error("Failed to disqualify", { description: (err as Error).message });
+    }
+  }
+
+  async function handleFetchCrmPeople() {
+    setCrmPeopleLoading(true);
+    setCrmPeopleError(null);
+    try {
+      const people = await fetchCrmPeopleFn({ data: {} });
+      setCrmPeople(people as CrmPersonRow[]);
+      setCrmPeopleSelected(new Set());
+      if ((people as CrmPersonRow[]).length === 0) {
+        toast.info("No inbound leads found in your CRM");
+      } else {
+        toast.success(`Found ${(people as CrmPersonRow[]).length} inbound lead${(people as CrmPersonRow[]).length !== 1 ? "s" : ""}`);
+      }
+    } catch (err) {
+      const msg = (err as Error).message;
+      setCrmPeopleError(msg);
+      toast.error("Failed to pull from CRM", { description: msg });
+    } finally {
+      setCrmPeopleLoading(false);
+    }
+  }
+
+  async function handleImportCrmPeople() {
+    const toImport = crmPeople.filter((p) => crmPeopleSelected.has(p.external_id));
+    if (toImport.length === 0) return;
+    setCrmImporting(true);
+    try {
+      const rows = toImport.map((p) => ({
+        name: p.name || p.phone,
+        mobile_number: p.phone,
+        email: p.email || null,
+        first_name: null,
+        last_name: null,
+        lead_external_id: p.external_id || null,
+        meta: { source: p.source, crm_status: p.status },
+      }));
+      const valid = rows.filter((r) => r.mobile_number);
+      if (valid.length === 0) throw new Error("No valid phone numbers to import");
+      const result = await importFn({
+        data: { rows: valid, agentId: crmImportAgentId || null },
+      });
+      const skipNote = result.skipped > 0 ? ` (${result.skipped} already existed)` : "";
+      toast.success(`Imported ${result.inserted} lead${result.inserted !== 1 ? "s" : ""}${skipNote}`);
+      setCrmPeopleSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["data-records"] });
+      qc.invalidateQueries({ queryKey: ["data-record-schema"] });
+    } catch (err) {
+      toast.error("Import failed", { description: (err as Error).message });
+    } finally {
+      setCrmImporting(false);
+    }
+  }
+
   async function handleSaveSchedule(data: {
     enabled: boolean;
     days: number[];
@@ -658,7 +738,7 @@ function DataPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-white/[0.06]">
-        {(["records", "campaigns"] as const).map((t) => (
+        {(["records", "people", "campaigns"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setDataTab(t)}
@@ -671,6 +751,10 @@ function DataPage() {
             {t === "records" ? (
               <span className="flex items-center gap-1.5">
                 <Database className="h-3.5 w-3.5" /> Records
+              </span>
+            ) : t === "people" ? (
+              <span className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5" /> People
               </span>
             ) : (
               <span className="flex items-center gap-1.5">
@@ -789,6 +873,15 @@ function DataPage() {
                   <PhoneOutgoing className="mr-1 h-3.5 w-3.5" />
                   Start Calling
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs text-rose-400 border-rose-400/30 hover:bg-rose-500/10"
+                  onClick={handleDisqualify}
+                >
+                  <X className="mr-1 h-3.5 w-3.5" />
+                  Disqualify
+                </Button>
               </>
             )}
             {/* Filters */}
@@ -861,6 +954,165 @@ function DataPage() {
         )}
       </div>
       </>
+      )}
+
+      {dataTab === "people" && (
+        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+          {/* People toolbar */}
+          <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              Inbound Leads from CRM
+              {crmPeople.length > 0 && (
+                <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
+                  {crmPeople.length} lead{crmPeople.length !== 1 ? "s" : ""}
+                </span>
+              )}
+              {crmPeopleSelected.size > 0 && (
+                <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">
+                  {crmPeopleSelected.size} selected
+                </span>
+              )}
+            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {crmPeopleSelected.size > 0 && (
+                <>
+                  <Select
+                    value={crmImportAgentId || "__none__"}
+                    onValueChange={(v) => setCrmImportAgentId(v === "__none__" ? "" : v)}
+                  >
+                    <SelectTrigger className="h-7 w-[150px] text-xs">
+                      <SelectValue placeholder="Assign agent…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No agent</SelectItem>
+                      {agents.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={handleImportCrmPeople}
+                    disabled={crmImporting}
+                  >
+                    {crmImporting ? (
+                      <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Download className="mr-1 h-3.5 w-3.5" />
+                    )}
+                    Import Selected
+                  </Button>
+                </>
+              )}
+              {crmPeople.length > 0 && crmPeopleSelected.size === 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => setCrmPeopleSelected(new Set(crmPeople.map((p) => p.external_id)))}
+                >
+                  Select All
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={handleFetchCrmPeople}
+                disabled={crmPeopleLoading}
+              >
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${crmPeopleLoading ? "animate-spin" : ""}`} />
+                {crmPeople.length > 0 ? "Refresh" : "Pull from CRM"}
+              </Button>
+            </div>
+          </div>
+
+          {/* People table body */}
+          {crmPeopleLoading ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin" /> Fetching inbound leads from CRM…
+            </div>
+          ) : crmPeopleError ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-sm">
+              <AlertCircle className="h-8 w-8 text-destructive/60" />
+              <p className="font-medium text-destructive">Could not connect to CRM</p>
+              <p className="max-w-sm text-center text-xs text-muted-foreground">{crmPeopleError}</p>
+              <Button variant="outline" size="sm" className="mt-2" onClick={handleFetchCrmPeople}>
+                Try again
+              </Button>
+            </div>
+          ) : crmPeople.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16">
+              <Users className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">No leads loaded yet</p>
+              <p className="text-xs text-muted-foreground">
+                Click <strong>Pull from CRM</strong> to fetch inbound leads from your connected CRM.
+              </p>
+              <Button variant="outline" size="sm" className="mt-2" onClick={handleFetchCrmPeople}>
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Pull from CRM
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.06] bg-card/30">
+                    <th className="w-8 px-3 py-2">
+                      <Checkbox
+                        checked={crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length}
+                        onCheckedChange={(v) => {
+                          if (v) setCrmPeopleSelected(new Set(crmPeople.map((p) => p.external_id)));
+                          else setCrmPeopleSelected(new Set());
+                        }}
+                      />
+                    </th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {crmPeople.map((p) => (
+                    <tr
+                      key={p.external_id}
+                      className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
+                    >
+                      <td className="px-3 py-1.5">
+                        <Checkbox
+                          checked={crmPeopleSelected.has(p.external_id)}
+                          onCheckedChange={() => {
+                            const next = new Set(crmPeopleSelected);
+                            if (next.has(p.external_id)) next.delete(p.external_id);
+                            else next.add(p.external_id);
+                            setCrmPeopleSelected(next);
+                          }}
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{p.name || "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px] font-mono">{p.phone || "—"}</td>
+                      <td className="px-3 py-1.5 text-muted-foreground text-[11px]">{p.email || "—"}</td>
+                      <td className="px-3 py-1.5 text-muted-foreground text-[11px]">{p.source || "—"}</td>
+                      <td className="px-3 py-1.5">
+                        {p.status ? (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground ring-1 ring-white/[0.06]">
+                            {p.status.replace(/_/g, " ")}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
+                        {p.created_at ? fmtDate(p.created_at) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       )}
 
       <ManualEntryDialog
