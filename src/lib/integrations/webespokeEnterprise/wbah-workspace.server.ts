@@ -293,42 +293,25 @@ export const listWbahLeads = createServerFn({ method: "GET" })
 
     const leads = allRecs.map((r: any, idx: number) => normaliseLeadRecord(r, idx));
 
-    // Deduplicate by phone number — keep the most recent row per contact,
-    // attach callCount so the UI can show how many times they were called.
-    const byPhone = new Map<string, { record: typeof leads[0]; count: number }>();
-    const noPhoneRows: typeof leads = [];
-
+    // Count how many times each phone number appears (for "Times Called" column).
+    // Do NOT deduplicate — show every raw record so the count matches WeeBespoke.
+    const phoneCounts = new Map<string, number>();
     for (const lead of leads) {
       const phone = (lead.contact as string | null) ?? "";
-      if (!phone) {
-        noPhoneRows.push({ ...lead, callCount: 1 });
-        continue;
-      }
-      const existing = byPhone.get(phone);
-      if (!existing) {
-        byPhone.set(phone, { record: lead, count: 1 });
-      } else {
-        existing.count++;
-        // Keep the most recently-called row as the representative
-        const existingTs = existing.record.lastCalledAt
-          ? new Date(existing.record.lastCalledAt as string).getTime() : 0;
-        const newTs = lead.lastCalledAt
-          ? new Date(lead.lastCalledAt as string).getTime() : 0;
-        if (newTs > existingTs) existing.record = lead;
-      }
+      if (phone) phoneCounts.set(phone, (phoneCounts.get(phone) ?? 0) + 1);
     }
 
-    const deduped = [
-      ...[...byPhone.values()].map(({ record, count }) => ({ ...record, callCount: count })),
-      ...noPhoneRows,
-    ];
+    const annotated = leads.map(lead => ({
+      ...lead,
+      callCount: phoneCounts.get((lead.contact as string | null) ?? "") ?? 1,
+    }));
 
-    deduped.sort((a, b) => {
+    annotated.sort((a, b) => {
       const ta = a.lastCalledAt ? new Date(a.lastCalledAt as string).getTime() : 0;
       const tb = b.lastCalledAt ? new Date(b.lastCalledAt as string).getTime() : 0;
       return tb - ta;
     });
-    return deduped;
+    return annotated;
   });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -380,19 +363,16 @@ function extractTotalPages(raw: any): number | null {
   const p = raw?.pagination;
   if (!p) return null;
 
-  // Prefer computed value — totalItems (10149) / pageSize (50) = 203 pages.
-  // This is more reliable than the API's totalPages which can be stale/wrong.
+  // ONLY trust a computed value from totalItems ÷ pageSize.
+  // The API's own totalPages field is known to be wrong (e.g. returns 13 when
+  // there are really 203 pages for calls). Never fall back to it.
   const totalItems = p.totalItems ?? p.totalRecords ?? p.total_records ?? p.total_count ?? p.count ?? p.total;
   const pageSize   = p.pageSize ?? p.page_size ?? p.limit ?? p.perPage ?? p.per_page;
   if (typeof totalItems === "number" && typeof pageSize === "number" && pageSize > 0) {
     return Math.ceil(totalItems / pageSize);
   }
 
-  // Fall back to API-provided field
-  if (typeof p.totalPages  === "number") return p.totalPages;
-  if (typeof p.total_pages === "number") return p.total_pages;
-  if (typeof p.lastPage    === "number") return p.lastPage;
-  if (typeof p.pages       === "number") return p.pages;
+  // Cannot determine page count reliably — caller will use "fetch until empty" fallback.
   return null;
 }
 
