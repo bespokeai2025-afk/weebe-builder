@@ -98,7 +98,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
     const { supabase } = context;
     const { data, error } = await supabase
       .from("agents")
-      .select("id, name, settings, updated_at, inbound_phone_number")
+      .select("id, name, settings, updated_at, inbound_phone_number, retell_agent_id")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
     const rows = (data ?? []) as Array<{
@@ -107,28 +107,132 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
       settings: Json;
       updated_at: string;
       inbound_phone_number: string | null;
+      retell_agent_id: string | null;
     }>;
-    return rows
+
+    type DashAgent = {
+      id: string;
+      name: string;
+      agentType: string;
+      phoneNumber: string | null;
+      liveAt: string | null;
+      deployedRetellAgentId: string | null;
+    };
+
+    const rowToDashAgent = (r: (typeof rows)[0]): DashAgent => {
+      const s = (r.settings ?? {}) as Record<string, unknown>;
+      const phoneNumber =
+        (s.phoneNumber as string | undefined) ??
+        (r.inbound_phone_number ?? null);
+      return {
+        id: r.id,
+        name: r.name,
+        agentType: (s.dashboardAgentType as string | undefined) ?? "receptionist",
+        phoneNumber,
+        liveAt: (s.liveAt as string | undefined) ?? null,
+        deployedRetellAgentId: (s.deployedRetellAgentId as string | undefined) ?? null,
+      };
+    };
+
+    const localLive: DashAgent[] = rows
       .filter((r) => {
         const s = (r.settings ?? {}) as Record<string, unknown>;
         return s.isLive === true;
       })
-      .map((r) => {
-        const s = (r.settings ?? {}) as Record<string, unknown>;
-        // Prefer settings.phoneNumber (set by saveAgentPhoneNumber); fall back
-        // to the inbound_phone_number DB column which some code paths write to.
-        const phoneNumber =
-          (s.phoneNumber as string | undefined) ??
-          (r.inbound_phone_number ?? null);
-        return {
-          id: r.id,
-          name: r.name,
-          agentType: (s.dashboardAgentType as string | undefined) ?? "receptionist",
-          phoneNumber,
-          liveAt: (s.liveAt as string | undefined) ?? null,
-          deployedRetellAgentId: (s.deployedRetellAgentId as string | undefined) ?? null,
-        };
-      });
+      .map(rowToDashAgent);
+
+    // If this workspace has a Retell API key, pull agents directly from Retell
+    // and show them all as live (used for workspaces like webuyanyhouse where
+    // agents are managed in the client's own Retell workspace).
+    if (!context.workspaceId) return localLive;
+
+    const { data: ws } = await supabaseAdmin
+      .from("workspace_settings")
+      .select("retell_workspace_id")
+      .eq("workspace_id", context.workspaceId)
+      .maybeSingle();
+
+    const wsKey = (ws?.retell_workspace_id as string | undefined)?.trim();
+    if (!wsKey?.startsWith("key_")) return localLive;
+
+    // Fetch agents and phone numbers from the client's Retell workspace in parallel.
+    let retellAgentList: Array<{ agent_id: string; agent_name: string }> = [];
+    const phoneMap: Record<string, string> = {}; // agent_id -> phone number
+
+    try {
+      const [agentsResp, phonesResp] = await Promise.allSettled([
+        retellFetch<unknown>("/list-agents", undefined, "GET", wsKey),
+        retellFetch<unknown>("/list-phone-numbers", undefined, "GET", wsKey),
+      ]);
+
+      if (agentsResp.status === "fulfilled" && Array.isArray(agentsResp.value)) {
+        retellAgentList = (agentsResp.value as Array<Record<string, unknown>>).map((a) => ({
+          agent_id: String(a.agent_id ?? ""),
+          agent_name: String(a.agent_name ?? a.agent_id ?? "Agent"),
+        })).filter((a) => a.agent_id);
+      } else if (agentsResp.status === "rejected") {
+        console.warn("[dashboard] list-agents from Retell failed", agentsResp.reason);
+      }
+
+      if (phonesResp.status === "fulfilled" && Array.isArray(phonesResp.value)) {
+        for (const pn of phonesResp.value as Array<Record<string, unknown>>) {
+          const agentId = pn.inbound_agent_id as string | undefined;
+          const phone = pn.phone_number as string | undefined;
+          if (agentId && phone) phoneMap[agentId] = phone;
+        }
+      }
+    } catch (e) {
+      console.warn("[dashboard] Retell workspace agent fetch failed", e);
+      return localLive;
+    }
+
+    if (retellAgentList.length === 0) return localLive;
+
+    // Build lookup maps from local DB for deduplication and metadata reuse.
+    const localByDeployedId = new Map<string, DashAgent>();
+    for (const a of localLive) {
+      if (a.deployedRetellAgentId) localByDeployedId.set(a.deployedRetellAgentId, a);
+    }
+    const localByRetellAgentId = new Map<string, (typeof rows)[0]>();
+    for (const r of rows) {
+      if (r.retell_agent_id) localByRetellAgentId.set(r.retell_agent_id, r);
+    }
+
+    // Map Retell agents → dashboard shape.
+    const retellMapped: DashAgent[] = retellAgentList.map((ra) => {
+      const localLiveMatch = localByDeployedId.get(ra.agent_id);
+      const localRow = localByRetellAgentId.get(ra.agent_id);
+
+      const agentType = localLiveMatch?.agentType
+        ?? (localRow ? ((localRow.settings as Record<string, unknown>)?.dashboardAgentType as string | undefined) : undefined)
+        ?? "receptionist";
+
+      const liveAt = localLiveMatch?.liveAt ?? null;
+
+      // Phone: Retell phone numbers take precedence (most accurate source of truth).
+      const phoneNumber =
+        phoneMap[ra.agent_id] ??
+        localLiveMatch?.phoneNumber ??
+        localRow?.inbound_phone_number ??
+        null;
+
+      return {
+        id: localLiveMatch?.id ?? localRow?.id ?? `retell_${ra.agent_id}`,
+        name: ra.agent_name,
+        agentType,
+        phoneNumber,
+        liveAt,
+        deployedRetellAgentId: ra.agent_id,
+      };
+    });
+
+    // Include any local live agents not covered by the Retell list.
+    const retellIds = new Set(retellAgentList.map((a) => a.agent_id));
+    const localOnly = localLive.filter(
+      (a) => !a.deployedRetellAgentId || !retellIds.has(a.deployedRetellAgentId),
+    );
+
+    return [...retellMapped, ...localOnly];
   });
 
 /** Load a specific agent by row id. */
