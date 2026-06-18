@@ -90,11 +90,12 @@ export const getOverviewStats = createServerFn({ method: "GET" })
       .maybeSingle();
     const isWbah = wsRow?.slug === "webuyanyhouse";
 
-    const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes, recentLeadsRes] = await Promise.all([
+    const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes, recentLeadsRes, callsTotalRes, callsCompletedRes, callsFailedRes] = await Promise.all([
       (supabase as any)
         .from("leads" as never)
         .select("id, status, created_at", { count: "exact", head: false })
         .eq("workspace_id", workspaceId),
+      // Row fetch for totalCallSeconds (capped at 1000 — acceptable approximation)
       (supabase as any)
         .from("calls" as never)
         .select("id, call_status, duration_seconds, started_at")
@@ -134,6 +135,21 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false })
         .limit(5),
+      // Accurate call counts via count-only queries (bypasses 1000-row cap)
+      (supabase as any)
+        .from("calls" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId),
+      (supabase as any)
+        .from("calls" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("call_status", "completed"),
+      (supabase as any)
+        .from("calls" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .in("call_status", ["failed", "no_answer", "busy"]),
     ]);
 
     if (leadsRes.error) throw new Error(leadsRes.error.message);
@@ -161,9 +177,9 @@ export const getOverviewStats = createServerFn({ method: "GET" })
       totals: {
         leads: leadsRes.count ?? leads.length,
         qualified: qualifiedRes.count ?? (qualifiedRes.data ?? []).length,
-        calls: calls.length,
-        callsCompleted: calls.filter((c: any) => c.call_status === "completed").length,
-        callsFailed: calls.filter((c: any) =>
+        calls: callsTotalRes.count ?? calls.length,
+        callsCompleted: callsCompletedRes.count ?? calls.filter((c: any) => c.call_status === "completed").length,
+        callsFailed: callsFailedRes.count ?? calls.filter((c: any) =>
           ["failed", "no_answer", "busy"].includes(c.call_status),
         ).length,
         totalCallSeconds: calls.reduce((acc: number, c: any) => acc + (c.duration_seconds ?? 0), 0),
