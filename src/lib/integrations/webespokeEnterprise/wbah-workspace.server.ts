@@ -427,6 +427,18 @@ export const listWbahCalls = createServerFn({ method: "GET" })
     );
 
     const calls = allRecs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
+
+    // Count how many times each phone number appears across all call records
+    const phoneCounts = new Map<string, number>();
+    for (const c of calls) {
+      const phone = (c.wbah_contact ?? c.to_number ?? c.from_number ?? "") as string;
+      if (phone) phoneCounts.set(phone, (phoneCounts.get(phone) ?? 0) + 1);
+    }
+    for (const c of calls) {
+      const phone = (c.wbah_contact ?? c.to_number ?? c.from_number ?? "") as string;
+      (c as any).call_count = phone ? (phoneCounts.get(phone) ?? 1) : 1;
+    }
+
     calls.sort((a, b) => {
       const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
       const tb = b.started_at ? new Date(b.started_at).getTime() : 0;
