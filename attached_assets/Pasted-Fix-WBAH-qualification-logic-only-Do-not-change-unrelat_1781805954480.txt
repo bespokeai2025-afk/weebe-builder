@@ -1,0 +1,103 @@
+Fix WBAH qualification logic only. Do not change unrelated pages.
+
+Current issue:
+Leads are still showing both neutral and positive sentiment as “Qualified”.
+
+Correct rule for Webuyanyhouse:
+
+positive sentiment = Qualified
+neutral sentiment = Partly Qualified
+negative sentiment = Negative / Not Qualified
+unknown or missing sentiment = Not Qualified / Unknown
+
+The Qualified Leads page must only show leads from the WEBEE Leads section where normalized sentiment is positive.
+
+Do not include neutral.
+Do not include partly qualified.
+Do not include negative.
+Do not include unknown.
+
+Required fix:
+
+1. In leads.index.tsx
+
+Find the status badge logic.
+
+For WBAH only, override the displayed status based on normalized sentiment:
+
+if sentiment === "positive":
+  display "Qualified"
+  use qualified/green styling
+
+if sentiment === "neutral":
+  display "Partly Qualified"
+  use amber styling
+
+if sentiment === "negative":
+  display "Not Qualified"
+  use red/negative styling
+
+if sentiment === "unknown":
+  display "Unknown"
+  use neutral/gray styling
+
+Do not use lead.status to decide qualification status for WBAH.
+
+lead.status may still be shown elsewhere as raw CRM status if needed, but the qualification/status badge must use sentiment.
+
+2. In qualified.tsx
+
+For WBAH only, filter the records using:
+
+normalizeSentiment(lead.sentiment) === "positive"
+
+No other status field should qualify a lead.
+
+Do not allow:
+lead.status === "qualified"
+qualification_status === "qualified"
+neutral sentiment
+partly qualified
+
+to appear on the Qualified Leads page unless sentiment is positive.
+
+3. Shared helper
+
+Use or create:
+
+normalizeSentiment(value)
+
+It must return only:
+
+positive
+neutral
+negative
+unknown
+
+Handle casing and strings safely.
+
+4. Data source rule
+
+Qualified Leads page for WBAH should be derived from the same lead dataset used by the Leads page, then filtered to positive sentiment only.
+
+Do not pull a wider dataset that includes old qualified records unless they have positive sentiment.
+
+5. Final validation
+
+Add temporary dev-only console/log output showing:
+
+total WBAH leads loaded
+positive count
+neutral count
+negative count
+unknown count
+qualified page count
+
+Never log tokens.
+
+Expected result:
+- Leads page shows positive as Qualified
+- Leads page shows neutral as Partly Qualified
+- Qualified Leads page shows positive sentiment only
+- Neutral no longer appears as Qualified
+- Other workspaces unchanged

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSentiment } from "@/lib/sentiment";
 import { Button } from "@/components/ui/button";
 import { KpiCard, MiniKpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -289,14 +290,20 @@ function LeadsPage() {
         : (isWbah ? l.meta?.call_status : null);
       if (cs !== callStatusFilter) return false;
     }
-    if (isWbah) {
-      const s = (l.sentiment ?? "").toLowerCase().trim();
-      if (s !== "" && s !== "positive" && s !== "negative") return false;
-    }
     return true;
   });
 
   const leadsPag = useTablePagination(filtered, 50);
+
+  useEffect(() => {
+    if (!isWbah || !import.meta.env.DEV) return;
+    const pos = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
+    const neu = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "neutral").length;
+    const neg = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "negative").length;
+    const unk = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "unknown").length;
+    console.log("[WBAH Leads] total=%d positive=%d neutral=%d negative=%d unknown=%d",
+      leads.length, pos, neu, neg, unk);
+  }, [isWbah, leads]);
 
   const hasLeadFilters = search.trim() || statusFilter || sentimentFilter || callStatusFilter;
 
@@ -660,13 +667,19 @@ function LeadsPage() {
                         <td className="px-3 py-1.5">
                           <div className="flex flex-col gap-1">
                             {(() => {
+                              if (isWbah) {
+                                const ns = normalizeSentiment(lead.sentiment);
+                                const cfg: Record<string, { label: string; cls: string }> = {
+                                  positive: { label: "Qualified",        cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20" },
+                                  neutral:  { label: "Partly Qualified", cls: "bg-amber-500/15   text-amber-400   ring-amber-500/20"   },
+                                  negative: { label: "Not Qualified",    cls: "bg-red-500/15     text-red-400     ring-red-500/20"     },
+                                  unknown:  { label: "Unknown",          cls: "bg-muted text-muted-foreground ring-border"            },
+                                };
+                                const { label, cls } = cfg[ns];
+                                return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cls}`}>{label}</span>;
+                              }
                               const sd = statusDisplay(lead.status);
-                              const isPartial = isWbah && (lead.sentiment ?? "").toLowerCase() === "neutral";
-                              return (
-                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${isPartial ? "bg-amber-500/15 text-amber-400 ring-amber-500/20" : sd.color}`}>
-                                  {isPartial ? "Partly Qualified" : sd.label}
-                                </span>
-                              );
+                              return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${sd.color}`}>{sd.label}</span>;
                             })()}
                             <div className="flex gap-1 mt-0.5">
                               {STATUS_OPTIONS.map((opt) => (

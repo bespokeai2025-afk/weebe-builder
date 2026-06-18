@@ -30,7 +30,8 @@ import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
-import { setLeadStatus } from "@/lib/dashboard/leads.functions";
+import { setLeadStatus, listLeads } from "@/lib/dashboard/leads.functions";
+import { normalizeSentiment } from "@/lib/sentiment";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
@@ -164,6 +165,7 @@ type PanelTarget = {
 function QualifiedPage() {
   const qc = useQueryClient();
   const getLeads = useServerFn(listQualifiedLeads);
+  const getAllLeads = useServerFn(listLeads);
   const getStats = useServerFn(getQualificationStats);
   const setStatusFn = useServerFn(setLeadStatus);
 
@@ -172,38 +174,6 @@ function QualifiedPage() {
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
   const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
   const listAgentsFn = useServerFn(listLiveAgents);
-
-  const agentsQ = useQuery({
-    queryKey: ["qual-agents"],
-    queryFn: () => listAgentsFn(),
-    refetchOnWindowFocus: false,
-    throwOnError: false,
-  });
-  const qualAgents = (agentsQ.data ?? []) as Array<{ id: string; name: string; retell_agent_id?: string | null }>;
-
-  const leadsQ = useQuery({
-    queryKey: ["leads-qualified", search],
-    queryFn: () =>
-      getLeads({
-        data: {
-          search: search || undefined,
-          qualificationStatus: "qualified",
-          limit: 200,
-        },
-      }),
-    refetchOnWindowFocus: false,
-    throwOnError: false,
-  });
-
-  const statsQ = useQuery({
-    queryKey: ["qualification-stats"],
-    queryFn: () => getStats(),
-    refetchOnWindowFocus: false,
-    throwOnError: false,
-  });
-
-  const rows = (leadsQ.data ?? []) as any[];
-  const stats = statsQ.data;
 
   const [isWbah, setIsWbah] = useState(false);
   useEffect(() => {
@@ -230,6 +200,47 @@ function QualifiedPage() {
     return () => { active = false; };
   }, []);
 
+  const agentsQ = useQuery({
+    queryKey: ["qual-agents"],
+    queryFn: () => listAgentsFn(),
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+  });
+  const qualAgents = (agentsQ.data ?? []) as Array<{ id: string; name: string; retell_agent_id?: string | null }>;
+
+  const leadsQ = useQuery({
+    queryKey: ["leads-qualified", search],
+    queryFn: () =>
+      getLeads({
+        data: {
+          search: search || undefined,
+          qualificationStatus: "qualified",
+          limit: 200,
+        },
+      }),
+    enabled: !isWbah,
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+  });
+
+  const wbahLeadsQ = useQuery({
+    queryKey: ["leads-wbah-all-qual"],
+    queryFn: () => getAllLeads({ data: { limit: 5000 } }),
+    enabled: isWbah,
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+  });
+
+  const statsQ = useQuery({
+    queryKey: ["qualification-stats"],
+    queryFn: () => getStats(),
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+  });
+
+  const rows = (isWbah ? (wbahLeadsQ.data ?? []) : (leadsQ.data ?? [])) as any[];
+  const stats = statsQ.data;
+
   const isRetell = useMemo(() =>
     !isWbah && rows.some((l: any) => l.retell_call != null),
     [rows, isWbah],
@@ -242,9 +253,20 @@ function QualifiedPage() {
       (r.full_name ?? "").toLowerCase().includes(q) ||
       (r.phone ?? "").toLowerCase().includes(q) ||
       (r.company_name ?? "").toLowerCase().includes(q));
-    if (isWbah) out = out.filter((r: any) => (r.sentiment ?? "").toLowerCase() === "positive");
+    if (isWbah) out = out.filter((r: any) => normalizeSentiment(r.sentiment) === "positive");
     return out;
   }, [rows, search, isWbah]);
+
+  useEffect(() => {
+    if (!isWbah || !import.meta.env.DEV) return;
+    const all = (wbahLeadsQ.data ?? []) as any[];
+    const pos = all.filter((r: any) => normalizeSentiment(r.sentiment) === "positive").length;
+    const neu = all.filter((r: any) => normalizeSentiment(r.sentiment) === "neutral").length;
+    const neg = all.filter((r: any) => normalizeSentiment(r.sentiment) === "negative").length;
+    const unk = all.filter((r: any) => normalizeSentiment(r.sentiment) === "unknown").length;
+    console.log("[WBAH Qualified] total=%d positive=%d neutral=%d negative=%d unknown=%d qualifiedPageCount=%d",
+      all.length, pos, neu, neg, unk, pos);
+  }, [isWbah, wbahLeadsQ.data]);
 
   const qualPag = useTablePagination(filtered, 50);
 
