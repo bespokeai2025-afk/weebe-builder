@@ -360,19 +360,26 @@ function QualifiedPage() {
       {qualTab === "contacts" && (
       <>
       {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">
-        <KpiCard label="Total" value={stats?.total ?? "—"} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-        <KpiCard
-          label="Qualified"
-          value={stats?.qualified ?? "—"}
-          icon={ShieldCheck}
-          iconBg="bg-emerald-500/15"
-          iconColor="text-emerald-400"
-          hint={stats && stats.total > 0 ? `${stats.qualificationRate}% rate` : undefined}
-        />
-        <KpiCard label="Partial" value={stats?.partiallyQualified ?? "—"} icon={TrendingUp} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
-        <KpiCard label="Avg Score" value={stats?.avgScore ?? "—"} icon={Target} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
-      </div>
+      {(() => {
+        const wbahAll = (wbahLeadsQ.data ?? []) as any[];
+        const wbahPos = isWbah ? filtered.length : 0;
+        const wbahNeu = isWbah ? wbahAll.filter((r: any) => normalizeSentiment(r.sentiment) === "neutral").length : 0;
+        return (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">
+            <KpiCard label="Total Qualified" value={isWbah ? wbahPos : (stats?.total ?? "—")} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+            <KpiCard
+              label="Qualified"
+              value={isWbah ? wbahPos : (stats?.qualified ?? "—")}
+              icon={ShieldCheck}
+              iconBg="bg-emerald-500/15"
+              iconColor="text-emerald-400"
+              hint={isWbah ? "positive sentiment only" : (stats && stats.total > 0 ? `${stats.qualificationRate}% rate` : undefined)}
+            />
+            <KpiCard label="Partly Qualified" value={isWbah ? wbahNeu : (stats?.partiallyQualified ?? "—")} icon={TrendingUp} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
+            <KpiCard label="Avg Score" value={isWbah ? "—" : (stats?.avgScore ?? "—")} icon={Target} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+          </div>
+        );
+      })()}
 
       {/* Filters */}
       <div className="flex items-center gap-3 mb-4">
