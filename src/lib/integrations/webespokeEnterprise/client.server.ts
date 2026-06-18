@@ -105,8 +105,8 @@ function aDel<T>(path: string, gt: GetTokens, st: SaveToken, body?: unknown) {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function loginWithPassword(email: string, password: string) {
-  return apiFetch<{ accessToken?: string; token?: string; refreshToken?: string }>(
-    "/admin/auth/login",
+  return apiFetch<{ accessToken?: string; token?: string; refreshToken?: string; data?: { accessToken?: string; token?: string } }>(
+    "/admin/login",
     { method: "POST", body: JSON.stringify({ email, password }) },
   );
 }

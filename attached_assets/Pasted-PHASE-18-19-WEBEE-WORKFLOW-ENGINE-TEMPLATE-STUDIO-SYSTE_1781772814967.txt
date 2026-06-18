@@ -1,0 +1,611 @@
+PHASE 18 & 19 - WEBEE WORKFLOW ENGINE, TEMPLATE STUDIO & SYSTEM INTEGRATION
+
+IMPORTANT ARCHITECTURAL REQUIREMENT
+
+Do NOT build a standalone workflow engine.
+
+Do NOT create duplicate systems.
+
+Do NOT create a second CRM.
+
+Do NOT create a second campaign manager.
+
+Do NOT create a second scheduling engine.
+
+Do NOT create a second email engine.
+
+Do NOT create a second WhatsApp engine.
+
+Do NOT create a second task system.
+
+The WEBEE Workflow Engine must become the orchestration layer that coordinates and automates the existing WEBEE platform.
+
+The goal is:
+
+One Platform
+One Smart Dash
+One Agent Builder
+One HiveMind
+One Workflow Engine
+
+Not multiple disconnected products.
+
+---
+
+## CORE ARCHITECTURE
+
+Correct Architecture:
+
+HiveMind
+↓
+Workflow Recommendations
+
+Workflow Engine
+↓
+Orchestrates
+
+Agent Builder
+Campaigns
+Smart Dash
+CRM
+Calls
+Qualified Leads
+HexMail
+WhatsApp
+Calendar
+Tasks
+Analytics
+
+The Workflow Engine coordinates existing systems.
+
+It does not replace them.
+
+---
+
+## WORKFLOW TEMPLATE STUDIO
+
+Create a new master platform feature:
+
+Workflow Template Studio
+
+Location:
+
+Admin
+→ Workflow Templates
+
+Purpose:
+
+Store reusable workflow templates that can be deployed to any client workspace.
+
+Examples:
+
+* Property Seller Qualification
+* Lead Generation
+* Litigation Intake
+* Receptionist Follow-Up
+* Missed Call Callback
+* Appointment Booking
+* Mortgage Qualification
+* Recruitment Qualification
+* Re-engagement Campaign
+
+Templates must be platform-level.
+
+Workflow instances must be workspace-level.
+
+---
+
+## WORKFLOW IMPORT SYSTEM
+
+Create a Workflow Import section inside Workflow Template Studio.
+
+Supported Imports:
+
+1. n8n Workflow JSON
+2. Workflow Screenshots
+3. PDF Process Documents
+4. Process Flow Documents
+5. Text Workflow Descriptions
+
+When imported:
+
+Do NOT execute n8n.
+
+Do NOT require n8n access.
+
+Instead:
+
+Analyse and extract:
+
+* Triggers
+* Conditions
+* Actions
+* Scheduling
+* Agent Assignment
+* CRM Updates
+* Callback Logic
+* Qualification Logic
+* Routing Rules
+* Follow-Up Logic
+
+Convert these into WEBEE Workflow Templates.
+
+---
+
+## WORKFLOW VERSIONING
+
+Every workflow template must support:
+
+Draft
+Published
+Archived
+
+Version Control:
+
+v1
+v2
+v3
+etc
+
+Every workspace workflow instance must store:
+
+template_id
+template_version
+
+This allows updates without rebuilding client workflows.
+
+---
+
+## WORKFLOW DATABASE STRUCTURE
+
+Create reusable platform-level entities:
+
+workflow_templates
+workflow_template_versions
+workflow_template_categories
+
+Create workspace-level entities:
+
+workspace_workflows
+workflow_runs
+workflow_run_events
+workflow_schedules
+
+All workspace entities must contain:
+
+workspace_id
+
+No workflow data may be shared across clients.
+
+---
+
+## WORKFLOW TRIGGERS
+
+Supported Trigger Types:
+
+* manual
+* scheduled
+* lead_added
+* lead_status_changed
+* callback_due
+* campaign_started
+* webhook_received
+* inbound_call
+* outbound_call_completed
+
+---
+
+## WORKFLOW CONDITIONS
+
+Supported Conditions:
+
+* source_bucket equals X
+* sentiment equals X
+* qualification_status equals X
+* call_outcome equals X
+* call_attempt_count greater than X
+* callback_due equals true
+* lead_status changed to X
+* agent_result equals X
+* booking_created equals true
+
+---
+
+## WORKFLOW ACTIONS
+
+Supported Actions:
+
+* call_lead
+* assign_agent
+* update_lead_status
+* create_callback
+* move_to_qualified
+* move_to_disqualified
+* send_whatsapp
+* send_email
+* create_task
+* create_booking
+* push_to_crm
+* stop_workflow
+* trigger_campaign
+* notify_user
+
+---
+
+## REUSE EXISTING WEBEE SYSTEMS
+
+Agent Builder
+
+Use existing:
+
+* Agent creation
+* Agent deployment
+* Agent management
+* Knowledge bases
+* Variables
+* Prompt flows
+
+Workflow action:
+
+Call Lead
+
+Must use the existing Agent Builder deployment infrastructure.
+
+Never create a second agent system.
+
+---
+
+Smart Dash
+
+Use existing:
+
+* Leads
+* Calls
+* CRM
+* Contacts
+* Qualified Leads
+* Analytics
+
+Workflow actions must update existing Smart Dash data.
+
+Never create duplicate lead tables.
+
+Never create duplicate CRM pages.
+
+---
+
+Campaigns
+
+Use existing:
+
+* Campaign Management
+* Scheduling
+* Assignment
+
+Campaigns remain the user-facing management layer.
+
+Workflow Engine becomes the execution layer.
+
+---
+
+HexMail
+
+Use existing:
+
+* Email sequences
+* Campaigns
+* Templates
+
+Workflow action:
+
+Send Email
+
+Must use HexMail.
+
+Do not build another email system.
+
+---
+
+WhatsApp Centre
+
+Use existing:
+
+* WhatsApp campaigns
+* Templates
+* Messaging
+
+Workflow action:
+
+Send WhatsApp
+
+Must use WhatsApp Centre.
+
+Do not build another messaging platform.
+
+---
+
+Calendar
+
+Use existing:
+
+* Cal.com integration
+* Booking
+* Rescheduling
+* Cancellation
+
+Workflow action:
+
+Create Booking
+
+Must use the existing Calendar module.
+
+---
+
+Follow-Up Centre
+
+Use existing:
+
+* Follow-up campaigns
+* Sequences
+
+Workflow action:
+
+Create Follow-Up
+
+Must use the existing Follow-Up Centre.
+
+---
+
+Tasks
+
+Use existing task infrastructure.
+
+Workflow action:
+
+Create Task
+
+Must create tasks in the existing system.
+
+---
+
+## HIVEMIND INTEGRATION
+
+HiveMind becomes the intelligence layer.
+
+Workflow Engine becomes the execution layer.
+
+HiveMind can:
+
+* Monitor workflows
+* Detect failures
+* Detect bottlenecks
+* Recommend improvements
+* Suggest campaign changes
+* Suggest routing changes
+* Identify high-performing agents
+* Identify poor-performing workflows
+
+Examples:
+
+"Disqualified Lead Workflow generated 17 qualified leads this week."
+
+"Agent B converts 31% better than Agent A."
+
+"Callback workflow has 42 overdue callbacks."
+
+"Tried To Contact workflow performs better after 5PM."
+
+---
+
+## HIVEMIND WORKFLOW INTELLIGENCE PAGE
+
+Add a section:
+
+HiveMind
+→ Workflow Intelligence
+
+Display:
+
+* Workflow Success Rate
+* Workflow Failure Rate
+* Conversion Rates
+* Callback Performance
+* Agent Performance
+* Workflow Recommendations
+* Optimisation Suggestions
+
+---
+
+## WEBUYANYHOUSE IMPLEMENTATION
+
+Webuyanyhouse is the first client to use this architecture.
+
+However:
+
+Do NOT hardcode workflows for Webuyanyhouse.
+
+Instead:
+
+Create reusable workflow templates.
+
+Then deploy workspace workflow instances into:
+
+Webuyanyhouse Workspace
+
+Examples:
+
+Disqualified Lead Qualification
+
+Trigger:
+Scheduled
+
+Source:
+Disqualified Leads
+
+Action:
+Call Lead
+
+Agent:
+Qualification Agent
+
+If positive:
+Move To Qualified
+
+If callback requested:
+Create Callback
+
+If no answer:
+Increase Attempt Count
+
+---
+
+Tried To Contact Workflow
+
+Trigger:
+Scheduled
+
+Source:
+Tried To Contact
+
+Action:
+Call Lead
+
+If connected:
+Qualify Lead
+
+If callback:
+Create Callback
+
+If no answer:
+Retry Later
+
+---
+
+New Lead Workflow
+
+Trigger:
+Lead Added
+
+Source:
+New Leads
+
+Action:
+Call Lead
+
+If qualified:
+Move To Qualified
+
+If disqualified:
+Move To Disqualified
+
+If callback:
+Create Callback
+
+---
+
+## LEGACY VS NATIVE MODE
+
+Every workflow must support:
+
+execution_mode
+
+Options:
+
+legacy_sync
+webee_native
+
+legacy_sync
+
+Purpose:
+
+Mirror existing external systems.
+
+Read results from APIs.
+
+Display inside WEBEE.
+
+Do not control external workflows.
+
+---
+
+webee_native
+
+Purpose:
+
+WEBEE becomes the system of record.
+
+WEBEE executes:
+
+* Campaigns
+* Calls
+* Scheduling
+* Lead Routing
+* Qualification Logic
+* Follow-Ups
+* Bookings
+
+without relying on external workflow platforms.
+
+---
+
+## MIGRATION STRATEGY
+
+Phase 1
+
+External Platform
+↓
+WEBEE Sync
+
+View and manage imported data.
+
+---
+
+Phase 2
+
+External Platform
+↓
+WEBEE
+
+WEBEE runs new agents and campaigns.
+
+---
+
+Phase 3
+
+Dynamics
+↓
+WEBEE
+
+WEBEE becomes:
+
+* CRM
+* Campaign Engine
+* Workflow Engine
+* Agent Platform
+* Reporting Platform
+
+The external dashboard can eventually be retired.
+
+---
+
+## FINAL RULES
+
+Reuse existing WEBEE systems first.
+
+Never build duplicate infrastructure.
+
+Build once.
+
+Reuse across all clients.
+
+Store workflow templates centrally.
+
+Store workflow instances per workspace.
+
+Store workflow runs per workspace.
+
+Keep complete tenant isolation.
+
+The Workflow Engine must feel like a natural extension of the existing WEBEE platform rather than a separate product.
+
+The final architecture should allow any future client to adopt advanced automation workflows using the same reusable WEBEE infrastructure without requiring n8n.
