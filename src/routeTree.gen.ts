@@ -223,11 +223,13 @@ import { Route as AuthenticatedAdminAccountsProfitabilityRouteImport } from './r
 import { Route as AuthenticatedAdminAccountsCostsRouteImport } from './routes/_authenticated/admin.accounts.costs'
 import { Route as AuthenticatedAdminAccountsClientsRouteImport } from './routes/_authenticated/admin.accounts.clients'
 import { Route as AuthenticatedAdminAccountsAlertsRouteImport } from './routes/_authenticated/admin.accounts.alerts'
+import { Route as AuthenticatedAdminAccountsClientsIndexRouteImport } from './routes/_authenticated/admin.accounts.clients.index'
 import { Route as ApiRuntimeAgentIdExportRouteImport } from './routes/api/runtime/agent.$id.export'
 import { Route as ApiPublicTelephonyStatusHealthRouteImport } from './routes/api/public/telephony/status.health'
 import { Route as ApiPublicTelephonyInboundHealthRouteImport } from './routes/api/public/telephony/inbound.health'
 import { Route as ApiPublicPaymentsWebhookHealthRouteImport } from './routes/api/public/payments/webhook.health'
 import { Route as AuthenticatedAdminAccountsWorkspaceIdRouteImport } from './routes/_authenticated/admin.accounts.workspace.$id'
+import { Route as AuthenticatedAdminAccountsClientsWebuyanyhouseRouteImport } from './routes/_authenticated/admin.accounts.clients.webuyanyhouse'
 
 const UnsubscribeRoute = UnsubscribeRouteImport.update({
   id: '/unsubscribe',
@@ -1431,6 +1433,12 @@ const AuthenticatedAdminAccountsAlertsRoute =
     path: '/alerts',
     getParentRoute: () => AuthenticatedAdminAccountsRoute,
   } as any)
+const AuthenticatedAdminAccountsClientsIndexRoute =
+  AuthenticatedAdminAccountsClientsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedAdminAccountsClientsRoute,
+  } as any)
 const ApiRuntimeAgentIdExportRoute = ApiRuntimeAgentIdExportRouteImport.update({
   id: '/export',
   path: '/export',
@@ -1459,6 +1467,12 @@ const AuthenticatedAdminAccountsWorkspaceIdRoute =
     id: '/workspace/$id',
     path: '/workspace/$id',
     getParentRoute: () => AuthenticatedAdminAccountsRoute,
+  } as any)
+const AuthenticatedAdminAccountsClientsWebuyanyhouseRoute =
+  AuthenticatedAdminAccountsClientsWebuyanyhouseRouteImport.update({
+    id: '/webuyanyhouse',
+    path: '/webuyanyhouse',
+    getParentRoute: () => AuthenticatedAdminAccountsClientsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -1620,7 +1634,7 @@ export interface FileRoutesByFullPath {
   '/leads/': typeof AuthenticatedLeadsIndexRoute
   '/systemmind/': typeof AuthenticatedSystemmindIndexRoute
   '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
-  '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
+  '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRouteWithChildren
   '/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
   '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
@@ -1675,11 +1689,13 @@ export interface FileRoutesByFullPath {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/admin/accounts/': typeof AuthenticatedAdminAccountsIndexRoute
+  '/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
+  '/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -1832,7 +1848,6 @@ export interface FileRoutesByTo {
   '/leads': typeof AuthenticatedLeadsIndexRoute
   '/systemmind': typeof AuthenticatedSystemmindIndexRoute
   '/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
-  '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
   '/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
   '/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
@@ -1887,11 +1902,13 @@ export interface FileRoutesByTo {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsIndexRoute
+  '/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
+  '/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -2054,7 +2071,7 @@ export interface FileRoutesById {
   '/_authenticated/leads/': typeof AuthenticatedLeadsIndexRoute
   '/_authenticated/systemmind/': typeof AuthenticatedSystemmindIndexRoute
   '/_authenticated/admin/accounts/alerts': typeof AuthenticatedAdminAccountsAlertsRoute
-  '/_authenticated/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRoute
+  '/_authenticated/admin/accounts/clients': typeof AuthenticatedAdminAccountsClientsRouteWithChildren
   '/_authenticated/admin/accounts/costs': typeof AuthenticatedAdminAccountsCostsRoute
   '/_authenticated/admin/accounts/profitability': typeof AuthenticatedAdminAccountsProfitabilityRoute
   '/_authenticated/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
@@ -2109,11 +2126,13 @@ export interface FileRoutesById {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/_authenticated/admin/accounts/': typeof AuthenticatedAdminAccountsIndexRoute
+  '/_authenticated/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/_authenticated/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
   '/api/public/telephony/inbound/health': typeof ApiPublicTelephonyInboundHealthRoute
   '/api/public/telephony/status/health': typeof ApiPublicTelephonyStatusHealthRoute
   '/api/runtime/agent/$id/export': typeof ApiRuntimeAgentIdExportRoute
+  '/_authenticated/admin/accounts/clients/': typeof AuthenticatedAdminAccountsClientsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -2331,11 +2350,13 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/admin/accounts/'
+    | '/admin/accounts/clients/webuyanyhouse'
     | '/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
+    | '/admin/accounts/clients/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -2488,7 +2509,6 @@ export interface FileRouteTypes {
     | '/leads'
     | '/systemmind'
     | '/admin/accounts/alerts'
-    | '/admin/accounts/clients'
     | '/admin/accounts/costs'
     | '/admin/accounts/profitability'
     | '/admin/accounts/recharges'
@@ -2543,11 +2563,13 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/admin/accounts'
+    | '/admin/accounts/clients/webuyanyhouse'
     | '/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
+    | '/admin/accounts/clients'
   id:
     | '__root__'
     | '/'
@@ -2764,11 +2786,13 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/_authenticated/admin/accounts/'
+    | '/_authenticated/admin/accounts/clients/webuyanyhouse'
     | '/_authenticated/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
     | '/api/public/telephony/inbound/health'
     | '/api/public/telephony/status/health'
     | '/api/runtime/agent/$id/export'
+    | '/_authenticated/admin/accounts/clients/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -4356,6 +4380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAccountsAlertsRouteImport
       parentRoute: typeof AuthenticatedAdminAccountsRoute
     }
+    '/_authenticated/admin/accounts/clients/': {
+      id: '/_authenticated/admin/accounts/clients/'
+      path: '/'
+      fullPath: '/admin/accounts/clients/'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsClientsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsClientsRoute
+    }
     '/api/runtime/agent/$id/export': {
       id: '/api/runtime/agent/$id/export'
       path: '/export'
@@ -4391,12 +4422,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAccountsWorkspaceIdRouteImport
       parentRoute: typeof AuthenticatedAdminAccountsRoute
     }
+    '/_authenticated/admin/accounts/clients/webuyanyhouse': {
+      id: '/_authenticated/admin/accounts/clients/webuyanyhouse'
+      path: '/webuyanyhouse'
+      fullPath: '/admin/accounts/clients/webuyanyhouse'
+      preLoaderRoute: typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRouteImport
+      parentRoute: typeof AuthenticatedAdminAccountsClientsRoute
+    }
   }
 }
 
+interface AuthenticatedAdminAccountsClientsRouteChildren {
+  AuthenticatedAdminAccountsClientsWebuyanyhouseRoute: typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
+  AuthenticatedAdminAccountsClientsIndexRoute: typeof AuthenticatedAdminAccountsClientsIndexRoute
+}
+
+const AuthenticatedAdminAccountsClientsRouteChildren: AuthenticatedAdminAccountsClientsRouteChildren =
+  {
+    AuthenticatedAdminAccountsClientsWebuyanyhouseRoute:
+      AuthenticatedAdminAccountsClientsWebuyanyhouseRoute,
+    AuthenticatedAdminAccountsClientsIndexRoute:
+      AuthenticatedAdminAccountsClientsIndexRoute,
+  }
+
+const AuthenticatedAdminAccountsClientsRouteWithChildren =
+  AuthenticatedAdminAccountsClientsRoute._addFileChildren(
+    AuthenticatedAdminAccountsClientsRouteChildren,
+  )
+
 interface AuthenticatedAdminAccountsRouteChildren {
   AuthenticatedAdminAccountsAlertsRoute: typeof AuthenticatedAdminAccountsAlertsRoute
-  AuthenticatedAdminAccountsClientsRoute: typeof AuthenticatedAdminAccountsClientsRoute
+  AuthenticatedAdminAccountsClientsRoute: typeof AuthenticatedAdminAccountsClientsRouteWithChildren
   AuthenticatedAdminAccountsCostsRoute: typeof AuthenticatedAdminAccountsCostsRoute
   AuthenticatedAdminAccountsProfitabilityRoute: typeof AuthenticatedAdminAccountsProfitabilityRoute
   AuthenticatedAdminAccountsRechargesRoute: typeof AuthenticatedAdminAccountsRechargesRoute
@@ -4410,7 +4466,7 @@ const AuthenticatedAdminAccountsRouteChildren: AuthenticatedAdminAccountsRouteCh
     AuthenticatedAdminAccountsAlertsRoute:
       AuthenticatedAdminAccountsAlertsRoute,
     AuthenticatedAdminAccountsClientsRoute:
-      AuthenticatedAdminAccountsClientsRoute,
+      AuthenticatedAdminAccountsClientsRouteWithChildren,
     AuthenticatedAdminAccountsCostsRoute: AuthenticatedAdminAccountsCostsRoute,
     AuthenticatedAdminAccountsProfitabilityRoute:
       AuthenticatedAdminAccountsProfitabilityRoute,

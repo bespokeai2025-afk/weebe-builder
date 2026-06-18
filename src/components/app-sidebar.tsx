@@ -703,27 +703,6 @@ export function AppSidebar() {
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
-                    <SidebarMenuButton
-                      asChild
-                      tooltip="Webuyanyhouse"
-                      className={navButtonClasses(isActive("/enterprise/webuyanyhouse"))}
-                    >
-                      <Link to="/enterprise/webuyanyhouse" className="flex items-center gap-3">
-                        <ArrowRight
-                          className={cn(
-                            "h-[18px] w-[18px] shrink-0",
-                            isActive("/enterprise/webuyanyhouse")
-                              ? "text-primary"
-                              : "text-muted-foreground group-hover/nav:text-foreground",
-                          )}
-                        />
-                        <span className="truncate group-data-[collapsible=icon]:hidden">
-                          Webuyanyhouse
-                        </span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

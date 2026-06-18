@@ -7,6 +7,7 @@ import {
   upsertBillingProfile,
   getBillingProfile,
 } from "@/lib/accountsmind/accountsmind.functions";
+import { getWebespokeEnterpriseStatus } from "@/lib/integrations/webespokeEnterprise/enterprise.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Settings, ChevronRight, RefreshCw, PoundSterling } from "lucide-react";
+import { Users, Settings, ChevronRight, RefreshCw, PoundSterling, Building2, Car, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BillingForm {
@@ -121,6 +122,15 @@ export function AccountsMindClients() {
   const field = <K extends keyof BillingForm>(key: K, val: BillingForm[K]) =>
     setForm((f) => ({ ...f, [key]: val }));
 
+  const getWbsStatusFn = useServerFn(getWebespokeEnterpriseStatus);
+  const wbsStatusQ = useQuery({
+    queryKey: ["wbs-enterprise-status"],
+    queryFn: () => getWbsStatusFn(),
+    refetchInterval: 60_000,
+  });
+  const wbsConnected = wbsStatusQ.data?.status === "connected";
+  const wbs = wbsStatusQ.data;
+
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -128,18 +138,55 @@ export function AccountsMindClients() {
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-emerald-400" /> Clients
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Manage billing profiles for each workspace</p>
+          <p className="text-sm text-gray-400 mt-0.5">Active clients and enterprise integrations</p>
         </div>
       </div>
 
-      {isLoading && (
-        <div className="flex items-center gap-2 text-gray-400 text-sm">
-          <RefreshCw className="w-4 h-4 animate-spin" /> Loading clients…
-        </div>
-      )}
+      {/* ── Enterprise Clients section ── */}
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-2">Enterprise Clients</p>
+        <Link to="/admin/accounts/clients/webuyanyhouse" className="block group">
+          <div className="bg-gray-900 border border-gray-800 group-hover:border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-4 transition-colors">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20 shrink-0">
+              <Building2 className="h-4 w-4 text-emerald-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-medium text-white">Webuyanyhouse</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium">Enterprise</span>
+                <span className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded font-medium",
+                  wbsConnected ? "bg-emerald-500/10 text-emerald-400" : "bg-gray-800 text-gray-500",
+                )}>
+                  {wbsConnected ? "● Connected" : "○ Disconnected"}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">WeeBespoke AI Enterprise — vehicle marketplace CRM</p>
+            </div>
+            {wbsConnected && wbs && (
+              <div className="hidden sm:flex items-center gap-3 text-xs text-gray-500 shrink-0">
+                <span className="flex items-center gap-1"><Car className="w-3 h-3" />{wbs.carsCount}</span>
+                <span className="flex items-center gap-1"><Users className="w-3 h-3" />{wbs.buyersCount}</span>
+                <span className="flex items-center gap-1"><UserCheck className="w-3 h-3" />{wbs.dealersCount}</span>
+              </div>
+            )}
+            <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-400 transition-colors shrink-0" />
+          </div>
+        </Link>
+      </div>
 
-      <div className="space-y-2">
-        {(clients as any[]).map((c: any) => {
+      {/* ── Platform Workspace Clients ── */}
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-2">Platform Workspaces</p>
+
+        {isLoading && (
+          <div className="flex items-center gap-2 text-gray-400 text-sm">
+            <RefreshCw className="w-4 h-4 animate-spin" /> Loading clients…
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {(clients as any[]).map((c: any) => {
           const profile = c.billing_profile;
           const hasProfile = !!profile;
           return (
@@ -198,6 +245,7 @@ export function AccountsMindClients() {
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Edit dialog */}
