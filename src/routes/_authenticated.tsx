@@ -11,6 +11,7 @@ import { OnboardingWelcome } from "@/components/onboarding/OnboardingWelcome";
 import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { HiveMindOrb } from "@/components/hivemind/HiveMindOrb";
 import { getOnboardingState } from "@/lib/onboarding/onboarding.server";
+import { PrefetchOnLogin } from "@/components/PrefetchOnLogin";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -100,6 +101,7 @@ function AuthenticatedLayout() {
       {/* Progress checklist widget — shown after path is selected */}
       <OnboardingChecklist />
       <HiveMindOrb />
+      <PrefetchOnLogin authed={authed} />
     </SidebarProvider>
   );
 }
