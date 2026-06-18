@@ -172,6 +172,9 @@ function LeadsPage() {
   const leadsQ = useQuery({
     queryKey: ["leads-all"],
     queryFn: () => listLeadsFn({ data: { limit: 5000 } }),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const statsQ = useQuery({

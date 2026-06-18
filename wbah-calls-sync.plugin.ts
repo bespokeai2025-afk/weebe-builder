@@ -1,14 +1,22 @@
+/**
+ * Vite dev-server plugin: WBAH Calls Auto-Sync
+ *
+ * Pulls all call-history records from WeeBespoke and upserts into the
+ * wbah_calls Supabase table. Fires 10 s after server start so data is
+ * ready by the time the user signs in, then repeats every 4 hours.
+ */
 import type { Plugin } from "vite";
 import { runWbahCallsSyncTick } from "./src/lib/integrations/webespokeEnterprise/wbah-leads-sync-tick";
+
+const INITIAL_DELAY_MS = 10_000;
+const INTERVAL_MS      = 4 * 60 * 60 * 1000;
 
 export function wbahCallsSyncPlugin(): Plugin {
   return {
     name: "wbah-calls-sync",
-    configureServer() {
-      const FIRST_DELAY_MS = 3 * 60 * 1000;
-      const INTERVAL_MS    = 4 * 60 * 60 * 1000;
-
-      console.log("[wbah-calls-sync] ready — first sync in 3 min, then every 4 h");
+    configureServer(server) {
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+      let timeoutId:  ReturnType<typeof setTimeout>  | null = null;
 
       async function tick() {
         try {
@@ -23,10 +31,17 @@ export function wbahCallsSyncPlugin(): Plugin {
         }
       }
 
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         tick();
-        setInterval(tick, INTERVAL_MS);
-      }, FIRST_DELAY_MS);
+        intervalId = setInterval(tick, INTERVAL_MS);
+      }, INITIAL_DELAY_MS);
+
+      server.httpServer?.on("close", () => {
+        if (timeoutId)  clearTimeout(timeoutId);
+        if (intervalId) clearInterval(intervalId);
+      });
+
+      console.log(`[wbah-calls-sync] ready — first sync in 10 s, then every 4 h`);
     },
   };
 }

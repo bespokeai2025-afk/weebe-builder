@@ -1,17 +1,15 @@
 /**
  * Vite dev-server plugin: WBAH Leads Auto-Sync
  *
- * Periodically pulls all leads and buyer contacts from the WeeBespoke API
- * for the Webuyanyhouse workspace and upserts them into Supabase so the
- * Leads and Qualified pages always show fresh data.
- *
- * Runs every 30 minutes (first tick after 2 minutes to let the server settle).
+ * Pulls all leads and buyer contacts from WeeBespoke and upserts into
+ * Supabase. Fires almost immediately on server start (5 s) so data is
+ * ready by the time the user signs in, then repeats every 30 minutes.
  */
 import type { Plugin } from "vite";
 import { runWbahLeadsSyncTick } from "./src/lib/integrations/webespokeEnterprise/wbah-leads-sync-tick";
 
 const TICK_INTERVAL_MS = 30 * 60 * 1000;
-const INITIAL_DELAY_MS = 2 * 60 * 1000;
+const INITIAL_DELAY_MS = 5_000;
 
 export function wbahLeadsSyncPlugin(): Plugin {
   return {
@@ -42,9 +40,7 @@ export function wbahLeadsSyncPlugin(): Plugin {
         if (intervalId) clearInterval(intervalId);
       });
 
-      console.log(
-        `[wbah-leads-sync] ready — first sync in ${INITIAL_DELAY_MS / 60_000} min, then every ${TICK_INTERVAL_MS / 60_000} min`,
-      );
+      console.log(`[wbah-leads-sync] ready — first sync in 5 s, then every 30 min`);
     },
   };
 }
