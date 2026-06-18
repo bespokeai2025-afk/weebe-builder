@@ -12,9 +12,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import {
-  getAllCars,
   getAllBuyers,
   loginWithPassword,
+  wbahGetUserCallLeadPaged,
 } from "./client.server";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -559,6 +559,88 @@ export const adminDisconnectWebuyanyhouseApi = createServerFn({ method: "POST" }
     return { ok: true };
   });
 
+// ── Paginated lead fetch (self-healing — fetches ALL pages) ───────────────────
+
+function extractLeadArray(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  const obj = raw as Record<string, unknown>;
+  for (const key of ["data", "records", "leads", "result", "items", "list", "callData", "calls"]) {
+    if (Array.isArray(obj?.[key])) return obj[key] as unknown[];
+  }
+  if (obj && typeof obj === "object") {
+    for (const v of Object.values(obj)) {
+      if (Array.isArray(v) && (v as unknown[]).length > 0) return v as unknown[];
+    }
+  }
+  return [];
+}
+
+async function fetchAllLeadRecords(
+  getTokens: () => Promise<{ accessToken: string; refreshToken: string }>,
+  saveToken: (t: string) => Promise<void>,
+): Promise<{ ok: boolean; data: unknown[]; error?: string }> {
+  const p1Res = await wbahGetUserCallLeadPaged(1, getTokens, saveToken);
+  if (!p1Res.ok) return { ok: false, data: [], error: String(p1Res.error ?? "Page 1 failed") };
+
+  const p1Raw = p1Res.data as Record<string, unknown>;
+  const p1Recs = extractLeadArray(p1Raw);
+
+  const pagination = (p1Raw?.pagination ?? p1Raw?.meta ?? p1Raw?.paginationInfo) as Record<string, unknown> | undefined;
+  const totalItems = Number(
+    pagination?.totalItems ?? pagination?.totalRecords ?? pagination?.total ?? 0
+  );
+  const pageSize = p1Recs.length || 50;
+  const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 0;
+
+  const allRecs = [...p1Recs];
+  const seenIds = new Set(
+    p1Recs.map((r: unknown) => String((r as Record<string, unknown>)?._id ?? (r as Record<string, unknown>)?.id ?? (r as Record<string, unknown>)?.lead_id ?? ""))
+  );
+
+  const makeId = (r: unknown) =>
+    String((r as Record<string, unknown>)?._id ?? (r as Record<string, unknown>)?.id ?? (r as Record<string, unknown>)?.lead_id ?? "");
+
+  console.log(`[wbah-sync-leads] p1=${p1Recs.length} recs, totalItems=${totalItems}, totalPages=${totalPages}`);
+
+  if (totalPages > 1) {
+    // Known total — fetch all remaining pages in batches of 20
+    const pageNums = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+    for (let i = 0; i < pageNums.length; i += 20) {
+      const batch = pageNums.slice(i, i + 20);
+      const results = await Promise.all(batch.map((p) => wbahGetUserCallLeadPaged(p, getTokens, saveToken)));
+      for (const res of results) {
+        if ((res as { ok: boolean }).ok) {
+          for (const r of extractLeadArray((res as { data: unknown }).data)) {
+            const id = makeId(r);
+            if (!seenIds.has(id)) { seenIds.add(id); allRecs.push(r); }
+          }
+        }
+      }
+    }
+  } else {
+    // Unknown total — fetch until empty (max 200 pages)
+    let page = 2;
+    while (page <= 200) {
+      const batch = Array.from({ length: 20 }, (_, i) => page + i);
+      const results = await Promise.all(batch.map((p) => wbahGetUserCallLeadPaged(p, getTokens, saveToken)));
+      let newFound = 0;
+      for (const res of results) {
+        if ((res as { ok: boolean }).ok) {
+          for (const r of extractLeadArray((res as { data: unknown }).data)) {
+            const id = makeId(r);
+            if (!seenIds.has(id)) { seenIds.add(id); allRecs.push(r); newFound++; }
+          }
+        }
+      }
+      if (newFound === 0) break;
+      page += 20;
+    }
+  }
+
+  console.log(`[wbah-sync-leads] total fetched=${allRecs.length}`);
+  return { ok: true, data: allRecs };
+}
+
 // ── Admin: Sync all leads into existing WEBEE tables ─────────────────────────
 //
 // Phase 4/12 of the Webuyanyhouse workspace spec:
@@ -576,10 +658,10 @@ export const adminSyncWebuyanyhouseLeads = createServerFn({ method: "POST" })
 
     const { getTokens, saveNewAccessToken: saveToken } = makeTokenCallbacks();
 
-    // getAllCars = /call-output-data/get-userCall-lead (paginated — fetch all pages)
+    // fetchAllLeadRecords paginates through all pages of /get-userCall-lead
     // getAllBuyers = /crm-data/get-crm-data
     const [sellersRes, buyersRes] = await Promise.allSettled([
-      getAllCars(getTokens, saveToken),
+      fetchAllLeadRecords(getTokens, saveToken),
       getAllBuyers(getTokens, saveToken),
     ]);
 
