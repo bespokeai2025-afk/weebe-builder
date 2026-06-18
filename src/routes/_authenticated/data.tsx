@@ -434,7 +434,7 @@ function DataPage() {
   const [wbahCallData, setWbahCallData]               = useState<any[]>([]);
   const [wbahCallDataLoading, setWbahCallDataLoading] = useState(false);
   const [wbahCallDataError, setWbahCallDataError]     = useState<string | null>(null);
-  const [wbahDisqualifiedSweep, setWbahDisqualifiedSweep] = useState(false);
+  const [wbahPeopleSubTab, setWbahPeopleSubTab]       = useState<string>("all");
   const [wbahPeopleSearch, setWbahPeopleSearch]       = useState("");
   const [wbahSelected, setWbahSelected]               = useState<Set<string>>(new Set());
   const [wbahQualAgentId, setWbahQualAgentId]         = useState<string>("");
@@ -784,13 +784,16 @@ function DataPage() {
   }, [dataTab, isWbah]);
 
   useEffect(() => {
-    if (!wbahDisqualifiedSweep) return;
-    const qualAgent = agents.find(a =>
-      a.name.toLowerCase().includes("wbah") && a.name.toLowerCase().includes("qualification")
-    );
-    if (qualAgent) setWbahQualAgentId(qualAgent.id);
+    setWbahSelected(new Set());
+    setWbahQualAgentId("");
+    if (wbahPeopleSubTab === "disqualified_sweep") {
+      const qualAgent = agents.find(a =>
+        a.name.toLowerCase().includes("wbah") && a.name.toLowerCase().includes("qualification")
+      );
+      if (qualAgent) setWbahQualAgentId(qualAgent.id);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wbahDisqualifiedSweep, agents]);
+  }, [wbahPeopleSubTab, agents]);
 
   async function handleImportWbahSelected() {
     const toImport = wbahCallData.filter(r => wbahSelected.has(r.id));
@@ -1160,13 +1163,44 @@ function DataPage() {
 
           {/* ── WBAH People toolbar ─────────────────────────────────────── */}
           <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+
+            {/* ── CRM section sub-tabs ────────────────────────────────────── */}
+            <div className="flex items-center gap-0 border-b border-white/[0.06] px-4 overflow-x-auto">
+              {([
+                { id: "all",                label: "All Records" },
+                { id: "disqualified_sweep", label: "Disqualified Sweep" },
+                /* more CRM sections added here as needed */
+              ] as { id: string; label: string }[]).map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setWbahPeopleSubTab(tab.id)}
+                  className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                    wbahPeopleSubTab === tab.id
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab.id === "disqualified_sweep" && <AlertCircle className="h-3 w-3" />}
+                  {tab.label}
+                  {tab.id !== "all" && wbahCallData.length > 0 && (() => {
+                    const count = tab.id === "disqualified_sweep"
+                      ? wbahCallData.filter(isWbahDisqualified).length
+                      : 0;
+                    return count > 0 ? (
+                      <span className="ml-1 rounded-full bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400">{count}</span>
+                    ) : null;
+                  })()}
+                </button>
+              ))}
+            </div>
+
             <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
               <div className="flex items-center gap-3 flex-wrap">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  All Call Data
+                  {wbahPeopleSubTab === "disqualified_sweep" ? "Disqualified Sweep" : "All Records"}
                   {wbahCallData.length > 0 && (
                     <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
-                      {wbahCallData.length} record{wbahCallData.length !== 1 ? "s" : ""}
+                      {wbahCallData.length} total
                     </span>
                   )}
                   {wbahSelected.size > 0 && (
@@ -1198,19 +1232,10 @@ function DataPage() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                {/* Disqualified Sweep toggle */}
-                <button
-                  onClick={() => setWbahDisqualifiedSweep(v => !v)}
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${wbahDisqualifiedSweep ? "border-rose-500/40 bg-rose-500/10 text-rose-400" : "border-white/[0.08] bg-muted/30 text-muted-foreground hover:text-foreground"}`}
-                >
-                  <AlertCircle className="h-3 w-3" />
-                  Disqualified Sweep
-                </button>
-
                 {/* Assign Qualification Agent — only when rows are selected */}
                 {wbahSelected.size > 0 && (
                   <>
-                    {wbahDisqualifiedSweep ? (
+                    {wbahPeopleSubTab === "disqualified_sweep" ? (
                       /* In sweep mode the agent is locked to the WBAH qual agent */
                       <div className="flex items-center gap-1.5 rounded-md border border-rose-500/20 bg-rose-500/5 px-2.5 py-1 text-[11px] text-rose-300">
                         <UserCheck className="h-3 w-3" />
@@ -1256,7 +1281,7 @@ function DataPage() {
                     className="h-7 text-xs"
                     onClick={() => {
                       const visible = wbahCallData.filter(r => {
-                        if (wbahDisqualifiedSweep && !isWbahDisqualified(r)) return false;
+                        if (wbahPeopleSubTab === "disqualified_sweep" && !isWbahDisqualified(r)) return false;
                         if (wbahPeopleSearch) {
                           const q = wbahPeopleSearch.toLowerCase();
                           return (r.name ?? "").toLowerCase().includes(q) || (r.contact ?? "").includes(q);
@@ -1318,10 +1343,9 @@ function DataPage() {
                 </Button>
               </div>
             ) : (() => {
+              const isSweepTab = wbahPeopleSubTab === "disqualified_sweep";
               const filtered = wbahCallData.filter(r => {
-                if (wbahDisqualifiedSweep) {
-                  if (!isWbahDisqualified(r)) return false;
-                }
+                if (isSweepTab && !isWbahDisqualified(r)) return false;
                 if (wbahPeopleSearch) {
                   const q = wbahPeopleSearch.toLowerCase();
                   if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
@@ -1331,10 +1355,10 @@ function DataPage() {
 
               return (
                 <div className="overflow-x-auto">
-                  {wbahDisqualifiedSweep && (
+                  {isSweepTab && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/5 border-b border-rose-500/10 text-[11px] text-rose-400">
                       <AlertCircle className="h-3 w-3" />
-                      Disqualified Sweep — showing {filtered.length} lead{filtered.length !== 1 ? "s" : ""} from the client's Disqualified Sweep CRM section
+                      Disqualified Sweep — {filtered.length} lead{filtered.length !== 1 ? "s" : ""} from the client's Disqualified Sweep CRM section
                     </div>
                   )}
                   <table className="w-full text-xs">
