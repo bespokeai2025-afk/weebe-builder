@@ -258,15 +258,19 @@ function CallsPage() {
   }, []);
 
   // Native WEBEE calls (all workspaces except WBAH)
+  // throwOnError: false — TanStack Router Suspense context would otherwise
+  // re-throw query errors to the route error boundary instead of storing them.
   const fn = useServerFn(listCalls);
   const q = useQuery({
     queryKey: ["calls"],
     queryFn: () => fn({ data: {} }),
     enabled: !isWbah,
+    throwOnError: false,
+    retry: 0,
   });
 
   // WeeBespoke calls — full bulk load (up to 15,000 records).
-  // staleTime: 0 → always fetch fresh data on mount (avoids stale cache after server restarts).
+  // staleTime: 0 → always fetch fresh data on mount.
   const wbahFn = useServerFn(listWbahCalls);
   const wbahQ = useQuery({
     queryKey: ["wbah-calls"],
@@ -274,7 +278,22 @@ function CallsPage() {
     enabled: isWbah,
     staleTime: 0,
     refetchOnWindowFocus: false,
+    retry: 0,
+    throwOnError: false,
   });
+
+  // Auto-reload on stale server-fn ID error. Timestamp guard: max once per 20s.
+  useEffect(() => {
+    const anyError = (!isWbah && q.isError) || (isWbah && wbahQ.isError);
+    if (anyError) {
+      const key = "calls-autoreload-ts";
+      const last = parseInt(sessionStorage.getItem(key) ?? "0");
+      if (Date.now() - last > 20_000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+      }
+    }
+  }, [isWbah, q.isError, wbahQ.isError]);
 
   // Incremental refresh — only page 1 (newest ~50 records) polled every 60s.
   // New records are merged client-side so we never re-fetch the full set.
@@ -286,6 +305,8 @@ function CallsPage() {
     staleTime: 0,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
+    throwOnError: false,
+    retry: 0,
   });
 
   // Merge: combine full list + any new records from latest poll, then sort newest-first

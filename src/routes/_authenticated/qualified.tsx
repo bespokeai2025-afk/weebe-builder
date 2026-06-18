@@ -198,7 +198,21 @@ function QualifiedPage() {
     staleTime: 0,
     enabled: isWbah && qualTab === "contacts",
     refetchOnWindowFocus: false,
+    retry: 0,
+    throwOnError: false,
   });
+
+  // Auto-reload on stale server-fn ID error. Timestamp guard: max once per 20s.
+  useEffect(() => {
+    if (isWbah && wbahQ.isError) {
+      const key = "qualified-autoreload-ts";
+      const last = parseInt(sessionStorage.getItem(key) ?? "0");
+      if (Date.now() - last > 20_000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+      }
+    }
+  }, [isWbah, wbahQ.isError]);
 
   const wbahRows = useMemo(() => (wbahQ.data ?? []) as any[], [wbahQ.data]);
 

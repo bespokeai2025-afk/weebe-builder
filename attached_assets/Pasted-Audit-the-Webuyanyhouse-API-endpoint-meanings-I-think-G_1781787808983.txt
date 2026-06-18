@@ -1,0 +1,103 @@
+Audit the Webuyanyhouse API endpoint meanings.
+
+I think GET /call-output-data/get-call-count may not be total completed calls.
+
+It may mean count of CRM contacts/leads available to call from the WBAH CRM.
+
+Do not assume endpoint names are accurate.
+
+Task:
+Find the correct endpoint for completed call logs / call history / call output results.
+
+Audit these endpoints:
+
+GET /call-output-data/get-all-calldata
+GET /call-output-data/get-call-count
+POST /call-output-data/get-user-history
+GET /call-output-data/get-userCall-lead
+GET /call-output-data/callbacks/pending
+GET /call-output-data/all
+
+Also search the codebase/API client for any other endpoints containing:
+
+call
+calls
+call-output
+history
+recording
+transcript
+logs
+output
+appointment
+sentiment
+duration
+status
+callback
+
+For each endpoint, log safely:
+
+- endpoint
+- method
+- purpose inferred from response
+- sample top-level keys
+- first record keys
+- record count returned
+- whether records look like CRM contacts to call
+- whether records look like completed call logs
+- whether records include call duration
+- whether records include recording URL
+- whether records include transcript
+- whether records include sentiment
+- whether records include call status/outcome
+- whether records include lead/contact fields only
+
+Do not log tokens.
+
+Then classify each endpoint as one of:
+
+1. CRM contacts/leads waiting to be called
+2. Completed call logs/results
+3. Per-person call history
+4. Callback queue
+5. Dashboard metric
+6. Unknown
+
+Important:
+Do not use GET /call-output-data/get-call-count as the completed calls total unless the response proves it is completed call count.
+
+If get-call-count is only available contacts/leads-to-call count, map it to People/CRM counts, not Calls analytics.
+
+Find the correct completed-call endpoint.
+
+Likely candidates:
+GET /call-output-data/all
+GET /call-output-data/get-all-calldata
+POST /call-output-data/get-user-history
+
+After audit, update the mapping:
+
+People / Leads:
+should use endpoints that return CRM contacts/leads to call.
+
+Calls:
+should use endpoints that return completed call outputs/results.
+
+Callbacks:
+should use /call-output-data/callbacks/pending.
+
+Dashboard:
+should use dedicated dashboard endpoints where possible:
+POST /dashboard/number-of-calls
+POST /dashboard/total-call-minutes
+POST /dashboard/call-performance
+POST /dashboard/call-drops
+POST /dashboard/leads
+
+Final report:
+Give a table showing:
+- endpoint
+- real purpose
+- record count
+- correct WEBEE page
+- whether pagination/bulk limit works
+- whether it should be used for dashboard KPI calculations

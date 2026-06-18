@@ -115,115 +115,259 @@ async function requireWbahCbs(userId: string) {
   return { getTokens, saveNewAccessToken };
 }
 
-// ── Diagnostic probe — returns raw API count + page 1/2 responses ─────────────
+// ── Comprehensive endpoint audit — classifies every call-output-data endpoint ──
+//
+// Run this from the WBAH admin page → "Run Probe" button.
+// Results appear both in the return value (displayed as JSON in admin page)
+// and in the server console as [WBAH-AUDIT] log lines.
 
 export const wbahProbeApi = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
+    const gt = cbs.getTokens;
+    const st = cbs.saveNewAccessToken;
 
-    // ── Round 1: baseline + CRM ────────────────────────────────────────────────
-    const [
-      countRes, callsP1Res, leadsP1Res, crmRes,
-    ] = await Promise.all([
-      api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetUserCallLeadPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
-      api.wbahGetCrmData(cbs.getTokens, cbs.saveNewAccessToken),
-    ]);
+    // ── Helper: extract records array from any known response shape ────────────
+    function extractArr(raw: any): any[] | null {
+      if (Array.isArray(raw))            return raw;
+      if (Array.isArray(raw?.data))      return raw.data;
+      if (Array.isArray(raw?.calls))     return raw.calls;
+      if (Array.isArray(raw?.leads))     return raw.leads;
+      if (Array.isArray(raw?.records))   return raw.records;
+      if (Array.isArray(raw?.result))    return raw.result;
+      if (Array.isArray(raw?.items))     return raw.items;
+      if (Array.isArray(raw?.contacts))  return raw.contacts;
+      if (Array.isArray(raw?.output))    return raw.output;
+      return null;
+    }
 
-    // ── Round 2: page-param discovery — all variants for calls page 2 ─────────
-    const PAGE_VARIANTS = [
-      { param: "page",        value: 2 },
-      { param: "currentPage", value: 2 },
-      { param: "pageNumber",  value: 2 },
-      { param: "pageNo",      value: 2 },
-      { param: "p",           value: 2 },
-      { param: "offset",      value: 50 },
-      { param: "skip",        value: 50 },
-    ];
-    const [
-      ...paramResults
-    ] = await Promise.all([
-      ...PAGE_VARIANTS.map(({ param, value }) =>
-        wbahCallsParamTest(param, value, cbs.getTokens, cbs.saveNewAccessToken)
-      ),
-      wbahCallsPostPage({ page: 2 },        cbs.getTokens, cbs.saveNewAccessToken),
-      wbahCallsPostPage({ currentPage: 2 }, cbs.getTokens, cbs.saveNewAccessToken),
-      wbahLeadsParamTest("currentPage", 2,  cbs.getTokens, cbs.saveNewAccessToken),
-      wbahLeadsParamTest("pageNumber",  2,  cbs.getTokens, cbs.saveNewAccessToken),
-    ]);
-
-    // Get first record ID from page 1 for comparison
-    const p1Raw   = callsP1Res.data as any;
-    const p1Recs  = Array.isArray(p1Raw?.data) ? p1Raw.data : [];
-    const p1FirstId = p1Recs[0]?.id ?? p1Recs[0]?._id ?? null;
-
-    function summarise(res: any, label: string) {
-      const raw = res.data as any;
-      const arr = Array.isArray(raw) ? raw
-        : Array.isArray(raw?.data)       ? raw.data
-        : Array.isArray(raw?.calls)      ? raw.calls
-        : Array.isArray(raw?.leads)      ? raw.leads
-        : Array.isArray(raw?.records)    ? raw.records
-        : Array.isArray(raw?.result)     ? raw.result
-        : Array.isArray(raw?.items)      ? raw.items
-        : null;
-      const firstId = arr?.[0]?.id ?? arr?.[0]?._id ?? null;
+    // ── Helper: inspect one record for field types ─────────────────────────────
+    function inspectRecord(r: any) {
+      if (!r || typeof r !== "object") return null;
+      const k = Object.keys(r);
+      const has = (patterns: string[]) =>
+        patterns.some(p => k.some(key => key.toLowerCase().includes(p.toLowerCase())));
       return {
-        label,
-        ok:              res.ok,
-        status:          res.status,
-        recordCount:     arr ? arr.length : "N/A",
-        pagination:      raw?.pagination ?? null,
-        reportedPage:    raw?.pagination?.currentPage ?? null,
-        firstRecordId:   firstId,
-        differentToP1:   firstId !== null && p1FirstId !== null ? firstId !== p1FirstId : "unknown",
+        allKeys:          k,
+        hasDuration:      has(["duration", "callduration", "call_duration", "length"]),
+        hasRecordingUrl:  has(["recording", "recordurl", "record_url", "audio", "audiourl"]),
+        hasTranscript:    has(["transcript", "transcription", "summary"]),
+        hasSentiment:     has(["sentiment", "score", "mood"]),
+        hasCallStatus:    has(["callstatus", "call_status", "status", "outcome", "disposition"]),
+        hasCallOutcome:   has(["outcome", "result", "disposition"]),
+        hasPhoneNumber:   has(["phone", "mobile", "tel", "number", "contact"]),
+        hasName:          has(["name", "fullname", "firstname", "lastname"]),
+        hasAddress:       has(["address", "postcode", "zip", "city", "street"]),
+        hasEmail:         has(["email"]),
+        hasLeadId:        has(["leadid", "lead_id", "userid", "user_id", "contactid"]),
+        hasCallId:        has(["callid", "call_id", "retellcallid", "retell_call"]),
+        hasTimestamp:     has(["date", "time", "createdat", "created_at", "calledat", "called_at", "startedat"]),
+        hasAppointment:   has(["appointment", "booked", "slot", "meeting"]),
+        sampleValues: Object.fromEntries(
+          k.slice(0, 12).map(key => [key, typeof r[key] === "string" ? r[key].slice(0, 80) : r[key]])
+        ),
       };
     }
 
-    // Build page-param discovery results
-    const discoveryLabels = [
-      ...PAGE_VARIANTS.map(({ param, value }) => `GET ?${param}=${value}`),
-      "POST body {page:2}",
-      "POST body {currentPage:2}",
-      "GET leads ?currentPage=2",
-      "GET leads ?pageNumber=2",
-    ];
-    const pageParamDiscovery = discoveryLabels.map((label, i) =>
-      summarise(paramResults[i], label)
-    );
+    // ── Helper: classify endpoint based on first-record inspection ─────────────
+    function classify(inspection: ReturnType<typeof inspectRecord>, recordCount: number | "N/A"): string {
+      if (!inspection) return "6-Unknown (no records returned)";
+      const { hasDuration, hasRecordingUrl, hasTranscript, hasSentiment,
+              hasCallStatus, hasAddress, hasPhoneNumber, hasCallId } = inspection;
 
-    function fullSummarise(res: any, label: string) {
+      // Strong completed-call signals
+      if ((hasDuration || hasRecordingUrl || hasTranscript) && hasSentiment) return "2-Completed call log ✓";
+      if (hasDuration && hasCallId) return "2-Completed call log ✓";
+      if (hasTranscript && hasCallStatus) return "2-Completed call log ✓";
+      if (hasSentiment && hasCallId) return "2-Completed call log ✓";
+      if (hasSentiment && hasCallStatus && !hasAddress) return "2-Completed call log (likely) ✓";
+
+      // CRM / leads-to-call signals
+      if (hasAddress && hasPhoneNumber && !hasDuration && !hasCallId) return "1-CRM contact / lead to call";
+      if (hasAddress && !hasDuration && !hasSentiment) return "1-CRM contact / lead to call (likely)";
+
+      // Callback queue
+      if (inspection.hasAppointment && hasPhoneNumber) return "4-Callback queue";
+
+      // Generic per-person history
+      if (hasCallId && hasTimestamp(inspection)) return "3-Per-person call history";
+
+      if (recordCount === "N/A" || recordCount === 0) return "5-Dashboard metric / empty";
+      return "6-Unknown — see allKeys";
+    }
+    function hasTimestamp(ins: any) { return ins?.hasTimestamp ?? false; }
+
+    // ── Round 1: hit all call-output-data endpoints in parallel ───────────────
+    console.log("[WBAH-AUDIT] ▶ Starting comprehensive endpoint audit…");
+
+    const [
+      callsP1Res,
+      callCountRes,
+      leadsP1Res,
+      callsAllRes,
+      callbacksRes,
+      crmRes,
+      callsBulkRes,
+      leadsBulkRes,
+    ] = await Promise.all([
+      api.wbahGetAllCallDataPaged(1,   gt, st),   // GET /get-all-calldata?currentPage=1
+      api.wbahGetCallCount(            gt, st),   // GET /get-call-count
+      api.wbahGetUserCallLeadPaged(1,  gt, st),   // GET /get-userCall-lead?currentPage=1
+      api.wbahGetAllCallOutput(        gt, st),   // GET /all
+      api.wbahGetPendingCallbacks(     gt, st),   // GET /callbacks/pending
+      api.wbahGetCrmData(              gt, st),   // GET /crm-data/get-crm-data
+      api.wbahGetAllCallDataAll(       gt, st),   // GET /get-all-calldata?limit=10000
+      api.wbahGetUserCallLeadAll(      gt, st),   // GET /get-userCall-lead?limit=10000
+    ]);
+
+    // ── Round 2: POST /get-user-history with multiple payload variants ─────────
+    const [
+      histEmpty, histLimit100, histLimitBig, histLeadId, histPage1,
+    ] = await Promise.all([
+      api.wbahGetUserHistory({},                         gt, st),
+      api.wbahGetUserHistory({ limit: 100 },             gt, st),
+      api.wbahGetUserHistory({ limit: 10000 },           gt, st),
+      api.wbahGetUserHistory({ page: 1, limit: 50 },    gt, st),
+      api.wbahGetUserHistory({ currentPage: 1, pageSize: 50 }, gt, st),
+    ]);
+
+    // ── Round 3: page-2 of /get-all-calldata to find pagination key ───────────
+    const [
+      callsPage2Param, callsPage2Num, callsPage2PageNo,
+    ] = await Promise.all([
+      wbahCallsParamTest("currentPage", 2, gt, st),
+      wbahCallsParamTest("pageNumber",  2, gt, st),
+      wbahCallsParamTest("pageNo",      2, gt, st),
+    ]);
+
+    // ── Analyse each response ──────────────────────────────────────────────────
+    function analyseEndpoint(
+      res: any,
+      endpoint: string,
+      method: "GET" | "POST",
+      payloadNote?: string,
+    ) {
       const raw = res.data as any;
-      const arr = Array.isArray(raw) ? raw
-        : Array.isArray(raw?.data)       ? raw.data
-        : Array.isArray(raw?.calls)      ? raw.calls
-        : Array.isArray(raw?.leads)      ? raw.leads
-        : Array.isArray(raw?.records)    ? raw.records
-        : Array.isArray(raw?.result)     ? raw.result
-        : Array.isArray(raw?.items)      ? raw.items
-        : null;
-      return {
-        label,
-        ok:           res.ok,
-        status:       res.status,
-        recordCount:  arr ? arr.length : "N/A — raw is not an array under any known key",
-        topLevelKeys: raw && typeof raw === "object" && !Array.isArray(raw) ? Object.keys(raw) : (Array.isArray(raw) ? ["(bare array)"] : null),
-        pagination:   raw?.pagination ?? null,
-        sampleKeys:   arr?.[0] ? Object.keys(arr[0]).slice(0, 8) : null,
-        rawWhenEmpty: (!arr || arr.length === 0) ? raw : undefined,
+      const arr = extractArr(raw);
+      const recordCount: number | "N/A" = arr ? arr.length : "N/A";
+      const topLevelKeys = raw && typeof raw === "object" && !Array.isArray(raw)
+        ? Object.keys(raw)
+        : Array.isArray(raw) ? ["(bare array)"] : [];
+      const pagination = raw?.pagination ?? raw?.meta ?? null;
+      const totalItems = pagination?.totalItems ?? pagination?.total ?? pagination?.count ?? null;
+      const inspection = arr && arr.length > 0 ? inspectRecord(arr[0]) : null;
+      const classification = classify(inspection, recordCount);
+
+      const report = {
+        endpoint,
+        method,
+        payloadNote:      payloadNote ?? null,
+        httpStatus:       res.status,
+        ok:               res.ok,
+        classification,
+        recordCountInPage: recordCount,
+        totalItemsReported: totalItems,
+        pagination,
+        topLevelKeys,
+        firstRecordAllKeys: inspection?.allKeys ?? null,
+        // Field presence flags
+        hasDuration:      inspection?.hasDuration      ?? false,
+        hasRecordingUrl:  inspection?.hasRecordingUrl  ?? false,
+        hasTranscript:    inspection?.hasTranscript    ?? false,
+        hasSentiment:     inspection?.hasSentiment     ?? false,
+        hasCallStatus:    inspection?.hasCallStatus    ?? false,
+        hasPhoneNumber:   inspection?.hasPhoneNumber   ?? false,
+        hasName:          inspection?.hasName          ?? false,
+        hasAddress:       inspection?.hasAddress       ?? false,
+        hasCallId:        inspection?.hasCallId        ?? false,
+        hasLeadId:        inspection?.hasLeadId        ?? false,
+        hasTimestamp:     inspection?.hasTimestamp     ?? false,
+        hasAppointment:   inspection?.hasAppointment   ?? false,
+        // Sample first record
+        sampleRecord:     inspection?.sampleValues     ?? null,
+        // Raw when no records
+        rawResponseWhenEmpty: (!arr || arr.length === 0) ? raw : undefined,
       };
+
+      console.log(
+        `[WBAH-AUDIT] ${method} ${endpoint}${payloadNote ? " " + payloadNote : ""}` +
+        ` → HTTP ${res.status} | records=${recordCount} | total=${totalItems ?? "?"} | ${classification}`
+      );
+      if (inspection?.allKeys) {
+        console.log(`[WBAH-AUDIT]   first record keys: ${inspection.allKeys.join(", ")}`);
+      }
+      if (!arr) {
+        console.log(`[WBAH-AUDIT]   raw (no array found): ${JSON.stringify(raw).slice(0, 200)}`);
+      }
+
+      return report;
     }
 
-    return {
-      count:              { ok: countRes.ok, status: countRes.status, raw: countRes.data },
-      callsPage1:         fullSummarise(callsP1Res,  "GET /get-all-calldata?page=1"),
-      leadsPage1:         fullSummarise(leadsP1Res,  "GET /get-userCall-lead?page=1"),
-      crmData:            fullSummarise(crmRes,       "GET /crm-data/get-crm-data"),
-      p1FirstId,
-      pageParamDiscovery,
+    const results = {
+      "GET /call-output-data/get-all-calldata (page 1)":
+        analyseEndpoint(callsP1Res,    "/call-output-data/get-all-calldata",          "GET", "?currentPage=1"),
+
+      "GET /call-output-data/get-all-calldata (limit=10000)":
+        analyseEndpoint(callsBulkRes,  "/call-output-data/get-all-calldata",          "GET", "?limit=10000"),
+
+      "GET /call-output-data/get-all-calldata (page 2 ?currentPage=2)":
+        analyseEndpoint(callsPage2Param, "/call-output-data/get-all-calldata",        "GET", "?currentPage=2"),
+
+      "GET /call-output-data/get-all-calldata (page 2 ?pageNumber=2)":
+        analyseEndpoint(callsPage2Num,  "/call-output-data/get-all-calldata",         "GET", "?pageNumber=2"),
+
+      "GET /call-output-data/get-all-calldata (page 2 ?pageNo=2)":
+        analyseEndpoint(callsPage2PageNo, "/call-output-data/get-all-calldata",       "GET", "?pageNo=2"),
+
+      "GET /call-output-data/get-call-count":
+        analyseEndpoint(callCountRes,  "/call-output-data/get-call-count",            "GET"),
+
+      "POST /call-output-data/get-user-history (empty body)":
+        analyseEndpoint(histEmpty,     "/call-output-data/get-user-history",          "POST", "body={}"),
+
+      "POST /call-output-data/get-user-history (limit:100)":
+        analyseEndpoint(histLimit100,  "/call-output-data/get-user-history",          "POST", "body={limit:100}"),
+
+      "POST /call-output-data/get-user-history (limit:10000)":
+        analyseEndpoint(histLimitBig,  "/call-output-data/get-user-history",          "POST", "body={limit:10000}"),
+
+      "POST /call-output-data/get-user-history (page:1 limit:50)":
+        analyseEndpoint(histPage1,     "/call-output-data/get-user-history",          "POST", "body={page:1,limit:50}"),
+
+      "POST /call-output-data/get-user-history (currentPage:1 pageSize:50)":
+        analyseEndpoint(histLeadId,    "/call-output-data/get-user-history",          "POST", "body={currentPage:1,pageSize:50}"),
+
+      "GET /call-output-data/get-userCall-lead (page 1)":
+        analyseEndpoint(leadsP1Res,    "/call-output-data/get-userCall-lead",         "GET", "?currentPage=1"),
+
+      "GET /call-output-data/get-userCall-lead (limit=10000)":
+        analyseEndpoint(leadsBulkRes,  "/call-output-data/get-userCall-lead",         "GET", "?limit=10000"),
+
+      "GET /call-output-data/all":
+        analyseEndpoint(callsAllRes,   "/call-output-data/all",                       "GET"),
+
+      "GET /call-output-data/callbacks/pending":
+        analyseEndpoint(callbacksRes,  "/call-output-data/callbacks/pending",         "GET"),
+
+      "GET /crm-data/get-crm-data":
+        analyseEndpoint(crmRes,        "/crm-data/get-crm-data",                      "GET"),
     };
+
+    // ── Summary table ──────────────────────────────────────────────────────────
+    console.log("\n[WBAH-AUDIT] ══════════════════════ SUMMARY TABLE ══════════════════════");
+    console.log("[WBAH-AUDIT] endpoint | classification | records in page | total reported");
+    for (const [key, r] of Object.entries(results)) {
+      console.log(
+        `[WBAH-AUDIT] ${r.endpoint}${r.payloadNote ? " " + r.payloadNote : ""}` +
+        ` | ${r.classification}` +
+        ` | records=${r.recordCountInPage}` +
+        ` | total=${r.totalItemsReported ?? "?"}`
+      );
+    }
+    console.log("[WBAH-AUDIT] ════════════════════════════════════════════════════════════\n");
+
+    return { audit: results };
   });
 
 // ── Campaigns (live from WeeBespoke API — shown as a tab in /campaigns) ────────
@@ -466,29 +610,38 @@ export const listWbahCalls = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    // ── Strategy 1: bulk ?limit=10000 (single request, fastest) ──────────────
-    const bulkRes = await api.wbahGetAllCallDataAll(cbs.getTokens, cbs.saveNewAccessToken);
-    const bulkRecs = extractRecords(bulkRes.data);
-    console.log(`[WBAH calls] bulk ?limit=10000 → ok=${bulkRes.ok} status=${bulkRes.status} records=${bulkRecs.length} paginationKeys=${bulkRes.data && typeof bulkRes.data === "object" ? Object.keys(bulkRes.data as object).join(",") : "n/a"} pagination=${JSON.stringify((bulkRes.data as any)?.pagination ?? null)}`);
+    // ── Strategy 1: /call-output-data/all (different endpoint — may return all records) ──
+    const allEndpointRes = await api.wbahGetAllCallOutput(cbs.getTokens, cbs.saveNewAccessToken);
+    const allEndpointRecs = extractRecords(allEndpointRes.data);
+    console.log(`[WBAH calls] /all endpoint → ok=${allEndpointRes.ok} status=${allEndpointRes.status} records=${allEndpointRecs.length} topKeys=${allEndpointRes.data && typeof allEndpointRes.data === "object" ? Object.keys(allEndpointRes.data as object).join(",") : "n/a"} pagination=${JSON.stringify((allEndpointRes.data as any)?.pagination ?? null)}`);
 
     let allRecs: any[];
-    if (bulkRes.ok && bulkRecs.length > 50) {
-      // API honoured the limit param — use these records directly
-      console.log(`[WBAH calls] using bulk result: ${bulkRecs.length} records`);
-      allRecs = bulkRecs;
+    if (allEndpointRes.ok && allEndpointRecs.length > 609) {
+      // /all endpoint returned more data than the paginated endpoint — use it
+      console.log(`[WBAH calls] using /all endpoint result: ${allEndpointRecs.length} records`);
+      allRecs = allEndpointRecs;
     } else {
-      // ── Strategy 2: paginated fetch (all pages) ──────────────────────────
-      console.log(`[WBAH calls] bulk returned ≤50 — falling back to paginated fetch`);
-      const firstRes = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
-      if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch calls from WeeBespoke");
-      const p1Raw = firstRes.data as any;
-      console.log(`[WBAH calls] page1 → records=${extractRecords(p1Raw).length} pagination=${JSON.stringify(p1Raw?.pagination ?? null)}`);
-      allRecs = await fetchAllPages(
-        (p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken),
-        p1Raw,
-        "calls",
-      );
-      console.log(`[WBAH calls] paginated fetch total: ${allRecs.length} records`);
+      // ── Strategy 2: ?limit=10000 single request ───────────────────────────
+      const bulkRes = await api.wbahGetAllCallDataAll(cbs.getTokens, cbs.saveNewAccessToken);
+      const bulkRecs = extractRecords(bulkRes.data);
+      console.log(`[WBAH calls] ?limit=10000 → ok=${bulkRes.ok} status=${bulkRes.status} records=${bulkRecs.length} pagination=${JSON.stringify((bulkRes.data as any)?.pagination ?? null)}`);
+
+      if (bulkRes.ok && bulkRecs.length > 609) {
+        console.log(`[WBAH calls] using bulk result: ${bulkRecs.length} records`);
+        allRecs = bulkRecs;
+      } else {
+        // ── Strategy 3: paginated fetch — best effort with available pages ──
+        console.log(`[WBAH calls] falling back to paginated fetch (API cap: totalItems in pagination)`);
+        const firstRes = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
+        if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch calls from WeeBespoke");
+        const p1Raw = firstRes.data as any;
+        allRecs = await fetchAllPages(
+          (p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken),
+          p1Raw,
+          "calls",
+        );
+        console.log(`[WBAH calls] paginated fetch total: ${allRecs.length} records`);
+      }
     }
 
     const calls = allRecs.map((r: any, idx: number) => normaliseWbahCall(r, idx));

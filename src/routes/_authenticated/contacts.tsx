@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Component, type ReactNode } from "react";
 import {
   BookUser, RefreshCw, Search, StickyNote, FolderOpen, Loader2,
   Building2, PlayCircle, ChevronRight, X, Phone, SlidersHorizontal,
@@ -138,6 +138,36 @@ function wbahLeadSentiment(v?: string | null) {
   return <span className={`text-[11px] capitalize ${cls}`}>{v}</span>;
 }
 
+// Class-based error boundary — catches render-time throws (e.g. stale TanStack
+// server-fn IDs) and auto-reloads the page once so fresh IDs are picked up.
+class WbahAutoReloadBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch() {
+    if (typeof sessionStorage === "undefined") return;
+    const key = "wbah-boundary-autoreload-ts";
+    const last = parseInt(sessionStorage.getItem(key) ?? "0");
+    if (Date.now() - last > 20_000) {
+      sessionStorage.setItem(key, String(Date.now()));
+      setTimeout(() => window.location.reload(), 300);
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm gap-2">
+          <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+          Refreshing data connection…
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function WbahLeadsSection() {
   const SENTIMENTS = ["Positive", "Neutral", "Negative"] as const;
 
@@ -183,8 +213,21 @@ function WbahLeadsSection() {
     queryFn:  () => getFn(),
     staleTime: 0,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: 0,
   });
+
+  // Auto-reload once when the query errors with no data — this happens when the
+  // browser has stale TanStack server-fn IDs after a server restart. A reload
+  // picks up fresh IDs and the data loads correctly on the next attempt.
+  useEffect(() => {
+    if (error && !data) {
+      const key = "wbah-leads-autoreload-v2";
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        window.location.reload();
+      }
+    }
+  }, [error, data]);
 
   const records = (data ?? []) as any[];
 
@@ -575,12 +618,36 @@ function ContactsPage() {
     });
   }, []);
 
-  const { data: records = [], isLoading, refetch, isFetching } = useQuery({
+  const {
+    data: records = [],
+    isLoading,
+    refetch,
+    isFetching,
+    error: contactsError,
+  } = useQuery({
     queryKey: ["contacts"],
     queryFn: () => listFn({ data: { limit: 2000 } }),
     staleTime: 60_000,
     enabled: activeTab === "contacts",
+    // Must be explicit: TanStack Router wraps routes in Suspense, which makes
+    // React Query default throwOnError to true. We handle the error ourselves.
+    throwOnError: false,
+    retry: 0,
   });
+
+  // Auto-reload when any server fn fails with {} (stale IDs after server restart).
+  // Timestamp-based guard: allows a reload at most once every 20 seconds so the
+  // page isn't reload-looped but CAN retry if the first reload also failed.
+  useEffect(() => {
+    if (contactsError) {
+      const key = "contacts-autoreload-ts";
+      const last = parseInt(sessionStorage.getItem(key) ?? "0");
+      if (Date.now() - last > 20_000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+      }
+    }
+  }, [contactsError]);
 
   // Deduplicate by mobile_number
   const deduped = useMemo(() => {
@@ -669,7 +736,11 @@ function ContactsPage() {
       </div>
 
       {/* ── WeeBespoke Leads tab ── */}
-      {activeTab === "wbah" && isWbah && <WbahLeadsSection />}
+      {activeTab === "wbah" && isWbah && (
+        <WbahAutoReloadBoundary>
+          <WbahLeadsSection />
+        </WbahAutoReloadBoundary>
+      )}
 
       {/* ── Standard contacts tab ── */}
       {activeTab === "contacts" && (
