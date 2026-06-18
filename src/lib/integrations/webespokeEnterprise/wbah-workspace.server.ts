@@ -443,32 +443,46 @@ export const listWbahLeads = createServerFn({ method: "GET" })
     const p1Raw      = p1Res.data as any;
     const p1Recs     = extractRecords(p1Raw);
     const p2Recs     = p2Res.ok ? extractRecords(p2Res.data) : [];
+    // Log the raw shape of the response so we know which key holds records + what pagination says
+    console.log(`[WBAH leads] p1 raw top-level keys: ${p1Raw && typeof p1Raw === "object" ? Object.keys(p1Raw).join(",") : typeof p1Raw}`);
+    console.log(`[WBAH leads] p1 sample record keys: ${p1Recs[0] ? Object.keys(p1Recs[0]).join(",") : "no records"}`);
+    console.log(`[WBAH leads] p1 pagination object: ${JSON.stringify(p1Raw?.pagination ?? null)}`);
     const pagination = p1Raw?.pagination;
     const totalItems = pagination?.totalItems ?? pagination?.totalRecords ?? pagination?.total_count ?? pagination?.count ?? 0;
     const pageSize   = pagination?.pageSize ?? pagination?.page_size ?? pagination?.limit ?? pagination?.perPage ?? (p1Recs.length || 50);
     const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : (pagination?.totalPages ?? 1);
 
-    // Detect pagination advance by comparing the first record's _id on each page
-    const p1FirstId = p1Recs[0]?._id ?? p1Recs[0]?.id ?? null;
-    const p2FirstId = p2Recs[0]?._id ?? p2Recs[0]?.id ?? null;
+    // Detect pagination advance by comparing a stable unique key from the first record of each page.
+    // Falls back through several fields so we don't get tripped up if _id is absent.
+    const recordKey = (r: any): string | null =>
+      r?._id ?? r?.id ?? (r?.srNo != null ? String(r.srNo) : null) ?? r?.toNumber ?? r?.mobile_number ?? null;
+    const p1FirstId = recordKey(p1Recs[0]);
+    const p2FirstId = recordKey(p2Recs[0]);
     const paginationWorks = p2FirstId !== null && p2FirstId !== p1FirstId;
     console.log(
       `[WBAH leads] page1: records=${p1Recs.length} totalItems=${totalItems} pageSize=${pageSize} totalPages=${totalPages}` +
       ` | page2: records=${p2Recs.length} firstId=${p2FirstId} | paginationWorks=${paginationWorks}`,
     );
 
-    // ── If ?currentPage=N didn't advance, probe alternative GET param names ──
+    // ── If ?currentPage=N didn't advance, probe alternative GET/POST param names ──
+    // Probe fires when: pagination doesn't advance AND either (a) we know there are
+    // more pages, OR (b) pagination metadata is absent (pagination==null) and page1
+    // returned a full page (suggesting more pages exist).
     type PageFn = (page: number) => Promise<any>;
     let pageFn: PageFn = (p) => api.wbahGetUserCallLeadPaged(p, gt, st);
+    const unknownTotal  = !pagination || totalItems === 0;
+    const likelyHasMore = unknownTotal ? (p1Recs.length >= pageSize) : (totalPages > 1);
 
-    if (!paginationWorks && totalPages > 1) {
-      console.log(`[WBAH leads] ⚠ ?currentPage=2 did not advance — probing alternative pagination keys…`);
+    if (!paginationWorks && likelyHasMore) {
+      console.log(`[WBAH leads] ⚠ ?currentPage=2 did not advance — probing alternative pagination keys… (unknownTotal=${unknownTotal} totalPages=${totalPages})`);
       const LEAD_BASE = "/call-output-data/get-userCall-lead";
       const candidates: Array<{ label: string; fn: PageFn }> = [
         { label: "?page=N",        fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?page=${p}`,        { method: "GET" }, gt, st) },
         { label: "?pageNumber=N",  fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?pageNumber=${p}`,  { method: "GET" }, gt, st) },
         { label: "?pageNo=N",      fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?pageNo=${p}`,      { method: "GET" }, gt, st) },
         { label: "?offset=N*ps",   fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?offset=${(p - 1) * pageSize}&limit=${pageSize}`, { method: "GET" }, gt, st) },
+        { label: "POST?curPage=N", fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?currentPage=${p}`, { method: "POST", body: "{}" }, gt, st) },
+        { label: "POST?page=N",    fn: (p) => api.authenticatedFetch(`${LEAD_BASE}?page=${p}`,        { method: "POST", body: "{}" }, gt, st) },
       ];
 
       const probeResults = await Promise.all(candidates.map((c) => c.fn(2)));
@@ -478,7 +492,7 @@ export const listWbahLeads = createServerFn({ method: "GET" })
         const res   = probeResults[i];
         const recs  = res?.ok ? extractRecords(res.data) : [];
         const first = recs[0]?._id ?? recs[0]?.id ?? null;
-        console.log(`[WBAH leads] probe ${candidates[i].label} → records=${recs.length} firstId=${first}`);
+        console.log(`[WBAH leads] probe ${candidates[i].label} → ok=${res?.ok} records=${recs.length} firstId=${first}`);
         if (first && first !== p1FirstId) {
           foundKey = candidates[i];
           p2Recs.length = 0;
@@ -491,28 +505,25 @@ export const listWbahLeads = createServerFn({ method: "GET" })
         console.log(`[WBAH leads] ✓ working pagination key: ${foundKey.label}`);
         pageFn = foundKey.fn;
       } else {
-        console.log(`[WBAH leads] ✗ no key advanced — returning page1 only (${p1Recs.length} records)`);
+        console.log(`[WBAH leads] ✗ no key advanced — will try fetch-until-empty with ?currentPage=N`);
       }
     }
 
-    // ── Fetch remaining pages in parallel batches of 20 ───────────────────
+    // ── Fetch remaining pages ──────────────────────────────────────────────
     const effectivelyWorks = paginationWorks || (p2Recs.length > 0 && (p2Recs[0]?._id ?? p2Recs[0]?.id) !== p1FirstId);
     const allRecs: any[] = effectivelyWorks ? [...p1Recs, ...p2Recs] : [...p1Recs];
+    const BATCH = 20;
 
     if (effectivelyWorks && totalPages > 2) {
+      // Known total — fetch remaining pages by count
       const remaining = Array.from({ length: totalPages - 2 }, (_, i) => i + 3);
-      const BATCH = 20;
       let firstEmptyLogged = false;
       for (let i = 0; i < remaining.length; i += BATCH) {
         const batch   = remaining.slice(i, i + BATCH);
         const results = await Promise.all(batch.map((p) => pageFn(p)));
         let   found   = 0;
         for (const res of results) {
-          if (res?.ok) {
-            const recs = extractRecords(res.data);
-            allRecs.push(...recs);
-            found += recs.length;
-          }
+          if (res?.ok) { const recs = extractRecords(res.data); allRecs.push(...recs); found += recs.length; }
         }
         console.log(`[WBAH leads] batch pages ${batch[0]}-${batch[batch.length - 1]} → +${found} (total: ${allRecs.length})`);
         if (found === 0 && !firstEmptyLogged) {
@@ -520,10 +531,28 @@ export const listWbahLeads = createServerFn({ method: "GET" })
           const diag = results.slice(0, 3).map((r, ri) => `p${batch[ri]}:HTTP${r?.status}ok=${r?.ok}recs=${r?.ok ? extractRecords(r.data).length : "FAIL"}`).join(" | ");
           console.log(`[WBAH leads] ⚠ FIRST EMPTY BATCH: ${diag} | raw: ${JSON.stringify((results[0]?.data as any) ?? results[0]?.error).slice(0, 300)}`);
         }
-        if (found === 0 && allRecs.length > 0) {
-          console.log(`[WBAH leads] ℹ all-zero batch at page ${batch[0]} — stopping early.`);
-          break;
+        if (found === 0 && allRecs.length > 0) { console.log(`[WBAH leads] ℹ stopping early at page ${batch[0]}.`); break; }
+      }
+    } else if (effectivelyWorks || likelyHasMore) {
+      // Unknown total OR pagination works but totalPages ≤ 2 — fetch until empty / no new records
+      console.log(`[WBAH leads] using fetch-until-empty (effectivelyWorks=${effectivelyWorks} likelyHasMore=${likelyHasMore})`);
+      const seenIds = new Set(allRecs.map((r: any) => r._id ?? r.id ?? ""));
+      let page = effectivelyWorks ? 3 : 2;
+      while (page <= 500) {
+        const batch   = Array.from({ length: BATCH }, (_, i) => page + i);
+        const results = await Promise.all(batch.map((p) => pageFn(p)));
+        let   newFound = 0;
+        for (const res of results) {
+          if (res?.ok) {
+            for (const r of extractRecords(res.data)) {
+              const rid = r._id ?? r.id ?? "";
+              if (!seenIds.has(rid)) { seenIds.add(rid); allRecs.push(r); newFound++; }
+            }
+          }
         }
+        console.log(`[WBAH leads] fetch-until-empty pages ${batch[0]}-${batch[batch.length - 1]} → +${newFound} new (total: ${allRecs.length})`);
+        if (newFound === 0) { console.log(`[WBAH leads] ℹ no new records in batch — done.`); break; }
+        page += BATCH;
       }
     }
 
