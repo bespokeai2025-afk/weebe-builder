@@ -295,28 +295,31 @@ export const listWbahCalls = createServerFn({ method: "GET" })
     const firstRecs = extractRecords(firstRaw);
     const pageSize  = firstRecs.length || 50;
 
-    // Extract real total from count endpoint — WeeBespoke returns either
-    // { totalCall: { lead: N, opportunity: N } } or { total: N } etc.
+    // Hard cap at 15,000 records — keeps initial load fast
+    const MAX_RECORDS = 15_000;
+    const MAX_PAGES   = Math.ceil(MAX_RECORDS / pageSize);
+
+    // Extract real total from count endpoint — only sum lead + opportunity,
+    // never add .total (avoids double-counting)
     const countData = countRes.data as any;
     const countTotal =
       (countData?.totalCall?.lead  ?? 0)
-      + (countData?.totalCall?.opportunity ?? 0)
-      + (countData?.totalCall?.total ?? 0);
+      + (countData?.totalCall?.opportunity ?? 0);
     const total =
       (countTotal > 0 ? countTotal : null)
       ?? countData?.total
       ?? countData?.totalCount
       ?? countData?.count
-      ?? extractCountFromResponse(firstRaw, 0); // try body fallback
+      ?? extractCountFromResponse(firstRaw, 0);
 
-    // Calculate pages; if we still have no total just fetch until empty
-    const knownPages = total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 0;
+    // Calculate pages; cap at MAX_PAGES
+    const knownPages = total > 0
+      ? Math.min(MAX_PAGES, Math.max(1, Math.ceil(total / pageSize)))
+      : 0;
 
     let allRecs = [...firstRecs];
 
     if (knownPages > 1) {
-      // Fetch all remaining pages in parallel (batched in groups of 20 to
-      // avoid overwhelming the upstream API)
       const remaining = Array.from({ length: knownPages - 1 }, (_, i) => i + 2);
       const BATCH = 20;
       for (let b = 0; b < remaining.length; b += BATCH) {
@@ -330,14 +333,11 @@ export const listWbahCalls = createServerFn({ method: "GET" })
       }
     }
 
-    // Safety net: if the count endpoint undercounted (or was unavailable),
-    // keep fetching in batches until we get a fully-empty batch.
-    // This handles "thousands" that the count endpoint doesn't know about.
+    // Safety net: keep fetching until empty batch or cap reached
     {
-      const SAFETY_CAP  = 500;  // max 25,000 records total
       const SAFETY_BATCH = 10;
       let nextPage = knownPages > 0 ? knownPages + 1 : 2;
-      while (nextPage <= SAFETY_CAP) {
+      while (nextPage <= MAX_PAGES) {
         const batch = Array.from({ length: SAFETY_BATCH }, (_, i) => nextPage + i);
         const results = await Promise.all(
           batch.map((p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
@@ -365,6 +365,18 @@ export const listWbahCalls = createServerFn({ method: "GET" })
     });
 
     return calls;
+  });
+
+// ── Calls — fetch only page 1 (newest 50) — used for incremental polling ──────
+
+export const listWbahLatestCalls = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
+    if (!res.ok) return [];
+    const recs = extractRecords(res.data as any);
+    return recs.map((r: any, idx: number) => normaliseWbahCall(r, idx));
   });
 
 function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {

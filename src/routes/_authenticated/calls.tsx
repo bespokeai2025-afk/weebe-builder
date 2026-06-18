@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { listWbahCalls } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCalls, listWbahLatestCalls } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -264,19 +264,40 @@ function CallsPage() {
     enabled: !isWbah,
   });
 
-  // WeeBespoke calls — fetches every page in parallel for WBAH workspace.
-  // staleTime: 5 min so navigating away and back uses cached data instantly.
-  // refetchOnWindowFocus: false prevents a full re-fetch on every tab switch.
+  // WeeBespoke calls — full bulk load (up to 15,000 records).
+  // staleTime: Infinity so navigating away and back never re-fetches all pages.
   const wbahFn = useServerFn(listWbahCalls);
   const wbahQ = useQuery({
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
     enabled: isWbah,
-    staleTime: 5 * 60 * 1000,
+    staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
 
-  const rows = (isWbah ? (wbahQ.data ?? []) : (q.data ?? [])) as any[];
+  // Incremental refresh — only page 1 (newest ~50 records) polled every 60s.
+  // New records are merged client-side so we never re-fetch the full set.
+  const wbahLatestFn = useServerFn(listWbahLatestCalls);
+  const wbahLatestQ = useQuery({
+    queryKey: ["wbah-calls-latest"],
+    queryFn: () => wbahLatestFn(),
+    enabled: isWbah,
+    staleTime: 0,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Merge: prepend any records from the latest poll that aren't in the full list
+  const wbahRows = useMemo(() => {
+    const full   = (wbahQ.data ?? []) as any[];
+    const latest = (wbahLatestQ.data ?? []) as any[];
+    const existingIds = new Set(full.map((r: any) => r.id));
+    const newOnes = latest.filter((r: any) => !existingIds.has(r.id));
+    if (newOnes.length === 0) return full;
+    return [...newOnes, ...full];
+  }, [wbahQ.data, wbahLatestQ.data]);
+
+  const rows = (isWbah ? wbahRows : (q.data ?? [])) as any[];
 
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
@@ -308,7 +329,7 @@ function CallsPage() {
   }
 
   const isRefetching = tab === "live"
-    ? (isWbah ? wbahQ.isFetching : q.isRefetching)
+    ? (isWbah ? (wbahQ.isFetching || wbahLatestQ.isFetching) : q.isRefetching)
     : testQ.isRefetching;
 
   return (
@@ -366,7 +387,7 @@ function CallsPage() {
             size="sm"
             className="h-8 gap-1.5 text-xs"
             onClick={() => {
-              if (tab === "live") isWbah ? wbahQ.refetch() : q.refetch();
+              if (tab === "live") isWbah ? wbahLatestQ.refetch() : q.refetch();
               else testQ.refetch();
             }}
             disabled={isRefetching}
