@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { createClient } from "@supabase/supabase-js";
 import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
@@ -32,15 +32,16 @@ import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 function QualifiedErrorFallback() {
-  useEffect(() => {
-    if (typeof sessionStorage === "undefined") return;
+  // No hooks — called in error-recovery context where hooks may be invalid.
+  // Trigger reload via setTimeout in render body (safe: no state mutation).
+  if (typeof window !== "undefined" && typeof sessionStorage !== "undefined") {
     const key = "qualified-route-error-reload-ts";
     const last = parseInt(sessionStorage.getItem(key) ?? "0");
     if (Date.now() - last > 20_000) {
       sessionStorage.setItem(key, String(Date.now()));
-      window.location.reload();
+      setTimeout(() => window.location.reload(), 300);
     }
-  }, []);
+  }
   return (
     <div className="flex items-center justify-center py-16 text-muted-foreground text-sm gap-2">
       <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
