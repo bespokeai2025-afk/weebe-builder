@@ -221,11 +221,16 @@ async function fetchWbahCount(
     if (!res.ok) return fallback;
     const d = res.data as any;
 
-    // Log raw response for debugging (visible in workflow logs)
-    console.log("[wbah-count] raw response:", JSON.stringify(d).slice(0, 300));
-
     // Handle plain number response
     if (typeof d === "number") return d > 0 ? d : fallback;
+
+    // WeeBespoke get-call-count shape:
+    // { data: { totalCall: { lead: N, opportunity: N }, ... } }
+    const tc = d?.data?.totalCall;
+    if (tc && typeof tc === "object") {
+      const n = (tc.lead ?? 0) + (tc.opportunity ?? 0);
+      if (n > 0) return n;
+    }
 
     // Handle array response: [{ count: N }] or [N]
     if (Array.isArray(d)) {
@@ -238,7 +243,7 @@ async function fetchWbahCount(
       return d.length > 0 ? d.length : fallback;
     }
 
-    // Try every common field name the WeeBespoke API might use
+    // Generic field name scan
     const candidates = [
       d?.count, d?.total, d?.totalCount, d?.totalCalls, d?.callCount,
       d?.callsCount, d?.total_count, d?.total_calls,
@@ -248,7 +253,6 @@ async function fetchWbahCount(
       d?.metadata?.count, d?.metadata?.total,
       d?.pagination?.total, d?.pagination?.count,
       Array.isArray(d?.counts) ? d.counts[0]?.count : undefined,
-      Array.isArray(d?.data) ? d.data.length : undefined,
     ];
 
     for (const n of candidates) {
