@@ -111,42 +111,56 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
     return res.data;
   });
 
-// ── Call Logs — read from synced leads table (workspace-scoped) ───────────────
+// ── Call Logs — live from WeeBespoke API with server-side pagination ──────────
 
-export const getWbahCallLogs = createServerFn({ method: "GET" })
+export const getWbahCallLogs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    // Verify the user has access to the webuyanyhouse workspace
-    const { data: memberships } = await (supabaseAdmin as any)
-      .from("workspace_members")
-      .select("workspace_id, workspaces(id, slug)")
-      .eq("user_id", context.userId);
+  .inputValidator((i) =>
+    z.object({
+      page:  z.number().int().min(1).default(1),
+      limit: z.number().int().min(1).max(100).default(10),
+    }).parse(i ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahGetAllCallDataPaged(data.page, data.limit, cbs.getTokens, cbs.saveNewAccessToken);
+    if (!res.ok) throw new Error(res.error ?? "Failed to fetch call logs");
 
-    const wbahMembership = (memberships ?? []).find(
-      (m: any) => m.workspaces?.slug === "webuyanyhouse",
-    );
-    if (!wbahMembership) throw new Error("Access denied");
+    // Normalise the API response — field names vary between environments
+    const raw = res.data as any;
+    const records: any[] = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.calls)
+          ? raw.calls
+          : Array.isArray(raw?.records)
+            ? raw.records
+            : [];
 
-    const wsId = wbahMembership.workspace_id as string;
+    const total: number =
+      raw?.total ?? raw?.totalCount ?? raw?.count ?? raw?.pagination?.total ?? records.length;
 
-    // Leads synced from /call-output-data/get-userCall-lead are stored as call logs
-    const { data: rows, error } = await (supabaseAdmin as any)
-      .from("leads")
-      .select("id, full_name, phone, call_status, sentiment, call_summary, callback_date, created_at, metadata")
-      .eq("workspace_id", wsId)
-      .order("created_at", { ascending: false })
-      .limit(500);
+    const normalised = records.map((r: any, idx: number) => ({
+      id:            String(r._id ?? r.id ?? idx),
+      srNo:          r.srNo ?? r.sr_no ?? null,
+      name:          r.name ?? r.fullName ?? r.full_name ?? r.contactName ?? null,
+      contact:       r.toNumber ?? r.mobile_number ?? r.phone ?? r.contact ?? null,
+      type:          r.type ?? r.leadType ?? "Lead",
+      lastCalledAt:  r.lastCalledAt ?? r.last_called_at ?? r.calledAt ?? r.created_at ?? null,
+      status:        r.callStatus ?? r.call_status ?? r.status ?? null,
+      duration:      r.callDuration ?? r.call_duration ?? r.duration ?? null,
+      recordingUrl:  r.recordingUrl ?? r.recording_url ?? r.recordingLink ?? null,
+      transcript:    r.transcript ?? r.callTranscript ?? null,
+      sentiment:     r.sentimentAnalysis ?? r.sentiment ?? null,
+      appointmentDate: r.appointmentDate ?? r.appointment_date ?? null,
+    }));
 
-    if (error) throw new Error(error.message);
-    return (rows ?? []) as Array<{
-      id: string;
-      full_name: string | null;
-      phone: string | null;
-      call_status: string | null;
-      sentiment: string | null;
-      call_summary: string | null;
-      callback_date: string | null;
-      created_at: string | null;
-      metadata: Record<string, unknown> | null;
-    }>;
+    return {
+      records: normalised,
+      total,
+      page:  data.page,
+      limit: data.limit,
+      pages: Math.max(1, Math.ceil(total / data.limit)),
+    };
   });

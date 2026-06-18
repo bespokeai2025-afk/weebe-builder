@@ -154,6 +154,9 @@ export const wbahDashboardDrops = (dr: DateRange, gt: GetTokens, st: SaveToken) 
 export const wbahGetAllCallData = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/get-all-calldata", gt, st);
 
+export const wbahGetAllCallDataPaged = (page: number, limit: number, gt: GetTokens, st: SaveToken) =>
+  aGet<unknown>(`/call-output-data/get-all-calldata?page=${page}&limit=${limit}`, gt, st);
+
 export const wbahGetCallCount = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/get-call-count", gt, st);
 
