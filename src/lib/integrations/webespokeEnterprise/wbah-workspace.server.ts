@@ -228,25 +228,76 @@ export const listWbahCalls = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const cbs = await requireWbahCbs(context.userId);
 
-    // Page 1 first — tells us the total so we know how many pages to grab
-    const firstRes = await api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken);
+    // Fetch count + page 1 in parallel — count gives us the real total so we
+    // know how many pages to request.  get-all-calldata returns a bare array
+    // with no wrapper, so relying on the response body for the total always
+    // falls back to 50 (one page).
+    const [countRes, firstRes] = await Promise.all([
+      api.wbahGetCallCount(cbs.getTokens, cbs.saveNewAccessToken),
+      api.wbahGetAllCallDataPaged(1, cbs.getTokens, cbs.saveNewAccessToken),
+    ]);
     if (!firstRes.ok) throw new Error(firstRes.error ?? "Failed to fetch calls from WeeBespoke");
 
     const firstRaw  = firstRes.data as any;
     const firstRecs = extractRecords(firstRaw);
-    const total     = extractCountFromResponse(firstRaw, firstRecs.length);
     const pageSize  = firstRecs.length || 50;
-    const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-    // Fetch remaining pages in parallel
+    // Extract real total from count endpoint — WeeBespoke returns either
+    // { totalCall: { lead: N, opportunity: N } } or { total: N } etc.
+    const countData = countRes.data as any;
+    const countTotal =
+      (countData?.totalCall?.lead  ?? 0)
+      + (countData?.totalCall?.opportunity ?? 0)
+      + (countData?.totalCall?.total ?? 0);
+    const total =
+      (countTotal > 0 ? countTotal : null)
+      ?? countData?.total
+      ?? countData?.totalCount
+      ?? countData?.count
+      ?? extractCountFromResponse(firstRaw, 0); // try body fallback
+
+    // Calculate pages; if we still have no total just fetch until empty
+    const knownPages = total > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 0;
+
     let allRecs = [...firstRecs];
-    if (totalPages > 1) {
-      const remaining = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
-      const results = await Promise.all(
-        remaining.map((p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
-      );
-      for (const r of results) {
-        if (r.ok && r.data) allRecs.push(...extractRecords(r.data));
+
+    if (knownPages > 1) {
+      // Fetch all remaining pages in parallel (batched in groups of 20 to
+      // avoid overwhelming the upstream API)
+      const remaining = Array.from({ length: knownPages - 1 }, (_, i) => i + 2);
+      const BATCH = 20;
+      for (let b = 0; b < remaining.length; b += BATCH) {
+        const chunk = remaining.slice(b, b + BATCH);
+        const results = await Promise.all(
+          chunk.map((p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
+        );
+        for (const r of results) {
+          if (r.ok && r.data) allRecs.push(...extractRecords(r.data));
+        }
+      }
+    }
+
+    // Safety net: if the count endpoint undercounted (or was unavailable),
+    // keep fetching in batches until we get a fully-empty batch.
+    // This handles "thousands" that the count endpoint doesn't know about.
+    {
+      const SAFETY_CAP  = 500;  // max 25,000 records total
+      const SAFETY_BATCH = 10;
+      let nextPage = knownPages > 0 ? knownPages + 1 : 2;
+      while (nextPage <= SAFETY_CAP) {
+        const batch = Array.from({ length: SAFETY_BATCH }, (_, i) => nextPage + i);
+        const results = await Promise.all(
+          batch.map((p) => api.wbahGetAllCallDataPaged(p, cbs.getTokens, cbs.saveNewAccessToken)),
+        );
+        let anyFound = false;
+        for (const r of results) {
+          if (r.ok && r.data) {
+            const recs = extractRecords(r.data as any);
+            if (recs.length > 0) { allRecs.push(...recs); anyFound = true; }
+          }
+        }
+        if (!anyFound) break;
+        nextPage += SAFETY_BATCH;
       }
     }
 
