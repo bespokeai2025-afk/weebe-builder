@@ -31,9 +31,28 @@ import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
+function QualifiedErrorFallback() {
+  useEffect(() => {
+    if (typeof sessionStorage === "undefined") return;
+    const key = "qualified-route-error-reload-ts";
+    const last = parseInt(sessionStorage.getItem(key) ?? "0");
+    if (Date.now() - last > 20_000) {
+      sessionStorage.setItem(key, String(Date.now()));
+      window.location.reload();
+    }
+  }, []);
+  return (
+    <div className="flex items-center justify-center py-16 text-muted-foreground text-sm gap-2">
+      <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+      Refreshing data connection…
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/_authenticated/qualified")({
   head: () => ({ meta: [{ title: "Qualified — Webee" }] }),
   component: QualifiedPage,
+  errorComponent: QualifiedErrorFallback,
 });
 
 function fmtDate(d: string | null) {
