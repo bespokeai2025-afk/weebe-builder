@@ -1,0 +1,303 @@
+WEBEE PRODUCTION STABILISATION AUDIT
+Reference Workspace: WeBuyAnyHouse (slug: webuyanyhouse)
+Audit Date: 19 June 2026 — Evidence-based, no code changes made
+SECTION 1 — WORKSPACE DATA FLOW AUDIT
+Complete Data Pipeline Map
+WeeBespoke AI Enterprise API (uat-api.webespokeai.com)
+  ↓ Authentication: email/password JWT → stored in enterprise_integrations table
+  ↓ Endpoints: /get-userCall-lead (leads), /get-user-history (calls), /get-crm-data (contacts)
+  ↓
+Vite Sync Plugins (dev) / pg_cron endpoints (prod)
+  ├── wbah-leads-sync  → every 5 min → upserts to: leads table + data_records table
+  ├── wbah-calls-sync  → every 5 min → upserts to: wbah_calls table
+  └── wbah-category-sync → every 30 min → FAILING (table missing)
+  ↓
+Supabase PostgreSQL
+  ├── leads (1568 seller rows + unknown CRM count)
+  ├── wbah_calls (10,966 rows)
+  ├── data_records (buyer contacts)
+  └── wbah_categorized_leads → DOES NOT EXIST
+  ↓
+Redis (Upstash) Cache Layer
+  ├── webee:dashboard:<workspaceId>:overview — 90s TTL
+  ├── webee:analytics:<workspaceId>:retell:<N>d — 15 min TTL
+  └── webee:calls:<workspaceId>:... — 2–5 min TTL
+  ↓
+Server Functions (TanStack Start)
+  ↓
+UI Pages
+
+Records Count at Each Stage
+Stage	Leads	Calls	Contacts
+WeeBespoke API (reported)	1,568	~10,966+	~4,467
+DB (leads table)	~1,550 (sync still running)	—	~4,467 in data_records
+DB (wbah_calls)	—	10,966	—
+Dashboard KPI	Workspace total (no source filter)	From wbah_calls ✓	Not shown
+Leads page	All workspace leads (no source filter)	—	—
+Calls page	0 (wrong table)	—	—
+People tab (Leads)	~1,568 filtered by source	—	—
+People tab (Calls)	—	10,966	—
+SECTION 2 — LEADS AUDIT
+Per-Page Query Analysis
+Page	Server Fn	Source Table	Workspace Filter	Date Filter	Status Filter	Sentiment Filter	Soft Delete	Pagination
+/leads	listLeads	leads	✓ eq workspace_id	Last 30d default	Optional	Frontend only	❌ None	Chunked 1000/batch
+/qualified	listQualifiedLeads	leads	✓	None	Optional qualification_status	Hardcoded sentiment = 'positive'	❌ None	5000 limit
+/calls	listCalls	calls	✓	dateFrom/dateTo	call_status	None	Excludes to_number = 'unknown'	10,000 limit
+/pipeline	getPipelineLeads	leads	✓	❌ None	None	❌ None	❌ None (full fetch)	
+/contacts	listWbahLeads (WBAH)	leads	✓	None	None	Excludes negative	❌ None	5000 limit
+/dashboard	getOverviewStats	leads + wbah_calls	✓	daysSince (default 30d WBAH)	neq not_interested	positive for Qualified KPI	❌ None	Count only
+/data People tab	listWbahLeadsForPeople	leads	✓	None	source_detail = webespoke_enterprise	In-memory CRM filter	❌ None	Full fetch
+/analytics	getRetellAnalytics	wbah_calls (WBAH)	✓	days input	None	None	None	Up to 20k rows
+Issues Identified
+Issue L-1 (Critical): The /leads page has no source filter. It shows ALL rows in the WBAH workspace's leads table, including CRM contacts that may have been written there. Seller count, CRM contact count, and any other imported rows are all merged into one list with no way to distinguish them.
+
+Issue L-2 (Critical): "Qualified" count is defined differently across pages:
+
+Dashboard KPI: sentiment = 'positive' only
+Qualified page: sentiment = 'positive' hardcoded (consistent with dashboard)
+Contacts page (listWbahLeads): excludes sentiment = 'negative' — includes positive + neutral + empty → higher count
+This means three different pages could show three different "qualified" numbers for the same workspace.
+Issue L-3 (High): /leads page default date filter is Last 30 days. Older WBAH leads (before ~20 May 2026) are invisible unless the user manually expands the date range. Since the API has 1,568 leads and sync started recently, many leads will fall outside the default window.
+
+Issue L-4 (High): No soft-delete (is_deleted) check on leads, wbah_calls, or wbah_categorized_leads. If a record is logically deleted at the source, it still appears in all queries on sync.
+
+Issue L-5 (Medium): /pipeline page fetches all leads with no date filter and no pagination. As the WBAH workspace grows, this becomes a full-table scan and will OOM or timeout.
+
+Issue L-6 (Medium): listWbahLeadsForPeople filters CRM contacts in application memory (.filter(r => r.meta?.wbah_source !== "crm")) after fetching all rows from DB. At 1,568 rows this is acceptable; at 10,000+ rows this wastes memory and slows the response.
+
+SECTION 3 — WEBUYANYHOUSE LEAD INVESTIGATION
+Why Leads Are Missing / Count Inconsistency
+Finding 3-A — Sync Not Complete at Dashboard Load Time:
+Live logs show the sync running in incremental waves:
+
+[wbah-leads-sync] fetchAllLeadRecords done: 300 unique records   (wave 1)
+[wbah-leads-sync] fetchAllLeadRecords done: 1300 unique records  (wave 2)
+[wbah-leads-sync] fetchAllLeadRecords done: 1550 unique records  (wave 3)
+
+The WeeBespoke API reports totalItems=1568. The sync batches API pages 5-at-a-time with 200ms delays. Each full sync cycle takes multiple minutes. If a user opens the dashboard mid-sync, they see a partial count (e.g., 300 instead of 1,568).
+
+Finding 3-B — WeeBespoke API totalPages Bug:
+The API's pagination.totalPages field is wrong (returns 13 when actual is 203+ for pageSize=10). The sync correctly computes Math.ceil(totalItems / pageSize) as a workaround. However if totalItems itself is ever wrong (e.g., delayed update at source), the sync will miss records.
+
+Finding 3-C — Three Different Lead Counts Displayed Simultaneously:
+
+Surface	Count Source	Likely Count
+Dashboard "Total Leads" KPI	All rows in leads table, workspace_id = WBAH, excluding not_interested	~1,550
+/leads page	Same, but filtered to Last 30d by default	Much lower
+People tab "Leads"	source_detail = webespoke_enterprise + not CRM in meta	~1,500
+Dashboard "Qualified" KPI	sentiment = positive + not not_interested	?
+Contacts page	sentiment != negative	Higher than dashboard qualified
+Finding 3-D — CRM Contacts Stored in leads Table:
+The sync upserts buyer CRM contacts into data_records. However, earlier code paths or full-resync operations may have written some buyer contacts into the leads table with meta.wbah_source = "crm". These would inflate the /leads page count while being filtered out of the People tab. The exact count of such misplaced rows is unknown without a live DB query.
+
+Finding 3-E — Status Classification Keyword Fallback:
+classifyStatus() uses keyword searching ("disqualif", "tried contact", "qualified") as a last resort. If a lead's WeeBespoke status string doesn't match any known pattern, the lead gets no status classification — it may be classified as need_to_call by default, effectively hiding it from filtered views.
+
+Finding 3-F — No created_at Set From Source:
+Leads upserted from WeeBespoke don't carry the original WeeBespoke creation date into leads.created_at. Supabase sets created_at to the time of the upsert (first sync time). This means:
+
+The "Last 30 days" filter on the Leads page is actually "imported in the last 30 days," not "created at source in the last 30 days."
+All 1,568 leads will have created_at set to approximately when the sync first ran — so they all appear within the same day. This makes date filtering misleading.
+SECTION 4 — CALL AUDIT
+Source vs Display
+Surface	Table Queried	WBAH Branch	Records Shown
+/calls page	calls only	❌ No WBAH branch	0 WBAH calls
+Dashboard KPI "Calls Completed"	wbah_calls	✓	Correct
+Analytics page	wbah_calls	✓	Correct
+People > Calls tab	wbah_calls	✓	Correct
+Live calls SSE	Retell API	N/A	Web test calls only
+Finding 4-A (Critical): The /calls page uses listCalls which always queries the calls table. There is no WBAH branch. The wbah_calls table is never touched. WBAH users who navigate to /calls see zero records despite having 10,966 calls in the database.
+
+Finding 4-B (High): wbah-calls-sync plugin documentation says "runs every 4 hours" but the code sets INTERVAL_MS = 5 * 60 * 1000 (5 minutes). This is a documentation/intent mismatch. Running every 5 minutes on 10,966+ calls (1,096+ API pages in batches of 20) means the sync likely doesn't finish before the next tick starts, potentially creating concurrent sync runs.
+
+Finding 4-C (High): getRetellAnalytics hardcodes in_voicemail = false for all WBAH calls. If WeeBespoke marks any calls as voicemail at source, this information is lost in the analytics layer.
+
+Finding 4-D (High): wbah_calls has only a SELECT RLS policy — no INSERT, UPDATE, or DELETE policies. The sync uses supabaseAdmin (service role) which bypasses RLS, so upserts work. But any future code using the standard client to write to wbah_calls will silently fail.
+
+Finding 4-E (Medium): The wbah-calls-sync derives id from call_id ?? _id ?? id. If any of these fields are missing from the API response, the upsert conflict key is undefined, creating a new row each tick (duplicate explosion risk).
+
+Finding 4-F (Medium): People > Calls tab renders r.wbah_name and r.wbah_contact from wbah_calls, but the actual columns written by the sync are customer_name and phone. This means all Name and Contact cells in the Calls tab display as "—" despite the data existing in the DB.
+
+SECTION 5 — ANALYTICS AUDIT
+KPI-by-KPI Source Analysis
+KPI	Source	Query	Date Filter	WBAH Difference	Known Issue
+Total Leads	leads	count where workspace_id	daysSince on created_at	excludes not_interested	created_at = sync date, not source date
+Qualified	leads	count where sentiment=positive	daysSince	different from contacts page	Three definitions in use
+Calls Completed	wbah_calls	count where call_status=completed	None (lifetime)	✓ correct source	Lifetime, no date filter — can't compare to 30d lead KPI
+Bookings	calendar_bookings	count where workspace_id	None (lifetime)	Same as standard	Likely 0 for WBAH (no Cal.com integration)
+Sentiment breakdown	wbah_calls	all records, normalised	days param (default 30d)	✓ correct source	Hardcoded in_voicemail=false
+Call Duration	wbah_calls	SUM(duration_seconds), chunked 1000/page	None	✓ correct	Chunking adds latency
+Closed Lead Reach Rate	leads (not_interested) + wbah_calls	Phone intersection	None	uses wbah_calls ✓	Phone number format must match exactly
+Finding 5-A (Critical): Dashboard "Calls Completed" is a lifetime count (no date filter), while "Total Leads" and "Qualified" use a 30-day cutoff. These KPIs are therefore measuring different time windows and cannot be meaningfully compared on the same dashboard row.
+
+Finding 5-B (High): The Retell analytics page caps at 20 pages × 1,000 calls = 20,000 records from the Retell API. WBAH bypasses this via wbah_calls (DB), so it is not affected. However any workspace with >20,000 Retell calls will have truncated analytics.
+
+Finding 5-C (High): Closed Lead Reach Rate calculation joins leads (status=not_interested) phone numbers against wbah_calls. If phone number formats differ between the two tables (e.g., +447... vs 07...), the intersection returns 0 even when calls exist.
+
+Finding 5-D (Medium): The analytics page defaults to "last 30 days" while the overview stats daysSince default is also 30. However the calls KPI in getOverviewStats has no date filter on calls — it counts lifetime calls, not 30-day calls. This means the dashboard call count and the analytics page call count (30-day) will always differ.
+
+SECTION 6 — REDIS AUDIT
+Cache Configuration
+Key Pattern	TTL	Invalidated On	Stale Risk
+webee:dashboard:<wsId>:overview	90 seconds	Lead upsert/delete, booking update	Low — short TTL
+webee:analytics:<wsId>:retell:<N>d	15 minutes	Never explicitly invalidated	High
+webee:calls:<wsId>:...	2–5 minutes	Never explicitly invalidated	Medium
+webee:hivemind:<wsId>:platform	5–10 minutes	invalidateDashboardCache	Low
+webee:v1:token:<hash>	60 seconds	Never	Low
+Finding 6-A (High): getRetellAnalytics (analytics page) has a 15-minute TTL and is never explicitly invalidated. If calls finish during that window, the analytics page shows stale sentiment/call counts for up to 15 minutes. For WBAH, this means new calls synced into wbah_calls won't appear in analytics for up to 15 minutes.
+
+Finding 6-B (High): invalidateDashboardCache deletes dashboard, hivemind, and growthmind keys. It does not invalidate calls cache keys. A new call finishing and being written to wbah_calls does not flush any cache — the calls list stays stale for its TTL.
+
+Finding 6-C (Medium): Module-level variable _wbahReloginAt throttles WeeBespoke token refresh to once per 30 minutes. In a serverless/frequent-restart environment (dev with HMR, or prod deployments), this module state resets on every restart — losing the throttle state and potentially causing burst re-login requests.
+
+Finding 6-D (Low): Redis graceful degradation (UPSTASH_REDIS_REST_URL missing → no cache) means if Redis goes down in production, all requests hit Supabase directly. This is correct behaviour but the sudden load spike is not rate-limited.
+
+SECTION 7 — SUPABASE AUDIT
+Schema & RLS Status
+Table	RLS	INSERT	UPDATE	DELETE	workspace_id NOT NULL	FK Constraint
+leads	✓	✓	✓	✓	✓	CASCADE on workspace delete
+calls	✓	✓	✓	✓	✓	lead_id SET NULL on lead delete
+wbah_calls	✓ SELECT only	❌ Missing	❌ Missing	❌ Missing	✓	CASCADE
+data_records	✓	✓	✓	✓	✓	CASCADE
+retell_webhook_events	✓	N/A	N/A	N/A	Nullable	Optional CASCADE
+wbah_categorized_leads	Does not exist	—	—	—	—	—
+Finding 7-A (Critical): wbah_categorized_leads table does not exist. The wbah-category-sync plugin runs every 30 minutes and fails every time with: Could not find the table 'public.wbah_categorized_leads' in the schema cache. Migration WBAH_CATEGORY_LEADS_MIGRATION.sql has never been applied.
+
+Finding 7-B (High): wbah_calls has SELECT-only RLS. No INSERT/UPDATE/DELETE policies exist. The sync plugin uses supabaseAdmin (service role, bypasses RLS) so it works today. If any future code writes to wbah_calls using the user-scoped client, it will fail silently.
+
+Finding 7-C (High): calls.lead_id uses ON DELETE SET NULL. When a lead is deleted, associated calls lose their lead linkage. These now-orphaned calls still count in analytics queries (workspace_id is preserved). This can cause analytics to show calls for leads that no longer exist.
+
+Finding 7-D (Medium): retell_webhook_events.workspace_id is nullable. Webhook events can be written without workspace attribution, making them impossible to debug or attribute to a tenant.
+
+Finding 7-E (Medium): The leads table has no unique constraint on (workspace_id, phone). The sync deduplicates by meta->wbah_external_id then falls back to phone. If two WeeBespoke leads have the same phone but different external IDs, they both get stored — but only the first is found on the phone fallback path. Subsequent syncs may create duplicates.
+
+Finding 7-F (Low): No index on leads.meta->>'wbah_external_id'. Every sync tick that does a lookup by external ID performs a full table scan on the JSONB meta column. At 1,568 rows this is fast; at 50,000+ it will be slow.
+
+SECTION 8 — WEBHOOK AUDIT
+Webhook	Route	Verified	DB Written	Silent Failures	Audit Log
+Retell	/api/public/retell-webhook	✓	calls, leads, retell_webhook_events	web_call ignored	✓ retell_webhook_events
+Cal.com	/api/public/calcom-webhook/$workspaceId	✓ HMAC	calendar_bookings	DB failure → 500	❌ No audit log
+WhatsApp (Meta)	/api/public/whatsapp-webhook/$workspaceId	✓	whatsapp_messages, sessions	No agent → message saved, no reply	❌
+WhatsApp (WATI)	/api/webhook/wati-inbound	Per-workspace	whatsapp_messages, sessions	Same	❌
+Email (Resend)	/api/public/resend-webhook	✓ Svix	email_reputation_events	Unknown sender → 200 dropped	❌
+Ads (Meta/TikTok)	/api/public/meta-ads-webhook	✓	growthmind_ad_webhook_events	—	✓ ad_webhook_events
+Finding 8-A (Medium): WBAH has no inbound Retell webhooks in practice — WBAH calls come from WeeBespoke's own dialler, not Retell. Retell webhooks are only relevant if WBAH uses WEBEE-hosted agents. This means the calls table receives no WBAH data via webhook, confirming the data only arrives through the sync plugin.
+
+Finding 8-B (Medium): Cal.com webhook has no audit log table. If a booking webhook fails processing, there is no way to replay or debug it.
+
+Finding 8-C (Low): Resend webhook silently drops events from unrecognised sender emails (returns HTTP 200). Bounces or spam complaints from WBAH emails could go unrecorded if the domain isn't registered in email_sender_domains.
+
+SECTION 9 — API ENGINE AUDIT
+Finding 9-A (High): WeeBespoke API call history endpoint returns pageSize: 10 — hardcoded on the server side. To fetch 10,966 calls requires 1,097 API pages. The sync processes 20 pages per batch. Each batch makes 20 sequential HTTP requests. Full sync time ≈ 55 batches × (API latency × 20 requests) — likely 10–20 minutes per full sync cycle.
+
+Finding 9-B (High): The leads sync fetches all 1,568 leads (32 pages at pageSize 50) but the calls sync fetches all 10,966 calls (1,097 pages at pageSize 10). Both run every 5 minutes. If the calls sync hasn't finished its previous cycle when the next one starts, two concurrent syncs run against the same wbah_calls table. There is no lock or mutex.
+
+Finding 9-C (Medium): wbahGetLeadsFiltered (Disqualified endpoint) is capped at Math.min(totalPages, 100) pages — a maximum of 5,000 disqualified leads. If the actual count exceeds this, the People > Disqualified tab will silently show a truncated list.
+
+Finding 9-D (Medium): Token refresh throttle (_wbahReloginAt, 30-minute cooldown) is a module-level variable. In the dev server, HMR reloads reset this variable. Each hard reload could trigger a re-login even within the 30-minute window.
+
+SECTION 10 — PROVIDER HEALTH AUDIT
+Finding 10-A: The health sweep runs every 15 minutes and writes results to provider_settings. This is the source of truth for the provider status indicators in the UI.
+
+Finding 10-B (Medium): derivedConnected in the health check ORs dbConnectedSet — meaning if credentials are saved to DB, the provider shows as "connected" even if the health check itself fails. This can mask broken connections.
+
+Finding 10-C (Low): WBAH does not use Retell, Twilio, or WhatsApp providers. The health sweep still checks them for the WBAH workspace if those providers are registered. These checks return failures that don't represent actual WBAH issues.
+
+SECTION 11 — BACKGROUND JOB AUDIT
+Job	Interval	Last Known Status	Concurrent Risk	Error Handling
+wbah-leads-sync	5 min	✓ Running (1,550/1,568 records)	Low (fast sync)	Caught + logged
+wbah-calls-sync	5 min (docs say 4h)	✓ Running	High — 10,966 calls, slow	Caught + logged
+wbah-category-sync	30 min	❌ FAILING every tick	None (fast fail)	"insert error" logged
+campaign-scheduler	5 min	✓ Running	Medium (3 subsystems in Promise.all)	Per-workspace catch
+health-sweep	15 min	✓ Running	Low	HTTP + console
+ads-sync	15 min	✓ Running (0 synced)	Low	Per-workspace catch
+video-job-poller	30 sec	✓ Running	Low	Caught
+accountsmind-scheduler	Hourly	✓ Running	Low	Caught
+Finding 11-A (Critical): wbah-category-sync fails on every single tick (every 30 minutes) because wbah_categorized_leads table doesn't exist. It has been failing silently since it was deployed. The log entry "insert error: Could not find the table..." appears in the server log repeatedly.
+
+Finding 11-B (High): wbah-calls-sync comment says "4 hours" but code interval is 5 minutes. A full cycle fetching 10,966 calls at 10 per page likely takes longer than 5 minutes → concurrent runs are likely occurring every tick. Each run upserts in batches of 200 to wbah_calls, which is safe due to conflict handling, but doubles the API load on WeeBespoke.
+
+Finding 11-C (Medium): No mutex/distributed lock on any sync plugin. In production with multiple serverless instances, multiple simultaneous executions of the same sync are possible.
+
+SECTION 12 — DASHBOARD CONSISTENCY AUDIT
+Metric-by-Metric Comparison (WBAH workspace)
+Metric	Dashboard	Leads Page	Calls Page	Analytics	People Tab	Root Cause
+Total Leads	~1,550 (no date filter except cutoff)	<100 (Last 30d filter, all synced recently so most show)	N/A	N/A	~1,500 (source filter)	3 different queries, different date windows
+Qualified	sentiment=positive count	Not shown	N/A	N/A	N/A	Dashboard uses positive only
+Total Calls	From wbah_calls ✓	N/A	0 (wrong table)	From wbah_calls ✓	10,966 ✓	Calls page has no WBAH branch
+Call Duration	Chunked sum from wbah_calls	N/A	0	Computed from wbah_calls ✓	N/A	Same root cause as calls
+Sentiment	Not shown on dashboard	Frontend normalised	N/A	From wbah_calls ✓	N/A	Normalisation inconsistent
+Bookings	From calendar_bookings	N/A	N/A	N/A	N/A	Likely 0 (no Cal.com setup)
+SECTION 13 — PERFORMANCE AUDIT
+Finding 13-A (High): getOverviewStats for WBAH fetches all wbah_calls durations in chunks of 1,000 to compute totalCallSeconds. At 10,966 calls that's 11 sequential DB round-trips just for one KPI card. With 90s Redis TTL this runs frequently.
+
+Finding 13-B (High): listWbahLeadsForPeople fetches all leads from DB then does in-memory CRM filtering. No server-side filter for wbah_source. Returns full lead rows with all columns.
+
+Finding 13-C (Medium): JSONB field meta->>'wbah_external_id' has no GIN or expression index. Sync lookups (WHERE meta->>'wbah_external_id' = $1) are full table scans.
+
+Finding 13-D (Medium): getRetellAnalytics for non-WBAH workspaces fetches up to 20,000 records from the Retell API in a single function call. No streaming, no progressive loading. Large workspaces will timeout.
+
+SECTION 14 — DATA INTEGRITY SCORES
+Dimension	Score	Rationale
+Lead Integrity	55/100	Sync runs correctly but created_at is sync date not source date; three different "qualified" definitions; no soft-delete tracking from source; CRM contacts potentially mixed into leads table
+Call Integrity	40/100	10,966 calls in DB (correct), but /calls page shows 0; People > Calls tab shows blank Name/Contact columns due to wrong field mapping; concurrent sync risk; voicemail flag hardcoded false
+Analytics Integrity	50/100	Dashboard call KPI is lifetime, leads KPI is 30d — incomparable windows; analytics page correctly uses wbah_calls; sentiment normalisation works; 15-min cache staleness
+Provider Integrity	70/100	WeeBespoke connection healthy; health sweep runs; derivedConnected can mask failures
+Workspace Isolation	85/100	RLS policies in place; requireWbahCbs middleware enforces WBAH-only access; hardcoded workspace ID is safe with middleware guard; retell_webhook_events.workspace_id nullable is minor gap
+Performance	60/100	11 sequential DB calls for duration KPI; no index on meta JSONB; calls sync likely concurrent with itself
+Reliability	50/100	Category sync failing every 30 min; calls sync interval mismatched with actual run time; no mutex on any job
+SECTION 15 — ROOT CAUSE REPORT
+🔴 CRITICAL
+| # | Issue | Affected Pages | Root Cause | Revenue Impact | Fix Calls page | listCalls has no WBAH branch — always queries calls table, not wbah_calls | High — core call management invisible | Low (add WBAH branch to listCalls) |
+| C-2 | wbah_categorized_leads missing | Background job | Migration never applied — WBAH_CATEGORY_LEADS_MIGRATION.sql exists but unexecuted | Medium — category sync failing silently every 30 min | Low (run migration SQL) |
+| C-3 | People > Calls tab — Name and Contact columns blank | Data page Calls tab | wbah_calls stores customer_name/phone; UI reads wbah_name/wbah_contact — field name mismatch | Medium — call records unidentifiable | Low (fix field mapping in memo) |
+
+🟠 HIGH
+#	Issue	Affected Pages	Root Cause	Revenue Impact	Fix Complexity
+H-1	Lead count inconsistent across 3 surfaces	Dashboard, Leads, Data	Different queries: no source filter vs source filter; different date windows (lifetime vs 30d)	High — leads appear "missing"	Medium
+H-2	Dashboard Call KPI is lifetime; Lead KPI is 30d	Dashboard	getOverviewStats applies date filter to leads, not to calls	Medium — misleading dashboard comparison	Low
+H-3	Three definitions of "Qualified"	Dashboard, Qualified page, Contacts	positive only vs positive+neutral+"" across different server functions	Medium — qualification counts disagree	Medium
+H-4	/leads default date = Last 30 days	Leads page	UI default filter; all leads synced recently so most appear — but historical leads invisible	High — users think leads are missing	Low (change default or UX note)
+H-5	wbah_calls sync runs every 5 min but likely takes >5 min	Background jobs	Interval=5min, 1,097 API pages to fetch. Concurrent runs likely	Medium — API rate limit risk on WeeBespoke	Medium (increase interval or add lock)
+H-6	wbah_calls has no INSERT/UPDATE/DELETE RLS	Database	Migration only added SELECT policy	Low (currently safe via service role)	Low (add policies)
+H-7	calls.lead_id SET NULL on lead delete	Analytics	Orphaned calls persist in analytics after lead deleted	Medium — analytics overcounting	Medium
+H-8	Leads created_at = sync date, not source date	All date-filtered pages	Sync doesn't map WeeBespoke creation date to Supabase created_at	High — date filtering meaningless for WBAH	Medium
+🟡 MEDIUM
+#	Issue	Root Cause	Fix Complexity
+M-1	Analytics cache 15-min TTL, never invalidated	No invalidation on wbah_calls write	Low
+M-2	CRM contacts potentially in leads table	Earlier sync paths wrote contacts to leads	Medium (audit + clean)
+M-3	Phone format mismatch in Closed Lead Reach Rate	No normalisation of phone strings before intersection	Low
+M-4	No mutex on sync jobs — concurrent runs possible	Module-level timer with no distributed lock	Medium
+M-5	No index on meta->>'wbah_external_id'	No expression index created in migration	Low
+M-6	Disqualified API fetch capped at 100 pages (5,000 leads)	Hard cap in listWbahDisqualifiedFromApi	Low (raise cap)
+M-7	retell_webhook_events.workspace_id nullable	Migration allows null	Low
+M-8	wbah-calls-sync interval documented as 4h, coded as 5min	Comment/code mismatch	Low (decide and align)
+🟢 LOW
+#	Issue	Root Cause	Fix Complexity
+L-1	Module-level _wbahReloginAt resets on HMR	Node module state not persistent across reloads	Low
+L-2	Resend webhook silently drops unknown sender events	By design but unlogged	Low (add log)
+L-3	Cal.com webhook has no audit log	Not implemented	Low
+L-4	Pipeline page full-table scan (no pagination)	getPipelineLeads has no limit	Medium
+SECTION 16 — STABILISATION ROADMAP
+24-Hour Fixes (Zero code risk, maximum impact)
+Apply WBAH_CATEGORY_LEADS_MIGRATION.sql — Stops 30-min error flood immediately (Supabase SQL Editor, no code change)
+Add wbah_calls INSERT/UPDATE/DELETE RLS policies — Closes security gap (SQL only)
+Add expression index on leads.meta->>'wbah_external_id' — Instant sync speedup (SQL only)
+Increase wbah-calls-sync interval from 5 min to 30 min — Eliminates concurrent sync risk, reduces WeeBespoke API load by 6×
+7-Day Fixes (Targeted code changes, high user impact)
+Fix /calls page — add WBAH branch to listCalls — WBAH users can finally see their 10,966 calls (C-1)
+Fix People > Calls tab field mapping — wbah_name→customer_name, wbah_contact→phone (C-3)
+Align "Qualified" definition — Pick one definition (recommend sentiment = 'positive') and apply it consistently across all 3 surfaces (H-3)
+Fix Dashboard Call KPI date window — Add same daysSince filter to call count as applied to leads (H-2)
+Map WeeBespoke lead creation date to leads.created_at — Make date filtering meaningful for WBAH (H-8)
+30-Day Fixes (Architecture changes)
+Unify WBAH lead count surface — Single source of truth for "how many WBAH leads" with consistent filters across all pages
+Add distributed lock/mutex to sync plugins — Prevent concurrent execution (Redis SETNX pattern)
+Invalidate analytics cache on wbah_calls upsert — Reduce analytics staleness from 15 min to ~90 sec
+Add Cal.com webhook audit log table — Match Retell's retell_webhook_events pattern
+Index data_records by lead_external_id — Speed up buyer contact deduplication
+90-Day Fixes (Structural improvements)
+Replace sync-based architecture with webhook-driven updates for real-time accuracy
+Normalise phone numbers at ingestion — Ensure consistent format across leads, wbah_calls, data_records
+Add soft-delete tracking — Propagate WeeBespoke deletions/archives to local DB
+Add sync-level monitoring dashboard — Last run time, record counts, error rates per job
