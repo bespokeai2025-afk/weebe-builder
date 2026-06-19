@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { createBooking, getCalcomUserTimezone } from "@/lib/calendar/calcom.server";
+import { cacheDel } from "@/lib/cache/redis.server";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -118,6 +119,11 @@ export const Route = createFileRoute("/api/public/hyperstream/book")({
             meeting_url: booking.meetingUrl ?? null,
             notes: d.notes ?? null,
           });
+          cacheDel(
+            `webee:hivemind:${agentRow.workspace_id}:platform`,
+            `webee:growthmind:${agentRow.workspace_id}:platform`,
+            `webee:dashboard:${agentRow.workspace_id}:overview`,
+          ).catch(() => {});
 
           const displayTime = formatBookingTime(booking.startTime, timezone);
           let confirmationMessage = `Your appointment has been confirmed for ${displayTime}. A confirmation email has been sent to ${d.email}.`;

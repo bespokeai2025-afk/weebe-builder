@@ -19,6 +19,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { analyzeCallTranscript, updateLeadIntelligence } from "@/lib/lead-gen/lead-intelligence.server";
 import { analyzeQualification, applyQualificationToLead } from "@/lib/qualification/qualification-engine.server";
 import { dispatchCrmPostCall } from "@/lib/crm/crm-dispatch.server";
+import { cacheDel } from "@/lib/cache/redis.server";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -147,6 +148,12 @@ async function runPostCallPipeline(
   } catch (e) {
     console.warn("[elevenlabs-webhook] CRM dispatch failed:", (e as Error).message);
   }
+
+  cacheDel(
+    `webee:hivemind:${agent.workspace_id}:platform`,
+    `webee:growthmind:${agent.workspace_id}:platform`,
+    `webee:dashboard:${agent.workspace_id}:overview`,
+  ).catch(() => {});
 }
 
 export const Route = createFileRoute("/api/public/elevenlabs-webhook")({

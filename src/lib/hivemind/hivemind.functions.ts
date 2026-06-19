@@ -2,6 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { cacheWrap, cacheDel } from "@/lib/cache/redis.server";
+
+const HIVEMIND_PLATFORM_TTL = 5 * 60; // 5 minutes
+
+function hivemindPlatformKey(workspaceId: string) {
+  return `webee:hivemind:${workspaceId}:platform`;
+}
 
 export type HiveMindTask = {
   id: string;
@@ -20,6 +27,13 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
 
+    const url = context.request?.url ?? "";
+    const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
+
+    return cacheWrap(
+      hivemindPlatformKey(workspaceId),
+      HIVEMIND_PLATFORM_TTL,
+      async () => {
     const now = new Date();
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
     const since7  = new Date(now); since7.setDate(now.getDate() - 7);
@@ -271,6 +285,7 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
       settings,
       tasks,
     };
+  }, bust);
   });
 
 // ── Briefing data ──────────────────────────────────────────────────────────────

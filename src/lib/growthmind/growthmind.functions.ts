@@ -2,6 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type GrowthRecommendation } from "./growthmind.recommendations";
+import { cacheWrap, cacheDel } from "@/lib/cache/redis.server";
+
+const GROWTHMIND_TTL = 10 * 60; // 10 minutes
+
+function growthmindKey(workspaceId: string) {
+  return `webee:growthmind:${workspaceId}:platform`;
+}
 
 // ── Main marketing data aggregator ─────────────────────────────────────────────
 // NOTE: returns ONLY derived metrics — no raw credentials or sensitive settings.
@@ -11,7 +18,16 @@ export const getGrowthMindData = createServerFn({ method: "GET" })
     const sb = context.supabase as any;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No workspace");
-    return buildGrowthMindData(sb, workspaceId);
+
+    const url = context.request?.url ?? "";
+    const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
+
+    return cacheWrap(
+      growthmindKey(workspaceId),
+      GROWTHMIND_TTL,
+      () => buildGrowthMindData(sb, workspaceId),
+      bust,
+    );
   });
 
 // ── Reusable platform-data builder ─────────────────────────────────────────────

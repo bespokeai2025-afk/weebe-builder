@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createHash, randomBytes } from "crypto";
+import { cacheDel } from "@/lib/cache/redis.server";
 
 function sha256Hex(input: string): string {
   return createHash("sha256").update(input).digest("hex");
@@ -50,10 +51,24 @@ export const revokeToken = createServerFn({ method: "POST" })
   .inputValidator((input: { id: string }) => input)
   .handler(async ({ context, data }) => {
     const { supabase } = context;
+
+    // Fetch the token_hash before revoking so we can clear the Redis cache
+    const { data: tokenRow } = await supabase
+      .from("workspace_api_tokens")
+      .select("token_hash")
+      .eq("id", data.id)
+      .maybeSingle();
+
     const { error } = await supabase
       .from("workspace_api_tokens")
       .update({ revoked_at: new Date().toISOString() })
       .eq("id", data.id);
     if (error) throw new Error(error.message);
+
+    // Invalidate any cached token validation for this key (fire and forget)
+    if (tokenRow?.token_hash) {
+      cacheDel(`webee:v1:token:${tokenRow.token_hash}`).catch(() => {});
+    }
+
     return { ok: true };
   });

@@ -2,6 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { cacheWrap, cacheDel } from "@/lib/cache/redis.server";
+
+const OVERVIEW_STATS_TTL = 90; // 90 seconds
+
+function overviewStatsKey(workspaceId: string) {
+  return `webee:dashboard:${workspaceId}:overview`;
+}
 
 async function retellFetch<T>(
   path: string,
@@ -82,6 +89,13 @@ export const getOverviewStats = createServerFn({ method: "GET" })
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
 
+    const url = (context as any).request?.url ?? "";
+    const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
+
+    return cacheWrap(
+      overviewStatsKey(workspaceId),
+      OVERVIEW_STATS_TTL,
+      async () => {
     // Detect WBAH workspace — it uses sentiment-based KPIs, not status-based
     const { data: wsRow } = await (supabase as any)
       .from("workspaces")
@@ -195,6 +209,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
       },
       recentLeads: recentLeadsRes.data ?? [],
     };
+  }, bust);
   });
 
 export const listLeads = createServerFn({ method: "POST" })
@@ -258,6 +273,14 @@ export const listLeads = createServerFn({ method: "POST" })
     return leads;
   });
 
+function invalidateDashboardCache(workspaceId: string) {
+  cacheDel(
+    overviewStatsKey(workspaceId),
+    `webee:hivemind:${workspaceId}:platform`,
+    `webee:growthmind:${workspaceId}:platform`,
+  ).catch(() => {});
+}
+
 export const upsertLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -295,6 +318,7 @@ export const upsertLead = createServerFn({ method: "POST" })
         .update(payload)
         .eq("id", data.id);
       if (error) throw new Error(error.message);
+      invalidateDashboardCache(workspaceId);
       return { id: data.id };
     }
     const { data: row, error } = await (supabase as any)
@@ -303,6 +327,7 @@ export const upsertLead = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    invalidateDashboardCache(workspaceId);
     return { id: row!.id as string };
   });
 
@@ -335,6 +360,7 @@ export const setLeadStatus = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("workspace_id", workspaceId);
     if (error) throw new Error(error.message);
+    invalidateDashboardCache(workspaceId);
     return { ok: true };
   });
 
@@ -342,12 +368,13 @@ export const deleteLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ context, data }) => {
-    const { supabase } = context;
+    const { supabase, workspaceId } = context;
     const { error } = await (supabase as any)
       .from("leads" as never)
       .delete()
       .eq("id", data.id);
     if (error) throw new Error(error.message);
+    if (workspaceId) invalidateDashboardCache(workspaceId);
     return { ok: true };
   });
 

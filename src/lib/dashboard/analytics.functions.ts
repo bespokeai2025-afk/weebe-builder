@@ -2,6 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { retellFetch } from "@/lib/providers/retell/client.server";
+import { cacheWrap } from "@/lib/cache/redis.server";
+
+const RETELL_ANALYTICS_TTL = 15 * 60; // 15 minutes
+
+function retellAnalyticsKey(workspaceId: string, days: number) {
+  return `webee:analytics:${workspaceId}:retell:${days}d`;
+}
 
 export const syncRetellReceptionist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -74,6 +81,13 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
+    const url = (context as any).request?.url ?? "";
+    const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
+
+    return cacheWrap(
+      retellAnalyticsKey(workspaceId, data.days),
+      RETELL_ANALYTICS_TTL,
+      async () => {
     const sinceMs = Date.now() - data.days * 24 * 60 * 60 * 1000;
     const sinceIso = new Date(sinceMs).toISOString();
 
@@ -244,6 +258,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     }
 
     return { configured: true, agentIds, calls: allCalls, agentNames, error };
+  }, bust);
   });
 
 /**

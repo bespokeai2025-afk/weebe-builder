@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { cancelBooking } from "@/lib/calendar/calcom.server";
+import { cacheDel } from "@/lib/cache/redis.server";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -62,6 +63,11 @@ export const Route = createFileRoute("/api/public/hyperstream/cancel")({
         try {
           await cancelBooking(apiKey, d.booking_id, d.reason);
           await supabaseAdmin.from("calendar_bookings").update({ status: "cancelled" }).eq("id", bookingRow.id);
+          cacheDel(
+            `webee:hivemind:${bookingRow.workspace_id}:platform`,
+            `webee:growthmind:${bookingRow.workspace_id}:platform`,
+            `webee:dashboard:${bookingRow.workspace_id}:overview`,
+          ).catch(() => {});
           console.log("[hyperstream/cancel]", { booking_id: d.booking_id, agent_id: d.agent_id });
           return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { ...CORS, "Content-Type": "application/json" } });
         } catch (e) {

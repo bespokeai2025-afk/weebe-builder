@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { cacheDel } from "@/lib/cache/redis.server";
 
 const BUCKET = "call-recordings";
 
@@ -94,6 +95,12 @@ export const saveHyperStreamTestCall = createServerFn({ method: "POST" })
       console.error("[saveHyperStreamTestCall] insert error:", error.message);
       throw new Error(error.message);
     }
+
+    cacheDel(
+      `webee:hivemind:${workspaceId}:platform`,
+      `webee:growthmind:${workspaceId}:platform`,
+      `webee:dashboard:${workspaceId}:overview`,
+    ).catch(() => {});
 
     return { id: inserted?.id ?? null, recordingUrl };
   });

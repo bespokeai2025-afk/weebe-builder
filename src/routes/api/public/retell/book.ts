@@ -5,6 +5,7 @@ import { verifyRetellSignatureMultiKey } from "@/lib/calendar/retell-signature";
 import { resolveRetellCandidateKeysByAgent } from "@/lib/calendar/retell-key-lookup";
 import { createBooking, getCalcomUserTimezone } from "@/lib/calendar/calcom.server";
 import { normalizeRetellPayload } from "@/lib/calendar/retell-payload";
+import { cacheDel } from "@/lib/cache/redis.server";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -199,6 +200,11 @@ export const Route = createFileRoute("/api/public/retell/book")({
             meeting_url: booking.meetingUrl ?? null,
             notes: d.notes ?? null,
           });
+          cacheDel(
+            `webee:hivemind:${wsId}:platform`,
+            `webee:growthmind:${wsId}:platform`,
+            `webee:dashboard:${wsId}:overview`,
+          ).catch(() => {});
 
           const displayTime = formatBookingTime(booking.startTime, timezone);
           let confirmationMessage = `Your appointment has been confirmed for ${displayTime}. A confirmation email has been sent to ${d.email}.`;
