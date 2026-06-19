@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, Play, FileText, ExternalLink } from "lucide-react";
-import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
+import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
 import { KpiCard } from "@/components/dashboard/PageShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -959,7 +959,7 @@ function DataPage() {
       </div>
 
       {dataTab === "campaigns" && (
-        <CallSchedulingSection />
+        <WbahCallSchedulingSection />
       )}
 
       {dataTab === "records" && showCsvImport && (

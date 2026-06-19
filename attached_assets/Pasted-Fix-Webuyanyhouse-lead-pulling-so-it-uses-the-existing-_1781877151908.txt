@@ -1,0 +1,176 @@
+Fix Webuyanyhouse lead pulling so it uses the existing Lead Master Filter/status switch from their dashboard and imports each status into the correct WEBEE Data category.
+
+Current state:
+- We are already pulling some leads into Data → Disqualified.
+- The leads being pulled depend on the Lead Master Filter/status setting from the external dashboard.
+- We need to pull multiple statuses, not just Disqualified.
+
+Goal:
+Use the same working import path, but loop through the required external lead statuses and save them into separate WEBEE Data categories.
+
+Required WEBEE categories:
+1. Disqualified
+2. Tried To Contact
+3. Rebooking
+
+Do not rebuild the Data page.
+Do not create a second sync system unless absolutely necessary.
+Do not duplicate leads.
+
+External API/status sources:
+- GET /leadfiltermaster/get-leadfiltermaster
+- GET /lead-filterStatus/get-statusCode
+- GET /crm-data/get-crm-data
+- Existing n8n dynamic link/webhook if this is the current working path
+
+Implementation:
+
+1. Audit existing Disqualified import
+Find exactly how Disqualified leads are currently being pulled:
+- component/tab
+- server function/API route
+- database table
+- status/filter field
+- n8n webhook if used
+- external dashboard API if used
+- dedupe key
+- workspace_id filtering
+
+2. Fetch available Lead Master Filter statuses
+Call server-side:
+GET {WEBUYANYHOUSE_API_BASE_URL}/leadfiltermaster/get-leadfiltermaster
+and/or:
+GET {WEBUYANYHOUSE_API_BASE_URL}/lead-filterStatus/get-statusCode
+
+Build a status map:
+- external status code
+- external status label
+- WEBEE category
+
+Map required categories:
+- Disqualified → Data category: disqualified
+- Tried To Contact → Data category: tried_to_contact
+- Rebooking / Callback / Call Back / Rebooked → Data category: rebooking
+
+If labels differ, match case-insensitively and support aliases:
+- "Tried to Contact"
+- "Tried To Contact"
+- "TTC"
+- "Callback"
+- "Pending Callback"
+- "Rebooking"
+- "Rebook"
+- "Call Back"
+- "Call Later"
+
+3. Pull leads per category
+Instead of relying on one selected dashboard filter, run the fetch once per mapped category/status.
+
+Pseudo flow:
+- get lead master/status list
+- find external status codes for Disqualified
+- find external status codes for Tried To Contact
+- find external status codes for Rebooking
+- for each category:
+  - build the correct /crm-data/get-crm-data request or dynamic query
+  - fetch all pages
+  - import records into WEBEE with category set correctly
+
+4. If n8n dynamic link is currently used
+Update the n8n/dynamic-link logic so it can store multiple links, not just one global link.
+
+Do not overwrite one link for all statuses.
+
+Required dynamic link records:
+- type = disqualified
+- type = tried_to_contact
+- type = rebooking
+
+Each record should store:
+- type/category
+- link/query
+- opportunityLink if available
+- leadFilterMasterId if available
+- external status codes
+- updatedAt
+
+Then WEBEE should call the correct link depending on category.
+
+5. Data storage
+For each imported lead store:
+- workspace_id
+- external_lead_id
+- external_source = webuyanyhouse_dashboard or dynamics
+- external_status_code
+- external_status_label
+- webee_category
+- full name
+- first name
+- last name
+- phone
+- email
+- address
+- property fields if returned
+- raw payload in metadata/jsonb
+
+Deduplicate by:
+workspace_id + external_lead_id
+
+If no external_lead_id exists, fallback to:
+workspace_id + normalized phone + email
+
+6. UI updates
+In Data window, add/confirm tabs or filters for:
+- Disqualified
+- Tried To Contact
+- Rebooking
+
+Each tab must:
+- only show records where webee_category matches that tab
+- show count
+- support refresh
+- not affect other data tabs
+
+7. Manual sync controls
+Add admin-only buttons:
+- Sync Disqualified
+- Sync Tried To Contact
+- Sync Rebooking
+- Sync All Categories
+
+Show:
+- last sync time
+- imported count
+- updated count
+- skipped count
+- failed count
+- status/category counts
+
+8. Safety
+All calls to external dashboard/n8n/Dynamics must be server-side only.
+Never expose API tokens in the browser.
+Only enable for Webuyanyhouse workspace.
+Do not show this feature to other workspaces.
+
+9. Debug logging
+Add server-side logs:
+- category being synced
+- external status codes used
+- endpoint/link used
+- page number
+- records received
+- records imported
+- records updated
+- records skipped
+- errors
+- workspace_id
+
+10. Acceptance checks
+- Existing Disqualified leads still appear.
+- Tried To Contact leads now appear under Data → Tried To Contact.
+- Rebooking leads now appear under Data → Rebooking.
+- Pulling one category does not overwrite another category.
+- The Lead Master Filter switch/status is respected for each category.
+- No duplicate leads are created.
+- Counts per category are correct.
+- Other workspaces are unaffected.
