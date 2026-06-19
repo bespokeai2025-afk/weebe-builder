@@ -96,6 +96,7 @@ function WebuyanyhouseAdminPanel() {
     queryKey: ["wbah-admin-status"],
     queryFn:  () => getStatusFn(),
     refetchInterval: 30_000,
+    throwOnError: false,
   });
 
   function invalidate() {

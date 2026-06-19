@@ -392,6 +392,7 @@ export function GrowthMindProposals() {
     queryKey: ["growthmind-all-proposals"],
     queryFn:  () => getProposalsFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   useEffect(() => {

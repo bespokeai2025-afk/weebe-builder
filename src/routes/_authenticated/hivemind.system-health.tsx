@@ -95,6 +95,7 @@ function HiveMindSystemHealth() {
     queryKey: ["hivemind-data"],
     queryFn: () => fn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const sh = (data?.systemHealth ?? {}) as Record<string, boolean>;

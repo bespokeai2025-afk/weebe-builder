@@ -46,6 +46,7 @@ function PhoneNumbersPage() {
   const { data: numbers = [], isFetching, refetch } = useQuery({
     queryKey: ["phone-numbers"],
     queryFn: () => listFn({}),
+    throwOnError: false,
   });
   const numbersPag = useTablePagination(numbers, 50);
 
@@ -55,6 +56,7 @@ function PhoneNumbersPage() {
       const { data } = await supabase.from("agents").select("id, name").order("name");
       return data ?? [];
     },
+    throwOnError: false,
   });
 
   const saveMut = useMutation({

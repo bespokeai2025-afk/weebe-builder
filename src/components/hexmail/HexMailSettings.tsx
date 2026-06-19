@@ -105,6 +105,7 @@ export function HexMailSettings() {
   const { data: saved, isLoading } = useQuery({
     queryKey: ["hexmail-settings"],
     queryFn: () => getHexmailSettings(),
+    throwOnError: false,
   });
 
   const [activeProvider, setActiveProvider] = useState<HexmailProvider | null>(null);

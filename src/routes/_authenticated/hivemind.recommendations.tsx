@@ -35,6 +35,7 @@ function HiveMindRecommendations() {
     queryKey: ["hivemind-data"],
     queryFn: () => fn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const [filterPriority, setFilterPriority] = useState<"all" | Priority>("all");

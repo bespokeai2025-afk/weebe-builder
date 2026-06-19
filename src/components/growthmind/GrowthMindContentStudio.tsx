@@ -1010,6 +1010,7 @@ export function GrowthMindContentStudio() {
     },
     staleTime: 30_000,
     enabled: tab === "library" || tab === "calendar",
+    throwOnError: false,
   });
 
   const { data: statsData } = useQuery({
@@ -1017,6 +1018,7 @@ export function GrowthMindContentStudio() {
     queryFn:  () => getStatsFn(),
     staleTime: 60_000,
     enabled: tab === "library",
+    throwOnError: false,
   });
 
   // ── Prompt Studio template queries ─────────────────────────────────────────
@@ -1025,6 +1027,7 @@ export function GrowthMindContentStudio() {
     queryFn:  () => getTemplatesFn(),
     staleTime: 60_000,
     enabled:  tab === "generate" && promptSource === "template",
+    throwOnError: false,
   });
 
   const { data: workspaceCtx } = useQuery({
@@ -1032,6 +1035,7 @@ export function GrowthMindContentStudio() {
     queryFn:  () => getWorkspaceCtxFn(),
     staleTime: 120_000,
     enabled:  tab === "generate" && promptSource === "template",
+    throwOnError: false,
   });
 
   // Filter templates to those relevant to the selected content type

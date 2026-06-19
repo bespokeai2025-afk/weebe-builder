@@ -232,17 +232,20 @@ function LeadsPage() {
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
     refetchInterval: 5 * 60 * 1000,
+    throwOnError: false,
   });
 
   const statsQ = useQuery({
     queryKey: ["campaign-stats"],
     queryFn: () => getCampaignStatsFn({ data: {} }),
+    throwOnError: false,
   });
 
   const agentsQ = useQuery({
     queryKey: ["dashboard-live-agents"],
     queryFn: () => getAgentsFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const leads = (leadsQ.data ?? []) as any[];

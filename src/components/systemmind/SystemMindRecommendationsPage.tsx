@@ -36,6 +36,7 @@ export function SystemMindRecommendationsPage() {
   const { data: recs, isLoading } = useQuery({
     queryKey: ["systemmind-recommendations"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
 
   async function generate() {

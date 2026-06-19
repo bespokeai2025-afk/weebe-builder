@@ -138,6 +138,7 @@ export function SystemMindSettingsPage() {
   const { data: settings, isLoading } = useQuery({
     queryKey: ["systemmind-cto-settings"],
     queryFn: () => getFn(),
+    throwOnError: false,
   });
 
   useEffect(() => {

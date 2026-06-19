@@ -177,6 +177,7 @@ export function SystemMindTasksPage() {
   const { data: tasks, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-tasks"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
 
   function byStatus(status: string) {

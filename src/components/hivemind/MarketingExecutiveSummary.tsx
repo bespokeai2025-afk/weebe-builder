@@ -62,6 +62,7 @@ export function MarketingExecutiveSummary({
     queryFn:  () => getFn(),
     staleTime: 120_000,
     enabled:  selfFetch,
+    throwOnError: false,
   });
 
   const gm = (selfFetch ? fetched : summary) ?? null;

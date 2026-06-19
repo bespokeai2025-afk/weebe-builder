@@ -476,16 +476,19 @@ function DataPage() {
   const recordsQ = useQuery({
     queryKey: ["data-records", filters],
     queryFn: () => listFn({ data: filters }),
+    throwOnError: false,
   });
 
   const agentsQ = useQuery({
     queryKey: ["my-agents-mini"],
     queryFn: () => listAgentsFn(),
+    throwOnError: false,
   });
 
   const scheduleQ = useQuery({
     queryKey: ["call-schedule"],
     queryFn: () => getScheduleFn(),
+    throwOnError: false,
   });
 
   const agents = (agentsQ.data ?? []) as Array<{

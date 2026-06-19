@@ -22,6 +22,7 @@ export function WhatsAppAgents() {
     queryKey: ["wa-provider-status"],
     queryFn:  () => statusFn(),
     refetchOnWindowFocus: true,
+    throwOnError: false,
   });
 
   const { data: agents = [], isLoading: agentsLoading } = useQuery({
@@ -29,6 +30,7 @@ export function WhatsAppAgents() {
     queryFn:  () => listFn(),
     refetchOnWindowFocus: false,
     enabled: providerStatus?.isConfigured === true,
+    throwOnError: false,
   });
 
   const isLoading = statusLoading;

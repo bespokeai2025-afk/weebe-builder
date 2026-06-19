@@ -69,12 +69,14 @@ function TemplatesPage() {
     queryKey: ["agent-templates"],
     queryFn: () => listFn(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   const adminQ = useQuery({
     queryKey: ["is-admin"],
     queryFn: () => adminFn(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   async function handleUse(id: string, skipMismatchCheck = false) {

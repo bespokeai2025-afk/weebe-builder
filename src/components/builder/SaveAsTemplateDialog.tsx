@@ -34,6 +34,7 @@ export function SaveAsTemplateDialog({
     queryKey: ["is-admin"],
     queryFn: () => adminFn(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
   const isAdmin = adminQ.data?.isAdmin ?? false;
 

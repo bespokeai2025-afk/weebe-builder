@@ -503,6 +503,7 @@ function HiveMindTasks() {
     queryKey: ["hivemind-tasks"],
     queryFn:  () => getFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const tasks  = data?.tasks  ?? [];

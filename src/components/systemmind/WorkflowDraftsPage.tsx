@@ -230,6 +230,7 @@ export function WorkflowDraftsPage() {
   const { data: drafts = [], isLoading } = useQuery({
     queryKey: ["generator-drafts"],
     queryFn:  () => listFn(),
+    throwOnError: false,
   });
 
   const propose = useMutation({

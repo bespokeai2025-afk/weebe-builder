@@ -99,6 +99,7 @@ export function EmailAnalytics() {
   const campaignsQ = useQuery({
     queryKey: ["hexmail-campaigns"],
     queryFn: () => listHexmailCampaigns({ data: {} }),
+    throwOnError: false,
   });
 
   const hasCampaigns = (campaignsQ.data ?? []).length > 0;

@@ -66,6 +66,7 @@ function MyAgentsPage() {
     queryKey: ["my-agents"],
     queryFn: () => listAgents(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   async function handleLoad(id: string) {

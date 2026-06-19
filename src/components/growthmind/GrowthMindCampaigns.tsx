@@ -28,6 +28,7 @@ export function GrowthMindCampaigns() {
     queryKey: ["growthmind-data"],
     queryFn:  () => fn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const campaigns = data?.campaigns?.stats ?? [];

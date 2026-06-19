@@ -49,6 +49,7 @@ export function GrowthMindRecommendations() {
     queryKey: ["growthmind-recs-stored"],
     queryFn:  () => storedFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   // 2. Fetch live platform data — always in background
@@ -56,6 +57,7 @@ export function GrowthMindRecommendations() {
     queryKey: ["growthmind-data"],
     queryFn:  () => dataFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   // 3. Generate fresh recs from live data

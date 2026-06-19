@@ -33,6 +33,7 @@ function UserActivityPage() {
     queryKey: ["admin-user-activity", tab],
     queryFn: () => fetchActivity({ data: { onlyUnreviewed: tab === "unreviewed" } }),
     refetchInterval: 30_000,
+    throwOnError: false,
   });
 
   const reviewMutation = useMutation({

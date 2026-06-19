@@ -40,6 +40,7 @@ export function AccountsMindDashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["accountsmind-dashboard"],
     queryFn:  () => getDashboard(),
+    throwOnError: false,
   });
 
   const scan = useMutation({

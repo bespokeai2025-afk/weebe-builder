@@ -76,6 +76,7 @@ export function SystemMindIssuesPage() {
   const { data: issues, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-issues"],
     queryFn: () => issuesFn(),
+    throwOnError: false,
   });
 
   async function handleFixPlan(issue: SystemMindIssue) {

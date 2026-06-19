@@ -193,6 +193,7 @@ export function GrowthMindPlaybooks() {
     queryKey: ["growthmind-active-playbook"],
     queryFn:  () => getActiveFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const activeIndustry = data?.activePlaybook?.industry ?? null;

@@ -518,12 +518,14 @@ export function GrowthMindBlogWriter() {
     queryKey: ["blog-posts"],
     queryFn:  () => getBlogPosts({}),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const settingsQuery = useQuery({
     queryKey: ["blog-publish-settings"],
     queryFn:  () => getBlogPublishSettings({}),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   // UI state

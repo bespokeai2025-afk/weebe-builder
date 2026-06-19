@@ -55,15 +55,18 @@ export function WhatsAppCampaigns() {
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["wa-campaigns"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
   const { data: templates = [] } = useQuery({
     queryKey: ["wa-templates"],
     queryFn: () => tmplFn(),
+    throwOnError: false,
   });
 
   const { data: watiConn } = useQuery({
     queryKey: ["wati-connection"],
     queryFn: () => watiConnFn(),
+    throwOnError: false,
   });
   const watiConnected = !!watiConn && watiConn.status === "connected";
 
@@ -71,6 +74,7 @@ export function WhatsAppCampaigns() {
     queryKey: ["wati-campaigns"],
     queryFn: () => watiListFn(),
     enabled: watiConnected,
+    throwOnError: false,
   });
 
   const syncWati = useMutation({

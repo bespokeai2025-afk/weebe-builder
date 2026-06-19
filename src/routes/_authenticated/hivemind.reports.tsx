@@ -174,6 +174,7 @@ function HiveMindReports() {
     queryKey: ["hivemind-data"],
     queryFn: () => fn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const [previewOpen, setPreviewOpen] = useState<Set<string>>(new Set());

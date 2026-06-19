@@ -48,11 +48,13 @@ export function WhatsAppTemplates() {
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["wa-templates"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
 
   const { data: watiConn } = useQuery({
     queryKey: ["wati-connection"],
     queryFn: () => watiConnFn(),
+    throwOnError: false,
   });
   const watiConnected = !!watiConn && watiConn.status === "connected";
 
@@ -60,6 +62,7 @@ export function WhatsAppTemplates() {
     queryKey: ["wati-templates"],
     queryFn: () => watiListFn(),
     enabled: watiConnected,
+    throwOnError: false,
   });
 
   const syncWati = useMutation({

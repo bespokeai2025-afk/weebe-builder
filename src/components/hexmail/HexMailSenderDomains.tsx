@@ -175,6 +175,7 @@ export function HexMailSenderDomains() {
   const { data: domains = [], isLoading } = useQuery({
     queryKey: ["sender-domains"],
     queryFn:  () => getDomainsFn(),
+    throwOnError: false,
   });
 
   const addMut = useMutation({

@@ -26,6 +26,7 @@ export function AccountsMindCosts() {
   const { data = [], isLoading } = useQuery({
     queryKey: ["accountsmind-costs"],
     queryFn:  () => getSummary(),
+    throwOnError: false,
   });
 
   const total = (data as any[]).reduce((s: number, r: any) => s + r.costCents, 0);

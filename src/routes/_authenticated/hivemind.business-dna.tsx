@@ -198,6 +198,7 @@ function BusinessDnaPage() {
     queryKey: ["business-dna"],
     queryFn: () => getDnaFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
   const dna = data?.dna ?? {};
   const conf: Record<string, { score: number; source?: string; last_updated?: string }> =

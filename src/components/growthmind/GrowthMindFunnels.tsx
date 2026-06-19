@@ -157,17 +157,20 @@ export function GrowthMindFunnels() {
     queryKey: ["growthmind-funnel-live"],
     queryFn:  () => getLiveFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const { data: platformData } = useQuery({
     queryKey: ["growthmind-data"],
     queryFn:  () => getDataFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   const { data: snapsData, isLoading: snapsLoading } = useQuery({
     queryKey: ["growthmind-funnel-snapshots"],
     queryFn:  () => getSnapsFn(),
+    throwOnError: false,
   });
 
   const stages   = liveData ? computeFunnelStages(liveData) : [];

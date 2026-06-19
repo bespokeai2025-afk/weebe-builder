@@ -106,6 +106,7 @@ function CampaignsPage() {
   const { data: campaigns = [], isFetching, refetch } = useQuery({
     queryKey: ["campaigns"],
     queryFn: () => listFn({}),
+    throwOnError: false,
   });
   const campPag = useTablePagination(campaigns, 25);
 
@@ -115,11 +116,13 @@ function CampaignsPage() {
       const { data } = await supabase.from("agents").select("id, name").order("name");
       return data ?? [];
     },
+    throwOnError: false,
   });
 
   const { data: phoneNumbers = [] } = useQuery({
     queryKey: ["phone-numbers"],
     queryFn: () => listNumsFn({}),
+    throwOnError: false,
   });
 
   const saveMut = useMutation({
@@ -334,6 +337,7 @@ function ScheduledCampaignsTab() {
   const { data: campaigns = [], isFetching, refetch } = useQuery({
     queryKey: ["all-call-campaigns"],
     queryFn: () => listAllFn({}),
+    throwOnError: false,
   });
   const schedPag = useTablePagination(campaigns, 25);
 
@@ -654,6 +658,7 @@ function WbahCampaignsTab() {
     queryFn:  () => getFn(),
     staleTime: 60_000,
     retry: 1,
+    throwOnError: false,
   });
   const wbahCampPag = useTablePagination(campaigns, 25);
 

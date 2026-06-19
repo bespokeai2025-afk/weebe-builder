@@ -208,6 +208,7 @@ function CampaignEditor({
     queryKey:  ["crm-segments"],
     queryFn:   () => segmentsFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   async function save(andSend?: boolean, testOnly?: boolean) {
@@ -518,6 +519,7 @@ function CampaignsTab() {
     queryKey:  ["email-campaigns"],
     queryFn:   () => listFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const campaigns = data?.campaigns ?? [];
@@ -969,6 +971,7 @@ function WarmupTab() {
     queryKey:  ["domain-warmups"],
     queryFn:   () => listFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const warmups = data?.warmups ?? [];
@@ -1060,6 +1063,7 @@ function AudienceTab() {
     queryKey:  ["crm-segments"],
     queryFn:   () => getFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   return (

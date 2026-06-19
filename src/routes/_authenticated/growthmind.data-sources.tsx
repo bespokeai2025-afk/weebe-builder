@@ -377,6 +377,7 @@ function DataSourcesPage() {
     queryKey: ["growthmind-data-sources"],
     queryFn:  () => fn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const sources  = data?.sources ?? [];

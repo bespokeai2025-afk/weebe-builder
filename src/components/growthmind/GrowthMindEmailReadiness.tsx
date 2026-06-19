@@ -35,6 +35,7 @@ export function GrowthMindEmailReadiness() {
     queryKey:  ["email-readiness"],
     queryFn:   () => getScoreFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const score = data?.score  ?? 0;

@@ -77,6 +77,7 @@ function UsageDashboardPage() {
     queryFn:  () => getFn(),
     staleTime: 60_000,
     refetchInterval: 120_000,
+    throwOnError: false,
   });
 
   if (isLoading) {

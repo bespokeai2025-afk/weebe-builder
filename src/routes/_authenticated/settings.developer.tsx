@@ -281,6 +281,7 @@ function DeveloperPage() {
   const { data: tokens = [], isLoading } = useQuery({
     queryKey: ["api-tokens"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
 
   const [createOpen, setCreateOpen] = useState(false);

@@ -47,6 +47,7 @@ export function KnowledgeBaseDetail({ slug }: { slug: string }) {
   const { data: docs, isLoading, refetch } = useQuery({
     queryKey: ["executive-documents", slug],
     queryFn: () => listFn({ data: { slug } }),
+    throwOnError: false,
   });
 
   async function handleFiles(files: FileList | null) {

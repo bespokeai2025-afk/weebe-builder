@@ -339,6 +339,7 @@ function AccountDetail({ account, onEdit, onDelete }: {
     queryKey: ["ads-campaigns", account.id],
     queryFn:  () => campaignsFn({ data: { accountId: account.id } }),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const campaigns = campaignsData?.campaigns ?? [];
@@ -791,6 +792,7 @@ export function GrowthMindAds() {
     queryKey: ["ads-accounts"],
     queryFn:  () => accountsFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const { data: syncData, refetch: refetchSync } = useQuery({
@@ -798,6 +800,7 @@ export function GrowthMindAds() {
     queryFn:   () => getSyncFn(),
     staleTime: 30_000,
     refetchInterval: 60_000,
+    throwOnError: false,
   });
 
   const syncMut = useMutation({

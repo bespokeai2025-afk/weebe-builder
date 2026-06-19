@@ -279,6 +279,7 @@ function CompositeProgressPanel({ asset }: { asset: VideoAsset }) {
     queryFn:  () => getClipsFn({ data: { assetId: asset.id } }),
     enabled:  !isDone,
     refetchInterval: needsTrigger || isAssembling ? 8_000 : false,
+    throwOnError: false,
   });
   const clips: VideoClip[] = clipsData?.clips ?? [];
 
@@ -754,6 +755,7 @@ function VideoCostPanel() {
   const { data } = useQuery({
     queryKey: ["video-cost-stats"],
     queryFn:  () => getCostFn({}),
+    throwOnError: false,
   });
 
   if (!data) return null;
@@ -1128,6 +1130,7 @@ export function GrowthMindVideoStudio() {
     queryKey: ["veo-status"],
     queryFn:  () => getVeoStatusFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const generateVariantsFn  = useServerFn(generateVideoVariants);
@@ -1267,6 +1270,7 @@ export function GrowthMindVideoStudio() {
     queryKey: ["video-assets", filterType],
     queryFn:  () => getAssetsFn({ data: { videoType: filterType === "all" ? undefined : filterType, limit: 200 } }),
     refetchInterval: 15000,
+    throwOnError: false,
   });
 
   const assets = assetsData?.assets ?? [];

@@ -124,6 +124,7 @@ function BriefingDetail({ id, onBack }: { id: string; onBack: () => void }) {
     queryKey: ["briefing", id],
     queryFn:  () => getFn({ data: { id } }),
     staleTime: 600_000,
+    throwOnError: false,
   });
   const briefing: FullBriefing | undefined = data?.briefing;
   const secs = briefing?.sections ?? {};
@@ -242,6 +243,7 @@ function HiveMindBriefingsPage() {
     queryKey: ["briefings", filter],
     queryFn:  () => listFn({ data: { type: filter } }),
     staleTime: 30_000,
+    throwOnError: false,
   });
   const briefings: BriefingRow[] = data?.briefings ?? [];
 

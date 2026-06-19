@@ -67,6 +67,7 @@ export function AccountsMindRecharges() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["accountsmind-recharges"],
     queryFn:  () => listFn({ data: {} }),
+    throwOnError: false,
   });
 
   const save = async () => {

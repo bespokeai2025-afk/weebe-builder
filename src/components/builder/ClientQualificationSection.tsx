@@ -89,6 +89,7 @@ export function ClientQualificationSection() {
     queryKey: ["lead-custom-fields"],
     queryFn: () => getLeadFieldsFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const standardFields = (leadFieldsQ.data?.standardFields ?? []).map((f) => ({

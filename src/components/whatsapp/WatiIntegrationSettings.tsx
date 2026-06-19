@@ -41,6 +41,7 @@ export function WatiIntegrationSettings() {
     queryKey: ["wati-connection"],
     queryFn: () => getConnFn(),
     refetchInterval: 30000,
+    throwOnError: false,
   });
 
   const isConnected = !!conn && conn.status === "connected";

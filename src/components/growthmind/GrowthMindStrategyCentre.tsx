@@ -218,11 +218,13 @@ function StrategyDisplay({
     queryFn:   () => tasksFn({ data: { strategyId: strategy.id } }),
     enabled:   strategy.status === "approved",
     staleTime: 30_000,
+    throwOnError: false,
   });
   const { data: assetsData, isLoading: assetsLoading, isError: assetsError } = useQuery({
     queryKey:  ["strategy-assets", strategy.id],
     queryFn:   () => assetsFn({ data: { strategyId: strategy.id } }),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const tasks  = tasksData?.tasks  ?? [];
@@ -750,6 +752,7 @@ export function GrowthMindStrategyCentre() {
     queryKey:  ["strategy-centre"],
     queryFn:   () => listFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const strategies     = data?.strategies ?? [];

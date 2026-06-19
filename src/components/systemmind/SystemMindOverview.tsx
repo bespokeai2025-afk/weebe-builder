@@ -81,6 +81,7 @@ export function SystemMindOverview() {
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-data"],
     queryFn: () => dataFn(),
+    throwOnError: false,
   });
 
   const summary = data ? buildSystemMindSummary(data) : null;

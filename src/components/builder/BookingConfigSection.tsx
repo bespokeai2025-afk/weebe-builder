@@ -44,11 +44,13 @@ export function BookingConfigSection() {
     queryKey: ["wcs-settings"],
     queryFn: () => getSettings(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
   const eventTypesQ = useQuery({
     queryKey: ["wcs-event-types"],
     queryFn: () => listEventTypes(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   const calConnected = Boolean(settingsQ.data?.calcom_api_key);

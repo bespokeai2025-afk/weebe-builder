@@ -108,6 +108,7 @@ export function SystemMindFixPlansPage() {
   const { data: plans, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-fix-plans"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
 
   async function create() {

@@ -233,6 +233,7 @@ export function GrowthMindCompetitors() {
     queryKey: ["growthmind-competitors"],
     queryFn:  () => getCompsFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const competitors = data?.competitors ?? [];

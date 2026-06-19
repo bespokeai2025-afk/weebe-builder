@@ -133,6 +133,7 @@ function HiveMindBriefingPage() {
     queryKey: ["hivemind-briefing-exec"],
     queryFn:  () => getBriefFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   async function handlePropose(rec: BiRecommendation) {

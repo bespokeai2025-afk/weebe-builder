@@ -83,6 +83,7 @@ export function SystemMindArchitecturePage() {
   const { data: layers, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-architecture"],
     queryFn: () => layersFn(),
+    throwOnError: false,
   });
 
   const healthy = (layers ?? []).filter((l) => l.components.every((c) => c.status === "active")).length;

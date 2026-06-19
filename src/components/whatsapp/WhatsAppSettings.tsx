@@ -35,6 +35,7 @@ export function WhatsAppSettings() {
   const { data, isLoading } = useQuery({
     queryKey: ["wa-settings"],
     queryFn: () => getSettingsFn(),
+    throwOnError: false,
   });
 
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);

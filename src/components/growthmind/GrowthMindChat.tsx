@@ -290,6 +290,7 @@ export function GrowthMindChat() {
     queryKey: ["growthmind-data"],
     queryFn:  () => dataFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   useEffect(() => {

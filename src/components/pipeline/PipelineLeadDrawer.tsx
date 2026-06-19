@@ -192,6 +192,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
       detailFn({ data: { leadId: lead!.id, phone: lead!.phone } }),
     enabled: open && !!lead,
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const notesQ = useQuery({
@@ -200,6 +201,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
       listFn({ data: { entityType: "lead", entityId: lead!.id } }),
     enabled: open && !!lead,
     staleTime: 0,
+    throwOnError: false,
   });
 
   const docsQ = useQuery({
@@ -207,6 +209,7 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
     queryFn:  () => docsByPhoneFn({ data: { phone: lead!.phone! } }),
     enabled:  open && !!lead?.phone,
     staleTime: 0,
+    throwOnError: false,
   });
 
   const detail  = detailQ.data ?? null;

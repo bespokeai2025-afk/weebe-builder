@@ -55,6 +55,7 @@ function TasksBadge() {
     queryKey: ["hivemind-shell-badge"],
     queryFn:  () => getFn(),
     staleTime: 60_000, refetchInterval: 120_000,
+    throwOnError: false,
   });
   const n = data?.badge ?? 0;
   if (!n) return null;
@@ -67,6 +68,7 @@ function ActionsBadge() {
     queryKey: ["hivemind-actions-badge"],
     queryFn:  () => getFn(),
     staleTime: 60_000, refetchInterval: 120_000,
+    throwOnError: false,
   });
   const n = data?.pending ?? 0;
   if (!n) return null;
@@ -79,6 +81,7 @@ function BriefingsBadge() {
     queryKey: ["hivemind-briefings-badge"],
     queryFn:  () => getFn(),
     staleTime: 120_000, refetchInterval: 180_000,
+    throwOnError: false,
   });
   const n = data?.count ?? 0;
   if (!n) return null;
@@ -150,6 +153,7 @@ export function HiveMindShell({ children }: { children: React.ReactNode }) {
     queryKey: ["hivemind-mode"],
     queryFn:  () => modeFn(),
     staleTime: Infinity,
+    throwOnError: false,
   });
   const mode: HiveMindMode = modeData?.mode ?? "assistant";
 

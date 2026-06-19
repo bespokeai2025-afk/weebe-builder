@@ -91,6 +91,7 @@ export function NodeEditorDialog() {
     queryKey: ["workspace-calendar-settings"],
     queryFn: () => fetchCal(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const preset = node ? BOOKING_PRESETS.find((p) => p.id === node.data.toolId) : undefined;
@@ -1683,6 +1684,7 @@ function DestinationAgentPicker({
   const { data: agents, isLoading } = useQuery({
     queryKey: ["workspace-agents"],
     queryFn: () => fetchAgents({}),
+    throwOnError: false,
   });
 
   const deployed = (agents ?? []).filter(

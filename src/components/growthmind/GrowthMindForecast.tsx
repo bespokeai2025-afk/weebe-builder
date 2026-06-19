@@ -185,6 +185,7 @@ export function GrowthMindForecast() {
     queryKey: ["growthmind-forecast-raw"],
     queryFn:  () => getDataFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   useEffect(() => {
@@ -199,6 +200,7 @@ export function GrowthMindForecast() {
   const { data: histData, isLoading: histLoading } = useQuery({
     queryKey: ["growthmind-saved-forecasts"],
     queryFn:  () => getHistFn(),
+    throwOnError: false,
   });
 
   const dv = parseFloat(dealValue) || 0;

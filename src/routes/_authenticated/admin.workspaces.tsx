@@ -53,12 +53,14 @@ function AdminWorkspacesPage() {
     queryKey: ["admin-workspaces-modules"],
     queryFn: () => fetchWorkspaces(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const { data: requests = [], isLoading: reqLoading } = useQuery({
     queryKey: ["admin-module-requests"],
     queryFn: () => fetchRequests(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const saveMut = useMutation({

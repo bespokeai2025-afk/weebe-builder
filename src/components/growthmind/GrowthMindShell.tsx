@@ -92,6 +92,7 @@ export function GrowthMindShell({ children }: { children: React.ReactNode }) {
     queryKey: ["growthmind-all-proposals"],
     queryFn:  () => getProposalsFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
   const approvedCount = proposalsData?.approvedCount ?? 0;
 

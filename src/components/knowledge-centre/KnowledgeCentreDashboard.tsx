@@ -92,11 +92,13 @@ export function KnowledgeCentreDashboard() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["executive-knowledge-stats"],
     queryFn:  () => statsFn(),
+    throwOnError: false,
   });
 
   const { data: platformStats, isLoading: platformLoading } = useQuery({
     queryKey: ["platform-kb-stats"],
     queryFn:  () => platformFn(),
+    throwOnError: false,
   });
 
   // Self-driving starter-knowledge seeding: batches until nothing remains.

@@ -170,6 +170,7 @@ function SubmissionsPanel({ sourceId, onClose }: { sourceId: string; onClose: ()
     queryKey: ["webform-submissions", sourceId],
     queryFn: () => listFn({ data: { webformSourceId: sourceId, limit: 50 } }),
     staleTime: 30_000,
+    throwOnError: false,
   });
   const submissions = data?.submissions ?? [];
 
@@ -349,11 +350,13 @@ function WebformsPage() {
     queryKey: ["webform-sources"],
     queryFn: () => listFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
   const { data: statsData } = useQuery({
     queryKey: ["webform-stats"],
     queryFn: () => statsFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   const sources = data?.sources ?? [];

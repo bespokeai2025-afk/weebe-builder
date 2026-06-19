@@ -49,10 +49,12 @@ function PlatformKnowledgePage() {
   const { data: kbData, isLoading: kbLoading } = useQuery({
     queryKey: ["platform-kbs"],
     queryFn:  () => listFn(),
+    throwOnError: false,
   });
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["platform-kb-stats"],
     queryFn:  () => statsFn(),
+    throwOnError: false,
   });
 
   const [seeding, setSeeding] = useState(false);
@@ -211,6 +213,7 @@ function KbDetail({ kbId: _kbId, kbSlug }: { kbId: string; kbSlug: string }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["platform-docs", kbSlug],
     queryFn:  () => docsFn({ data: { kbSlug } }),
+    throwOnError: false,
   });
   const docs = data?.docs ?? [];
 

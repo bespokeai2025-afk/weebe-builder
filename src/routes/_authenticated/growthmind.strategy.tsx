@@ -193,6 +193,7 @@ function StrategyPage() {
     queryKey: ["growthmind-strategies"],
     queryFn:  () => getStrategiesFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const strategies   = data?.strategies ?? [];

@@ -287,6 +287,7 @@ function CampaignFactoryPage() {
     queryKey: ["growthmind-campaign-drafts"],
     queryFn:  () => getDraftsFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const drafts = data?.drafts ?? [];

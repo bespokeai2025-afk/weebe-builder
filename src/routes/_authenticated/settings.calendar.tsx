@@ -49,10 +49,18 @@ function CalendarSettingsPage() {
   const setEtActive = useServerFn(setEventTypeActive);
   const getBookings = useServerFn(listMyBookings);
 
-  const settingsQ = useQuery({ queryKey: ["wcs"], queryFn: () => getSettings() });
-  const calsQ = useQuery({ queryKey: ["wcs-cals"], queryFn: () => listCals() });
-  const etsQ = useQuery({ queryKey: ["wcs-ets"], queryFn: () => listEts() });
-  const bookQ = useQuery({ queryKey: ["wcs-bookings"], queryFn: () => getBookings() });
+  const settingsQ = useQuery({ queryKey: ["wcs"], queryFn: () => getSettings() ,
+    throwOnError: false,
+  });
+  const calsQ = useQuery({ queryKey: ["wcs-cals"], queryFn: () => listCals() ,
+    throwOnError: false,
+  });
+  const etsQ = useQuery({ queryKey: ["wcs-ets"], queryFn: () => listEts() ,
+    throwOnError: false,
+  });
+  const bookQ = useQuery({ queryKey: ["wcs-bookings"], queryFn: () => getBookings() ,
+    throwOnError: false,
+  });
 
   const [apiKey, setApiKey] = useState("");
   const [timezone, setTimezone] = useState("UTC");

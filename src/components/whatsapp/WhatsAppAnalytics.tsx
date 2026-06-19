@@ -64,11 +64,13 @@ export function WhatsAppAnalytics() {
     queryKey: ["wa-analytics"],
     queryFn: () => analyticsFn(),
     refetchInterval: 60_000,
+    throwOnError: false,
   });
 
   const { data: watiConn } = useQuery({
     queryKey: ["wati-connection"],
     queryFn: () => watiConnFn(),
+    throwOnError: false,
   });
   const watiConnected = !!watiConn && watiConn.status === "connected";
 
@@ -76,6 +78,7 @@ export function WhatsAppAnalytics() {
     queryKey: ["wati-campaigns"],
     queryFn: () => watiCampFn(),
     enabled: watiConnected,
+    throwOnError: false,
   });
 
   const watiTotalSent      = (watiCampaigns as any[]).reduce((a, c) => a + (c.sent ?? 0), 0);

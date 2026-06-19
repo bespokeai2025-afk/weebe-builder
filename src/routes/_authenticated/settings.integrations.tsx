@@ -44,24 +44,28 @@ function IntegrationsPage() {
     queryKey: ["el-key-status"],
     queryFn: () => getFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const { data: oaiStatus, isLoading: oaiLoading } = useQuery({
     queryKey: ["oai-key-status"],
     queryFn: () => getOAIFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const { data: hmData, isLoading: hmLoading } = useQuery({
     queryKey: ["hm-agent-id"],
     queryFn: () => getHMFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const { data: agentsData } = useQuery({
     queryKey: ["my-agents-list"],
     queryFn: () => listAgentsFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const deployedAgents = (agentsData ?? []).filter(

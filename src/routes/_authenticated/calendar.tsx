@@ -108,6 +108,7 @@ function BookingDetailDialog({
     queryKey: ["booking-detail", booking?.id],
     queryFn: () => getDetailFn({ data: { db_id: booking?.db_id ?? undefined, external_id: booking?.external_id ?? undefined } }),
     enabled: open && booking != null && (!!booking.db_id || !!booking.external_id),
+    throwOnError: false,
   });
 
   const [notes, setNotes]         = useState("");
@@ -287,7 +288,9 @@ function CalendarPage() {
   const fn = useServerFn(listCalendarBookings);
   const qc = useQueryClient();
 
-  const q = useQuery({ queryKey: ["calendar-bookings"], queryFn: () => fn() });
+  const q = useQuery({ queryKey: ["calendar-bookings"], queryFn: () => fn() ,
+    throwOnError: false,
+  });
   const data = q.data;
 
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});

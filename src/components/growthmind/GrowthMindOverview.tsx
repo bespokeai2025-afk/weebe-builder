@@ -102,41 +102,48 @@ export function GrowthMindOverview() {
     queryKey: ["provider-registry"],
     queryFn: () => providerRegistryFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["growthmind-data"],
     queryFn:  () => fn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const { data: playbookData } = useQuery({
     queryKey: ["growthmind-active-playbook"],
     queryFn:  () => getPlaybookFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const { data: dnaData } = useQuery({
     queryKey: ["growthmind-business-dna"],
     queryFn:  () => getDnaFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   const { data: valuePointData } = useQuery({
     queryKey: ["growthmind-value-point"],
     queryFn:  () => getValuePointFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   const { data: oppsData, refetch: refetchOpps } = useQuery({
     queryKey: ["growthmind-opportunities"],
     queryFn:  () => getOpportunitiesFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   const { data: cmoData, refetch: refetchCMO } = useQuery({
     queryKey: ["growthmind-cmo-dashboard"],
     queryFn:  () => getCMODashboardFn(),
     staleTime: 300_000,
+    throwOnError: false,
   });
 
   const dna        = (dnaData as any)?.dna ?? null;

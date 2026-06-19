@@ -109,6 +109,7 @@ export function ImportSystemMindDraftDialog({
     queryKey: ["generator-drafts"],
     queryFn:  () => listFn(),
     enabled:  open,
+    throwOnError: false,
   });
 
   const importable = (allDrafts as WorkflowDraftFull[]).filter(

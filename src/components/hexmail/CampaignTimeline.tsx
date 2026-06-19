@@ -387,11 +387,13 @@ export function CampaignTimeline({ initialCampaignId }: CampaignTimelineProps) {
     queryKey: ["hexmail-campaign-steps", campaignId],
     queryFn: () => getHexmailCampaignWithSteps({ data: { id: campaignId } }),
     enabled: !!campaignId,
+    throwOnError: false,
   });
 
   const templatesQ = useQuery({
     queryKey: ["hexmail-templates"],
     queryFn: () => listHexmailTemplates({ data: { includeArchived: false } }),
+    throwOnError: false,
   });
 
   useEffect(() => {

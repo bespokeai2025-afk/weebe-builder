@@ -55,6 +55,7 @@ function HealthBadge({ route, base }: { route: string | null; base: string }) {
     enabled: !!route,
     retry: false,
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   if (!route) return <Badge variant="outline" className="text-[10px]">No health check</Badge>;
@@ -121,12 +122,14 @@ function ProductionReadinessPage() {
     queryKey: ["production-readiness"],
     queryFn: () => getDataFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const { data: updateLog } = useQuery({
     queryKey: ["webhook-update-log"],
     queryFn: () => getLogFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const updateMutation = useMutation({

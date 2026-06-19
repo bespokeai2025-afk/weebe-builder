@@ -32,6 +32,7 @@ export function SystemMindChatPage() {
   const { data: platformData } = useQuery({
     queryKey: ["systemmind-data"],
     queryFn: () => dataFn(),
+    throwOnError: false,
   });
 
   useEffect(() => {

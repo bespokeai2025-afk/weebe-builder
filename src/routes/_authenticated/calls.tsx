@@ -323,6 +323,7 @@ function CallsPage() {
   const testQ = useQuery({
     queryKey: ["test-calls"],
     queryFn: () => testFn({ data: {} }),
+    throwOnError: false,
   });
   const testRows = testQ.data ?? [];
 

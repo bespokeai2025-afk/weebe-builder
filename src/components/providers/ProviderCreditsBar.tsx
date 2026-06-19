@@ -22,6 +22,7 @@ export function ProviderCreditsBar() {
     queryFn: () => fn(),
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
+    throwOnError: false,
   });
 
   if (isLoading) return null;

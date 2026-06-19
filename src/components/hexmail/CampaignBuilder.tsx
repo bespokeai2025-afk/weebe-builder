@@ -97,6 +97,7 @@ export function CampaignBuilder({ open, campaignId, onClose, onSaved }: Props) {
     queryKey: ["hexmail-campaign-steps", campaignId],
     queryFn: () => getHexmailCampaignWithSteps({ data: { id: campaignId! } }),
     enabled: open && !!campaignId,
+    throwOnError: false,
   });
 
   const { data: templates = [] } = useQuery<HexmailTemplate[]>({

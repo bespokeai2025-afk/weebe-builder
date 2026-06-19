@@ -38,8 +38,12 @@ export function HexMailMailboxes() {
   const updateMailFn  = useServerFn(updateMailbox);
   const deleteMailFn  = useServerFn(deleteMailbox);
 
-  const { data: domains = [] } = useQuery({ queryKey: ["sender-domains"], queryFn: () => getDomainsFn() });
-  const { data: mailboxes = [], isLoading } = useQuery({ queryKey: ["mailboxes"], queryFn: () => getMailFn() });
+  const { data: domains = [] } = useQuery({ queryKey: ["sender-domains"], queryFn: () => getDomainsFn() ,
+    throwOnError: false,
+  });
+  const { data: mailboxes = [], isLoading } = useQuery({ queryKey: ["mailboxes"], queryFn: () => getMailFn() ,
+    throwOnError: false,
+  });
 
   const addMut = useMutation({
     mutationFn: () => addMailFn({ data: { domainId, emailAddress: email, dailySendLimit: limit } }),

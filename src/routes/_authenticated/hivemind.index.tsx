@@ -333,6 +333,7 @@ function HiveMindOverview() {
     staleTime: 0,
     refetchInterval: REFRESH_MS,
     refetchIntervalInBackground: false,
+    throwOnError: false,
   });
 
   const platformQ = useQuery({
@@ -340,6 +341,7 @@ function HiveMindOverview() {
     queryFn: () => platformFn(),
     staleTime: 60_000,
     refetchInterval: REFRESH_MS,
+    throwOnError: false,
   });
 
   // Tasks + events query (for notification strip)
@@ -348,6 +350,7 @@ function HiveMindOverview() {
     queryFn: () => getTasksFn(),
     staleTime: 60_000,
     refetchInterval: 120_000,
+    throwOnError: false,
   });
 
   // Auto-scan once on mount (fire-and-forget, refresh tasks after)

@@ -41,11 +41,13 @@ export function HexMailReputation() {
   const { data: domains = [], isLoading: loadingDomains } = useQuery({
     queryKey: ["sender-domains"],
     queryFn:  () => getDomainsFn(),
+    throwOnError: false,
   });
   const { data: events = [], isLoading: loadingEvents } = useQuery({
     queryKey: ["reputation-events"],
     queryFn:  () => getEventsFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const bounces       = events.filter((e: any) => e.event_type === "bounce").length;

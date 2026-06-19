@@ -22,6 +22,7 @@ export function WhatsAppInbox() {
     queryKey: ["wa-threads"],
     queryFn: () => listFn(),
     refetchInterval: 30_000,
+    throwOnError: false,
   });
 
   const [search, setSearch] = useState("");

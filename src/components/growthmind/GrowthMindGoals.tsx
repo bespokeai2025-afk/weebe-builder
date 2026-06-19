@@ -399,6 +399,7 @@ export function GrowthMindGoals() {
     queryKey:  ["growthmind-goals"],
     queryFn:   () => getGoalsFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const goals         = (data?.goals ?? []) as GoalWithProgress[];

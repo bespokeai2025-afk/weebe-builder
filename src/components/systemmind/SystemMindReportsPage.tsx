@@ -25,6 +25,7 @@ export function SystemMindReportsPage() {
   const { data: reports, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-reports"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
 
   async function openReport(report: any) {

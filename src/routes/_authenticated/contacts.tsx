@@ -67,6 +67,7 @@ function ContactDocsDialog({
     queryFn: () => listFn({ data: { contactId: target!.contactId } }),
     enabled: !!target,
     staleTime: 0,
+    throwOnError: false,
   });
 
   const tokenQ = useQuery({
@@ -75,6 +76,7 @@ function ContactDocsDialog({
     enabled: !!target,
     staleTime: Infinity,
     retry: 1,
+    throwOnError: false,
   });
 
   const uploadToken = (tokenQ.data as any)?.uploadToken ?? null;
@@ -237,6 +239,7 @@ function WbahLeadsSection() {
     refetchOnWindowFocus: true,
     refetchInterval: 5 * 60 * 1000,
     retry: 0,
+    throwOnError: false,
   });
 
   // Auto-reload once when the query errors with no data — this happens when the

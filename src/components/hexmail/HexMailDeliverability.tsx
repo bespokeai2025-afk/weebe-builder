@@ -57,6 +57,7 @@ function WebhookPanel() {
     queryKey:  ["resend-webhook-status"],
     queryFn:   () => getStatusFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const registerMut = useMutation({
@@ -149,6 +150,7 @@ export function HexMailDeliverability() {
     queryKey:  ["deliverability-dashboard"],
     queryFn:   () => getDashFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const stats = data?.stats;

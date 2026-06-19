@@ -323,7 +323,9 @@ function AnalyticsPage() {
   const [selectorOpen, setSelectorOpen] = useState(false);
 
   const q = useQuery({ queryKey: ["retell-analytics", days], queryFn: () => fn({ data: { days } }), throwOnError: false });
-  const liveAgentsQ = useQuery({ queryKey: ["dashboard-live-agents"], queryFn: () => getLiveAgentsFn({ data: undefined }), staleTime: 60_000 });
+  const liveAgentsQ = useQuery({ queryKey: ["dashboard-live-agents"], queryFn: () => getLiveAgentsFn({ data: undefined }), staleTime: 60_000 ,
+    throwOnError: false,
+  });
 
   const result   = q.data;
   const allCalls = (result?.calls ?? []) as any[];
@@ -359,7 +361,9 @@ function AnalyticsPage() {
   // ── Marketing state ──
   const mktFn = useServerFn(getMarketingAnalytics);
   const [mktTab, setMktTab] = useState<MktgTabKey>("ads");
-  const mktQ = useQuery({ queryKey: ["marketing-analytics"], queryFn: () => mktFn(), staleTime: 60_000, enabled: mainTab === "marketing" });
+  const mktQ = useQuery({ queryKey: ["marketing-analytics"], queryFn: () => mktFn(), staleTime: 60_000, enabled: mainTab === "marketing" ,
+    throwOnError: false,
+  });
 
   return (
     <div className="pb-8">

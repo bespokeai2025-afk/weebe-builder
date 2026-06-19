@@ -98,6 +98,7 @@ export function CreateCampaignForm({ onBack, onSaved }: CreateCampaignFormProps)
   const templatesQ = useQuery({
     queryKey: ["hexmail-templates"],
     queryFn: () => listHexmailTemplates({ data: { includeArchived: false } }),
+    throwOnError: false,
   });
 
   const emailTemplates = (templatesQ.data ?? []).filter((t) => t.type === "email");

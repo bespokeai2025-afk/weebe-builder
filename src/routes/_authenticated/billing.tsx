@@ -47,6 +47,7 @@ function BillingPage() {
     queryFn: () => fetchSummary({ data: { environment: environment! } }),
     enabled: !!environment,
     refetchInterval: 30_000,
+    throwOnError: false,
   });
 
   const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null);

@@ -49,6 +49,7 @@ export function HiveMindProviderHealth() {
     queryKey: ["provider-registry"],
     queryFn: () => fn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   const totalConnected = data?.totalConnected ?? 0;

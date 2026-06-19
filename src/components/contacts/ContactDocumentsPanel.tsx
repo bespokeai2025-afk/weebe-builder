@@ -58,6 +58,7 @@ export function ContactDocumentsPanel({ contactId, contactName, uploadToken: tok
     queryKey: ["contact-docs", contactId],
     queryFn:  () => listFn({ data: { contactId } }),
     staleTime: 0,
+    throwOnError: false,
   });
 
   const tokenQ = useQuery({
@@ -68,6 +69,7 @@ export function ContactDocumentsPanel({ contactId, contactName, uploadToken: tok
     },
     staleTime: Infinity,
     retry: 1,
+    throwOnError: false,
   });
 
   const docs   = (docsQ.data ?? []) as any[];

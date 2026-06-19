@@ -79,12 +79,14 @@ function ImageLibraryPage() {
       },
     }),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const { data: drafts } = useQuery({
     queryKey: ["campaign-drafts-picker"],
     queryFn:  () => listDraftsFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const assets = assetsData?.assets ?? [];

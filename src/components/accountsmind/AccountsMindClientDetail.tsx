@@ -50,6 +50,7 @@ export function AccountsMindClientDetail({ workspaceId }: Props) {
   const { data, isLoading } = useQuery({
     queryKey: ["accountsmind-client", workspaceId],
     queryFn:  () => getDetail({ data: { workspaceId } }),
+    throwOnError: false,
   });
 
   const compute = useMutation({

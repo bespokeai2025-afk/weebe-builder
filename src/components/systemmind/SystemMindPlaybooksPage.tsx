@@ -160,6 +160,7 @@ export function SystemMindPlaybooksPage() {
           riskLevel: riskFilter !== "all" ? riskFilter : undefined,
         },
       }),
+    throwOnError: false,
   });
 
   // Auto-seed on first mount

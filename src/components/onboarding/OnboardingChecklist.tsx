@@ -87,6 +87,7 @@ export function OnboardingChecklist() {
     queryFn:  () => getStateFn(),
     staleTime: 30_000,
     retry: false,
+    throwOnError: false,
   });
 
   // Don't show if no state, completed, or dismissed locally

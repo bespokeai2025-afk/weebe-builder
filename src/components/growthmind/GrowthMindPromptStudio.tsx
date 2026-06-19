@@ -787,12 +787,14 @@ export function GrowthMindPromptStudio() {
   const { data: templatesData, isLoading } = useQuery({
     queryKey: ["prompt-templates"],
     queryFn:  () => getTemplatesFn(),
+    throwOnError: false,
   });
 
   const { data: workspaceCtx = EMPTY_WS_CTX } = useQuery({
     queryKey: ["workspace-context"],
     queryFn:  () => getWorkspaceCtxFn(),
     staleTime: 5 * 60 * 1000,
+    throwOnError: false,
   });
 
   const templates    = templatesData?.templates ?? [];

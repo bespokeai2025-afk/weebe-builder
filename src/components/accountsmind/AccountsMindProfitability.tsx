@@ -29,6 +29,7 @@ export function AccountsMindProfitability() {
   const { data = [], isLoading } = useQuery({
     queryKey: ["accountsmind-profitability"],
     queryFn:  () => listFn(),
+    throwOnError: false,
   });
 
   const rows = data as any[];

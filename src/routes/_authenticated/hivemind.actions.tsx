@@ -597,12 +597,14 @@ function HiveMindActionsPage() {
     queryKey: ["hivemind-actions"],
     queryFn:  () => getActionsFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const { data: propData, isLoading: propLoading, refetch: refetchProps } = useQuery({
     queryKey: ["campaign-proposals-actions"],
     queryFn:  () => getProposalsFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const actions   = data?.actions ?? [];

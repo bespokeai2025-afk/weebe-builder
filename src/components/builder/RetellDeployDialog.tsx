@@ -194,6 +194,7 @@ export function RetellDeployDialog({
     queryKey: ["my-spend"],
     queryFn: () => fetchSpend(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
   const spendLimitCents = spendQ.data?.spendLimitCents ?? 500;
   const spendUsedCents = spendQ.data?.spendUsedCents ?? 0;
@@ -204,6 +205,7 @@ export function RetellDeployDialog({
     queryFn: () => listAgents(),
     enabled: loadOpen,
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   const deploymentMode = resolveDeploymentMode(settings);

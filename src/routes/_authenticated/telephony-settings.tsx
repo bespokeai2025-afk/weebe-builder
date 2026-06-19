@@ -56,6 +56,7 @@ function TelephonySettingsPage() {
   const { data: config, isFetching, refetch } = useQuery({
     queryKey: ["telephony-config"],
     queryFn: () => getFn({}),
+    throwOnError: false,
   });
 
   const [provider, setProvider] = useState("twilio");

@@ -382,6 +382,7 @@ export function GrowthMindGrowthScheduler() {
     queryKey: ["growthmind-growth-plans"],
     queryFn:  () => getGrowthPlans(),
     staleTime: 60_000,
+    throwOnError: false,
   });
   const plans = planData?.plans ?? [];
 
@@ -389,6 +390,7 @@ export function GrowthMindGrowthScheduler() {
     queryKey: ["growthmind-marketing-tasks", selectedPlanId],
     queryFn:  () => getMarketingTasks({ planId: selectedPlanId ?? undefined }),
     staleTime: 30_000,
+    throwOnError: false,
   });
   const allTasks = taskData?.tasks ?? [];
 
@@ -396,6 +398,7 @@ export function GrowthMindGrowthScheduler() {
     queryKey: ["growthmind-marketing-readiness"],
     queryFn:  () => getMarketingReadiness(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   // Filtered tasks

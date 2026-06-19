@@ -140,12 +140,14 @@ function LibraryTab({ initialHealth = "all" }: { initialHealth?: string }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["sm-wl", catFilter],
     queryFn: () => listFn({ data: { category: catFilter !== "all" ? catFilter : undefined } }),
+    throwOnError: false,
   });
 
   const { data: intellData } = useQuery({
     queryKey: ["sm-intel"],
     queryFn: () => intellFn({ data: {} }),
     enabled: !isLoading,
+    throwOnError: false,
   });
 
   const intellMap: Record<string, any> = {};
@@ -325,6 +327,7 @@ function ScoreHealthTab() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["sm-intel"],
     queryFn: () => intellFn({ data: {} }),
+    throwOnError: false,
   });
 
   const rows: any[] = (data as any[]) ?? [];
@@ -578,6 +581,7 @@ function GenerateTab({
   const { data: drafts, isLoading, refetch } = useQuery({
     queryKey: ["sm-drafts"],
     queryFn: () => listFn({ data: {} }),
+    throwOnError: false,
   });
   const draftList: any[] = (drafts as any[]) ?? [];
 
@@ -839,6 +843,7 @@ function CompareTab() {
   const { data: agents } = useQuery({
     queryKey: ["sm-agent-list"],
     queryFn: () => agentListFn({ data: {} }),
+    throwOnError: false,
   });
   const agentList: any[] = (agents as any[]) ?? [];
 
@@ -992,6 +997,7 @@ function PatternsTab({ onGenerateFromPattern }: { onGenerateFromPattern: (descri
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["sm-wp"],
     queryFn: () => listFn({ data: {} }),
+    throwOnError: false,
   });
   const patterns: any[] = (data as any[]) ?? [];
 
@@ -1179,6 +1185,7 @@ function RepairTab() {
   const { data: agents } = useQuery({
     queryKey: ["sm-agent-list"],
     queryFn: () => agentListFn({ data: {} }),
+    throwOnError: false,
   });
   const agentList: any[] = (agents as any[]) ?? [];
 

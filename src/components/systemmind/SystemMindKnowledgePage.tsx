@@ -74,6 +74,7 @@ export function SystemMindKnowledgePage() {
       (q.state.data as any[])?.some((d: any) => d.embedding_status === "processing")
         ? 4000
         : false,
+    throwOnError: false,
   });
 
   // Seed repair playbooks + executive starter knowledge + Architecture/Workflow KB on first mount.

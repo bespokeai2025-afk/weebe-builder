@@ -90,6 +90,7 @@ export function SystemMindAuditsPage() {
   const { data: audits, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-audits"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
 
   async function runAudit() {

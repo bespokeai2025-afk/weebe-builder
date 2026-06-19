@@ -91,6 +91,7 @@ export function NotesBookingSheet({
     queryFn: () => listFn({ data: { entityType, entityId } }),
     enabled: open,
     staleTime: 0,
+    throwOnError: false,
   });
 
   useEffect(() => {

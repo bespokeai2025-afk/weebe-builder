@@ -401,7 +401,9 @@ function CampaignPanel({ onClose }: { onClose: () => void }) {
   const saveCampaignFn = useServerFn(saveCampaign);
   const deleteCampaignFn = useServerFn(deleteCampaign);
 
-  const { data } = useQuery({ queryKey: ["growthmind-campaigns"], queryFn: () => getCampaigns() });
+  const { data } = useQuery({ queryKey: ["growthmind-campaigns"], queryFn: () => getCampaigns() ,
+    throwOnError: false,
+  });
   const campaigns = data?.campaigns ?? [];
 
   const [form, setForm] = useState({ name: "", campaignType: "Brand Awareness", description: "", color: "#10b981" });
@@ -470,7 +472,9 @@ function SeriesPanel({ onClose }: { onClose: () => void }) {
   const saveSeriesFn  = useServerFn(saveSeries);
   const deleteSeriesFn = useServerFn(deleteSeries);
 
-  const { data } = useQuery({ queryKey: ["growthmind-series"], queryFn: () => getSeries() });
+  const { data } = useQuery({ queryKey: ["growthmind-series"], queryFn: () => getSeries() ,
+    throwOnError: false,
+  });
   const seriesList = data?.series ?? [];
 
   const [form, setForm] = useState({ name: "", contentType: "Blog", cadence: "weekly" as "daily" | "weekly" | "biweekly" | "monthly", channel: "" });
@@ -575,11 +579,16 @@ export function GrowthMindContentCalendar() {
     queryKey: ["growthmind-calendar", startDate, endDate, filterStatus, filterType],
     queryFn:  () => getCalendarEntries({ startDate, endDate, status: filterStatus || undefined, contentType: filterType || undefined }),
     staleTime: 60_000,
+    throwOnError: false,
   });
   const entries = calData?.entries ?? [];
 
-  const { data: campaignData } = useQuery({ queryKey: ["growthmind-campaigns"], queryFn: () => getCampaigns(), staleTime: 120_000 });
-  const { data: seriesData }   = useQuery({ queryKey: ["growthmind-series"],    queryFn: () => getSeries(),    staleTime: 120_000 });
+  const { data: campaignData } = useQuery({ queryKey: ["growthmind-campaigns"], queryFn: () => getCampaigns(), staleTime: 120_000 ,
+    throwOnError: false,
+  });
+  const { data: seriesData }   = useQuery({ queryKey: ["growthmind-series"],    queryFn: () => getSeries(),    staleTime: 120_000 ,
+    throwOnError: false,
+  });
   const campaigns = campaignData?.campaigns ?? [];
   const series    = seriesData?.series     ?? [];
 

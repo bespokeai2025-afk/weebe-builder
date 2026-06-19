@@ -74,6 +74,7 @@ function BusinessDnaPage() {
     queryKey: ["growthmind-business-dna"],
     queryFn:  () => getDnaFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const dna        = data?.dna;

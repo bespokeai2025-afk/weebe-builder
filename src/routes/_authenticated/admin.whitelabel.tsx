@@ -265,6 +265,7 @@ function AdminWhitelabelPage() {
     queryKey: ["admin-whitelabel"],
     queryFn: () => listFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   const createMut = useMutation({

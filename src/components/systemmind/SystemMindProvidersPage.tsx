@@ -105,6 +105,7 @@ export function SystemMindProvidersPage() {
   const { data: providers, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["systemmind-providers"],
     queryFn: () => providersFn(),
+    throwOnError: false,
   });
 
   const connected = (providers ?? []).filter((p) => p.status === "connected").length;

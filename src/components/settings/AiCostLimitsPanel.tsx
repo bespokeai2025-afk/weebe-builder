@@ -87,6 +87,7 @@ export function AiCostLimitsPanel() {
     queryKey: ["my-generation-limits"],
     queryFn:  () => getFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const [enabled, setEnabled]    = useState<boolean | null>(null);

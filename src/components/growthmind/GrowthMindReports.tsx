@@ -250,6 +250,7 @@ export function GrowthMindReports() {
     queryKey: ["growthmind-data"],
     queryFn:  () => fn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const [previewOpen, setPreviewOpen] = useState<Set<string>>(new Set());

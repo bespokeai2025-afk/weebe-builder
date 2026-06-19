@@ -146,6 +146,7 @@ function TelephonyCallsPage() {
           limit: 200,
         },
       }),
+    throwOnError: false,
   });
 
   const totalCalls = calls.length;

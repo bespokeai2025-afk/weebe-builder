@@ -98,6 +98,7 @@ function ImageStudioPage() {
     queryKey: ["image-studio-status"],
     queryFn:  () => statusFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const { data: assetsData, isLoading: assetsLoading } = useQuery({
@@ -105,12 +106,14 @@ function ImageStudioPage() {
     queryFn:  () => listFn({ data: { campaignId: campaignId || undefined, contentAssetId: contentId || undefined, limit: 60 } }),
     staleTime: 15_000,
     refetchOnWindowFocus: true,
+    throwOnError: false,
   });
 
   const { data: drafts } = useQuery({
     queryKey: ["campaign-drafts-picker"],
     queryFn:  () => listDraftsFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const assets = assetsData?.assets ?? [];

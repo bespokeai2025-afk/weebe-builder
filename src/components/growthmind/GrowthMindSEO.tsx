@@ -1149,6 +1149,7 @@ function SeoBriefsSection() {
     queryKey:  ["seo-briefs"],
     queryFn:   () => listFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const briefs: SeoBrief[] = data?.briefs ?? [];
@@ -1656,18 +1657,21 @@ export function GrowthMindSEO() {
     queryKey: ["growthmind-seo-site"],
     queryFn:  () => getSiteFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const { data: platformData } = useQuery({
     queryKey: ["growthmind-data"],
     queryFn:  () => getDataFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   const { data: gscStatus, isLoading: gscStatusLoading } = useQuery({
     queryKey: ["gsc-status"],
     queryFn:  () => getStatusFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   useEffect(() => {

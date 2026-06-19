@@ -713,6 +713,7 @@ function HiveMindChat() {
     },
     staleTime: Infinity,
     retry: 1,
+    throwOnError: false,
   });
 
   // Auto-scroll on new messages

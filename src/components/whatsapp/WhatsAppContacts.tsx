@@ -45,6 +45,7 @@ function WADocsDialog({
     queryFn: () => docsByPhoneFn({ data: { phone: contact!.phone } }),
     enabled: !!contact?.phone,
     staleTime: 0,
+    throwOnError: false,
   });
   const info = docsQ.data as { docs: any[]; contactId: string | null; uploadToken: string | null } | undefined;
 
@@ -90,11 +91,13 @@ export function WhatsAppContacts() {
   const { data: contacts = [], isLoading } = useQuery({
     queryKey: ["wa-contacts"],
     queryFn: () => listFn(),
+    throwOnError: false,
   });
 
   const { data: watiConn } = useQuery({
     queryKey: ["wati-connection"],
     queryFn: () => watiConnFn(),
+    throwOnError: false,
   });
   const watiConnected = !!watiConn && watiConn.status === "connected";
 

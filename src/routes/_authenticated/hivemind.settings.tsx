@@ -118,12 +118,14 @@ function HiveMindSettings() {
     queryKey: ["hivemind-voices"],
     queryFn:  () => voicesFn().then(r => r.voices ?? []),
     staleTime: 300_000,
+    throwOnError: false,
   });
 
   const { data: modeData } = useQuery({
     queryKey: ["hivemind-mode"],
     queryFn:  () => modeFn(),
     staleTime: Infinity,
+    throwOnError: false,
   });
   const mode: HiveMindMode = modeData?.mode ?? "assistant";
 

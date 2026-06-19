@@ -58,6 +58,7 @@ export function GrowthMindLeadOpportunities() {
     queryKey: ["growthmind-data"],
     queryFn:  () => fn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const [urgencyFilter, setUrgencyFilter] = useState<"all" | OpportunityUrgency>("all");

@@ -28,6 +28,7 @@ export function AccountsMindAlerts() {
       filter === "all"
         ? listFn({ data: {} })
         : listFn({ data: { status: filter } }),
+    throwOnError: false,
   });
 
   const resolve = useMutation({

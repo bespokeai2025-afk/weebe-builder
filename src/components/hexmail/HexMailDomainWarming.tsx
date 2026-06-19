@@ -25,6 +25,7 @@ function PlanCard({ plan, onStatusChange }: { plan: any; onStatusChange: (planId
     queryKey:  ["warmup-progress", plan.id],
     queryFn:   () => getProgressFn({ data: { planId: plan.id } }),
     enabled:   expanded,
+    throwOnError: false,
   });
 
   const mailboxEmail = plan.email_mailboxes?.email_address ?? "—";
@@ -139,9 +140,15 @@ export function HexMailDomainWarming() {
   const createFn     = useServerFn(createWarmupPlan);
   const updateFn     = useServerFn(updateWarmupPlan);
 
-  const { data: domains  = [] } = useQuery({ queryKey: ["sender-domains"],  queryFn: () => getDomainsFn() });
-  const { data: mailboxes = [] } = useQuery({ queryKey: ["mailboxes"],      queryFn: () => getMailFn() });
-  const { data: plans = [], isLoading } = useQuery({ queryKey: ["warmup-plans"], queryFn: () => getPlansFn() });
+  const { data: domains  = [] } = useQuery({ queryKey: ["sender-domains"],  queryFn: () => getDomainsFn() ,
+    throwOnError: false,
+  });
+  const { data: mailboxes = [] } = useQuery({ queryKey: ["mailboxes"],      queryFn: () => getMailFn() ,
+    throwOnError: false,
+  });
+  const { data: plans = [], isLoading } = useQuery({ queryKey: ["warmup-plans"], queryFn: () => getPlansFn() ,
+    throwOnError: false,
+  });
 
   const createMut = useMutation({
     mutationFn: () => createFn({ data: form }),

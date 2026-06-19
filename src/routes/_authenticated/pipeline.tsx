@@ -591,6 +591,7 @@ function PipelinePage() {
     queryKey: ["pipeline-leads"],
     queryFn: () => fetchLeads(),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   const { mutate: moveCard } = useMutation({

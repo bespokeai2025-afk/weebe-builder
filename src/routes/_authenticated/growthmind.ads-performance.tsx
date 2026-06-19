@@ -745,6 +745,7 @@ function SyncHistoryPanel() {
     queryFn:   () => histFn(),
     enabled:   open,
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const STATUS_ICON: Record<string, React.ReactNode> = {
@@ -861,6 +862,7 @@ function BudgetCapsPanel({ hasAnyCap }: { hasAnyCap: boolean }) {
     queryKey: ["budget-caps"],
     queryFn:  () => getCapsFn(),
     staleTime: 30_000,
+    throwOnError: false,
   });
 
   type DraftCap = { monthly_budget_cap: string; alert_at_pct: string; currency: string };
@@ -1068,6 +1070,7 @@ function AdsTrendCharts() {
     queryKey:  ["ads-trend", range],
     queryFn:   () => trendFn({ data: { days: range } }),
     staleTime: 5 * 60_000,
+    throwOnError: false,
   });
 
   const hasAnyData = points.length > 0;
@@ -1557,6 +1560,7 @@ function AdsPerformancePage() {
     queryKey: ["ads-performance"],
     queryFn:  () => dataFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const syncMut = useMutation({

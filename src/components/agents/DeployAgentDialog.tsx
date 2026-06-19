@@ -159,12 +159,14 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     queryFn: () => getDeployConfigFn(),
     enabled: open,
     staleTime: 60_000,
+    throwOnError: false,
   });
   // Workspace approval gate (first-time deployers) — skipped in retail mode
   const wsReqQ = useQuery({
     queryKey: ["my-workspace-request"],
     queryFn: () => getWsReqFn(),
     enabled: open && deployConfigQ.isSuccess && deployConfigQ.data?.mode === "approval",
+    throwOnError: false,
   });
   const [wsName, setWsName] = useState("");
   const [submittingWs, setSubmittingWs] = useState(false);
@@ -244,6 +246,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
     queryFn: () => getWsCalFn(),
     enabled: open,
     staleTime: 30_000,
+    throwOnError: false,
   });
   const wsCalConnected = Boolean(wsCalQ.data?.calcom_api_key);
 
@@ -269,6 +272,7 @@ export function DeployAgentDialog({ open, onOpenChange, agent }: Props) {
         ? listTwilioFn({ data: {} })
         : listFn({ data: { agentRowId: agent!.id } }),
     enabled: open && !!agent,
+    throwOnError: false,
   });
 
   if (!agent) return null;
