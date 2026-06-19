@@ -274,11 +274,13 @@ function CallsPage() {
 
   const fn = useServerFn(listCalls);
   const q = useQuery({
-    queryKey: ["calls", voicemailFilter],
-    queryFn: () => fn({ data: { voicemailFilter } }),
-    enabled: !isWbah,
-    throwOnError: false,
-    retry: 0,
+    queryKey:             ["calls", voicemailFilter],
+    queryFn:              () => fn({ data: { voicemailFilter } }),
+    enabled:              !isWbah,
+    staleTime:            3 * 60_000,
+    refetchOnWindowFocus: false,
+    throwOnError:         false,
+    retry:                0,
   });
 
   // WeeBespoke calls — read from DB (synced by wbah-calls-sync plugin).
@@ -287,9 +289,9 @@ function CallsPage() {
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
     enabled: isWbah,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: true,
-    refetchInterval: 5 * 60 * 1000,
+    staleTime:            5 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchInterval:      5 * 60_000,
     retry: 0,
     throwOnError: false,
   });
@@ -321,9 +323,11 @@ function CallsPage() {
 
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
-    queryKey: ["test-calls"],
-    queryFn: () => testFn({ data: {} }),
-    throwOnError: false,
+    queryKey:             ["test-calls"],
+    queryFn:              () => testFn({ data: {} }),
+    staleTime:            3 * 60_000,
+    refetchOnWindowFocus: false,
+    throwOnError:         false,
   });
   const testRows = testQ.data ?? [];
 

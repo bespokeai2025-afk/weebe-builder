@@ -237,18 +237,20 @@ function QualifiedPage() {
   });
 
   const wbahLeadsQ = useQuery({
-    queryKey: ["leads-wbah-all-qual"],
-    queryFn: () => getAllLeads({ data: { limit: 5000 } }),
-    enabled: isWbahResolved && isWbah,
+    queryKey:             ["leads-wbah-all-qual"],
+    queryFn:              () => getAllLeads({ data: { limit: 5000 } }),
+    enabled:              isWbahResolved && isWbah,
+    staleTime:            5 * 60_000,
     refetchOnWindowFocus: false,
-    throwOnError: false,
+    throwOnError:         false,
   });
 
   const statsQ = useQuery({
-    queryKey: ["qualification-stats"],
-    queryFn: () => getStats(),
+    queryKey:             ["qualification-stats"],
+    queryFn:              () => getStats(),
+    staleTime:            5 * 60_000,
     refetchOnWindowFocus: false,
-    throwOnError: false,
+    throwOnError:         false,
   });
 
   const rows = (isWbah ? (wbahLeadsQ.data ?? []) : (leadsQ.data ?? [])) as any[];

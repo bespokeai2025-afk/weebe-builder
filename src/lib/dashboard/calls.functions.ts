@@ -1,6 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { cacheWrap } from "@/lib/cache/redis.server";
+
+const CALLS_TTL      = 2 * 60;  // 2 minutes
+const TEST_CALLS_TTL = 5 * 60;  // 5 minutes
 
 export const listCalls = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -18,28 +22,31 @@ export const listCalls = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const sb = supabase as any;
-    let q = sb
-      .from("calls")
-      .select("*, lead:leads(id, full_name, phone)")
-      .eq("workspace_id", workspaceId)
-      // Exclude test/builder calls. Web calls have no real phone number and are
-      // stored with to_number = "unknown". Only live phone calls should appear.
-      .neq("to_number", "unknown")
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .limit(data.limit);
-    if (data.status && data.status !== "all") q = q.eq("call_status", data.status as any);
-    if (data.direction) q = q.eq("call_type", data.direction as any);
-    // Apply voicemail filter — "exclude" hides voicemails (default), "only" shows only voicemails
-    if (data.voicemailFilter === "exclude") {
-      q = q.eq("is_voicemail", false);
-    } else if (data.voicemailFilter === "only") {
-      q = q.eq("is_voicemail", true);
-    }
-    // "all" applies no filter — all rows including voicemails are returned
-    const { data: rows, error } = await q;
-    if (error) throw new Error(error.message);
-    return rows ?? [];
+    const cacheKey = `webee:calls:${workspaceId}:vm:${data.voicemailFilter}:st:${data.status ?? ""}:dir:${data.direction ?? ""}:lim:${data.limit}`;
+    return cacheWrap(cacheKey, CALLS_TTL, async () => {
+      const sb = supabase as any;
+      let q = sb
+        .from("calls")
+        .select("*, lead:leads(id, full_name, phone)")
+        .eq("workspace_id", workspaceId)
+        // Exclude test/builder calls. Web calls have no real phone number and are
+        // stored with to_number = "unknown". Only live phone calls should appear.
+        .neq("to_number", "unknown")
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .limit(data.limit);
+      if (data.status && data.status !== "all") q = q.eq("call_status", data.status as any);
+      if (data.direction) q = q.eq("call_type", data.direction as any);
+      // Apply voicemail filter — "exclude" hides voicemails (default), "only" shows only voicemails
+      if (data.voicemailFilter === "exclude") {
+        q = q.eq("is_voicemail", false);
+      } else if (data.voicemailFilter === "only") {
+        q = q.eq("is_voicemail", true);
+      }
+      // "all" applies no filter — all rows including voicemails are returned
+      const { data: rows, error } = await q;
+      if (error) throw new Error(error.message);
+      return rows ?? [];
+    });
   });
 
 export const listTestCalls = createServerFn({ method: "POST" })
@@ -52,6 +59,7 @@ export const listTestCalls = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    return cacheWrap(`webee:calls:test:${workspaceId}:lim:${data.limit}`, TEST_CALLS_TTL, async () => {
     const sb = supabase as any;
     const { data: rows, error } = await sb
       .from("calls")
@@ -80,6 +88,7 @@ export const listTestCalls = createServerFn({ method: "POST" })
       disconnection_reason: string | null;
       cost_cents: number | null;
     }>;
+    });
   });
 
 export const listCalledQualifiedRecords = createServerFn({ method: "GET" })

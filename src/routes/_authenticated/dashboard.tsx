@@ -50,16 +50,20 @@ function DashboardPage() {
   }, []);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["dashboard-overview", daysSince],
-    queryFn:  () => getStats({ data: { daysSince } }),
-    throwOnError: false,
+    queryKey:             ["dashboard-overview", daysSince],
+    queryFn:              () => getStats({ data: { daysSince } }),
+    staleTime:            5 * 60_000,
+    refetchOnWindowFocus: false,
+    throwOnError:         false,
   });
 
   const agentsQ = useQuery({
-    queryKey:         ["dashboard-workspace-agents"],
-    queryFn:          () => getAgentsFn(),
-    refetchInterval:  30_000,
-    throwOnError:     false,
+    queryKey:             ["dashboard-workspace-agents"],
+    queryFn:              () => getAgentsFn(),
+    staleTime:            5 * 60_000,
+    refetchInterval:      5 * 60_000,
+    refetchOnWindowFocus: false,
+    throwOnError:         false,
   });
 
   const agents     = agentsQ.data ?? [];

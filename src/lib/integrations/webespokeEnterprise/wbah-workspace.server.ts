@@ -14,6 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { cacheWrap } from "@/lib/cache/redis.server";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
 import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
@@ -1125,6 +1126,7 @@ export const listWbahCallsFromDb = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    return cacheWrap(`webee:wbah-calls:${workspaceId}`, 2 * 60, async () => {
     const sb = supabase as any;
     // Supabase PostgREST caps rows at 1000 by default — paginate to fetch all.
     const PAGE = 1000;
@@ -1171,6 +1173,7 @@ export const listWbahCallsFromDb = createServerFn({ method: "GET" })
       end_reason:           r.end_reason,
       call_count:           r.call_count ?? 1,
     }));
+    });
   });
 
 // ── Retell helper — get WBAH workspace's Retell API key ───────────────────────

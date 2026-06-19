@@ -247,16 +247,19 @@ function LeadsPage() {
   });
 
   const statsQ = useQuery({
-    queryKey: ["campaign-stats"],
-    queryFn: () => getCampaignStatsFn({ data: {} }),
-    throwOnError: false,
+    queryKey:             ["campaign-stats"],
+    queryFn:              () => getCampaignStatsFn({ data: {} }),
+    staleTime:            5 * 60_000,
+    refetchOnWindowFocus: false,
+    throwOnError:         false,
   });
 
   const agentsQ = useQuery({
-    queryKey: ["dashboard-live-agents"],
-    queryFn: () => getAgentsFn(),
-    staleTime: 30_000,
-    throwOnError: false,
+    queryKey:             ["dashboard-live-agents"],
+    queryFn:              () => getAgentsFn(),
+    staleTime:            5 * 60_000,
+    refetchOnWindowFocus: false,
+    throwOnError:         false,
   });
 
   const leads = (leadsQ.data ?? []) as any[];
