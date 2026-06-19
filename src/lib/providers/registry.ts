@@ -141,8 +141,8 @@ const STATIC_PROVIDERS: RegistryEntry[] = [
   // CRM
   { category: "crm", name: "hubspot",     label: "HubSpot",            description: "HubSpot CRM — contacts & deals",            status: "disconnected", isDefault: true, priority: 1 },
   { category: "crm", name: "gohighlevel", label: "GoHighLevel",        description: "GoHighLevel CRM & automation",              status: "disconnected", priority: 2 },
-  { category: "crm", name: "salesforce",  label: "Salesforce",         description: "Salesforce CRM",                            status: "coming_soon",  priority: 3 },
-  { category: "crm", name: "pipedrive",   label: "Pipedrive",          description: "Pipedrive sales CRM",                       status: "coming_soon",  priority: 4 },
+  { category: "crm", name: "salesforce",  label: "Salesforce",         description: "Salesforce CRM",                            status: "available",    priority: 3 },
+  { category: "crm", name: "pipedrive",   label: "Pipedrive",          description: "Pipedrive sales CRM",                       status: "available",    priority: 4 },
   { category: "crm", name: "dynamics",    label: "Microsoft Dynamics", description: "Microsoft Dynamics 365 CRM",                status: "coming_soon",  priority: 5 },
 
   // Calendar

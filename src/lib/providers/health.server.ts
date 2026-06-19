@@ -23,6 +23,8 @@ import { WATIWhatsAppAdapter } from "./whatsapp/adapters/wati.adapter";
 import { TwilioWhatsAppAdapter } from "./whatsapp/adapters/twilio.adapter";
 import { HubSpotAdapter } from "@/lib/crm/hubspot.adapter";
 import { GoHighLevelAdapter } from "@/lib/crm/gohighlevel.adapter";
+import { SalesforceAdapter } from "@/lib/providers/crm/adapters/salesforce.adapter";
+import { PipedriveAdapter } from "@/lib/providers/crm/adapters/pipedrive.adapter";
 import { upsertProviderSetting } from "./usage.server";
 
 export interface HealthCheckResult {
@@ -51,7 +53,7 @@ async function loadCredentials(
       .maybeSingle()
       .then((r: any) => r.data),
     sb.from("workspace_settings")
-      .select("retell_workspace_id, elevenlabs_api_key, openai_api_key, calcom_api_key, twilio_account_sid, twilio_auth_token, hubspot_api_key, ghl_api_key, resend_api_key")
+      .select("retell_workspace_id, elevenlabs_api_key, openai_api_key, calcom_api_key, twilio_account_sid, twilio_auth_token, hubspot_api_key, ghl_api_key, resend_api_key, salesforce_instance_url, salesforce_access_token, pipedrive_api_token")
       .eq("workspace_id", workspaceId)
       .maybeSingle()
       .then((r: any) => r.data ?? {}),
@@ -248,6 +250,17 @@ async function dispatchHealthCheck(
       if (!key) return false;
       return new GoHighLevelAdapter(key, locationId).healthCheck();
     }
+    case "crm:salesforce": {
+      const instanceUrl  = str(stored.instanceUrl)  || str((ws as any).salesforce_instance_url);
+      const accessToken  = str(stored.accessToken)  || str((ws as any).salesforce_access_token);
+      if (!instanceUrl || !accessToken) return false;
+      return new SalesforceAdapter({ instanceUrl, accessToken }).healthCheck();
+    }
+    case "crm:pipedrive": {
+      const apiToken = str(stored.apiToken) || str((ws as any).pipedrive_api_token);
+      if (!apiToken) return false;
+      return new PipedriveAdapter(apiToken).healthCheck();
+    }
 
     // ── Telephony ──────────────────────────────────────────────────────────────
     case "telephony:twilio": {
@@ -345,7 +358,7 @@ export async function runAllProviderHealthChecks(workspaceId: string): Promise<{
   try {
     const { data: ws } = await sb
       .from("workspace_settings")
-      .select("retell_workspace_id, elevenlabs_api_key, openai_api_key, calcom_api_key, twilio_account_sid, twilio_auth_token, hubspot_api_key, ghl_api_key, resend_api_key")
+      .select("retell_workspace_id, elevenlabs_api_key, openai_api_key, calcom_api_key, twilio_account_sid, twilio_auth_token, hubspot_api_key, ghl_api_key, resend_api_key, salesforce_instance_url, salesforce_access_token, pipedrive_api_token")
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
@@ -361,6 +374,8 @@ export async function runAllProviderHealthChecks(workspaceId: string): Promise<{
         ["whatsapp",  "twilio",      !!(ws.twilio_account_sid && ws.twilio_auth_token)],
         ["crm",       "hubspot",     !!(ws.hubspot_api_key)],
         ["crm",       "gohighlevel", !!(ws.ghl_api_key)],
+        ["crm",       "salesforce",  !!(ws.salesforce_instance_url && ws.salesforce_access_token)],
+        ["crm",       "pipedrive",   !!(ws.pipedrive_api_token)],
         ["image",     "gpt_image",   !!(ws.openai_api_key)],
         ["llm",       "openai",      !!(ws.openai_api_key)],
       ];

@@ -43,6 +43,7 @@ import {
   Building2,
   Users,
   Clock,
+  GitBranch,
 } from "lucide-react";
 import {
   DndContext,
@@ -184,6 +185,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { title: "HexMail",        url: "/hexmail",               icon: Mail },
   { title: "Deliverability", url: "/hexmail/deliverability", icon: ShieldCheck },
   { title: "Domain Warming", url: "/hexmail/domain-warming", icon: Flame },
+  { title: "Workflows",      url: "/workflow-engine",         icon: GitBranch },
   { title: "Follow-Up",     url: "/follow-up",              icon: Zap },
   { title: "Buzzchat",  url: "/whatsapp",  icon: MessageSquare,  moduleId: "whatsapp" },
   { title: "Billing",   url: "/billing",   icon: CreditCard },
@@ -756,6 +758,27 @@ export function AppSidebar() {
                         />
                         <span className="truncate group-data-[collapsible=icon]:hidden">
                           Change Requests
+                        </span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem className="group-data-[collapsible=icon]:w-auto">
+                    <SidebarMenuButton
+                      asChild
+                      tooltip="Workflow Templates"
+                      className={navButtonClasses(isActive("/admin/workflow-templates"))}
+                    >
+                      <Link to="/admin/workflow-templates" className="flex items-center gap-3">
+                        <GitBranch
+                          className={cn(
+                            "h-[18px] w-[18px] shrink-0",
+                            isActive("/admin/workflow-templates")
+                              ? "text-primary"
+                              : "text-muted-foreground group-hover/nav:text-foreground",
+                          )}
+                        />
+                        <span className="truncate group-data-[collapsible=icon]:hidden">
+                          Workflow Templates
                         </span>
                       </Link>
                     </SidebarMenuButton>

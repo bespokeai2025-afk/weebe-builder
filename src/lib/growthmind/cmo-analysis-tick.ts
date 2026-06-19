@@ -146,7 +146,14 @@ async function tickWorkspace(
       videos:    video.status    === "fulfilled" ? (video.value    as number) : 0,
     };
   } catch (e: any) {
-    return { ...base, skipped: false, ran: false, error: e?.message ?? String(e) };
+    const msg: string = e?.message ?? String(e);
+    // In the Vite dev-server plugin context (`.vite-temp` ESM), path aliases like
+    // `@/lib` cannot resolve. Treat this as a silent skip — production runs via the
+    // HTTP endpoint where aliases are resolved normally.
+    if (msg.includes("Cannot find package '@/lib'") || msg.includes("Cannot find package '@/integrations'")) {
+      return { ...base, skipped: true, skipReason: "dev_alias_unavailable", ran: false };
+    }
+    return { ...base, skipped: false, ran: false, error: msg };
   }
 }
 

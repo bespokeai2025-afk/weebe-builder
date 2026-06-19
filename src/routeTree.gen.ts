@@ -21,6 +21,7 @@ import { Route as UploadTokenRouteImport } from './routes/upload.$token'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as ApiVoiceCopilotRouteImport } from './routes/api/voice-copilot'
+import { Route as AuthenticatedWorkflowEngineRouteImport } from './routes/_authenticated/workflow-engine'
 import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedTemplatesRouteImport } from './routes/_authenticated/templates'
 import { Route as AuthenticatedTemplateStudioRouteImport } from './routes/_authenticated/template-studio'
@@ -114,6 +115,7 @@ import { Route as AuthenticatedSettingsCrmRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsCalendarRouteImport } from './routes/_authenticated/settings.calendar'
 import { Route as AuthenticatedLeadsWebformsRouteImport } from './routes/_authenticated/leads.webforms'
 import { Route as AuthenticatedKnowledgeCentreSlugRouteImport } from './routes/_authenticated/knowledge-centre.$slug'
+import { Route as AuthenticatedHivemindWorkflowIntelligenceRouteImport } from './routes/_authenticated/hivemind.workflow-intelligence'
 import { Route as AuthenticatedHivemindTasksRouteImport } from './routes/_authenticated/hivemind.tasks'
 import { Route as AuthenticatedHivemindSystemHealthRouteImport } from './routes/_authenticated/hivemind.system-health'
 import { Route as AuthenticatedHivemindSettingsRouteImport } from './routes/_authenticated/hivemind.settings'
@@ -162,6 +164,7 @@ import { Route as AuthenticatedEnterpriseWebuyanyhouseRouteImport } from './rout
 import { Route as AuthenticatedBillingUsageRouteImport } from './routes/_authenticated/billing.usage'
 import { Route as AuthenticatedAgentsNewRouteImport } from './routes/_authenticated/agents.new'
 import { Route as AuthenticatedAdminWorkspacesRouteImport } from './routes/_authenticated/admin.workspaces'
+import { Route as AuthenticatedAdminWorkflowTemplatesRouteImport } from './routes/_authenticated/admin.workflow-templates'
 import { Route as AuthenticatedAdminWhitelabelRouteImport } from './routes/_authenticated/admin.whitelabel'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin.users'
 import { Route as AuthenticatedAdminUserActivityRouteImport } from './routes/_authenticated/admin.user-activity'
@@ -295,6 +298,12 @@ const ApiVoiceCopilotRoute = ApiVoiceCopilotRouteImport.update({
   path: '/api/voice-copilot',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWorkflowEngineRoute =
+  AuthenticatedWorkflowEngineRouteImport.update({
+    id: '/workflow-engine',
+    path: '/workflow-engine',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
   id: '/whatsapp',
   path: '/whatsapp',
@@ -803,6 +812,12 @@ const AuthenticatedKnowledgeCentreSlugRoute =
     path: '/$slug',
     getParentRoute: () => AuthenticatedKnowledgeCentreRoute,
   } as any)
+const AuthenticatedHivemindWorkflowIntelligenceRoute =
+  AuthenticatedHivemindWorkflowIntelligenceRouteImport.update({
+    id: '/workflow-intelligence',
+    path: '/workflow-intelligence',
+    getParentRoute: () => AuthenticatedHivemindRoute,
+  } as any)
 const AuthenticatedHivemindTasksRoute =
   AuthenticatedHivemindTasksRouteImport.update({
     id: '/tasks',
@@ -1088,6 +1103,12 @@ const AuthenticatedAdminWorkspacesRoute =
   AuthenticatedAdminWorkspacesRouteImport.update({
     id: '/workspaces',
     path: '/workspaces',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminWorkflowTemplatesRoute =
+  AuthenticatedAdminWorkflowTemplatesRouteImport.update({
+    id: '/workflow-templates',
+    path: '/workflow-templates',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminWhitelabelRoute =
@@ -1545,6 +1566,7 @@ export interface FileRoutesByFullPath {
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/workflow-engine': typeof AuthenticatedWorkflowEngineRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -1556,6 +1578,7 @@ export interface FileRoutesByFullPath {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
+  '/admin/workflow-templates': typeof AuthenticatedAdminWorkflowTemplatesRoute
   '/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/billing/usage': typeof AuthenticatedBillingUsageRoute
@@ -1604,6 +1627,7 @@ export interface FileRoutesByFullPath {
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
@@ -1765,6 +1789,7 @@ export interface FileRoutesByTo {
   '/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/templates': typeof AuthenticatedTemplatesRoute
   '/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/workflow-engine': typeof AuthenticatedWorkflowEngineRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -1775,6 +1800,7 @@ export interface FileRoutesByTo {
   '/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
+  '/admin/workflow-templates': typeof AuthenticatedAdminWorkflowTemplatesRoute
   '/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/agents/new': typeof AuthenticatedAgentsNewRoute
   '/billing/usage': typeof AuthenticatedBillingUsageRoute
@@ -1823,6 +1849,7 @@ export interface FileRoutesByTo {
   '/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
   '/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
@@ -1991,6 +2018,7 @@ export interface FileRoutesById {
   '/_authenticated/template-studio': typeof AuthenticatedTemplateStudioRoute
   '/_authenticated/templates': typeof AuthenticatedTemplatesRoute
   '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
+  '/_authenticated/workflow-engine': typeof AuthenticatedWorkflowEngineRoute
   '/api/voice-copilot': typeof ApiVoiceCopilotRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
@@ -2002,6 +2030,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/user-activity': typeof AuthenticatedAdminUserActivityRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/admin/whitelabel': typeof AuthenticatedAdminWhitelabelRoute
+  '/_authenticated/admin/workflow-templates': typeof AuthenticatedAdminWorkflowTemplatesRoute
   '/_authenticated/admin/workspaces': typeof AuthenticatedAdminWorkspacesRoute
   '/_authenticated/agents/new': typeof AuthenticatedAgentsNewRoute
   '/_authenticated/billing/usage': typeof AuthenticatedBillingUsageRoute
@@ -2050,6 +2079,7 @@ export interface FileRoutesById {
   '/_authenticated/hivemind/settings': typeof AuthenticatedHivemindSettingsRoute
   '/_authenticated/hivemind/system-health': typeof AuthenticatedHivemindSystemHealthRoute
   '/_authenticated/hivemind/tasks': typeof AuthenticatedHivemindTasksRoute
+  '/_authenticated/hivemind/workflow-intelligence': typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   '/_authenticated/knowledge-centre/$slug': typeof AuthenticatedKnowledgeCentreSlugRoute
   '/_authenticated/leads/webforms': typeof AuthenticatedLeadsWebformsRoute
   '/_authenticated/settings/calendar': typeof AuthenticatedSettingsCalendarRoute
@@ -2220,6 +2250,7 @@ export interface FileRouteTypes {
     | '/template-studio'
     | '/templates'
     | '/whatsapp'
+    | '/workflow-engine'
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
@@ -2231,6 +2262,7 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/admin/whitelabel'
+    | '/admin/workflow-templates'
     | '/admin/workspaces'
     | '/agents/new'
     | '/billing/usage'
@@ -2279,6 +2311,7 @@ export interface FileRouteTypes {
     | '/hivemind/settings'
     | '/hivemind/system-health'
     | '/hivemind/tasks'
+    | '/hivemind/workflow-intelligence'
     | '/knowledge-centre/$slug'
     | '/leads/webforms'
     | '/settings/calendar'
@@ -2440,6 +2473,7 @@ export interface FileRouteTypes {
     | '/template-studio'
     | '/templates'
     | '/whatsapp'
+    | '/workflow-engine'
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
@@ -2450,6 +2484,7 @@ export interface FileRouteTypes {
     | '/admin/user-activity'
     | '/admin/users'
     | '/admin/whitelabel'
+    | '/admin/workflow-templates'
     | '/admin/workspaces'
     | '/agents/new'
     | '/billing/usage'
@@ -2498,6 +2533,7 @@ export interface FileRouteTypes {
     | '/hivemind/settings'
     | '/hivemind/system-health'
     | '/hivemind/tasks'
+    | '/hivemind/workflow-intelligence'
     | '/knowledge-centre/$slug'
     | '/leads/webforms'
     | '/settings/calendar'
@@ -2665,6 +2701,7 @@ export interface FileRouteTypes {
     | '/_authenticated/template-studio'
     | '/_authenticated/templates'
     | '/_authenticated/whatsapp'
+    | '/_authenticated/workflow-engine'
     | '/api/voice-copilot'
     | '/auth/callback'
     | '/email/unsubscribe'
@@ -2676,6 +2713,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/user-activity'
     | '/_authenticated/admin/users'
     | '/_authenticated/admin/whitelabel'
+    | '/_authenticated/admin/workflow-templates'
     | '/_authenticated/admin/workspaces'
     | '/_authenticated/agents/new'
     | '/_authenticated/billing/usage'
@@ -2724,6 +2762,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hivemind/settings'
     | '/_authenticated/hivemind/system-health'
     | '/_authenticated/hivemind/tasks'
+    | '/_authenticated/hivemind/workflow-intelligence'
     | '/_authenticated/knowledge-centre/$slug'
     | '/_authenticated/leads/webforms'
     | '/_authenticated/settings/calendar'
@@ -3028,6 +3067,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/voice-copilot'
       preLoaderRoute: typeof ApiVoiceCopilotRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/workflow-engine': {
+      id: '/_authenticated/workflow-engine'
+      path: '/workflow-engine'
+      fullPath: '/workflow-engine'
+      preLoaderRoute: typeof AuthenticatedWorkflowEngineRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/whatsapp': {
       id: '/_authenticated/whatsapp'
@@ -3680,6 +3726,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKnowledgeCentreSlugRouteImport
       parentRoute: typeof AuthenticatedKnowledgeCentreRoute
     }
+    '/_authenticated/hivemind/workflow-intelligence': {
+      id: '/_authenticated/hivemind/workflow-intelligence'
+      path: '/workflow-intelligence'
+      fullPath: '/hivemind/workflow-intelligence'
+      preLoaderRoute: typeof AuthenticatedHivemindWorkflowIntelligenceRouteImport
+      parentRoute: typeof AuthenticatedHivemindRoute
+    }
     '/_authenticated/hivemind/tasks': {
       id: '/_authenticated/hivemind/tasks'
       path: '/tasks'
@@ -4014,6 +4067,13 @@ declare module '@tanstack/react-router' {
       path: '/workspaces'
       fullPath: '/admin/workspaces'
       preLoaderRoute: typeof AuthenticatedAdminWorkspacesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/workflow-templates': {
+      id: '/_authenticated/admin/workflow-templates'
+      path: '/workflow-templates'
+      fullPath: '/admin/workflow-templates'
+      preLoaderRoute: typeof AuthenticatedAdminWorkflowTemplatesRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/whitelabel': {
@@ -4590,6 +4650,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminUserActivityRoute: typeof AuthenticatedAdminUserActivityRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminWhitelabelRoute: typeof AuthenticatedAdminWhitelabelRoute
+  AuthenticatedAdminWorkflowTemplatesRoute: typeof AuthenticatedAdminWorkflowTemplatesRoute
   AuthenticatedAdminWorkspacesRoute: typeof AuthenticatedAdminWorkspacesRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -4603,6 +4664,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminUserActivityRoute: AuthenticatedAdminUserActivityRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminWhitelabelRoute: AuthenticatedAdminWhitelabelRoute,
+  AuthenticatedAdminWorkflowTemplatesRoute:
+    AuthenticatedAdminWorkflowTemplatesRoute,
   AuthenticatedAdminWorkspacesRoute: AuthenticatedAdminWorkspacesRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
@@ -4764,6 +4827,7 @@ interface AuthenticatedHivemindRouteChildren {
   AuthenticatedHivemindSettingsRoute: typeof AuthenticatedHivemindSettingsRoute
   AuthenticatedHivemindSystemHealthRoute: typeof AuthenticatedHivemindSystemHealthRoute
   AuthenticatedHivemindTasksRoute: typeof AuthenticatedHivemindTasksRoute
+  AuthenticatedHivemindWorkflowIntelligenceRoute: typeof AuthenticatedHivemindWorkflowIntelligenceRoute
   AuthenticatedHivemindIndexRoute: typeof AuthenticatedHivemindIndexRoute
 }
 
@@ -4780,6 +4844,8 @@ const AuthenticatedHivemindRouteChildren: AuthenticatedHivemindRouteChildren = {
   AuthenticatedHivemindSystemHealthRoute:
     AuthenticatedHivemindSystemHealthRoute,
   AuthenticatedHivemindTasksRoute: AuthenticatedHivemindTasksRoute,
+  AuthenticatedHivemindWorkflowIntelligenceRoute:
+    AuthenticatedHivemindWorkflowIntelligenceRoute,
   AuthenticatedHivemindIndexRoute: AuthenticatedHivemindIndexRoute,
 }
 
@@ -4941,6 +5007,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTemplateStudioRoute: typeof AuthenticatedTemplateStudioRoute
   AuthenticatedTemplatesRoute: typeof AuthenticatedTemplatesRoute
   AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
+  AuthenticatedWorkflowEngineRoute: typeof AuthenticatedWorkflowEngineRoute
   AuthenticatedAgentsNewRoute: typeof AuthenticatedAgentsNewRoute
   AuthenticatedSettingsCalendarRoute: typeof AuthenticatedSettingsCalendarRoute
   AuthenticatedSettingsCrmRoute: typeof AuthenticatedSettingsCrmRoute
@@ -4979,6 +5046,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTemplateStudioRoute: AuthenticatedTemplateStudioRoute,
   AuthenticatedTemplatesRoute: AuthenticatedTemplatesRoute,
   AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
+  AuthenticatedWorkflowEngineRoute: AuthenticatedWorkflowEngineRoute,
   AuthenticatedAgentsNewRoute: AuthenticatedAgentsNewRoute,
   AuthenticatedSettingsCalendarRoute: AuthenticatedSettingsCalendarRoute,
   AuthenticatedSettingsCrmRoute: AuthenticatedSettingsCrmRoute,

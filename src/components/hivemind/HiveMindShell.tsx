@@ -3,7 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Brain, BarChart3, Lightbulb, FileText, Activity, MessageSquareMore,
   CheckCircle2, Zap, Newspaper, Eye, MessageSquare, ChevronDown, ChevronUp, Settings,
-  Dna, BookMarked,
+  Dna, BookMarked, GitBranch,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -27,10 +27,10 @@ const MODE_CONFIG: Record<HiveMindMode, { icon: React.ElementType; label: string
 // Mode gates: which nav hrefs are visible per mode
 const SETTINGS_HREF = "/hivemind/settings";
 const MODE_VISIBILITY: Record<HiveMindMode, string[]> = {
-  observe:   ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/system-health", SETTINGS_HREF],
-  recommend: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
-  assistant: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
-  operator:  ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/actions", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", SETTINGS_HREF],
+  observe:   ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
+  recommend: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
+  assistant: ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
+  operator:  ["/hivemind", "/hivemind/business-dna", "/hivemind/briefings", "/hivemind/briefing", "/hivemind/chat", "/hivemind/tasks", "/hivemind/actions", "/hivemind/recommendations", "/hivemind/reports", "/hivemind/system-health", "/hivemind/workflow-intelligence", SETTINGS_HREF],
 };
 
 const ALL_NAV = [
@@ -43,8 +43,9 @@ const ALL_NAV = [
   { label: "Actions",         href: "/hivemind/actions",          icon: Zap,                actions: true },
   { label: "Recommendations", href: "/hivemind/recommendations",  icon: Lightbulb },
   { label: "Reports",         href: "/hivemind/reports",          icon: FileText },
-  { label: "System Health",   href: "/hivemind/system-health",    icon: Activity },
-  { label: "Settings",        href: SETTINGS_HREF,                icon: Settings },
+  { label: "System Health",         href: "/hivemind/system-health",          icon: Activity },
+  { label: "Workflow Intelligence", href: "/hivemind/workflow-intelligence",   icon: GitBranch },
+  { label: "Settings",              href: SETTINGS_HREF,                       icon: Settings },
 ];
 
 // ── Badge sub-components ──────────────────────────────────────────────────────

@@ -2,6 +2,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { HubSpotAdapter } from "./hubspot.adapter";
 import { GoHighLevelAdapter } from "./gohighlevel.adapter";
 import { WeeBespokeAiAdapter } from "./webespoke-ai.adapter";
+import { SalesforceAdapter } from "@/lib/providers/crm/adapters/salesforce.adapter";
+import { PipedriveAdapter } from "@/lib/providers/crm/adapters/pipedrive.adapter";
 import type { CrmContactInput, CrmCallActivityInput } from "./crm-adapter.interface";
 
 export async function dispatchCrmPostCall(
@@ -11,7 +13,7 @@ export async function dispatchCrmPostCall(
 ): Promise<void> {
   const { data: settings } = await (supabaseAdmin as any)
     .from("workspace_settings")
-    .select("hubspot_api_key, ghl_api_key, ghl_location_id, webespoke_api_key, webespoke_api_url")
+    .select("hubspot_api_key, ghl_api_key, ghl_location_id, webespoke_api_key, webespoke_api_url, salesforce_instance_url, salesforce_access_token, pipedrive_api_token")
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -29,6 +31,17 @@ export async function dispatchCrmPostCall(
 
   if (settings.webespoke_api_key && settings.webespoke_api_url) {
     adapters.push(new WeeBespokeAiAdapter(settings.webespoke_api_key, settings.webespoke_api_url));
+  }
+
+  if (settings.salesforce_instance_url && settings.salesforce_access_token) {
+    adapters.push(new SalesforceAdapter({
+      instanceUrl: settings.salesforce_instance_url,
+      accessToken: settings.salesforce_access_token,
+    }));
+  }
+
+  if (settings.pipedrive_api_token) {
+    adapters.push(new PipedriveAdapter(settings.pipedrive_api_token));
   }
 
   if (adapters.length === 0) return;
