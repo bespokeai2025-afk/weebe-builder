@@ -1,0 +1,49 @@
+Audit and update the call dashboard logic so voicemail calls are disregarded from normal dashboard views and analytics, without deleting any historical call records from Supabase.
+
+Requirements:
+1. First inspect the existing Supabase call tables and webhook processing logic to identify how voicemail calls are currently stored. Look for fields such as outcome, call_status, disconnection_reason, transcript, summary, sentiment, voicemail_detected, recording_url, or Retell analysis data.
+
+2. Do not delete voicemail calls from Supabase. They must remain stored for audit/history.
+
+3. Add a reliable voicemail detection layer:
+   - If Retell provides voicemail/answering-machine detection fields, use those first.
+   - Also detect voicemail from transcript/summary/outcome text containing phrases like:
+     “voicemail”, “answering machine”, “leave a message”, “mailbox”, “beep”, “not available”, “automated message”.
+   - Store the result as a boolean field if one does not already exist, for example:
+     is_voicemail boolean default false.
+
+4. Add a safe migration if needed:
+   - Add is_voicemail to the calls/call_logs table.
+   - Backfill existing records using Retell metadata, outcome, summary, transcript, and disconnection_reason.
+   - Do not break existing RLS, workspace_id filtering, or dashboard queries.
+
+5. Update webhook/call save logic so every new call is marked with is_voicemail=true when voicemail is detected.
+
+6. Update dashboard pages so voicemail calls are excluded by default from:
+   - main dashboard summary
+   - calls analytics
+   - lead generation stats
+   - qualified lead stats
+   - conversion rates
+   - success rate calculations
+   - average call duration calculations
+
+7. Add a filter/toggle on the Calls page:
+   - Default: “Exclude voicemails”
+   - Optional filter: “Show voicemails”
+   - Optional filter: “Only voicemails”
+
+8. Make sure voicemail calls are still visible when the user chooses to show them, with a clear “Voicemail” badge.
+
+9. Do not change unrelated dashboard styling, Retell integration, live calls, Supabase auth, RLS policies, agent builder, or campaign logic unless required for this feature.
+
+10. Add defensive logging so we can confirm:
+   - how many calls were detected as voicemail during backfill
+   - how many new webhook calls are being marked as voicemail
+   - whether dashboard queries are excluding them correctly.
+
+After implementation, provide a concise summary of:
+- files changed
+- database migration added
+- detection rules used
+- how to test it safely
