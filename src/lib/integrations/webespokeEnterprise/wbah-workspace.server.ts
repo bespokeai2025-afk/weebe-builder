@@ -16,6 +16,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
+import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
 
 // ── Internal: require webuyanyhouse membership + get API token callbacks ───────
 
@@ -379,6 +380,15 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
 export const getWbahCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // Try DataSourceRouter first — routes through engine if a profile is configured
+    try {
+      const routed = await getCampaignData(WBAH_WORKSPACE_ID);
+      if (routed.source === "engine") {
+        return Array.isArray(routed.rows) ? routed.rows : [];
+      }
+    } catch { /* fall through to direct call */ }
+
+    // Fallback: direct WeeBespoke API call
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahGetCampaigns(cbs.getTokens, cbs.saveNewAccessToken);
     return Array.isArray(res.data) ? res.data : [];
@@ -429,6 +439,13 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
 export const listWbahLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // Try DataSourceRouter first — routes through engine when a profile is configured
+    try {
+      const { getPeopleData } = await import("@/lib/api-engine/data-source-router.server");
+      const routed = await getPeopleData(WBAH_WORKSPACE_ID);
+      if (routed.source === "engine") return routed.rows;
+    } catch { /* fall through to direct call */ }
+
     const cbs = await requireWbahCbs(context.userId);
     const gt  = cbs.getTokens;
     const st  = cbs.saveNewAccessToken;
@@ -739,6 +756,13 @@ function formatDurationMs(ms: number | null | undefined): string | null {
 export const listWbahCalls = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // Try DataSourceRouter first — routes through engine when a profile is configured
+    try {
+      const { getCallsData } = await import("@/lib/api-engine/data-source-router.server");
+      const routed = await getCallsData(WBAH_WORKSPACE_ID);
+      if (routed.source === "engine") return routed.rows;
+    } catch { /* fall through to direct call */ }
+
     const cbs = await requireWbahCbs(context.userId);
     const gt = cbs.getTokens;
     const st = cbs.saveNewAccessToken;
@@ -916,6 +940,13 @@ export const listWbahLatestCalls = createServerFn({ method: "GET" })
 export const listWbahCrmContacts = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // Try DataSourceRouter first — routes through engine when a profile is configured
+    try {
+      const { getCRMData } = await import("@/lib/api-engine/data-source-router.server");
+      const routed = await getCRMData(WBAH_WORKSPACE_ID);
+      if (routed.source === "engine") return routed.rows;
+    } catch { /* fall through to direct call */ }
+
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahGetCrmData(cbs.getTokens, cbs.saveNewAccessToken);
     if (!res.ok) throw new Error(res.error ?? "Failed to fetch CRM contacts");

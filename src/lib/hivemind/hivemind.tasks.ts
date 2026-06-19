@@ -191,6 +191,30 @@ async function scanPlatform(sb: any, workspaceId: string): Promise<ScanFinding[]
     results.push(...gmFindings);
   } catch {}
 
+  // API Engine health scan
+  try {
+    const { scanApiEngine } = await import("@/lib/api-engine/api-engine-scanner.server");
+    const engineRecs = await scanApiEngine(workspaceId);
+    for (const rec of engineRecs) {
+      results.push({
+        trigger_type: rec.id,
+        entity_type:  "api_engine",
+        entity_id:    rec.id,
+        entity_name:  "API Engine",
+        title:        rec.problem,
+        description:  `${rec.impact} ${rec.fix}`,
+        priority:     (rec.priority === "critical" ? "critical"
+                    : rec.priority === "high"     ? "high"
+                    : rec.priority === "medium"   ? "medium"
+                    : "low") as TaskPriority,
+        severity:     (rec.priority === "critical" ? "critical"
+                    : rec.priority === "high"     ? "warning"
+                    : "info") as EventSeverity,
+        metadata:     { category: rec.category, action: rec.action },
+      });
+    }
+  } catch {}
+
   return results;
 }
 

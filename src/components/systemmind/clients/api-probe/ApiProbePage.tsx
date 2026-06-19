@@ -31,8 +31,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Activity, Plus, Trash2, Play, Save, RefreshCw, ChevronDown,
   ChevronRight, Shield, AlertTriangle, CheckCircle2, Clock, Database,
-  ArrowRight, Loader2, Eye, EyeOff, Copy,
+  ArrowRight, Loader2, Eye, EyeOff, Copy, Zap,
 } from "lucide-react";
+import { EngineStatusTab } from "./EngineStatusTab";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -374,6 +375,7 @@ export function ApiProbePage() {
   const seedWbahFn   = useServerFn(seedWebuyanyhouse);
   const qc           = useQueryClient();
 
+  const [pageTab,    setPageTab]   = useState<"connections" | "engine">("connections");
   const [activeTab, setActiveTab] = useState<"probe" | "mappings">("probe");
   const [selectedId, setSelectedId]   = useState<string | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
@@ -553,6 +555,34 @@ export function ApiProbePage() {
         <p className="text-sm text-gray-400 mt-0.5">Connect, test, and map external client APIs to WEBEE modules</p>
       </div>
 
+      {/* Page-level tabs */}
+      <div className="flex gap-1 border-b border-white/[0.06] pb-px -mt-2">
+        {([
+          { key: "connections", label: "Connections & Mappings", icon: Database },
+          { key: "engine",      label: "Engine Status",          icon: Zap },
+        ] as const).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setPageTab(key)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-colors border-b-2 -mb-px",
+              pageTab === key
+                ? "border-sky-400 text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Engine Status tab */}
+      {pageTab === "engine" && (
+        <EngineStatusTab />
+      )}
+
+      {pageTab === "connections" && (
       <div className="grid lg:grid-cols-[280px_1fr] gap-4">
         {/* ── Left: Connection list ─────────────────────────────────────────── */}
         <div className="space-y-2">
@@ -893,6 +923,7 @@ export function ApiProbePage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
