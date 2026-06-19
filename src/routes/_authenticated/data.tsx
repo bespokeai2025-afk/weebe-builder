@@ -44,12 +44,7 @@ import {
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
-import {
-  listWbahAllCallData,
-  triggerWbahCategorySync,
-  listWbahCategorizedLeads,
-  getWbahCategorySyncLog,
-} from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahAllCallData } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -447,21 +442,6 @@ function DataPage() {
   const [wbahTranscript, setWbahTranscript]           = useState<{ name: string; text: string } | null>(null);
   const [wbahImporting, setWbahImporting]             = useState(false);
 
-  type WbahCatRow = { id: string; external_lead_id: string; external_status_code: string | null; external_status_label: string | null; webee_category: string; full_name: string; phone: string | null; email: string | null; address: string | null; city: string | null; postcode: string | null; property_type: string | null; meta: Record<string, unknown>; last_synced_at: string };
-  type WbahSyncLog = { id: string; synced_at: string; imported: number; updated: number; skipped: number; failed: number; total_records: number; duration_ms: number; error_message: string | null } | null;
-
-  const [catRows, setCatRows]           = useState<Record<string, WbahCatRow[]>>({ disqualified: [], tried_to_contact: [], rebooking: [] });
-  const [catTotal, setCatTotal]         = useState<Record<string, number>>({ disqualified: 0, tried_to_contact: 0, rebooking: 0 });
-  const [catPage, setCatPage]           = useState<Record<string, number>>({ disqualified: 1, tried_to_contact: 1, rebooking: 1 });
-  const [catSearch, setCatSearch]       = useState<Record<string, string>>({ disqualified: "", tried_to_contact: "", rebooking: "" });
-  const [catLoading, setCatLoading]     = useState<Record<string, boolean>>({ disqualified: false, tried_to_contact: false, rebooking: false });
-  const [catError, setCatError]         = useState<Record<string, string | null>>({ disqualified: null, tried_to_contact: null, rebooking: null });
-  const [catSyncing, setCatSyncing]     = useState<Record<string, boolean>>({ disqualified: false, tried_to_contact: false, rebooking: false });
-  const [catSyncLog, setCatSyncLog]     = useState<Record<string, WbahSyncLog>>({ disqualified: null, tried_to_contact: null, rebooking: null });
-  const [syncLogLoaded, setSyncLogLoaded] = useState(false);
-
-  const CAT_PAGE_SIZE = 100;
-
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([]);
@@ -482,9 +462,6 @@ function DataPage() {
   const fetchQualifiedLeadsFn = useServerFn(fetchQualifiedLeads);
   const setStatusFn = useServerFn(setRecordCallStatus);
   const listWbahAllCallDataFn = useServerFn(listWbahAllCallData);
-  const triggerCatSyncFn = useServerFn(triggerWbahCategorySync);
-  const listCatLeadsFn = useServerFn(listWbahCategorizedLeads);
-  const getCatSyncLogFn = useServerFn(getWbahCategorySyncLog);
   const qc = useQueryClient();
 
   const filters = useMemo(() => {
@@ -835,79 +812,6 @@ function DataPage() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wbahPeopleSubTab, agents]);
-
-  // ── Category tab auto-load ────────────────────────────────────────────────
-  const CAT_TABS: string[] = ["disqualified", "tried_to_contact", "rebooking"];
-
-  useEffect(() => {
-    if (!isWbah) return;
-    if (!CAT_TABS.includes(wbahPeopleSubTab)) return;
-    const cat = wbahPeopleSubTab as "disqualified" | "tried_to_contact" | "rebooking";
-    if (catLoading[cat]) return;
-    loadCatLeads(cat, 1, catSearch[cat]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wbahPeopleSubTab, isWbah]);
-
-  useEffect(() => {
-    if (!isWbah || syncLogLoaded) return;
-    if (dataTab !== "people") return;
-    setSyncLogLoaded(true);
-    getCatSyncLogFn().then(logs => {
-      setCatSyncLog(logs as any);
-    }).catch(() => {/* silent */});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataTab, isWbah, syncLogLoaded]);
-
-  async function loadCatLeads(
-    cat: "disqualified" | "tried_to_contact" | "rebooking",
-    page: number,
-    search: string,
-  ) {
-    setCatLoading(prev => ({ ...prev, [cat]: true }));
-    setCatError(prev => ({ ...prev, [cat]: null }));
-    try {
-      const res = await listCatLeadsFn({ data: { category: cat, page, limit: CAT_PAGE_SIZE, search: search.trim() || undefined } });
-      setCatRows(prev => ({ ...prev, [cat]: res.rows as any[] }));
-      setCatTotal(prev => ({ ...prev, [cat]: res.total }));
-      setCatPage(prev => ({ ...prev, [cat]: page }));
-    } catch (err) {
-      setCatError(prev => ({ ...prev, [cat]: (err as Error).message }));
-    } finally {
-      setCatLoading(prev => ({ ...prev, [cat]: false }));
-    }
-  }
-
-  async function handleCatSync(cat: "disqualified" | "tried_to_contact" | "rebooking" | "all") {
-    const cats: ("disqualified" | "tried_to_contact" | "rebooking")[] = cat === "all"
-      ? ["disqualified", "tried_to_contact", "rebooking"]
-      : [cat];
-    const key = cat;
-    setCatSyncing(prev => {
-      const n = { ...prev };
-      cats.forEach(c => { n[c] = true; });
-      return n;
-    });
-    try {
-      const res = await triggerCatSyncFn({ data: { category: cat } });
-      const resAny = res as any;
-      const total = cats.reduce((s, c) => s + ((resAny[c]?.imported ?? 0) + (resAny[c]?.updated ?? 0)), 0);
-      toast.success(`Category sync complete — ${total} leads imported/updated`);
-      // Reload the current category and refresh sync log
-      for (const c of cats) {
-        await loadCatLeads(c, 1, catSearch[c]);
-      }
-      setSyncLogLoaded(false);
-    } catch (err) {
-      toast.error(`Sync failed`, { description: (err as Error).message });
-    } finally {
-      setCatSyncing(prev => {
-        const n = { ...prev };
-        cats.forEach(c => { n[c] = false; });
-        return n;
-      });
-      void key;
-    }
-  }
 
   async function handleImportWbahSelected() {
     const toImport = wbahCallData.filter(r => wbahSelected.has(r.id));
@@ -1286,9 +1190,7 @@ function DataPage() {
               {([
                 { id: "all",                label: "All Records" },
                 { id: "disqualified_sweep", label: "Disqualified Sweep" },
-                { id: "disqualified",       label: "Disqualified" },
-                { id: "tried_to_contact",   label: "Tried To Contact" },
-                { id: "rebooking",          label: "Rebooking" },
+                /* more CRM sections added here as needed */
               ] as { id: string; label: string }[]).map(tab => (
                 <button
                   key={tab.id}
@@ -1301,10 +1203,10 @@ function DataPage() {
                 >
                   {tab.id === "disqualified_sweep" && <AlertCircle className="h-3 w-3" />}
                   {tab.label}
-                  {tab.id !== "all" && (() => {
-                    let count = 0;
-                    if (tab.id === "disqualified_sweep" && wbahCallData.length > 0) count = wbahCallData.filter(isWbahDisqualified).length;
-                    else if (tab.id === "disqualified" || tab.id === "tried_to_contact" || tab.id === "rebooking") count = catTotal[tab.id] ?? 0;
+                  {tab.id !== "all" && wbahCallData.length > 0 && (() => {
+                    const count = tab.id === "disqualified_sweep"
+                      ? wbahCallData.filter(isWbahDisqualified).length
+                      : 0;
                     return count > 0 ? (
                       <span className="ml-1 rounded-full bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400">{count}</span>
                     ) : null;
@@ -1316,19 +1218,10 @@ function DataPage() {
             <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
               <div className="flex items-center gap-3 flex-wrap">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {wbahPeopleSubTab === "disqualified_sweep" ? "Disqualified Sweep"
-                    : wbahPeopleSubTab === "disqualified" ? "Disqualified"
-                    : wbahPeopleSubTab === "tried_to_contact" ? "Tried To Contact"
-                    : wbahPeopleSubTab === "rebooking" ? "Rebooking"
-                    : "All Records"}
-                  {(wbahPeopleSubTab === "all" || wbahPeopleSubTab === "disqualified_sweep") && wbahCallData.length > 0 && (
+                  {wbahPeopleSubTab === "disqualified_sweep" ? "Disqualified Sweep" : "All Records"}
+                  {wbahCallData.length > 0 && (
                     <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
                       {wbahCallData.length} total
-                    </span>
-                  )}
-                  {(wbahPeopleSubTab === "disqualified" || wbahPeopleSubTab === "tried_to_contact" || wbahPeopleSubTab === "rebooking") && catTotal[wbahPeopleSubTab] > 0 && (
-                    <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
-                      {catTotal[wbahPeopleSubTab]} total
                     </span>
                   )}
                   {wbahSelected.size > 0 && (
@@ -1432,163 +1325,21 @@ function DataPage() {
                   </Button>
                 )}
 
-                {/* Refresh button — only for All / Sweep tabs */}
-                {(wbahPeopleSubTab === "all" || wbahPeopleSubTab === "disqualified_sweep") && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={handleFetchWbahCallData}
-                    disabled={wbahCallDataLoading}
-                  >
-                    <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${wbahCallDataLoading ? "animate-spin" : ""}`} />
-                    {wbahCallData.length > 0 ? "Refresh" : "Load Data"}
-                  </Button>
-                )}
-
-                {/* Sync button — only for category tabs */}
-                {(wbahPeopleSubTab === "disqualified" || wbahPeopleSubTab === "tried_to_contact" || wbahPeopleSubTab === "rebooking") && (() => {
-                  const cat = wbahPeopleSubTab as "disqualified" | "tried_to_contact" | "rebooking";
-                  const syncing = catSyncing[cat];
-                  const log = catSyncLog[cat];
-                  return (
-                    <div className="flex items-center gap-2">
-                      {log && (
-                        <span className="text-[10px] text-muted-foreground/70">
-                          Last synced {new Date(log.synced_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                          {log.total_records > 0 && ` · ${log.total_records} total`}
-                        </span>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => handleCatSync(cat)}
-                        disabled={syncing}
-                      >
-                        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
-                        {syncing ? "Syncing…" : "Sync Now"}
-                      </Button>
-                    </div>
-                  );
-                })()}
-
-                {/* Search for category tabs */}
-                {(wbahPeopleSubTab === "disqualified" || wbahPeopleSubTab === "tried_to_contact" || wbahPeopleSubTab === "rebooking") && (() => {
-                  const cat = wbahPeopleSubTab as "disqualified" | "tried_to_contact" | "rebooking";
-                  return (
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
-                      <input
-                        value={catSearch[cat]}
-                        onChange={e => {
-                          const s = e.target.value;
-                          setCatSearch(prev => ({ ...prev, [cat]: s }));
-                          if (!s) loadCatLeads(cat, 1, "");
-                        }}
-                        onKeyDown={e => { if (e.key === "Enter") loadCatLeads(cat, 1, catSearch[cat]); }}
-                        placeholder="Search name, phone…"
-                        className="h-7 rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 w-44"
-                      />
-                      {catSearch[cat] && (
-                        <button
-                          onClick={() => { setCatSearch(prev => ({ ...prev, [cat]: "" })); loadCatLeads(cat, 1, ""); }}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                })()}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleFetchWbahCallData}
+                  disabled={wbahCallDataLoading}
+                >
+                  <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${wbahCallDataLoading ? "animate-spin" : ""}`} />
+                  {wbahCallData.length > 0 ? "Refresh" : "Load Data"}
+                </Button>
               </div>
             </div>
 
             {/* ── Table body ─────────────────────────────────────────────── */}
-            {/* ── Category DB tabs ────────────────────────────────────────── */}
-            {(wbahPeopleSubTab === "disqualified" || wbahPeopleSubTab === "tried_to_contact" || wbahPeopleSubTab === "rebooking") ? (() => {
-              const cat = wbahPeopleSubTab as "disqualified" | "tried_to_contact" | "rebooking";
-              const rows = catRows[cat];
-              const loading = catLoading[cat];
-              const error = catError[cat];
-              const total = catTotal[cat];
-              const page = catPage[cat];
-              const pageSize = CAT_PAGE_SIZE;
-              const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-              if (loading) return (
-                <div className="flex flex-col items-center justify-center gap-3 py-20 text-sm text-muted-foreground">
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                  <span>Loading {wbahPeopleSubTab === "tried_to_contact" ? "Tried To Contact" : wbahPeopleSubTab === "rebooking" ? "Rebooking" : "Disqualified"} leads…</span>
-                </div>
-              );
-              if (error) return (
-                <div className="flex flex-col items-center gap-2 py-16 text-sm">
-                  <AlertCircle className="h-8 w-8 text-destructive/60" />
-                  <p className="font-medium text-destructive">Could not load leads</p>
-                  <p className="max-w-sm text-center text-xs text-muted-foreground">{error}</p>
-                  <Button variant="outline" size="sm" className="mt-2" onClick={() => loadCatLeads(cat, 1, "")}>Try again</Button>
-                </div>
-              );
-              if (rows.length === 0) return (
-                <div className="flex flex-col items-center gap-3 py-16">
-                  <Users className="h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm font-medium">No {wbahPeopleSubTab === "tried_to_contact" ? "Tried To Contact" : wbahPeopleSubTab === "rebooking" ? "Rebooking" : "Disqualified"} leads synced yet</p>
-                  <p className="text-xs text-muted-foreground max-w-sm text-center">Click <strong>Sync Now</strong> to pull leads from WeeBespoke, or wait for the automatic sync (every 30 min).</p>
-                  <Button variant="outline" size="sm" className="mt-1" onClick={() => handleCatSync(cat)} disabled={catSyncing[cat]}>
-                    <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${catSyncing[cat] ? "animate-spin" : ""}`} /> Sync Now
-                  </Button>
-                </div>
-              );
-              return (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-white/[0.06] bg-card/30">
-                        {(["#","NAME","PHONE","EMAIL","ADDRESS","CITY","POSTCODE","PROPERTY TYPE","STATUS","LAST SYNCED"] as const).map(col => (
-                          <th key={col} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground whitespace-nowrap">{col}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r, idx) => (
-                        <tr key={r.id} className="border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors">
-                          <td className="px-3 py-2 text-muted-foreground text-[11px]">{(page - 1) * pageSize + idx + 1}</td>
-                          <td className="px-3 py-2 font-medium whitespace-nowrap max-w-[140px] truncate">{r.full_name || "—"}</td>
-                          <td className="px-3 py-2 font-mono text-muted-foreground text-[11px] whitespace-nowrap">
-                            {r.phone ? <a href={`tel:${r.phone}`} className="flex items-center gap-1 hover:text-foreground transition-colors"><Phone className="h-3 w-3" />{r.phone}</a> : "—"}
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground text-[11px] max-w-[160px] truncate">{r.email || "—"}</td>
-                          <td className="px-3 py-2 text-muted-foreground text-[11px] max-w-[160px] truncate">{r.address || "—"}</td>
-                          <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.city || "—"}</td>
-                          <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.postcode || "—"}</td>
-                          <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap capitalize">{r.property_type?.replace(/_/g," ") || "—"}</td>
-                          <td className="px-3 py-2">
-                            {r.external_status_label ? (
-                              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06]">
-                                {r.external_status_label}
-                              </span>
-                            ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">
-                            {new Date(r.last_synced_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
-                      <span className="text-[11px] text-muted-foreground">Page {page} of {totalPages} · {total} leads</span>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={page <= 1} onClick={() => loadCatLeads(cat, page - 1, catSearch[cat])}>Prev</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={page >= totalPages} onClick={() => loadCatLeads(cat, page + 1, catSearch[cat])}>Next</Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })() : wbahCallDataLoading ? (
+            {wbahCallDataLoading ? (
               <div className="flex flex-col items-center justify-center gap-3 py-20 text-sm text-muted-foreground">
                 <RefreshCw className="h-5 w-5 animate-spin" />
                 <span>Fetching call data from WeeBespoke… this may take a moment</span>
