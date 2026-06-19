@@ -1,0 +1,459 @@
+STABILISATION AUDIT: API ENGINE + REDIS + WEBUYANYHOUSE LEAD COUNTS + ANALYTICS + CAMPAIGN/AGENT PREP
+
+We have added Redis and the API Engine. Webuyanyhouse lead numbers and analytics are now inconsistent.
+
+Do not rebuild pages.
+
+Do not create new pages.
+
+Do not change business logic yet.
+
+Do not change sentiment/qualification rules yet.
+
+Do not start implementing campaigns or agent APIs yet.
+
+Goal:
+
+Find exactly why lead, call, data and analytics numbers differ between:
+
+* Source API
+* API Engine
+* Redis cache
+* Supabase/local cache if used
+* UI pages
+* Dashboard analytics
+
+Also prepare a clean audit foundation for adding Campaign APIs and Agent APIs later today.
+
+---
+
+1. SOURCE API AUDIT
+
+---
+
+For every Webuyanyhouse API endpoint currently used, log safely:
+
+* endpoint called
+* HTTP method
+* request params/body
+* pagination params
+* limit/page/currentPage
+* date range if used
+* filters if used
+* response status
+* response record count
+* total count if available
+* response array path
+* timestamp of response
+
+Never log tokens.
+
+Audit at minimum:
+
+Leads / People / Data / Calls:
+
+GET /call-output-data/get-all-calldata
+
+GET /call-output-data/get-call-count
+
+POST /call-output-data/get-user-history
+
+GET /call-output-data/get-userCall-lead
+
+GET /call-output-data/callbacks/pending
+
+GET /call-output-data/all
+
+GET /crm-data/get-crm-data
+
+Dashboard Analytics:
+
+POST /dashboard/total-call-minutes
+
+POST /dashboard/number-of-calls
+
+POST /dashboard/leads
+
+POST /dashboard/call-performance
+
+POST /dashboard/call-drops
+
+Campaign Prep:
+
+GET /campaigns
+
+GET /campaigns/:id if currently used
+
+Agent Prep:
+
+GET /agent/get-list
+
+GET /agent/get-agents-with-voicemail
+
+Do not implement new campaign or agent features yet. Only verify endpoint behaviour and response shape.
+
+---
+
+2. API ENGINE AUDIT
+
+---
+
+For each page/module, report:
+
+* endpoint mapping used
+* mapping id
+* pagination strategy used
+* bulk strategy used
+* date range strategy used
+* cache strategy used
+* records received from source API
+* records normalised
+* records returned to page
+* totalCount returned
+* whether dashboard analytics are using raw dashboard endpoints or calculated from fetched rows
+
+Important:
+
+Dashboard analytics must not accidentally calculate totals from only page 1 or from a filtered table page.
+
+---
+
+3. REDIS CACHE AUDIT
+
+---
+
+Check Redis behaviour for every module:
+
+* Dashboard analytics
+* Leads
+* People
+* Calls
+* Qualified Leads
+* Data page and sub-tabs
+* Campaigns prep
+* Agents prep
+
+Check:
+
+* cache key format
+* workspace_id included
+* module included
+* endpointMappingId included
+* page included
+* pageSize included
+* filters included
+* search included
+* sort included
+* sentiment/status filters included
+* date range included for analytics
+* campaign/user filters included if present
+* TTL value
+* stale cache usage
+* cache invalidation after sync
+* whether page 1 cache is reused for other pages
+* whether analytics cache is reused across different date ranges
+* whether WBAH cache is shared with another workspace by mistake
+
+Required cache key shape example:
+
+webee:data:v1:{workspaceId}:{module}:{endpointMappingId}:{page}:{pageSize}:{filtersHash}:{sortHash}:{dateRangeHash}
+
+Analytics cache key example:
+
+webee:analytics:v1:{workspaceId}:{metric}:{endpointMappingId}:{startDate}:{endDate}:{filtersHash}
+
+Campaign cache key example:
+
+webee:campaigns:v1:{workspaceId}:{endpointMappingId}:{page}:{pageSize}:{filtersHash}
+
+Agent cache key example:
+
+webee:agents:v1:{workspaceId}:{endpointMappingId}:{filtersHash}
+
+---
+
+4. SUPABASE / LOCAL CACHE AUDIT
+
+---
+
+If Supabase/local cache is used, check:
+
+* actual row counts
+* workspace_id scoping
+* source_system
+* source_id
+* source endpoint
+* duplicate prevention
+* last synced timestamp
+* whether Redis and Supabase counts disagree
+* whether analytics are using stale local rows instead of current API totals
+
+---
+
+5. UI PAGE AUDIT
+
+---
+
+Audit these existing pages:
+
+* Dashboard
+* Leads
+* People
+* Calls
+* Qualified Leads
+* Data page and all sub-tabs
+
+For each page report:
+
+* rows received from API Engine
+* rows after local filters
+* rows displayed
+* totalCount shown
+* current page
+* pageSize
+* active tab/filter
+* sentiment filter
+* qualification filter
+* source count
+* filtered count
+* displayed count
+
+---
+
+6. DASHBOARD ANALYTICS AUDIT
+
+---
+
+Analytics currently appear wrong.
+
+Audit every dashboard card/chart.
+
+For each dashboard item, report:
+
+* metric name
+* endpoint used
+* request body
+* date range used
+* API response value
+* API Engine normalised value
+* Redis cache key used
+* cache hit/miss
+* final displayed value
+* whether value is being calculated from paginated rows incorrectly
+
+Dashboard endpoints:
+
+POST /dashboard/total-call-minutes
+
+POST /dashboard/number-of-calls
+
+POST /dashboard/leads
+
+POST /dashboard/call-performance
+
+POST /dashboard/call-drops
+
+Important:
+
+Dashboard KPI cards should use the dashboard analytics endpoints where available.
+
+They should not calculate totals from only currently displayed table rows.
+
+If the API response shape is unclear, log response keys and sample non-sensitive values.
+
+---
+
+7. SPECIFIC WBAH RULES
+
+---
+
+For Webuyanyhouse:
+
+* Leads page should show only positive and negative sentiment if that is the current configured rule
+* Qualified Leads should show positive sentiment only
+* Neutral must not count as qualified
+* Partly Qualified should be neutral only
+* Unknown should not be counted as qualified
+
+Verify these rules are applied in one place only, preferably config/data service, not duplicated in multiple components.
+
+Do not change the rules during this audit unless a bug is directly identified and the fix is safe.
+
+---
+
+8. REDIS SAFETY FIXES IF NEEDED
+
+---
+
+If Redis is causing mismatch:
+
+* add a development-only bypass flag
+* add cache versioning
+* add manual cache clear for workspace/module
+* ensure cache keys include workspaceId, module, endpointMappingId, page, pageSize, filters and date range
+* do not cache incomplete first-page results as full totals
+* do not cache error/empty responses as valid data unless explicitly marked
+* do not share analytics cache across date ranges
+* do not share WBAH cache with another workspace
+
+---
+
+9. DEVELOPMENT DIAGNOSTIC PANEL
+
+---
+
+In development only, add diagnostics for:
+
+Dashboard:
+
+* metric name
+* endpoint used
+* source API value
+* API Engine value
+* Redis cache hit/miss
+* Redis key used
+* final displayed value
+* date range
+
+Leads page:
+
+* source API count
+* API Engine count
+* Redis cache hit/miss
+* Redis key used
+* rows after sentiment filter
+* rows displayed
+* totalCount
+* page/pageSize
+* last fetched time
+
+Never show tokens.
+
+---
+
+10. STABILISE COUNT DEFINITIONS
+
+---
+
+Create one source of truth for counts.
+
+For each page/module, distinguish:
+
+totalAvailableFromSource
+
+totalAfterModuleFilters
+
+totalDisplayedOnCurrentPage
+
+Do not mix these numbers.
+
+Example:
+
+Source total: 10,000
+
+Filtered total: 397
+
+Displayed: 50
+
+For dashboard analytics, distinguish:
+
+metricFromAnalyticsEndpoint
+
+metricCalculatedFromRows
+
+metricDisplayed
+
+The dashboard should prefer metricFromAnalyticsEndpoint where available.
+
+---
+
+11. CAMPAIGN API PREP
+
+---
+
+Do not implement campaigns yet.
+
+Only audit and prepare.
+
+For:
+
+GET /campaigns
+
+and if available:
+
+GET /campaigns/:id
+
+Report:
+
+* response shape
+* array path
+* campaign id field
+* campaign name field
+* status field
+* agent assignment field
+* lead source/bucket field
+* schedule fields
+* voicemail setting field
+* pagination support
+* cache key requirements
+* likely WEBEE mapping
+
+---
+
+12. AGENT API PREP
+
+---
+
+Do not implement agent features yet.
+
+Only audit and prepare.
+
+For:
+
+GET /agent/get-list
+
+GET /agent/get-agents-with-voicemail
+
+Report:
+
+* response shape
+* array path
+* agent id field
+* agent name field
+* status field
+* voicemail fields
+* provider/Retell field if present
+* pagination support
+* cache key requirements
+* likely WEBEE mapping
+
+---
+
+13. FINAL REPORT
+
+---
+
+Provide a final stabilisation report showing:
+
+* exact reason lead numbers differed
+* exact reason analytics numbers differed
+* whether Redis caused mismatches
+* whether API Engine caused mismatches
+* whether UI filters caused mismatches
+* whether pagination caused mismatches
+* whether dashboard used incorrect source
+* cache keys fixed
+* files changed
+* final verified counts for:
+
+  * Dashboard metrics
+  * Leads
+  * People
+  * Calls
+  * Qualified Leads
+  * Data page
+* campaign endpoint readiness
+* agent endpoint readiness
+* remaining risks
+
+Do not proceed to new features until WBAH counts and analytics are stable and repeatable across refreshes.
