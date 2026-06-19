@@ -114,6 +114,49 @@ export async function cacheWrap<T>(
 }
 
 /**
+ * Health check for the Redis connection.
+ * Returns connected status, latency, and key count.
+ * Safe to call from admin UI — never throws.
+ */
+export async function cacheHealthCheck(): Promise<{
+  configured: boolean;
+  connected: boolean;
+  latencyMs: number | null;
+  keyCount: number | null;
+  error: string | null;
+}> {
+  const redis = getRedis();
+
+  if (!redis) {
+    return { configured: false, connected: false, latencyMs: null, keyCount: null, error: null };
+  }
+
+  const start = Date.now();
+  try {
+    const pong = await redis.ping();
+    const latencyMs = Date.now() - start;
+    if (pong !== "PONG") {
+      return { configured: true, connected: false, latencyMs, keyCount: null, error: "Unexpected ping response" };
+    }
+    let keyCount: number | null = null;
+    try {
+      keyCount = await redis.dbsize();
+    } catch {
+      // dbsize is optional — don't fail the health check
+    }
+    return { configured: true, connected: true, latencyMs, keyCount, error: null };
+  } catch (e: any) {
+    return {
+      configured: true,
+      connected: false,
+      latencyMs: Date.now() - start,
+      keyCount: null,
+      error: e?.message ?? "Unknown error",
+    };
+  }
+}
+
+/**
  * Invalidate the shared HiveMind / GrowthMind / dashboard overview caches
  * for a given workspace. Call this after any mutation that affects call,
  * booking, or lead counts aggregated by those modules.

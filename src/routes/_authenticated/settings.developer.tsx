@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listTokens, createToken, revokeToken } from "@/lib/workspace/api-tokens.functions";
+import { getCacheHealth } from "@/lib/cache/cache-health.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +30,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Copy, Eye, EyeOff, Plus, Trash2, Key, Webhook, BookOpen, CheckCircle2, AlertCircle, Globe, Lock } from "lucide-react";
+import { Copy, Eye, EyeOff, Plus, Trash2, Key, Webhook, BookOpen, CheckCircle2, AlertCircle, Globe, Lock, Database, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/settings/developer")({
@@ -131,6 +132,87 @@ function CodeBlock({ code, language = "bash" }: { code: string; language?: strin
         <CopyButton text={code} />
       </div>
     </div>
+  );
+}
+
+function CacheHealthCard() {
+  const healthFn = useServerFn(getCacheHealth);
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["cache-health"],
+    queryFn: () => healthFn(),
+    refetchInterval: 60_000,
+    throwOnError: false,
+  });
+
+  const isConnected = data?.connected === true;
+  const isConfigured = data?.configured !== false;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm">Cache Health</CardTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+        <CardDescription>Upstash Redis cache layer used for rate limiting and data caching.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            Checking cache…
+          </div>
+        ) : !isConfigured ? (
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/40" />
+            <span className="text-sm text-muted-foreground">Not configured — set <code className="text-xs">UPSTASH_REDIS_REST_URL</code> and <code className="text-xs">UPSTASH_REDIS_REST_TOKEN</code> to enable caching.</span>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              {isConnected ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+              )}
+              <span className={`text-sm font-medium ${isConnected ? "text-green-600" : "text-destructive"}`}>
+                {isConnected ? "Connected" : "Disconnected"}
+              </span>
+              {data?.error && (
+                <span className="text-xs text-muted-foreground truncate">— {data.error}</span>
+              )}
+            </div>
+            {isConnected && (
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                {data?.latencyMs != null && (
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium text-foreground">{data.latencyMs} ms</span>
+                    <span>latency</span>
+                  </div>
+                )}
+                {data?.keyCount != null && (
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium text-foreground">{data.keyCount.toLocaleString()}</span>
+                    <span>keys</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -252,6 +334,8 @@ function DeveloperPage() {
               </div>
             </CardContent>
           </Card>
+
+          <CacheHealthCard />
         </TabsContent>
 
         {/* ── Documentation tab ──────────────────────────────────── */}
