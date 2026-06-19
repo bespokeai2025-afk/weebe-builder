@@ -33,6 +33,11 @@ This prevents Rollup from ever attempting to bundle browser stubs for these modu
 
 **Also add `/* @vite-ignore */`** to all dynamic imports of `.server` files from files that are in the client bundle chain. Belt + suspenders.
 
+## `node:`-prefixed specifiers are a SEPARATE entry
+
+Rollup `external` matches the exact specifier. `import { createHash } from "node:crypto"` is NOT covered by `"crypto"` in the external list — they are different strings. The robust fix is a single RegExp `/^node:/` in the external array, which catches every `node:`-prefixed built-in regardless of which one a new server file happens to use. This is now in `vite.config.ts`.
+**Why:** a server-only file (`systemmind/client-api-connections.server.ts`, aliased as `systemmind/ln`) imported by client components used `node:crypto`; build failed with `"createHash" is not exported by "__vite-browser-external"` even though `"crypto"` was already external.
+
 ## The Secondary Error
 
 `growthmind.video-studio.ts` had two dynamic imports referencing `./growthmind.ai-router.server` — a non-existent file. The actual file is `./model-router.server`. This caused the SSR build to fail with "Could not resolve".

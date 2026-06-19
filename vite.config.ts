@@ -46,6 +46,9 @@ export default defineConfig({
     build: {
       rollupOptions: {
         external: [
+          // Catch any `node:`-prefixed built-in (e.g. `node:crypto`), which is a
+          // distinct specifier from the bare name and must be matched separately.
+          /^node:/,
           "child_process",
           "util",
           "fs/promises",

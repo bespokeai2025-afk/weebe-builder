@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/lib/auth/middleware";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export type TableLimitConfig = {
   key: string;
@@ -49,7 +49,7 @@ function classifyLevel(pct: number): DataLimitRow["level"] {
 export const getDataLimitsReport = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<DataLimitsReport> => {
-    const admin = createAdminClient();
+    const admin = supabaseAdmin;
 
     const rows: DataLimitRow[] = [];
 
