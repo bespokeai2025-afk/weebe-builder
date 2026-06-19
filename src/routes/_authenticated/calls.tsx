@@ -1,15 +1,17 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useEffect, useMemo } from "react";
+import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   ChevronDown,
   ChevronRight,
   Download,
   FlaskConical,
+  MessageSquare,
   Phone,
   PhoneIncoming,
   PhoneOutgoing,
+  PhoneCall,
   PlayCircle,
   RefreshCw,
   StickyNote,
@@ -681,66 +683,98 @@ function CallsPage() {
                       const inbound = c.call_type === "inbound";
                       const rawContact = c.lead?.full_name ?? (inbound ? c.from_number : c.to_number) ?? "Unknown";
                       const contact = typeof rawContact === "string" && rawContact.startsWith("web:") ? "Web session" : rawContact;
+                      const isVmMode = voicemailFilter === "only";
+                      const rawPhone = inbound ? c.from_number : c.to_number;
+                      const callbackPhone = typeof rawPhone === "string" && !rawPhone.startsWith("web:") ? rawPhone : null;
+                      const transcriptSnippet = isVmMode && c.transcript
+                        ? c.transcript.slice(0, 100).trim() + (c.transcript.length > 100 ? "…" : "")
+                        : null;
                       return (
-                        <tr key={c.id} onClick={() => openPanel(c)} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer">
-                          <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
-                            {contact}
-                            {c.is_voicemail && (
-                              <span className="ml-1.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400">Voicemail</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5">
-                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                              {inbound ? <PhoneIncoming className="h-3 w-3 text-primary" /> : <PhoneOutgoing className="h-3 w-3" />}
-                              {inbound ? "Inbound" : "Outbound"}
-                            </span>
-                            {(c.provider as string | null) === "ELEVENLABS" && (
-                              <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">VoxStream</span>
-                            )}
-                            {(c.to_number as string | null)?.startsWith("web:") && (
-                              <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">Web</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
-                          <td className="px-3 py-1.5">
-                            <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
-                              {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
-                            </span>
-                          </td>
-                          <td className="px-3 py-1.5">
-                            {c.sentiment
-                              ? <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>{c.sentiment}</span>
-                              : <span className="text-[11px] text-muted-foreground">—</span>}
-                          </td>
-                          <td className="max-w-[300px] px-3 py-1.5 text-xs text-muted-foreground align-middle"><SummaryTooltip text={c.call_summary} lines={2} /></td>
-                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
-                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                            {c.recording_url
-                              ? <button onClick={() => setRecordingPlayer({ url: c.recording_url, contact })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"><PlayCircle className="h-3 w-3" /> Play</button>
-                              : <span className="text-[11px] text-muted-foreground">—</span>}
-                          </td>
-                          <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                            {c.transcript
-                              ? <button onClick={() => setWbahTranscript({ text: c.transcript, name: contact })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
-                              : <span className="text-[11px] text-muted-foreground">—</span>}
-                          </td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
-                            {c.disconnection_reason ? String(c.disconnection_reason).replace(/_/g, " ") : "—"}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
-                            {c.started_at
-                              ? new Date(c.started_at).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
-                              : "Not called yet"}
-                          </td>
-                          <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                            <div className="relative group/notes flex justify-center">
-                              <button onClick={() => openPanel(c)} className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
-                                <StickyNote className="h-3.5 w-3.5" />
-                              </button>
-                              <span className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[10px] text-foreground shadow opacity-0 group-hover/notes:opacity-100 transition-opacity z-50">Notes</span>
-                            </div>
-                          </td>
-                        </tr>
+                        <Fragment key={c.id}>
+                          <tr onClick={() => openPanel(c)} className={cn("border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer", isVmMode ? "h-auto" : "h-9", isVmMode && "bg-amber-500/[0.015]")}>
+                            <td className={cn("px-3 py-1.5 text-xs font-medium whitespace-nowrap", isVmMode && "border-l-2 border-l-amber-500/50")}>
+                              {contact}
+                              {c.is_voicemail && (
+                                <span className="ml-1.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400">Voicemail</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                                {inbound ? <PhoneIncoming className="h-3 w-3 text-primary" /> : <PhoneOutgoing className="h-3 w-3" />}
+                                {inbound ? "Inbound" : "Outbound"}
+                              </span>
+                              {(c.provider as string | null) === "ELEVENLABS" && (
+                                <span className="ml-1 inline-block rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-violet-400">VoxStream</span>
+                              )}
+                              {(c.to_number as string | null)?.startsWith("web:") && (
+                                <span className="ml-1 inline-block rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-sky-400">Web</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{c.agent_name ?? "—"}</td>
+                            <td className="px-3 py-1.5">
+                              <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", statusClass(c.call_status))}>
+                                {String(c.call_status ?? "").replace(/_/g, " ").trim() || "—"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-1.5">
+                              {c.sentiment
+                                ? <span className={cn("rounded-full px-2 py-0.5 text-[10px] capitalize", sentimentClass(c.sentiment))}>{c.sentiment}</span>
+                                : <span className="text-[11px] text-muted-foreground">—</span>}
+                            </td>
+                            <td className="max-w-[300px] px-3 py-1.5 text-xs text-muted-foreground align-middle"><SummaryTooltip text={c.call_summary} lines={2} /></td>
+                            <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground tabular-nums text-[11px]">{fmtDuration(c.duration_seconds)}</td>
+                            <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                              {c.recording_url
+                                ? <button onClick={() => setRecordingPlayer({ url: c.recording_url, contact })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"><PlayCircle className="h-3 w-3" /> Play</button>
+                                : <span className="text-[11px] text-muted-foreground">—</span>}
+                            </td>
+                            <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                              {c.transcript
+                                ? <button onClick={() => setWbahTranscript({ text: c.transcript, name: contact })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
+                                : <span className="text-[11px] text-muted-foreground">—</span>}
+                            </td>
+                            <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                              {c.disconnection_reason ? String(c.disconnection_reason).replace(/_/g, " ") : "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
+                              {c.started_at
+                                ? new Date(c.started_at).toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                                : "Not called yet"}
+                            </td>
+                            <td className="sticky right-0 bg-card/80 backdrop-blur-sm px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">
+                                {isVmMode && callbackPhone && (
+                                  <div className="relative group/callback">
+                                    <a
+                                      href={`tel:${callbackPhone}`}
+                                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-colors whitespace-nowrap"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <PhoneCall className="h-3 w-3" />
+                                      Call back
+                                    </a>
+                                  </div>
+                                )}
+                                <div className="relative group/notes flex justify-center">
+                                  <button onClick={() => openPanel(c)} className="rounded p-1.5 text-amber-400/60 hover:text-amber-400 hover:bg-amber-500/10 transition-colors">
+                                    <StickyNote className="h-3.5 w-3.5" />
+                                  </button>
+                                  <span className="pointer-events-none absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-popover border border-border px-2 py-1 text-[10px] text-foreground shadow opacity-0 group-hover/notes:opacity-100 transition-opacity z-50">Notes</span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          {transcriptSnippet && (
+                            <tr className={cn("border-b border-white/[0.04] bg-amber-500/[0.015]")}>
+                              <td colSpan={12} className="border-l-2 border-l-amber-500/50 px-3 pb-2 pt-0">
+                                <div className="flex items-start gap-1.5 text-[11px] text-amber-400/70">
+                                  <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" />
+                                  <span className="italic leading-relaxed">{transcriptSnippet}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
