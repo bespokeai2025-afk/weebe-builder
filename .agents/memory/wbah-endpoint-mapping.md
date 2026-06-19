@@ -27,12 +27,12 @@ description: Definitive mapping of WeeBespoke API endpoints to WEBEE pages for t
 ## get-userCall-lead pagination — CONFIRMED
 
 - **Pagination key**: URL query param `?currentPage=N` on a GET request — WORKS
-- **pageSize**: hardcoded to 50
-- **totalItems**: 1,200 (confirmed by live API response — not 1,201)
-- **totalPages**: 24 (1200 ÷ 50)
+- **pageSize**: hardcoded to 50 (NOT 10 — that is `get-user-history`'s page size)
+- **totalItems**: ~1,201 (live count; grows over time)
+- **totalPages**: `Math.ceil(totalItems / pageSize)` — use actual `p1Records.length || 50`, never hardcode 10
 - `wbahGetUserCallLeadPaged(page, gt, st)` = `GET /call-output-data/get-userCall-lead?currentPage=${page}`
 
-**Why the page previously showed 50:** The admin sync called `getAllCars` = a single GET with no currentPage param. Fixed by `fetchAllLeadRecords` which paginates 24 pages in batches of 20 with ID dedup.
+**Bug fixed (wbah-leads-sync-tick.ts):** `fetchAllLeadRecords` was dividing by `10` instead of `50`, causing 121 pages to be fetched instead of 25. Pages 26-121 returned duplicate/empty data; 12 records with no external_id slipped through dedup → DB had 1212 instead of ~1201. Fix: use `p1Records.length || 50` as divisor + in-memory seenIds dedup. **After this fix, trigger Admin → WBAH → Full Resync to purge the 12 stale extras.**
 
 ## Token expiry handling — CONFIRMED
 

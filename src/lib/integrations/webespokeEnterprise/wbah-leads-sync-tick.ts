@@ -292,10 +292,20 @@ async function fetchAllLeadRecords(
   if (!p1.ok || !p1.data) return { ok: false, data: [] };
   const pagination = (p1.data as any)?.pagination ?? {};
   const totalItems = pagination?.totalItems ?? 0;
-  // WeeBespoke's API reports totalPages incorrectly — always compute from totalItems ÷ pageSize (10)
-  const totalPages = totalItems > 0 ? Math.ceil(totalItems / 10) : (pagination?.totalPages ?? (p1.data as any)?.totalPages ?? 1);
-  const all: any[] = Array.isArray(p1.data?.data) ? [...p1.data.data] : Array.isArray(p1.data) ? [...p1.data] : [];
-  // Fetch remaining pages sequentially in small batches to avoid API rate limits
+  const p1Records: any[] = Array.isArray(p1.data?.data) ? [...p1.data.data] : Array.isArray(p1.data) ? [...p1.data] : [];
+  // Use actual page size from first response (get-userCall-lead uses pageSize=50, NOT 10)
+  const pageSize = p1Records.length || 50;
+  const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : (pagination?.totalPages ?? (p1.data as any)?.totalPages ?? 1);
+
+  // Track IDs to prevent duplicates from over-fetched pages
+  const makeId = (r: any): string =>
+    String(r?.lead_id ?? r?._id ?? r?.id ?? r?.leadId ?? r?.toNumber ?? "").trim();
+  const seenIds = new Set<string>(p1Records.map(makeId).filter(Boolean));
+  const all: any[] = [...p1Records];
+
+  console.log(`[wbah-leads-sync] fetchAllLeadRecords: totalItems=${totalItems} pageSize=${pageSize} totalPages=${totalPages}`);
+
+  // Fetch remaining pages in small batches to avoid API rate limits
   for (let page = 2; page <= totalPages; page += 5) {
     const batch = Array.from({ length: Math.min(5, totalPages - page + 1) }, (_, i) => page + i);
     const results = await Promise.allSettled(
@@ -306,12 +316,18 @@ async function fetchAllLeadRecords(
     for (const r of results) {
       if (r.status === "fulfilled" && r.value.ok && r.value.data) {
         const records = Array.isArray(r.value.data?.data) ? r.value.data.data : Array.isArray(r.value.data) ? r.value.data : [];
-        all.push(...records);
+        for (const rec of records) {
+          const id = makeId(rec);
+          if (id && seenIds.has(id)) continue;
+          if (id) seenIds.add(id);
+          all.push(rec);
+        }
       }
     }
     // Brief pause between batches to avoid hammering the API
     if (page + 5 <= totalPages) await new Promise(res => setTimeout(res, 200));
   }
+  console.log(`[wbah-leads-sync] fetchAllLeadRecords done: ${all.length} unique records`);
   return { ok: true, data: all };
 }
 
