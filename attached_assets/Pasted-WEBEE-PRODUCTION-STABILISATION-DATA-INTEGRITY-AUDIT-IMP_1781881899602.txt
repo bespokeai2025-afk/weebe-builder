@@ -1,0 +1,577 @@
+WEBEE PRODUCTION STABILISATION + DATA INTEGRITY AUDIT
+
+IMPORTANT
+
+This is an audit only.
+
+Do not rebuild pages.
+
+Do not redesign UI.
+
+Do not add features.
+
+Do not change business logic.
+
+Do not modify sentiment, qualification, lead scoring or campaign behaviour.
+
+Do not implement fixes yet.
+
+First identify every issue.
+
+The objective is to stabilise the platform and identify why lead counts, call counts, analytics and workspace data are inconsistent.
+
+====================================================
+
+PRIORITY WORKSPACE
+
+WeBuyAnyHouse
+
+This workspace should be treated as the reference environment.
+
+Audit all systems using this workspace first.
+
+====================================================
+
+OBJECTIVE
+
+Determine exactly why:
+
+Leads are missing
+
+Analytics are inconsistent
+
+Calls do not match source systems
+
+Counts differ between pages
+
+Dashboards do not match underlying data
+
+Provider data differs from WEBEE data
+
+====================================================
+
+SECTION 1
+
+WORKSPACE DATA FLOW AUDIT
+
+Map complete flow:
+
+Source API
+↓
+Provider
+↓
+Webhook
+↓
+API Engine
+↓
+Redis
+↓
+Database
+↓
+Analytics Engine
+↓
+Dashboard UI
+
+For every stage show:
+
+Records received
+
+Records stored
+
+Records filtered
+
+Records rejected
+
+Records displayed
+
+====================================================
+
+SECTION 2
+
+LEADS AUDIT
+
+Audit:
+
+Leads page
+
+Qualified page
+
+Calls page
+
+Pipeline page
+
+Contacts page
+
+Dashboard cards
+
+For each:
+
+Show exact query used
+
+Filters applied
+
+Workspace filtering
+
+Date filtering
+
+Status filtering
+
+Sentiment filtering
+
+Duplicate prevention
+
+Pagination
+
+Soft deletes
+
+Archived records
+
+====================================================
+
+SECTION 3
+
+WEBUYANYHOUSE LEAD INVESTIGATION
+
+Specifically identify:
+
+Why leads are missing
+
+Where leads disappear
+
+Whether they are:
+
+Not received
+
+Not stored
+
+Filtered
+
+Archived
+
+Rejected
+
+Overwritten
+
+Deduplicated
+
+Workspace mismatch
+
+Date range mismatch
+
+Permission mismatch
+
+====================================================
+
+SECTION 4
+
+CALL AUDIT
+
+Audit:
+
+Retell
+
+HyperStream
+
+VoxStream
+
+Call logs
+
+Call summaries
+
+Call outcomes
+
+Transcripts
+
+Recordings
+
+Show:
+
+Calls received
+
+Calls stored
+
+Calls displayed
+
+Calls excluded
+
+Calls missing
+
+====================================================
+
+SECTION 5
+
+ANALYTICS AUDIT
+
+Audit all dashboard metrics.
+
+For every KPI:
+
+Show:
+
+Source table
+
+Source query
+
+Filters
+
+Date ranges
+
+Workspace filters
+
+Calculation logic
+
+Display logic
+
+Identify:
+
+Incorrect totals
+
+Double counting
+
+Missing records
+
+Caching issues
+
+Delayed updates
+
+====================================================
+
+SECTION 6
+
+REDIS AUDIT
+
+Audit:
+
+Cache keys
+
+Workspace isolation
+
+TTL
+
+Invalidation
+
+Refresh behaviour
+
+Stale cache risk
+
+Identify:
+
+Data being served from Redis that differs from Supabase.
+
+====================================================
+
+SECTION 7
+
+SUPABASE AUDIT
+
+Audit:
+
+Tables
+
+Views
+
+RPCs
+
+RLS
+
+Workspace filtering
+
+Triggers
+
+Functions
+
+Identify:
+
+Orphaned records
+
+Duplicate records
+
+Incorrect workspace assignments
+
+Missing indexes
+
+Slow queries
+
+====================================================
+
+SECTION 8
+
+WEBHOOK AUDIT
+
+Audit all inbound webhooks.
+
+Retell
+
+Cal.com
+
+WhatsApp
+
+Email
+
+Ads
+
+Future integrations
+
+Show:
+
+Received
+
+Processed
+
+Failed
+
+Retried
+
+Dropped
+
+====================================================
+
+SECTION 9
+
+API ENGINE AUDIT
+
+Audit:
+
+Provider mappings
+
+Normalisation
+
+Transformations
+
+Pagination
+
+Bulk fetches
+
+Response handling
+
+Show:
+
+Records received
+
+Records returned
+
+Records discarded
+
+====================================================
+
+SECTION 10
+
+PROVIDER HEALTH AUDIT
+
+Audit:
+
+Retell
+
+Twilio
+
+WhatsApp
+
+Cal.com
+
+Resend
+
+OpenAI
+
+ElevenLabs
+
+GrowthMind providers
+
+Analytics providers
+
+Show:
+
+Connected
+
+Disconnected
+
+Errors
+
+Rate limits
+
+Failed requests
+
+====================================================
+
+SECTION 11
+
+BACKGROUND JOB AUDIT
+
+Audit:
+
+Campaign Executor
+
+Health Sweeps
+
+Analytics Sync
+
+Ads Sync
+
+Video Pollers
+
+Email Schedulers
+
+WhatsApp Jobs
+
+Cron Jobs
+
+Show:
+
+Success rate
+
+Failure rate
+
+Last run
+
+Average duration
+
+Errors
+
+====================================================
+
+SECTION 12
+
+DASHBOARD CONSISTENCY AUDIT
+
+Compare:
+
+Dashboard cards
+
+Calls page
+
+Leads page
+
+Qualified page
+
+Pipeline page
+
+Analytics page
+
+For each metric:
+
+Show:
+
+Displayed value
+
+Actual DB value
+
+Difference
+
+Root cause
+
+====================================================
+
+SECTION 13
+
+PERFORMANCE AUDIT
+
+Audit:
+
+Slow pages
+
+Large queries
+
+Memory usage
+
+SSR bottlenecks
+
+Provider bottlenecks
+
+Redis bottlenecks
+
+Supabase bottlenecks
+
+====================================================
+
+SECTION 14
+
+DATA INTEGRITY SCORE
+
+Provide:
+
+Lead Integrity Score
+
+Call Integrity Score
+
+Analytics Integrity Score
+
+Provider Integrity Score
+
+Workspace Isolation Score
+
+Performance Score
+
+Reliability Score
+
+====================================================
+
+SECTION 15
+
+ROOT CAUSE REPORT
+
+List:
+
+Critical Issues
+
+High Issues
+
+Medium Issues
+
+Low Issues
+
+For each issue:
+
+Description
+
+Affected workspace
+
+Affected pages
+
+Root cause
+
+Risk level
+
+Revenue impact
+
+Fix complexity
+
+====================================================
+
+SECTION 16
+
+STABILISATION ROADMAP
+
+Provide:
+
+24-hour fixes
+
+7-day fixes
+
+30-day fixes
+
+90-day fixes
+
+Rank by:
+
+Revenue impact
+
+Customer impact
+
+Operational risk
+
+====================================================
+
+SUCCESS CRITERIA
+
+Identify exactly why WeBuyAnyHouse leads are not appearing correctly.
+
+Identify every source of analytics inconsistency.
+
+Identify every caching inconsistency.
+
+Identify every workspace data mismatch.
+
+Identify every provider sync issue.
+
+Produce a complete evidence-based report before implementing any fixes.
+
+Do not modify code until the audit is complete.
