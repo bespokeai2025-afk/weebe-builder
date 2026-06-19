@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import {
   Phone, Users, Calendar, TrendingUp, ArrowUpRight,
   Radio, PhoneCall, PhoneMissed, Bot, CheckCircle2, Circle, Voicemail,
@@ -32,9 +33,25 @@ function DashboardPage() {
   const getStats      = useServerFn(getOverviewStats);
   const getAgentsFn   = useServerFn(getWorkspaceAgents);
 
+  const [daysSince, setDaysSince] = useState<number | undefined>(30);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("wbahDaysFilter") ?? "30";
+    setDaysSince(stored === "all" ? undefined : parseInt(stored, 10));
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "wbahDaysFilter") {
+        const val = e.newValue ?? "30";
+        setDaysSince(val === "all" ? undefined : parseInt(val, 10));
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["dashboard-overview"],
-    queryFn:  () => getStats(),
+    queryKey: ["dashboard-overview", daysSince],
+    queryFn:  () => getStats({ data: { daysSince } }),
     throwOnError: false,
   });
 

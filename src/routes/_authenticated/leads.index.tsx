@@ -196,6 +196,16 @@ function LeadsPage() {
   const [sentimentFilter, setSentimentFilter] = useState("");
   const [callStatusFilter, setCallStatusFilter] = useState("");
   const [wbahDaysFilter, setWbahDaysFilter] = useState("30");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("wbahDaysFilter");
+    if (stored) setWbahDaysFilter(stored);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("wbahDaysFilter", wbahDaysFilter);
+  }, [wbahDaysFilter]);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
   const [qualAgentId, setQualAgentId] = useState<string>("");

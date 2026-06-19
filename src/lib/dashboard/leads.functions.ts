@@ -6,8 +6,10 @@ import { cacheWrap, invalidateDashboardCache } from "@/lib/cache/redis.server";
 
 const OVERVIEW_STATS_TTL = 90; // 90 seconds
 
-function overviewStatsKey(workspaceId: string) {
-  return `webee:dashboard:${workspaceId}:overview`;
+function overviewStatsKey(workspaceId: string, daysSince?: number) {
+  return daysSince
+    ? `webee:dashboard:${workspaceId}:overview:d${daysSince}`
+    : `webee:dashboard:${workspaceId}:overview`;
 }
 
 async function retellFetch<T>(
@@ -83,17 +85,21 @@ export const getLeadCustomFields = createServerFn({ method: "GET" })
     return { standardFields: STANDARD, metaFields };
   });
 
-export const getOverviewStats = createServerFn({ method: "GET" })
+export const getOverviewStats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((input) =>
+    z.object({ daysSince: z.number().int().min(1).optional() }).parse(input ?? {}),
+  )
+  .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    const { daysSince } = data;
 
     const url = (context as any).request?.url ?? "";
     const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
 
     return cacheWrap(
-      overviewStatsKey(workspaceId),
+      overviewStatsKey(workspaceId, daysSince),
       OVERVIEW_STATS_TTL,
       async () => {
     // Detect WBAH workspace — it uses sentiment-based KPIs, not status-based
@@ -103,12 +109,22 @@ export const getOverviewStats = createServerFn({ method: "GET" })
       .eq("id", workspaceId)
       .maybeSingle();
     const isWbah = wsRow?.slug === "webuyanyhouse";
+    const cutoffISO = (isWbah && daysSince)
+      ? new Date(Date.now() - daysSince * 24 * 60 * 60 * 1000).toISOString()
+      : null;
 
     const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes, recentLeadsRes, callsTotalRes, callsCompletedRes, callsFailedRes, voicemailsRes] = await Promise.all([
-      (supabase as any)
-        .from("leads" as never)
-        .select("id, status, created_at", { count: "exact", head: false })
-        .eq("workspace_id", workspaceId),
+      (() => {
+        let q = (supabase as any)
+          .from("leads" as never)
+          .select("id, status, created_at", { count: "exact", head: false })
+          .eq("workspace_id", workspaceId);
+        if (isWbah) {
+          q = q.neq("status", "not_interested");
+          if (cutoffISO) q = q.gte("created_at", cutoffISO);
+        }
+        return q;
+      })(),
       // Row fetch for totalCallSeconds — exclude voicemails so duration/count stats are accurate
       // For WBAH: skip the calls table query (data lives in wbah_calls, queried below)
       isWbah
@@ -122,18 +138,24 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .from("calendar_bookings" as never)
         .select("id, status, start_at")
         .eq("workspace_id", workspaceId),
-      // For WBAH: "qualified" = positive sentiment. For others: status-based.
-      isWbah
-        ? (supabase as any)
+      // For WBAH: "qualified" = positive sentiment + open + within date window
+      (() => {
+        if (isWbah) {
+          let q = (supabase as any)
             .from("leads" as never)
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
             .eq("sentiment", "positive")
-        : (supabase as any)
-            .from("leads" as never)
-            .select("id", { count: "exact", head: true })
-            .eq("workspace_id", workspaceId)
-            .in("status", ["interested", "qualified"]),
+            .neq("status", "not_interested");
+          if (cutoffISO) q = q.gte("created_at", cutoffISO);
+          return q;
+        }
+        return (supabase as any)
+          .from("leads" as never)
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId)
+          .in("status", ["interested", "qualified"]);
+      })(),
       // Closed leads = status "not_interested" (displayed as "Closed" in the UI)
       (supabase as any)
         .from("leads" as never)
