@@ -335,11 +335,15 @@ function CallsPage() {
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
   const [search, setSearch] = useState("");
+  const [daysFilter, setDaysFilter] = useState("30");
   const [statusFilter, setStatusFilter] = useState("");
   const [callTypeFilter, setCallTypeFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
 
   const filteredRows = useMemo(() => {
+    const cutoff = daysFilter !== "all"
+      ? Date.now() - parseInt(daysFilter, 10) * 24 * 60 * 60 * 1000
+      : null;
     return rows.filter((r: any) => {
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -350,9 +354,15 @@ function CallsPage() {
       if (statusFilter && r.call_status !== statusFilter) return false;
       if (callTypeFilter && r.call_type !== callTypeFilter) return false;
       if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
+      if (cutoff !== null) {
+        const dateStr = r.started_at ?? null;
+        if (!dateStr) return false;
+        const ts = new Date(dateStr).getTime();
+        if (isNaN(ts) || ts < cutoff) return false;
+      }
       return true;
     });
-  }, [rows, search, statusFilter, callTypeFilter, sentimentFilter]);
+  }, [rows, search, daysFilter, statusFilter, callTypeFilter, sentimentFilter]);
 
   const callsPag = useTablePagination(filteredRows, 50);
 
@@ -519,6 +529,18 @@ function CallsPage() {
               <option value="positive">Positive</option>
               <option value="neutral">Neutral</option>
               <option value="negative">Negative</option>
+            </select>
+            <select
+              value={daysFilter}
+              onChange={(e) => setDaysFilter(e.target.value)}
+              className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+            >
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="180">Last 6 months</option>
+              <option value="all">All time</option>
             </select>
 
             {/* Three-state voicemail filter pill (only for native WEBEE calls) */}

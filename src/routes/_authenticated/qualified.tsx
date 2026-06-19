@@ -179,6 +179,7 @@ function QualifiedPage() {
   const setStatusFn = useServerFn(setLeadStatus);
 
   const [search, setSearch] = useState("");
+  const [wbahDaysFilter, setWbahDaysFilter] = useState("30");
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
   const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
@@ -266,8 +267,18 @@ function QualifiedPage() {
       (r.phone ?? "").toLowerCase().includes(q) ||
       (r.company_name ?? "").toLowerCase().includes(q));
     if (isWbah) out = out.filter((r: any) => normalizeSentiment(r.sentiment) === "positive");
+    if (isWbah && wbahDaysFilter !== "all") {
+      const days = parseInt(wbahDaysFilter, 10);
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      out = out.filter((r: any) => {
+        const dateStr = r.meta?.last_called_at ?? r.created_at ?? null;
+        if (!dateStr) return false;
+        const ts = new Date(dateStr).getTime();
+        return !isNaN(ts) && ts >= cutoff;
+      });
+    }
     return out;
-  }, [rows, search, isWbah]);
+  }, [rows, search, isWbah, wbahDaysFilter]);
 
   useEffect(() => {
     if (!isWbah || !import.meta.env.DEV) return;
@@ -391,7 +402,7 @@ function QualifiedPage() {
       })()}
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative flex-shrink-0">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -401,6 +412,20 @@ function QualifiedPage() {
             className="h-8 w-52 pl-8 text-xs"
           />
         </div>
+        {isWbah && (
+          <select
+            value={wbahDaysFilter}
+            onChange={(e) => setWbahDaysFilter(e.target.value)}
+            className="h-8 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="180">Last 6 months</option>
+            <option value="all">All time</option>
+          </select>
+        )}
       </div>
 
       {/* Table */}
