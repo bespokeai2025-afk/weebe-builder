@@ -959,18 +959,7 @@ function DataPage() {
       </div>
 
       {dataTab === "campaigns" && (
-        <CallSchedulingSection
-          pageType="data"
-          statusOptions={[
-            { value: "needs_to_call", label: "Needs to Call" },
-            { value: "queued", label: "Queued" },
-            { value: "calling", label: "Calling" },
-            { value: "completed", label: "Completed" },
-            { value: "failed", label: "Failed" },
-            { value: "do_not_call", label: "Do Not Call" },
-          ]}
-          agents={agents}
-        />
+        <CallSchedulingSection />
       )}
 
       {dataTab === "records" && showCsvImport && (

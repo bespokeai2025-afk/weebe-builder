@@ -36,91 +36,159 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  listCallCampaigns,
-  createCallCampaign,
-  updateCallCampaign,
-  deleteCallCampaign,
-  toggleCallCampaignPause,
-  type CallCampaign,
-} from "@/lib/dashboard/call-campaigns.functions";
+  getWbahCampaigns,
+  createWbahCampaign,
+  updateWbahCampaignSettings,
+  deleteWbahCampaign,
+  pauseWbahCampaign,
+  resumeWbahCampaign,
+  toggleWbahCampaignVoicemailSetting,
+  getWbahAgentsForCampaign,
+} from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type WbahAgent = {
+  id: string;
+  name: string;
+  status: string;
+  voicemail_enabled: boolean;
+  phone_number: string | null;
+};
+
+type NormalizedCampaign = {
+  id: string;
+  name: string;
+  status: string;
+  agent_id: string | null;
+  created_at: string;
+  lead_status: string | null;
+  call_time: string;
+  timezone: string;
+  frequency_type: "daily" | "custom";
+  interval_days: number;
+  voicemail_enabled: boolean;
+};
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const TIMEZONES = [
-  { value: "Europe/London", label: "London (GMT/BST)" },
-  { value: "Europe/Paris", label: "Paris (CET/CEST)" },
-  { value: "Europe/Berlin", label: "Berlin (CET/CEST)" },
-  { value: "America/New_York", label: "New York (ET)" },
-  { value: "America/Chicago", label: "Chicago (CT)" },
-  { value: "America/Denver", label: "Denver (MT)" },
+  { value: "Europe/London",       label: "London (GMT/BST)" },
+  { value: "Europe/Paris",        label: "Paris (CET/CEST)" },
+  { value: "Europe/Berlin",       label: "Berlin (CET/CEST)" },
+  { value: "America/New_York",    label: "New York (ET)" },
+  { value: "America/Chicago",     label: "Chicago (CT)" },
+  { value: "America/Denver",      label: "Denver (MT)" },
   { value: "America/Los_Angeles", label: "Los Angeles (PT)" },
-  { value: "Asia/Dubai", label: "Dubai (GST)" },
-  { value: "Asia/Kolkata", label: "Kolkata (IST)" },
-  { value: "Asia/Singapore", label: "Singapore (SGT)" },
-  { value: "Australia/Sydney", label: "Sydney (AEST)" },
+  { value: "Asia/Dubai",          label: "Dubai (GST)" },
+  { value: "Asia/Kolkata",        label: "Kolkata (IST)" },
+  { value: "Asia/Singapore",      label: "Singapore (SGT)" },
+  { value: "Australia/Sydney",    label: "Sydney (AEST)" },
 ];
+
+const STATUS_OPTIONS = [
+  { value: "new",               label: "New" },
+  { value: "disqualified",      label: "Disqualified" },
+  { value: "tried_to_contact",  label: "Tried to Contact" },
+  { value: "qualified",         label: "Qualified" },
+  { value: "contacted",         label: "Contacted" },
+];
+
+const BLANK = {
+  name:             "",
+  agentId:          "",
+  leadStatus:       "",
+  callTime:         "09:00",
+  timezone:         "Europe/London",
+  frequencyType:    "daily" as "daily" | "custom",
+  intervalDays:     1,
+  voicemailEnabled: false,
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt12(time24: string) {
   const [h, m] = time24.split(":").map(Number);
   const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
+  const h12  = h % 12 || 12;
   return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
-function scheduleLabel(config: CallCampaign["config"]) {
-  if (config.callFrequency === "daily") {
-    return `Every 1 day(s) at ${fmt12(config.callTime)}`;
-  }
-  return `Every ${config.intervalDays} day(s) at ${fmt12(config.callTime)}`;
+function scheduleLabel(c: NormalizedCampaign) {
+  if (c.frequency_type === "daily") return `Every 1 day(s) at ${fmt12(c.call_time)}`;
+  return `Every ${c.interval_days} day(s) at ${fmt12(c.call_time)}`;
 }
 
-const BLANK = {
-  name: "",
-  agentId: "",
-  leadStatusFilter: "",
-  callTime: "09:00",
-  timezone: "Europe/London",
-  callFrequency: "daily" as "daily" | "custom",
-  intervalDays: 1,
-  voicemailEnabled: false,
-};
+function normalizeRawCampaign(raw: any): NormalizedCampaign {
+  return {
+    id:               raw._id ?? raw.id ?? "",
+    name:             raw.campaign_name ?? raw.name ?? "",
+    status:           raw.status ?? "active",
+    agent_id:         raw.agent_id ?? null,
+    created_at:       raw.created_at ?? raw.createdAt ?? "",
+    lead_status:      raw.lead_status ?? raw.leadStatus ?? null,
+    call_time:        raw.call_time ?? raw.callTime ?? "09:00",
+    timezone:         raw.timezone ?? "Europe/London",
+    frequency_type:   raw.frequency_type === "custom" ? "custom" : "daily",
+    interval_days:    raw.interval_days ?? raw.intervalDays ?? 1,
+    voicemail_enabled: raw.voicemail_enabled ?? raw.voicemailEnabled ?? false,
+  };
+}
 
-type Props = {
-  pageType: "data" | "qualified" | "leads";
-  statusOptions: Array<{ value: string; label: string }>;
-  agents: Array<{ id: string; name: string; retell_agent_id?: string | null }>;
-};
+// ── Component ─────────────────────────────────────────────────────────────────
 
-export function CallSchedulingSection({ pageType, statusOptions, agents }: Props) {
-  const qc = useQueryClient();
-  const listFn = useServerFn(listCallCampaigns);
-  const createFn = useServerFn(createCallCampaign);
-  const updateFn = useServerFn(updateCallCampaign);
-  const deleteFn = useServerFn(deleteCallCampaign);
-  const toggleFn = useServerFn(toggleCallCampaignPause);
+export function CallSchedulingSection() {
+  const qc         = useQueryClient();
+  const listFn     = useServerFn(getWbahCampaigns);
+  const createFn   = useServerFn(createWbahCampaign);
+  const updateFn   = useServerFn(updateWbahCampaignSettings);
+  const deleteFn   = useServerFn(deleteWbahCampaign);
+  const pauseFn    = useServerFn(pauseWbahCampaign);
+  const resumeFn   = useServerFn(resumeWbahCampaign);
+  const voiceFn    = useServerFn(toggleWbahCampaignVoicemailSetting);
+  const agentsFn   = useServerFn(getWbahAgentsForCampaign);
 
-  const [search, setSearch] = useState("");
+  const [search,     setSearch]     = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<CallCampaign | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(BLANK);
+  const [editTarget, setEditTarget] = useState<NormalizedCampaign | null>(null);
+  const [saving,     setSaving]     = useState(false);
+  const [form,       setForm]       = useState(BLANK);
 
-  const QK = ["call-campaigns", pageType];
+  const QK_CAMPAIGNS = ["wbah-campaigns"];
+  const QK_AGENTS    = ["wbah-campaign-agents"];
 
   const campaignsQ = useQuery({
-    queryKey: QK,
-    queryFn: () => listFn({ data: { pageType } }),
+    queryKey: QK_CAMPAIGNS,
+    queryFn: async () => {
+      const raw = await listFn();
+      const arr: any[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray((raw as any)?.data)
+          ? (raw as any).data
+          : [];
+      return arr.map(normalizeRawCampaign);
+    },
     refetchOnWindowFocus: false,
     throwOnError: false,
   });
 
-  const campaigns = (campaignsQ.data ?? []) as CallCampaign[];
+  const agentsQ = useQuery({
+    queryKey: QK_AGENTS,
+    queryFn: () => agentsFn(),
+    refetchOnWindowFocus: false,
+    throwOnError: false,
+  });
+
+  const campaigns = (campaignsQ.data ?? []) as NormalizedCampaign[];
+  const agents    = (agentsQ.data ?? []) as WbahAgent[];
 
   const filtered = search.trim()
     ? campaigns.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
     : campaigns;
 
   const totalActive = campaigns.filter((c) => c.status === "active").length;
-  const totalDaily = campaigns.filter((c) => c.config?.callFrequency === "daily").length;
-  const totalCustom = campaigns.filter((c) => c.config?.callFrequency === "custom").length;
+  const totalDaily  = campaigns.filter((c) => c.frequency_type === "daily").length;
+  const totalCustom = campaigns.filter((c) => c.frequency_type === "custom").length;
 
   function openCreate() {
     setEditTarget(null);
@@ -128,17 +196,17 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
     setDialogOpen(true);
   }
 
-  function openEdit(c: CallCampaign) {
+  function openEdit(c: NormalizedCampaign) {
     setEditTarget(c);
     setForm({
-      name: c.name,
-      agentId: c.agent_id ?? "",
-      leadStatusFilter: c.config?.leadStatusFilter ?? "",
-      callTime: c.config?.callTime ?? "09:00",
-      timezone: c.config?.timezone ?? "Europe/London",
-      callFrequency: c.config?.callFrequency ?? "daily",
-      intervalDays: c.config?.intervalDays ?? 1,
-      voicemailEnabled: c.config?.voicemailEnabled ?? false,
+      name:             c.name,
+      agentId:          c.agent_id ?? "",
+      leadStatus:       c.lead_status ?? "",
+      callTime:         c.call_time,
+      timezone:         c.timezone,
+      frequencyType:    c.frequency_type,
+      intervalDays:     c.interval_days,
+      voicemailEnabled: c.voicemail_enabled,
     });
     setDialogOpen(true);
   }
@@ -148,16 +216,16 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
     setSaving(true);
     try {
       const payload = {
-        name: form.name.trim(),
-        agentId: form.agentId || null,
-        pageType,
-        leadStatusFilter: form.leadStatusFilter || null,
-        callTime: form.callTime,
-        timezone: form.timezone,
-        callFrequency: form.callFrequency,
-        intervalDays: form.intervalDays,
-        voicemailEnabled: form.voicemailEnabled,
+        campaign_name:    form.name.trim(),
+        agent_id:         form.agentId || null,
+        lead_status:      form.leadStatus || null,
+        call_time:        form.callTime,
+        timezone:         form.timezone,
+        frequency_type:   form.frequencyType,
+        interval_days:    form.frequencyType === "custom" ? form.intervalDays : undefined,
+        voicemail_enabled: form.voicemailEnabled,
       };
+
       if (editTarget) {
         await updateFn({ data: { id: editTarget.id, ...payload } });
         toast.success("Campaign updated");
@@ -166,7 +234,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
         toast.success("Campaign created");
       }
       setDialogOpen(false);
-      qc.invalidateQueries({ queryKey: QK });
+      qc.invalidateQueries({ queryKey: QK_CAMPAIGNS });
     } catch (e) {
       toast.error("Failed to save campaign", { description: (e as Error).message });
     } finally {
@@ -178,38 +246,29 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
     try {
       await deleteFn({ data: { id } });
       toast.success("Campaign deleted");
-      qc.invalidateQueries({ queryKey: QK });
+      qc.invalidateQueries({ queryKey: QK_CAMPAIGNS });
     } catch (e) {
       toast.error("Failed to delete campaign", { description: (e as Error).message });
     }
   }
 
-  async function handleToggle(c: CallCampaign) {
+  async function handleTogglePause(c: NormalizedCampaign) {
     try {
-      await toggleFn({ data: { id: c.id, currentStatus: c.status } });
-      qc.invalidateQueries({ queryKey: QK });
+      if (c.status === "active") {
+        await pauseFn({ data: { id: c.id } });
+      } else {
+        await resumeFn({ data: { id: c.id } });
+      }
+      qc.invalidateQueries({ queryKey: QK_CAMPAIGNS });
     } catch (e) {
       toast.error("Failed to update campaign", { description: (e as Error).message });
     }
   }
 
-  async function handleVoicemailToggle(c: CallCampaign) {
+  async function handleVoicemailToggle(c: NormalizedCampaign) {
     try {
-      await updateFn({
-        data: {
-          id: c.id,
-          name: c.name,
-          agentId: c.agent_id ?? null,
-          pageType,
-          leadStatusFilter: c.config?.leadStatusFilter ?? null,
-          callTime: c.config?.callTime ?? "09:00",
-          timezone: c.config?.timezone ?? "Europe/London",
-          callFrequency: c.config?.callFrequency ?? "daily",
-          intervalDays: c.config?.intervalDays ?? 1,
-          voicemailEnabled: !c.config?.voicemailEnabled,
-        },
-      });
-      qc.invalidateQueries({ queryKey: QK });
+      await voiceFn({ data: { id: c.id, voicemail_enabled: !c.voicemail_enabled } });
+      qc.invalidateQueries({ queryKey: QK_CAMPAIGNS });
     } catch (e) {
       toast.error("Failed to update voicemail setting", { description: (e as Error).message });
     }
@@ -219,13 +278,12 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
     if (!agentId) return "—";
     const a = agents.find((ag) => ag.id === agentId);
     if (!a) return agentId.slice(0, 20) + "…";
-    const rid = a.retell_agent_id;
-    return rid ? rid.slice(0, 18) + "…" : a.name;
+    return a.name;
   };
 
   const statusLabel = (filter: string | null) => {
     if (!filter) return "All Leads (no filter)";
-    return statusOptions.find((s) => s.value === filter)?.label ?? filter;
+    return STATUS_OPTIONS.find((s) => s.value === filter)?.label ?? filter;
   };
 
   return (
@@ -244,13 +302,41 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
         </Button>
       </div>
 
-      {/* Stats grid */}
+      {/* KPI cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "Total Campaigns", value: campaigns.length, icon: Phone, color: "text-blue-400", bg: "bg-blue-500/10", sub: `${campaigns.filter((c) => c.status === "paused").length} paused` },
-          { label: "Active Campaigns", value: totalActive, icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10", sub: "Running now" },
-          { label: "Daily Campaigns", value: totalDaily, icon: PhoneCall, color: "text-violet-400", bg: "bg-violet-500/10", sub: "Recurring daily" },
-          { label: "Custom Interval", value: totalCustom, icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10", sub: "Custom schedule" },
+          {
+            label: "Total Campaigns",
+            value: campaigns.length,
+            icon:  Phone,
+            color: "text-blue-400",
+            bg:    "bg-blue-500/10",
+            sub:   `${campaigns.filter((c) => c.status === "paused").length} paused`,
+          },
+          {
+            label: "Active Campaigns",
+            value: totalActive,
+            icon:  CheckCircle2,
+            color: "text-emerald-400",
+            bg:    "bg-emerald-500/10",
+            sub:   "Running now",
+          },
+          {
+            label: "Daily Campaigns",
+            value: totalDaily,
+            icon:  PhoneCall,
+            color: "text-violet-400",
+            bg:    "bg-violet-500/10",
+            sub:   "Recurring daily",
+          },
+          {
+            label: "Custom Interval",
+            value: totalCustom,
+            icon:  Clock,
+            color: "text-amber-400",
+            bg:    "bg-amber-500/10",
+            sub:   "Custom schedule",
+          },
         ].map((s) => (
           <div key={s.label} className="rounded-xl border border-white/[0.06] bg-card/60 p-4">
             <div className={cn("mb-2 inline-flex rounded-lg p-2", s.bg)}>
@@ -274,14 +360,30 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
             className="h-8 pl-8 text-xs"
           />
         </div>
-        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => campaignsQ.refetch()}>
-          <RefreshCw className="h-3.5 w-3.5" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => campaignsQ.refetch()}
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", campaignsQ.isFetching && "animate-spin")} />
         </Button>
       </div>
 
       {/* Campaign list */}
       {campaignsQ.isLoading ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>
+        <p className="py-10 text-center text-sm text-muted-foreground">Loading campaigns…</p>
+      ) : campaignsQ.isError ? (
+        <div className="flex flex-col items-center gap-2 py-14 text-center">
+          <Phone className="h-8 w-8 text-destructive/40" />
+          <p className="text-sm font-medium text-destructive">Failed to load campaigns</p>
+          <p className="text-xs text-muted-foreground max-w-xs">
+            {(campaignsQ.error as Error)?.message ?? "Unknown error"}
+          </p>
+          <Button size="sm" variant="outline" className="mt-2" onClick={() => campaignsQ.refetch()}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Retry
+          </Button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-14 text-center">
           <Phone className="h-8 w-8 text-muted-foreground/40" />
@@ -325,10 +427,12 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                   </span>
                   <button
                     title={c.status === "active" ? "Pause" : "Resume"}
-                    onClick={() => handleToggle(c)}
+                    onClick={() => handleTogglePause(c)}
                     className="rounded p-1.5 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-400 transition-colors"
                   >
-                    {c.status === "active" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                    {c.status === "active"
+                      ? <Pause className="h-3.5 w-3.5" />
+                      : <Play  className="h-3.5 w-3.5" />}
                   </button>
                   <button
                     title="Edit"
@@ -351,19 +455,19 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
               <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px] sm:grid-cols-4">
                 <div>
                   <p className="text-muted-foreground">Lead Status</p>
-                  <p className="font-medium text-foreground mt-0.5">{statusLabel(c.config?.leadStatusFilter ?? null)}</p>
+                  <p className="font-medium text-foreground mt-0.5">{statusLabel(c.lead_status)}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Agent ID</p>
-                  <p className="font-medium text-foreground mt-0.5 font-mono truncate">{agentLabel(c.agent_id)}</p>
+                  <p className="text-muted-foreground">Agent</p>
+                  <p className="font-medium text-foreground mt-0.5 truncate">{agentLabel(c.agent_id)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Schedule</p>
-                  <p className="font-medium text-foreground mt-0.5">{c.config ? scheduleLabel(c.config) : "—"}</p>
+                  <p className="font-medium text-foreground mt-0.5">{scheduleLabel(c)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Timezone</p>
-                  <p className="font-medium text-foreground mt-0.5">{c.config?.timezone ?? "—"}</p>
+                  <p className="font-medium text-foreground mt-0.5">{c.timezone}</p>
                 </div>
               </div>
 
@@ -373,20 +477,20 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                   <span>
                     Frequency:{" "}
                     <span className="text-foreground font-medium capitalize">
-                      {c.config?.callFrequency === "custom" ? "Custom" : "Daily"}
+                      {c.frequency_type === "custom" ? "Custom" : "Daily"}
                     </span>
                   </span>
-                  {c.config?.callFrequency === "custom" && (
+                  {c.frequency_type === "custom" && (
                     <span>
                       Interval days:{" "}
-                      <span className="text-foreground font-medium">{c.config.intervalDays}</span>
+                      <span className="text-foreground font-medium">{c.interval_days}</span>
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                   <span>Voicemail</span>
                   <Switch
-                    checked={c.config?.voicemailEnabled ?? false}
+                    checked={c.voicemail_enabled}
                     onCheckedChange={() => handleVoicemailToggle(c)}
                     className="!h-4 !w-7"
                   />
@@ -423,10 +527,28 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                 />
               </div>
               <div>
-                <Label className="text-xs">Select Call Agent</Label>
-                {agents.length === 0 ? (
-                  <p className="mt-1 text-[11px] text-amber-400">
-                    No live agents found. Go-live with an agent first.
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-xs">Select Call Agent</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-[10px] gap-1"
+                    onClick={() => agentsQ.refetch()}
+                    disabled={agentsQ.isFetching}
+                  >
+                    <RefreshCw className={cn("h-2.5 w-2.5", agentsQ.isFetching && "animate-spin")} />
+                    Refresh Agents
+                  </Button>
+                </div>
+                {agentsQ.isLoading ? (
+                  <p className="text-[11px] text-muted-foreground">Loading agents…</p>
+                ) : agentsQ.isError ? (
+                  <p className="text-[11px] text-destructive">
+                    Failed to load agents — {(agentsQ.error as Error)?.message ?? "unknown error"}
+                  </p>
+                ) : agents.length === 0 ? (
+                  <p className="text-[11px] text-amber-400">
+                    No campaign agents found. Check your WebespokeAI account.
                   </p>
                 ) : (
                   <Select
@@ -447,7 +569,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                   </Select>
                 )}
                 <p className="mt-1 text-[10px] text-muted-foreground">
-                  Agents are synced from your OmniVoice account
+                  Agents are fetched from your WebespokeAI account
                 </p>
               </div>
             </div>
@@ -461,15 +583,15 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
               <div>
                 <Label className="text-xs">Target Lead Status</Label>
                 <Select
-                  value={form.leadStatusFilter || "__all__"}
-                  onValueChange={(v) => setForm((f) => ({ ...f, leadStatusFilter: v === "__all__" ? "" : v }))}
+                  value={form.leadStatus || "__all__"}
+                  onValueChange={(v) => setForm((f) => ({ ...f, leadStatus: v === "__all__" ? "" : v }))}
                 >
                   <SelectTrigger className="mt-1 h-8 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">All Leads (no filter)</SelectItem>
-                    {statusOptions.map((s) => (
+                    {STATUS_OPTIONS.map((s) => (
                       <SelectItem key={s.value} value={s.value}>
                         {s.label}
                       </SelectItem>
@@ -521,10 +643,10 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                     <button
                       key={freq}
                       type="button"
-                      onClick={() => setForm((f) => ({ ...f, callFrequency: freq }))}
+                      onClick={() => setForm((f) => ({ ...f, frequencyType: freq }))}
                       className={cn(
                         "flex-1 py-1.5 text-xs font-medium transition-colors capitalize",
-                        form.callFrequency === freq
+                        form.frequencyType === freq
                           ? "bg-primary text-primary-foreground"
                           : "text-muted-foreground hover:text-foreground",
                       )}
@@ -534,7 +656,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                   ))}
                 </div>
               </div>
-              {form.callFrequency === "custom" && (
+              {form.frequencyType === "custom" && (
                 <div>
                   <Label className="text-xs">Interval (days)</Label>
                   <Input
@@ -543,7 +665,10 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
                     max={365}
                     className="mt-1 h-8 text-xs w-32"
                     value={form.intervalDays}
-                    onChange={(e) => setForm((f) => ({ ...f, intervalDays: Math.max(1, Number(e.target.value) || 1) }))}
+                    onChange={(e) => setForm((f) => ({
+                      ...f,
+                      intervalDays: Math.max(1, Number(e.target.value) || 1),
+                    }))}
                   />
                 </div>
               )}
@@ -561,7 +686,12 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
           </div>
 
           <DialogFooter className="gap-2 shrink-0 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={saving}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDialogOpen(false)}
+              disabled={saving}
+            >
               Cancel
             </Button>
             <Button size="sm" onClick={handleSave} disabled={saving}>

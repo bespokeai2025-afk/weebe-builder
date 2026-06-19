@@ -435,6 +435,76 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
     return res.data;
   });
 
+export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({
+      id: z.string(),
+      campaign_name: z.string().min(1).max(120),
+      agent_id: z.string().nullable().optional(),
+      lead_status: z.string().nullable().optional(),
+      call_time: z.string().default("09:00"),
+      timezone: z.string().default("Europe/London"),
+      frequency_type: z.enum(["daily", "custom"]).default("daily"),
+      interval_days: z.number().int().min(1).max(365).optional(),
+      voicemail_enabled: z.boolean().optional(),
+    }).parse(i ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const { id, ...payload } = data;
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahUpdateCampaign(id, payload as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken);
+    if (!res.ok) throw new Error(res.error ?? "Failed to update campaign");
+    return res.data;
+  });
+
+export const toggleWbahCampaignVoicemailSetting = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i) =>
+    z.object({ id: z.string(), voicemail_enabled: z.boolean() }).parse(i ?? {}),
+  )
+  .handler(async ({ context, data }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const res = await api.wbahCampaignVoicemail(
+      data.id,
+      { voicemail_enabled: data.voicemail_enabled },
+      cbs.getTokens,
+      cbs.saveNewAccessToken,
+    );
+    if (!res.ok) throw new Error(res.error ?? "Failed to update voicemail setting");
+    return res.data;
+  });
+
+export const getWbahAgentsForCampaign = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const gt = cbs.getTokens;
+    const st = cbs.saveNewAccessToken;
+
+    const normalize = (raw: any) => ({
+      id:                raw._id ?? raw.id ?? raw.agent_id ?? "",
+      name:              raw.agent_name ?? raw.name ?? raw.agentName ?? raw._id ?? raw.id ?? "Unknown Agent",
+      status:            raw.status ?? "active",
+      voicemail_enabled: raw.voicemail_enabled ?? raw.voicemailEnabled ?? false,
+      phone_number:      raw.phone_number ?? raw.phoneNumber ?? null,
+    });
+
+    const extractArr = (raw: any): any[] =>
+      Array.isArray(raw) ? raw
+      : Array.isArray(raw?.data)    ? raw.data
+      : Array.isArray(raw?.agents)  ? raw.agents
+      : Array.isArray(raw?.result)  ? raw.result
+      : [];
+
+    const campaignOnlyRes = await api.wbahGetAgents(gt, st);
+    const campaignArr = extractArr(campaignOnlyRes.data);
+    if (campaignArr.length > 0) return campaignArr.map(normalize);
+
+    const allRes = await api.wbahGetAgents(gt, st);
+    return extractArr(allRes.data).map(normalize);
+  });
+
 // ── Leads — self-healing paginated fetch (same pattern as listWbahCalls) ───────
 
 export const listWbahLeads = createServerFn({ method: "GET" })
