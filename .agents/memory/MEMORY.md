@@ -43,4 +43,5 @@
 - [Build — Node.js externals](build-node-externals.md) — Node built-ins must be in vite build.rollupOptions.external or client bundle fails; @vite-ignore alone is NOT enough; stale dynamic import paths only surface in SSR build.
 - [WeeBespoke API totalPages bug](webespokeapi-totalpages-bug.md) — API's `pagination.totalPages` is wrong (says 13, actual is 203+); always compute from `totalItems ÷ pageSize` in extractTotalPages.
 - [WBAH endpoint mapping](wbah-endpoint-mapping.md) — Calls page = POST /get-user-history (10,149, snake_case fields, pageSize hardcoded 10); Contacts/Leads = GET /get-userCall-lead (1,201); get-all-calldata (609) = CRM contacts, NOT call log.
+- [WBAH analytics dual-table pattern](wbah-analytics-dual-table.md) — getOverviewStats + getRetellAnalytics both need wbah_calls branch; calls table has 0 WBAH rows; wbah_calls has no is_voicemail field.
 - [Workflow Engine architecture](workflow-engine-arch.md) — 7-table schema (manual migration); WorkflowBuilder uses @xyflow/react; executor dispatches to real WEBEE systems; manualTriggerWorkflow is live not simulated.

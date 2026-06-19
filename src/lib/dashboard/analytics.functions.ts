@@ -91,6 +91,14 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     const sinceMs = Date.now() - data.days * 24 * 60 * 60 * 1000;
     const sinceIso = new Date(sinceMs).toISOString();
 
+    // Detect WBAH workspace — uses wbah_calls table, not Retell API
+    const { data: wsSlugRow } = await sb
+      .from("workspaces")
+      .select("slug")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    const isWbah = wsSlugRow?.slug === "webuyanyhouse";
+
     let calls: any[] = [];
     let error: string | null = null;
     let agentNames: Record<string, string> = {};
@@ -245,9 +253,63 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       console.warn("[analytics] ElevenLabs DB call fetch failed:", e?.message);
     }
 
-    const allCalls = [...calls, ...elCalls];
-    // configured = true when either Retell agents exist OR VoxStream calls exist
-    const configured = agentIds.length > 0 || elCalls.length > 0;
+    // ── WBAH calls (from wbah_calls table, paginated) ─────────────────────────
+    // WeeBespoke calls are synced into wbah_calls — they are NOT in the Retell
+    // API or calls table.  Normalize to the Retell call shape so computeAnalytics
+    // processes them identically.
+    let wbahCalls: any[] = [];
+    if (isWbah) {
+      try {
+        const PAGE = 1000;
+        let from = 0;
+        while (true) {
+          const { data: wbahRows, error: wbahErr } = await sb
+            .from("wbah_calls")
+            .select("id, call_status, call_type, sentiment, duration_seconds, started_at, disconnection_reason, agent_name")
+            .eq("workspace_id", workspaceId)
+            .gte("started_at", sinceIso)
+            .order("started_at", { ascending: false })
+            .range(from, from + PAGE - 1);
+          if (wbahErr) { console.warn("[analytics] wbah_calls fetch error:", wbahErr.message); break; }
+          const rows: any[] = wbahRows ?? [];
+          for (const r of rows) {
+            const agentKey = r.agent_name ?? "WeeBespoke Agent";
+            if (!agentNames[agentKey]) agentNames[agentKey] = agentKey;
+            if (!agentIds.includes(agentKey)) agentIds.push(agentKey);
+            const rawSentiment: string | null = r.sentiment;
+            const normalSentiment = rawSentiment
+              ? rawSentiment.charAt(0).toUpperCase() + rawSentiment.slice(1).toLowerCase()
+              : "Unknown";
+            wbahCalls.push({
+              call_id:              r.id,
+              agent_id:             agentKey,
+              call_status:          r.call_status ?? "unknown",
+              call_type:            r.call_type === "inbound" ? "phone_call" : "phone_call",
+              direction:            r.call_type === "inbound" ? "inbound" : "outbound",
+              start_timestamp:      r.started_at ? new Date(r.started_at).getTime() : null,
+              duration_ms:          r.duration_seconds != null ? r.duration_seconds * 1000 : null,
+              disconnection_reason: r.disconnection_reason ?? null,
+              call_analysis: {
+                user_sentiment:  normalSentiment,
+                call_successful: r.call_status === "completed" ? true : r.call_status ? false : null,
+                in_voicemail:    false,
+                call_summary:    null,
+              },
+              _provider: "WBAH",
+            });
+          }
+          if (rows.length < PAGE) break;
+          from += PAGE;
+        }
+        console.debug(`[analytics] WBAH: merged ${wbahCalls.length} wbah_calls into analytics (${data.days}d window)`);
+      } catch (e: any) {
+        console.warn("[analytics] wbah_calls fetch failed:", e?.message);
+      }
+    }
+
+    const allCalls = [...calls, ...elCalls, ...wbahCalls];
+    // configured = true when Retell agents, VoxStream calls, or WBAH calls exist
+    const configured = agentIds.length > 0 || elCalls.length > 0 || wbahCalls.length > 0;
 
     // Debug log: voicemail calls that will still be filtered in computeAnalytics
     // (Retell API calls where in_voicemail=true or call_status='voicemail')

@@ -110,11 +110,14 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .select("id, status, created_at", { count: "exact", head: false })
         .eq("workspace_id", workspaceId),
       // Row fetch for totalCallSeconds — exclude voicemails so duration/count stats are accurate
-      (supabase as any)
-        .from("calls" as never)
-        .select("id, call_status, duration_seconds, started_at")
-        .eq("workspace_id", workspaceId)
-        .eq("is_voicemail", false),
+      // For WBAH: skip the calls table query (data lives in wbah_calls, queried below)
+      isWbah
+        ? Promise.resolve({ data: [], error: null })
+        : (supabase as any)
+            .from("calls" as never)
+            .select("id, call_status, duration_seconds, started_at")
+            .eq("workspace_id", workspaceId)
+            .eq("is_voicemail", false),
       (supabase as any)
         .from("calendar_bookings" as never)
         .select("id, status, start_at")
@@ -137,13 +140,20 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .select("id, phone")
         .eq("workspace_id", workspaceId)
         .eq("status", "not_interested"),
-      // Completed outbound calls — exclude voicemails; used to measure which closed leads were reached
-      (supabase as any)
-        .from("calls" as never)
-        .select("to_number")
-        .eq("workspace_id", workspaceId)
-        .eq("call_status", "completed")
-        .eq("is_voicemail", false),
+      // Completed outbound calls — used to measure which closed leads were reached
+      // For WBAH: query wbah_calls; for others: calls table (exclude voicemails)
+      isWbah
+        ? (supabase as any)
+            .from("wbah_calls" as never)
+            .select("phone")
+            .eq("workspace_id", workspaceId)
+            .eq("call_status", "completed")
+        : (supabase as any)
+            .from("calls" as never)
+            .select("to_number")
+            .eq("workspace_id", workspaceId)
+            .eq("call_status", "completed")
+            .eq("is_voicemail", false),
       // 5 most recent leads with display fields
       (supabase as any)
         .from("leads" as never)
@@ -151,39 +161,78 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false })
         .limit(5),
-      // Accurate call counts via count-only queries — exclude voicemails from all totals
-      (supabase as any)
-        .from("calls" as never)
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId)
-        .eq("is_voicemail", false),
-      (supabase as any)
-        .from("calls" as never)
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId)
-        .eq("call_status", "completed")
-        .eq("is_voicemail", false),
-      (supabase as any)
-        .from("calls" as never)
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId)
-        .in("call_status", ["failed", "no_answer", "busy"])
-        .eq("is_voicemail", false),
-      // Voicemail count — screened calls excluded from all other totals
-      (supabase as any)
-        .from("calls" as never)
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId)
-        .eq("is_voicemail", true),
+      // Accurate call counts via count-only queries
+      // For WBAH: query wbah_calls (no is_voicemail field); for others: calls table
+      isWbah
+        ? (supabase as any)
+            .from("wbah_calls" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+        : (supabase as any)
+            .from("calls" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .eq("is_voicemail", false),
+      isWbah
+        ? (supabase as any)
+            .from("wbah_calls" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .eq("call_status", "completed")
+        : (supabase as any)
+            .from("calls" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .eq("call_status", "completed")
+            .eq("is_voicemail", false),
+      isWbah
+        ? (supabase as any)
+            .from("wbah_calls" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .in("call_status", ["failed", "no_answer", "busy"])
+        : (supabase as any)
+            .from("calls" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .in("call_status", ["failed", "no_answer", "busy"])
+            .eq("is_voicemail", false),
+      // Voicemail count — only meaningful for non-WBAH (wbah_calls has no voicemail flag)
+      isWbah
+        ? Promise.resolve({ count: 0, data: null, error: null })
+        : (supabase as any)
+            .from("calls" as never)
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", workspaceId)
+            .eq("is_voicemail", true),
     ]);
 
     if (leadsRes.error) throw new Error(leadsRes.error.message);
-    if (callsRes.error) throw new Error(callsRes.error.message);
+    if (!isWbah && callsRes.error) throw new Error(callsRes.error.message);
     if (bookingsRes.error) throw new Error(bookingsRes.error.message);
 
-    // Debug log: how many voicemail calls are excluded from the overview totals
+    // For WBAH: fetch total duration from wbah_calls (lightweight — duration_seconds only)
+    let wbahTotalCallSeconds = 0;
+    if (isWbah) {
+      const PAGE = 1000;
+      let offset = 0;
+      while (true) {
+        const { data: durRows } = await (supabase as any)
+          .from("wbah_calls" as never)
+          .select("duration_seconds")
+          .eq("workspace_id", workspaceId)
+          .not("duration_seconds", "is", null)
+          .range(offset, offset + PAGE - 1);
+        const rows: any[] = durRows ?? [];
+        wbahTotalCallSeconds += rows.reduce((acc: number, r: any) => acc + (r.duration_seconds ?? 0), 0);
+        if (rows.length < PAGE) break;
+        offset += PAGE;
+      }
+    }
+
+    // Debug log: how many calls are counted
     const vmTotal = (callsTotalRes.count ?? 0);
-    console.debug(`[voicemail] getOverviewStats: ${vmTotal} non-voicemail calls counted for workspace ${workspaceId}`);
+    console.debug(`[voicemail] getOverviewStats: ${vmTotal} ${isWbah ? "wbah" : "non-voicemail"} calls counted for workspace ${workspaceId}`);
 
     const leads = leadsRes.data ?? [];
     const calls = callsRes.data ?? [];
@@ -194,7 +243,11 @@ export const getOverviewStats = createServerFn({ method: "GET" })
     const closedLeads: { id: string; phone: string | null }[] = closedLeadsRes.data ?? [];
     const completedCallNumbers = new Set<string>(
       (completedCallsRes.data ?? [])
-        .map((c: any) => (c.to_number as string | null)?.replace(/\D/g, "") ?? "")
+        .map((c: any) => {
+          // wbah_calls uses `phone`; standard calls uses `to_number`
+          const num = (c.phone as string | null) ?? (c.to_number as string | null);
+          return num?.replace(/\D/g, "") ?? "";
+        })
         .filter(Boolean),
     );
     const closedLeadsReached = closedLeads.filter(
@@ -212,7 +265,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         callsFailed: callsFailedRes.count ?? calls.filter((c: any) =>
           ["failed", "no_answer", "busy"].includes(c.call_status),
         ).length,
-        totalCallSeconds: calls.reduce((acc: number, c: any) => acc + (c.duration_seconds ?? 0), 0),
+        totalCallSeconds: isWbah ? wbahTotalCallSeconds : calls.reduce((acc: number, c: any) => acc + (c.duration_seconds ?? 0), 0),
         bookings: bookings.length,
         upcomingBookings: bookings.filter(
           (b: any) => new Date(b.start_at).getTime() > now && b.status !== "cancelled",
@@ -221,7 +274,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         cancelledBookings: bookings.filter((b: any) => b.status === "cancelled").length,
         closedLeads: closedLeads.length,
         closedLeadsReached,
-        voicemailsExcluded: voicemailsRes.count ?? 0,
+        voicemailsExcluded: isWbah ? 0 : (voicemailsRes.count ?? 0),
       },
       recentLeads: recentLeadsRes.data ?? [],
     };
