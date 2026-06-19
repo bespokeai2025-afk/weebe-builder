@@ -1524,3 +1524,121 @@ export const getWbahCategorySyncLog = createServerFn({ method: "GET" })
       error_message: string | null;
     } | null>;
   });
+
+// ── WBAH seller leads from DB (synced by wbah-leads-sync plugin) ──────────────
+// Reads from the standard `leads` table filtered by source_detail="webespoke_enterprise"
+// and excludes CRM contact rows (wbah_source="crm"). This gives the 1568 seller leads.
+
+export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb   = supabase as any;
+    const PAGE = 1000;
+    const all: any[] = [];
+    let from = 0;
+    while (true) {
+      const { data, error } = await sb
+        .from("leads")
+        .select("id, full_name, phone, email, created_at, meta")
+        .eq("workspace_id", workspaceId)
+        .eq("source", "import")
+        .eq("source_detail", "webespoke_enterprise")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(error.message);
+      const rows: any[] = data ?? [];
+      // exclude CRM contact rows (wbah_source = "crm")
+      const sellers = rows.filter((r: any) => r.meta?.wbah_source !== "crm");
+      all.push(...sellers);
+      if (rows.length < PAGE) break;
+      from += PAGE;
+    }
+    console.log(`[WBAH people] leads from DB: ${all.length}`);
+    return all.map((r: any, idx: number) => ({
+      id:                  r.id,
+      srNo:                idx + 1,
+      name:                r.full_name,
+      contact:             r.phone,
+      email:               r.email,
+      callType:            "Lead",
+      callStatus:          r.meta?.call_status ?? null,
+      sentimentAnalysis:   r.meta?.last_call_sentiment ?? null,
+      disconnectionReason: r.meta?.disconnection_reason ?? null,
+      appointmentDate:     r.meta?.appointment_date ?? null,
+      appointmentTime:     r.meta?.appointment_time ?? null,
+      bookingStatus:       r.meta?.booking_status ?? null,
+      calendlyBookingUrl:  r.meta?.calendly_booking_url ?? null,
+      agentName:           r.meta?.agent_name ?? null,
+      startTimestamp:      r.meta?.start_timestamp ? Number(r.meta.start_timestamp) : null,
+      durationMs:          r.meta?.duration_ms ? Number(r.meta.duration_ms) : null,
+      recordingUrl:        r.meta?.recording_url ?? null,
+      transcript:          r.meta?.transcript ?? null,
+      endReason:           r.meta?.end_reason ?? null,
+    }));
+  });
+
+// ── Disqualified leads from WeeBespoke API (filter master UUID approach) ───────
+// Fetches leads tagged as "Disqualified" in the WeeBespoke AI app using the
+// filter master UUID returned by /leadfiltermaster/get-leadfiltermaster.
+
+export const listWbahDisqualifiedFromApi = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const gt  = cbs.getTokens;
+    const st  = cbs.saveNewAccessToken;
+
+    const DISQ_UUID  = "6c113950-a5ae-461d-90b1-a187ee173673";
+    const DISQ_LABEL = "Disqualified";
+
+    const allRecs: any[] = [];
+    for (const code of [DISQ_UUID, DISQ_LABEL]) {
+      try {
+        const res = await api.wbahGetLeadsFiltered(code, 1, gt, st);
+        if (!res.ok) continue;
+        const raw  = res.data as any;
+        const recs = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+        if (recs.length === 0) continue;
+        allRecs.push(...recs);
+        const pag        = raw?.pagination;
+        const totalItems = pag?.totalItems ?? pag?.total_count ?? 0;
+        const pageSize   = pag?.pageSize ?? pag?.page_size ?? 50;
+        const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1;
+        for (let p = 2; p <= Math.min(totalPages, 100); p++) {
+          const pr = await api.wbahGetLeadsFiltered(code, p, gt, st);
+          if (pr.ok) {
+            const pr_recs = Array.isArray((pr.data as any)?.data) ? (pr.data as any).data : [];
+            allRecs.push(...pr_recs);
+          }
+        }
+        console.log(`[WBAH disqualified] fetched ${allRecs.length} leads via code="${code}"`);
+        break;
+      } catch (e: any) {
+        console.warn(`[WBAH disqualified] code="${code}" failed: ${e?.message}`);
+      }
+    }
+    console.log(`[WBAH disqualified] total: ${allRecs.length}`);
+    return allRecs.map((r: any, idx: number) => ({
+      id:                  String(r.id ?? r._id ?? `dq-${idx}`),
+      srNo:                idx + 1,
+      name:                r.name ?? r.fullName ?? null,
+      contact:             r.toNumber ?? r.fromNumber ?? r.phone ?? null,
+      email:               r.email ?? null,
+      callType:            "Disqualified",
+      callStatus:          r.callStatus ?? null,
+      sentimentAnalysis:   r.sentimentAnalysis ?? null,
+      disconnectionReason: r.disconnectionReason ?? null,
+      appointmentDate:     r.appointment_date ?? null,
+      appointmentTime:     r.appointment_time ?? null,
+      bookingStatus:       r.booking_status ?? null,
+      calendlyBookingUrl:  r.calendly_booking_url ?? null,
+      agentName:           r.agentName ?? null,
+      startTimestamp:      r.startTimestamp ? Number(r.startTimestamp) : null,
+      durationMs:          r.durationMs ? Number(r.durationMs) : null,
+      recordingUrl:        r.recordingUrl ?? null,
+      transcript:          r.transcript ?? null,
+      endReason:           r.endReason ?? null,
+    }));
+  });
