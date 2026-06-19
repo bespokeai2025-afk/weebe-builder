@@ -3,12 +3,15 @@ import {
   Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield,
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
   CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2, Database,
+  Users, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 type NavItem = { label: string; href: string; icon: React.ElementType };
 
-const NAV_GROUPS: Array<{ title?: string; items: NavItem[] }> = [
+const BASE_NAV_GROUPS: Array<{ title?: string; adminOnly?: boolean; items: NavItem[] }> = [
   {
     items: [
       { label: "Overview",        href: "/systemmind",                  icon: BarChart3     },
@@ -49,6 +52,15 @@ const NAV_GROUPS: Array<{ title?: string; items: NavItem[] }> = [
     ],
   },
   {
+    title: "Clients",
+    adminOnly: true,
+    items: [
+      { label: "Overview",        href: "/systemmind/clients",           icon: Users     },
+      { label: "Workspace Setup", href: "/systemmind/clients/setup",     icon: Users     },
+      { label: "API Probe",       href: "/systemmind/clients/api-probe", icon: Activity  },
+    ],
+  },
+  {
     title: "Configure",
     items: [
       { label: "Settings",        href: "/systemmind/settings",         icon: Settings2     },
@@ -56,8 +68,6 @@ const NAV_GROUPS: Array<{ title?: string; items: NavItem[] }> = [
     ],
   },
 ];
-
-const ALL_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
 
 function NavLink({ label, href, icon: Icon, active }: NavItem & { active: boolean }) {
   return (
@@ -78,10 +88,33 @@ function NavLink({ label, href, icon: Icon, active }: NavItem & { active: boolea
 
 export function SystemMindShell({ children }: { children: React.ReactNode }) {
   const router = useRouterState();
-  const path = router.location.pathname;
+  const path   = router.location.pathname;
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session || !active) return;
+      supabase
+        .from("profiles")
+        .select("user_type")
+        .eq("user_id", session.user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (active) setIsAdmin(data?.user_type === "admin");
+        });
+    });
+    return () => { active = false; };
+  }, []);
+
+  const visibleGroups = BASE_NAV_GROUPS.filter((g) => !g.adminOnly || isAdmin);
+  const allItems      = visibleGroups.flatMap((g) => g.items);
 
   function isActive(href: string) {
-    return href === "/systemmind" ? path === "/systemmind" : path.startsWith(href);
+    // Exact match for root, prefix match for others (but not /clients for /clients/setup etc)
+    if (href === "/systemmind") return path === "/systemmind";
+    if (href === "/systemmind/clients") return path === "/systemmind/clients";
+    return path.startsWith(href);
   }
 
   return (
@@ -101,7 +134,7 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-col gap-0 px-2 flex-1">
-          {NAV_GROUPS.map((group, gi) => (
+          {visibleGroups.map((group, gi) => (
             <div key={gi} className={gi > 0 ? "mt-3" : ""}>
               {group.title && (
                 <p className="px-2.5 mb-1 text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">
@@ -130,7 +163,7 @@ export function SystemMindShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile nav */}
       <div className="flex md:hidden border-b border-white/[0.06] overflow-x-auto shrink-0 w-full">
-        {ALL_ITEMS.map(({ label, href, icon: Icon }) => {
+        {allItems.map(({ label, href, icon: Icon }) => {
           const active = isActive(href);
           return (
             <Link key={href} to={href}

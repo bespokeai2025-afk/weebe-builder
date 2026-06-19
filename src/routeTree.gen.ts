@@ -102,6 +102,7 @@ import { Route as AuthenticatedSystemmindKnowledgeRouteImport } from './routes/_
 import { Route as AuthenticatedSystemmindIssuesRouteImport } from './routes/_authenticated/systemmind.issues'
 import { Route as AuthenticatedSystemmindFixPlansRouteImport } from './routes/_authenticated/systemmind.fix-plans'
 import { Route as AuthenticatedSystemmindDataLimitsRouteImport } from './routes/_authenticated/systemmind.data-limits'
+import { Route as AuthenticatedSystemmindClientsRouteImport } from './routes/_authenticated/systemmind.clients'
 import { Route as AuthenticatedSystemmindChatRouteImport } from './routes/_authenticated/systemmind.chat'
 import { Route as AuthenticatedSystemmindAuditsRouteImport } from './routes/_authenticated/systemmind.audits'
 import { Route as AuthenticatedSystemmindArchitectureRouteImport } from './routes/_authenticated/systemmind.architecture'
@@ -168,6 +169,7 @@ import { Route as AuthenticatedAdminPlatformKnowledgeRouteImport } from './route
 import { Route as AuthenticatedAdminCostEngineRouteImport } from './routes/_authenticated/admin.cost-engine'
 import { Route as AuthenticatedAdminChangeRequestsRouteImport } from './routes/_authenticated/admin.change-requests'
 import { Route as AuthenticatedAdminAccountsRouteImport } from './routes/_authenticated/admin.accounts'
+import { Route as AuthenticatedSystemmindClientsIndexRouteImport } from './routes/_authenticated/systemmind.clients.index'
 import { Route as AuthenticatedAdminAccountsIndexRouteImport } from './routes/_authenticated/admin.accounts.index'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -217,6 +219,8 @@ import { Route as ApiPublicCalcomWebhookHealthRouteImport } from './routes/api/p
 import { Route as ApiPublicCalcomWebhookWorkspaceIdRouteImport } from './routes/api/public/calcom-webhook.$workspaceId'
 import { Route as ApiPublicAgentsRegisterRouteImport } from './routes/api/public/agents/register'
 import { Route as ApiInternalAgentToolsIdRouteImport } from './routes/api/internal/agent-tools.$id'
+import { Route as AuthenticatedSystemmindClientsSetupRouteImport } from './routes/_authenticated/systemmind.clients.setup'
+import { Route as AuthenticatedSystemmindClientsApiProbeRouteImport } from './routes/_authenticated/systemmind.clients.api-probe'
 import { Route as AuthenticatedSettingsProvidersCategoryRouteImport } from './routes/_authenticated/settings.providers.$category'
 import { Route as AuthenticatedAdminAccountsSettingsRouteImport } from './routes/_authenticated/admin.accounts.settings'
 import { Route as AuthenticatedAdminAccountsRechargesRouteImport } from './routes/_authenticated/admin.accounts.recharges'
@@ -727,6 +731,12 @@ const AuthenticatedSystemmindDataLimitsRoute =
     path: '/data-limits',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
+const AuthenticatedSystemmindClientsRoute =
+  AuthenticatedSystemmindClientsRouteImport.update({
+    id: '/clients',
+    path: '/clients',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
 const AuthenticatedSystemmindChatRoute =
   AuthenticatedSystemmindChatRouteImport.update({
     id: '/chat',
@@ -1121,6 +1131,12 @@ const AuthenticatedAdminAccountsRoute =
     path: '/accounts',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedSystemmindClientsIndexRoute =
+  AuthenticatedSystemmindClientsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedSystemmindClientsRoute,
+  } as any)
 const AuthenticatedAdminAccountsIndexRoute =
   AuthenticatedAdminAccountsIndexRouteImport.update({
     id: '/',
@@ -1398,6 +1414,18 @@ const ApiInternalAgentToolsIdRoute = ApiInternalAgentToolsIdRouteImport.update({
   path: '/api/internal/agent-tools/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSystemmindClientsSetupRoute =
+  AuthenticatedSystemmindClientsSetupRouteImport.update({
+    id: '/setup',
+    path: '/setup',
+    getParentRoute: () => AuthenticatedSystemmindClientsRoute,
+  } as any)
+const AuthenticatedSystemmindClientsApiProbeRoute =
+  AuthenticatedSystemmindClientsApiProbeRouteImport.update({
+    id: '/api-probe',
+    path: '/api-probe',
+    getParentRoute: () => AuthenticatedSystemmindClientsRoute,
+  } as any)
 const AuthenticatedSettingsProvidersCategoryRoute =
   AuthenticatedSettingsProvidersCategoryRouteImport.update({
     id: '/$category',
@@ -1587,6 +1615,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
+  '/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
   '/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
@@ -1648,6 +1677,8 @@ export interface FileRoutesByFullPath {
   '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
+  '/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
+  '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -1697,6 +1728,7 @@ export interface FileRoutesByFullPath {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/admin/accounts/': typeof AuthenticatedAdminAccountsIndexRoute
+  '/systemmind/clients/': typeof AuthenticatedSystemmindClientsIndexRoute
   '/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
@@ -1862,6 +1894,8 @@ export interface FileRoutesByTo {
   '/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
   '/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
+  '/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
+  '/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -1911,6 +1945,7 @@ export interface FileRoutesByTo {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/admin/accounts': typeof AuthenticatedAdminAccountsIndexRoute
+  '/systemmind/clients': typeof AuthenticatedSystemmindClientsIndexRoute
   '/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
@@ -2026,6 +2061,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/architecture': typeof AuthenticatedSystemmindArchitectureRoute
   '/_authenticated/systemmind/audits': typeof AuthenticatedSystemmindAuditsRoute
   '/_authenticated/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
+  '/_authenticated/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/_authenticated/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
   '/_authenticated/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
   '/_authenticated/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
@@ -2087,6 +2123,8 @@ export interface FileRoutesById {
   '/_authenticated/admin/accounts/recharges': typeof AuthenticatedAdminAccountsRechargesRoute
   '/_authenticated/admin/accounts/settings': typeof AuthenticatedAdminAccountsSettingsRoute
   '/_authenticated/settings/providers/$category': typeof AuthenticatedSettingsProvidersCategoryRoute
+  '/_authenticated/systemmind/clients/api-probe': typeof AuthenticatedSystemmindClientsApiProbeRoute
+  '/_authenticated/systemmind/clients/setup': typeof AuthenticatedSystemmindClientsSetupRoute
   '/api/internal/agent-tools/$id': typeof ApiInternalAgentToolsIdRoute
   '/api/public/agents/register': typeof ApiPublicAgentsRegisterRoute
   '/api/public/calcom-webhook/$workspaceId': typeof ApiPublicCalcomWebhookWorkspaceIdRoute
@@ -2136,6 +2174,7 @@ export interface FileRoutesById {
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
   '/_authenticated/admin/accounts/': typeof AuthenticatedAdminAccountsIndexRoute
+  '/_authenticated/systemmind/clients/': typeof AuthenticatedSystemmindClientsIndexRoute
   '/_authenticated/admin/accounts/clients/webuyanyhouse': typeof AuthenticatedAdminAccountsClientsWebuyanyhouseRoute
   '/_authenticated/admin/accounts/workspace/$id': typeof AuthenticatedAdminAccountsWorkspaceIdRoute
   '/api/public/payments/webhook/health': typeof ApiPublicPaymentsWebhookHealthRoute
@@ -2251,6 +2290,7 @@ export interface FileRouteTypes {
     | '/systemmind/architecture'
     | '/systemmind/audits'
     | '/systemmind/chat'
+    | '/systemmind/clients'
     | '/systemmind/data-limits'
     | '/systemmind/fix-plans'
     | '/systemmind/issues'
@@ -2312,6 +2352,8 @@ export interface FileRouteTypes {
     | '/admin/accounts/recharges'
     | '/admin/accounts/settings'
     | '/settings/providers/$category'
+    | '/systemmind/clients/api-probe'
+    | '/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -2361,6 +2403,7 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/admin/accounts/'
+    | '/systemmind/clients/'
     | '/admin/accounts/clients/webuyanyhouse'
     | '/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
@@ -2526,6 +2569,8 @@ export interface FileRouteTypes {
     | '/admin/accounts/recharges'
     | '/admin/accounts/settings'
     | '/settings/providers/$category'
+    | '/systemmind/clients/api-probe'
+    | '/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -2575,6 +2620,7 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/admin/accounts'
+    | '/systemmind/clients'
     | '/admin/accounts/clients/webuyanyhouse'
     | '/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
@@ -2689,6 +2735,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/architecture'
     | '/_authenticated/systemmind/audits'
     | '/_authenticated/systemmind/chat'
+    | '/_authenticated/systemmind/clients'
     | '/_authenticated/systemmind/data-limits'
     | '/_authenticated/systemmind/fix-plans'
     | '/_authenticated/systemmind/issues'
@@ -2750,6 +2797,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/accounts/recharges'
     | '/_authenticated/admin/accounts/settings'
     | '/_authenticated/settings/providers/$category'
+    | '/_authenticated/systemmind/clients/api-probe'
+    | '/_authenticated/systemmind/clients/setup'
     | '/api/internal/agent-tools/$id'
     | '/api/public/agents/register'
     | '/api/public/calcom-webhook/$workspaceId'
@@ -2799,6 +2848,7 @@ export interface FileRouteTypes {
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
     | '/_authenticated/admin/accounts/'
+    | '/_authenticated/systemmind/clients/'
     | '/_authenticated/admin/accounts/clients/webuyanyhouse'
     | '/_authenticated/admin/accounts/workspace/$id'
     | '/api/public/payments/webhook/health'
@@ -3546,6 +3596,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemmindDataLimitsRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
+    '/_authenticated/systemmind/clients': {
+      id: '/_authenticated/systemmind/clients'
+      path: '/clients'
+      fullPath: '/systemmind/clients'
+      preLoaderRoute: typeof AuthenticatedSystemmindClientsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
     '/_authenticated/systemmind/chat': {
       id: '/_authenticated/systemmind/chat'
       path: '/chat'
@@ -4008,6 +4065,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAccountsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/systemmind/clients/': {
+      id: '/_authenticated/systemmind/clients/'
+      path: '/'
+      fullPath: '/systemmind/clients/'
+      preLoaderRoute: typeof AuthenticatedSystemmindClientsIndexRouteImport
+      parentRoute: typeof AuthenticatedSystemmindClientsRoute
+    }
     '/_authenticated/admin/accounts/': {
       id: '/_authenticated/admin/accounts/'
       path: '/'
@@ -4350,6 +4414,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/internal/agent-tools/$id'
       preLoaderRoute: typeof ApiInternalAgentToolsIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/systemmind/clients/setup': {
+      id: '/_authenticated/systemmind/clients/setup'
+      path: '/setup'
+      fullPath: '/systemmind/clients/setup'
+      preLoaderRoute: typeof AuthenticatedSystemmindClientsSetupRouteImport
+      parentRoute: typeof AuthenticatedSystemmindClientsRoute
+    }
+    '/_authenticated/systemmind/clients/api-probe': {
+      id: '/_authenticated/systemmind/clients/api-probe'
+      path: '/api-probe'
+      fullPath: '/systemmind/clients/api-probe'
+      preLoaderRoute: typeof AuthenticatedSystemmindClientsApiProbeRouteImport
+      parentRoute: typeof AuthenticatedSystemmindClientsRoute
     }
     '/_authenticated/settings/providers/$category': {
       id: '/_authenticated/settings/providers/$category'
@@ -4741,10 +4819,32 @@ const AuthenticatedLeadsRouteChildren: AuthenticatedLeadsRouteChildren = {
 const AuthenticatedLeadsRouteWithChildren =
   AuthenticatedLeadsRoute._addFileChildren(AuthenticatedLeadsRouteChildren)
 
+interface AuthenticatedSystemmindClientsRouteChildren {
+  AuthenticatedSystemmindClientsApiProbeRoute: typeof AuthenticatedSystemmindClientsApiProbeRoute
+  AuthenticatedSystemmindClientsSetupRoute: typeof AuthenticatedSystemmindClientsSetupRoute
+  AuthenticatedSystemmindClientsIndexRoute: typeof AuthenticatedSystemmindClientsIndexRoute
+}
+
+const AuthenticatedSystemmindClientsRouteChildren: AuthenticatedSystemmindClientsRouteChildren =
+  {
+    AuthenticatedSystemmindClientsApiProbeRoute:
+      AuthenticatedSystemmindClientsApiProbeRoute,
+    AuthenticatedSystemmindClientsSetupRoute:
+      AuthenticatedSystemmindClientsSetupRoute,
+    AuthenticatedSystemmindClientsIndexRoute:
+      AuthenticatedSystemmindClientsIndexRoute,
+  }
+
+const AuthenticatedSystemmindClientsRouteWithChildren =
+  AuthenticatedSystemmindClientsRoute._addFileChildren(
+    AuthenticatedSystemmindClientsRouteChildren,
+  )
+
 interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindArchitectureRoute: typeof AuthenticatedSystemmindArchitectureRoute
   AuthenticatedSystemmindAuditsRoute: typeof AuthenticatedSystemmindAuditsRoute
   AuthenticatedSystemmindChatRoute: typeof AuthenticatedSystemmindChatRoute
+  AuthenticatedSystemmindClientsRoute: typeof AuthenticatedSystemmindClientsRouteWithChildren
   AuthenticatedSystemmindDataLimitsRoute: typeof AuthenticatedSystemmindDataLimitsRoute
   AuthenticatedSystemmindFixPlansRoute: typeof AuthenticatedSystemmindFixPlansRoute
   AuthenticatedSystemmindIssuesRoute: typeof AuthenticatedSystemmindIssuesRoute
@@ -4767,6 +4867,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
       AuthenticatedSystemmindArchitectureRoute,
     AuthenticatedSystemmindAuditsRoute: AuthenticatedSystemmindAuditsRoute,
     AuthenticatedSystemmindChatRoute: AuthenticatedSystemmindChatRoute,
+    AuthenticatedSystemmindClientsRoute:
+      AuthenticatedSystemmindClientsRouteWithChildren,
     AuthenticatedSystemmindDataLimitsRoute:
       AuthenticatedSystemmindDataLimitsRoute,
     AuthenticatedSystemmindFixPlansRoute: AuthenticatedSystemmindFixPlansRoute,

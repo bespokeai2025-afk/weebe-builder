@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
   listAccountsClients,
@@ -19,8 +19,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Users, Settings, ChevronRight, RefreshCw, PoundSterling, Building2, UserCheck } from "lucide-react";
+import {
+  Users, Settings, ChevronRight, RefreshCw, PoundSterling,
+  Building2, UserCheck, ExternalLink, ArrowRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface BillingForm {
   monthlyChargeCents: number;
@@ -53,10 +57,10 @@ const DEFAULTS: BillingForm = {
 };
 
 export function AccountsMindClients() {
-  const listFn    = useServerFn(listAccountsClients);
+  const listFn       = useServerFn(listAccountsClients);
   const getProfileFn = useServerFn(getBillingProfile);
-  const upsertFn  = useServerFn(upsertBillingProfile);
-  const qc        = useQueryClient();
+  const upsertFn     = useServerFn(upsertBillingProfile);
+  const qc           = useQueryClient();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm]           = useState<BillingForm>(DEFAULTS);
@@ -65,6 +69,7 @@ export function AccountsMindClients() {
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ["accountsmind-clients"],
     queryFn:  () => listFn(),
+    throwOnError: false,
   });
 
   const openEdit = async (workspaceId: string) => {
@@ -114,6 +119,9 @@ export function AccountsMindClients() {
       });
       qc.invalidateQueries({ queryKey: ["accountsmind-clients"] });
       setEditingId(null);
+      toast.success("Billing profile saved");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Save failed");
     } finally {
       setSaving(false);
     }
@@ -127,6 +135,7 @@ export function AccountsMindClients() {
     queryKey: ["wbs-enterprise-status"],
     queryFn: () => getWbsStatusFn(),
     refetchInterval: 60_000,
+    throwOnError: false,
   });
   const wbsConnected = wbsStatusQ.data?.status === "connected";
   const wbs = wbsStatusQ.data;
@@ -138,7 +147,26 @@ export function AccountsMindClients() {
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
             <Users className="w-5 h-5 text-emerald-400" /> Clients
           </h1>
-          <p className="text-sm text-gray-400 mt-0.5">Active clients and enterprise integrations</p>
+          <p className="text-sm text-gray-400 mt-0.5">Billing profiles and commercial management</p>
+        </div>
+        <Link
+          to="/systemmind/clients/setup"
+          className="flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 border border-sky-500/30 rounded-lg px-3 py-1.5 transition-colors"
+        >
+          Workspace Setup <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      {/* ── Operational Setup Notice ── */}
+      <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] px-4 py-3 flex items-start gap-3">
+        <ExternalLink className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-xs font-semibold text-sky-300">Workspace Setup moved to SystemMind → Clients</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Module activation, plan tier assignment, workspace creation, and the API Probe tool are now in{" "}
+            <Link to="/systemmind/clients/setup" className="text-sky-400 hover:underline">SystemMind → Workspace Setup</Link>.
+            This page retains billing profiles and commercial management only.
+          </p>
         </div>
       </div>
 
@@ -165,7 +193,7 @@ export function AccountsMindClients() {
             </div>
             {wbsConnected && wbs && (
               <div className="hidden sm:flex items-center gap-3 text-xs text-gray-500 shrink-0">
-                <span className="flex items-center gap-1 gap-1" title="Properties"><Building2 className="w-3 h-3" />{wbs.carsCount}</span>
+                <span className="flex items-center gap-1" title="Properties"><Building2 className="w-3 h-3" />{wbs.carsCount}</span>
                 <span className="flex items-center gap-1" title="Buyers"><Users className="w-3 h-3" />{wbs.buyersCount}</span>
                 <span className="flex items-center gap-1" title="Agents"><UserCheck className="w-3 h-3" />{wbs.dealersCount}</span>
               </div>
@@ -175,9 +203,9 @@ export function AccountsMindClients() {
         </Link>
       </div>
 
-      {/* ── Platform Workspace Clients ── */}
+      {/* ── Billing Profiles ── */}
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-2">Platform Workspaces</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-2">Billing Profiles</p>
 
         {isLoading && (
           <div className="flex items-center gap-2 text-gray-400 text-sm">
@@ -187,64 +215,72 @@ export function AccountsMindClients() {
 
         <div className="space-y-2">
           {(clients as any[]).map((c: any) => {
-          const profile = c.billing_profile;
-          const hasProfile = !!profile;
-          return (
-            <div
-              key={c.id}
-              className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center gap-4"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-white">{c.name}</div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  Created {new Date(c.created_at).toLocaleDateString()}
-                </div>
-              </div>
-
-              {hasProfile ? (
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <div className="text-sm font-semibold text-emerald-400">
-                      {profile.currency === "GBP" ? "£" : "$"}
-                      {(profile.monthly_charge_cents / 100).toFixed(2)}/mo
-                    </div>
-                    <Badge
-                      className={cn(
-                        "text-[10px]",
-                        profile.status === "active"
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-gray-700 text-gray-400",
-                      )}
-                    >
-                      {profile.status}
-                    </Badge>
+            const profile = c.billing_profile;
+            const hasProfile = !!profile;
+            return (
+              <div
+                key={c.id}
+                className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center gap-4"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-white">{c.name}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    Created {new Date(c.created_at).toLocaleDateString()}
                   </div>
                 </div>
-              ) : (
-                <span className="text-xs text-gray-500">No billing profile</span>
-              )}
 
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => openEdit(c.id)}
-                  className="border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 text-xs gap-1"
-                >
-                  <Settings className="w-3 h-3" />
-                  {hasProfile ? "Edit" : "Set Up"}
-                </Button>
-                <Link
-                  to="/admin/accounts/workspace/$id"
-                  params={{ id: c.id }}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Link>
+                {hasProfile ? (
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-emerald-400">
+                        {profile.currency === "GBP" ? "£" : "$"}
+                        {(profile.monthly_charge_cents / 100).toFixed(2)}/mo
+                      </div>
+                      <Badge
+                        className={cn(
+                          "text-[10px]",
+                          profile.status === "active"
+                            ? "bg-emerald-500/20 text-emerald-400"
+                            : "bg-gray-700 text-gray-400",
+                        )}
+                      >
+                        {profile.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-500">No billing profile</span>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEdit(c.id)}
+                    className="border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 text-xs gap-1"
+                  >
+                    <Settings className="w-3 h-3" />
+                    {hasProfile ? "Edit Billing" : "Set Billing"}
+                  </Button>
+                  <Link
+                    to="/admin/accounts/workspace/$id"
+                    params={{ id: c.id }}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </div>
               </div>
+            );
+          })}
+
+          {!isLoading && (clients as any[]).length === 0 && (
+            <div className="text-center py-8 text-sm text-gray-500">
+              <Users className="mx-auto w-8 h-8 mb-2 opacity-20" />
+              No clients yet. Workspace setup is managed in{" "}
+              <Link to="/systemmind/clients/setup" className="text-sky-400 hover:underline">SystemMind → Workspace Setup</Link>.
             </div>
-          );
-        })}
+          )}
         </div>
       </div>
 
