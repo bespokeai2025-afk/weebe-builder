@@ -1,0 +1,196 @@
+-- WEBEE Workflow Engine Migration
+-- Run in Supabase SQL Editor (Dashboard → SQL Editor → New query)
+
+-- ── Platform-level workflow templates ─────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS workflow_template_categories (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        text NOT NULL UNIQUE,
+  description text,
+  icon        text,
+  sort_order  int  NOT NULL DEFAULT 0,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS workflow_templates (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  category_id      uuid REFERENCES workflow_template_categories(id) ON DELETE SET NULL,
+  name             text NOT NULL,
+  description      text,
+  tags             text[]  DEFAULT '{}',
+  trigger_type     text NOT NULL DEFAULT 'manual',
+  flow_definition  jsonb NOT NULL DEFAULT '{}',
+  status           text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
+  version          int  NOT NULL DEFAULT 1,
+  created_by       uuid,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS workflow_template_versions (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id     uuid NOT NULL REFERENCES workflow_templates(id) ON DELETE CASCADE,
+  version         int  NOT NULL,
+  flow_definition jsonb NOT NULL DEFAULT '{}',
+  change_note     text,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(template_id, version)
+);
+
+-- ── Workspace-level workflow instances ────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS workspace_workflows (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id    uuid NOT NULL,
+  template_id     uuid REFERENCES workflow_templates(id) ON DELETE SET NULL,
+  template_version int,
+  name            text NOT NULL,
+  description     text,
+  trigger_type    text NOT NULL DEFAULT 'manual',
+  trigger_config  jsonb NOT NULL DEFAULT '{}',
+  flow_definition jsonb NOT NULL DEFAULT '{}',
+  status          text NOT NULL DEFAULT 'inactive' CHECK (status IN ('active','inactive','paused','error')),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS workspace_workflows_workspace_id ON workspace_workflows(workspace_id);
+CREATE INDEX IF NOT EXISTS workspace_workflows_status ON workspace_workflows(workspace_id, status);
+
+CREATE TABLE IF NOT EXISTS workflow_runs (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id   uuid NOT NULL,
+  workflow_id    uuid NOT NULL REFERENCES workspace_workflows(id) ON DELETE CASCADE,
+  trigger_type   text,
+  trigger_data   jsonb NOT NULL DEFAULT '{}',
+  status         text NOT NULL DEFAULT 'running' CHECK (status IN ('running','completed','failed','skipped')),
+  started_at     timestamptz NOT NULL DEFAULT now(),
+  completed_at   timestamptz,
+  error          text,
+  summary        jsonb NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS workflow_runs_workspace_id ON workflow_runs(workspace_id);
+CREATE INDEX IF NOT EXISTS workflow_runs_workflow_id  ON workflow_runs(workflow_id);
+CREATE INDEX IF NOT EXISTS workflow_runs_started_at   ON workflow_runs(workspace_id, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS workflow_run_events (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_id     uuid NOT NULL REFERENCES workflow_runs(id) ON DELETE CASCADE,
+  step_id    text,
+  step_type  text,
+  status     text NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','skipped','error')),
+  input      jsonb NOT NULL DEFAULT '{}',
+  output     jsonb NOT NULL DEFAULT '{}',
+  error      text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS workflow_run_events_run_id ON workflow_run_events(run_id);
+
+CREATE TABLE IF NOT EXISTS workflow_schedules (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id uuid NOT NULL,
+  workflow_id  uuid NOT NULL REFERENCES workspace_workflows(id) ON DELETE CASCADE,
+  cron_expr   text,
+  interval_ms bigint,
+  next_run_at timestamptz,
+  last_run_at timestamptz,
+  enabled     boolean NOT NULL DEFAULT true,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS workflow_schedules_workspace_id ON workflow_schedules(workspace_id);
+CREATE INDEX IF NOT EXISTS workflow_schedules_next_run     ON workflow_schedules(next_run_at) WHERE enabled = true;
+
+-- ── Seed platform template categories ─────────────────────────────────────────
+
+INSERT INTO workflow_template_categories (name, description, icon, sort_order) VALUES
+  ('Lead Management',    'Automate lead qualification, routing, and follow-up',  'Users',       1),
+  ('Outbound Calling',   'Schedule and execute outbound call campaigns',          'PhoneCall',   2),
+  ('Follow-Up',          'Automated follow-up and re-engagement sequences',       'RotateCcw',   3),
+  ('Qualification',      'Qualify prospects through structured agent calls',      'ShieldCheck', 4),
+  ('Booking & Calendar', 'Handle appointment scheduling and reminders',           'Calendar',    5),
+  ('CRM Sync',           'Keep CRM records up to date from call outcomes',        'Database',    6),
+  ('Notifications',      'Alert team members about important lead events',        'Bell',        7),
+  ('Custom',             'Custom workflows built from scratch',                   'Wrench',      8)
+ON CONFLICT (name) DO NOTHING;
+
+-- ── Seed platform workflow templates ──────────────────────────────────────────
+
+WITH cats AS (
+  SELECT id, name FROM workflow_template_categories
+)
+INSERT INTO workflow_templates (category_id, name, description, tags, trigger_type, status, flow_definition) VALUES
+
+-- Lead Management
+((SELECT id FROM cats WHERE name = 'Lead Management'),
+ 'New Lead → Instant Call',
+ 'Immediately calls a new lead when they are added to the system and qualifies them.',
+ ARRAY['lead','call','qualification'],
+ 'lead_added',
+ 'published',
+ '{"steps":[{"id":"trigger","type":"trigger","trigger_type":"lead_added"},{"id":"call","type":"call_lead","agent_assignment":"auto"},{"id":"qualify","type":"branch","conditions":[{"field":"call_outcome","op":"equals","value":"qualified","next":"move_qualified"},{"field":"call_outcome","op":"equals","value":"disqualified","next":"move_disqualified"},{"field":"call_outcome","op":"equals","value":"callback","next":"create_callback"},{"field":"call_outcome","op":"equals","value":"no_answer","next":"end"}]},{"id":"move_qualified","type":"update_lead_status","status":"qualified"},{"id":"move_disqualified","type":"update_lead_status","status":"disqualified"},{"id":"create_callback","type":"create_callback","delay_hours":4},{"id":"end","type":"stop_workflow"}]}'::jsonb
+),
+
+-- Tried To Contact
+((SELECT id FROM cats WHERE name = 'Outbound Calling'),
+ 'Tried To Contact Re-Engagement',
+ 'Periodically attempts to contact leads that are in Tried To Contact status.',
+ ARRAY['tried_to_contact','re-engagement','scheduled'],
+ 'scheduled',
+ 'published',
+ '{"steps":[{"id":"trigger","type":"trigger","trigger_type":"scheduled","filter":{"lead_status":"tried_to_contact"}},{"id":"call","type":"call_lead","agent_assignment":"auto"},{"id":"branch","type":"branch","conditions":[{"field":"call_outcome","op":"equals","value":"connected","next":"qualify"},{"field":"call_outcome","op":"equals","value":"callback","next":"callback"},{"field":"call_outcome","op":"equals","value":"no_answer","next":"increment_attempts"}]},{"id":"qualify","type":"update_lead_status","status":"qualified"},{"id":"callback","type":"create_callback","delay_hours":2},{"id":"increment_attempts","type":"update_lead_status","status":"tried_to_contact"},{"id":"end","type":"stop_workflow"}]}'::jsonb
+),
+
+-- Disqualified Re-Qualification
+((SELECT id FROM cats WHERE name = 'Qualification'),
+ 'Disqualified Lead Re-Qualification',
+ 'Periodically re-contacts disqualified leads to check if their situation has changed.',
+ ARRAY['disqualified','re-qualification','scheduled'],
+ 'scheduled',
+ 'published',
+ '{"steps":[{"id":"trigger","type":"trigger","trigger_type":"scheduled","filter":{"lead_status":"disqualified"}},{"id":"call","type":"call_lead","agent_assignment":"qualification"},{"id":"branch","type":"branch","conditions":[{"field":"call_outcome","op":"equals","value":"qualified","next":"move_qualified"},{"field":"call_outcome","op":"equals","value":"callback","next":"callback"},{"field":"call_outcome","op":"equals","value":"no_answer","next":"end"}]},{"id":"move_qualified","type":"update_lead_status","status":"qualified"},{"id":"push_crm","type":"push_to_crm"},{"id":"callback","type":"create_callback","delay_hours":24},{"id":"end","type":"stop_workflow"}]}'::jsonb
+),
+
+-- Callback Due
+((SELECT id FROM cats WHERE name = 'Follow-Up'),
+ 'Scheduled Callback Execution',
+ 'Executes due callbacks automatically and handles the outcome.',
+ ARRAY['callback','scheduled','follow-up'],
+ 'callback_due',
+ 'published',
+ '{"steps":[{"id":"trigger","type":"trigger","trigger_type":"callback_due"},{"id":"call","type":"call_lead","agent_assignment":"auto"},{"id":"branch","type":"branch","conditions":[{"field":"call_outcome","op":"equals","value":"qualified","next":"move_qualified"},{"field":"call_outcome","op":"equals","value":"callback","next":"reschedule"},{"field":"call_outcome","op":"equals","value":"no_answer","next":"end"}]},{"id":"move_qualified","type":"update_lead_status","status":"qualified"},{"id":"push_crm","type":"push_to_crm"},{"id":"reschedule","type":"create_callback","delay_hours":4},{"id":"end","type":"stop_workflow"}]}'::jsonb
+),
+
+-- Booking Follow-Up
+((SELECT id FROM cats WHERE name = 'Booking & Calendar'),
+ 'Appointment Booking Confirmation',
+ 'Sends a WhatsApp confirmation and logs the booking in the CRM after a booking is created.',
+ ARRAY['booking','whatsapp','crm'],
+ 'lead_status_changed',
+ 'published',
+ '{"steps":[{"id":"trigger","type":"trigger","trigger_type":"lead_status_changed","filter":{"booking_created":true}},{"id":"whatsapp","type":"send_whatsapp","template":"booking_confirmation"},{"id":"crm","type":"push_to_crm"},{"id":"task","type":"create_task","title":"Confirm booking details","due_hours":24},{"id":"end","type":"stop_workflow"}]}'::jsonb
+),
+
+-- CRM Sync
+((SELECT id FROM cats WHERE name = 'CRM Sync'),
+ 'Post-Call CRM Sync',
+ 'After every outbound call, syncs the contact and call note to the connected CRM.',
+ ARRAY['crm','post-call','sync'],
+ 'outbound_call_completed',
+ 'published',
+ '{"steps":[{"id":"trigger","type":"trigger","trigger_type":"outbound_call_completed"},{"id":"crm","type":"push_to_crm"},{"id":"end","type":"stop_workflow"}]}'::jsonb
+),
+
+-- Missed Call
+((SELECT id FROM cats WHERE name = 'Outbound Calling'),
+ 'Missed Inbound Call → Instant Callback',
+ 'When an inbound call is missed, schedules an instant outbound callback.',
+ ARRAY['inbound','missed','callback'],
+ 'inbound_call',
+ 'published',
+ '{"steps":[{"id":"trigger","type":"trigger","trigger_type":"inbound_call","filter":{"call_status":"no_answer"}},{"id":"callback","type":"create_callback","delay_minutes":5},{"id":"notify","type":"create_task","title":"Missed inbound call — callback scheduled"},{"id":"end","type":"stop_workflow"}]}'::jsonb
+)
+
+ON CONFLICT DO NOTHING;
