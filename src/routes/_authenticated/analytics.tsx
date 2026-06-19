@@ -446,21 +446,14 @@ function AnalyticsPage() {
                 <StatCard label="E2E latency"  tone="primary" value={fmtMs(analytics.avgE2eLatency)} />
               </div>
               <div className="grid grid-cols-2 gap-3 px-6 pt-3 md:grid-cols-4">
-                <StatCard label="Inbound"       tone="primary" value={analytics.inbound}      icon={ArrowDownLeft} />
-                <StatCard label="Outbound"      tone="info"    value={analytics.outbound}     icon={ArrowUpRight} />
-                <StatCard label="Success rate"  tone="success" value={`${successRate}%`}      icon={CheckCircle2} />
-                <StatCard label="Transfer rate" tone="warning" value={`${transferRate}%`}     icon={TrendingUp} />
+                <StatCard label="Inbound"            tone="primary" value={analytics.inbound}                      icon={ArrowDownLeft} />
+                <StatCard label="Outbound"           tone="info"    value={analytics.outbound}                     icon={ArrowUpRight} />
+                <StatCard label="Success rate"       tone="success" value={`${successRate}%`}                      icon={CheckCircle2} />
+                <StatCard label="Transfer rate"      tone="warning" value={`${transferRate}%`}                     icon={TrendingUp} />
               </div>
-
-              {analytics.voicemailScreenedCount > 0 && (
-                <div className="mx-6 mt-4 flex items-center gap-3 rounded-xl border border-slate-500/30 bg-slate-500/10 px-4 py-2.5 text-sm text-slate-300">
-                  <PauseCircle className="h-4 w-4 shrink-0 text-slate-400" />
-                  <span>
-                    <span className="font-semibold text-slate-200">{analytics.voicemailScreenedCount}</span>
-                    {" "}voicemail{analytics.voicemailScreenedCount === 1 ? "" : "s"} were screened and excluded from the metrics above for this period.
-                  </span>
-                </div>
-              )}
+              <div className="grid grid-cols-2 gap-3 px-6 pt-3 md:grid-cols-4">
+                <StatCard label="Voicemails screened" tone="info"  value={analytics.voicemailScreenedCount}        icon={PauseCircle} />
+              </div>
 
               <div className="px-6 pt-4">
                 <ChartCard title="Call Counts" icon={Activity} color={CHART.primary}>
