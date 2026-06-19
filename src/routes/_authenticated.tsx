@@ -30,6 +30,7 @@ function GatedOnboardingTour() {
     queryFn:  () => getStateFn(),
     staleTime: 60_000,
     retry: false,
+    throwOnError: false,
   });
 
   // Show tour if: no row (legacy user), path is agent_builder or both

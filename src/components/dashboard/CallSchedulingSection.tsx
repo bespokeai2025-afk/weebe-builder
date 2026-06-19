@@ -109,6 +109,7 @@ export function CallSchedulingSection({ pageType, statusOptions, agents }: Props
     queryKey: QK,
     queryFn: () => listFn({ data: { pageType } }),
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   const campaigns = (campaignsQ.data ?? []) as CallCampaign[];
