@@ -1375,3 +1375,152 @@ export const getWbahRetellAgents = createServerFn({ method: "GET" })
       isLive:    liveCallAgentIds.has(a.agent_id),
     }));
   });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WBAH Categorized Lead Sync — server functions
+// Tables: wbah_categorized_leads, wbah_category_sync_log
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WBAH_CATEGORIES = ["disqualified", "tried_to_contact", "rebooking"] as const;
+type WbahCat = typeof WBAH_CATEGORIES[number];
+
+// ── triggerWbahCategorySync ───────────────────────────────────────────────────
+
+export const triggerWbahCategorySync = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      category: z.enum(["disqualified", "tried_to_contact", "rebooking", "all"]).optional(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const isAdmin = await isPlatformAdmin(context.userId);
+    if (!isAdmin) throw new Error("Admin access required");
+
+    const { runWbahCategorySyncTick } = await import(
+      "@/lib/integrations/webespokeEnterprise/wbah-category-sync"
+    );
+
+    const categoriesOnly =
+      data.category && data.category !== "all"
+        ? [data.category as WbahCat]
+        : undefined;
+
+    const result = await runWbahCategorySyncTick({ categoriesOnly });
+    return result;
+  });
+
+// ── listWbahCategorizedLeads ──────────────────────────────────────────────────
+
+export const listWbahCategorizedLeads = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      category: z.enum(["disqualified", "tried_to_contact", "rebooking"]),
+      page:     z.number().int().min(1).default(1),
+      limit:    z.number().int().min(1).max(200).default(100),
+      search:   z.string().optional(),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    // WBAH members and platform admins can view
+    const { data: ws } = await (supabaseAdmin as any)
+      .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
+    if (!ws?.id) throw new Error("WBAH workspace not found");
+
+    const isAdmin = await isPlatformAdmin(context.userId);
+    if (!isAdmin) {
+      const { data: mem } = await (supabaseAdmin as any)
+        .from("workspace_members")
+        .select("id")
+        .eq("user_id", context.userId)
+        .eq("workspace_id", ws.id)
+        .maybeSingle();
+      if (!mem) throw new Error("Access denied");
+    }
+
+    const { category, page, limit, search } = data;
+    const from = (page - 1) * limit;
+    const to   = from + limit - 1;
+
+    let q = (supabaseAdmin as any)
+      .from("wbah_categorized_leads")
+      .select("*", { count: "exact" })
+      .eq("workspace_id", ws.id)
+      .eq("webee_category", category)
+      .order("last_synced_at", { ascending: false })
+      .range(from, to);
+
+    if (search?.trim()) {
+      const s = `%${search.trim()}%`;
+      q = q.or(`full_name.ilike.${s},phone.ilike.${s},email.ilike.${s},postcode.ilike.${s}`);
+    }
+
+    const { data: rows, count, error } = await q;
+    if (error) throw new Error(`DB query failed: ${error.message}`);
+
+    return {
+      rows: (rows ?? []) as {
+        id: string;
+        external_lead_id: string;
+        external_status_code: string | null;
+        external_status_label: string | null;
+        webee_category: string;
+        full_name: string;
+        first_name: string | null;
+        last_name: string | null;
+        phone: string | null;
+        email: string | null;
+        address: string | null;
+        city: string | null;
+        postcode: string | null;
+        property_type: string | null;
+        meta: Record<string, unknown>;
+        last_synced_at: string;
+        created_at: string;
+      }[],
+      total:     count ?? 0,
+      page,
+      limit,
+      category,
+    };
+  });
+
+// ── getWbahCategorySyncLog ─────────────────────────────────────────────────────
+
+export const getWbahCategorySyncLog = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: ws } = await (supabaseAdmin as any)
+      .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
+    if (!ws?.id) throw new Error("WBAH workspace not found");
+
+    const isAdmin = await isPlatformAdmin(context.userId);
+    if (!isAdmin) {
+      const { data: mem } = await (supabaseAdmin as any)
+        .from("workspace_members")
+        .select("id")
+        .eq("user_id", context.userId)
+        .eq("workspace_id", ws.id)
+        .maybeSingle();
+      if (!mem) throw new Error("Access denied");
+    }
+
+    const logs: Record<string, unknown> = {};
+    for (const cat of WBAH_CATEGORIES) {
+      const { data: row } = await (supabaseAdmin as any)
+        .from("wbah_category_sync_log")
+        .select("*")
+        .eq("workspace_id", ws.id)
+        .eq("category", cat)
+        .order("synced_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      logs[cat] = row ?? null;
+    }
+    return logs as Record<WbahCat, {
+      id: string; synced_at: string; imported: number; updated: number;
+      skipped: number; failed: number; total_records: number; duration_ms: number;
+      error_message: string | null;
+    } | null>;
+  });

@@ -375,3 +375,20 @@ export const getAllBuyers = (gt: GetTokens, st: SaveToken) =>
 
 export const getAllDealers = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/get-all-calldata", gt, st);
+
+// ── Lead Filter Master & Status Codes (category sync) ─────────────────────────
+// GET /leadfiltermaster/get-leadfiltermaster — returns the master status list
+export const wbahGetLeadFilterMaster = (gt: GetTokens, st: SaveToken) =>
+  aGet("/leadfiltermaster/get-leadfiltermaster", gt, st);
+
+// GET /lead-filterStatus/get-statusCode — returns individual status codes
+export const wbahGetLeadFilterStatusCodes = (gt: GetTokens, st: SaveToken) =>
+  aGet("/lead-filterStatus/get-statusCode", gt, st);
+
+// GET /crm-data/get-crm-data with optional lead status filter
+export const wbahGetCrmDataFiltered = (statusCode: string, gt: GetTokens, st: SaveToken) =>
+  aGet(`/crm-data/get-crm-data?leadStatus=${encodeURIComponent(statusCode)}`, gt, st);
+
+// GET /call-output-data/get-userCall-lead with optional lead status filter
+export const wbahGetLeadsFiltered = (statusCode: string, page: number, gt: GetTokens, st: SaveToken) =>
+  aGet<unknown>(`/call-output-data/get-userCall-lead?leadStatus=${encodeURIComponent(statusCode)}&currentPage=${page}`, gt, st);
