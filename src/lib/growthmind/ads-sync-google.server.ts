@@ -53,10 +53,12 @@ export async function syncGoogleAdsCampaigns(credentials: {
   refreshToken?:  string;
   clientId?:      string;
   clientSecret?:  string;
+  managerId?:     string;
 }): Promise<AdCampaignMetrics[]> {
   let token = credentials.accessToken ?? "";
 
-  if (!token && credentials.refreshToken && credentials.clientId && credentials.clientSecret) {
+  // Prefer refresh token flow — auto-exchanges for a fresh access token
+  if (credentials.refreshToken && credentials.clientId && credentials.clientSecret) {
     token = await getAccessToken(
       credentials.refreshToken,
       credentials.clientId,
@@ -64,7 +66,7 @@ export async function syncGoogleAdsCampaigns(credentials: {
     );
   }
 
-  if (!token) throw new Error("Google Ads: no access token available");
+  if (!token) throw new Error("Google Ads: no access token available — set refreshToken + clientId + clientSecret or a static accessToken");
 
   const customerId = credentials.customerId.replace(/-/g, "");
 
@@ -86,13 +88,19 @@ export async function syncGoogleAdsCampaigns(credentials: {
     LIMIT 500
   `.trim();
 
+  // login-customer-id must be the manager (MCC) account ID when accessing
+  // via a manager account, otherwise use the client customer ID.
+  const loginId = credentials.managerId
+    ? credentials.managerId.replace(/-/g, "")
+    : customerId;
+
   const res = await fetch(`${GADS_API_BASE}/customers/${customerId}/googleAds:searchStream`, {
     method: "POST",
     headers: {
       "Authorization":      `Bearer ${token}`,
       "developer-token":    credentials.developerToken,
       "Content-Type":       "application/json",
-      "login-customer-id":  customerId,
+      "login-customer-id":  loginId,
     },
     body: JSON.stringify({ query }),
   });

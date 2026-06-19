@@ -2,37 +2,82 @@ import type { AdProvider, AdCampaignStats } from "../interface";
 
 /**
  * Google Ads API v17 adapter.
- * Requires: developerToken, accessToken (OAuth), customerId.
- * Docs: https://developers.google.com/google-ads/api/docs/start
+ * Auth priority: refreshToken + clientId + clientSecret → exchanged for accessToken.
+ * Fallback: static accessToken (short-lived, manual entry).
+ * Requires: developerToken, customerId, plus one of the above auth paths.
  */
 export class GoogleAdsAdapter implements AdProvider {
   readonly name = "google_ads";
 
-  constructor(private readonly config: { developerToken: string; accessToken: string; customerId: string }) {}
+  constructor(private readonly config: {
+    developerToken:  string;
+    customerId:      string;
+    accessToken?:    string;
+    refreshToken?:   string;
+    clientId?:       string;
+    clientSecret?:   string;
+    managerId?:      string;
+  }) {}
 
   private get cid(): string {
     return this.config.customerId.replace(/-/g, "");
   }
 
-  private get headers(): Record<string, string> {
-    return {
-      Authorization: `Bearer ${this.config.accessToken}`,
-      "developer-token": this.config.developerToken,
-      "Content-Type": "application/json",
+  /** Exchange refresh token for a fresh access token. */
+  private async getAccessTokenFromRefresh(): Promise<string> {
+    const { refreshToken, clientId, clientSecret } = this.config;
+    if (!refreshToken || !clientId || !clientSecret) {
+      throw new Error("Google Ads: refreshToken, clientId, and clientSecret are all required for OAuth refresh flow");
+    }
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type:    "refresh_token",
+        refresh_token: refreshToken,
+        client_id:     clientId,
+        client_secret: clientSecret,
+      }),
+    });
+    const json = await res.json() as any;
+    if (json.error) throw new Error(`Google OAuth: ${json.error_description ?? json.error}`);
+    return json.access_token as string;
+  }
+
+  /** Resolve a valid access token — refreshes automatically when refresh creds are present. */
+  private async resolveToken(): Promise<string> {
+    const { refreshToken, clientId, clientSecret, accessToken } = this.config;
+    if (refreshToken && clientId && clientSecret) {
+      return this.getAccessTokenFromRefresh();
+    }
+    if (accessToken) return accessToken;
+    throw new Error("Google Ads: provide either (refreshToken + clientId + clientSecret) or a static accessToken");
+  }
+
+  private baseHeaders(token: string): Record<string, string> {
+    const { developerToken, managerId, customerId } = this.config;
+    const headers: Record<string, string> = {
+      Authorization:    `Bearer ${token}`,
+      "developer-token": developerToken,
+      "Content-Type":   "application/json",
     };
+    // When accessing via a manager (MCC) account, set login-customer-id to the manager ID
+    const loginId = managerId ? managerId.replace(/-/g, "") : this.cid;
+    headers["login-customer-id"] = loginId;
+    return headers;
   }
 
   async getCampaigns(_accountId: string): Promise<AdCampaignStats[]> {
-    const { developerToken, accessToken } = this.config;
-    if (!developerToken || !accessToken) {
-      throw new Error("Google Ads requires a developer token and OAuth access token");
-    }
+    const { developerToken } = this.config;
+    if (!developerToken) throw new Error("Google Ads requires a developer token");
+
+    const token = await this.resolveToken();
 
     const resp = await fetch(
       `https://googleads.googleapis.com/v17/customers/${this.cid}/googleAds:search`,
       {
         method: "POST",
-        headers: this.headers,
+        headers: this.baseHeaders(token),
         body: JSON.stringify({
           query: [
             "SELECT campaign.id, campaign.name, campaign.status,",
@@ -53,24 +98,23 @@ export class GoogleAdsAdapter implements AdProvider {
 
     const data = await resp.json();
     return (data.results ?? []).map((r: any) => ({
-      campaignId: String(r.campaign?.id ?? ""),
-      name: r.campaign?.name ?? "",
-      status: r.campaign?.status ?? "UNKNOWN",
+      campaignId:  String(r.campaign?.id ?? ""),
+      name:        r.campaign?.name ?? "",
+      status:      r.campaign?.status ?? "UNKNOWN",
       impressions: Number(r.metrics?.impressions ?? 0),
-      clicks: Number(r.metrics?.clicks ?? 0),
+      clicks:      Number(r.metrics?.clicks ?? 0),
       conversions: Number(r.metrics?.conversions ?? 0),
-      spend: Number(r.metrics?.costMicros ?? 0) / 1_000_000,
-      ctr: Number(r.metrics?.ctr ?? 0),
-      cpc: Number(r.metrics?.averageCpc ?? 0) / 1_000_000,
+      spend:       Number(r.metrics?.costMicros ?? 0) / 1_000_000,
+      ctr:         Number(r.metrics?.ctr ?? 0),
+      cpc:         Number(r.metrics?.averageCpc ?? 0) / 1_000_000,
     }));
   }
 
   async getSpendSummary(_accountId: string, from: string, to: string): Promise<{ totalSpend: number; campaigns: number }> {
-    const { developerToken, accessToken } = this.config;
-    if (!developerToken || !accessToken) {
-      throw new Error("Google Ads requires a developer token and OAuth access token");
-    }
+    const { developerToken } = this.config;
+    if (!developerToken) throw new Error("Google Ads requires a developer token");
 
+    const token    = await this.resolveToken();
     const dateFrom = from.replace(/-/g, "");
     const dateTo   = to.replace(/-/g, "");
 
@@ -78,7 +122,7 @@ export class GoogleAdsAdapter implements AdProvider {
       `https://googleads.googleapis.com/v17/customers/${this.cid}/googleAds:search`,
       {
         method: "POST",
-        headers: this.headers,
+        headers: this.baseHeaders(token),
         body: JSON.stringify({
           query: `SELECT metrics.cost_micros, campaign.id FROM campaign WHERE segments.date BETWEEN '${dateFrom}' AND '${dateTo}' AND campaign.status != 'REMOVED'`,
         }),
@@ -93,21 +137,21 @@ export class GoogleAdsAdapter implements AdProvider {
     const data = await resp.json();
     const results: any[] = data.results ?? [];
     const campaignIds = new Set(results.map((r: any) => r.campaign?.id));
-    const totalSpend = results.reduce((s, r) => s + Number(r.metrics?.costMicros ?? 0) / 1_000_000, 0);
+    const totalSpend  = results.reduce((s, r) => s + Number(r.metrics?.costMicros ?? 0) / 1_000_000, 0);
 
     return { totalSpend, campaigns: campaignIds.size };
   }
 
   async healthCheck(): Promise<boolean> {
-    const { developerToken, accessToken } = this.config;
-    if (!developerToken || !accessToken) return false;
+    const { developerToken } = this.config;
+    if (!developerToken) return false;
     try {
-      // listAccessibleCustomers is the canonical credentials liveness check:
-      // it doesn't require a valid customer ID and succeeds as long as the
-      // developer token + access token are accepted by the API.
+      const token = await this.resolveToken();
+      // listAccessibleCustomers doesn't require a valid customer ID —
+      // it's the canonical credentials liveness check.
       const resp = await fetch(
         "https://googleads.googleapis.com/v17/customers:listAccessibleCustomers",
-        { method: "GET", headers: this.headers },
+        { method: "GET", headers: this.baseHeaders(token) },
       );
       return resp.ok;
     } catch {

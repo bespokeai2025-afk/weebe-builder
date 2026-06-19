@@ -84,10 +84,11 @@ async function getGoogleCreds(sb: ReturnType<typeof getAdminClient>, workspaceId
   return {
     developerToken: c.developerToken,
     customerId:     c.customerId,
-    accessToken:    c.accessToken,
-    refreshToken:   c.refreshToken,
-    clientId:       c.clientId,
-    clientSecret:   c.clientSecret,
+    accessToken:    c.accessToken    || undefined,
+    refreshToken:   c.refreshToken   || undefined,
+    clientId:       c.clientId       || undefined,
+    clientSecret:   c.clientSecret   || undefined,
+    managerId:      c.managerId      || undefined,
   };
 }
 

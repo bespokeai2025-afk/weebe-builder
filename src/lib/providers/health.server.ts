@@ -227,8 +227,15 @@ async function dispatchHealthCheck(
     case "advertising:google_ads": {
       return new GoogleAdsAdapter({
         developerToken: str(stored.developerToken),
-        accessToken: str(stored.accessToken),
-        customerId: str(stored.customerId),
+        customerId:     str(stored.customerId),
+        // OAuth refresh flow (preferred) — adapter auto-exchanges for access token
+        refreshToken:   str(stored.refreshToken)  || undefined,
+        clientId:       str(stored.clientId)       || undefined,
+        clientSecret:   str(stored.clientSecret)   || undefined,
+        // Static access token fallback (short-lived)
+        accessToken:    str(stored.accessToken)    || undefined,
+        // Manager (MCC) account ID — required when accessing via a manager account
+        managerId:      str(stored.managerId)      || undefined,
       }).healthCheck!();
     }
     case "advertising:meta_ads": {
