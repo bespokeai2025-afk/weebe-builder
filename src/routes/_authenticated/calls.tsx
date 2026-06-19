@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState, useEffect, useMemo } from "react";
@@ -30,6 +30,9 @@ import { useTablePagination, TablePagBar } from "@/components/ui/table-paginatio
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({ meta: [{ title: "Calls — Webee" }] }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    vm: (search.vm as "exclude" | "all" | "only" | undefined) ?? undefined,
+  }),
   component: CallsPage,
 });
 
@@ -232,6 +235,7 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
 }
 
 function CallsPage() {
+  const { vm } = useSearch({ from: "/_authenticated/calls" });
   const [tab, setTab] = useState<"live" | "test">("live");
   const [isWbah, setIsWbah] = useState(false);
 
@@ -261,7 +265,10 @@ function CallsPage() {
   // Native WEBEE calls (all workspaces except WBAH)
   // throwOnError: false — TanStack Router Suspense context would otherwise
   // re-throw query errors to the route error boundary instead of storing them.
-  const [voicemailFilter, setVoicemailFilter] = useState<"exclude" | "all" | "only">("exclude");
+  // ?vm=only pre-selects the voicemail filter (e.g. linked from the dashboard card).
+  const [voicemailFilter, setVoicemailFilter] = useState<"exclude" | "all" | "only">(
+    vm === "only" || vm === "all" ? vm : "exclude",
+  );
 
   const fn = useServerFn(listCalls);
   const q = useQuery({

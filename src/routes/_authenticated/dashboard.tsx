@@ -3,11 +3,17 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
   Phone, Users, Calendar, TrendingUp, ArrowUpRight,
-  Radio, PhoneCall, PhoneMissed, Bot, CheckCircle2, Circle,
+  Radio, PhoneCall, PhoneMissed, Bot, CheckCircle2, Circle, Voicemail,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/dashboard/PageShell";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getOverviewStats } from "@/lib/dashboard/leads.functions";
 import { getWorkspaceAgents } from "@/lib/agents/agents.functions";
 
@@ -109,7 +115,7 @@ function DashboardPage() {
       )}
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-3">
         {kpis.map((kpi) => (
           <KpiCard
             key={kpi.title}
@@ -122,6 +128,33 @@ function DashboardPage() {
           />
         ))}
       </div>
+
+      {/* Voicemail screened banner */}
+      {!isLoading && (data?.totals.voicemailsExcluded ?? 0) > 0 && (
+        <TooltipProvider delayDuration={200}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                to="/calls"
+                search={{ vm: "only" }}
+                className="mb-5 flex items-center gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-left transition-colors hover:bg-amber-500/10 w-full"
+              >
+                <Voicemail className="h-4 w-4 shrink-0 text-amber-400" />
+                <span className="text-xs text-amber-300/90">
+                  <span className="font-semibold">{data!.totals.voicemailsExcluded}</span>
+                  {" "}voicemail{data!.totals.voicemailsExcluded === 1 ? "" : "s"} screened — excluded from totals above
+                </span>
+                <ArrowUpRight className="ml-auto h-3.5 w-3.5 shrink-0 text-amber-400/60" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[260px] text-center text-xs">
+              Voicemails are calls where your agent reached an answering machine.
+              They are excluded from call counts and durations so your stats reflect real conversations.
+              Click to view screened calls.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
 
       {/* Agents */}
       {(agentsQ.isLoading || agents.length > 0) && (

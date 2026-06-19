@@ -104,7 +104,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
       .maybeSingle();
     const isWbah = wsRow?.slug === "webuyanyhouse";
 
-    const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes, recentLeadsRes, callsTotalRes, callsCompletedRes, callsFailedRes] = await Promise.all([
+    const [leadsRes, callsRes, bookingsRes, qualifiedRes, closedLeadsRes, completedCallsRes, recentLeadsRes, callsTotalRes, callsCompletedRes, callsFailedRes, voicemailsRes] = await Promise.all([
       (supabase as any)
         .from("leads" as never)
         .select("id, status, created_at", { count: "exact", head: false })
@@ -169,6 +169,12 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .in("call_status", ["failed", "no_answer", "busy"])
         .eq("is_voicemail", false),
+      // Voicemail count — screened calls excluded from all other totals
+      (supabase as any)
+        .from("calls" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("is_voicemail", true),
     ]);
 
     if (leadsRes.error) throw new Error(leadsRes.error.message);
@@ -215,6 +221,7 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         cancelledBookings: bookings.filter((b: any) => b.status === "cancelled").length,
         closedLeads: closedLeads.length,
         closedLeadsReached,
+        voicemailsExcluded: voicemailsRes.count ?? 0,
       },
       recentLeads: recentLeadsRes.data ?? [],
     };
