@@ -97,10 +97,62 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MODULE_CATALOG, requestModuleUpgrade } from "@/lib/modules/modules.functions";
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyAdminStatus, getMyProfile } from "@/lib/auth/auth.functions";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { getCacheHealth } from "@/lib/cache/cache-health.functions";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+function CacheHealthDotBadge() {
+  const healthFn = useServerFn(getCacheHealth);
+  const navigate  = useNavigate();
+  const { data } = useQuery({
+    queryKey: ["cache-health"],
+    queryFn: () => healthFn(),
+    refetchInterval: 60_000,
+    throwOnError: false,
+  });
+
+  const configured = data?.configured !== false;
+  const connected  = data?.connected === true;
+
+  const dotClass = !configured
+    ? "bg-muted-foreground/40"
+    : connected
+      ? "bg-green-500"
+      : "bg-destructive";
+
+  const label = !configured
+    ? "Cache: not configured"
+    : connected
+      ? `Cache: connected${data?.latencyMs != null ? ` (${data.latencyMs} ms)` : ""}`
+      : "Cache: disconnected";
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigate({ to: "/settings/developer", hash: "cache-health" });
+  }
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            role="button"
+            aria-label={label}
+            onClick={handleClick}
+            className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 cursor-pointer rounded-full border-2 border-sidebar ${dotClass}`}
+          />
+        </TooltipTrigger>
+        <TooltipContent side="right">
+          <p className="text-xs">{label}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 type NavItem = {
   title: string;
@@ -798,11 +850,14 @@ export function AppSidebar() {
                 "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
               )}
             >
-              <Avatar className="h-8 w-8 ring-1 ring-white/10">
-                <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/10 text-[11px] font-semibold text-foreground">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
+              <div className="relative shrink-0">
+                <Avatar className="h-8 w-8 ring-1 ring-white/10">
+                  <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/10 text-[11px] font-semibold text-foreground">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <CacheHealthDotBadge />
+              </div>
               {!collapsed && (
                 <>
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -844,7 +899,7 @@ export function AppSidebar() {
               <Database className="mr-2 h-4 w-4" />
               Provider Registry
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate({ to: "/settings/developer" })}>
+            <DropdownMenuItem onClick={() => navigate({ to: "/settings/developer", hash: "cache-health" })}>
               <Code2 className="mr-2 h-4 w-4" />
               Developer API
             </DropdownMenuItem>

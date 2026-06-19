@@ -335,7 +335,9 @@ function DeveloperPage() {
             </CardContent>
           </Card>
 
-          <CacheHealthCard />
+          <div id="cache-health">
+            <CacheHealthCard />
+          </div>
         </TabsContent>
 
         {/* ── Documentation tab ──────────────────────────────────── */}
