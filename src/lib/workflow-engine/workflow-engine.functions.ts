@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
+import { executeWorkflowRun } from "@/lib/workflow-engine/workflow-executor.server";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -305,24 +306,28 @@ export const manualTriggerWorkflow = createServerFn({ method: "POST" })
 
     const runId = run?.id as string;
     try {
-      const steps: any[] = (wf.flow_definition as any)?.steps ?? [];
-      let completed = 0;
-      for (const step of steps) {
-        if (step.type === "trigger" || step.type === "branch" || step.type === "stop_workflow") continue;
-        await sb.from("workflow_run_events").insert({
-          run_id:    runId,
-          step_id:   step.id,
-          step_type: step.type,
-          status:    "ok",
-          input:     step,
-          output:    { simulated: true },
-        }).catch(() => {});
-        completed++;
-      }
+      const results = await executeWorkflowRun(
+        wf.flow_definition as Record<string, unknown>,
+        {
+          workspaceId,
+          runId,
+          triggerData: { triggered_by: "user", trigger_type: "manual" },
+          leadId: (data as any).lead_id ?? undefined,
+        },
+      );
+      const failed  = results.filter(r => r.status === "error");
+      const success = results.filter(r => r.status === "ok");
       await sb.from("workflow_runs").update({
-        status:       "completed",
+        status:       failed.length > 0 ? "failed" : "completed",
         completed_at: new Date().toISOString(),
-        summary:      { steps_completed: completed, mode: "simulated" },
+        error:        failed[0]?.error ?? null,
+        summary:      {
+          steps_total:     results.length,
+          steps_ok:        success.length,
+          steps_failed:    failed.length,
+          steps_skipped:   results.filter(r => r.status === "skipped").length,
+          mode: "live",
+        },
       }).eq("id", runId);
     } catch (e: any) {
       await sb.from("workflow_runs").update({

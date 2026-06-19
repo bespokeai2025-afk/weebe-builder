@@ -4,13 +4,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Play, Pause, Trash2, BarChart3, CheckCircle2, XCircle, Clock,
   Zap, RefreshCw, ChevronRight, AlertCircle, Loader2, Settings,
-  Activity, TrendingUp, Search,
+  Activity, TrendingUp, Search, GitBranch,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +34,7 @@ import {
   type WorkspaceWorkflow,
   type WorkflowRun,
 } from "@/lib/workflow-engine/workflow-engine.functions";
+import { WorkflowBuilder } from "@/components/workflow-engine/WorkflowBuilder";
 
 const TRIGGER_LABELS: Record<string, string> = {
   manual:                   "Manual",
@@ -55,9 +56,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
 };
 
 const RUN_STATUS_CONFIG: Record<string, { color: string; icon: React.ElementType }> = {
-  running:   { color: "text-blue-400",    icon: Loader2 },
-  completed: { color: "text-emerald-400", icon: CheckCircle2 },
-  failed:    { color: "text-red-400",     icon: XCircle },
+  running:   { color: "text-blue-400",         icon: Loader2 },
+  completed: { color: "text-emerald-400",      icon: CheckCircle2 },
+  failed:    { color: "text-red-400",          icon: XCircle },
   skipped:   { color: "text-muted-foreground", icon: Clock },
 };
 
@@ -96,18 +97,19 @@ export function WorkflowEnginePage() {
   const runsQ      = useQuery({ queryKey: ["workflow-runs"],            queryFn: () => listRunsFn(),      throwOnError: false });
   const statsQ     = useQuery({ queryKey: ["workflow-engine-stats"],    queryFn: () => statsFn(),         throwOnError: false });
 
-  const [search,      setSearch]      = useState("");
-  const [createOpen,  setCreateOpen]  = useState(false);
-  const [newForm,     setNewForm]     = useState({ name: "", description: "", trigger_type: "manual", template_id: "" });
-  const [triggeringId, setTriggeringId] = useState<string | null>(null);
+  const [search,        setSearch]        = useState("");
+  const [createOpen,    setCreateOpen]    = useState(false);
+  const [newForm,       setNewForm]       = useState({ name: "", description: "", trigger_type: "manual", template_id: "" });
+  const [triggeringId,  setTriggeringId]  = useState<string | null>(null);
+  const [builderWf,     setBuilderWf]     = useState<WorkspaceWorkflow | null>(null);
 
-  const templates: any[] = (templatesQ.data ?? []).filter((t: any) => t.status === "published");
+  const templates: any[]          = (templatesQ.data ?? []).filter((t: any) => t.status === "published");
   const workflows: WorkspaceWorkflow[] = workflowsQ.data ?? [];
-  const runs: WorkflowRun[] = runsQ.data ?? [];
-  const stats = statsQ.data;
+  const runs: WorkflowRun[]       = runsQ.data ?? [];
+  const stats                     = statsQ.data;
 
   const filtered = workflows.filter(w =>
-    !search || w.name.toLowerCase().includes(search.toLowerCase())
+    !search || w.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   const createMut = useMutation({
@@ -134,7 +136,7 @@ export function WorkflowEnginePage() {
       qc.invalidateQueries({ queryKey: ["workspace-workflows"] });
       qc.invalidateQueries({ queryKey: ["workflow-engine-stats"] });
     },
-    onError: (e: any) => toast.error("Failed to update workflow", { description: e?.message }),
+    onError: (e: any) => toast.error("Failed to update", { description: e?.message }),
   });
 
   const deleteMut = useMutation({
@@ -151,13 +153,32 @@ export function WorkflowEnginePage() {
     setTriggeringId(id);
     try {
       const { run_id } = await triggerFn({ data: { workflow_id: id } });
-      toast.success("Workflow triggered", { description: `Run ID: ${run_id.slice(0, 8)}…` });
+      toast.success("Workflow triggered", { description: `Run ${run_id.slice(0, 8)}…` });
       qc.invalidateQueries({ queryKey: ["workflow-runs"] });
+      qc.invalidateQueries({ queryKey: ["workspace-workflows"] });
     } catch (e: any) {
       toast.error("Trigger failed", { description: e?.message });
     } finally {
       setTriggeringId(null);
     }
+  }
+
+  async function handleSaveFlow(wfId: string, flow: Record<string, unknown>) {
+    await updateFn({ data: { id: wfId, flow_definition: flow } });
+    qc.invalidateQueries({ queryKey: ["workspace-workflows"] });
+    toast.success("Flow saved");
+  }
+
+  // ── WorkflowBuilder fullscreen overlay ────────────────────────────────────
+  if (builderWf) {
+    return (
+      <WorkflowBuilder
+        workflowName={builderWf.name}
+        initialFlow={builderWf.flow_definition}
+        onSave={async (flow) => { await handleSaveFlow(builderWf.id, flow); setBuilderWf(null); }}
+        onClose={() => setBuilderWf(null)}
+      />
+    );
   }
 
   return (
@@ -177,20 +198,26 @@ export function WorkflowEnginePage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <StatCard label="Total Workflows"     value={stats.total_workflows}     icon={Zap}         color="bg-primary/10 text-primary" />
-          <StatCard label="Active"              value={stats.active_workflows}    icon={Activity}    color="bg-emerald-500/10 text-emerald-500" />
-          <StatCard label="Total Runs"          value={stats.total_runs}          icon={Play}        color="bg-blue-500/10 text-blue-500" />
+          <StatCard label="Total Workflows"     value={stats.total_workflows}     icon={Zap}          color="bg-primary/10 text-primary" />
+          <StatCard label="Active"              value={stats.active_workflows}    icon={Activity}     color="bg-emerald-500/10 text-emerald-500" />
+          <StatCard label="Total Runs"          value={stats.total_runs}          icon={Play}         color="bg-blue-500/10 text-blue-500" />
           <StatCard label="Successful"          value={stats.successful_runs}     icon={CheckCircle2} color="bg-emerald-500/10 text-emerald-500" />
-          <StatCard label="Failed"              value={stats.failed_runs}         icon={XCircle}     color="bg-red-500/10 text-red-500" />
-          <StatCard label="Templates Available" value={stats.published_templates} icon={TrendingUp}  color="bg-violet-500/10 text-violet-500" />
+          <StatCard label="Failed"              value={stats.failed_runs}         icon={XCircle}      color="bg-red-500/10 text-red-500" />
+          <StatCard label="Templates Available" value={stats.published_templates} icon={TrendingUp}   color="bg-violet-500/10 text-violet-500" />
         </div>
       )}
 
       <Tabs defaultValue="workflows">
         <TabsList>
-          <TabsTrigger value="workflows" className="gap-2"><Zap className="h-3.5 w-3.5" />Workflows ({workflows.length})</TabsTrigger>
-          <TabsTrigger value="runs" className="gap-2"><BarChart3 className="h-3.5 w-3.5" />Run History</TabsTrigger>
-          <TabsTrigger value="templates" className="gap-2"><Settings className="h-3.5 w-3.5" />Templates</TabsTrigger>
+          <TabsTrigger value="workflows" className="gap-2">
+            <Zap className="h-3.5 w-3.5" />Workflows ({workflows.length})
+          </TabsTrigger>
+          <TabsTrigger value="runs" className="gap-2">
+            <BarChart3 className="h-3.5 w-3.5" />Run History
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-2">
+            <Settings className="h-3.5 w-3.5" />Templates
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Workflows Tab ── */}
@@ -228,7 +255,7 @@ export function WorkflowEnginePage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">{wf.name}</span>
                         <Badge variant="outline" className={cn("text-[10px] gap-1", sc.color)}>
-                          <Icon className={cn("h-2.5 w-2.5", wf.status === "running" && "animate-spin")} />
+                          <Icon className={cn("h-2.5 w-2.5")} />
                           {sc.label}
                         </Badge>
                         <Badge variant="secondary" className="text-[10px]">
@@ -237,30 +264,45 @@ export function WorkflowEnginePage() {
                       </div>
                       <div className="flex gap-4 mt-0.5 text-xs text-muted-foreground">
                         {wf.description && <span className="truncate max-w-xs">{wf.description}</span>}
-                        <span>{wf.run_count} run{wf.run_count !== 1 ? "s" : ""}</span>
-                        {wf.last_run_at && <span>Last: {formatDistanceToNow(new Date(wf.last_run_at), { addSuffix: true })}</span>}
+                        <span>{wf.run_count ?? 0} run{wf.run_count !== 1 ? "s" : ""}</span>
+                        {wf.last_run_at && (
+                          <span>Last: {formatDistanceToNow(new Date(wf.last_run_at), { addSuffix: true })}</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      {/* Edit flow builder */}
+                      <Button
+                        size="sm" variant="outline" className="gap-1.5 h-7 text-xs"
+                        onClick={() => setBuilderWf(wf)}
+                      >
+                        <GitBranch className="h-3 w-3" /> Edit Flow
+                      </Button>
+                      {/* Run */}
                       <Button
                         size="sm" variant="outline" className="gap-1.5 h-7 text-xs"
                         onClick={() => handleTrigger(wf.id)}
                         disabled={triggeringId === wf.id}
                       >
-                        {triggeringId === wf.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                        {triggeringId === wf.id
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <Play className="h-3 w-3" />}
                         Run
                       </Button>
+                      {/* Activate/Pause */}
                       <Button
                         size="sm" variant="outline" className="gap-1.5 h-7 text-xs"
                         onClick={() => toggleMut.mutate({ id: wf.id, current: wf.status })}
                         disabled={toggleMut.isPending}
                       >
-                        {wf.status === "active" ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                        {wf.status === "active" ? "Pause" : "Activate"}
+                        {wf.status === "active"
+                          ? <><Pause className="h-3 w-3" /> Pause</>
+                          : <><Play className="h-3 w-3" /> Activate</>}
                       </Button>
+                      {/* Delete */}
                       <Button
                         size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => { if (confirm(`Delete workflow "${wf.name}"?`)) deleteMut.mutate(wf.id); }}
+                        onClick={() => { if (confirm(`Delete "${wf.name}"?`)) deleteMut.mutate(wf.id); }}
                         disabled={deleteMut.isPending}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -277,11 +319,20 @@ export function WorkflowEnginePage() {
         <TabsContent value="runs" className="mt-4">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-muted-foreground">Last 100 workflow runs across all workflows.</p>
-            <Button size="sm" variant="outline" onClick={() => qc.invalidateQueries({ queryKey: ["workflow-runs"] })} className="gap-1.5">
+            <Button
+              size="sm" variant="outline"
+              onClick={() => qc.invalidateQueries({ queryKey: ["workflow-runs"] })}
+              className="gap-1.5"
+            >
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </Button>
           </div>
-          {runsQ.isLoading && <div className="flex items-center gap-2 text-muted-foreground text-sm py-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading runs…</div>}
+
+          {runsQ.isLoading && (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm py-8">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading runs…
+            </div>
+          )}
           {!runsQ.isLoading && runs.length === 0 && (
             <div className="text-center py-16 text-muted-foreground">
               <Activity className="h-10 w-10 mx-auto mb-3 opacity-30" />
@@ -299,7 +350,9 @@ export function WorkflowEnginePage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 text-sm">
                       <span className="font-medium truncate">{run.workflow?.name ?? "Unknown"}</span>
-                      <Badge variant="secondary" className="text-[10px] shrink-0">{run.trigger_type ?? "manual"}</Badge>
+                      <Badge variant="secondary" className="text-[10px] shrink-0">
+                        {run.trigger_type ?? "manual"}
+                      </Badge>
                     </div>
                     {run.error && <p className="text-xs text-destructive mt-0.5 truncate">{run.error}</p>}
                   </div>
@@ -318,18 +371,26 @@ export function WorkflowEnginePage() {
           <p className="text-sm text-muted-foreground mb-4">
             Published platform templates — click to deploy to your workspace.
           </p>
-          {templatesQ.isLoading && <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>}
+          {templatesQ.isLoading && (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          )}
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map(t => (
-              <Card key={t.id} className="hover:border-primary/40 transition-colors cursor-pointer" onClick={() => {
-                setNewForm({
-                  name:         t.name,
-                  description:  t.description ?? "",
-                  trigger_type: t.trigger_type,
-                  template_id:  t.id,
-                });
-                setCreateOpen(true);
-              }}>
+              <Card
+                key={t.id}
+                className="hover:border-primary/40 transition-colors cursor-pointer"
+                onClick={() => {
+                  setNewForm({
+                    name:         t.name,
+                    description:  t.description ?? "",
+                    trigger_type: t.trigger_type,
+                    template_id:  t.id,
+                  });
+                  setCreateOpen(true);
+                }}
+              >
                 <CardHeader className="pb-2 pt-4">
                   <CardTitle className="text-sm">{t.name}</CardTitle>
                   {t.description && <CardDescription className="text-xs">{t.description}</CardDescription>}
@@ -339,7 +400,9 @@ export function WorkflowEnginePage() {
                     <Badge variant="secondary" className="text-[10px]">
                       {TRIGGER_LABELS[t.trigger_type] ?? t.trigger_type}
                     </Badge>
-                    {t.category && <Badge variant="outline" className="text-[10px]">{t.category.name}</Badge>}
+                    {t.category && (
+                      <Badge variant="outline" className="text-[10px]">{t.category.name}</Badge>
+                    )}
                     {(t.tags ?? []).slice(0, 2).map((tag: string) => (
                       <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
                     ))}
@@ -357,37 +420,56 @@ export function WorkflowEnginePage() {
           <DialogHeader>
             <DialogTitle>New Workflow</DialogTitle>
             <DialogDescription>
-              {newForm.template_id ? "Deploy this template to your workspace." : "Create a custom workflow from scratch."}
+              {newForm.template_id
+                ? "Deploy this template to your workspace."
+                : "Create a workflow from scratch."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>Workflow Name *</Label>
-              <Input value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. New Lead Qualification" />
+              <Input
+                value={newForm.name}
+                onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. New Lead Qualification"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
-              <Textarea rows={2} value={newForm.description} onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))} placeholder="What does this workflow do?" />
+              <Textarea
+                rows={2}
+                value={newForm.description}
+                onChange={e => setNewForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="What does this workflow do?"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Trigger</Label>
               <Select value={newForm.trigger_type} onValueChange={v => setNewForm(f => ({ ...f, trigger_type: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {Object.entries(TRIGGER_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                  {Object.entries(TRIGGER_LABELS).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             {newForm.template_id && (
               <div className="p-2 rounded-md border bg-muted/30 text-xs text-muted-foreground">
-                Using template — flow definition will be copied from the selected template.
+                Flow definition will be copied from the selected template.
+                You can edit it visually after creating.
               </div>
             )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={() => createMut.mutate()} disabled={createMut.isPending || !newForm.name.trim()}>
-              {createMut.isPending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Creating…</> : "Create Workflow"}
+            <Button
+              onClick={() => createMut.mutate()}
+              disabled={createMut.isPending || !newForm.name.trim()}
+            >
+              {createMut.isPending
+                ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Creating…</>
+                : "Create Workflow"}
             </Button>
           </DialogFooter>
         </DialogContent>
