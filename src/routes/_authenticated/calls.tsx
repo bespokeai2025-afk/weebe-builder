@@ -289,6 +289,7 @@ function CallsPage() {
   const [voicemailFilter, setVoicemailFilter] = useState<"exclude" | "all" | "only">(
     vm === "only" || vm === "all" ? vm : "exclude",
   );
+  const [daysFilter, setDaysFilter] = useState("30");
 
   const fn = useServerFn(listCalls);
   const q = useQuery({
@@ -357,7 +358,6 @@ function CallsPage() {
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
   const [search, setSearch] = useState("");
-  const [daysFilter, setDaysFilter] = useState("30");
   const [statusFilter, setStatusFilter] = useState("");
   const [callTypeFilter, setCallTypeFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");

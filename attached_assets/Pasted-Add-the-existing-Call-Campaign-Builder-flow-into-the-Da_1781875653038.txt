@@ -1,0 +1,172 @@
+Add the existing Call Campaign Builder flow into the Data section → Campaigns tab of the dashboard.
+
+This must use our WebespokeAI Dashboard API, not Retell directly.
+
+Relevant API endpoints available:
+- GET /agent/get-list
+- GET /agent/get-agents-with-voicemail
+- POST /campaigns
+- GET /campaigns
+- GET /campaigns/:id
+- PATCH /campaigns/:id
+- PATCH /campaigns/:id/pause
+- PATCH /campaigns/:id/resume
+- PATCH /campaigns/:id/voicemail
+- DELETE /campaigns/:id
+
+The campaign API supports creating campaigns with agent, lead_status filter, schedule, and voicemail settings. The agent API supports listing active agents and campaign-only agents. Use these endpoints exactly. 
+
+Scope:
+Only enable this feature for the Webuyanyhouse workspace.
+
+Do not:
+- Rebuild the dashboard
+- Create a new page
+- Change unrelated Data, Leads, Calls, Qualified, or Analytics logic
+- Call Retell directly from the frontend
+- Expose API tokens in browser code
+
+Build this inside the existing Data window Campaigns section.
+
+Required UI:
+
+1. Campaigns overview screen
+- Header: “Call Scheduling”
+- Subtext: “Automate outbound calls based on lead status and schedule”
+- Button: “Create Call Campaign”
+- KPI cards:
+  - Total Campaigns
+  - Active Campaigns
+  - Daily Campaigns
+  - Custom Interval
+- Search input for campaigns
+- Campaign cards showing:
+  - campaign name
+  - lead status
+  - agent ID or agent name
+  - schedule
+  - timezone
+  - frequency
+  - active/paused badge
+  - voicemail on/off
+  - edit button
+  - pause/resume button
+  - delete button
+
+2. Create Call Campaign screen
+Use the layout shown in the screenshots:
+- Back to Call Scheduling
+- Title: “Create Call Campaign”
+- Campaign Details section:
+  - Campaign Name input
+  - Select Call Agent dropdown
+- Lead Targeting section:
+  - Target Lead Status dropdown
+  - Options:
+    - All Leads (no filter)
+    - New
+    - Disqualified
+    - Tried to Contact
+    - Qualified
+    - Contacted
+- Schedule Configuration section:
+  - Call Time
+  - Timezone dropdown, default Europe/London / London GMT/BST
+  - Call Frequency toggle:
+    - Daily
+    - Custom Interval
+  - If Custom Interval selected, allow interval days input
+- Voicemail toggle if supported
+- Create Campaign button
+- Cancel button
+
+Agent dropdown:
+- Fetch agents server-side from:
+  GET {WEBESPOKE_DASHBOARD_API_BASE_URL}/agent/get-list?campaign_only=true
+- If campaign_only fails, fallback to:
+  GET {WEBESPOKE_DASHBOARD_API_BASE_URL}/agent/get-list
+- Normalize returned agents into:
+  id
+  name
+  status
+  provider
+  phone_number
+  voicemail_enabled
+- Show agent name where possible, but store agent ID for campaign creation.
+- Add loading, empty, and error states.
+- Add manual Refresh Agents button.
+
+Campaign list:
+- Fetch campaigns server-side from:
+  GET {WEBESPOKE_DASHBOARD_API_BASE_URL}/campaigns
+- Display only campaigns for the Webuyanyhouse workspace.
+- Add loading, empty, and error states.
+
+Create campaign:
+- On submit, call server-side:
+  POST {WEBESPOKE_DASHBOARD_API_BASE_URL}/campaigns
+- Payload should include:
+  campaign_name
+  agent_id
+  lead_status
+  call_time
+  timezone
+  frequency_type: daily or custom
+  interval_days if custom
+  voicemail_enabled
+  workspace_id / account identifier if required by existing API auth/session
+- After successful creation:
+  - return to campaigns overview
+  - refresh campaign list
+  - show success toast
+
+Campaign actions:
+- Pause:
+  PATCH /campaigns/:id/pause
+- Resume:
+  PATCH /campaigns/:id/resume
+- Toggle voicemail:
+  PATCH /campaigns/:id/voicemail
+- Delete:
+  DELETE /campaigns/:id
+- Edit:
+  open same campaign builder populated with existing values and save using PATCH /campaigns/:id
+
+Backend/security:
+- All external WebespokeAI API calls must happen server-side only.
+- Load WEBESPOKE_DASHBOARD_API_BASE_URL and WEBESPOKE_DASHBOARD_API_TOKEN from server env or existing workspace settings.
+- Never expose the bearer token to the browser.
+- Verify authenticated user belongs to the workspace.
+- Verify current workspace is Webuyanyhouse before allowing fetch/create/update/delete.
+- If current workspace is not Webuyanyhouse, hide this whole campaign builder feature.
+- Add safe errors for:
+  - missing base URL
+  - missing token
+  - non-200 API response
+  - invalid response shape
+  - no agents found
+  - no campaigns found
+
+Important:
+The Campaigns tab should now be able to both:
+1. View agents from our WebespokeAI Dashboard API
+2. Use a selected agent to create/initiate scheduled call campaigns through our campaign API
+
+Keep styling consistent with the screenshots:
+- dark dashboard cards
+- rounded panels
+- blue primary button
+- same spacing and form layout
+- full-width dropdowns
+- clean enterprise layout
+
+Acceptance checks:
+- Webuyanyhouse workspace can see Campaigns section.
+- Other workspaces cannot see it.
+- Agent dropdown loads from /agent/get-list.
+- Campaigns load from /campaigns.
+- Creating a campaign sends POST /campaigns with selected agent and lead targeting.
+- Created campaign appears in the campaign list.
+- Pause/resume/delete/voicemail actions work.
+- Browser network tab never shows API token.
+- No unrelated dashboard behaviour changes.
