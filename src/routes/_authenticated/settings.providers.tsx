@@ -73,6 +73,7 @@ function WebespokeEnterpriseSection() {
     queryKey: ["wbs-enterprise-status"],
     queryFn:  () => getStatusFn(),
     refetchInterval: 60_000,
+    throwOnError: false,
   });
 
   const serverStatus = statusQ.data?.status ?? "disconnected";
@@ -1029,12 +1030,14 @@ function ProvidersSettingsPage() {
     queryKey: ["provider-registry"],
     queryFn: () => getFn(),
     staleTime: 60_000,
+    throwOnError: false,
   });
 
   const { data: usageStats } = useQuery({
     queryKey: ["provider-usage-stats"],
     queryFn: () => getStatsFn(),
     staleTime: 120_000,
+    throwOnError: false,
   });
 
   const mutation = useMutation({
