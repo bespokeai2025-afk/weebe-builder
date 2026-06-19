@@ -411,31 +411,26 @@ async function upsertCategorizedLeads(
 
   let imported = 0, updated = 0, failed = 0;
 
-  // Insert new records in batches
+  // Atomic upsert keyed on the (workspace_id, external_lead_id) unique index.
+  // This is idempotent and safe against concurrent runs (manual Sync overlapping
+  // with the scheduled plugin tick) — a conflict updates the existing row rather
+  // than failing the whole batch. imported/updated counts are derived from the
+  // pre-existing id map computed above.
+  const upsertable = [...toInsert, ...toUpdate];
   const BATCH = 200;
-  for (let i = 0; i < toInsert.length; i += BATCH) {
-    const { error } = await (sb as any).from("wbah_categorized_leads").insert(toInsert.slice(i, i + BATCH));
+  for (let i = 0; i < upsertable.length; i += BATCH) {
+    const batch = upsertable.slice(i, i + BATCH);
+    const { error } = await (sb as any)
+      .from("wbah_categorized_leads")
+      .upsert(batch, { onConflict: "workspace_id,external_lead_id" });
     if (error) {
-      console.error(`[wbah-category-sync] insert error:`, error.message);
-      failed += toInsert.slice(i, i + BATCH).length;
+      console.error(`[wbah-category-sync] upsert error:`, error.message);
+      failed += batch.length;
     } else {
-      imported += toInsert.slice(i, i + BATCH).length;
-    }
-  }
-
-  // Update existing records in batches
-  for (let i = 0; i < toUpdate.length; i += BATCH) {
-    const batch = toUpdate.slice(i, i + BATCH);
-    const results = await Promise.allSettled(
-      batch.map(row => {
-        const id = existingMap.get(row.external_lead_id)!;
-        const { external_lead_id: _eid, workspace_id: _wid, ...updateData } = row;
-        return (sb as any).from("wbah_categorized_leads").update(updateData).eq("id", id);
-      })
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled" && !r.value.error) updated++;
-      else failed++;
+      for (const row of batch) {
+        if (existingMap.has(row.external_lead_id)) updated++;
+        else imported++;
+      }
     }
   }
 

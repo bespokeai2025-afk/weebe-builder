@@ -138,17 +138,16 @@ export const getOverviewStats = createServerFn({ method: "POST" })
         .from("calendar_bookings" as never)
         .select("id, status, start_at")
         .eq("workspace_id", workspaceId),
-      // For WBAH: "qualified" = positive sentiment + open + within date window
+      // For WBAH: "qualified" = positive sentiment (all-time) — matches the
+      // Qualified page (listQualifiedLeads + its frontend positive filter) so the
+      // dashboard KPI and the page it links to always show the same count.
       (() => {
         if (isWbah) {
-          let q = (supabase as any)
+          return (supabase as any)
             .from("leads" as never)
             .select("id", { count: "exact", head: true })
             .eq("workspace_id", workspaceId)
-            .eq("sentiment", "positive")
-            .neq("status", "not_interested");
-          if (cutoffISO) q = q.gte("created_at", cutoffISO);
-          return q;
+            .eq("sentiment", "positive");
         }
         return (supabase as any)
           .from("leads" as never)

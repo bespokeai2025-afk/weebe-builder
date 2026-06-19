@@ -44,7 +44,7 @@ import {
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
-import { listWbahLeadsForPeople, listWbahDisqualifiedFromApi, listWbahCallsFromDb } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahLeadsForPeople, listWbahCallsFromDb, listWbahCategorizedLeads, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -53,6 +53,21 @@ export const Route = createFileRoute("/_authenticated/data")({
 });
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const WBAH_CATEGORY_TABS = ["disqualified", "tried_to_contact", "rebooking"] as const;
+type WbahCategoryTab = typeof WBAH_CATEGORY_TABS[number];
+
+function wbahSyncAgo(iso?: string | null): string {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(diff)) return "";
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
 const CALL_STATUSES = [
   { value: "all", label: "All statuses" },
@@ -441,6 +456,15 @@ function DataPage() {
   const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]);
   const [wbahCallsLoading, setWbahCallsLoading]       = useState(false);
   const [wbahCallsError, setWbahCallsError]           = useState<string | null>(null);
+  const [wbahTtcData, setWbahTtcData]                 = useState<any[]>([]);
+  const [wbahTtcLoading, setWbahTtcLoading]           = useState(false);
+  const [wbahTtcError, setWbahTtcError]               = useState<string | null>(null);
+  const [wbahRbData, setWbahRbData]                   = useState<any[]>([]);
+  const [wbahRbLoading, setWbahRbLoading]             = useState(false);
+  const [wbahRbError, setWbahRbError]                 = useState<string | null>(null);
+  const [wbahCatSyncLog, setWbahCatSyncLog]           = useState<Record<string, any> | null>(null);
+  const [wbahCatSyncing, setWbahCatSyncing]           = useState<string | null>(null);
+  const [wbahCanSync, setWbahCanSync]                 = useState(false);
   const [wbahPeopleSubTab, setWbahPeopleSubTab]       = useState<string>("leads");
   const [wbahPeopleSearch, setWbahPeopleSearch]       = useState("");
   const [wbahSelected, setWbahSelected]               = useState<Set<string>>(new Set());
@@ -468,8 +492,11 @@ function DataPage() {
   const fetchQualifiedLeadsFn = useServerFn(fetchQualifiedLeads);
   const setStatusFn = useServerFn(setRecordCallStatus);
   const listWbahLeadsForPeopleFn      = useServerFn(listWbahLeadsForPeople);
-  const listWbahDisqualifiedFromApiFn = useServerFn(listWbahDisqualifiedFromApi);
   const listWbahCallsFromDbFn         = useServerFn(listWbahCallsFromDb);
+  const listWbahCategorizedLeadsFn    = useServerFn(listWbahCategorizedLeads);
+  const triggerWbahCategorySyncFn     = useServerFn(triggerWbahCategorySync);
+  const getWbahCategorySyncLogFn      = useServerFn(getWbahCategorySyncLog);
+  const getWbahCategorySyncAccessFn   = useServerFn(getWbahCategorySyncAccess);
   const qc = useQueryClient();
 
   const filters = useMemo(() => {
@@ -537,6 +564,26 @@ function DataPage() {
     });
   }, [wbahDqData, wbahPeopleSearch]);
 
+  const wbahTtcFiltered = useMemo(() => {
+    return wbahTtcData.filter(r => {
+      if (wbahPeopleSearch) {
+        const q = wbahPeopleSearch.toLowerCase();
+        if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
+      }
+      return true;
+    });
+  }, [wbahTtcData, wbahPeopleSearch]);
+
+  const wbahRbFiltered = useMemo(() => {
+    return wbahRbData.filter(r => {
+      if (wbahPeopleSearch) {
+        const q = wbahPeopleSearch.toLowerCase();
+        if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
+      }
+      return true;
+    });
+  }, [wbahRbData, wbahPeopleSearch]);
+
   const wbahCallsFiltered = useMemo(() => {
     return wbahCallsData.map((r: any, idx: number) => ({
       id:                  r.id,
@@ -570,6 +617,8 @@ function DataPage() {
   const recordsPag = useTablePagination(records);
   const wbahPag    = useTablePagination(wbahFiltered);
   const wbahDqPag    = useTablePagination(wbahDqFiltered);
+  const wbahTtcPag   = useTablePagination(wbahTtcFiltered);
+  const wbahRbPag    = useTablePagination(wbahRbFiltered);
   const wbahCallsPag = useTablePagination(wbahCallsFiltered);
   const crmPag     = useTablePagination(crmPeople);
 
@@ -844,16 +893,87 @@ function DataPage() {
     }
   }
 
-  async function handleFetchWbahDq() {
-    setWbahDqLoading(true);
-    setWbahDqError(null);
+  function mapWbahCatRow(r: any, idx: number) {
+    const raw = (r.meta?.raw_lead ?? {}) as any;
+    return {
+      id:                  r.id,
+      srNo:                idx + 1,
+      name:                r.full_name,
+      contact:             r.phone,
+      email:               r.email,
+      callType:            r.external_status_label ?? "Lead",
+      callStatus:          raw.callStatus ?? null,
+      sentimentAnalysis:   raw.sentimentAnalysis ?? null,
+      disconnectionReason: raw.disconnectionReason ?? null,
+      appointmentDate:     r.meta?.appointment_date ?? raw.appointment_date ?? null,
+      appointmentTime:     raw.appointment_time ?? null,
+      bookingStatus:       r.meta?.booking_status ?? raw.booking_status ?? null,
+      calendlyBookingUrl:  raw.calendly_booking_url ?? null,
+      agentName:           raw.agentName ?? null,
+      startTimestamp:      raw.startTimestamp ? Number(raw.startTimestamp) : null,
+      durationMs:          raw.durationMs ? Number(raw.durationMs) : null,
+      recordingUrl:        r.meta?.recording_url ?? raw.recordingUrl ?? null,
+      transcript:          raw.transcript ?? null,
+      endReason:           raw.endReason ?? null,
+    };
+  }
+
+  const WBAH_CAT_SETTERS: Record<WbahCategoryTab, {
+    setData: (v: any[]) => void; setLoading: (v: boolean) => void; setError: (v: string | null) => void;
+  }> = {
+    disqualified:     { setData: setWbahDqData,  setLoading: setWbahDqLoading,  setError: setWbahDqError },
+    tried_to_contact: { setData: setWbahTtcData, setLoading: setWbahTtcLoading, setError: setWbahTtcError },
+    rebooking:        { setData: setWbahRbData,  setLoading: setWbahRbLoading,  setError: setWbahRbError },
+  };
+
+  async function handleFetchWbahCategory(cat: WbahCategoryTab) {
+    const s = WBAH_CAT_SETTERS[cat];
+    s.setLoading(true);
+    s.setError(null);
     try {
-      const rows = await listWbahDisqualifiedFromApiFn();
-      setWbahDqData(rows as any[]);
+      const all: any[] = [];
+      let page = 1;
+      const limit = 200;
+      for (;;) {
+        const res = await listWbahCategorizedLeadsFn({ data: { category: cat, page, limit } });
+        const rows = ((res as any)?.rows ?? []) as any[];
+        all.push(...rows);
+        if (rows.length < limit || page >= 50) break;
+        page += 1;
+      }
+      s.setData(all.map(mapWbahCatRow));
     } catch (err) {
-      setWbahDqError((err as Error).message);
+      s.setError((err as Error).message);
     } finally {
-      setWbahDqLoading(false);
+      s.setLoading(false);
+    }
+  }
+
+  async function handleFetchWbahDq() {
+    await handleFetchWbahCategory("disqualified");
+  }
+
+  async function handleFetchWbahCatSyncLog() {
+    try {
+      const log = await getWbahCategorySyncLogFn();
+      setWbahCatSyncLog(log as Record<string, any>);
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  async function handleTriggerWbahCatSync(cat: WbahCategoryTab | "all") {
+    setWbahCatSyncing(cat);
+    try {
+      await triggerWbahCategorySyncFn({ data: { category: cat } });
+      toast.success(cat === "all" ? "All categories synced" : "Category synced");
+      await handleFetchWbahCatSyncLog();
+      const cats: WbahCategoryTab[] = cat === "all" ? [...WBAH_CATEGORY_TABS] : [cat];
+      for (const c of cats) await handleFetchWbahCategory(c);
+    } catch (err) {
+      toast.error("Sync failed", { description: (err as Error).message });
+    } finally {
+      setWbahCatSyncing(null);
     }
   }
 
@@ -881,7 +1001,19 @@ function DataPage() {
     setWbahSelected(new Set());
     setWbahQualAgentId("");
     if (wbahPeopleSubTab === "disqualified" && wbahDqData.length === 0 && !wbahDqLoading) {
-      handleFetchWbahDq();
+      handleFetchWbahCategory("disqualified");
+    }
+    if (wbahPeopleSubTab === "tried_to_contact" && wbahTtcData.length === 0 && !wbahTtcLoading) {
+      handleFetchWbahCategory("tried_to_contact");
+    }
+    if (wbahPeopleSubTab === "rebooking" && wbahRbData.length === 0 && !wbahRbLoading) {
+      handleFetchWbahCategory("rebooking");
+    }
+    if ((WBAH_CATEGORY_TABS as readonly string[]).includes(wbahPeopleSubTab)) {
+      handleFetchWbahCatSyncLog();
+      getWbahCategorySyncAccessFn()
+        .then(res => setWbahCanSync(!!(res as any)?.canSync))
+        .catch(() => setWbahCanSync(false));
     }
     if (wbahPeopleSubTab === "calls" && wbahCallsData.length === 0 && !wbahCallsLoading) {
       handleFetchWbahCalls();
@@ -1264,14 +1396,19 @@ function DataPage() {
             {/* ── CRM section sub-tabs ────────────────────────────────────── */}
             <div className="flex items-center gap-0 border-b border-white/[0.06] px-4 overflow-x-auto">
               {([
-                { id: "leads",        label: "Leads" },
-                { id: "disqualified", label: "Disqualified" },
-                { id: "calls",        label: "Calls" },
+                { id: "leads",            label: "Leads" },
+                { id: "disqualified",     label: "Disqualified" },
+                { id: "tried_to_contact", label: "Tried To Contact" },
+                { id: "rebooking",        label: "Rebooking" },
+                { id: "calls",            label: "Calls" },
               ] as { id: string; label: string }[]).map(tab => {
                 const cnt = tab.id === "leads" ? wbahCallData.length
                           : tab.id === "disqualified" ? wbahDqData.length
+                          : tab.id === "tried_to_contact" ? wbahTtcData.length
+                          : tab.id === "rebooking" ? wbahRbData.length
                           : tab.id === "calls" ? wbahCallsData.length
                           : 0;
+                const isCatTab = tab.id === "disqualified" || tab.id === "tried_to_contact" || tab.id === "rebooking";
                 return (
                   <button
                     key={tab.id}
@@ -1286,7 +1423,10 @@ function DataPage() {
                     {tab.label}
                     {cnt > 0 && (
                       <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        tab.id === "disqualified" ? "bg-rose-500/20 text-rose-400" : "bg-muted/60 text-muted-foreground"
+                        tab.id === "disqualified" ? "bg-rose-500/20 text-rose-400"
+                        : tab.id === "tried_to_contact" ? "bg-amber-500/20 text-amber-400"
+                        : tab.id === "rebooking" ? "bg-violet-500/20 text-violet-400"
+                        : "bg-muted/60 text-muted-foreground"
                       }`}>{cnt}</span>
                     )}
                   </button>
@@ -1297,9 +1437,14 @@ function DataPage() {
             <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
               <div className="flex items-center gap-3 flex-wrap">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  {wbahPeopleSubTab === "disqualified" ? "Disqualified Leads" : wbahPeopleSubTab === "calls" ? "Calls" : "All Leads"}
+                  {wbahPeopleSubTab === "disqualified" ? "Disqualified Leads"
+                    : wbahPeopleSubTab === "tried_to_contact" ? "Tried To Contact"
+                    : wbahPeopleSubTab === "rebooking" ? "Rebooking"
+                    : wbahPeopleSubTab === "calls" ? "Calls" : "All Leads"}
                   {(() => {
                     const total = wbahPeopleSubTab === "disqualified" ? wbahDqData.length
+                                : wbahPeopleSubTab === "tried_to_contact" ? wbahTtcData.length
+                                : wbahPeopleSubTab === "rebooking" ? wbahRbData.length
                                 : wbahPeopleSubTab === "calls" ? wbahCallsData.length
                                 : wbahCallData.length;
                     return total > 0 ? (
@@ -1315,7 +1460,7 @@ function DataPage() {
                   )}
                 </p>
                 {/* Search */}
-                {(wbahCallData.length > 0 || wbahDqData.length > 0 || wbahCallsData.length > 0) && (
+                {(wbahCallData.length > 0 || wbahDqData.length > 0 || wbahTtcData.length > 0 || wbahRbData.length > 0 || wbahCallsData.length > 0) && (
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
                     <input
@@ -1401,14 +1546,46 @@ function DataPage() {
                     {wbahCallData.length > 0 ? "Refresh" : "Load Leads"}
                   </Button>
                 )}
-                {wbahPeopleSubTab === "disqualified" && (
-                  <Button variant="outline" size="sm" className="h-7 text-xs"
-                    onClick={handleFetchWbahDq} disabled={wbahDqLoading}
-                  >
-                    <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${wbahDqLoading ? "animate-spin" : ""}`} />
-                    {wbahDqData.length > 0 ? "Refresh" : "Load Disqualified"}
-                  </Button>
-                )}
+                {(WBAH_CATEGORY_TABS as readonly string[]).includes(wbahPeopleSubTab) && (() => {
+                  const cat = wbahPeopleSubTab as WbahCategoryTab;
+                  const loading = cat === "disqualified" ? wbahDqLoading : cat === "tried_to_contact" ? wbahTtcLoading : wbahRbLoading;
+                  const log = wbahCatSyncLog?.[cat];
+                  const syncBusy = !!wbahCatSyncing;
+                  const thisSyncing = wbahCatSyncing === cat || wbahCatSyncing === "all";
+                  return (
+                    <>
+                      {log?.synced_at && (
+                        <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                          Last sync {wbahSyncAgo(log.synced_at)}
+                        </span>
+                      )}
+                      <Button variant="outline" size="sm" className="h-7 text-xs"
+                        onClick={() => handleFetchWbahCategory(cat)} disabled={loading}
+                      >
+                        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                        Refresh
+                      </Button>
+                      {wbahCanSync && (
+                        <>
+                          <Button size="sm" className="h-7 text-xs"
+                            onClick={() => handleTriggerWbahCatSync(cat)} disabled={syncBusy}
+                            title="Pull the latest leads for this category from WeeBespoke (admin only)"
+                          >
+                            {thisSyncing ? <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}
+                            Sync
+                          </Button>
+                          <Button size="sm" variant="outline" className="h-7 text-xs"
+                            onClick={() => handleTriggerWbahCatSync("all")} disabled={syncBusy}
+                            title="Sync all three categories from WeeBespoke (admin only)"
+                          >
+                            {wbahCatSyncing === "all" ? <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                            Sync All
+                          </Button>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
                 {wbahPeopleSubTab === "calls" && (
                   <Button variant="outline" size="sm" className="h-7 text-xs"
                     onClick={handleFetchWbahCalls} disabled={wbahCallsLoading}
@@ -1424,20 +1601,24 @@ function DataPage() {
             {(() => {
               const isLeads = wbahPeopleSubTab === "leads";
               const isDq    = wbahPeopleSubTab === "disqualified";
+              const isTtc   = wbahPeopleSubTab === "tried_to_contact";
+              const isRb    = wbahPeopleSubTab === "rebooking";
               const isCalls = wbahPeopleSubTab === "calls";
+              const isCat   = isDq || isTtc || isRb;
 
-              const loading = isLeads ? wbahCallDataLoading : isDq ? wbahDqLoading : wbahCallsLoading;
-              const error   = isLeads ? wbahCallDataError   : isDq ? wbahDqError   : wbahCallsError;
-              const empty   = isLeads ? wbahCallData.length === 0 : isDq ? wbahDqData.length === 0 : wbahCallsData.length === 0;
-              const onLoad  = isLeads ? handleFetchWbahCallData : isDq ? handleFetchWbahDq : handleFetchWbahCalls;
-              const loadLabel = isLeads ? "Load Leads" : isDq ? "Load Disqualified" : "Load Calls";
-              const rows    = isLeads ? wbahFiltered : isDq ? wbahDqFiltered : wbahCallsFiltered;
-              const pag     = isLeads ? wbahPag : isDq ? wbahDqPag : wbahCallsPag;
+              const loading = isLeads ? wbahCallDataLoading : isDq ? wbahDqLoading : isTtc ? wbahTtcLoading : isRb ? wbahRbLoading : wbahCallsLoading;
+              const error   = isLeads ? wbahCallDataError   : isDq ? wbahDqError   : isTtc ? wbahTtcError   : isRb ? wbahRbError   : wbahCallsError;
+              const empty   = isLeads ? wbahCallData.length === 0 : isDq ? wbahDqData.length === 0 : isTtc ? wbahTtcData.length === 0 : isRb ? wbahRbData.length === 0 : wbahCallsData.length === 0;
+              const onLoad  = isLeads ? handleFetchWbahCallData : isDq ? () => handleFetchWbahCategory("disqualified") : isTtc ? () => handleFetchWbahCategory("tried_to_contact") : isRb ? () => handleFetchWbahCategory("rebooking") : handleFetchWbahCalls;
+              const loadLabel = isLeads ? "Load Leads" : isDq ? "Load Disqualified" : isTtc ? "Load Tried To Contact" : isRb ? "Load Rebooking" : "Load Calls";
+              const rows    = isLeads ? wbahFiltered : isDq ? wbahDqFiltered : isTtc ? wbahTtcFiltered : isRb ? wbahRbFiltered : wbahCallsFiltered;
+              const pag     = isLeads ? wbahPag : isDq ? wbahDqPag : isTtc ? wbahTtcPag : isRb ? wbahRbPag : wbahCallsPag;
+              const loadingNoun = isLeads ? "leads" : isDq ? "disqualified records" : isTtc ? "tried-to-contact records" : isRb ? "rebooking records" : "calls";
 
               if (loading) return (
                 <div className="flex flex-col items-center justify-center gap-3 py-20 text-sm text-muted-foreground">
                   <RefreshCw className="h-5 w-5 animate-spin" />
-                  <span>Loading {isLeads ? "leads" : isDq ? "disqualified records" : "calls"}…</span>
+                  <span>Loading {loadingNoun}…</span>
                 </div>
               );
               if (error) return (
@@ -1461,12 +1642,23 @@ function DataPage() {
 
               return (
                 <div className="overflow-x-auto">
-                  {isDq && (
-                    <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/5 border-b border-rose-500/10 text-[11px] text-rose-400">
-                      <AlertCircle className="h-3 w-3" />
-                      Disqualified leads from WeeBespoke — {rows.length} record{rows.length !== 1 ? "s" : ""}
-                    </div>
-                  )}
+                  {isCat && (() => {
+                    const cat   = isDq ? "disqualified" : isTtc ? "tried_to_contact" : "rebooking";
+                    const label = isDq ? "Disqualified" : isTtc ? "Tried To Contact" : "Rebooking";
+                    const tone  = isDq ? "bg-rose-500/5 border-rose-500/10 text-rose-400"
+                                : isTtc ? "bg-amber-500/5 border-amber-500/10 text-amber-400"
+                                : "bg-violet-500/5 border-violet-500/10 text-violet-400";
+                    const log   = wbahCatSyncLog?.[cat];
+                    return (
+                      <div className={`flex flex-wrap items-center gap-2 px-4 py-2 border-b text-[11px] ${tone}`}>
+                        <AlertCircle className="h-3 w-3" />
+                        <span>{label} leads from WeeBespoke — {rows.length} record{rows.length !== 1 ? "s" : ""}</span>
+                        {log?.synced_at && (
+                          <span className="opacity-70">· last synced {wbahSyncAgo(log.synced_at)}{typeof log.imported === "number" ? ` (${log.imported} imported)` : ""}</span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-card/30">

@@ -51,3 +51,30 @@ CREATE TABLE IF NOT EXISTS wbah_category_sync_log (
 
 CREATE INDEX IF NOT EXISTS wbah_category_sync_log_workspace_category_idx
   ON wbah_category_sync_log (workspace_id, category, synced_at DESC);
+
+-- ── 3. Row Level Security ─────────────────────────────────────────────────────
+-- These tables hold lead PII. Writes happen server-side via the service-role
+-- client (which bypasses RLS), so we only grant SELECT to workspace members —
+-- mirroring the existing wbah_calls policy. No anon INSERT/UPDATE/DELETE.
+
+ALTER TABLE wbah_categorized_leads ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "workspace members can view wbah_categorized_leads" ON wbah_categorized_leads;
+CREATE POLICY "workspace members can view wbah_categorized_leads"
+  ON wbah_categorized_leads FOR SELECT
+  USING (
+    workspace_id IN (
+      SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    )
+  );
+
+ALTER TABLE wbah_category_sync_log ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "workspace members can view wbah_category_sync_log" ON wbah_category_sync_log;
+CREATE POLICY "workspace members can view wbah_category_sync_log"
+  ON wbah_category_sync_log FOR SELECT
+  USING (
+    workspace_id IN (
+      SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
+    )
+  );

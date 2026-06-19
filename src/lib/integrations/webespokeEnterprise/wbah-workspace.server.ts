@@ -1525,6 +1525,18 @@ export const getWbahCategorySyncLog = createServerFn({ method: "GET" })
     } | null>;
   });
 
+// ── getWbahCategorySyncAccess ──────────────────────────────────────────────────
+// Lets the UI know whether the current user may trigger a category sync, so the
+// admin-only Sync / Sync All controls can be hidden from non-admins. The real
+// enforcement still lives in triggerWbahCategorySync (server-side).
+
+export const getWbahCategorySyncAccess = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const isAdmin = await isPlatformAdmin(context.userId);
+    return { canSync: isAdmin };
+  });
+
 // ── WBAH seller leads from DB (synced by wbah-leads-sync plugin) ──────────────
 // Reads from the standard `leads` table filtered by source_detail="webespoke_enterprise"
 // and excludes CRM contact rows (wbah_source="crm"). This gives the 1568 seller leads.

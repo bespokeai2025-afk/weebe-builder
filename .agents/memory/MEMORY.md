@@ -46,3 +46,4 @@
 - [WBAH endpoint mapping](wbah-endpoint-mapping.md) — Calls page = POST /get-user-history (10,149, snake_case fields, pageSize hardcoded 10); Contacts/Leads = GET /get-userCall-lead (1,201); get-all-calldata (609) = CRM contacts, NOT call log.
 - [WBAH analytics dual-table pattern](wbah-analytics-dual-table.md) — getOverviewStats + getRetellAnalytics both need wbah_calls branch; calls table has 0 WBAH rows; wbah_calls has no is_voicemail field.
 - [Workflow Engine architecture](workflow-engine-arch.md) — 7-table schema (manual migration); WorkflowBuilder uses @xyflow/react; executor dispatches to real WEBEE systems; manualTriggerWorkflow is live not simulated.
+- [WBAH multi-category lead sync](wbah-category-sync.md) — dq/ttc/rebooking classification is heuristic (API lacks filter-status); new wbah_* PII tables MUST enable RLS (workspace-members SELECT, service-role writes); upsert onConflict (workspace_id,external_lead_id).
