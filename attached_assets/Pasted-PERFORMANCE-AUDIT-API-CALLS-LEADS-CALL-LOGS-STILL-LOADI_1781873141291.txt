@@ -1,0 +1,110 @@
+PERFORMANCE AUDIT: API CALLS, LEADS, CALL LOGS STILL LOADING TOO SLOWLY
+
+The project already has Upstash Redis integrated, but API calls/leads/call data still take too long to load.
+
+Do not rebuild pages.
+Do not change UI design.
+Do not change business logic.
+Do not remove Supabase as source of truth.
+Do not delete Redis logic.
+Do not change qualification/sentiment rules.
+
+Goal:
+Find exactly why dashboard pages are still slow when loading calls, leads, qualified leads, and API-sourced records.
+
+Audit and fix only the data loading path.
+
+Check these areas:
+
+1. Dashboard/page queries
+- Find every query used by:
+  - dashboard
+  - calls page
+  - leads page
+  - qualified page
+  - data page
+  - analytics widgets
+- Identify if pages are fetching all records instead of paginated records.
+- Identify duplicate queries firing on page load.
+- Identify client-side filtering over huge datasets.
+- Identify any query missing workspace_id filter.
+- Identify any query missing limit/range pagination.
+
+2. Supabase performance
+- Check whether queries use:
+  - workspace_id
+  - created_at
+  - agent_id
+  - status
+  - sentiment
+  - is_voicemail
+- Add safe indexes where needed.
+- Do not break RLS.
+- Do not change table structure unless required.
+
+3. Redis/Upstash usage
+- Confirm Redis is actually being read before Supabase/API calls.
+- Confirm cache keys include:
+  - workspace_id
+  - page/module
+  - filters
+  - pagination
+- Confirm cache TTL is not too short.
+- Confirm data is not being cached with unstable/random keys.
+- Confirm cache misses are logged.
+- Confirm Redis is not only being written to but never read.
+
+4. API Engine
+- Confirm external API calls are not being made on every page load.
+- Confirm API Engine uses cached results where appropriate.
+- Confirm pagination is respected.
+- Confirm total counts are cached separately from page rows.
+- Confirm source API is not being fully pulled just to show one page.
+
+5. Counts and analytics
+- Do not calculate dashboard totals by loading every row.
+- Replace full-table fetches with count queries or cached aggregate queries.
+- Cache expensive dashboard metrics separately.
+- Exclude is_voicemail=true from normal metrics by default.
+
+6. TanStack Query / frontend caching
+- Check staleTime and gcTime.
+- Prevent unnecessary refetch on window focus if causing repeated loads.
+- Ensure query keys include workspace_id and filters.
+- Avoid multiple components requesting the same data with different keys.
+
+7. Add loading diagnostics
+Add temporary dev-only logs showing:
+- page name
+- query key
+- cache hit/miss
+- Supabase query duration
+- API Engine duration
+- number of rows returned
+- whether pagination was used
+- total count returned
+
+8. Fix safely
+Implement minimal fixes only:
+- add pagination where missing
+- add limits where missing
+- add Redis read-before-fetch where missing
+- add indexes where clearly needed
+- cache aggregate counts separately
+- remove duplicate refetches
+- prevent full dataset pulls
+
+Expected result:
+- dashboard loads from cached aggregates first
+- calls/leads pages load paginated records only
+- external API is not called unless cache is stale or user refreshes
+- Supabase remains permanent source of truth
+- Redis remains temporary/cache layer
+
+After completing, report:
+- exact slow queries found
+- exact files changed
+- whether Redis was being used correctly
+- indexes added
+- before/after load behaviour
+- any remaining bottlenecks

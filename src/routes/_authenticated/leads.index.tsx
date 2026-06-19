@@ -195,6 +195,7 @@ function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
   const [callStatusFilter, setCallStatusFilter] = useState("");
+  const [wbahDaysFilter, setWbahDaysFilter] = useState("30");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
   const [qualAgentId, setQualAgentId] = useState<string>("");
@@ -301,6 +302,14 @@ function LeadsPage() {
         ? l.retell_call?.call_status
         : (isWbah ? l.meta?.call_status : null);
       if (cs !== callStatusFilter) return false;
+    }
+    if (isWbah && wbahDaysFilter !== "all") {
+      const days = parseInt(wbahDaysFilter, 10);
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      const dateStr = l.meta?.last_called_at ?? l.created_at ?? null;
+      if (!dateStr) return false;
+      const ts = new Date(dateStr).getTime();
+      if (isNaN(ts) || ts < cutoff) return false;
     }
     return true;
   });
@@ -588,6 +597,20 @@ function LeadsPage() {
                   <option value="failed">Failed</option>
                   <option value="no_answer">No Answer</option>
                   <option value="busy">Busy</option>
+                </select>
+              )}
+              {isWbah && (
+                <select
+                  value={wbahDaysFilter}
+                  onChange={(e) => setWbahDaysFilter(e.target.value)}
+                  className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                >
+                  <option value="7">Last 7 days</option>
+                  <option value="14">Last 14 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                  <option value="180">Last 6 months</option>
+                  <option value="all">All time</option>
                 </select>
               )}
               {hasLeadFilters && (
