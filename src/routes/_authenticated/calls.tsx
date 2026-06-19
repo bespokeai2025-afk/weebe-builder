@@ -236,6 +236,24 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
   );
 }
 
+function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
+  if (filter === "all") return {};
+  if (filter === "today") {
+    const d = new Date();
+    const from = new Date(d); from.setUTCHours(0, 0, 0, 0);
+    const to   = new Date(d); to.setUTCHours(23, 59, 59, 999);
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+  }
+  if (filter === "yesterday") {
+    const d = new Date(Date.now() - 86_400_000);
+    const from = new Date(d); from.setUTCHours(0, 0, 0, 0);
+    const to   = new Date(d); to.setUTCHours(23, 59, 59, 999);
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+  }
+  const days = parseInt(filter, 10);
+  return isNaN(days) ? {} : { dateFrom: new Date(Date.now() - days * 86_400_000).toISOString() };
+}
+
 function CallsPage() {
   const { vm } = useSearch({ from: "/_authenticated/calls" });
   const [tab, setTab] = useState<"live" | "test">("live");
@@ -274,8 +292,8 @@ function CallsPage() {
 
   const fn = useServerFn(listCalls);
   const q = useQuery({
-    queryKey:             ["calls", voicemailFilter],
-    queryFn:              () => fn({ data: { voicemailFilter } }),
+    queryKey:             ["calls", voicemailFilter, daysFilter],
+    queryFn:              () => { const dates = filterToDates(daysFilter); return fn({ data: { voicemailFilter, ...dates } }); },
     enabled:              !isWbah,
     staleTime:            3 * 60_000,
     refetchOnWindowFocus: false,
@@ -345,9 +363,7 @@ function CallsPage() {
   const [sentimentFilter, setSentimentFilter] = useState("");
 
   const filteredRows = useMemo(() => {
-    const cutoff = daysFilter !== "all"
-      ? Date.now() - parseInt(daysFilter, 10) * 24 * 60 * 60 * 1000
-      : null;
+    const { dateFrom: cutFrom, dateTo: cutTo } = filterToDates(daysFilter);
     return rows.filter((r: any) => {
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -358,11 +374,13 @@ function CallsPage() {
       if (statusFilter && r.call_status !== statusFilter) return false;
       if (callTypeFilter && r.call_type !== callTypeFilter) return false;
       if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
-      if (cutoff !== null) {
+      if (cutFrom || cutTo) {
         const dateStr = r.started_at ?? null;
         if (!dateStr) return false;
         const ts = new Date(dateStr).getTime();
-        if (isNaN(ts) || ts < cutoff) return false;
+        if (isNaN(ts)) return false;
+        if (cutFrom && ts < new Date(cutFrom).getTime()) return false;
+        if (cutTo && ts > new Date(cutTo).getTime()) return false;
       }
       return true;
     });
@@ -539,6 +557,8 @@ function CallsPage() {
               onChange={(e) => setDaysFilter(e.target.value)}
               className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
             >
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
               <option value="7">Last 7 days</option>
               <option value="14">Last 14 days</option>
               <option value="30">Last 30 days</option>

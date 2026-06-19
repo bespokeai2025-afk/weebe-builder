@@ -180,6 +180,24 @@ function statusDisplay(status: string | null) {
   return { value: status ?? "", label: status?.replace(/_/g, " ") ?? "—", color: "bg-muted text-muted-foreground ring-border" };
 }
 
+function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
+  if (filter === "all") return {};
+  if (filter === "today") {
+    const d = new Date();
+    const from = new Date(d); from.setUTCHours(0, 0, 0, 0);
+    const to   = new Date(d); to.setUTCHours(23, 59, 59, 999);
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+  }
+  if (filter === "yesterday") {
+    const d = new Date(Date.now() - 86_400_000);
+    const from = new Date(d); from.setUTCHours(0, 0, 0, 0);
+    const to   = new Date(d); to.setUTCHours(23, 59, 59, 999);
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+  }
+  const days = parseInt(filter, 10);
+  return isNaN(days) ? {} : { dateFrom: new Date(Date.now() - days * 86_400_000).toISOString() };
+}
+
 function LeadsPage() {
   const qc = useQueryClient();
   const listLeadsFn = useServerFn(listLeads);
@@ -238,10 +256,13 @@ function LeadsPage() {
   }
 
   const leadsQ = useQuery({
-    queryKey: ["leads-all"],
-    queryFn: () => listLeadsFn({ data: { limit: 5000 } }),
+    queryKey: ["leads-all", wbahDaysFilter],
+    queryFn: () => {
+      const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
+      return listLeadsFn({ data: { limit: 5000, dateFrom, dateTo } });
+    },
     staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     refetchInterval: 5 * 60 * 1000,
     throwOnError: false,
   });
@@ -317,17 +338,28 @@ function LeadsPage() {
       if (cs !== callStatusFilter) return false;
     }
     if (isWbah && wbahDaysFilter !== "all") {
-      const days = parseInt(wbahDaysFilter, 10);
-      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
       const dateStr = l.meta?.last_called_at ?? l.created_at ?? null;
       if (!dateStr) return false;
       const ts = new Date(dateStr).getTime();
-      if (isNaN(ts) || ts < cutoff) return false;
+      if (isNaN(ts)) return false;
+      if (dateFrom && ts < new Date(dateFrom).getTime()) return false;
+      if (dateTo && ts > new Date(dateTo).getTime()) return false;
     }
     return true;
   });
 
   const leadsPag = useTablePagination(filtered, 50);
+
+  useEffect(() => {
+    if (!leadsQ.isError) return;
+    const key = "leads-autoreload-ts";
+    const last = parseInt(sessionStorage.getItem(key) ?? "0");
+    if (Date.now() - last > 20_000) {
+      sessionStorage.setItem(key, String(Date.now()));
+      window.location.reload();
+    }
+  }, [leadsQ.isError]);
 
   useEffect(() => {
     if (!isWbah || !import.meta.env.DEV) return;
@@ -618,6 +650,8 @@ function LeadsPage() {
                   onChange={(e) => setWbahDaysFilter(e.target.value)}
                   className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 >
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
                   <option value="7">Last 7 days</option>
                   <option value="14">Last 14 days</option>
                   <option value="30">Last 30 days</option>

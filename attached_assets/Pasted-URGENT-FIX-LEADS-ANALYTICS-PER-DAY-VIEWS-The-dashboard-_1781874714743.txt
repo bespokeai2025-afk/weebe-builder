@@ -1,0 +1,146 @@
+URGENT FIX: LEADS + ANALYTICS + PER-DAY VIEWS
+
+The dashboard is not showing leads correctly, and analytics also appear wrong. I also want a per-day view added consistently across dashboard pages.
+
+Do not rebuild pages.
+Do not create new pages.
+Do not change UI design beyond adding required filters/views.
+Do not change business logic.
+Do not change qualification/sentiment rules.
+Do not delete Supabase records.
+Do not remove Redis/Upstash.
+
+Goal:
+Fix lead visibility, fix analytics accuracy, and add per-day viewing across all relevant pages.
+
+Audit and fix these areas:
+
+1. Lead visibility
+- Find the exact source the dashboard uses for leads.
+- Check whether leads are coming from:
+  - API Engine
+  - Redis cache
+  - Supabase leads table
+  - data_records table
+  - call_logs
+  - qualified_leads
+- Confirm leads exist by workspace_id.
+- Fix any wrong table, wrong workspace_id, wrong filters, stale Redis empty cache, mapping mismatch, or RLS issue.
+- Ensure dashboard includes rows where is_voicemail is false or null.
+- Exclude only is_voicemail=true from normal lead metrics.
+
+2. Analytics accuracy
+Audit every analytics calculation for:
+- total calls
+- total leads
+- qualified leads
+- positive leads
+- neutral leads
+- negative leads
+- conversion rate
+- success rate
+- answer rate
+- average call duration
+- call cost
+- campaign performance
+- agent performance
+- daily trends
+
+Fix analytics so they:
+- use Supabase as source of truth
+- use Redis only as cache
+- do not calculate totals by loading every row into the frontend
+- use server-side count/aggregate queries where possible
+- include workspace_id in every query
+- exclude voicemail calls by default
+- exclude archived/deleted/test records only if existing business rules already do this
+- handle null values safely
+- do not double-count records from API Engine + Supabase
+- do not count stale Redis payloads as truth
+
+3. Per-day view
+Add a consistent per-day date filter to:
+- dashboard
+- calls page
+- leads page
+- qualified leads page
+- data page
+- analytics page
+- campaign/agent performance sections if present
+
+Requirements:
+- User can select a single day.
+- Default should be today or current existing default if already defined.
+- Query should use startOfDay/endOfDay in the user/workspace timezone.
+- Do not filter by frontend only; pass date range into backend/Supabase queries.
+- Include created_at date filtering consistently.
+- Make sure pagination still works with per-day filtering.
+- Make sure Redis cache keys include the selected date/day.
+- Make sure changing day invalidates/refetches the correct query keys.
+- Counts and rows must match for the selected day.
+
+4. Redis/Upstash cache correctness
+Check and fix:
+- stale empty lead caches
+- analytics cache keys missing date
+- cache keys missing workspace_id
+- cache keys missing filters
+- cache keys missing pagination
+- dashboard reading cached analytics from the wrong day
+- API Engine cache not invalidating after lead sync/call save
+
+Use safe versioned keys like:
+- workspace:{workspace_id}:dashboard:{date}:analytics:v2
+- workspace:{workspace_id}:leads:{date}:{page}:{filters}:v2
+- workspace:{workspace_id}:calls:{date}:{page}:{filters}:v2
+
+5. Supabase query/index check
+Check whether queries need indexes for:
+- workspace_id
+- created_at
+- agent_id
+- status
+- sentiment
+- is_voicemail
+- campaign_id
+
+Add safe indexes only where needed. Do not break RLS.
+
+6. Dev-only diagnostics
+Add dev-only logs showing:
+- page name
+- workspace_id
+- selected day/date range
+- table queried
+- filters applied
+- Redis cache hit/miss
+- rows before filtering
+- rows after filtering
+- count returned
+- aggregate totals returned
+- query duration
+
+7. Testing
+Test with:
+- today
+- yesterday
+- a day with known leads
+- a day with known calls but no leads
+- a day with voicemail calls
+- a day with cached empty data
+
+Expected outcome:
+- dashboard shows correct leads
+- analytics match Supabase records
+- voicemail calls are stored but excluded from normal metrics
+- per-day views work on all relevant pages
+- Redis no longer serves stale/wrong-day data
+- API Engine does not double count or bypass Supabase truth
+
+After completion, report:
+- exact reason leads were not showing
+- exact analytics bugs found
+- exact files changed
+- database indexes/migrations added
+- cache keys changed
+- how to verify one known lead and one known call for a selected day

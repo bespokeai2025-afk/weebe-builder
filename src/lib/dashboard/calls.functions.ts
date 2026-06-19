@@ -16,13 +16,15 @@ export const listCalls = createServerFn({ method: "POST" })
         limit: z.number().int().min(1).max(10000).default(5000),
         // "exclude" = hide voicemails (default), "all" = show everything, "only" = voicemails only
         voicemailFilter: z.enum(["exclude", "all", "only"]).default("exclude"),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
       })
       .parse(input ?? {}),
   )
   .handler(async ({ context, data }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    const cacheKey = `webee:calls:${workspaceId}:vm:${data.voicemailFilter}:st:${data.status ?? ""}:dir:${data.direction ?? ""}:lim:${data.limit}`;
+    const cacheKey = `webee:calls:${workspaceId}:vm:${data.voicemailFilter}:st:${data.status ?? ""}:dir:${data.direction ?? ""}:lim:${data.limit}:from:${data.dateFrom ?? ""}:to:${data.dateTo ?? ""}`;
     return cacheWrap(cacheKey, CALLS_TTL, async () => {
       const sb = supabase as any;
       let q = sb
@@ -43,6 +45,8 @@ export const listCalls = createServerFn({ method: "POST" })
         q = q.eq("is_voicemail", true);
       }
       // "all" applies no filter — all rows including voicemails are returned
+      if (data.dateFrom) q = q.gte("started_at", data.dateFrom);
+      if (data.dateTo) q = q.lte("started_at", data.dateTo);
       const { data: rows, error } = await q;
       if (error) throw new Error(error.message);
       return rows ?? [];

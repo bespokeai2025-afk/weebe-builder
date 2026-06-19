@@ -312,6 +312,8 @@ export const listLeads = createServerFn({ method: "POST" })
         qualifiedOnly: z.boolean().optional(),
         search: z.string().optional(),
         limit: z.number().int().min(1).max(5000).default(100),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
       })
       .parse(input ?? {}),
   )
@@ -337,6 +339,8 @@ export const listLeads = createServerFn({ method: "POST" })
       if (data.status && data.status !== "all") q = q.eq("status", data.status);
       if (data.search)
         q = q.or(`full_name.ilike.%${data.search}%,phone.ilike.%${data.search}%,email.ilike.%${data.search}%`);
+      if (data.dateFrom) q = q.gte("created_at", data.dateFrom);
+      if (data.dateTo) q = q.lte("created_at", data.dateTo);
 
       const { data: rows, error } = await q;
       if (error) throw new Error(error.message);

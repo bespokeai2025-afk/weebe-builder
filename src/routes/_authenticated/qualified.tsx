@@ -65,6 +65,24 @@ function fmtDate(d: string | null) {
   if (!d) return "—";
   try { return new Date(d).toLocaleString(); } catch { return d; }
 }
+
+function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
+  if (filter === "all") return {};
+  if (filter === "today") {
+    const d = new Date();
+    const from = new Date(d); from.setUTCHours(0, 0, 0, 0);
+    const to   = new Date(d); to.setUTCHours(23, 59, 59, 999);
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+  }
+  if (filter === "yesterday") {
+    const d = new Date(Date.now() - 86_400_000);
+    const from = new Date(d); from.setUTCHours(0, 0, 0, 0);
+    const to   = new Date(d); to.setUTCHours(23, 59, 59, 999);
+    return { dateFrom: from.toISOString(), dateTo: to.toISOString() };
+  }
+  const days = parseInt(filter, 10);
+  return isNaN(days) ? {} : { dateFrom: new Date(Date.now() - days * 86_400_000).toISOString() };
+}
 function fmtCallDate(iso: string | null | undefined) {
   if (!iso) return "Not called yet";
   try {
@@ -270,13 +288,15 @@ function QualifiedPage() {
       (r.company_name ?? "").toLowerCase().includes(q));
     if (isWbah) out = out.filter((r: any) => normalizeSentiment(r.sentiment) === "positive");
     if (isWbah && wbahDaysFilter !== "all") {
-      const days = parseInt(wbahDaysFilter, 10);
-      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
       out = out.filter((r: any) => {
         const dateStr = r.meta?.last_called_at ?? r.created_at ?? null;
         if (!dateStr) return false;
         const ts = new Date(dateStr).getTime();
-        return !isNaN(ts) && ts >= cutoff;
+        if (isNaN(ts)) return false;
+        if (dateFrom && ts < new Date(dateFrom).getTime()) return false;
+        if (dateTo && ts > new Date(dateTo).getTime()) return false;
+        return true;
       });
     }
     return out;
@@ -420,6 +440,8 @@ function QualifiedPage() {
             onChange={(e) => setWbahDaysFilter(e.target.value)}
             className="h-8 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
           >
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
             <option value="7">Last 7 days</option>
             <option value="14">Last 14 days</option>
             <option value="30">Last 30 days</option>
