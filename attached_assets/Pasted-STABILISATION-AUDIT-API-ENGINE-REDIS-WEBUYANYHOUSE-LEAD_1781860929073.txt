@@ -1,0 +1,142 @@
+STABILISATION AUDIT: API ENGINE + REDIS + WEBUYANYHOUSE LEAD COUNTS
+
+We have added Redis and the API Engine. Webuyanyhouse lead numbers are now inconsistent again.
+
+Do not rebuild pages.
+Do not create new pages.
+Do not change business logic yet.
+Do not change sentiment/qualification rules yet.
+
+Goal:
+Find exactly why lead/call/data counts differ between API source, API Engine, Redis cache, Supabase/local data, and UI.
+
+Audit these layers end-to-end:
+
+1. Source API
+- endpoint called
+- request params/body
+- pagination params
+- limit/page/currentPage
+- response record count
+- total count if available
+- response array path
+- timestamp of response
+
+2. API Engine
+- endpoint mapping used
+- pagination strategy used
+- bulk strategy used
+- records received from API
+- records normalised
+- records returned to page
+- totalCount returned
+
+3. Redis cache
+Check:
+- cache key format
+- workspace_id included in key
+- module included in key
+- page/pageSize included in key
+- filters/search/sort included in key
+- sentiment/status filters included in key
+- date range included in key where relevant
+- TTL value
+- stale cache usage
+- cache invalidation after sync
+- whether page 1 cache is reused for other pages
+- whether WBAH cache is shared with another workspace by mistake
+
+Important:
+Cache keys must include enough context to avoid mixing results.
+
+Example key shape:
+webee:data:v1:{workspaceId}:{module}:{endpointMappingId}:{page}:{pageSize}:{filtersHash}:{sortHash}:{dateRangeHash}
+
+4. Supabase/local cache if used
+Check:
+- actual row counts
+- workspace_id scoping
+- source_system/source_id
+- duplicate prevention
+- last synced timestamp
+- whether Redis and Supabase counts disagree
+
+5. UI pages
+Audit:
+- Leads
+- People
+- Calls
+- Qualified Leads
+- Data page and sub-tabs
+
+For each page report:
+- rows received from API Engine
+- rows after local filters
+- rows displayed
+- totalCount shown
+- current page
+- pageSize
+- active tab/filter
+- sentiment filter
+- qualification filter
+
+6. Specific WBAH rules
+For Webuyanyhouse:
+- Leads page should show only positive and negative sentiment if that is the current configured rule
+- Qualified Leads should show positive sentiment only
+- Neutral must not count as qualified
+- Partly Qualified should be neutral only
+- Unknown should not be counted as qualified
+
+Verify these rules are applied in one place only, preferably config/data service, not duplicated in multiple components.
+
+7. Redis safety fixes if needed
+If Redis is causing mismatch:
+- temporarily bypass Redis in development using a flag
+- add cache versioning
+- add manual cache clear for workspace/module
+- ensure cache keys include workspaceId, module, page, pageSize and filters
+- do not cache incomplete first-page results as full totals
+- do not cache error/empty responses as valid data unless explicitly marked
+
+8. Add diagnostic panel in development only
+For WBAH Leads page show:
+- source API count
+- API Engine count
+- Redis cache hit/miss
+- Redis key used
+- rows after sentiment filter
+- rows displayed
+- totalCount
+- page/pageSize
+- last fetched time
+
+Never show tokens.
+
+9. Stabilisation requirement
+Create one source of truth for counts.
+
+For each page:
+- totalAvailableFromSource
+- totalAfterModuleFilters
+- totalDisplayedOnCurrentPage
+
+Do not mix these numbers.
+
+Example:
+Source total: 10,000
+Filtered total: 397
+Displayed: 50
+
+10. Final report
+Provide:
+- exact reason numbers differed
+- whether Redis caused it
+- whether API Engine caused it
+- whether UI filters caused it
+- whether pagination caused it
+- files changed
+- cache keys fixed
+- final verified counts for Leads, People, Calls, Qualified Leads and Data
+
+Do not proceed to new features until WBAH counts are stable and repeatable across refreshes.
