@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listTokens, createToken, revokeToken } from "@/lib/workspace/api-tokens.functions";
-import { getCacheHealth } from "@/lib/cache/cache-health.functions";
+import { getCacheHealth, flushWorkspaceCache } from "@/lib/cache/cache-health.functions";
+import { getMyAdminStatus } from "@/lib/auth/auth.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Copy, Eye, EyeOff, Plus, Trash2, Key, Webhook, BookOpen, CheckCircle2, AlertCircle, Globe, Lock, Database, RefreshCw } from "lucide-react";
+import { Copy, Eye, EyeOff, Plus, Trash2, Key, Webhook, BookOpen, CheckCircle2, AlertCircle, Globe, Lock, Database, RefreshCw, Flame } from "lucide-react";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/settings/developer")({
@@ -137,11 +138,32 @@ function CodeBlock({ code, language = "bash" }: { code: string; language?: strin
 
 function CacheHealthCard() {
   const healthFn = useServerFn(getCacheHealth);
+  const flushFn  = useServerFn(flushWorkspaceCache);
+  const adminFn  = useServerFn(getMyAdminStatus);
+  const qc = useQueryClient();
+
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["cache-health"],
     queryFn: () => healthFn(),
     refetchInterval: 60_000,
     throwOnError: false,
+  });
+
+  const { data: adminData } = useQuery({
+    queryKey: ["my-admin-status"],
+    queryFn: () => adminFn(),
+    throwOnError: false,
+  });
+  const isAdmin = adminData?.isAdmin === true;
+
+  const flushMutation = useMutation({
+    mutationFn: () => flushFn(),
+    onSuccess: (result: any) => {
+      const count = result?.deletedCount ?? 0;
+      toast.success(count > 0 ? `Flushed ${count} cache key${count !== 1 ? "s" : ""}` : "Cache was already empty");
+      qc.invalidateQueries({ queryKey: ["cache-health"] });
+    },
+    onError: () => toast.error("Failed to flush cache"),
   });
 
   const isConnected = data?.connected === true;
@@ -155,15 +177,49 @@ function CacheHealthCard() {
             <Database className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-sm">Cache Health</CardTitle>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => refetch()}
-            disabled={isFetching}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-          </Button>
+          <div className="flex items-center gap-1">
+            {isConnected && isAdmin && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-destructive hover:text-destructive hover:bg-destructive/10 text-xs"
+                    disabled={flushMutation.isPending}
+                  >
+                    <Flame className="h-3.5 w-3.5 mr-1" />
+                    Flush Cache
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Flush Workspace Cache?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will delete all Redis cache keys for your workspace. Cached data will be re-fetched on the next request — there is no data loss, but responses may be slower until the cache warms up again.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => flushMutation.mutate()}
+                    >
+                      Flush Cache
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
         </div>
         <CardDescription>Upstash Redis cache layer used for rate limiting and data caching.</CardDescription>
       </CardHeader>

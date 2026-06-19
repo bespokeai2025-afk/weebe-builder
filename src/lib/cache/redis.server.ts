@@ -157,6 +157,24 @@ export async function cacheHealthCheck(): Promise<{
 }
 
 /**
+ * Flush all workspace-scoped cache keys.
+ * Keys in this codebase follow the pattern webee:<module>:<workspaceId>:<resource>,
+ * so the scan pattern is `webee:*:<workspaceId>:*`.
+ * Returns the number of keys deleted.
+ * Throws on Redis errors so callers can surface a meaningful failure message.
+ * Returns 0 (no-op) when Redis is not configured.
+ */
+export async function cacheFlushWorkspace(workspaceId: string): Promise<number> {
+  const redis = getRedis();
+  if (!redis) return 0;
+  const pattern = `webee:*:${workspaceId}:*`;
+  const matched: string[] = await redis.keys(pattern);
+  if (matched.length === 0) return 0;
+  await redis.del(...matched);
+  return matched.length;
+}
+
+/**
  * Invalidate the shared HiveMind / GrowthMind / dashboard overview caches
  * for a given workspace. Call this after any mutation that affects call,
  * booking, or lead counts aggregated by those modules.
