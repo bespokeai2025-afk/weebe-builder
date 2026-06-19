@@ -261,10 +261,12 @@ function CallsPage() {
   // Native WEBEE calls (all workspaces except WBAH)
   // throwOnError: false — TanStack Router Suspense context would otherwise
   // re-throw query errors to the route error boundary instead of storing them.
+  const [voicemailFilter, setVoicemailFilter] = useState<"exclude" | "all" | "only">("exclude");
+
   const fn = useServerFn(listCalls);
   const q = useQuery({
-    queryKey: ["calls"],
-    queryFn: () => fn({ data: {} }),
+    queryKey: ["calls", voicemailFilter],
+    queryFn: () => fn({ data: { voicemailFilter } }),
     enabled: !isWbah,
     throwOnError: false,
     retry: 0,
@@ -508,6 +510,35 @@ function CallsPage() {
               <option value="neutral">Neutral</option>
               <option value="negative">Negative</option>
             </select>
+
+            {/* Three-state voicemail filter pill (only for native WEBEE calls) */}
+            {!isWbah && (
+              <div className="flex items-center rounded-md border border-white/[0.08] bg-card/60 p-0.5 gap-0.5">
+                {(
+                  [
+                    { value: "exclude", label: "No Voicemails" },
+                    { value: "all",     label: "Show All" },
+                    { value: "only",    label: "Voicemails Only" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setVoicemailFilter(opt.value)}
+                    className={cn(
+                      "rounded px-2 py-1 text-[10px] font-medium transition-colors whitespace-nowrap",
+                      voicemailFilter === opt.value
+                        ? opt.value === "only"
+                          ? "bg-amber-500/20 text-amber-300"
+                          : "bg-primary/20 text-primary"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {hasCallFilters && (
               <Button
                 size="sm"
@@ -645,7 +676,12 @@ function CallsPage() {
                       const contact = typeof rawContact === "string" && rawContact.startsWith("web:") ? "Web session" : rawContact;
                       return (
                         <tr key={c.id} onClick={() => openPanel(c)} className="h-9 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors cursor-pointer">
-                          <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{contact}</td>
+                          <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
+                            {contact}
+                            {c.is_voicemail && (
+                              <span className="ml-1.5 inline-block rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-400">Voicemail</span>
+                            )}
+                          </td>
                           <td className="px-3 py-1.5">
                             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                               {inbound ? <PhoneIncoming className="h-3 w-3 text-primary" /> : <PhoneOutgoing className="h-3 w-3" />}

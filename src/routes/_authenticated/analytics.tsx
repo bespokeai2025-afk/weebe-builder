@@ -233,7 +233,32 @@ function fmtMs(ms?: number | null) {
 function humanize(key: string) { return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
 function shortDay(isoDate: string) { return isoDate.slice(5); }
 
-function computeAnalytics(calls: any[]) {
+// Voicemail keyword list — must match the DB migration and webhook processor.
+const VOICEMAIL_KW = ["voicemail", "answering machine", "leave a message", "mailbox", "beep", "not available", "automated message"];
+function hasVoicemailKeyword(text?: string | null): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return VOICEMAIL_KW.some((kw) => lower.includes(kw));
+}
+function isCallVoicemail(c: any): boolean {
+  return (
+    c.call_analysis?.in_voicemail === true ||
+    c.call_status === "voicemail" ||
+    hasVoicemailKeyword(c.disconnection_reason) ||
+    hasVoicemailKeyword(c.call_analysis?.call_summary) ||
+    hasVoicemailKeyword(c.call_analysis?.call_outcome) ||
+    hasVoicemailKeyword(c.transcript)
+  );
+}
+
+function computeAnalytics(allCalls: any[]) {
+  // Exclude voicemails from Retell API calls using the full heuristic set
+  // (ElevenLabs DB calls are already filtered at the server with is_voicemail=false).
+  const voicemailCount_excluded = allCalls.filter(isCallVoicemail).length;
+  if (voicemailCount_excluded > 0) {
+    console.debug(`[voicemail] excluded ${voicemailCount_excluded} voicemail calls from analytics window`);
+  }
+  const calls = allCalls.filter((c) => !isCallVoicemail(c));
   const total    = calls.length;
   const inbound  = calls.filter((c) => c.direction === "inbound"  || c.call_direction === "inbound").length;
   const outbound = calls.filter((c) => c.direction === "outbound" || c.call_direction === "outbound").length;

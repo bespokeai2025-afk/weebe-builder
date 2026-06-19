@@ -604,6 +604,23 @@ export async function processRetellWebhook(
     }
   }
 
+  // Detect voicemail using the same rules as the DB migration backfill:
+  // provider flag, call_status, disconnection_reason, call_outcome, call_summary, transcript.
+  const VOICEMAIL_KEYWORDS = ["voicemail", "answering machine", "leave a message", "mailbox", "beep", "not available", "automated message"];
+  function containsVoicemailKeyword(text?: string | null): boolean {
+    if (!text) return false;
+    const lower = text.toLowerCase();
+    return VOICEMAIL_KEYWORDS.some((kw) => lower.includes(kw));
+  }
+  const isVoicemail =
+    call.call_analysis?.in_voicemail === true ||
+    call.call_status === "voicemail" ||
+    containsVoicemailKeyword(call.disconnection_reason) ||
+    containsVoicemailKeyword(call.call_analysis?.call_summary) ||
+    containsVoicemailKeyword((call.call_analysis as any)?.call_outcome ?? null) ||
+    containsVoicemailKeyword(call.transcript);
+  console.log(`[voicemail] call ${callId} → is_voicemail=${isVoicemail}`);
+
   const row = {
     workspace_id: workspaceId,
     lead_id: leadId,
@@ -625,6 +642,7 @@ export async function processRetellWebhook(
     sentiment: mapSentiment(call.call_analysis?.user_sentiment),
     call_successful: call.call_analysis?.call_successful ?? null,
     in_voicemail: call.call_analysis?.in_voicemail ?? null,
+    is_voicemail: isVoicemail,
   } as Record<string, unknown>;
 
   const cleaned: Record<string, unknown> = {};

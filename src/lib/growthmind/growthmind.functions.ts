@@ -58,9 +58,11 @@ export async function buildGrowthMindData(sb: any, workspaceId: string) {
         .select("id, name, retell_agent_id, inbound_phone_number, settings, created_at, updated_at")
         .eq("workspace_id", workspaceId),
 
+      // Exclude voicemails so follow-up coverage and booking rate are accurate
       sb.from("calls")
         .select("id, agent_id, agent_name, call_status, call_successful, duration_seconds, sentiment, started_at, call_type, from_number, to_number")
         .eq("workspace_id", workspaceId)
+        .eq("is_voicemail", false)
         .gte("started_at", s90)
         .order("started_at", { ascending: false })
         .limit(5000),

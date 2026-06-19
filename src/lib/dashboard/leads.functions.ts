@@ -109,11 +109,12 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .from("leads" as never)
         .select("id, status, created_at", { count: "exact", head: false })
         .eq("workspace_id", workspaceId),
-      // Row fetch for totalCallSeconds (capped at 1000 — acceptable approximation)
+      // Row fetch for totalCallSeconds — exclude voicemails so duration/count stats are accurate
       (supabase as any)
         .from("calls" as never)
         .select("id, call_status, duration_seconds, started_at")
-        .eq("workspace_id", workspaceId),
+        .eq("workspace_id", workspaceId)
+        .eq("is_voicemail", false),
       (supabase as any)
         .from("calendar_bookings" as never)
         .select("id, status, start_at")
@@ -136,12 +137,13 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .select("id, phone")
         .eq("workspace_id", workspaceId)
         .eq("status", "not_interested"),
-      // Completed outbound calls — used to measure which closed leads were actually reached
+      // Completed outbound calls — exclude voicemails; used to measure which closed leads were reached
       (supabase as any)
         .from("calls" as never)
         .select("to_number")
         .eq("workspace_id", workspaceId)
-        .eq("call_status", "completed"),
+        .eq("call_status", "completed")
+        .eq("is_voicemail", false),
       // 5 most recent leads with display fields
       (supabase as any)
         .from("leads" as never)
@@ -149,26 +151,33 @@ export const getOverviewStats = createServerFn({ method: "GET" })
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false })
         .limit(5),
-      // Accurate call counts via count-only queries (bypasses 1000-row cap)
-      (supabase as any)
-        .from("calls" as never)
-        .select("id", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId),
+      // Accurate call counts via count-only queries — exclude voicemails from all totals
       (supabase as any)
         .from("calls" as never)
         .select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId)
-        .eq("call_status", "completed"),
+        .eq("is_voicemail", false),
       (supabase as any)
         .from("calls" as never)
         .select("id", { count: "exact", head: true })
         .eq("workspace_id", workspaceId)
-        .in("call_status", ["failed", "no_answer", "busy"]),
+        .eq("call_status", "completed")
+        .eq("is_voicemail", false),
+      (supabase as any)
+        .from("calls" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .in("call_status", ["failed", "no_answer", "busy"])
+        .eq("is_voicemail", false),
     ]);
 
     if (leadsRes.error) throw new Error(leadsRes.error.message);
     if (callsRes.error) throw new Error(callsRes.error.message);
     if (bookingsRes.error) throw new Error(bookingsRes.error.message);
+
+    // Debug log: how many voicemail calls are excluded from the overview totals
+    const vmTotal = (callsTotalRes.count ?? 0);
+    console.debug(`[voicemail] getOverviewStats: ${vmTotal} non-voicemail calls counted for workspace ${workspaceId}`);
 
     const leads = leadsRes.data ?? [];
     const calls = callsRes.data ?? [];

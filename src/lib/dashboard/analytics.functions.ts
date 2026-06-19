@@ -193,6 +193,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     // process both sources identically.
     let elCalls: any[] = [];
     try {
+      // Exclude voicemails from ElevenLabs DB calls — same rule as dashboard
       const { data: elRows } = await sb
         .from("calls")
         .select(
@@ -200,6 +201,7 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
         )
         .eq("workspace_id", workspaceId)
         .eq("provider" as never, "ELEVENLABS" as never)
+        .eq("is_voicemail" as never, false as never)
         .gte("started_at", sinceIso)
         .order("started_at", { ascending: false })
         .limit(10000);
@@ -246,6 +248,15 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     const allCalls = [...calls, ...elCalls];
     // configured = true when either Retell agents exist OR VoxStream calls exist
     const configured = agentIds.length > 0 || elCalls.length > 0;
+
+    // Debug log: voicemail calls that will still be filtered in computeAnalytics
+    // (Retell API calls where in_voicemail=true or call_status='voicemail')
+    const vmFromApi = calls.filter(
+      (c: any) => c.call_analysis?.in_voicemail === true || c.call_status === "voicemail",
+    ).length;
+    if (vmFromApi > 0) {
+      console.debug(`[voicemail] getRetellAnalytics: ${vmFromApi} voicemail calls from Retell API will be excluded in computeAnalytics (${data.days}d window, workspace ${workspaceId})`);
+    }
 
     if (!configured) {
       return {

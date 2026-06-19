@@ -10,6 +10,8 @@ export const listCalls = createServerFn({ method: "POST" })
         status: z.string().optional(),
         direction: z.enum(["inbound", "outbound"]).optional(),
         limit: z.number().int().min(1).max(10000).default(5000),
+        // "exclude" = hide voicemails (default), "all" = show everything, "only" = voicemails only
+        voicemailFilter: z.enum(["exclude", "all", "only"]).default("exclude"),
       })
       .parse(input ?? {}),
   )
@@ -28,6 +30,13 @@ export const listCalls = createServerFn({ method: "POST" })
       .limit(data.limit);
     if (data.status && data.status !== "all") q = q.eq("call_status", data.status as any);
     if (data.direction) q = q.eq("call_type", data.direction as any);
+    // Apply voicemail filter — "exclude" hides voicemails (default), "only" shows only voicemails
+    if (data.voicemailFilter === "exclude") {
+      q = q.eq("is_voicemail", false);
+    } else if (data.voicemailFilter === "only") {
+      q = q.eq("is_voicemail", true);
+    }
+    // "all" applies no filter — all rows including voicemails are returned
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return rows ?? [];
