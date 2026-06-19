@@ -8,7 +8,7 @@ import {
   BookOpen, Video, Image, BarChart3, Megaphone, AlertTriangle,
   DollarSign, Zap, Star, ArrowDownToLine, PowerOff, ChevronDown,
   ChevronUp, FlaskConical, Save, Eye, EyeOff, Building2,
-  Car, Users, UserCheck,
+  Car, Users, UserCheck, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
