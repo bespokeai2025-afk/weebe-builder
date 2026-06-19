@@ -9,6 +9,7 @@ import {
   applyQualificationToLead,
 } from "@/lib/qualification/qualification-engine.server";
 import { dispatchCrmPostCall } from "@/lib/crm/crm-dispatch.server";
+import { invalidateDashboardCache } from "@/lib/cache/redis.server";
 
 const SUPPORTED_RETELL_EVENTS = new Set([
   "call_started",
@@ -650,6 +651,7 @@ export async function processRetellWebhook(
       signatureValid: !!signatureValid,
     };
   }
+  invalidateDashboardCache(workspaceId);
 
   if (
     contactPhone &&

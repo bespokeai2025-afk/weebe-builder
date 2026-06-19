@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { cacheWrap, cacheDel } from "@/lib/cache/redis.server";
+import { cacheWrap, invalidateDashboardCache } from "@/lib/cache/redis.server";
 
 const OVERVIEW_STATS_TTL = 90; // 90 seconds
 
@@ -273,13 +273,6 @@ export const listLeads = createServerFn({ method: "POST" })
     return leads;
   });
 
-function invalidateDashboardCache(workspaceId: string) {
-  cacheDel(
-    overviewStatsKey(workspaceId),
-    `webee:hivemind:${workspaceId}:platform`,
-    `webee:growthmind:${workspaceId}:platform`,
-  ).catch(() => {});
-}
 
 export const upsertLead = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

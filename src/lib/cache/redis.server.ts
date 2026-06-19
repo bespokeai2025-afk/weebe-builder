@@ -114,6 +114,22 @@ export async function cacheWrap<T>(
 }
 
 /**
+ * Invalidate the shared HiveMind / GrowthMind / dashboard overview caches
+ * for a given workspace. Call this after any mutation that affects call,
+ * booking, or lead counts aggregated by those modules.
+ *
+ * The delete is fire-and-forget (errors are swallowed) so it never blocks
+ * or crashes the mutation path when Redis is unavailable.
+ */
+export function invalidateDashboardCache(workspaceId: string): void {
+  cacheDel(
+    `webee:dashboard:${workspaceId}:overview`,
+    `webee:hivemind:${workspaceId}:platform`,
+    `webee:growthmind:${workspaceId}:platform`,
+  ).catch(() => {});
+}
+
+/**
  * Redis-backed atomic rate limiter.
  * Returns { count, allowed, windowExpireAt, redisUsed }.
  *

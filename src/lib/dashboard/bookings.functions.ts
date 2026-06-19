@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { calFetch, cancelBooking as calcomCancelBooking } from "@/lib/calendar/calcom.server";
+import { invalidateDashboardCache } from "@/lib/cache/redis.server";
 
 export type UnifiedBooking = {
   id: string;
@@ -108,6 +109,7 @@ export const upsertBooking = createServerFn({ method: "POST" })
         .update(payload)
         .eq("id", data.id);
       if (error) throw new Error(error.message);
+      invalidateDashboardCache(workspaceId);
       return { id: data.id };
     }
     const { data: row, error } = await (supabase as any)
@@ -116,6 +118,7 @@ export const upsertBooking = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error) throw new Error(error.message);
+    invalidateDashboardCache(workspaceId);
     return { id: row!.id as string };
   });
 
@@ -373,6 +376,7 @@ export const updateBookingNotes = createServerFn({ method: "POST" })
         .eq("id", data.db_id)
         .eq("workspace_id", workspaceId);
       if (error) throw new Error(error.message);
+      invalidateDashboardCache(workspaceId);
       return { ok: true };
     }
 
@@ -405,6 +409,7 @@ export const updateBookingNotes = createServerFn({ method: "POST" })
             notes: data.notes,
           });
       }
+      invalidateDashboardCache(workspaceId);
       return { ok: true };
     }
 
@@ -465,5 +470,6 @@ export const cancelBookingFn = createServerFn({ method: "POST" })
         .eq("workspace_id", workspaceId);
     }
 
+    invalidateDashboardCache(workspaceId);
     return { ok: true };
   });
