@@ -287,13 +287,25 @@ async function upsertContactRows(sb: ReturnType<typeof getAdminClient>, rows: Re
 
 async function fetchAllLeadRecords(
   getTokens: () => Promise<{ accessToken: string; refreshToken: string }>,
-  saveNewAccessToken: (t: string) => Promise<void>,
+  refresh: () => Promise<string>,
 ): Promise<{ ok: boolean; data: any[] }> {
-  const { accessToken } = await getTokens();
-  const p1 = await apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=1`, {
+  // The WeeBespoke account uses a single active session, so a concurrent sync
+  // (the calls sync re-logs in mid-run) can invalidate the token we were handed,
+  // making later pages 401 and silently drop — which left leads stuck at ~1300
+  // of ~1569. Keep a mutable token, re-login on failure, and retry dropped pages.
+  let accessToken = (await getTokens()).accessToken;
+  const fetchPage = (p: number) => apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=${p}`, {
     method: "GET", headers: { Authorization: `Bearer ${accessToken}` },
   });
+  const refreshOnce = async () => {
+    try { accessToken = await refresh(); console.log("[wbah-leads-sync] token expired mid-fetch — refreshed"); }
+    catch (e: any) { console.log(`[wbah-leads-sync] token refresh failed: ${e?.message ?? e}`); }
+  };
+
+  let p1 = await fetchPage(1);
+  if (!p1.ok || !p1.data) { await refreshOnce(); p1 = await fetchPage(1); }
   if (!p1.ok || !p1.data) return { ok: false, data: [] };
+
   const pagination = (p1.data as any)?.pagination ?? {};
   const totalItems = pagination?.totalItems ?? 0;
   const p1Records: any[] = Array.isArray(p1.data?.data) ? [...p1.data.data] : Array.isArray(p1.data) ? [...p1.data] : [];
@@ -301,7 +313,7 @@ async function fetchAllLeadRecords(
   const pageSize = p1Records.length || 50;
   const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : (pagination?.totalPages ?? (p1.data as any)?.totalPages ?? 1);
 
-  // Track IDs to prevent duplicates from over-fetched pages
+  // Track IDs to prevent duplicates from over-fetched / retried pages
   const makeId = (r: any): string =>
     String(r?.lead_id ?? r?._id ?? r?.id ?? r?.leadId ?? r?.toNumber ?? "").trim();
   const seenIds = new Set<string>(p1Records.map(makeId).filter(Boolean));
@@ -309,29 +321,40 @@ async function fetchAllLeadRecords(
 
   console.log(`[wbah-leads-sync] fetchAllLeadRecords: totalItems=${totalItems} pageSize=${pageSize} totalPages=${totalPages}`);
 
-  // Fetch remaining pages in small batches to avoid API rate limits
-  for (let page = 2; page <= totalPages; page += 5) {
-    const batch = Array.from({ length: Math.min(5, totalPages - page + 1) }, (_, i) => page + i);
-    const results = await Promise.allSettled(
-      batch.map(p => apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=${p}`, {
-        method: "GET", headers: { Authorization: `Bearer ${accessToken}` },
-      }))
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value.ok && r.value.data) {
-        const records = Array.isArray(r.value.data?.data) ? r.value.data.data : Array.isArray(r.value.data) ? r.value.data : [];
-        for (const rec of records) {
-          const id = makeId(rec);
-          if (id && seenIds.has(id)) continue;
-          if (id) seenIds.add(id);
-          all.push(rec);
-        }
-      }
+  const pushRecs = (data: any) => {
+    const records = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+    for (const rec of records) {
+      const id = makeId(rec);
+      if (id && seenIds.has(id)) continue;
+      if (id) seenIds.add(id);
+      all.push(rec);
     }
-    // Brief pause between batches to avoid hammering the API
-    if (page + 5 <= totalPages) await new Promise(res => setTimeout(res, 200));
+  };
+
+  const runPages = async (pages: number[]): Promise<number[]> => {
+    const failed: number[] = [];
+    for (let i = 0; i < pages.length; i += 5) {
+      const batch = pages.slice(i, i + 5);
+      const results = await Promise.allSettled(batch.map(p => fetchPage(p)));
+      let sawFail = false;
+      results.forEach((r, idx) => {
+        if (r.status === "fulfilled" && r.value.ok && r.value.data) pushRecs(r.value.data);
+        else { failed.push(batch[idx]); sawFail = true; }
+      });
+      if (sawFail) await refreshOnce();
+      await new Promise(res => setTimeout(res, 150));
+    }
+    return failed;
+  };
+
+  let pending = Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) => i + 2);
+  pending = await runPages(pending);
+  for (let attempt = 1; attempt <= 3 && pending.length > 0; attempt++) {
+    await new Promise(r => setTimeout(r, 500 * attempt));
+    pending = await runPages(pending);
   }
-  console.log(`[wbah-leads-sync] fetchAllLeadRecords done: ${all.length} unique records`);
+
+  console.log(`[wbah-leads-sync] fetchAllLeadRecords done: ${all.length} unique records (unrecovered pages=${pending.length})`);
   return { ok: true, data: all };
 }
 
@@ -556,9 +579,14 @@ export async function runWbahFullResync(): Promise<{ deleted: number; sellers: n
     if (!tokens) throw new Error("Not connected — no token stored");
     return tokens;
   };
-  const saveTok = (t: string) => saveToken(sb, t);
+  const refresh = async () => {
+    await ensureFreshToken(sb);
+    const t = await getStoredTokens(sb);
+    if (!t) throw new Error("Re-login produced no token");
+    return t.accessToken;
+  };
 
-  const sellersRes = await fetchAllLeadRecords(getTokens, saveTok);
+  const sellersRes = await fetchAllLeadRecords(getTokens, refresh);
   const results = { deleted: existing ?? 0, sellers: 0, errors: [] as string[] };
 
   if (sellersRes.ok && sellersRes.data) {
@@ -596,10 +624,15 @@ export async function runWbahLeadsSyncTick(): Promise<{ sellers: number; contact
     if (!tokens) throw new Error("Not connected — no token stored");
     return tokens;
   };
-  const saveTok = (t: string) => saveToken(sb, t);
+  const refresh = async () => {
+    await ensureFreshToken(sb);
+    const t = await getStoredTokens(sb);
+    if (!t) throw new Error("Re-login produced no token");
+    return t.accessToken;
+  };
 
   const [sellersRes, buyersRes] = await Promise.allSettled([
-    fetchAllLeadRecords(getTokens, saveTok),
+    fetchAllLeadRecords(getTokens, refresh),
     fetchAllBuyers(getTokens),
   ]);
 
