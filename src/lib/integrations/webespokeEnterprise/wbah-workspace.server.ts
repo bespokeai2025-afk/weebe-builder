@@ -1246,6 +1246,24 @@ export const listWbahCallsFromDb = createServerFn({ method: "GET" })
     });
   });
 
+// Lightweight count for the Calls sub-tab badge — avoids downloading all
+// 11k+ call rows (with transcripts) just to show a number on the People page.
+export const listWbahCallsCount = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    return cacheWrap(`webee:wbah-calls-count:${workspaceId}`, 2 * 60, async () => {
+      const sb = supabase as any;
+      const { count, error } = await sb
+        .from("wbah_calls")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId);
+      if (error) throw new Error(error.message);
+      return { count: count ?? 0 };
+    });
+  });
+
 // ── Retell helper — get WBAH workspace's Retell API key ───────────────────────
 
 const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
@@ -1546,6 +1564,7 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
+    return cacheWrap(`webee:wbah-people-leads:${workspaceId}`, 60, async () => {
     const sb   = supabase as any;
     const PAGE = 1000;
     const all: any[] = [];
@@ -1591,6 +1610,7 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
       transcript:          r.meta?.transcript ?? r.call_summary ?? null,
       endReason:           r.meta?.end_reason ?? null,
     }));
+    });
   });
 
 // ── Disqualified leads from WeeBespoke API (filter master UUID approach) ───────

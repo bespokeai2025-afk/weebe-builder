@@ -44,7 +44,7 @@ import {
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
-import { listWbahLeadsForPeople, listWbahCallsFromDb, listWbahCategorizedLeads, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahLeadsForPeople, listWbahCallsFromDb, listWbahCallsCount, listWbahCategorizedLeads, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -495,6 +495,7 @@ function DataPage() {
   const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]);
   const [wbahCallsLoading, setWbahCallsLoading]       = useState(false);
   const [wbahCallsError, setWbahCallsError]           = useState<string | null>(null);
+  const [wbahCallsCount, setWbahCallsCount]           = useState(0);
   const [wbahTtcData, setWbahTtcData]                 = useState<any[]>([]);
   const [wbahTtcLoading, setWbahTtcLoading]           = useState(false);
   const [wbahTtcError, setWbahTtcError]               = useState<string | null>(null);
@@ -536,6 +537,7 @@ function DataPage() {
   const setStatusFn = useServerFn(setRecordCallStatus);
   const listWbahLeadsForPeopleFn      = useServerFn(listWbahLeadsForPeople);
   const listWbahCallsFromDbFn         = useServerFn(listWbahCallsFromDb);
+  const listWbahCallsCountFn          = useServerFn(listWbahCallsCount);
   const listWbahCategorizedLeadsFn    = useServerFn(listWbahCategorizedLeads);
   const triggerWbahCategorySyncFn     = useServerFn(triggerWbahCategorySync);
   const getWbahCategorySyncLogFn      = useServerFn(getWbahCategorySyncLog);
@@ -1011,6 +1013,7 @@ function DataPage() {
     try {
       const rows = await listWbahCallsFromDbFn();
       setWbahCallsData(rows as any[]);
+      setWbahCallsCount((rows as any[]).length);
     } catch (err) {
       setWbahCallsError((err as Error).message);
     } finally {
@@ -1018,14 +1021,25 @@ function DataPage() {
     }
   }
 
+  async function handleFetchWbahCallsCount() {
+    try {
+      const res = await listWbahCallsCountFn();
+      setWbahCallsCount((res as any)?.count ?? 0);
+    } catch {
+      /* non-fatal — Calls badge just stays hidden until the tab is opened */
+    }
+  }
+
   useEffect(() => {
     if (dataTab === "people" && isWbah && wbahCallData.length === 0 && !wbahCallDataLoading) {
       handleFetchWbahCallData();
     }
-    // Eager-load calls so the "Calls" sub-tab count badge is accurate without
-    // having to open the tab first (calls live in wbah_calls, not the API).
-    if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && !wbahCallsLoading) {
-      handleFetchWbahCalls();
+    // Fetch only the calls COUNT for the sub-tab badge. The full call rows
+    // (11k+, each with a transcript) are a multi-MB payload, so they load
+    // lazily when the Calls tab is actually opened — keeping the People page
+    // (default "Leads" view) fast on first load.
+    if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && wbahCallsCount === 0) {
+      handleFetchWbahCallsCount();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
@@ -1439,7 +1453,7 @@ function DataPage() {
                           : tab.id === "disqualified" ? wbahDqData.length
                           : tab.id === "tried_to_contact" ? wbahTtcData.length
                           : tab.id === "rebooking" ? wbahRbData.length
-                          : tab.id === "calls" ? wbahCallsData.length
+                          : tab.id === "calls" ? (wbahCallsData.length || wbahCallsCount)
                           : 0;
                 const isCatTab = tab.id === "disqualified" || tab.id === "tried_to_contact" || tab.id === "rebooking";
                 return (

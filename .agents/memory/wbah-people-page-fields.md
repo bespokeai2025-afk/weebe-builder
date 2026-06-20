@@ -28,8 +28,16 @@ Leads carry the raw API status (`ended`, `need_to_call`, `not_connected`,
 through a bucket helper (`wbahStatusKey`) — comparing raw strings will silently
 match nothing on one of the two shapes.
 
-## 3. Calls count badge needs eager load
-Calls live in the separate `wbah_calls` table, not the lead API. The Calls
-sub-tab data was historically loaded only when the tab is clicked, so the count
-badge read 0 until then. The People-tab `useEffect` must eager-call the calls
-fetch so the badge is accurate on tab open.
+## 3. Calls count badge — use a lightweight COUNT, never eager-load full rows
+Calls live in the separate `wbah_calls` table (~11k rows, each with a full
+transcript + call_summary). NEVER eager-load all rows just to populate the Calls
+sub-tab badge — that multi-MB payload was the cause of the slow People page.
+**Why:** the badge only needs a number; the full rows are a huge payload that
+competes with and delays the default Leads view on mount.
+**How to apply:** on People-tab mount fetch only the count via `listWbahCallsCount`
+(`head:true` + `count:"exact"`, cached 2 min) into `wbahCallsCount`. Full rows
+stay lazy — they load via the `wbahPeopleSubTab === "calls"` effect when the tab
+is opened, and `handleFetchWbahCalls` then sets `wbahCallsCount = rows.length`.
+Badge reads `(wbahCallsData.length || wbahCallsCount)`. `listWbahLeadsForPeople`
+is cached 60s (safe: leads come from a 5-min background sync, page actions import
+to CRM rather than mutating source lead rows).
