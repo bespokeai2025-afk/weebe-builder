@@ -1553,7 +1553,7 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
     while (true) {
       const { data, error } = await sb
         .from("leads")
-        .select("id, full_name, phone, email, created_at, meta")
+        .select("id, full_name, phone, email, created_at, meta, call_summary, callback_date")
         .eq("workspace_id", workspaceId)
         .eq("source", "import")
         .eq("source_detail", "webespoke_enterprise")
@@ -1582,11 +1582,13 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
       appointmentTime:     r.meta?.appointment_time ?? null,
       bookingStatus:       r.meta?.booking_status ?? null,
       calendlyBookingUrl:  r.meta?.calendly_booking_url ?? null,
-      agentName:           r.meta?.agent_name ?? null,
-      startTimestamp:      r.meta?.start_timestamp ? Number(r.meta.start_timestamp) : null,
+      agentName:           r.meta?.agent_name ?? r.meta?.assigned_agent ?? null,
+      startTimestamp:      r.meta?.start_timestamp
+                             ? Number(r.meta.start_timestamp)
+                             : (r.meta?.last_called_at ? new Date(r.meta.last_called_at).getTime() : null),
       durationMs:          r.meta?.duration_ms ? Number(r.meta.duration_ms) : null,
       recordingUrl:        r.meta?.recording_url ?? null,
-      transcript:          r.meta?.transcript ?? null,
+      transcript:          r.meta?.transcript ?? r.call_summary ?? null,
       endReason:           r.meta?.end_reason ?? null,
     }));
   });

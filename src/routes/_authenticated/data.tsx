@@ -277,6 +277,43 @@ function isWbahDisqualified(r: any): boolean {
   return WBAH_DISQUALIFIED_STATUSES.has(s) || s.includes("disqualif");
 }
 
+// Normalize the many raw/normalized call statuses into a few filter buckets so
+// the same Status filter works across both Leads (raw API statuses) and Calls
+// (normalized statuses).
+function wbahStatusKey(status: string | null | undefined): string {
+  const s = (status ?? "").toLowerCase().trim();
+  if (s === "need_to_call" || s === "need to call") return "need_to_call";
+  if (s === "not_connected" || s === "no_answer" || s === "not connected" || s === "voicemail" || s === "voicemail_reached" || s === "missed") return "not_connected";
+  if (s === "call_analyzed" || s === "completed" || s === "ended") return "completed";
+  if (s === "disqualified" || s === "rejected" || s === "not_interested" || s.includes("disqualif")) return "disqualified";
+  if (s === "failed" || s === "error" || s === "call_failed") return "failed";
+  return "other";
+}
+
+function wbahDateCutoff(filter: string): number {
+  if (filter === "today") { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  if (filter === "7d")  return Date.now() - 7  * 24 * 60 * 60 * 1000;
+  if (filter === "30d") return Date.now() - 30 * 24 * 60 * 60 * 1000;
+  return 0;
+}
+
+function wbahRowPasses(
+  r: any,
+  search: string,
+  statusF: string,
+  sentimentF: string,
+  dateCutoff: number,
+): boolean {
+  if (search) {
+    const q = search.toLowerCase();
+    if (!(r.name ?? "").toLowerCase().includes(q) && !String(r.contact ?? "").includes(q)) return false;
+  }
+  if (statusF !== "all" && wbahStatusKey(r.callStatus) !== statusF) return false;
+  if (sentimentF !== "all" && !(r.sentimentAnalysis ?? "").toLowerCase().includes(sentimentF)) return false;
+  if (dateCutoff > 0 && (!r.startTimestamp || r.startTimestamp < dateCutoff)) return false;
+  return true;
+}
+
 const OPTIONAL_COLS: { key: string; label: string }[] = [
   { key: "email", label: "Email" },
   { key: "title", label: "Title" },
@@ -467,6 +504,9 @@ function DataPage() {
   const [wbahCanSync, setWbahCanSync]                 = useState(false);
   const [wbahPeopleSubTab, setWbahPeopleSubTab]       = useState<string>("leads");
   const [wbahPeopleSearch, setWbahPeopleSearch]       = useState("");
+  const [wbahStatusFilter,    setWbahStatusFilter]    = useState("all");
+  const [wbahSentimentFilter, setWbahSentimentFilter] = useState("all");
+  const [wbahDateFilter,      setWbahDateFilter]      = useState("all");
   const [wbahSelected, setWbahSelected]               = useState<Set<string>>(new Set());
   const [wbahQualAgentId, setWbahQualAgentId]         = useState<string>("");
   const [wbahTranscript, setWbahTranscript]           = useState<{ name: string; text: string } | null>(null);
@@ -544,45 +584,27 @@ function DataPage() {
 
   const allSelected = records.length > 0 && selected.size === records.length;
 
-  const wbahFiltered = useMemo(() => {
-    return wbahCallData.filter(r => {
-      if (wbahPeopleSearch) {
-        const q = wbahPeopleSearch.toLowerCase();
-        if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
-      }
-      return true;
-    });
-  }, [wbahCallData, wbahPeopleSearch]);
+  const wbahDateCut = useMemo(() => wbahDateCutoff(wbahDateFilter), [wbahDateFilter]);
 
-  const wbahDqFiltered = useMemo(() => {
-    return wbahDqData.filter(r => {
-      if (wbahPeopleSearch) {
-        const q = wbahPeopleSearch.toLowerCase();
-        if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
-      }
-      return true;
-    });
-  }, [wbahDqData, wbahPeopleSearch]);
+  const wbahFiltered = useMemo(
+    () => wbahCallData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut)),
+    [wbahCallData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut],
+  );
 
-  const wbahTtcFiltered = useMemo(() => {
-    return wbahTtcData.filter(r => {
-      if (wbahPeopleSearch) {
-        const q = wbahPeopleSearch.toLowerCase();
-        if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
-      }
-      return true;
-    });
-  }, [wbahTtcData, wbahPeopleSearch]);
+  const wbahDqFiltered = useMemo(
+    () => wbahDqData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut)),
+    [wbahDqData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut],
+  );
 
-  const wbahRbFiltered = useMemo(() => {
-    return wbahRbData.filter(r => {
-      if (wbahPeopleSearch) {
-        const q = wbahPeopleSearch.toLowerCase();
-        if (!(r.name ?? "").toLowerCase().includes(q) && !(r.contact ?? "").includes(q)) return false;
-      }
-      return true;
-    });
-  }, [wbahRbData, wbahPeopleSearch]);
+  const wbahTtcFiltered = useMemo(
+    () => wbahTtcData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut)),
+    [wbahTtcData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut],
+  );
+
+  const wbahRbFiltered = useMemo(
+    () => wbahRbData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut)),
+    [wbahRbData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut],
+  );
 
   const wbahCallsFiltered = useMemo(() => {
     return wbahCallsData.map((r: any, idx: number) => ({
@@ -605,14 +627,8 @@ function DataPage() {
       recordingUrl:        r.recording_url ?? null,
       transcript:          r.transcript ?? null,
       endReason:           r.end_reason ?? null,
-    })).filter(r => {
-      if (wbahPeopleSearch) {
-        const q = wbahPeopleSearch.toLowerCase();
-        if (!(r.name ?? "").toLowerCase().includes(q) && !String(r.contact ?? "").includes(q)) return false;
-      }
-      return true;
-    });
-  }, [wbahCallsData, wbahPeopleSearch]);
+    })).filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut));
+  }, [wbahCallsData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut]);
 
   const recordsPag = useTablePagination(records);
   const wbahPag    = useTablePagination(wbahFiltered);
@@ -993,6 +1009,11 @@ function DataPage() {
   useEffect(() => {
     if (dataTab === "people" && isWbah && wbahCallData.length === 0 && !wbahCallDataLoading) {
       handleFetchWbahCallData();
+    }
+    // Eager-load calls so the "Calls" sub-tab count badge is accurate without
+    // having to open the tab first (calls live in wbah_calls, not the API).
+    if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && !wbahCallsLoading) {
+      handleFetchWbahCalls();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
@@ -1478,6 +1499,48 @@ function DataPage() {
                       </button>
                     )}
                   </div>
+                )}
+                {/* Filters — apply across all People sub-tabs */}
+                {(wbahCallData.length > 0 || wbahDqData.length > 0 || wbahTtcData.length > 0 || wbahRbData.length > 0 || wbahCallsData.length > 0) && (
+                  <>
+                    <Select value={wbahStatusFilter} onValueChange={setWbahStatusFilter}>
+                      <SelectTrigger className="h-7 w-[140px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All statuses</SelectItem>
+                        <SelectItem value="need_to_call">Need To Call</SelectItem>
+                        <SelectItem value="not_connected">Not Connected</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="disqualified">Disqualified</SelectItem>
+                        <SelectItem value="failed">Failed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={wbahSentimentFilter} onValueChange={setWbahSentimentFilter}>
+                      <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Sentiment" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All sentiment</SelectItem>
+                        <SelectItem value="positive">Positive</SelectItem>
+                        <SelectItem value="neutral">Neutral</SelectItem>
+                        <SelectItem value="negative">Negative</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={wbahDateFilter} onValueChange={setWbahDateFilter}>
+                      <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All time</SelectItem>
+                        <SelectItem value="today">Today</SelectItem>
+                        <SelectItem value="7d">Last 7 days</SelectItem>
+                        <SelectItem value="30d">Last 30 days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(wbahStatusFilter !== "all" || wbahSentimentFilter !== "all" || wbahDateFilter !== "all") && (
+                      <button
+                        onClick={() => { setWbahStatusFilter("all"); setWbahSentimentFilter("all"); setWbahDateFilter("all"); }}
+                        className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
 
