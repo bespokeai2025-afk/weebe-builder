@@ -1,0 +1,306 @@
+WBAH AGENTS + CAMPAIGNS API FIX
+
+Use the Webespoke AI endpoints below for agent and campaign syncing.
+
+AGENTS
+
+Use:
+
+GET /agent/get-list
+
+Purpose:
+List active agents.
+
+Use optional query:
+
+?campaign_only=true
+
+when only agents available for campaigns are needed.
+
+Also audit:
+
+GET /agent/get-agents-with-voicemail
+
+Purpose:
+List agents with voicemail configuration.
+
+POST /agent/update
+
+Purpose:
+Save selected/active agents.
+
+PATCH /agent/rename/:id
+
+Purpose:
+Rename agent display name.
+
+PATCH /agent/voicemailSetting/:id
+
+Purpose:
+Enable/edit voicemail message.
+
+CAMPAIGNS
+
+Use:
+
+GET /campaigns
+
+Purpose:
+List campaigns with status.
+
+POST /campaigns
+
+Purpose:
+Create campaign.
+
+GET /campaigns/:id
+
+Purpose:
+Get one campaign by ID.
+
+PATCH /campaigns/:id
+
+Purpose:
+Update campaign configuration.
+
+PATCH /campaigns/:id/pause
+
+Purpose:
+Pause running campaign.
+
+PATCH /campaigns/:id/resume
+
+Purpose:
+Resume paused campaign.
+
+PATCH /campaigns/:id/voicemail
+
+Purpose:
+Toggle voicemail behaviour.
+
+DELETE /campaigns/:id
+
+Purpose:
+Soft-delete campaign while keeping history.
+
+====================================================
+
+EXPLAIN THE DIFFERENCE
+
+AGENT:
+The AI caller / voice agent configuration.
+
+Examples:
+Receptionist agent
+Lead generation agent
+Qualification agent
+Callback agent
+Voicemail-enabled agent
+
+CAMPAIGN:
+The calling workflow that uses an agent to contact leads.
+
+Examples:
+Call these CRM leads
+Call only positive/neutral leads
+Call only pending callbacks
+Pause campaign
+Resume campaign
+Change voicemail setting
+Change schedule
+
+Agent = who is speaking.
+
+Campaign = who they are calling, when, and under what rules.
+
+====================================================
+
+AUDIT CURRENT WEBEE LOGIC
+
+Find where WEBEE currently pulls or stores:
+
+agents
+agent list
+campaign agents
+voicemail agents
+campaigns
+campaign status
+campaign schedules
+campaign lead filters
+campaign voicemail settings
+
+Search for:
+
+/agent/get-list
+/agent/get-agents-with-voicemail
+/agent/update
+/agent/rename
+/agent/voicemailSetting
+/campaigns
+/campaigns/:id/pause
+/campaigns/:id/resume
+/campaigns/:id/voicemail
+
+For each, show:
+
+1. Endpoint used
+2. HTTP method
+3. Request params/body
+4. Auth method
+5. Response fields
+6. Where data is stored in WEBEE
+7. Which UI page uses it
+8. Whether data is cached
+9. Whether cache is invalidated after update
+
+====================================================
+
+IMPLEMENT SAFELY
+
+Agents should be stored/mapped as:
+
+source_type = webespoke_ai
+source_detail = external_agent
+external_agent_id
+agent_name
+agent_type
+campaign_only
+voicemail_enabled
+voicemail_message
+status
+raw_payload
+
+Campaigns should be stored/mapped as:
+
+source_type = webespoke_ai
+source_detail = external_campaign
+external_campaign_id
+campaign_name
+agent_id
+agent_name
+lead_status_filter
+schedule
+voicemail_enabled
+campaign_status
+raw_payload
+
+====================================================
+
+UI LOGIC
+
+Agent pages should show:
+
+Agent name
+Agent type
+Campaign availability
+Voicemail status
+Active status
+
+Campaign pages should show:
+
+Campaign name
+Assigned agent
+Status
+Lead filter
+Schedule
+Voicemail enabled
+Total leads
+Calls made
+Positive
+Neutral
+Disqualified
+Callbacks
+Last sync
+
+====================================================
+
+SYNC RULES
+
+When syncing agents:
+
+Use /agent/get-list for normal agent list.
+
+Use /agent/get-list?campaign_only=true for campaign selection dropdowns.
+
+Use /agent/get-agents-with-voicemail where voicemail settings are displayed or edited.
+
+When syncing campaigns:
+
+Use GET /campaigns for campaign list.
+
+Use GET /campaigns/:id for detailed campaign view if needed.
+
+When updating campaign:
+
+Use PATCH /campaigns/:id.
+
+When pausing:
+
+Use PATCH /campaigns/:id/pause.
+
+When resuming:
+
+Use PATCH /campaigns/:id/resume.
+
+When toggling voicemail:
+
+Use PATCH /campaigns/:id/voicemail.
+
+====================================================
+
+DATA CONSISTENCY
+
+Do not mix agents and campaigns.
+
+Do not treat an agent as a campaign.
+
+Do not treat a campaign as an agent.
+
+Campaigns should reference agents by external_agent_id.
+
+Agent dropdowns in campaign creation should use active/campaign-capable agents only.
+
+====================================================
+
+CACHE INVALIDATION
+
+After agent updates, invalidate:
+
+agent cache
+campaign dropdown cache
+dashboard cache if affected
+
+After campaign updates, invalidate:
+
+campaign cache
+dashboard cache
+analytics cache
+hivemind cache
+growthmind cache
+
+====================================================
+
+SUCCESS CRITERIA
+
+WEBEE correctly pulls Webespoke AI agents.
+
+WEBEE correctly pulls Webespoke AI campaigns.
+
+Agent dropdowns use campaign-capable agents.
+
+Campaigns are linked to their assigned agent.
+
+Voicemail settings are correctly displayed and editable.
+
+Campaign pause/resume/update actions call the correct Webespoke AI endpoints.
+
+Agents and campaigns are clearly separated in storage and UI.
+
+Return:
+
+1. exact endpoints used
+2. field mappings
+3. pages affected
+4. cache behaviour
+5. fixes implemented
+6. remaining gaps
