@@ -1,0 +1,98 @@
+WBAH BEFORE-CALL LEADS API FIX
+
+Use the Webespoke AI endpoint:
+
+GET /crm-data/get-crm-data
+
+for before-call leads.
+
+This endpoint should be treated as the source for raw CRM leads before they have been called.
+
+Do not use /call-output-data/get-userCall-lead for before-call leads because that is after-call lead output joined with call result data.
+
+Do not use /call-output-data/create because that is an internal webhook ingest endpoint for finished calls.
+
+Explain and implement the difference:
+
+BEFORE-CALL LEAD:
+A CRM lead/contact that has not yet been called or has no completed call outcome.
+
+Source endpoint:
+GET /crm-data/get-crm-data
+
+AFTER-CALL LEAD:
+A lead with call output, call outcome, sentiment, summary, callback status or qualification status after a call has happened.
+
+Source endpoint:
+GET /call-output-data/get-userCall-lead
+
+AUDIT CURRENT WBAH SYNC
+
+Check:
+
+1. Where /crm-data/get-crm-data is called.
+2. Where /call-output-data/get-userCall-lead is called.
+3. Whether before-call CRM leads are being mixed into after-call leads.
+4. Whether CRM contacts are being incorrectly written into the leads table.
+5. Whether before-call leads should be stored in data_records, leads, or both.
+6. Whether source_type/source_detail clearly identifies before-call leads.
+
+IMPLEMENT SAFELY
+
+Before-call leads from /crm-data/get-crm-data should be stored as:
+
+source_type = webespoke_ai
+source_detail = crm_before_call
+lead_stage = before_call
+call_status = not_called
+
+After-call leads from /call-output-data/get-userCall-lead should be stored as:
+
+source_type = webespoke_ai
+source_detail = after_call_result
+lead_stage = after_call
+call_status = completed / failed / no_answer / callback_requested
+sentiment = positive / neutral / negative where available
+
+UI LOGIC
+
+Data page / CRM tab should use before-call leads.
+
+Leads page should clearly allow filters:
+
+Before Call
+After Call
+Positive
+Neutral
+Disqualified
+Callback Requested
+Not Called
+
+Qualified page should only use after-call positive leads unless explicitly changed.
+
+Dashboard should separate:
+
+Raw CRM Leads
+Called Leads
+Positive Leads
+Neutral Leads
+Disqualified Leads
+Callbacks
+
+SUCCESS CRITERIA
+
+Before-call leads come from /crm-data/get-crm-data.
+
+After-call results come from /call-output-data/get-userCall-lead.
+
+CRM leads and call-result leads are no longer mixed incorrectly.
+
+WEBEE pages clearly distinguish before-call and after-call data.
+
+Return:
+1. exact endpoint used
+2. fields returned
+3. where before-call leads are stored
+4. where after-call results are stored
+5. which pages use each source
+6. required fixes

@@ -378,6 +378,42 @@ export const wbahProbeApi = createServerFn({ method: "GET" })
 
 // ── Campaigns (live from WeeBespoke API — shown as a tab in /campaigns) ────────
 
+// The WeeBespoke API wraps every list response as
+//   { result, statuscode, message, data: [...] }
+// so the array we want is nested one level down (res.data.data), never the
+// top-level res.data. Reading res.data directly always yielded [] — that was
+// why campaigns never pulled through. This helper finds the array in that shape.
+function extractWbahArray(raw: any): any[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    if (Array.isArray(raw.data))      return raw.data;
+    if (Array.isArray(raw.result))    return raw.result;
+    if (Array.isArray(raw.rows))      return raw.rows;
+    if (Array.isArray(raw.campaigns)) return raw.campaigns;
+  }
+  return [];
+}
+
+// Map the raw WeeBespoke campaign shape onto the field names the UI expects.
+// The API returns call_hour/call_minute (not call_time), frequency (not
+// frequency_type), createdAt (not created_at) and a capitalised status
+// ("Active"/"Custom"). Every original field is kept; we only add derived ones.
+function normalizeWbahCampaign(raw: any): any {
+  if (!raw || typeof raw !== "object") return raw;
+  const out: Record<string, unknown> = { ...raw };
+  if (out.call_time == null && raw.call_hour != null) {
+    const hh = String(raw.call_hour).padStart(2, "0");
+    const mm = String(raw.call_minute ?? 0).padStart(2, "0");
+    out.call_time = `${hh}:${mm}`;
+  }
+  if (out.frequency_type == null && raw.frequency != null) {
+    out.frequency_type = String(raw.frequency).toLowerCase() === "custom" ? "custom" : "daily";
+  }
+  if (out.created_at == null && raw.createdAt != null) out.created_at = raw.createdAt;
+  if (typeof raw.status === "string") out.status = raw.status.toLowerCase();
+  return out;
+}
+
 export const getWbahCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -385,14 +421,16 @@ export const getWbahCampaigns = createServerFn({ method: "GET" })
     try {
       const routed = await getCampaignData(WBAH_WORKSPACE_ID);
       if (routed.source === "engine") {
-        return Array.isArray(routed.rows) ? routed.rows : [];
+        return Array.isArray(routed.rows) ? routed.rows.map(normalizeWbahCampaign) : [];
       }
     } catch { /* fall through to direct call */ }
 
-    // Fallback: direct WeeBespoke API call
+    // Fallback: direct WeeBespoke API call. The campaign array is nested at
+    // res.data.data because of the API's { result, statuscode, message, data }
+    // envelope — see extractWbahArray above.
     const cbs = await requireWbahCbs(context.userId);
     const res = await api.wbahGetCampaigns(cbs.getTokens, cbs.saveNewAccessToken);
-    return Array.isArray(res.data) ? res.data : [];
+    return extractWbahArray(res.data).map(normalizeWbahCampaign);
   });
 
 export const createWbahCampaign = createServerFn({ method: "POST" })

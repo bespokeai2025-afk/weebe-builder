@@ -36,7 +36,7 @@ import {
   deleteCallCampaign,
   type CallCampaignWithAgent,
 } from "@/lib/dashboard/call-campaigns.functions";
-import { getWbahCampaigns, pauseWbahCampaign, resumeWbahCampaign, deleteWbahCampaign } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { getWbahCampaigns, getWbahAgentsForCampaign, pauseWbahCampaign, resumeWbahCampaign, deleteWbahCampaign } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/campaigns")({
@@ -649,6 +649,7 @@ function wbahStatusBadge(s: string) {
 function WbahCampaignsTab() {
   const qc = useQueryClient();
   const getFn    = useServerFn(getWbahCampaigns);
+  const agentsFn = useServerFn(getWbahAgentsForCampaign);
   const pauseFn  = useServerFn(pauseWbahCampaign);
   const resumeFn = useServerFn(resumeWbahCampaign);
   const delFn    = useServerFn(deleteWbahCampaign);
@@ -660,6 +661,22 @@ function WbahCampaignsTab() {
     retry: 1,
     throwOnError: false,
   });
+
+  const { data: agents = [] } = useQuery({
+    queryKey: ["wbah-campaign-agents"],
+    queryFn:  () => agentsFn(),
+    staleTime: 60_000,
+    throwOnError: false,
+  });
+
+  // Campaigns carry only agent_id; resolve it to a readable name via the agents list.
+  const resolveAgentName = (c: any): string | null => {
+    const aid = c.agent_id ?? c.agentId ?? null;
+    if (!aid) return c.agentName ?? null;
+    const a = (agents as any[]).find((ag) => ag.id === aid);
+    return a?.name ?? c.agentName ?? aid;
+  };
+
   const wbahCampPag = useTablePagination(campaigns, 25);
 
   const pauseMut  = useMutation({ mutationFn: (id: string) => pauseFn({ data: { id } }),  onSuccess: () => qc.invalidateQueries({ queryKey: ["wbah-campaigns"] }) });
@@ -707,7 +724,7 @@ function WbahCampaignsTab() {
                 </div>
                 {c.description && <p className="mt-1 text-sm text-muted-foreground">{c.description}</p>}
                 <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-                  {c.agentName  && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {c.agentName}</span>}
+                  {resolveAgentName(c) && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {resolveAgentName(c)}</span>}
                   {c.phoneNumber && <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {c.phoneNumber}</span>}
                   {c.total_leads != null && <span>{c.total_leads} leads</span>}
                   {c.created_at && <span>Created {new Date(c.created_at).toLocaleDateString()}</span>}
