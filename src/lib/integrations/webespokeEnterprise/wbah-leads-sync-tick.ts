@@ -113,9 +113,14 @@ function classifyStatus(raw: any): string {
   if (cs === "need_to_call") return "need_to_call";
   if (cs === "ended" || cs === "call_analyzed") {
     if (/negative/.test(sa)) return "not_interested";
+    // Call ended but no human was reached (voicemail, dead air / inactivity, no answer).
+    // The real signal lives in endReason ("voicemail_reached" / "inactivity") as much as
+    // disconnectionReason. This MUST run BEFORE the positive/neutral check — otherwise
+    // every voicemail with neutral sentiment (the vast majority of WBAH calls) was being
+    // mis-counted as "qualified".
+    const reached = `${(raw?.disconnectionReason ?? "").toLowerCase()} ${(raw?.endReason ?? "").toLowerCase()}`;
+    if (/voicemail|no_answer|no_input|dial_no_answer|inactivity/.test(reached)) return "not_connected";
     if (/positive|neutral/.test(sa)) return "qualified";
-    const dr = (raw?.disconnectionReason ?? "").toLowerCase();
-    if (/voicemail|no_answer|no_input|dial_no_answer/.test(dr)) return "not_connected";
     return "qualified";
   }
   if (cs === "not_connected" || cs === "no_answer" || cs === "voicemail") return "not_connected";
