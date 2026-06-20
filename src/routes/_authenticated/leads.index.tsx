@@ -213,6 +213,7 @@ function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [sentimentFilter, setSentimentFilter] = useState("");
   const [callStatusFilter, setCallStatusFilter] = useState("");
+  const [quickFilter, setQuickFilter] = useState("");
   const [wbahDaysFilter, setWbahDaysFilter] = useState("30");
 
   useEffect(() => {
@@ -346,6 +347,19 @@ function LeadsPage() {
       if (dateFrom && ts < new Date(dateFrom).getTime()) return false;
       if (dateTo && ts > new Date(dateTo).getTime()) return false;
     }
+    if (quickFilter && isWbah) {
+      const ns = normalizeSentiment(l.sentiment);
+      const st = l.status;
+      switch (quickFilter) {
+        case "before_call":  if (st !== "need_to_call") return false; break;
+        case "after_call":   if (st === "need_to_call") return false; break;
+        case "positive":     if (ns !== "positive") return false; break;
+        case "neutral":      if (ns !== "neutral") return false; break;
+        case "disqualified": if (st !== "not_interested") return false; break;
+        case "callback":     if (!(l.callback_date || st === "callback_requested")) return false; break;
+        case "not_called":   if (st !== "not_connected") return false; break;
+      }
+    }
     return true;
   });
 
@@ -371,7 +385,7 @@ function LeadsPage() {
       leads.length, pos, neu, neg, unk);
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || sentimentFilter || callStatusFilter;
+  const hasLeadFilters = search.trim() || statusFilter || sentimentFilter || callStatusFilter || quickFilter;
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -665,13 +679,43 @@ function LeadsPage() {
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => { setSearch(""); setStatusFilter(""); setSentimentFilter(""); setCallStatusFilter(""); }}
+                  onClick={() => { setSearch(""); setStatusFilter(""); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); }}
                 >
                   Clear filters
                 </Button>
               )}
             </div>
           </div>
+          {isWbah && (
+            <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-white/[0.06]">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
+              {[
+                { value: "before_call",  label: "Before Call" },
+                { value: "after_call",   label: "After Call" },
+                { value: "positive",     label: "Positive" },
+                { value: "neutral",      label: "Neutral" },
+                { value: "disqualified", label: "Disqualified" },
+                { value: "callback",     label: "Callback" },
+                { value: "not_called",   label: "Not Called" },
+              ].map((c) => {
+                const active = quickFilter === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => setQuickFilter(active ? "" : c.value)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 transition-colors ${
+                      active
+                        ? "bg-primary/15 text-primary ring-primary/30"
+                        : "bg-card/80 text-muted-foreground ring-white/[0.08] hover:text-foreground hover:ring-white/20"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+              <span className="ml-auto text-[11px] text-muted-foreground">{filtered.length} shown</span>
+            </div>
+          )}
           <div className="p-0">
             {leadsQ.isLoading ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>

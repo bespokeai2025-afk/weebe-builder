@@ -150,6 +150,34 @@ function DashboardPage() {
         ))}
       </div>
 
+      {/* WBAH CRM lead breakdown */}
+      {!isLoading && data?.isWbah && data?.wbahBreakdown && (
+        <div className="mb-5">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            CRM Lead Breakdown
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              { label: "Raw CRM Leads", value: data.wbahBreakdown.rawCrmLeads,  icon: Users,       iconBg: "bg-blue-500/15",    iconColor: "text-blue-400" },
+              { label: "Called",        value: data.wbahBreakdown.called,        icon: PhoneCall,   iconBg: "bg-violet-500/15",  iconColor: "text-violet-400" },
+              { label: "Positive",      value: data.wbahBreakdown.positive,      icon: TrendingUp,  iconBg: "bg-emerald-500/15", iconColor: "text-emerald-400" },
+              { label: "Neutral",       value: data.wbahBreakdown.neutral,       icon: Circle,      iconBg: "bg-amber-500/15",   iconColor: "text-amber-400" },
+              { label: "Disqualified",  value: data.wbahBreakdown.disqualified,  icon: PhoneMissed, iconBg: "bg-rose-500/15",    iconColor: "text-rose-400" },
+              { label: "Callbacks",     value: data.wbahBreakdown.callbacks,     icon: Calendar,    iconBg: "bg-sky-500/15",     iconColor: "text-sky-400" },
+            ].map((c) => (
+              <KpiCard
+                key={c.label}
+                label={c.label}
+                value={c.value}
+                icon={c.icon}
+                iconBg={c.iconBg}
+                iconColor={c.iconColor}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Voicemail screened banner */}
       {!isLoading && (data?.totals.voicemailsExcluded ?? 0) > 0 && (
         <TooltipProvider delayDuration={200}>

@@ -275,6 +275,39 @@ export const getOverviewStats = createServerFn({ method: "POST" })
       (l) => l.phone && completedCallNumbers.has(l.phone.replace(/\D/g, "")),
     ).length;
 
+    // WBAH-only: CRM lead breakdown for the dashboard (read-only, additive, count-only).
+    // Mirrors the Leads page quick-filter semantics so the two screens agree, and
+    // respects the same date window (cutoffISO) as the WBAH KPIs above.
+    let wbahBreakdown:
+      | { rawCrmLeads: number; called: number; positive: number; neutral: number; disqualified: number; callbacks: number }
+      | null = null;
+    if (isWbah) {
+      const bd = () => {
+        let q = (supabase as any)
+          .from("leads" as never)
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", workspaceId);
+        if (cutoffISO) q = q.gte("created_at", cutoffISO);
+        return q;
+      };
+      const [rawRes, calledRes, posRes, neuRes, disqRes, cbRes] = await Promise.all([
+        bd(),
+        bd().neq("status", "need_to_call"),
+        bd().eq("sentiment", "positive"),
+        bd().eq("sentiment", "neutral"),
+        bd().eq("status", "not_interested"),
+        bd().not("callback_date", "is", null),
+      ]);
+      wbahBreakdown = {
+        rawCrmLeads:  rawRes.count ?? 0,
+        called:       calledRes.count ?? 0,
+        positive:     posRes.count ?? 0,
+        neutral:      neuRes.count ?? 0,
+        disqualified: disqRes.count ?? 0,
+        callbacks:    cbRes.count ?? 0,
+      };
+    }
+
     return {
       workspaceId,
       isWbah,
@@ -297,6 +330,7 @@ export const getOverviewStats = createServerFn({ method: "POST" })
         closedLeadsReached,
         voicemailsExcluded: isWbah ? 0 : (voicemailsRes.count ?? 0),
       },
+      wbahBreakdown,
       recentLeads: recentLeadsRes.data ?? [],
     };
   }, bust);
