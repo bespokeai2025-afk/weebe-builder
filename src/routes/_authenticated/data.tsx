@@ -303,6 +303,7 @@ function wbahRowPasses(
   statusF: string,
   sentimentF: string,
   dateCutoff: number,
+  agentF: string,
 ): boolean {
   if (search) {
     const q = search.toLowerCase();
@@ -311,6 +312,7 @@ function wbahRowPasses(
   if (statusF !== "all" && wbahStatusKey(r.callStatus) !== statusF) return false;
   if (sentimentF !== "all" && !(r.sentimentAnalysis ?? "").toLowerCase().includes(sentimentF)) return false;
   if (dateCutoff > 0 && (!r.startTimestamp || r.startTimestamp < dateCutoff)) return false;
+  if (agentF !== "all" && String(r.agentName ?? r.agent_name ?? "").trim() !== agentF) return false;
   return true;
 }
 
@@ -507,6 +509,7 @@ function DataPage() {
   const [wbahStatusFilter,    setWbahStatusFilter]    = useState("all");
   const [wbahSentimentFilter, setWbahSentimentFilter] = useState("all");
   const [wbahDateFilter,      setWbahDateFilter]      = useState("all");
+  const [wbahAgentFilter,     setWbahAgentFilter]     = useState("all");
   const [wbahSelected, setWbahSelected]               = useState<Set<string>>(new Set());
   const [wbahQualAgentId, setWbahQualAgentId]         = useState<string>("");
   const [wbahTranscript, setWbahTranscript]           = useState<{ name: string; text: string } | null>(null);
@@ -586,24 +589,33 @@ function DataPage() {
 
   const wbahDateCut = useMemo(() => wbahDateCutoff(wbahDateFilter), [wbahDateFilter]);
 
+  const wbahAgentOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const arr of [wbahCallData, wbahDqData, wbahTtcData, wbahRbData]) {
+      for (const r of arr) { const n = String(r?.agentName ?? "").trim(); if (n) set.add(n); }
+    }
+    for (const r of wbahCallsData) { const n = String(r?.agent_name ?? r?.agentName ?? "").trim(); if (n) set.add(n); }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [wbahCallData, wbahDqData, wbahTtcData, wbahRbData, wbahCallsData]);
+
   const wbahFiltered = useMemo(
-    () => wbahCallData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut)),
-    [wbahCallData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut],
+    () => wbahCallData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
+    [wbahCallData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
   );
 
   const wbahDqFiltered = useMemo(
-    () => wbahDqData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut)),
-    [wbahDqData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut],
+    () => wbahDqData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
+    [wbahDqData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
   );
 
   const wbahTtcFiltered = useMemo(
-    () => wbahTtcData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut)),
-    [wbahTtcData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut],
+    () => wbahTtcData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
+    [wbahTtcData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
   );
 
   const wbahRbFiltered = useMemo(
-    () => wbahRbData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut)),
-    [wbahRbData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut],
+    () => wbahRbData.filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter)),
+    [wbahRbData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
   );
 
   const wbahCallsFiltered = useMemo(() => {
@@ -627,8 +639,8 @@ function DataPage() {
       recordingUrl:        r.recording_url ?? null,
       transcript:          r.transcript ?? null,
       endReason:           r.end_reason ?? null,
-    })).filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut));
-  }, [wbahCallsData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut]);
+    })).filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter));
+  }, [wbahCallsData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter]);
 
   const recordsPag = useTablePagination(records);
   const wbahPag    = useTablePagination(wbahFiltered);
@@ -1532,9 +1544,18 @@ function DataPage() {
                         <SelectItem value="30d">Last 30 days</SelectItem>
                       </SelectContent>
                     </Select>
-                    {(wbahStatusFilter !== "all" || wbahSentimentFilter !== "all" || wbahDateFilter !== "all") && (
+                    <Select value={wbahAgentFilter} onValueChange={setWbahAgentFilter}>
+                      <SelectTrigger className="h-7 w-[150px] text-xs"><SelectValue placeholder="Agent" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All agents</SelectItem>
+                        {wbahAgentOptions.map((name) => (
+                          <SelectItem key={name} value={name}>{name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {(wbahStatusFilter !== "all" || wbahSentimentFilter !== "all" || wbahDateFilter !== "all" || wbahAgentFilter !== "all") && (
                       <button
-                        onClick={() => { setWbahStatusFilter("all"); setWbahSentimentFilter("all"); setWbahDateFilter("all"); }}
+                        onClick={() => { setWbahStatusFilter("all"); setWbahSentimentFilter("all"); setWbahDateFilter("all"); setWbahAgentFilter("all"); }}
                         className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap"
                       >
                         Clear filters
