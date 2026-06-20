@@ -406,29 +406,74 @@ function buildCallRow(raw: any, workspaceId: string) {
 
 async function fetchAllCallRecords(
   getTokens: () => Promise<{ accessToken: string; refreshToken: string }>,
+  refresh: () => Promise<string>,
 ): Promise<{ ok: boolean; data: any[] }> {
-  const { accessToken } = await getTokens();
-  const authHeaders = { Authorization: `Bearer ${accessToken}` };
+  // The WeeBespoke access token is short-lived and expires mid-run (~11k calls =
+  // ~1100 pages takes longer than one token's lifetime). We keep a mutable token
+  // and re-login on the first 401 of a batch, so later batches + retries use the
+  // fresh token instead of hammering a dead one (which previously 401'd ~1000
+  // pages every run and left the table stuck at a few hundred calls).
+  let accessToken = (await getTokens()).accessToken;
+  const fetchPage = (p: number) =>
+    apiFetch<any>(`/call-output-data/get-user-history?currentPage=${p}`, {
+      method: "POST", body: "{}", headers: { Authorization: `Bearer ${accessToken}` },
+    });
 
-  const p1 = await apiFetch<any>(`/call-output-data/get-user-history?currentPage=1`, { method: "POST", body: "{}", headers: { ...authHeaders } });
+  const p1 = await fetchPage(1);
   if (!p1.ok || !p1.data) return { ok: false, data: [] };
   const pagination = (p1.data as any)?.pagination;
+  const p1Recs: any[] = Array.isArray((p1.data as any)?.data) ? (p1.data as any).data : [];
+  // The API's pagination.totalPages is unreliable (reports a too-small value);
+  // ALWAYS derive page count from totalItems ÷ actual page size, like the leads
+  // fetch does. Otherwise the loop terminates early and most calls never sync.
   const totalItems = pagination?.totalItems ?? 0;
-  const totalPages = pagination?.totalPages ?? (totalItems > 0 ? Math.ceil(totalItems / 10) : 1);
-  const all: any[] = Array.isArray((p1.data as any)?.data) ? [...(p1.data as any).data] : [];
+  const pageSize   = p1Recs.length || 10;
+  const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : (pagination?.totalPages ?? 1);
+  console.log(`[wbah-calls-sync] fetchAllCallRecords: totalItems=${totalItems} pageSize=${pageSize} totalPages=${totalPages}`);
 
-  for (let page = 2; page <= totalPages; page += 20) {
-    const batch = Array.from({ length: Math.min(20, totalPages - page + 1) }, (_, i) => page + i);
-    const results = await Promise.allSettled(
-      batch.map(p => apiFetch<any>(`/call-output-data/get-user-history?currentPage=${p}`, { method: "POST", body: "{}", headers: { ...authHeaders } }))
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value.ok && r.value.data) {
-        const recs = Array.isArray((r.value.data as any)?.data) ? (r.value.data as any).data : [];
-        all.push(...recs);
+  const all: any[] = [...p1Recs];
+
+  const CONC = 20;
+  const runPages = async (pages: number[]): Promise<{ failed: number[]; statuses: Record<string, number> }> => {
+    const failed: number[] = [];
+    const statuses: Record<string, number> = {};
+    for (let i = 0; i < pages.length; i += CONC) {
+      const batch = pages.slice(i, i + CONC);
+      const results = await Promise.allSettled(batch.map(p => fetchPage(p)));
+      let sawAuthExpiry = false;
+      results.forEach((r, idx) => {
+        if (r.status === "fulfilled" && r.value.ok && r.value.data) {
+          const recs = Array.isArray((r.value.data as any)?.data) ? (r.value.data as any).data : [];
+          all.push(...recs);
+        } else {
+          failed.push(batch[idx]);
+          const code = r.status === "fulfilled" ? String(r.value.status) : "rejected";
+          statuses[code] = (statuses[code] ?? 0) + 1;
+          if (r.status === "fulfilled" && (r.value.status === 401 || r.value.status === 403)) sawAuthExpiry = true;
+        }
+      });
+      // Token expired mid-run — re-login once so the next batch (and the retry
+      // pass over `failed`) uses a fresh token.
+      if (sawAuthExpiry) {
+        try { accessToken = await refresh(); console.log("[wbah-calls-sync] token expired mid-run — refreshed"); }
+        catch (e: any) { console.log(`[wbah-calls-sync] token refresh failed: ${e?.message ?? e}`); }
       }
     }
+    return { failed, statuses };
+  };
+
+  let pending = Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) => i + 2);
+  let res = await runPages(pending);
+  console.log(`[wbah-calls-sync] pass 1: got ${all.length}/${totalItems}, failures by status=${JSON.stringify(res.statuses)}`);
+  pending = res.failed;
+  for (let attempt = 1; attempt <= 6 && pending.length > 0; attempt++) {
+    await new Promise(r => setTimeout(r, 500 * attempt));
+    res = await runPages(pending);
+    console.log(`[wbah-calls-sync] retry ${attempt}: ${pending.length} pages → ${all.length}/${totalItems}, still failing=${res.failed.length}`);
+    pending = res.failed;
   }
+
+  console.log(`[wbah-calls-sync] fetched ${all.length} call records (expected ~${totalItems}, unrecovered pages=${pending.length})`);
   return { ok: true, data: all };
 }
 
@@ -458,10 +503,16 @@ export async function runWbahCallsSyncTick(): Promise<{ calls: number; errors: s
     if (!tokens) throw new Error("Not connected");
     return tokens;
   };
+  const refresh = async () => {
+    await ensureFreshToken(sb);
+    const t = await getStoredTokens(sb);
+    if (!t) throw new Error("Re-login produced no token");
+    return t.accessToken;
+  };
 
   const results = { calls: 0, errors: [] as string[] };
   try {
-    const callsRes = await fetchAllCallRecords(getTokens);
+    const callsRes = await fetchAllCallRecords(getTokens, refresh);
     if (callsRes.ok) {
       const rows = callsRes.data.map(r => buildCallRow(r, workspaceId)).filter(Boolean) as NonNullable<ReturnType<typeof buildCallRow>>[];
       results.calls = await upsertCallRows(sb, rows);

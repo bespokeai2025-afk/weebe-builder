@@ -343,8 +343,20 @@ function buildCatLeadRow(raw: any, workspaceId: string, category: WbeeCategory):
 
 // ── Paginated lead fetch ──────────────────────────────────────────────────────
 
-async function fetchAllLeads(token: string): Promise<any[]> {
-  const p1 = await apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=1`, token);
+async function fetchAllLeads(sb: ReturnType<typeof getAdminClient>, initialToken: string): Promise<any[]> {
+  // The WeeBespoke account uses a single active session, so a concurrent sync
+  // (e.g. the long-running calls sync re-logging in mid-run) can invalidate the
+  // token we were handed. Keep a mutable token and re-login on failure so this
+  // fetch recovers instead of silently returning 0 leads.
+  let token = initialToken;
+  const fetchPage = (p: number) => apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=${p}`, token);
+  const refreshOnce = async () => {
+    try { token = await ensureFreshToken(sb); console.log("[wbah-category-sync] token expired mid-fetch — refreshed"); }
+    catch (e: any) { console.log(`[wbah-category-sync] token refresh failed: ${e?.message ?? e}`); }
+  };
+
+  let p1 = await fetchPage(1);
+  if (!p1.ok || !p1.data) { await refreshOnce(); p1 = await fetchPage(1); }
   if (!p1.ok || !p1.data) return [];
 
   const p1Recs: any[] = Array.isArray(p1.data?.data) ? p1.data.data : Array.isArray(p1.data) ? p1.data : [];
@@ -359,26 +371,40 @@ async function fetchAllLeads(token: string): Promise<any[]> {
 
   console.log(`[wbah-category-sync] fetchAllLeads: totalItems=${totalItems} pageSize=${pageSize} totalPages=${totalPages}`);
 
-  for (let page = 2; page <= totalPages; page += 5) {
-    const batch = Array.from({ length: Math.min(5, totalPages - page + 1) }, (_, i) => page + i);
-    const results = await Promise.allSettled(
-      batch.map(p => apiFetch<any>(`/call-output-data/get-userCall-lead?currentPage=${p}`, token))
-    );
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value.ok && r.value.data) {
-        const recs = Array.isArray(r.value.data?.data) ? r.value.data.data : Array.isArray(r.value.data) ? r.value.data : [];
-        for (const rec of recs) {
-          const id = makeId(rec);
-          if (id && seenIds.has(id)) continue;
-          if (id) seenIds.add(id);
-          all.push(rec);
-        }
-      }
+  const pushRecs = (data: any) => {
+    const recs = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+    for (const rec of recs) {
+      const id = makeId(rec);
+      if (id && seenIds.has(id)) continue;
+      if (id) seenIds.add(id);
+      all.push(rec);
     }
-    if (page + 5 <= totalPages) await new Promise(res => setTimeout(res, 150));
+  };
+
+  const runPages = async (pages: number[]): Promise<number[]> => {
+    const failed: number[] = [];
+    for (let i = 0; i < pages.length; i += 5) {
+      const batch = pages.slice(i, i + 5);
+      const results = await Promise.allSettled(batch.map(p => fetchPage(p)));
+      let sawFail = false;
+      results.forEach((r, idx) => {
+        if (r.status === "fulfilled" && r.value.ok && r.value.data) pushRecs(r.value.data);
+        else { failed.push(batch[idx]); sawFail = true; }
+      });
+      if (sawFail) await refreshOnce();
+      await new Promise(res => setTimeout(res, 150));
+    }
+    return failed;
+  };
+
+  let pending = Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) => i + 2);
+  pending = await runPages(pending);
+  for (let attempt = 1; attempt <= 3 && pending.length > 0; attempt++) {
+    await new Promise(r => setTimeout(r, 500 * attempt));
+    pending = await runPages(pending);
   }
 
-  console.log(`[wbah-category-sync] fetchAllLeads done: ${all.length} records`);
+  console.log(`[wbah-category-sync] fetchAllLeads done: ${all.length} records (unrecovered pages=${pending.length})`);
   return all;
 }
 
@@ -522,7 +548,7 @@ export async function runWbahCategorySyncTick(opts?: {
   // Fetch all leads
   let allLeads: any[];
   try {
-    allLeads = await fetchAllLeads(token);
+    allLeads = await fetchAllLeads(sb, token);
     result.total_leads_fetched = allLeads.length;
     debugLeadSample(allLeads);
   } catch (e: any) {
