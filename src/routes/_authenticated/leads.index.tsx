@@ -260,7 +260,7 @@ function LeadsPage() {
     queryKey: ["leads-all", wbahDaysFilter],
     queryFn: () => {
       const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
-      return listLeadsFn({ data: { limit: 5000, dateFrom, dateTo } });
+      return listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } });
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,

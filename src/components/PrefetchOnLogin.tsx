@@ -54,7 +54,7 @@ export function PrefetchOnLogin({ authed }: Props) {
 
     prefetch(["dashboard-overview"],           () => overviewFn());
     prefetch(["dashboard-live-agents"],        () => liveAgentsFn());
-    prefetch(["leads-all"],                    () => listLeadsFn({ data: { limit: 5000 } }));
+    prefetch(["leads-all"],                    () => listLeadsFn({ data: { limit: 1000 } }));
     prefetch(["campaign-stats"],               () => campaignStatsFn({ data: {} }));
     prefetch(["pipeline-leads"],               () => pipelineFn());
     prefetch(["retell-analytics", 30],         () => analyticsFn({ data: { days: 30 } }));
