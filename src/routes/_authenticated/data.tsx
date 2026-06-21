@@ -483,6 +483,7 @@ function DataPage() {
   const [wbahDqData, setWbahDqData]                   = useState<any[]>([]);
   const [wbahDqLoading, setWbahDqLoading]             = useState(false);
   const [wbahDqError, setWbahDqError]                 = useState<string | null>(null);
+  const [wbahDqCount, setWbahDqCount]                 = useState(0);
   const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]);
   const [wbahCallsLoading, setWbahCallsLoading]       = useState(false);
   const [wbahCallsError, setWbahCallsError]           = useState<string | null>(null);
@@ -1021,6 +1022,17 @@ function DataPage() {
     }
   }
 
+  // Lightweight COUNT for the "Disqualified" (need-to-be-called) KPI + badge.
+  // The full rows (~3k, each with a transcript) load lazily when the tab opens.
+  async function handleFetchWbahDqCount() {
+    try {
+      const res = await listWbahCategorizedLeadsFn({ data: { category: "disqualified", page: 1, limit: 1 } });
+      setWbahDqCount((res as any)?.total ?? 0);
+    } catch {
+      /* non-fatal — Disqualified KPI/badge just stays hidden until the tab is opened */
+    }
+  }
+
   useEffect(() => {
     if (dataTab === "people" && isWbah && wbahCallData.length === 0 && !wbahCallDataLoading) {
       handleFetchWbahCallData();
@@ -1032,8 +1044,8 @@ function DataPage() {
     if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && wbahCallsCount === 0) {
       handleFetchWbahCallsCount();
     }
-    if (dataTab === "people" && isWbah && wbahDqData.length === 0 && !wbahDqLoading) {
-      handleFetchWbahCategory("disqualified");
+    if (dataTab === "people" && isWbah && wbahDqData.length === 0 && wbahDqCount === 0) {
+      handleFetchWbahDqCount();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
@@ -1420,7 +1432,7 @@ function DataPage() {
               return s === "need_to_call" || s === "need to call" || s === "not_connected" || s === "no_answer" || s === "not connected";
             }).length;
             const wbahAppts      = wbahCallData.filter(r => !!r.appointmentDate).length;
-            const wbahDisqualCnt = wbahDqData.length;
+            const wbahDisqualCnt = wbahDqData.length || wbahDqCount;
             return (
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <KpiCard label="Total Leads"    value={wbahTotal}      icon={Users}        iconBg="bg-blue-500/15"    iconColor="text-blue-400" />
@@ -1444,7 +1456,7 @@ function DataPage() {
                 { id: "calls",            label: "Calls" },
               ] as { id: string; label: string }[]).map(tab => {
                 const cnt = tab.id === "leads" ? wbahCallData.length
-                          : tab.id === "disqualified" ? wbahDqData.length
+                          : tab.id === "disqualified" ? (wbahDqData.length || wbahDqCount)
                           : tab.id === "tried_to_contact" ? wbahTtcData.length
                           : tab.id === "rebooking" ? wbahRbData.length
                           : tab.id === "calls" ? (wbahCallsData.length || wbahCallsCount)
@@ -1483,7 +1495,7 @@ function DataPage() {
                     : wbahPeopleSubTab === "rebooking" ? "Rebooking"
                     : wbahPeopleSubTab === "calls" ? "Calls" : "All Leads"}
                   {(() => {
-                    const total = wbahPeopleSubTab === "disqualified" ? wbahDqData.length
+                    const total = wbahPeopleSubTab === "disqualified" ? (wbahDqData.length || wbahDqCount)
                                 : wbahPeopleSubTab === "tried_to_contact" ? wbahTtcData.length
                                 : wbahPeopleSubTab === "rebooking" ? wbahRbData.length
                                 : wbahPeopleSubTab === "calls" ? wbahCallsData.length

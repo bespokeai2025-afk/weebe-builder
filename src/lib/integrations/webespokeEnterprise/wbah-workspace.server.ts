@@ -1467,10 +1467,12 @@ export const triggerWbahCategorySync = createServerFn({ method: "POST" })
   });
 
 // ── listWbahDisqualifiedFromCalls ─────────────────────────────────────────────
-// Disqualified leads are derived live from the rich `wbah_calls` table (negative
-// sentiment), deduplicated to one row per contact (most-recent negative call).
-// The `wbah_categorized_leads` table is fed by the call-output endpoint, which
-// never returns negative sentiment, so it cannot populate this category.
+// The "Disqualified" tab lists clients that still NEED TO BE CALLED — i.e. every
+// contact who has NOT yet booked an appointment (negative-sentiment leads are a
+// subset of this, not the whole set). Derived live from the rich `wbah_calls`
+// table, deduplicated to one row per contact (their most-recent call). The
+// `wbah_categorized_leads` table is fed by the call-output endpoint, which never
+// returns this signal, so it cannot populate this category.
 
 async function listWbahDisqualifiedFromCalls(
   workspaceId: string,
@@ -1478,25 +1480,52 @@ async function listWbahDisqualifiedFromCalls(
   limit: number,
   search?: string,
 ) {
-  const { data: calls, error } = await (supabaseAdmin as any)
-    .from("wbah_calls")
-    .select(
-      "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, transcript, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
-    )
-    .eq("workspace_id", workspaceId)
-    .eq("sentiment", "negative")
-    .order("started_at", { ascending: false });
-  if (error) throw new Error(`DB query failed: ${error.message}`);
+  // Build (and cache) the deduped "need to be called" set: one lightweight row
+  // per contact (their latest call), excluding anyone already booked. Transcripts
+  // are heavy, so they are NOT loaded here — only for the current page below.
+  const deduped: any[] = await cacheWrap(
+    `webee:wbah-needcall:${workspaceId}`,
+    60,
+    async () => {
+      const PAGE = 1000;
+      const all: any[] = [];
+      let from = 0;
+      for (;;) {
+        const { data, error } = await (supabaseAdmin as any)
+          .from("wbah_calls")
+          .select(
+            "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
+          )
+          .eq("workspace_id", workspaceId)
+          .order("started_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(`DB query failed: ${error.message}`);
+        const batch: any[] = data ?? [];
+        all.push(...batch);
+        if (batch.length < PAGE) break;
+        from += PAGE;
+      }
 
-  const seen = new Set<string>();
-  const deduped: any[] = [];
-  for (const c of (calls ?? []) as any[]) {
-    const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(c);
-  }
+      // Dedup per contact (phone). Rows are ordered latest-first, so the first
+      // occurrence of each phone is that contact's most-recent call.
+      const seen = new Set<string>();
+      const out: any[] = [];
+      for (const c of all) {
+        const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(c);
+      }
 
+      // "Need to be called" = everyone who has not booked an appointment.
+      return out.filter(
+        (c) => String(c.booking_status ?? "").toLowerCase() !== "success",
+      );
+    },
+  );
+
+  // Search (name / phone) — applied after the cached set is built.
   let filtered = deduped;
   if (search?.trim()) {
     const s = search.trim().toLowerCase();
@@ -1511,11 +1540,26 @@ async function listWbahDisqualifiedFromCalls(
   const start = (page - 1) * limit;
   const pageRows = filtered.slice(start, start + limit);
 
+  // Fetch transcripts only for the rows on this page (kept out of the cached set
+  // because transcripts can be multi-KB each).
+  const transcriptById = new Map<string, string | null>();
+  const ids = pageRows.map((c) => c.id).filter(Boolean);
+  if (ids.length) {
+    const { data: trows } = await (supabaseAdmin as any)
+      .from("wbah_calls")
+      .select("id, transcript")
+      .in("id", ids);
+    for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
+  }
+
+  const cap = (v: string | null | undefined) =>
+    v ? v.charAt(0).toUpperCase() + v.slice(1) : null;
+
   const rows = pageRows.map((c) => {
     const startedMs = c.started_at ? Date.parse(c.started_at) : NaN;
     const raw = {
       callStatus: c.call_status ?? null,
-      sentimentAnalysis: "Negative",
+      sentimentAnalysis: cap(c.sentiment),
       disconnectionReason: c.disconnection_reason ?? null,
       endReason: c.end_reason ?? null,
       appointment_date: c.appointment_date ?? null,
@@ -1526,13 +1570,13 @@ async function listWbahDisqualifiedFromCalls(
       startTimestamp: Number.isNaN(startedMs) ? null : String(startedMs),
       durationMs: c.duration_seconds != null ? String(Number(c.duration_seconds) * 1000) : null,
       recordingUrl: c.recording_url ?? null,
-      transcript: c.transcript ?? null,
+      transcript: transcriptById.get(c.id) ?? null,
     };
     return {
       id: c.id,
       external_lead_id: c.phone ?? c.id,
-      external_status_code: "negative",
-      external_status_label: "Disqualified",
+      external_status_code: c.sentiment ?? "need_to_call",
+      external_status_label: "Need to Call",
       webee_category: "disqualified",
       full_name: c.customer_name ?? "Unknown",
       first_name: null,

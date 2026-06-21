@@ -20,9 +20,11 @@ and ~0 in disqualified/rebooking.
 
 ## Disqualified is NOT fed by this sync anymore — see wbah-disqualified-derivation.md
 The Disqualified sub-tab + KPI are now derived **live** from the `wbah_calls` table
-(`sentiment='negative'`), NOT from `wbah_categorized_leads`. So a 0 disqualified
-count in `wbah_categorized_leads` is NOT the metric to trust; the tab bypasses it.
-tried_to_contact / rebooking still read `wbah_categorized_leads`.
+as "clients that need to be called" = every contact NOT booked
+(`booking_status <> 'success'`), deduped per contact — NOT from
+`wbah_categorized_leads`. So its count in `wbah_categorized_leads` is NOT the metric
+to trust; the tab bypasses it. tried_to_contact / rebooking still read
+`wbah_categorized_leads`.
 
 ## New wbah_* PII tables MUST enable RLS
 Any new `wbah_*` table holding lead PII must `ENABLE ROW LEVEL SECURITY` with a

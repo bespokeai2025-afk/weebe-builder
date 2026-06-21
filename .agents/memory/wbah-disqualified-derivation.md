@@ -1,30 +1,38 @@
 ---
-name: WBAH Disqualified tab derivation
-description: Why the WBAH People → Disqualified tab/KPI is derived from wbah_calls negative sentiment, not from the lead/CRM APIs or wbah_categorized_leads.
+name: WBAH Disqualified tab = "need to be called"
+description: The WBAH People → Disqualified tab lists clients that still need to be called (everyone not yet booked), derived from wbah_calls — not negatives only, not the lead/CRM APIs.
 ---
 
-# WBAH Disqualified tab derivation
+# WBAH Disqualified tab = "need to be called"
 
-The WBAH People → **Disqualified** sub-tab and its KPI card are derived **live from
-the `wbah_calls` table** where `sentiment='negative'`, deduplicated to one row per
-contact (most-recent negative call, `order by started_at desc` then first-seen
-phone). `listWbahCategorizedLeads` branches on `category==="disqualified"` to return
-these rows in the same contract the UI's `mapWbahCatRow` already consumes;
-tried_to_contact / rebooking still read `wbah_categorized_leads`.
+The WBAH People → **Disqualified** sub-tab + KPI list **clients that still need to
+be called** — i.e. every contact who has NOT booked an appointment
+(`booking_status <> 'success'`), deduplicated to one row per contact (their
+most-recent call, `order by started_at desc`). Negative-sentiment leads are just a
+subset. Derived live from the `wbah_calls` table. ~3,298 of 3,323 contacts qualify
+(only ~25 are booked). tried_to_contact / rebooking still read
+`wbah_categorized_leads`.
 
-**Why:** No WeeBespoke API exposes a per-lead "Disqualified" filter status.
-- `get-userCall-lead` (the only working lead endpoint) returns ONLY Neutral/Positive
-  sentiment — never Negative — and its `leadStatus` query param is ignored.
-- `get-crm-data` returns only `{name, mobile_number}` (no status), param also ignored.
-- `/dashboard/*` and `get-user-history` exist but the WeeBespoke account is a single
-  active session, so probing them from a script races the running app's background
-  syncs → intermittent "Authentication failed". Don't rely on them from scripts.
-The source BeSpoke People page shows a **"Negative"** KPI, so disqualified == negative
-sentiment is the correct, evidence-backed mapping. `wbah_calls` (synced every 5 min)
-already carries the rich fields the source shows: sentiment, disconnection_reason,
-end_reason, call_status, duration, recording_url, transcript, booking_*.
+**Why this source (not the obvious ones):**
+- No WeeBespoke API exposes a per-lead "Disqualified" / "Need to Call" status.
+- The `leads` table is unusable for this: it's massively duplicated AND its
+  `meta.call_status` is uniformly `'ended'` for every row, so it carries no
+  need-to-call signal at all.
+- `wbah_calls` (synced every 5 min) is the only clean per-contact source with the
+  rich fields the source app shows. The source BeSpoke People page's "Need to Call"
+  KPI was ~96% of all contacts = everyone-not-booked, which is the definition used.
 
-**How to apply:** Counts won't match old source screenshots because the dataset grows
-live (negative ~3.8% of contacts holds steady). If negative calls ever grow past low
-thousands, push the dedup/pagination into SQL (and select transcript lazily) instead
-of the current fetch-all-then-paginate-in-memory approach.
+**Performance (the dataset is ~3.3k contacts, was 126 when negative-only):**
+- The fetch-all + dedup + not-booked filter is range-paginated (1000/page loop —
+  PostgREST caps a single select at 1000 rows) and wrapped in `cacheWrap` (60s) per
+  workspace, returning a LIGHTWEIGHT set (no transcript). Search + pagination run
+  after the cache; transcripts are fetched only for the current page's IDs.
+- The UI eager-loads only a COUNT on People-tab open (server fn with `limit:1`, read
+  `.total`), mirroring the Calls-tab count pattern; the full ~3.3k rows lazy-load
+  only when the Disqualified sub-tab is opened (client-side search/filters need the
+  full set). KPI/badge/"N total" use `wbahDqData.length || wbahDqCount`.
+
+**How to apply:** Counts grow live — don't expect to match old static screenshots.
+If you ever need a true booked-ever exclusion (vs latest-call booking_status), that
+requires per-contact aggregation; current code judges by the latest call, which is
+fine at this scale (only ~25 booked).

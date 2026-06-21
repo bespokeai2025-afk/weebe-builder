@@ -1,0 +1,323 @@
+Auth & Admin — prefix /admin
+
+  ┌────────┬────────────────────────────┬──────────────┬────────────────────────────────────────────────────────────┐
+  │ Method │            Path            │   Auth /     │                        Description                         │
+  │        │                            │  Permission  │                                                            │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/login               │ Public       │ Log in with email + password. Returns accessToken,         │
+  │        │                            │              │ refreshToken, and the user object (id, role, permissions). │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/logout/:id          │ Bearer       │ Log the admin/user out and invalidate their                │
+  │        │                            │              │ session/refresh token.                                     │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/send-otp            │ Public       │ Send a one-time passcode to an admin (login/verification). │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/verify-otp          │ Public       │ Verify the submitted OTP.                                  │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/change-password/:id │ Bearer       │ Change the logged-in user's password (needs current        │
+  │        │                            │              │ password).                                                 │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/forgot-password     │ Bearer       │ Start password reset: generate + email a reset token.      │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/verify-reset-token  │ Bearer       │ Validate a reset token before showing the new-password     │
+  │        │                            │              │ form.                                                      │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/reset-password      │ Bearer       │ Set a new password using a valid reset token.              │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/create-admin        │ Public       │ Register a new top-level admin account.                    │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ GET    │ /admin/get-all-admin       │ Bearer       │ List all admin accounts.                                   │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ GET    │ /admin/get-admin/:id       │ Bearer       │ Get one admin by id.                                       │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ PUT    │ /admin/update-admin/:id    │ Bearer       │ Update an admin's profile.                                 │
+  ├────────┼────────────────────────────┼──────────────┼────────────────────────────────────────────────────────────┤
+  │ DELETE │ /admin/delete-admin/:id    │ Bearer       │ Delete an admin account.                                   │
+  └────────┴────────────────────────────┴──────────────┴────────────────────────────────────────────────────────────┘
+
+  Auth tokens — prefix /auth
+
+  ┌────────┬─────────────────────┬────────┬────────────────────────────────────────────────────────┐
+  │ Method │        Path         │  Auth  │                      Description                       │
+  ├────────┼─────────────────────┼────────┼────────────────────────────────────────────────────────┤
+  │ POST   │ /auth/refresh-token │ Public │ Exchange a valid refresh token for a new access token. │
+  ├────────┼─────────────────────┼────────┼────────────────────────────────────────────────────────┤
+  │ POST   │ /auth/verify-otp    │ Public │ Verify an OTP (generic auth flow).                     │
+  └────────┴─────────────────────┴────────┴────────────────────────────────────────────────────────┘
+
+  User Management (RBAC sub-users) — prefix /admin
+
+  ┌────────┬─────────────────────────┬──────────────────────┬────────────────────────────────────────────────────────┐
+  │ Method │          Path           │      Permission      │                      Description                       │
+  ├────────┼─────────────────────────┼──────────────────────┼────────────────────────────────────────────────────────┤
+  │ GET    │ /admin/permissions      │ user_management      │ Permission catalog (module keys + labels) used to      │
+  │        │                         │ (read)               │ render the permissions grid.                           │
+  ├────────┼─────────────────────────┼──────────────────────┼────────────────────────────────────────────────────────┤
+  │ GET    │ /admin/users            │ user_management      │ List all sub-users (name, email, role, status,         │
+  │        │                         │ (read)               │ permissions).                                          │
+  ├────────┼─────────────────────────┼──────────────────────┼────────────────────────────────────────────────────────┤
+  │ POST   │ /admin/users            │ user_management      │ Create a sub-user with a role and per-module           │
+  │        │                         │ (write)              │ read/write permissions.                                │
+  ├────────┼─────────────────────────┼──────────────────────┼────────────────────────────────────────────────────────┤
+  │ PUT    │ /admin/users/:id        │ user_management      │ Update a sub-user's details, role, and permissions.    │
+  │        │                         │ (write)              │                                                        │
+  ├────────┼─────────────────────────┼──────────────────────┼────────────────────────────────────────────────────────┤
+  │ PATCH  │ /admin/users/:id/status │ user_management      │ Enable/disable a sub-user (active toggle).             │
+  │        │                         │ (write)              │                                                        │
+  ├────────┼─────────────────────────┼──────────────────────┼────────────────────────────────────────────────────────┤
+  │ DELETE │ /admin/users/:id        │ user_management      │ Delete a sub-user permanently.                         │
+  │        │                         │ (write)              │                                                        │
+  └────────┴─────────────────────────┴──────────────────────┴────────────────────────────────────────────────────────┘
+
+  Dashboard analytics — prefix /dashboard (all POST, body = date range)
+
+  ┌────────┬───────────────────────────────┬────────┬───────────────────────────────────────────────────────────────┐
+  │ Method │             Path              │  Auth  │                          Description                          │
+  ├────────┼───────────────────────────────┼────────┼───────────────────────────────────────────────────────────────┤
+  │ POST   │ /dashboard/total-call-minutes │ Bearer │ Total talk-time (minutes) KPI for the range.                  │
+  ├────────┼───────────────────────────────┼────────┼───────────────────────────────────────────────────────────────┤
+  │ POST   │ /dashboard/number-of-calls    │ Bearer │ Total number of calls in the range.                           │
+  ├────────┼───────────────────────────────┼────────┼───────────────────────────────────────────────────────────────┤
+  │ POST   │ /dashboard/leads              │ Bearer │ Lead counts / breakdown for the range.                        │
+  ├────────┼───────────────────────────────┼────────┼───────────────────────────────────────────────────────────────┤
+  │ POST   │ /dashboard/call-performance   │ Bearer │ Call-performance time series / outcome distribution (charts). │
+  ├────────┼───────────────────────────────┼────────┼───────────────────────────────────────────────────────────────┤
+  │ POST   │ /dashboard/call-drops         │ Bearer │ Dropped / unconnected call metrics.                           │
+  └────────┴───────────────────────────────┴────────┴───────────────────────────────────────────────────────────────┘
+
+  People (call records) — prefix /call-output-data
+
+  ┌────────┬─────────────────────────────────────┬─────────────┬────────────────────────────────────────────────────┐
+  │ Method │                Path                 │   Auth /    │                    Description                     │
+  │        │                                     │ Permission  │                                                    │
+  ├────────┼─────────────────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │        │                                     │ people      │ Paginated/searchable list of call records (query:  │
+  │ GET    │ /call-output-data/get-all-calldata  │ (read)      │ pageSize, currentPage, crm_type, search,           │
+  │        │                                     │             │ isoutbound).                                       │
+  ├────────┼─────────────────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │ GET    │ /call-output-data/get-call-count    │ people      │ Total count of call records, for pagination.       │
+  │        │                                     │ (read)      │                                                    │
+  ├────────┼─────────────────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │ POST   │ /call-output-data/get-user-history  │ Bearer      │ Full call history for one lead (body identifies    │
+  │        │                                     │             │ the lead).                                         │
+  ├────────┼─────────────────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │ GET    │ /call-output-data/get-userCall-lead │ Bearer      │ Lead-centric call data (call output joined with    │
+  │        │                                     │             │ its CRM lead).                                     │
+  ├────────┼─────────────────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │ GET    │ /call-output-data/callbacks/pending │ Bearer      │ List leads with a pending callback request.        │
+  ├────────┼─────────────────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │        │                                     │             │ Internal — Retell/n8n webhook: ingest              │
+  │ POST   │ /call-output-data/create            │ Public      │ finished-call results, or record a callback        │
+  │        │                                     │ (webhook)   │ request when the body has a top-level leadId. Not  │
+  │        │                                     │             │ for UI.                                            │
+  ├────────┼─────────────────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │ PUT    │ /call-output-data/delete/:id        │ Bearer      │ Soft-delete a call-output record by id.            │
+  └────────┴─────────────────────────────────────┴─────────────┴────────────────────────────────────────────────────┘
+
+  CRM Data — prefix /crm-data
+
+  ┌────────┬────────────────────────────────────┬───────────────┬───────────────────────────────────────────────────┐
+  │ Method │                Path                │    Auth /     │                    Description                    │
+  │        │                                    │  Permission   │                                                   │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ GET    │ /crm-data/get-crm-data             │ crm (read)    │ Paginated/searchable list of CRM leads.           │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ POST   │ /crm-data/create                   │ crm (write)   │ Create a single CRM lead from a validated         │
+  │        │                                    │               │ payload.                                          │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ POST   │ /crm-data/upload-excel             │ crm (write)   │ Bulk-import leads from an Excel/CSV file          │
+  │        │                                    │               │ (multipart/form-data, field file).                │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ GET    │ /crm-data/start-batch-calling      │ people        │ Start batch calling for pending leads (respects   │
+  │        │                                    │ (write)       │ daily limit + UK calling window).                 │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ DELETE │ /crm-data/clear-all-crm-data       │ crm (write)   │ Clear all CRM leads for the account.              │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ DELETE │ /crm-data/delete-selected-crm-data │ crm (write)   │ Delete a selected set of leads (ids in body).     │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ POST   │ /crm-data/create-without-auth      │ Public        │ Internal — create a lead without auth (external   │
+  │        │                                    │               │ integrations).                                    │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ GET    │ /crm-data/random-token-phone-call  │ Static token  │ Internal — batch-calling trigger for cron/n8n (no │
+  │        │                                    │               │  user session).                                   │
+  ├────────┼────────────────────────────────────┼───────────────┼───────────────────────────────────────────────────┤
+  │ GET    │ /crm-data/clearAllDataForTesting   │ Public        │ Internal/testing — wipes all CRM data. Do not     │
+  │        │                                    │               │ expose in UI.                                     │
+  └────────┴────────────────────────────────────┴───────────────┴───────────────────────────────────────────────────┘
+
+  Campaigns — prefix /campaigns
+
+  ┌────────┬──────────────────────────┬─────────────────┬───────────────────────────────────────────────────────────┐
+  │ Method │           Path           │   Permission    │                        Description                        │
+  ├────────┼──────────────────────────┼─────────────────┼───────────────────────────────────────────────────────────┤
+  │ POST   │ /campaigns               │ campaigns       │ Create a campaign (agent, lead_status filter, schedule,   │
+  │        │                          │ (write)         │ voicemail).                                               │
+  ├────────┼──────────────────────────┼─────────────────┼───────────────────────────────────────────────────────────┤
+  │ GET    │ /campaigns               │ campaigns       │ List all campaigns with status.                           │
+  │        │                          │ (read)          │                                                           │
+  ├────────┼──────────────────────────┼─────────────────┼───────────────────────────────────────────────────────────┤
+  │ GET    │ /campaigns/:id           │ campaigns       │ Get one campaign by id.                                   │
+  │        │                          │ (read)          │                                                           │
+  ├────────┼──────────────────────────┼─────────────────┼───────────────────────────────────────────────────────────┤
+  │ PATCH  │ /campaigns/:id           │ campaigns       │ Update a campaign's configuration.                        │
+  │        │                          │ (write)         │                                                           │
+  ├────────┼──────────────────────────┼─────────────────┼───────────────────────────────────────────────────────────┤
+  │ PATCH  │ /campaigns/:id/pause     │ campaigns       │ Pause a running campaign.                                 │
+  │        │                          │ (write)         │                                                           │
+  ├────────┼──────────────────────────┼─────────────────┼───────────────────────────────────────────────────────────┤
+  │ PATCH  │ /campaigns/:id/resume    │ campaigns       │ Resume a paused campaign.                                 │
+  │        │                          │ (write)         │                                                           │
+  ├────────┼──────────────────────────┼─────────────────┼───────────────────────────────────────────────────────────┤
+  │ PATCH  │ /campaigns/:id/voicemail │ campaigns       │ Toggle whether the campaign leaves voicemails.            │
+  │        │                          │ (write)         │                                                           │
+  ├────────┼──────────────────────────┼─────────────────┼───────────────────────────────────────────────────────────┤
+  │ DELETE │ /campaigns/:id           │ campaigns       │ Soft-delete a campaign (keeps history).                   │
+  │        │                          │ (write)         │                                                           │
+  └────────┴──────────────────────────┴─────────────────┴───────────────────────────────────────────────────────────┘
+
+  Agents — prefix /agent
+
+  ┌────────┬──────────────────────────────────┬────────────────┬────────────────────────────────────────────────────┐
+  │ Method │               Path               │   Permission   │                    Description                     │
+  ├────────┼──────────────────────────────────┼────────────────┼────────────────────────────────────────────────────┤
+  │ GET    │ /agent/get-list                  │ agents (read)  │ List active agents (optional ?campaign_only=true). │
+  ├────────┼──────────────────────────────────┼────────────────┼────────────────────────────────────────────────────┤
+  │ GET    │ /agent/get-agents-with-voicemail │ agents (read)  │ List agents with their voicemail config.           │
+  ├────────┼──────────────────────────────────┼────────────────┼────────────────────────────────────────────────────┤
+  │ POST   │ /agent/update                    │ agents (write) │ Save which Retell agents are selected/active.      │
+  ├────────┼──────────────────────────────────┼────────────────┼────────────────────────────────────────────────────┤
+  │ PATCH  │ /agent/rename/:id                │ agents (write) │ Rename an agent (display name).                    │
+  ├────────┼──────────────────────────────────┼────────────────┼────────────────────────────────────────────────────┤
+  │ PATCH  │ /agent/voicemailSetting/:id      │ agents (write) │ Enable/edit an agent's voicemail message.          │
+  └────────┴──────────────────────────────────┴────────────────┴────────────────────────────────────────────────────┘
+
+  Calls & Scheduling — prefix /frquency-setting (note spelling)
+
+  ┌────────┬────────────────────────────────────┬──────────────┬────────────────────────────────────────────────────┐
+  │ Method │                Path                │  Permission  │                    Description                     │
+  ├────────┼────────────────────────────────────┼──────────────┼────────────────────────────────────────────────────┤
+  │ POST   │ /frquency-setting/get-frequency    │ calls (read) │ Get current call-frequency schedule(s).            │
+  ├────────┼────────────────────────────────────┼──────────────┼────────────────────────────────────────────────────┤
+  │ POST   │ /frquency-setting/add-frequency    │ calls        │ Create a schedule (body includes a validated cron  │
+  │        │                                    │ (write)      │ expression).                                       │
+  ├────────┼────────────────────────────────────┼──────────────┼────────────────────────────────────────────────────┤
+  │ POST   │ /frquency-setting/update-frequency │ calls        │ Update an existing schedule.                       │
+  │        │                                    │ (write)      │                                                    │
+  └────────┴────────────────────────────────────┴──────────────┴────────────────────────────────────────────────────┘
+
+  Phone Numbers — prefix /phoneNumber
+
+  ┌────────┬─────────────────────────────────────────────────┬───────────────────┬──────────────────────────────────┐
+  │ Method │                      Path                       │ Auth / Permission │           Description            │
+  ├────────┼─────────────────────────────────────────────────┼───────────────────┼──────────────────────────────────┤
+  │ GET    │ /phoneNumber/get-allphonenumbersfrom-retell     │ phone_numbers     │ List phone numbers               │
+  │        │                                                 │ (read)            │ available/owned in Retell.       │
+  ├────────┼─────────────────────────────────────────────────┼───────────────────┼──────────────────────────────────┤
+  │ POST   │ /phoneNumber/update-phonenumbersfrom-retell     │ phone_numbers     │ Save the selected phone numbers. │
+  │        │                                                 │ (write)           │                                  │
+  ├────────┼─────────────────────────────────────────────────┼───────────────────┼──────────────────────────────────┤
+  │ GET    │ /phoneNumber/get-allphonenumbers-with-voicemail │ Public            │ List numbers with their          │
+  │        │                                                 │                   │ voicemail config.                │
+  ├────────┼─────────────────────────────────────────────────┼───────────────────┼──────────────────────────────────┤
+  │ PATCH  │ /phoneNumber/voicemailSetting/:id               │ Public            │ Toggle/edit voicemail for a      │
+  │        │                                                 │                   │ number by id.                    │
+  └────────┴─────────────────────────────────────────────────┴───────────────────┴──────────────────────────────────┘
+
+  Credits — prefix /credits
+
+  ┌────────┬────────────────────────┬───────────────────┬──────────────────────────────────────────┐
+  │ Method │          Path          │ Auth / Permission │               Description                │
+  ├────────┼────────────────────────┼───────────────────┼──────────────────────────────────────────┤
+  │ GET    │ /credits/summary       │ credits (read)    │ Credit balance/allocated/used KPI cards. │
+  ├────────┼────────────────────────┼───────────────────┼──────────────────────────────────────────┤
+  │ GET    │ /credits/history       │ credits (read)    │ Credit transaction history.              │
+  ├────────┼────────────────────────┼───────────────────┼──────────────────────────────────────────┤
+  │ GET    │ /credits/monthly-usage │ credits (read)    │ Usage per month (chart).                 │
+  ├────────┼────────────────────────┼───────────────────┼──────────────────────────────────────────┤
+  │ GET    │ /credits/retell-usage  │ credits (read)    │ Retell billing usage breakdown.          │
+  ├────────┼────────────────────────┼───────────────────┼──────────────────────────────────────────┤
+  │ POST   │ /credits/allocate      │ Public            │ Allocate credits to an account.          │
+  ├────────┼────────────────────────┼───────────────────┼──────────────────────────────────────────┤
+  │ DELETE │ /credits/allocate/:id  │ credits (write)   │ Soft-delete a credit allocation.         │
+  └────────┴────────────────────────┴───────────────────┴──────────────────────────────────────────┘
+
+  Profile & Users — prefixes /profile, /users
+
+  ┌────────┬───────────────────┬────────┬───────────────────────────────────┐
+  │ Method │       Path        │  Auth  │            Description            │
+  ├────────┼───────────────────┼────────┼───────────────────────────────────┤
+  │ GET    │ /profile          │ Bearer │ Get the logged-in user's profile. │
+  ├────────┼───────────────────┼────────┼───────────────────────────────────┤
+  │ GET    │ /users/all        │ Bearer │ List all users.                   │
+  ├────────┼───────────────────┼────────┼───────────────────────────────────┤
+  │ GET    │ /users            │ Bearer │ Get the current user by token.    │
+  ├────────┼───────────────────┼────────┼───────────────────────────────────┤
+  │ GET    │ /users/config     │ Bearer │ Get user config/settings.         │
+  ├────────┼───────────────────┼────────┼───────────────────────────────────┤
+  │ PUT    │ /users/update/:id │ Bearer │ Update a user.                    │
+  ├────────┼───────────────────┼────────┼───────────────────────────────────┤
+  │ DELETE │ /users/delete/:id │ Bearer │ Delete a user.                    │
+  ├────────┼───────────────────┼────────┼───────────────────────────────────┤
+  │ POST   │ /users/logout/:id │ Bearer │ Log a user out.                   │
+  └────────┴───────────────────┴────────┴───────────────────────────────────┘
+
+  Lead status / filters & Dynamics sync (supporting data)
+
+  ┌────────┬────────────────────────────────────────────────────┬────────┬───────────────────────────────────────────┐
+  │ Method │                        Path                        │  Auth  │                Description                │
+  ├────────┼────────────────────────────────────────────────────┼────────┼───────────────────────────────────────────┤
+  │ GET    │ /leadfiltermaster/get-leadfiltermaster             │ Bearer │ List lead-filter master records (status   │
+  │        │                                                    │        │ categories used by campaigns).            │
+  ├────────┼────────────────────────────────────────────────────┼────────┼───────────────────────────────────────────┤
+  │ GET    │ /leadfiltermaster/get-leadfiltermasterByID/:id     │ Bearer │ Get one lead-filter master by id.         │
+  ├────────┼────────────────────────────────────────────────────┼────────┼───────────────────────────────────────────┤
+  │ POST   │ /leadfiltermaster/get-DataFromDynamicsQuery        │ Public │ Run a Dynamics 365 query to pull lead     │
+  │        │                                                    │        │ data.                                     │
+  ├────────┼────────────────────────────────────────────────────┼────────┼───────────────────────────────────────────┤
+  │ POST   │ /leadfiltermaster/update-lead-filter-status/:id    │ Public │ Update a lead-filter status.              │
+  ├────────┼────────────────────────────────────────────────────┼────────┼───────────────────────────────────────────┤
+  │ GET    │ /lead-filterStatus/get-status-fromMicrosoftDynamic │ Public │ Sync lead statuses from Microsoft         │
+  │        │                                                    │        │ Dynamics.                                 │
+  ├────────┼────────────────────────────────────────────────────┼────────┼───────────────────────────────────────────┤
+  │ GET    │ /lead-filterStatus/get-statusCode                  │ Public │ Get the stored status codes.              │
+  ├────────┼────────────────────────────────────────────────────┼────────┼───────────────────────────────────────────┤
+  │ GET    │ /contactfromdynamics/contacts                      │ Public │ Fetch contacts from Dynamics 365          │
+  │        │                                                    │        │ (paginated).                              │
+  ├────────┼────────────────────────────────────────────────────┼────────┼───────────────────────────────────────────┤
+  │ GET    │ /allCompany/get-all-companies                      │ Bearer │ List all companies.                       │
+  └────────┴────────────────────────────────────────────────────┴────────┴───────────────────────────────────────────┘
+
+  Other / utility
+
+  ┌───────────┬───────────────────────────────┬────────┬────────────────────────────────────────────────────────────┐
+  │  Method   │             Path              │  Auth  │                        Description                         │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ POST      │ /center-stage/call-filter     │ Bearer │ Filter calls by date/time window (from_date, to_date,      │
+  │           │                               │        │ from_time, to_time).                                       │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ POST      │ /area-count/add               │ Public │ Add a per-area daily call limit.                           │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ POST      │ /area-count/update            │ Public │ Update an area's daily call limit.                         │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ GET       │ /area-count/fetch             │ Public │ Get all area call limits.                                  │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ POST      │ /api/user/send-otp            │ Public │ Send an OTP (generic).                                     │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ POST      │ /api/user/getAllOtps          │ Bearer │ List OTP records (admin/debug).                            │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ POST      │ /auth/email/send-verification │ Bearer │ Send an email-verification link.                           │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ GET       │ /auth/email/verify-email      │ Public │ Verify email via token.                                    │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ POST      │ /email-Log/send-Email         │ Bearer │ Send an email and log it.                                  │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ GET       │ /privacy-policy               │ Public │ Renders the privacy-policy HTML page.                      │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ GET       │ /terms-and-condition          │ Public │ Renders the terms & conditions HTML page.                  │
+  ├───────────┼───────────────────────────────┼────────┼────────────────────────────────────────────────────────────┤
+  │ GET,      │                               │        │ Push-notification device-token CRUD (/all, /, /user,       │
+  │ POST,     │ /deviceToken/*                │ Bearer │ /create, /update/:id, /delete/:id). Likely not needed for  │
+  │ etc.      │                               │        │ the web dashboard.                                         │
+  └───────────┴───────────────────────────────┴────────┴────────────────────────────────────────────────────────────┘
+
+  ---
