@@ -1,0 +1,242 @@
+URGENT WORKSPACE ANALYTICS ISOLATION FIX
+
+IMPORTANT
+
+Do not change the working WeBuyAnyHouse workspace.
+
+Do not change the [admin@webuyanyhouse.co.uk](mailto:admin@webuyanyhouse.co.uk) account behaviour.
+
+Do not alter WBAH-specific analytics logic unless needed to prevent leakage into other workspaces.
+
+Fix Webespoke AI / WEBEE workspace so it uses its own workspace data and its own Retell API key for analytics.
+
+====================================================
+
+PROBLEM
+
+[admin@webuyanyhouse.co.uk](mailto:admin@webuyanyhouse.co.uk) is working correctly.
+
+But the Webespoke AI account is showing WeBuyAnyHouse analytics.
+
+This means analytics workspace resolution or WBAH branch detection is leaking across accounts.
+
+Expected:
+
+[admin@webuyanyhouse.co.uk](mailto:admin@webuyanyhouse.co.uk)
+→ WBAH workspace
+→ uses WBAH-specific tables/API/sync logic
+
+Webespoke AI account
+→ Webespoke AI workspace
+→ uses its own workspace_id
+→ uses its own Retell API key/provider settings
+→ uses normal Retell analytics path
+→ must NOT use WBAH tables or WBAH API logic
+
+====================================================
+
+AUDIT FIRST
+
+Audit:
+
+1. Current logged-in user workspace resolution.
+2. workspace_id from auth session.
+3. workspace slug.
+4. workspace_settings.
+5. provider_settings for Retell.
+6. Retell API key resolution.
+7. Analytics branch detection.
+8. Dashboard stats branch detection.
+9. Redis cache key workspace scoping.
+10. Any hardcoded WBAH workspace ID or slug.
+11. Any global variable storing last workspace.
+12. Any fallback that defaults to WBAH.
+13. Any cached analytics payload not keyed by workspace_id.
+
+Search for:
+
+webuyanyhouse
+WBAH
+wbah
+wbah_calls
+wbah_categorized_leads
+getRetellAnalytics
+getOverviewStats
+workspace_id
+workspaceSlug
+provider_settings
+retell_api_key
+RETELL_API_KEY
+retell_workspace_id
+[admin@webuyanyhouse.co.uk](mailto:admin@webuyanyhouse.co.uk)
+
+====================================================
+
+ROOT CAUSE TO FIND
+
+Determine whether Webespoke AI is seeing WBAH analytics because of:
+
+A. Wrong workspace_id resolved from auth session
+
+B. WBAH branch detection using global/company slug incorrectly
+
+C. Redis cache key missing workspace_id
+
+D. Analytics function defaulting to WBAH when workspace slug is missing
+
+E. Retell provider settings falling back to WBAH credentials
+
+F. Hardcoded WBAH workspace ID
+
+G. User profile has wrong workspace_id
+
+H. Workspace switching state leaking in frontend
+
+I. Query missing workspace_id filter
+
+J. Server function using platform/admin workspace instead of current workspace
+
+====================================================
+
+FIX RULES
+
+1. WBAH branch should only run when:
+
+workspace.slug === "webuyanyhouse"
+
+OR
+
+workspace_id === exact WBAH workspace id
+
+AND the authenticated user belongs to that workspace.
+
+2. Non-WBAH workspaces must never query:
+
+wbah_calls
+wbah_categorized_leads
+WBAH enterprise API
+WBAH sync tables
+
+3. Webespoke AI workspace must use:
+
+calls table
+Retell API
+workspace-specific Retell credentials
+workspace-specific provider_settings
+workspace-specific analytics cache
+
+4. Never fallback to WBAH data.
+
+5. Never use last selected workspace from localStorage as server truth.
+
+6. Server must resolve workspace from authenticated session and database membership.
+
+====================================================
+
+RETELL ANALYTICS REQUIREMENT
+
+For Webespoke AI workspace:
+
+getRetellAnalytics should:
+
+1. Resolve current workspace_id.
+2. Load Retell credentials from provider_settings or workspace_settings for that workspace only.
+3. If no workspace Retell key exists, fallback only to platform Retell key if explicitly allowed for that workspace.
+4. Fetch Retell calls for that workspace’s agents only.
+5. Store/cache analytics under key including workspace_id.
+6. Return zero/empty state if no Retell data exists, not WBAH data.
+
+====================================================
+
+CACHE FIX
+
+Verify all analytics/cache keys include workspace_id.
+
+Required patterns:
+
+webee:dashboard:{workspaceId}:overview
+webee:analytics:{workspaceId}:retell:{days}
+webee:calls:{workspaceId}:...
+webee:hivemind:{workspaceId}:...
+
+If any cache key is missing workspace_id, fix it.
+
+Add safe cache bust for affected keys.
+
+====================================================
+
+FRONTEND FIX
+
+Ensure the analytics/dashboard UI does not keep WBAH state after switching accounts.
+
+On login/logout/workspace change:
+
+clear analytics query cache
+clear dashboard query cache
+clear HiveMind query cache
+clear GrowthMind query cache
+
+TanStack Query keys must include workspace_id.
+
+====================================================
+
+VALIDATION TESTS
+
+Test account 1:
+
+[admin@webuyanyhouse.co.uk](mailto:admin@webuyanyhouse.co.uk)
+
+Expected:
+
+Uses WBAH workspace.
+Dashboard can read wbah_calls.
+Calls count remains correct.
+Do not break this.
+
+Test account 2:
+
+Webespoke AI account
+
+Expected:
+
+Does NOT use wbah_calls.
+Does NOT use WBAH enterprise API.
+Uses Retell analytics path.
+Uses Webespoke AI workspace_id.
+Uses Webespoke AI Retell API key/provider setting.
+Shows Webespoke AI calls/analytics only.
+
+Test account switching:
+
+Login as WBAH.
+View analytics.
+Logout.
+Login as Webespoke AI.
+Analytics must not show WBAH cached data.
+
+====================================================
+
+ADD SAFETY ASSERTIONS
+
+In analytics functions:
+
+If workspace is not WBAH and code attempts to query wbah_calls, throw/log a warning and return safe empty result.
+
+If workspace is WBAH and code attempts normal Retell analytics when WBAH branch should be used, log diagnostic but do not break.
+
+====================================================
+
+OUTPUT REQUIRED
+
+Return:
+
+1. Root cause found.
+2. Files changed.
+3. Whether WBAH was touched.
+4. Confirmation WBAH remains working.
+5. Confirmation Webespoke AI now uses Retell.
+6. Cache keys fixed.
+7. Workspace isolation checks added.
+8. Validation results for both accounts.
+
+Do not modify unrelated systems.

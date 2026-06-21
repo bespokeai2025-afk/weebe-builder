@@ -98,7 +98,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MODULE_CATALOG, requestModuleUpgrade } from "@/lib/modules/modules.functions";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getMyAdminStatus, getMyProfile } from "@/lib/auth/auth.functions";
@@ -358,6 +358,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const currentPath = useRouterState({
     select: (router) => router.location.pathname,
   });
@@ -446,6 +447,10 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
+    // Wipe all cached query data so the next account that logs in on this
+    // same SPA session never sees the previous workspace's data (analytics,
+    // dashboard, leads, etc. are keyed by generic strings, not workspace_id).
+    qc.clear();
     navigate({ to: "/login", search: { redirect: "/" } });
   };
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -16,6 +16,14 @@ import { PrefetchOnLogin } from "@/components/PrefetchOnLogin";
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
 });
+
+// Tracks the authenticated user whose data currently populates the React Query
+// cache. Module-level so it persists across route remounts but resets on a full
+// page reload (same lifetime as the QueryClient in router.tsx). Acts as a
+// belt-and-suspenders boundary: if a different user is detected on this same SPA
+// session (any login path), we wipe the cache so no prior account's data is
+// served under the shared (non-workspace-keyed) query keys.
+let lastAuthUserId: string | null = null;
 
 /**
  * Gates the legacy agent-builder tour so it only shows for:
@@ -42,6 +50,7 @@ function GatedOnboardingTour() {
 
 function AuthenticatedLayout() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const hideHeader = pathname.startsWith("/builder");
   const [checked, setChecked] = useState(false);
@@ -61,6 +70,14 @@ function AuthenticatedLayout() {
         }
         return;
       }
+      // Account-isolation boundary: if a different user is now authenticated on
+      // this same SPA session, clear cached query data before this layout's
+      // children render their queries, so no prior account's data is served.
+      const uid = sess.session.user.id;
+      if (lastAuthUserId !== null && lastAuthUserId !== uid) {
+        qc.clear();
+      }
+      lastAuthUserId = uid;
       setAuthed(true);
       setChecked(true);
     })();

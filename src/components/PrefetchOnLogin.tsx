@@ -38,6 +38,11 @@ import {
 
 const STALE = 5 * 60 * 1000;
 
+// Tracks the workspace whose data currently populates the React Query cache.
+// Module-level so it survives component remounts but resets on a full page
+// reload (same lifetime as the QueryClient created in router.tsx).
+let lastWorkspaceId: string | null = null;
+
 interface Props {
   authed: boolean;
 }
@@ -78,10 +83,19 @@ export function PrefetchOnLogin({ authed }: Props) {
           .eq("user_id", sess.session.user.id)
           .maybeSingle();
         if (!profile?.default_workspace_id) { if (active) setIsWbah(false); return; }
+        const wsId = profile.default_workspace_id as string;
+        // Account isolation: if the active workspace changed since the last
+        // resolve (a different user logged in on this same SPA session), wipe
+        // the React Query cache so no prior workspace's data is served under
+        // the shared (non-workspace-keyed) query keys before fresh data loads.
+        if (lastWorkspaceId !== null && lastWorkspaceId !== wsId) {
+          qc.clear();
+        }
+        lastWorkspaceId = wsId;
         const { data: ws } = await supabase
           .from("workspaces")
           .select("slug")
-          .eq("id", profile.default_workspace_id)
+          .eq("id", wsId)
           .maybeSingle();
         if (active) setIsWbah(ws?.slug === "webuyanyhouse");
       } catch {

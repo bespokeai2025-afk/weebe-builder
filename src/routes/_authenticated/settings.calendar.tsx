@@ -169,6 +169,7 @@ function CalendarSettingsPage() {
               className="gap-1"
               onClick={async () => {
                 await supabase.auth.signOut();
+                qc.clear();
                 navigate({ to: "/login", search: { redirect: "/settings/calendar" } });
               }}
             >
