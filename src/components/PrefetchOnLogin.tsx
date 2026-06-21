@@ -138,7 +138,7 @@ export function PrefetchOnLogin({ authed }: Props) {
       const dateTo   = new Date().toISOString();
       prefetch(["leads-all", false, "30"], () => listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } }));
       prefetch(["calls", "exclude", "30"], () => callsFn({ data: { voicemailFilter: "exclude", dateFrom, dateTo } }));
-      prefetch(["leads-qualified", ""],    () => qualLeadsFn({ data: { qualificationStatus: "qualified", limit: 200 } }));
+      prefetch(["leads-qualified", ""],    () => qualLeadsFn({ data: { limit: 200 } }));
     }
   }, [authed, isWbah]); // eslint-disable-line react-hooks/exhaustive-deps
 

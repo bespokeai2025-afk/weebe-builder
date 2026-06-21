@@ -246,7 +246,6 @@ function QualifiedPage() {
       getLeads({
         data: {
           search: search || undefined,
-          qualificationStatus: "qualified",
           limit: 200,
         },
       }),

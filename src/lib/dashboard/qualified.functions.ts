@@ -18,14 +18,31 @@ export const listQualifiedLeads = createServerFn({ method: "POST" })
     if (!workspaceId) throw new Error("No active workspace");
     const sb = supabase as any;
 
-    // Only show leads with positive sentiment (neutral is NOT qualified)
+    // WBAH qualifies leads by call sentiment; standard accounts qualify by lead
+    // status (interested/qualified) — the SAME definition the dashboard KPI uses
+    // (getOverviewStats). Applying the WBAH sentiment filter to standard accounts
+    // hid every qualified lead, because those leads are marked via status, not
+    // sentiment. Branch so WBAH behaviour is unchanged.
+    const { data: wsRow } = await sb
+      .from("workspaces")
+      .select("slug")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    const isWbah = wsRow?.slug === "webuyanyhouse";
+
     let q = sb
       .from("leads")
       .select("*")
       .eq("workspace_id", workspaceId)
-      .eq("sentiment", "positive")
       .order("updated_at", { ascending: false })
       .limit(data.limit);
+
+    if (isWbah) {
+      // Only show leads with positive sentiment (neutral is NOT qualified)
+      q = q.eq("sentiment", "positive");
+    } else {
+      q = q.in("status", ["interested", "qualified"]);
+    }
 
     if (data.search)
       q = q.or(
