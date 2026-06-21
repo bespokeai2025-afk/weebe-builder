@@ -1485,15 +1485,23 @@ const WBAH_DERIVED_LABEL: Record<WbahDerivedCat, string> = {
   rebooking:        "Rebooking",
 };
 
-// Classify a single deduped contact (their latest call), already known to be
-// NOT booked, into exactly one category. Order matters — first match wins.
-function classifyWbahNeedCall(c: any): WbahDerivedCat {
-  const cs   = String(c.call_status ?? "").toLowerCase();
-  const sa   = String(c.sentiment ?? "").toLowerCase();
-  const dr   = String(c.disconnection_reason ?? "").toLowerCase();
-  const er   = String(c.end_reason ?? "").toLowerCase();
-  const appt = !!(c.appointment_date && String(c.appointment_date).trim());
+// Classify a single CRM-loaded contact (from get-all-calldata) into exactly one
+// bucket. The contact is already known to be NOT booked. Order matters — first
+// match wins.
+function classifyWbahCrmContact(r: any): WbahDerivedCat {
+  const cs   = String(r.callStatus ?? "").toLowerCase();
+  const sa   = String(r.sentimentAnalysis ?? "").toLowerCase();
+  const dr   = String(r.disconnectionReason ?? "").toLowerCase();
+  const er   = String(r.endReason ?? "").toLowerCase();
+  const appt = !!(r.appointment_date && String(r.appointment_date).trim());
   const hay  = `${cs} ${dr} ${er}`;
+  const notCalled = !r.callId || cs === "need_to_call";
+
+  // Needs to call — loaded from the CRM but not yet dialled. Per WBAH these sit
+  // in the Disqualified tab alongside truly-disqualified contacts. Their raw
+  // callStatus is preserved as "need_to_call" so the UI badge still distinguishes
+  // them from negative/disqualified leads.
+  if (notCalled) return "disqualified";
 
   // Disqualified — we reached them but they are negative / not interested.
   if (sa === "negative") return "disqualified";
@@ -1506,77 +1514,102 @@ function classifyWbahNeedCall(c: any): WbahDerivedCat {
   // Tried To Contact — never actually connected (no answer / voicemail / no convo).
   if (cs === "no_answer" || cs === "not_connected" || cs === "voicemail") return "tried_to_contact";
   if (/voicemail|no_answer|no_input|dial_no_answer|dial_busy|dial_failed|inactivity|machine/.test(hay)) return "tried_to_contact";
-  if (!sa && cs !== "completed") return "tried_to_contact";
 
-  // Default — reached (completed), neutral/positive, no booking yet → call back
-  // to land a booking.
+  // Default — reached (ended), neutral/positive, no booking yet → call back to
+  // land a booking.
   return "rebooking";
 }
 
-// Build (and cache) the deduped, classified "need to be called" set: one
-// lightweight row per contact (their latest call), excluding anyone already
-// booked, each tagged with its `__cat`. Transcripts are heavy, so they are NOT
-// loaded here — only for the current page in listWbahCallDerivedCategory().
-async function getWbahCallDerivedContacts(workspaceId: string): Promise<any[]> {
-  return cacheWrap(`webee:wbah-callcats:${workspaceId}`, 60, async () => {
-    const PAGE = 1000;
-    const all: any[] = [];
-    let from = 0;
-    for (;;) {
-      const { data, error } = await (supabaseAdmin as any)
-        .from("wbah_calls")
-        .select(
-          "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
-        )
-        .eq("workspace_id", workspaceId)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) throw new Error(`DB query failed: ${error.message}`);
-      const batch: any[] = data ?? [];
-      all.push(...batch);
-      if (batch.length < PAGE) break;
-      from += PAGE;
+// Fetch ALL CRM-loaded contacts from the live `get-all-calldata` feed — the only
+// WeeBespoke source that carries not-yet-called ("need_to_call") contacts plus a
+// per-record CRM load date (`createdAt`). Records are deduped by phone (latest
+// load wins), already-booked contacts are dropped, and each survivor is tagged
+// with its `__cat`. Cached per-workspace for 60s so the three category tabs and
+// their count probes share a single fetch.
+async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
+  return cacheWrap(`webee:wbah-crm-contacts:${workspaceId}`, 60, async () => {
+    const cbs = await requireWbahCbs(userId);
+    const gt  = cbs.getTokens;
+    const st  = cbs.saveNewAccessToken;
+
+    const extractRecs = (raw: any): any[] =>
+      Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+
+    const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st);
+    if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch CRM call data from WeeBespoke");
+
+    const p1Raw      = p1Res.data as any;
+    const pag        = p1Raw?.pagination ?? {};
+    const totalItems = Number(pag.totalItems ?? 0);
+    const pageSize   = Number(pag.pageSize ?? 50) || 50;
+    const apiPages   = Number(pag.totalPages ?? 1) || 1;
+    // Trust whichever page count is larger — guards against an unreliable
+    // totalPages under-fetching and dropping contacts from the buckets.
+    const totalPages = Math.max(apiPages, totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1);
+
+    const all: any[] = [...extractRecs(p1Raw)];
+    for (let page = 2; page <= totalPages; page += 8) {
+      const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
+      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st)));
+      for (let i = 0; i < settled.length; i++) {
+        const s = settled[i];
+        if (s.status === "fulfilled" && s.value.ok) {
+          all.push(...extractRecs(s.value.data as any));
+          continue;
+        }
+        // Retry a failed page once; throw if it still fails so the bucket counts
+        // never silently return partial data.
+        const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st);
+        if (!retry.ok) throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
+        all.push(...extractRecs(retry.data as any));
+      }
     }
 
-    // Dedup per contact (phone). Rows are ordered latest-first, so the first
-    // occurrence of each phone is that contact's most-recent call.
-    const seen = new Set<string>();
+    // Dedup by phone, keeping each contact's most-recently-loaded row so the
+    // latest booking/call state (and load date) wins.
+    const byKey = new Map<string, any>();
+    for (const r of all) {
+      const phone = r.toNumber ?? r.fromNumber ?? r.phone ?? null;
+      const key = phone && String(phone).trim()
+        ? String(phone).trim()
+        : `id:${r.lead_id ?? r.callId ?? r.id}`;
+      const ts   = Date.parse(r.createdAt ?? r.created_at ?? "") || 0;
+      const prev = byKey.get(key);
+      const prevTs = prev ? (Date.parse(prev.createdAt ?? prev.created_at ?? "") || 0) : -1;
+      if (!prev || ts >= prevTs) byKey.set(key, r);
+    }
+
+    // Drop already-booked contacts (latest state booked) and classify the rest.
     const out: any[] = [];
-    for (const c of all) {
-      const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(c);
+    for (const r of byKey.values()) {
+      if (String(r.booking_status ?? "").toLowerCase() === "success") continue;
+      r.__cat = classifyWbahCrmContact(r);
+      out.push(r);
     }
-
-    // Keep only "need to be called" (not booked) and tag each with its bucket.
-    const needCall = out.filter(
-      (c) => String(c.booking_status ?? "").toLowerCase() !== "success",
-    );
-    for (const c of needCall) c.__cat = classifyWbahNeedCall(c);
-    return needCall;
+    return out;
   });
 }
 
-// Returns one category's page of contacts, derived live from wbah_calls.
-async function listWbahCallDerivedCategory(
+// Returns one category's page of CRM-loaded contacts, mapped to the row shape
+// the UI's mapWbahCatRow expects (incl. `crm_loaded_at` for the LOADED column).
+async function listWbahCrmLoadedCategory(
+  userId: string,
   workspaceId: string,
   category: WbahDerivedCat,
   page: number,
   limit: number,
   search?: string,
 ) {
-  const derived = await getWbahCallDerivedContacts(workspaceId);
-  let filtered = derived.filter((c) => c.__cat === category);
+  const contacts = await getWbahCrmLoadedContacts(userId, workspaceId);
+  let filtered = contacts.filter((c) => c.__cat === category);
 
   // Search (name / phone).
   if (search?.trim()) {
     const s = search.trim().toLowerCase();
     filtered = filtered.filter(
       (c) =>
-        String(c.customer_name ?? "").toLowerCase().includes(s) ||
-        String(c.phone ?? "").toLowerCase().includes(s),
+        String(c.name ?? "").toLowerCase().includes(s) ||
+        String(c.toNumber ?? c.fromNumber ?? c.phone ?? "").toLowerCase().includes(s),
     );
   }
 
@@ -1584,49 +1617,35 @@ async function listWbahCallDerivedCategory(
   const start = (page - 1) * limit;
   const pageRows = filtered.slice(start, start + limit);
 
-  // Fetch transcripts only for the rows on this page (kept out of the cached set
-  // because transcripts can be multi-KB each).
-  const transcriptById = new Map<string, string | null>();
-  const ids = pageRows.map((c) => c.id).filter(Boolean);
-  if (ids.length) {
-    const { data: trows } = await (supabaseAdmin as any)
-      .from("wbah_calls")
-      .select("id, transcript")
-      .in("id", ids);
-    for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
-  }
-
-  const cap = (v: string | null | undefined) =>
-    v ? v.charAt(0).toUpperCase() + v.slice(1) : null;
-
   const rows = pageRows.map((c) => {
-    const startedMs = c.started_at ? Date.parse(c.started_at) : NaN;
+    const phone    = c.toNumber ?? c.fromNumber ?? c.phone ?? null;
+    const loadedAt = c.createdAt ?? c.created_at ?? null;
     const raw = {
-      callStatus: c.call_status ?? null,
-      sentimentAnalysis: cap(c.sentiment),
-      disconnectionReason: c.disconnection_reason ?? null,
-      endReason: c.end_reason ?? null,
+      callStatus: c.callStatus ?? null,
+      sentimentAnalysis: c.sentimentAnalysis ?? null,
+      disconnectionReason: c.disconnectionReason ?? null,
+      endReason: c.endReason ?? null,
       appointment_date: c.appointment_date ?? null,
       appointment_time: c.appointment_time ?? null,
       booking_status: c.booking_status ?? null,
       calendly_booking_url: c.calendly_booking_url ?? null,
-      agentName: c.agent_name ?? null,
-      startTimestamp: Number.isNaN(startedMs) ? null : String(startedMs),
-      durationMs: c.duration_seconds != null ? String(Number(c.duration_seconds) * 1000) : null,
-      recordingUrl: c.recording_url ?? null,
-      transcript: transcriptById.get(c.id) ?? null,
+      agentName: c.agentName ?? null,
+      startTimestamp: c.startTimestamp ? String(c.startTimestamp) : null,
+      durationMs: c.durationMs ? String(c.durationMs) : null,
+      recordingUrl: c.recordingUrl ?? null,
+      transcript: c.transcript ?? null,
     };
     return {
-      id: c.id,
-      external_lead_id: c.phone ?? c.id,
-      external_status_code: c.sentiment ?? category,
+      id: String(c.id ?? c.callId ?? c.lead_id ?? phone ?? `${category}-${start}`),
+      external_lead_id: phone ?? c.lead_id ?? c.id,
+      external_status_code: c.callStatus ?? category,
       external_status_label: WBAH_DERIVED_LABEL[category],
       webee_category: category,
-      full_name: c.customer_name ?? "Unknown",
+      full_name: c.name ?? "Unknown",
       first_name: null,
       last_name: null,
-      phone: c.phone ?? null,
-      email: null,
+      phone,
+      email: c.email ?? null,
       address: null,
       city: null,
       postcode: null,
@@ -1635,10 +1654,11 @@ async function listWbahCallDerivedCategory(
         raw_lead: raw,
         appointment_date: c.appointment_date ?? null,
         booking_status: c.booking_status ?? null,
-        recording_url: c.recording_url ?? null,
+        recording_url: c.recordingUrl ?? null,
+        crm_loaded_at: loadedAt,
       },
-      last_synced_at: c.started_at ?? new Date().toISOString(),
-      created_at: c.started_at ?? new Date().toISOString(),
+      last_synced_at: loadedAt ?? new Date().toISOString(),
+      created_at: loadedAt ?? new Date().toISOString(),
     };
   });
 
@@ -1676,10 +1696,11 @@ export const listWbahCategorizedLeads = createServerFn({ method: "GET" })
 
     const { category, page, limit, search } = data;
 
-    // All three WBAH categories are derived live from `wbah_calls` as mutually
-    // exclusive buckets (see getWbahCallDerivedContacts), bypassing the
-    // unreliable `wbah_categorized_leads` table.
-    return await listWbahCallDerivedCategory(ws.id, category, page, limit, search);
+    // All three WBAH categories are derived live from the CRM `get-all-calldata`
+    // feed as mutually exclusive buckets (see getWbahCrmLoadedContacts). This is
+    // the only source that includes not-yet-called contacts plus a CRM load date;
+    // needs-to-call contacts are folded into the Disqualified bucket.
+    return await listWbahCrmLoadedCategory(context.userId, ws.id, category, page, limit, search);
   });
 
 // ── getWbahCategorySyncLog ─────────────────────────────────────────────────────

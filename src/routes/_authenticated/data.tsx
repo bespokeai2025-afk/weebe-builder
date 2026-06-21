@@ -302,7 +302,13 @@ function wbahRowPasses(
   }
   if (statusF !== "all" && wbahStatusKey(r.callStatus) !== statusF) return false;
   if (sentimentF !== "all" && !(r.sentimentAnalysis ?? "").toLowerCase().includes(sentimentF)) return false;
-  if (dateCutoff > 0 && (!r.startTimestamp || r.startTimestamp < dateCutoff)) return false;
+  if (dateCutoff > 0) {
+    // CRM-loaded category rows that have not been called yet carry no
+    // startTimestamp, so fall back to their CRM load date for date filtering.
+    const ts = r.startTimestamp ? Number(r.startTimestamp)
+             : r.loadedAt ? Date.parse(r.loadedAt) : 0;
+    if (!ts || ts < dateCutoff) return false;
+  }
   if (agentF !== "all" && String(r.agentName ?? r.agent_name ?? "").trim() !== agentF) return false;
   return true;
 }
@@ -499,7 +505,7 @@ function DataPage() {
   const [wbahCatSyncLog, setWbahCatSyncLog]           = useState<Record<string, any> | null>(null);
   const [wbahCatSyncing, setWbahCatSyncing]           = useState<string | null>(null);
   const [wbahCanSync, setWbahCanSync]                 = useState(false);
-  const [wbahPeopleSubTab, setWbahPeopleSubTab]       = useState<string>("leads");
+  const [wbahPeopleSubTab, setWbahPeopleSubTab]       = useState<string>("disqualified");
   const [wbahPeopleSearch, setWbahPeopleSearch]       = useState("");
   const [wbahStatusFilter,    setWbahStatusFilter]    = useState("all");
   const [wbahSentimentFilter, setWbahSentimentFilter] = useState("all");
@@ -940,6 +946,7 @@ function DataPage() {
       recordingUrl:        r.meta?.recording_url ?? raw.recordingUrl ?? null,
       transcript:          raw.transcript ?? null,
       endReason:           raw.endReason ?? null,
+      loadedAt:            r.meta?.crm_loaded_at ?? r.created_at ?? null,
     };
   }
 
@@ -1051,13 +1058,10 @@ function DataPage() {
   }
 
   useEffect(() => {
-    if (dataTab === "people" && isWbah && wbahCallData.length === 0 && !wbahCallDataLoading) {
-      handleFetchWbahCallData();
-    }
     // Fetch only the calls COUNT for the sub-tab badge. The full call rows
     // (11k+, each with a transcript) are a multi-MB payload, so they load
     // lazily when the Calls tab is actually opened — keeping the People page
-    // (default "Leads" view) fast on first load.
+    // (default "Disqualified" view) fast on first load.
     if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && wbahCallsCount === 0) {
       handleFetchWbahCallsCount();
     }
@@ -1442,19 +1446,17 @@ function DataPage() {
           )}
 
           {/* ── WBAH People KPI strip ───────────────────────────────────── */}
-          {wbahCallData.length > 0 && (() => {
-            const wbahTotal      = wbahCallData.length;
-            const wbahNeedCall   = (wbahDqData.length || wbahDqCount)
-                                 + (wbahTtcData.length || wbahTtcCount)
-                                 + (wbahRbData.length || wbahRbCount);
-            const wbahAppts      = wbahCallData.filter(r => !!r.appointmentDate).length;
-            const wbahDisqualCnt = wbahDqData.length || wbahDqCount;
+          {((wbahDqData.length || wbahDqCount) + (wbahTtcData.length || wbahTtcCount) + (wbahRbData.length || wbahRbCount)) > 0 && (() => {
+            const dq     = wbahDqData.length || wbahDqCount;
+            const ttc    = wbahTtcData.length || wbahTtcCount;
+            const rb     = wbahRbData.length || wbahRbCount;
+            const loaded = dq + ttc + rb;
             return (
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <KpiCard label="Total Leads"    value={wbahTotal}      icon={Users}        iconBg="bg-blue-500/15"    iconColor="text-blue-400" />
-                <KpiCard label="Need to Call"   value={wbahNeedCall}   icon={PhoneOutgoing} iconBg="bg-amber-500/15"  iconColor="text-amber-400" />
-                <KpiCard label="Appointments"   value={wbahAppts}      icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
-                <KpiCard label="Disqualified"   value={wbahDisqualCnt} icon={UserCheck}    iconBg="bg-rose-500/15"   iconColor="text-rose-400" />
+                <KpiCard label="CRM Contacts"                value={loaded} icon={Users}         iconBg="bg-blue-500/15"   iconColor="text-blue-400" />
+                <KpiCard label="Disqualified / Need to Call" value={dq}     icon={UserCheck}     iconBg="bg-rose-500/15"   iconColor="text-rose-400" />
+                <KpiCard label="Tried to Contact"            value={ttc}    icon={PhoneOutgoing} iconBg="bg-amber-500/15"  iconColor="text-amber-400" />
+                <KpiCard label="Rebooking"                   value={rb}     icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
               </div>
             );
           })()}
@@ -1465,7 +1467,6 @@ function DataPage() {
             {/* ── CRM section sub-tabs ────────────────────────────────────── */}
             <div className="flex items-center gap-0 border-b border-white/[0.06] px-4 overflow-x-auto">
               {([
-                { id: "leads",            label: "Leads" },
                 { id: "disqualified",     label: "Disqualified" },
                 { id: "tried_to_contact", label: "Tried To Contact" },
                 { id: "rebooking",        label: "Rebooking" },
@@ -1793,7 +1794,11 @@ function DataPage() {
                             />
                           </th>
                         )}
-                        {(["SR NO","NAME","CONTACT","TYPE","LAST CALLED AT","CALL STATUS","DURATION","RECORDING","TRANSCRIPT","SENTIMENT","APPT DATE","APPT TIME","BOOKING STATUS","CALENDLY","END REASON","DISCONNECTION"] as const).map(col => (
+                        {([
+                          "SR NO","NAME","CONTACT",
+                          ...(isCat ? ["LOADED"] : []),
+                          "TYPE","LAST CALLED AT","CALL STATUS","DURATION","RECORDING","TRANSCRIPT","SENTIMENT","APPT DATE","APPT TIME","BOOKING STATUS","CALENDLY","END REASON","DISCONNECTION",
+                        ] as string[]).map(col => (
                           <th key={col} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground whitespace-nowrap">{col}</th>
                         ))}
                       </tr>
@@ -1829,6 +1834,9 @@ function DataPage() {
                                 </a>
                               ) : "—"}
                             </td>
+                            {isCat && (
+                              <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
+                            )}
                             <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
                             <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
                             <td className="px-3 py-2 whitespace-nowrap">
