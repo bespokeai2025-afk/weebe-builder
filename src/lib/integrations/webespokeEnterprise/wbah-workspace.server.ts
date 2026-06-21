@@ -1791,6 +1791,109 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
     });
   });
 
+// ── WBAH Positive / Neutral Leads (derived live from wbah_calls) ──────────────
+// The "Leads" window shows every contact who has ALREADY been called and whose
+// most-recent call came back positive or neutral — one row per contact (their
+// latest call), newest first. This mirrors the BeSpoke "Positive/Neutral Leads"
+// screen. It is intentionally distinct from the People sub-tabs (which bucket
+// the NOT-yet-booked contacts), so a warm, unbooked contact can legitimately
+// appear in both this window and the Rebooking tab.
+
+export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    return cacheWrap(`webee:wbah-posneu-leads:${workspaceId}`, 60, async () => {
+      const PAGE = 1000;
+      const all: any[] = [];
+      let from = 0;
+      for (;;) {
+        const { data, error } = await (supabaseAdmin as any)
+          .from("wbah_calls")
+          .select(
+            "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
+          )
+          .eq("workspace_id", workspaceId)
+          .order("started_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(`DB query failed: ${error.message}`);
+        const batch: any[] = data ?? [];
+        all.push(...batch);
+        if (batch.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // Dedup per contact (phone). Rows are latest-first, so the first time we
+      // encounter a phone is that contact's most-recent call.
+      const seen = new Set<string>();
+      const latest: any[] = [];
+      for (const c of all) {
+        const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        latest.push(c);
+      }
+
+      // Keep only contacts whose latest call came back positive or neutral.
+      const posNeu = latest.filter((c) => {
+        const s = String(c.sentiment ?? "").toLowerCase();
+        return s === "positive" || s === "neutral";
+      });
+
+      // Transcripts are heavy, so pull them only for the kept contacts, chunked
+      // to stay under PostgREST's row cap.
+      const transcriptById = new Map<string, string | null>();
+      const ids = posNeu.map((c) => c.id).filter(Boolean);
+      for (let i = 0; i < ids.length; i += 500) {
+        const chunk = ids.slice(i, i + 500);
+        const { data: trows } = await (supabaseAdmin as any)
+          .from("wbah_calls")
+          .select("id, transcript")
+          .in("id", chunk);
+        for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
+      }
+
+      console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
+      // Shape rows to match the /leads ("Leads window") table contract so the
+      // existing WBAH renderer works unchanged: top-level lead fields + a `meta`
+      // blob carrying the latest-call details.
+      return posNeu.map((c) => {
+        const startedIso: string | null = c.started_at ?? null;
+        const transcript = transcriptById.get(c.id) ?? null;
+        return {
+          id:                c.id,
+          full_name:         c.customer_name ?? "Unknown",
+          company_name:      null,
+          phone:             c.phone ?? null,
+          email:             null,
+          sentiment:         (String(c.sentiment ?? "").toLowerCase() || null),
+          lead_score:        null,
+          interest_level:    null,
+          status:            null,
+          call_summary:      transcript,
+          next_action:       null,
+          last_contacted_at: startedIso,
+          created_at:        startedIso,
+          meta: {
+            last_called_at:       startedIso,
+            call_status:          c.call_status ?? null,
+            duration_ms:          c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
+            recording_url:        c.recording_url ?? null,
+            appointment_date:     c.appointment_date ?? null,
+            appointment_time:     c.appointment_time ?? null,
+            booking_status:       c.booking_status ?? null,
+            end_reason:           c.end_reason ?? null,
+            disconnection_reason: c.disconnection_reason ?? null,
+            calendly_booking_url: c.calendly_booking_url ?? null,
+            agent_name:           c.agent_name ?? null,
+          },
+        };
+      });
+    });
+  });
+
 // ── Disqualified leads from WeeBespoke API (filter master UUID approach) ───────
 // Fetches leads tagged as "Disqualified" in the WeeBespoke AI app using the
 // filter master UUID returned by /leadfiltermaster/get-leadfiltermaster.

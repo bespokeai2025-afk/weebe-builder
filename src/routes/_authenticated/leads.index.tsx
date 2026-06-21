@@ -51,6 +51,7 @@ import {
   scheduleQualificationCalls,
   fireScheduledCalls,
 } from "@/lib/dashboard/leads.functions";
+import { listWbahPositiveNeutralLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { DialogDescription } from "@/components/ui/dialog";
@@ -201,6 +202,7 @@ function filterToDates(filter: string): { dateFrom?: string; dateTo?: string } {
 function LeadsPage() {
   const qc = useQueryClient();
   const listLeadsFn = useServerFn(listLeads);
+  const listWbahPositiveNeutralLeadsFn = useServerFn(listWbahPositiveNeutralLeads);
   const setStatusFn = useServerFn(setLeadStatus);
   const getCampaignStatsFn = useServerFn(getCampaignStats);
   const getAgentsFn = useServerFn(getDashboardLiveAgents);
@@ -245,6 +247,10 @@ function LeadsPage() {
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
 
+  // Workspace detection drives this window's data source.
+  const [isWbah, setIsWbah] = useState(false);
+  const [wsResolved, setWsResolved] = useState(false);
+
   function openLeadPanel(lead: any) {
     setPanel({
       entityType: "lead",
@@ -257,11 +263,17 @@ function LeadsPage() {
   }
 
   const leadsQ = useQuery({
-    queryKey: ["leads-all", wbahDaysFilter],
+    queryKey: ["leads-all", isWbah, wbahDaysFilter],
     queryFn: () => {
+      // WBAH "Leads window" = already-called contacts whose latest call came back
+      // positive or neutral, derived live from wbah_calls (deduped to the latest
+      // call per contact, newest-first). Date narrowing is applied client-side
+      // in `filtered`, matching how WBAH date filtering already works here.
+      if (isWbah) return listWbahPositiveNeutralLeadsFn();
       const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
       return listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } });
     },
+    enabled: wsResolved,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: 5 * 60 * 1000,
@@ -290,27 +302,28 @@ function LeadsPage() {
   const qualAgents = allAgents.filter((a: any) => a.agentType === "client_qualification");
   const scheduledCount = leads.filter((l: any) => l.status === "scheduled").length;
 
-  const [isWbah, setIsWbah] = useState(false);
   useEffect(() => {
     let active = true;
     (async () => {
       try {
         const { data: sess } = await supabase.auth.getSession();
-        if (!sess.session) return;
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("default_workspace_id")
-          .eq("user_id", sess.session.user.id)
-          .maybeSingle();
-        if (!profile?.default_workspace_id || !active) return;
-        const { data: ws } = await supabase
-          .from("workspaces")
-          .select("slug")
-          .eq("id", profile.default_workspace_id)
-          .maybeSingle();
-        if (!active) return;
-        setIsWbah(ws?.slug === "webuyanyhouse");
+        if (sess.session) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("default_workspace_id")
+            .eq("user_id", sess.session.user.id)
+            .maybeSingle();
+          if (profile?.default_workspace_id && active) {
+            const { data: ws } = await supabase
+              .from("workspaces")
+              .select("slug")
+              .eq("id", profile.default_workspace_id)
+              .maybeSingle();
+            if (active && ws?.slug === "webuyanyhouse") setIsWbah(true);
+          }
+        }
       } catch {}
+      finally { if (active) setWsResolved(true); }
     })();
     return () => { active = false; };
   }, []);
@@ -504,9 +517,13 @@ function LeadsPage() {
       {/* Header */}
       <div className="mb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Leads</h1>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {isWbah ? "Positive / Neutral Leads" : "Leads"}
+          </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Lead Generation intelligence — updated automatically after every call
+            {isWbah
+              ? "Already-called leads with positive or neutral sentiment — newest first"
+              : "Lead Generation intelligence — updated automatically after every call"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -526,7 +543,7 @@ function LeadsPage() {
               Run Scheduled ({scheduledCount})
             </Button>
           )}
-          {tab === "leads" && selectedIds.size > 0 && (
+          {tab === "leads" && !isWbah && selectedIds.size > 0 && (
             <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-400 hover:text-blue-300" onClick={openQualDialog}>
               <ShieldCheck className="mr-1 h-4 w-4" />
               Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
@@ -603,7 +620,7 @@ function LeadsPage() {
         <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              Lead Records
+              {isWbah ? "Positive / Neutral Leads" : "Lead Records"}
               {selectedIds.size > 0 && (
                 <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selectedIds.size} selected</span>
               )}
@@ -642,8 +659,8 @@ function LeadsPage() {
               >
                 <option value="">All Sentiments</option>
                 <option value="positive">Positive</option>
-                {!isWbah && <option value="neutral">Neutral</option>}
-                <option value="negative">Negative</option>
+                <option value="neutral">Neutral</option>
+                {!isWbah && <option value="negative">Negative</option>}
               </select>
               {(isRetell || isWbah) && (
                 <select
@@ -690,13 +707,8 @@ function LeadsPage() {
             <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-white/[0.06]">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
               {[
-                { value: "before_call",  label: "Before Call" },
-                { value: "after_call",   label: "After Call" },
                 { value: "positive",     label: "Positive" },
                 { value: "neutral",      label: "Neutral" },
-                { value: "disqualified", label: "Disqualified" },
-                { value: "callback",     label: "Callback" },
-                { value: "not_called",   label: "Not Called" },
               ].map((c) => {
                 const active = quickFilter === c.value;
                 return (
@@ -717,7 +729,7 @@ function LeadsPage() {
             </div>
           )}
           <div className="p-0">
-            {leadsQ.isLoading ? (
+            {(leadsQ.isLoading || !wsResolved) ? (
               <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center">
