@@ -294,14 +294,14 @@ function isCallVoicemail(c: any): boolean {
   );
 }
 
-function computeAnalytics(allCalls: any[]) {
-  // Exclude voicemails from Retell API calls using the full heuristic set
-  // (ElevenLabs DB calls are already filtered at the server with is_voicemail=false).
-  const voicemailCount_excluded = allCalls.filter(isCallVoicemail).length;
-  if (voicemailCount_excluded > 0) {
-    console.debug(`[voicemail] excluded ${voicemailCount_excluded} voicemail calls from analytics window`);
-  }
-  const calls = allCalls.filter((c) => !isCallVoicemail(c));
+function computeAnalytics(allCalls: any[], includeVoicemails = false) {
+  // Voicemails are detected with the full heuristic set. They are either screened
+  // out (default — matches Retell "real conversation" metrics) or counted in full
+  // (e.g. WBAH, where every dial that hit voicemail is a real call that consumed
+  // minutes). Controlled by the page-level "Voicemails" toggle.
+  const voicemailTotal = allCalls.filter(isCallVoicemail).length;
+  const voicemailCount_excluded = includeVoicemails ? 0 : voicemailTotal;
+  const calls = includeVoicemails ? allCalls : allCalls.filter((c) => !isCallVoicemail(c));
   const total    = calls.length;
   const inbound  = calls.filter((c) => c.direction === "inbound"  || c.call_direction === "inbound").length;
   const outbound = calls.filter((c) => c.direction === "outbound" || c.call_direction === "outbound").length;
@@ -345,7 +345,7 @@ function computeAnalytics(allCalls: any[]) {
     }
   }
   const avg = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
-  return { total, inbound, outbound, webCalls, byStatus, byDisconnect, bySentiment, byAgent, byDay, byDayDuration, byDayOutcome, byDayLatency, byHour, totalDurationSec, totalMinutes: Math.round(totalDurationSec / 60), avgDuration: total ? totalDurationSec / total : 0, successCount, unsuccessCount, voicemailCount, voicemailScreenedCount: voicemailCount_excluded, transferCount, successRate: total ? (successCount / total) * 100 : 0, avgLlmLatency: avg(llmLatencies), avgE2eLatency: avg(e2eLatencies), avgTtsLatency: avg(ttsLatencies) };
+  return { total, inbound, outbound, webCalls, byStatus, byDisconnect, bySentiment, byAgent, byDay, byDayDuration, byDayOutcome, byDayLatency, byHour, totalDurationSec, totalMinutes: Math.round(totalDurationSec / 60), avgDuration: total ? totalDurationSec / total : 0, successCount, unsuccessCount, voicemailCount, voicemailTotal, voicemailScreenedCount: voicemailCount_excluded, transferCount, successRate: total ? (successCount / total) * 100 : 0, avgLlmLatency: avg(llmLatencies), avgE2eLatency: avg(e2eLatencies), avgTtsLatency: avg(ttsLatencies) };
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -386,6 +386,10 @@ function AnalyticsPage() {
   const allCalls = (result?.calls ?? []) as any[];
   const agentNames: Record<string, string> = (result?.agentNames ?? {}) as Record<string, string>;
   const isWbah = (result as any)?.workspaceSlug === "webuyanyhouse";
+  // Voicemail inclusion: default to ON for WBAH (every dial is a real billed call)
+  // and OFF elsewhere; the toggle lets the user override either way.
+  const [vmOverride, setVmOverride] = useState<boolean | null>(null);
+  const includeVm = vmOverride === null ? isWbah : vmOverride;
   // Build agent list from the Retell API response (agentNames) so the
   // dropdown appears for any workspace that has calls, not just those
   // whose agents happen to be in the local deployments DB.
@@ -405,7 +409,7 @@ function AnalyticsPage() {
     if (todayOnly) cs = cs.filter((c) => c.start_timestamp != null && c.start_timestamp >= startOfTodayMs);
     return cs;
   }, [allCalls, selectedAgentId, todayOnly, startOfTodayMs]);
-  const analytics = useMemo(() => computeAnalytics(calls), [calls]);
+  const analytics = useMemo(() => computeAnalytics(calls, includeVm), [calls, includeVm]);
   const sortedDays = useMemo(() => Object.keys(analytics.byDay).sort(), [analytics.byDay]);
   // Trend charts span the full selected window (7/30/60/90d) — the server already
   // scopes calls to `days`, so cap to `days` so each range renders distinctly
@@ -486,6 +490,14 @@ function AnalyticsPage() {
                 )}
               </div>
             )}
+            <button
+              onClick={() => setVmOverride(!includeVm)}
+              title="Include or exclude voicemail calls in the totals below"
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${includeVm ? "border-primary/30 bg-primary/15 text-primary" : "border-white/[0.1] bg-card/60 text-muted-foreground hover:bg-card/80"}`}
+            >
+              <PauseCircle className="h-3.5 w-3.5" />
+              {includeVm ? "Voicemails: shown" : "Voicemails: hidden"}
+            </button>
             <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
               {RANGES.map((r) => (
                 <Button key={r.key} size="sm" variant={rangeKey === r.key ? "secondary" : "ghost"} onClick={() => setRangeKey(r.key)} className={rangeKey === r.key ? "bg-primary/20 text-primary" : ""}>{r.label}</Button>
@@ -525,7 +537,7 @@ function AnalyticsPage() {
                 <StatCard label="Transfer rate"      tone="warning" value={`${transferRate}%`}                     icon={TrendingUp} />
               </div>
               <div className="grid grid-cols-2 gap-3 px-6 pt-3 md:grid-cols-4">
-                <StatCard label="Voicemails screened" tone="info"  value={analytics.voicemailScreenedCount}        icon={PauseCircle} />
+                <StatCard label={includeVm ? "Voicemails counted" : "Voicemails screened"} tone="info"  value={analytics.voicemailTotal}        icon={PauseCircle} />
               </div>
 
               <div className="px-6 pt-4">
@@ -767,19 +779,33 @@ function CompactDonut({ data, colors, centerLabel, centerValue }: { data: { name
   const filtered = data.filter((d) => d.value > 0);
   if (filtered.length === 0) return <NoData />;
   return (
-    <div className="relative h-52 w-full">
-      <ResponsiveContainer>
-        <PieChart>
-          <Tooltip content={<ChartTooltip />} />
-          <Pie data={filtered} dataKey="value" nameKey="name" innerRadius={52} outerRadius={76} paddingAngle={2} stroke="none">
-            {filtered.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
-          </Pie>
-          <Legend verticalAlign="bottom" iconType="circle" wrapperStyle={{ fontSize: 10, color: CHART.axis }} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pb-8">
-        <span className="text-[9px] uppercase tracking-widest text-muted-foreground">{centerLabel}</span>
-        <span className="text-xl font-bold tabular-nums">{centerValue}</span>
+    <div className="w-full">
+      {/* Fixed-height donut so the centered total stays aligned regardless of how
+          many legend rows render below it. */}
+      <div className="relative h-44 w-full">
+        <ResponsiveContainer>
+          <PieChart>
+            <Tooltip content={<ChartTooltip />} />
+            <Pie data={filtered} dataKey="value" nameKey="name" innerRadius={52} outerRadius={76} paddingAngle={2} stroke="none">
+              {filtered.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[9px] uppercase tracking-widest text-muted-foreground">{centerLabel}</span>
+          <span className="text-xl font-bold tabular-nums">{centerValue}</span>
+        </div>
+      </div>
+      {/* Custom legend below the chart: wraps cleanly and lets the card grow to fit
+          any number of slices, instead of recharts <Legend> squishing the pie. */}
+      <div className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1.5">
+        {filtered.map((d, i) => (
+          <div key={d.name} className="flex items-center gap-1.5 text-[10px]">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: colors[i % colors.length] }} />
+            <span className="text-muted-foreground">{d.name}</span>
+            <span className="font-medium tabular-nums text-foreground/90">{d.value}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

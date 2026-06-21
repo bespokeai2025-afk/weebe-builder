@@ -1,0 +1,464 @@
+WEBEE MINDS SYSTEM FORENSIC AUDIT
+
+IMPORTANT
+
+Audit only.
+
+Do not implement fixes.
+
+Do not redesign.
+
+Do not modify any code until root causes are identified.
+
+The objective is to determine why HiveMind appears broken and whether HiveMind, GrowthMind and SystemMind are functioning correctly.
+
+====================================================
+
+PRIMARY SYMPTOM
+
+HiveMind no longer appears to detect, report, analyse or recommend based on leads correctly.
+
+Determine exactly why.
+
+====================================================
+
+AUDIT ALL THREE SYSTEMS
+
+HiveMind
+
+GrowthMind
+
+SystemMind
+
+====================================================
+
+SECTION 1
+
+HIVEMIND AUDIT
+
+Trace complete execution path.
+
+User
+↓
+HiveMind
+↓
+Recommendation Engine
+↓
+Lead Queries
+↓
+Response
+
+Audit:
+
+Overview page
+
+Executive Briefings
+
+Recommendations
+
+Tasks
+
+Actions
+
+Chat
+
+Voice
+
+Daily summaries
+
+Opportunity detection
+
+Lead awareness
+
+Pipeline awareness
+
+Campaign awareness
+
+Provider awareness
+
+====================================================
+
+SECTION 2
+
+LEAD DATA FLOW INTO HIVEMIND
+
+Audit:
+
+Where HiveMind gets lead data.
+
+Show:
+
+Functions
+
+Queries
+
+RPCs
+
+Views
+
+Caches
+
+API calls
+
+Tables
+
+For every source:
+
+Records returned
+
+Records filtered
+
+Workspace filters
+
+Date filters
+
+Qualification filters
+
+Sentiment filters
+
+====================================================
+
+SECTION 3
+
+WHY HIVEMIND IS NOT SEEING LEADS
+
+Identify:
+
+1. Lead query returning zero
+2. Cache returning stale data
+3. Workspace mismatch
+4. Wrong date range
+5. WBAH branch issue
+6. Canonical lead helper issue
+7. Qualified definition issue
+8. Business DNA issue
+9. Recommendation engine issue
+10. UI display issue
+
+Provide evidence.
+
+====================================================
+
+SECTION 4
+
+RECOMMENDATION ENGINE
+
+Audit:
+
+generateRecommendations()
+
+Opportunity Engine
+
+Executive Briefing Generator
+
+Daily Tasks
+
+Action Centre
+
+Determine:
+
+Are recommendations being generated?
+
+Are recommendations being stored?
+
+Are recommendations reaching the UI?
+
+Are recommendations reaching voice mode?
+
+====================================================
+
+SECTION 5
+
+HIVEMIND MODE
+
+Audit:
+
+observe
+
+recommend
+
+assistant
+
+operator
+
+For each workspace show:
+
+Current mode
+
+Behaviour
+
+Restrictions
+
+Determine if HiveMind is stuck in Observe mode.
+
+====================================================
+
+SECTION 6
+
+BUSINESS DNA
+
+Audit:
+
+Business DNA profile
+
+Confidence scores
+
+Knowledge extraction
+
+Website extraction
+
+Lead analysis
+
+Campaign analysis
+
+Determine:
+
+Is Business DNA being generated?
+
+Is Business DNA being used?
+
+Is Business DNA failing?
+
+====================================================
+
+SECTION 7
+
+GROWTHMIND AUDIT
+
+Audit:
+
+Campaign Factory
+
+Content Studio
+
+Video Studio
+
+Image Studio
+
+Marketing Intelligence
+
+Opportunity Detection
+
+Lead Analysis
+
+Analytics Analysis
+
+Determine:
+
+Can GrowthMind see leads?
+
+Can GrowthMind see campaigns?
+
+Can GrowthMind see analytics?
+
+Can GrowthMind generate recommendations?
+
+====================================================
+
+SECTION 8
+
+SYSTEMMIND AUDIT
+
+Audit:
+
+Provider Health
+
+Workflow Monitoring
+
+Deployment Monitoring
+
+Error Monitoring
+
+Cron Monitoring
+
+Sync Monitoring
+
+Lead Sync Monitoring
+
+Determine:
+
+Can SystemMind see failures?
+
+Can SystemMind detect broken lead syncs?
+
+Can SystemMind publish issues to HiveMind?
+
+====================================================
+
+SECTION 9
+
+HANDOFF AUDIT
+
+Audit:
+
+GrowthMind
+↓
+HiveMind
+
+SystemMind
+↓
+HiveMind
+
+AccountsMind
+↓
+HiveMind
+
+Determine:
+
+Is data flowing correctly?
+
+Is anything disconnected?
+
+Is anything silently failing?
+
+====================================================
+
+SECTION 10
+
+CACHE AUDIT
+
+Audit:
+
+Redis
+
+Dashboard cache
+
+Analytics cache
+
+HiveMind cache
+
+GrowthMind cache
+
+Recommendation cache
+
+Lead cache
+
+Determine:
+
+Is HiveMind reading stale data?
+
+====================================================
+
+SECTION 11
+
+VOICE AUDIT
+
+Audit:
+
+Voice → HiveMind
+
+Voice → Recommendations
+
+Voice → GrowthMind
+
+Voice → SystemMind
+
+Determine:
+
+Are voice queries hitting the same recommendation engine as chat?
+
+====================================================
+
+SECTION 12
+
+WBAH SPECIAL AUDIT
+
+Audit:
+
+WeBuyAnyHouse workspace only.
+
+Show:
+
+Lead count seen by database
+
+Lead count seen by HiveMind
+
+Lead count seen by GrowthMind
+
+Lead count seen by SystemMind
+
+Lead count shown on Dashboard
+
+Lead count shown on Leads page
+
+Lead count shown in Recommendations
+
+Identify discrepancies.
+
+====================================================
+
+SECTION 13
+
+PRODUCTION READINESS
+
+For HiveMind
+
+GrowthMind
+
+SystemMind
+
+Provide:
+
+Readiness %
+
+Reliability %
+
+Data Accuracy %
+
+Recommendation Accuracy %
+
+Operational Status
+
+====================================================
+
+SECTION 14
+
+ROOT CAUSE REPORT
+
+Provide:
+
+Critical Issues
+
+High Issues
+
+Medium Issues
+
+Low Issues
+
+For each:
+
+Root cause
+
+Evidence
+
+Affected systems
+
+Revenue impact
+
+Fix complexity
+
+====================================================
+
+SECTION 15
+
+FINAL VERDICT
+
+Answer:
+
+Is HiveMind functioning correctly?
+
+Is GrowthMind functioning correctly?
+
+Is SystemMind functioning correctly?
+
+Why is HiveMind not detecting leads?
+
+What broke it?
+
+What changes introduced the problem?
+
+What is the safest fix order?
+
+Audit only.
+
+Do not implement changes until the report is complete.

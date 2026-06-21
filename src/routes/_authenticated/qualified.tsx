@@ -234,6 +234,7 @@ function QualifiedPage() {
   const agentsQ = useQuery({
     queryKey: ["qual-agents"],
     queryFn: () => listAgentsFn(),
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     throwOnError: false,
   });
@@ -250,6 +251,7 @@ function QualifiedPage() {
         },
       }),
     enabled: isWbahResolved && !isWbah,
+    staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     throwOnError: false,
   });

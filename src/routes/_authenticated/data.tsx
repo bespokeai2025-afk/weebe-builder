@@ -558,18 +558,24 @@ function DataPage() {
   const recordsQ = useQuery({
     queryKey: ["data-records", filters],
     queryFn: () => listFn({ data: filters }),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
     throwOnError: false,
   });
 
   const agentsQ = useQuery({
     queryKey: ["my-agents-mini"],
     queryFn: () => listAgentsFn(),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
     throwOnError: false,
   });
 
   const scheduleQ = useQuery({
     queryKey: ["call-schedule"],
     queryFn: () => getScheduleFn(),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
     throwOnError: false,
   });
 

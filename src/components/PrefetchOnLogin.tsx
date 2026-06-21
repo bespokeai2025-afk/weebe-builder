@@ -11,20 +11,30 @@
  * Rules:
  * - staleTime 5 min: won't re-fetch if data is already warm in cache
  * - All prefetches are fire-and-forget (no await, no spinner, no error shown)
- * - Only fires once per authed=true transition
+ * - Keys MUST match each page's useQuery key exactly, or the page re-fetches.
+ *   The WBAH workspace keys some queries on `isWbah`, so we resolve the active
+ *   workspace once before prefetching the workspace-specific queries.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { supabase } from "@/integrations/supabase/client";
 
-import { getOverviewStats, listLeads }              from "@/lib/dashboard/leads.functions";
-import { getDashboardLiveAgents }                   from "@/lib/agents/agents.functions";
-import { getCampaignStats }                         from "@/lib/dashboard/campaigns.functions";
-import { getPipelineLeads }                         from "@/lib/pipeline/pipeline.functions";
-import { getRetellAnalytics }                       from "@/lib/dashboard/analytics.functions";
-import { getQualificationStats, listQualifiedLeads } from "@/lib/dashboard/qualified.functions";
-import { listCalls }                                from "@/lib/dashboard/calls.functions";
-import { listWbahCallsFromDb }                      from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { getOverviewStats, listLeads }               from "@/lib/dashboard/leads.functions";
+import { getDashboardLiveAgents, listLiveAgents }     from "@/lib/agents/agents.functions";
+import { getCampaignStats }                           from "@/lib/dashboard/campaigns.functions";
+import { getPipelineLeads }                           from "@/lib/pipeline/pipeline.functions";
+import { getRetellAnalytics }                         from "@/lib/dashboard/analytics.functions";
+import { getQualificationStats, listQualifiedLeads }  from "@/lib/dashboard/qualified.functions";
+import { listCalls }                                  from "@/lib/dashboard/calls.functions";
+import { getCallSchedule }                            from "@/lib/dashboard/call-schedule.functions";
+import { listDataRecords }                            from "@/lib/dashboard/data-records.functions";
+import {
+  listWbahCallsFromDb,
+  listWbahPositiveNeutralLeads,
+  listWbahCategorizedLeads,
+  listWbahCallsCount,
+} from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 
 const STALE = 5 * 60 * 1000;
 
@@ -44,25 +54,93 @@ export function PrefetchOnLogin({ authed }: Props) {
   const qualStatsFn      = useServerFn(getQualificationStats);
   const qualLeadsFn      = useServerFn(listQualifiedLeads);
   const callsFn          = useServerFn(listCalls);
+  const listAgentsFn     = useServerFn(listLiveAgents);
+  const scheduleFn       = useServerFn(getCallSchedule);
+  const dataRecordsFn    = useServerFn(listDataRecords);
   const wbahCallsFn      = useServerFn(listWbahCallsFromDb);
+  const wbahLeadsFn      = useServerFn(listWbahPositiveNeutralLeads);
+  const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
+  const wbahCallsCountFn = useServerFn(listWbahCallsCount);
+
+  // null = not yet resolved; true/false once the workspace slug is known.
+  const [isWbah, setIsWbah] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!authed) return;
+    if (!authed) { setIsWbah(null); return; }
+    let active = true;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) { if (active) setIsWbah(false); return; }
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("default_workspace_id")
+          .eq("user_id", sess.session.user.id)
+          .maybeSingle();
+        if (!profile?.default_workspace_id) { if (active) setIsWbah(false); return; }
+        const { data: ws } = await supabase
+          .from("workspaces")
+          .select("slug")
+          .eq("id", profile.default_workspace_id)
+          .maybeSingle();
+        if (active) setIsWbah(ws?.slug === "webuyanyhouse");
+      } catch {
+        if (active) setIsWbah(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [authed]);
+
+  useEffect(() => {
+    if (!authed || isWbah === null) return;
 
     const prefetch = (key: unknown[], fn: () => Promise<unknown>) =>
       qc.prefetchQuery({ queryKey: key, queryFn: fn, staleTime: STALE });
 
+    // ── Queries shared by every workspace ──
     prefetch(["dashboard-overview"],           () => overviewFn());
     prefetch(["dashboard-live-agents"],        () => liveAgentsFn());
-    prefetch(["leads-all"],                    () => listLeadsFn({ data: { limit: 1000 } }));
     prefetch(["campaign-stats"],               () => campaignStatsFn({ data: {} }));
     prefetch(["pipeline-leads"],               () => pipelineFn());
     prefetch(["retell-analytics", 30],         () => analyticsFn({ data: { days: 30 } }));
     prefetch(["qualification-stats"],          () => qualStatsFn());
-    prefetch(["leads-qualified", "", "all"],   () => qualLeadsFn({ data: {} }));
-    prefetch(["calls"],                        () => callsFn({ data: {} }));
-    prefetch(["wbah-calls"],                   () => wbahCallsFn());
-  }, [authed]); // eslint-disable-line react-hooks/exhaustive-deps
+    prefetch(["qual-agents"],                  () => listAgentsFn());
+    prefetch(["my-agents-mini"],               () => listAgentsFn());
+    prefetch(["call-schedule"],                () => scheduleFn());
+    prefetch(["data-records", { limit: 500 }], () => dataRecordsFn({ data: { limit: 500 } }));
+
+    if (isWbah) {
+      // ── WBAH "We Buy Any House" workspace ──
+      prefetch(["leads-all", true, "30"], () => wbahLeadsFn());
+      prefetch(["leads-wbah-all-qual"],   () => listLeadsFn({ data: { limit: 5000 } }));
+      prefetch(["wbah-calls"],            () => wbahCallsFn());
+
+      // The Data → People sub-tabs use local component state (not React Query),
+      // so prefetching cannot populate them directly. Instead warm the server-side
+      // cache for the badge counts + the default "Disqualified" view so opening the
+      // tab returns instantly. Run them SEQUENTIALLY (one fire-and-forget chain)
+      // so we don't kick off several expensive WBAH CRM derivations concurrently
+      // on every login.
+      (async () => {
+        try {
+          await wbahCallsCountFn();
+          await wbahCatFn({ data: { category: "disqualified",     page: 1, limit: 1 } });
+          await wbahCatFn({ data: { category: "tried_to_contact", page: 1, limit: 1 } });
+          await wbahCatFn({ data: { category: "rebooking",        page: 1, limit: 1 } });
+          await wbahCatFn({ data: { category: "disqualified",     page: 1, limit: 200 } });
+        } catch {
+          /* warming is best-effort; ignore failures */
+        }
+      })();
+    } else {
+      // ── All other workspaces ──
+      const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const dateTo   = new Date().toISOString();
+      prefetch(["leads-all", false, "30"], () => listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } }));
+      prefetch(["calls", "exclude", "30"], () => callsFn({ data: { voicemailFilter: "exclude", dateFrom, dateTo } }));
+      prefetch(["leads-qualified", ""],    () => qualLeadsFn({ data: { qualificationStatus: "qualified", limit: 200 } }));
+    }
+  }, [authed, isWbah]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;
 }
