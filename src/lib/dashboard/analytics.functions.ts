@@ -7,7 +7,9 @@ import { cacheWrap } from "@/lib/cache/redis.server";
 const RETELL_ANALYTICS_TTL = 15 * 60; // 15 minutes
 
 function retellAnalyticsKey(workspaceId: string, days: number) {
-  return `webee:analytics:${workspaceId}:retell:${days}d`;
+  // v2: WBAH no longer merges the Retell API page (dedup + agent attribution
+  // fix). Bump so stale double-counted entries are not served after deploy.
+  return `webee:analytics:${workspaceId}:retell:v2:${days}d`;
 }
 
 export const syncRetellReceptionist = createServerFn({ method: "GET" })
@@ -135,7 +137,15 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       }
     }
 
-    if (apiKey) {
+    // WBAH note: this workspace's calls are synced into wbah_calls (handled
+    // below) and are the SAME calls that live in its Retell account, but the
+    // sync does not preserve the agent name (agent_name is always null).  If we
+    // also pulled from the Retell API here we would (a) double-count the most
+    // recent page of calls in "All agents" and (b) attribute that page to the
+    // named Retell agent while the bulk of the synced calls stay under a
+    // generic "WeeBespoke Agent" bucket — making the named agent appear to have
+    // FEWER calls than "All agents".  So for WBAH we rely solely on wbah_calls.
+    if (apiKey && !isWbah) {
       // Fetch agent list — when using a workspace-specific key every agent
       // belongs to that workspace; when using the platform key restrict to
       // agents that are actually deployed in this workspace.

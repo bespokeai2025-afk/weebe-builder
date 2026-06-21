@@ -390,6 +390,9 @@ function AnalyticsPage() {
   // and OFF elsewhere; the toggle lets the user override either way.
   const [vmOverride, setVmOverride] = useState<boolean | null>(null);
   const includeVm = vmOverride === null ? isWbah : vmOverride;
+  // WBAH has no per-agent filter (calls are synced without agent identity), so
+  // never honour a selection that may persist from a previously-viewed workspace.
+  const effectiveSelectedAgentId = isWbah ? null : selectedAgentId;
   // Build agent list from the Retell API response (agentNames) so the
   // dropdown appears for any workspace that has calls, not just those
   // whose agents happen to be in the local deployments DB.
@@ -405,10 +408,10 @@ function AnalyticsPage() {
     }));
   }, [agentNames, liveAgentsQ.data]);
   const calls    = useMemo(() => {
-    let cs = selectedAgentId ? allCalls.filter((c) => c.agent_id === selectedAgentId) : allCalls;
+    let cs = effectiveSelectedAgentId ? allCalls.filter((c) => c.agent_id === effectiveSelectedAgentId) : allCalls;
     if (todayOnly) cs = cs.filter((c) => c.start_timestamp != null && c.start_timestamp >= startOfTodayMs);
     return cs;
-  }, [allCalls, selectedAgentId, todayOnly, startOfTodayMs]);
+  }, [allCalls, effectiveSelectedAgentId, todayOnly, startOfTodayMs]);
   const analytics = useMemo(() => computeAnalytics(calls, includeVm), [calls, includeVm]);
   const sortedDays = useMemo(() => Object.keys(analytics.byDay).sort(), [analytics.byDay]);
   // Trend charts span the full selected window (7/30/60/90d) — the server already
@@ -423,7 +426,7 @@ function AnalyticsPage() {
   const successRate    = analytics.total ? Math.round((analytics.successCount / analytics.total) * 100) : 0;
   const transferRate   = analytics.total ? ((analytics.transferCount / analytics.total) * 100).toFixed(1) : "0";
   const unknownSuccess = Math.max(0, analytics.total - analytics.successCount - analytics.unsuccessCount);
-  const selectedAgentName = selectedAgentId ? (agentNames[selectedAgentId] ?? agentList.find((a) => a.id === selectedAgentId)?.name ?? selectedAgentId) : "All agents";
+  const selectedAgentName = effectiveSelectedAgentId ? (agentNames[effectiveSelectedAgentId] ?? agentList.find((a) => a.id === effectiveSelectedAgentId)?.name ?? effectiveSelectedAgentId) : "All agents";
 
   // ── Marketing state ──
   const mktFn = useServerFn(getMarketingAnalytics);
@@ -471,7 +474,10 @@ function AnalyticsPage() {
         <>
           {/* Controls row */}
           <div className="flex items-center justify-end gap-2 px-6 pt-4">
-            {agentList.length > 0 && (
+            {/* WBAH calls are synced without an agent name, so every call falls
+                under one synthetic bucket — a per-agent filter would be
+                meaningless (and previously misleading). Hide it for WBAH. */}
+            {agentList.length > 0 && !isWbah && (
               <div className="relative">
                 <button
                   onClick={() => setSelectorOpen((o) => !o)}
@@ -517,7 +523,7 @@ function AnalyticsPage() {
             </div>
           ) : (
             <>
-              {selectedAgentId && (
+              {effectiveSelectedAgentId && (
                 <div className="mx-6 mt-4 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm">
                   <span className="text-primary font-medium">Showing: <span className="font-semibold">{selectedAgentName}</span></span>
                   <button onClick={() => setSelectedAgentId(null)} className="text-xs text-muted-foreground hover:text-foreground">Clear filter</button>
@@ -688,7 +694,7 @@ function AnalyticsPage() {
                 </ChartCard>
               </div>
 
-              {!selectedAgentId && (
+              {!selectedAgentId && !isWbah && (
                 <div className="px-6 pt-4">
                   <ChartCard title="Per-Agent Breakdown" icon={PhoneCall} color={CHART.primary}>
                     {Object.keys(analytics.byAgent).length === 0 ? (
