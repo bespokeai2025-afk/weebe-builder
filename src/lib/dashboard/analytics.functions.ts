@@ -7,9 +7,11 @@ import { cacheWrap } from "@/lib/cache/redis.server";
 const RETELL_ANALYTICS_TTL = 15 * 60; // 15 minutes
 
 function retellAnalyticsKey(workspaceId: string, days: number) {
-  // v2: WBAH no longer merges the Retell API page (dedup + agent attribution
-  // fix). Bump so stale double-counted entries are not served after deploy.
-  return `webee:analytics:${workspaceId}:retell:v2:${days}d`;
+  // v2: WBAH no longer merges the Retell API page (dedup + agent attribution fix).
+  // v3: standard (platform-key) workspaces now fail closed to deployed agents
+  // only. Bump so any previously-cached cross-workspace entries are not served
+  // after deploy.
+  return `webee:analytics:${workspaceId}:retell:v3:${days}d`;
 }
 
 export const syncRetellReceptionist = createServerFn({ method: "GET" })
