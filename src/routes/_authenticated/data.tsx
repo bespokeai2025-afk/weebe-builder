@@ -1296,10 +1296,10 @@ function DataPage() {
       <>
       {/* KPI strip — matches Leads page */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Total" value={isWbah ? 0 : stats.total} icon={Database} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
-        <KpiCard label="Need to Call" value={isWbah ? 0 : stats.needToCall} icon={PhoneOutgoing} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
-        <KpiCard label="Queued" value={isWbah ? 0 : stats.queued} icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
-        <KpiCard label="Completed" value={isWbah ? 0 : stats.completed} icon={UserCheck} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
+        <KpiCard label="Total" value={stats.total} icon={Database} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+        <KpiCard label="Need to Call" value={stats.needToCall} icon={PhoneOutgoing} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
+        <KpiCard label="Queued" value={stats.queued} icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+        <KpiCard label="Completed" value={stats.completed} icon={UserCheck} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
       </div>
 
       {/* Table card — matches Leads page container */}
@@ -1393,11 +1393,11 @@ function DataPage() {
         </div>
 
         {/* Table body */}
-        {recordsQ.isLoading && !isWbah ? (
+        {recordsQ.isLoading ? (
           <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
             Loading records…
           </div>
-        ) : records.length === 0 || isWbah ? (
+        ) : records.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16">
             <Database className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm font-medium">No data records</p>
