@@ -1466,6 +1466,97 @@ export const triggerWbahCategorySync = createServerFn({ method: "POST" })
     return result;
   });
 
+// ── listWbahDisqualifiedFromCalls ─────────────────────────────────────────────
+// Disqualified leads are derived live from the rich `wbah_calls` table (negative
+// sentiment), deduplicated to one row per contact (most-recent negative call).
+// The `wbah_categorized_leads` table is fed by the call-output endpoint, which
+// never returns negative sentiment, so it cannot populate this category.
+
+async function listWbahDisqualifiedFromCalls(
+  workspaceId: string,
+  page: number,
+  limit: number,
+  search?: string,
+) {
+  const { data: calls, error } = await (supabaseAdmin as any)
+    .from("wbah_calls")
+    .select(
+      "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, transcript, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
+    )
+    .eq("workspace_id", workspaceId)
+    .eq("sentiment", "negative")
+    .order("started_at", { ascending: false });
+  if (error) throw new Error(`DB query failed: ${error.message}`);
+
+  const seen = new Set<string>();
+  const deduped: any[] = [];
+  for (const c of (calls ?? []) as any[]) {
+    const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(c);
+  }
+
+  let filtered = deduped;
+  if (search?.trim()) {
+    const s = search.trim().toLowerCase();
+    filtered = deduped.filter(
+      (c) =>
+        String(c.customer_name ?? "").toLowerCase().includes(s) ||
+        String(c.phone ?? "").toLowerCase().includes(s),
+    );
+  }
+
+  const total = filtered.length;
+  const start = (page - 1) * limit;
+  const pageRows = filtered.slice(start, start + limit);
+
+  const rows = pageRows.map((c) => {
+    const startedMs = c.started_at ? Date.parse(c.started_at) : NaN;
+    const raw = {
+      callStatus: c.call_status ?? null,
+      sentimentAnalysis: "Negative",
+      disconnectionReason: c.disconnection_reason ?? null,
+      endReason: c.end_reason ?? null,
+      appointment_date: c.appointment_date ?? null,
+      appointment_time: c.appointment_time ?? null,
+      booking_status: c.booking_status ?? null,
+      calendly_booking_url: c.calendly_booking_url ?? null,
+      agentName: c.agent_name ?? null,
+      startTimestamp: Number.isNaN(startedMs) ? null : String(startedMs),
+      durationMs: c.duration_seconds != null ? String(Number(c.duration_seconds) * 1000) : null,
+      recordingUrl: c.recording_url ?? null,
+      transcript: c.transcript ?? null,
+    };
+    return {
+      id: c.id,
+      external_lead_id: c.phone ?? c.id,
+      external_status_code: "negative",
+      external_status_label: "Disqualified",
+      webee_category: "disqualified",
+      full_name: c.customer_name ?? "Unknown",
+      first_name: null,
+      last_name: null,
+      phone: c.phone ?? null,
+      email: null,
+      address: null,
+      city: null,
+      postcode: null,
+      property_type: null,
+      meta: {
+        raw_lead: raw,
+        appointment_date: c.appointment_date ?? null,
+        booking_status: c.booking_status ?? null,
+        recording_url: c.recording_url ?? null,
+      },
+      last_synced_at: c.started_at ?? new Date().toISOString(),
+      created_at: c.started_at ?? new Date().toISOString(),
+    };
+  });
+
+  return { rows, total, page, limit, category: "disqualified" as const };
+}
+
 // ── listWbahCategorizedLeads ──────────────────────────────────────────────────
 
 export const listWbahCategorizedLeads = createServerFn({ method: "GET" })
@@ -1496,6 +1587,11 @@ export const listWbahCategorizedLeads = createServerFn({ method: "GET" })
     }
 
     const { category, page, limit, search } = data;
+
+    if (category === "disqualified") {
+      return await listWbahDisqualifiedFromCalls(ws.id, page, limit, search);
+    }
+
     const from = (page - 1) * limit;
     const to   = from + limit - 1;
 

@@ -267,15 +267,6 @@ function wbahSentimentBadge(sentiment: string | null | undefined): { label: stri
   return { label: sentiment ? sentiment : "N/A", cls: "text-muted-foreground" };
 }
 
-const WBAH_DISQUALIFIED_STATUSES = new Set([
-  "disqualified", "disqualified_sweep", "disqualifed", "disqualifed_sweep",
-  "rejected", "not_interested", "not interested",
-]);
-
-function isWbahDisqualified(r: any): boolean {
-  const s = (r.callStatus ?? "").toLowerCase().trim();
-  return WBAH_DISQUALIFIED_STATUSES.has(s) || s.includes("disqualif");
-}
 
 // Normalize the many raw/normalized call statuses into a few filter buckets so
 // the same Status filter works across both Leads (raw API statuses) and Calls
@@ -1041,6 +1032,9 @@ function DataPage() {
     if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && wbahCallsCount === 0) {
       handleFetchWbahCallsCount();
     }
+    if (dataTab === "people" && isWbah && wbahDqData.length === 0 && !wbahDqLoading) {
+      handleFetchWbahCategory("disqualified");
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
 
@@ -1426,7 +1420,7 @@ function DataPage() {
               return s === "need_to_call" || s === "need to call" || s === "not_connected" || s === "no_answer" || s === "not connected";
             }).length;
             const wbahAppts      = wbahCallData.filter(r => !!r.appointmentDate).length;
-            const wbahDisqualCnt = wbahCallData.filter(isWbahDisqualified).length;
+            const wbahDisqualCnt = wbahDqData.length;
             return (
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <KpiCard label="Total Leads"    value={wbahTotal}      icon={Users}        iconBg="bg-blue-500/15"    iconColor="text-blue-400" />

@@ -14,10 +14,15 @@ The WeeBespoke Enterprise **call-output** API does not expose lead filter-status
 fields, so the engine cannot map a lead to a category by a server-provided status.
 It builds a status-code map where it can, then falls back to heuristics on
 `disconnectionReason` / `callStatus` / `sentiment`.
-**Why:** the source data only carries Neutral/Positive sentiment with no
-negative/callback signal, so a sync legitimately lands ~everything in
-`tried_to_contact` and ~0 in disqualified/rebooking. A near-zero dq/rb count is
-expected with current data, not a bug.
+**Why:** the get-userCall-lead source only carries Neutral/Positive sentiment with
+no negative/callback signal, so this sync lands ~everything in `tried_to_contact`
+and ~0 in disqualified/rebooking.
+
+## Disqualified is NOT fed by this sync anymore — see wbah-disqualified-derivation.md
+The Disqualified sub-tab + KPI are now derived **live** from the `wbah_calls` table
+(`sentiment='negative'`), NOT from `wbah_categorized_leads`. So a 0 disqualified
+count in `wbah_categorized_leads` is NOT the metric to trust; the tab bypasses it.
+tried_to_contact / rebooking still read `wbah_categorized_leads`.
 
 ## New wbah_* PII tables MUST enable RLS
 Any new `wbah_*` table holding lead PII must `ENABLE ROW LEVEL SECURITY` with a
