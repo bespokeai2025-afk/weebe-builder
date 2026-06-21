@@ -1,0 +1,468 @@
+FULL EXECUTIVE MINDS WORKSPACE ISOLATION + FUNCTIONALITY AUDIT
+
+IMPORTANT
+
+Audit first.
+Do not rebuild HiveMind, GrowthMind or SystemMind.
+Do not break WeBuyAnyHouse.
+Do not break Webespoke AI.
+Do not change business logic unless a workspace/user isolation bug is found.
+Do not let any workspace see another workspace’s data.
+
+OBJECTIVE
+
+Ensure HiveMind, GrowthMind and SystemMind are fully workspace-specific and user-login-specific.
+
+When a user logs in, all executive minds must read only that user’s workspace data:
+
+- leads
+- calls
+- qualified leads
+- pipeline
+- contacts
+- campaigns
+- agents
+- analytics
+- provider health
+- costs
+- tasks
+- recommendations
+- actions
+- Business DNA
+- knowledge bases
+- WhatsApp
+- HexMail
+- Video Studio
+- Image Studio
+- AccountsMind
+- SystemMind health
+- GrowthMind campaign data
+
+====================================================
+
+CRITICAL RULE
+
+Never use global data unless the logged-in user is a platform admin viewing admin mode.
+
+Workspace users must only see their own workspace.
+
+WBAH must only see WBAH.
+
+Webespoke AI must only see Webespoke AI.
+
+No cache, query, provider setting, Retell key, analytics result or recommendation may leak between accounts.
+
+====================================================
+
+SECTION 1 — AUTH + WORKSPACE RESOLUTION
+
+Audit every path that resolves:
+
+user_id
+workspace_id
+workspace_slug
+workspace role
+platform admin status
+
+Check:
+
+Supabase session
+JWT user_metadata.workspace_id
+workspace_members
+profiles
+workspace_settings
+provider_settings
+
+Find any place that uses:
+
+localStorage workspace
+last selected workspace
+hardcoded workspace id
+hardcoded WBAH fallback
+platform default workspace
+admin workspace fallback
+
+Server truth must always come from authenticated session + DB membership.
+
+====================================================
+
+SECTION 2 — HIVEMIND ISOLATION
+
+Audit all HiveMind files and server functions.
+
+Check:
+
+HiveMind overview
+HiveMind briefing
+HiveMind chat
+HiveMind voice
+HiveMind recommendations
+HiveMind tasks
+HiveMind actions
+HiveMind reports
+HiveMind settings
+HiveMind provider summaries
+HiveMind Business DNA
+HiveMind knowledge retrieval
+
+For each, verify:
+
+workspace_id filter exists
+user has access
+query keys include workspace_id
+cache keys include workspace_id
+provider settings are workspace-specific
+data is not read from WBAH unless workspace is WBAH
+data is not read from Webespoke unless workspace is Webespoke
+
+HiveMind must read:
+
+leads
+calls
+qualified leads
+pipeline
+campaigns
+agents
+analytics page data
+provider health
+costs
+Business DNA
+knowledge base
+WhatsApp
+HexMail
+GrowthMind summaries
+SystemMind summaries
+AccountsMind summaries
+
+====================================================
+
+SECTION 3 — GROWTHMIND ISOLATION
+
+Audit all GrowthMind files and server functions.
+
+Check:
+
+GrowthMind dashboard
+chat
+strategy centre
+campaign factory
+content studio
+video studio
+image studio
+SEO
+competitors
+analytics
+campaign performance
+live optimisation
+Business DNA
+opportunity engine
+value point engine
+channel intelligence
+knowledge context selector
+
+For each, verify:
+
+workspace_id filter exists
+data source is workspace-specific
+analytics source is workspace-specific
+campaigns are workspace-specific
+generated assets are workspace-specific
+knowledge bases are workspace-specific
+provider settings are workspace-specific
+cache keys include workspace_id
+
+GrowthMind must read only the logged-in workspace’s:
+
+leads
+calls
+campaigns
+analytics
+ad accounts
+content
+video assets
+image assets
+HexMail
+WhatsApp
+Business DNA
+knowledge bases
+
+====================================================
+
+SECTION 4 — SYSTEMMIND ISOLATION
+
+Audit all SystemMind files and server functions.
+
+Check:
+
+SystemMind overview
+health
+workflow generator
+workflow drafts
+workflow events
+provider monitoring
+deployment monitoring
+error monitoring
+change requests
+SystemMind knowledge base
+
+For each, verify:
+
+workspace_id filter exists
+system checks are workspace-specific
+provider health reads correct workspace settings
+workflow drafts are workspace-specific
+change requests are workspace-specific
+admin-only requests are separated
+cache keys include workspace_id
+
+====================================================
+
+SECTION 5 — ANALYTICS DATA FLOW INTO MINDS
+
+Trace analytics flow:
+
+Analytics page
+Dashboard stats
+Call analytics
+Lead analytics
+Agent analytics
+Campaign analytics
+Provider usage analytics
+Cost analytics
+
+Confirm all three minds can read this data correctly.
+
+For each analytics source show:
+
+table/API used
+workspace filter
+date filter
+cache key
+mind consuming it
+whether WBAH branch exists
+whether normal Retell branch exists
+
+Special rule:
+
+WBAH workspace may use wbah_calls and WBAH enterprise API.
+
+Non-WBAH workspaces must use normal calls/Retell/provider-specific analytics.
+
+====================================================
+
+SECTION 6 — RETELL / WEBEE VOICE ANALYTICS
+
+For normal workspaces such as Webespoke AI:
+
+HiveMind/GrowthMind/SystemMind should use:
+
+workspace-specific Retell API key
+workspace-specific Retell agent IDs
+normal calls table
+normal analytics path
+
+For WBAH:
+
+Use WBAH branch only when authenticated workspace is WBAH.
+
+Verify:
+
+Retell keys do not leak
+agent analytics are workspace-specific
+call analytics are workspace-specific
+provider status is workspace-specific
+
+====================================================
+
+SECTION 7 — CACHE ISOLATION
+
+Audit Redis/TanStack Query/cache keys.
+
+Every key must include workspace_id where data is workspace-specific.
+
+Check:
+
+dashboard cache
+analytics cache
+calls cache
+leads cache
+HiveMind cache
+GrowthMind cache
+SystemMind cache
+Business DNA cache
+provider health cache
+agent analytics cache
+
+On logout or workspace switch:
+
+clear user-specific query caches.
+
+====================================================
+
+SECTION 8 — KNOWLEDGE BASE ISOLATION
+
+Audit:
+
+executive_document_chunks
+knowledge_bases
+documents
+Business DNA documents
+platform starter knowledge
+workspace knowledge
+HiveMind KB
+GrowthMind KB
+SystemMind KB
+
+Verify:
+
+Platform knowledge is shared/read-only.
+Workspace knowledge is private.
+WEBEE internal knowledge is not seeded into customer workspaces.
+RAG retrieval filters by workspace_id and allowed KB slugs.
+No workspace can retrieve another workspace’s documents.
+
+====================================================
+
+SECTION 9 — RECOMMENDATION ENGINE FUNCTIONALITY
+
+Verify that HiveMind generates recommendations based on each workspace’s own data.
+
+Test:
+
+Empty workspace
+Partial setup workspace
+WBAH workspace
+Webespoke AI workspace
+Workspace with Retell calls
+Workspace with campaigns
+Workspace with disconnected providers
+
+Expected:
+
+HiveMind creates setup recommendations when data is missing.
+HiveMind creates lead/call recommendations when data exists.
+GrowthMind creates campaign recommendations from workspace-specific data.
+SystemMind creates health recommendations from workspace-specific integrations.
+
+====================================================
+
+SECTION 10 — VOICE FUNCTIONALITY
+
+Audit HiveMind voice.
+
+Confirm voice uses same backend logic as chat.
+
+Voice should be able to answer:
+
+“What leads need attention?”
+“What calls happened today?”
+“What campaign should I run?”
+“What needs fixing?”
+“What agents are performing best?”
+
+Responses must be workspace-specific.
+
+Voice must not return WBAH data when logged into Webespoke AI.
+
+====================================================
+
+SECTION 11 — ADMIN VS WORKSPACE MODE
+
+Platform admins may view all workspaces only when explicitly in admin context.
+
+Normal workspace context must still be scoped to selected workspace.
+
+Audit:
+
+admin pages
+workspace pages
+admin impersonation
+workspace switcher
+provider settings
+analytics pages
+minds pages
+
+Prevent accidental admin/global data leaking into normal workspace UI.
+
+====================================================
+
+SECTION 12 — VALIDATION TESTS
+
+Run these tests:
+
+1. Login as admin@webuyanyhouse.co.uk
+Expected:
+HiveMind reads WBAH leads/calls/analytics only.
+
+2. Login as Webespoke AI account
+Expected:
+HiveMind reads Webespoke AI calls/leads/Retell analytics only.
+No WBAH analytics shown.
+
+3. Switch from WBAH account to Webespoke AI account
+Expected:
+Caches clear.
+No WBAH data remains.
+
+4. Ask HiveMind:
+“What leads need attention?”
+Expected:
+Workspace-specific answer.
+
+5. Ask GrowthMind:
+“What campaign should I run?”
+Expected:
+Workspace-specific campaign proposal.
+
+6. Ask SystemMind:
+“What integrations are broken?”
+Expected:
+Workspace-specific provider health.
+
+7. Ask HiveMind voice:
+“What happened today?”
+Expected:
+Workspace-specific briefing.
+
+====================================================
+
+SECTION 13 — FIX RULES
+
+If a bug is found:
+
+Fix the smallest safe cause.
+
+Likely fixes:
+
+add workspace_id filter
+add workspace_id to cache key
+clear TanStack Query on logout
+fix WBAH branch guard
+fix Retell credential resolution
+fix provider_settings lookup
+fix analytics helper
+fix RAG workspace filter
+fix recommendation source query
+
+Do not refactor entire minds.
+
+Do not touch WBAH working logic except to prevent leakage into other workspaces.
+
+====================================================
+
+FINAL OUTPUT
+
+Return:
+
+1. HiveMind isolation status
+2. GrowthMind isolation status
+3. SystemMind isolation status
+4. Analytics isolation status
+5. Cache isolation status
+6. Knowledge base isolation status
+7. Retell/provider isolation status
+8. Bugs found
+9. Files changed
+10. Validation results
+11. Confirmation WBAH remains working
+12. Confirmation Webespoke AI uses its own data
