@@ -18,13 +18,15 @@ It builds a status-code map where it can, then falls back to heuristics on
 no negative/callback signal, so this sync lands ~everything in `tried_to_contact`
 and ~0 in disqualified/rebooking.
 
-## Disqualified is NOT fed by this sync anymore — see wbah-disqualified-derivation.md
-The Disqualified sub-tab + KPI are now derived **live** from the `wbah_calls` table
-as "clients that need to be called" = every contact NOT booked
-(`booking_status <> 'success'`), deduped per contact — NOT from
-`wbah_categorized_leads`. So its count in `wbah_categorized_leads` is NOT the metric
-to trust; the tab bypasses it. tried_to_contact / rebooking still read
-`wbah_categorized_leads`.
+## ALL THREE tabs are derived live from wbah_calls now — see wbah-disqualified-derivation.md
+The Disqualified / Tried-To-Contact / Rebooking sub-tabs + KPIs are now derived
+**live** from the `wbah_calls` table as mutually-exclusive buckets of the
+"need to be called" set (every contact NOT booked, `booking_status <> 'success'`,
+deduped per contact). `wbah_categorized_leads` is **bypassed** for all three. The
+sync engine in this file still runs on a schedule and still writes that table, but
+nothing reads it for the People tabs — so its per-category counts are NOT the metric
+to trust. (Left running rather than removed to avoid scope creep; safe to retire
+later.)
 
 ## New wbah_* PII tables MUST enable RLS
 Any new `wbah_*` table holding lead PII must `ENABLE ROW LEVEL SECURITY` with a

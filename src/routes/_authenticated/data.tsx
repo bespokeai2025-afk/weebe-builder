@@ -484,6 +484,8 @@ function DataPage() {
   const [wbahDqLoading, setWbahDqLoading]             = useState(false);
   const [wbahDqError, setWbahDqError]                 = useState<string | null>(null);
   const [wbahDqCount, setWbahDqCount]                 = useState(0);
+  const [wbahTtcCount, setWbahTtcCount]               = useState(0);
+  const [wbahRbCount, setWbahRbCount]                 = useState(0);
   const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]);
   const [wbahCallsLoading, setWbahCallsLoading]       = useState(false);
   const [wbahCallsError, setWbahCallsError]           = useState<string | null>(null);
@@ -514,6 +516,7 @@ function DataPage() {
   const [showCsvMapping, setShowCsvMapping] = useState(false);
   const [csvImportAgentId, setCsvImportAgentId] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const wbahCatCountsInFlightRef = useRef(false);
 
   const listFn = useServerFn(listDataRecords);
   const importFn = useServerFn(importDataRecords);
@@ -1022,14 +1025,28 @@ function DataPage() {
     }
   }
 
-  // Lightweight COUNT for the "Disqualified" (need-to-be-called) KPI + badge.
-  // The full rows (~3k, each with a transcript) load lazily when the tab opens.
-  async function handleFetchWbahDqCount() {
+  // Lightweight COUNTS for the three People sub-tab KPIs + badges. The full rows
+  // (each with a transcript) load lazily when a tab is actually opened. The
+  // disqualified call warms the shared cache first, so the parallel ttc/rebooking
+  // calls hit it instead of each rebuilding the derived set.
+  async function handleFetchWbahCatCounts() {
+    // Guard against the React StrictMode double-effect firing two cold cache
+    // builds before the counts land.
+    if (wbahCatCountsInFlightRef.current) return;
+    wbahCatCountsInFlightRef.current = true;
     try {
-      const res = await listWbahCategorizedLeadsFn({ data: { category: "disqualified", page: 1, limit: 1 } });
-      setWbahDqCount((res as any)?.total ?? 0);
+      const dq = await listWbahCategorizedLeadsFn({ data: { category: "disqualified", page: 1, limit: 1 } });
+      setWbahDqCount((dq as any)?.total ?? 0);
+      const [ttc, rb] = await Promise.all([
+        listWbahCategorizedLeadsFn({ data: { category: "tried_to_contact", page: 1, limit: 1 } }),
+        listWbahCategorizedLeadsFn({ data: { category: "rebooking", page: 1, limit: 1 } }),
+      ]);
+      setWbahTtcCount((ttc as any)?.total ?? 0);
+      setWbahRbCount((rb as any)?.total ?? 0);
     } catch {
-      /* non-fatal — Disqualified KPI/badge just stays hidden until the tab is opened */
+      /* non-fatal — KPIs/badges just stay hidden until the tabs are opened */
+    } finally {
+      wbahCatCountsInFlightRef.current = false;
     }
   }
 
@@ -1044,8 +1061,8 @@ function DataPage() {
     if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && wbahCallsCount === 0) {
       handleFetchWbahCallsCount();
     }
-    if (dataTab === "people" && isWbah && wbahDqData.length === 0 && wbahDqCount === 0) {
-      handleFetchWbahDqCount();
+    if (dataTab === "people" && isWbah && wbahDqCount === 0 && wbahTtcCount === 0 && wbahRbCount === 0) {
+      handleFetchWbahCatCounts();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
@@ -1427,10 +1444,9 @@ function DataPage() {
           {/* ── WBAH People KPI strip ───────────────────────────────────── */}
           {wbahCallData.length > 0 && (() => {
             const wbahTotal      = wbahCallData.length;
-            const wbahNeedCall   = wbahCallData.filter(r => {
-              const s = (r.callStatus ?? "").toLowerCase();
-              return s === "need_to_call" || s === "need to call" || s === "not_connected" || s === "no_answer" || s === "not connected";
-            }).length;
+            const wbahNeedCall   = (wbahDqData.length || wbahDqCount)
+                                 + (wbahTtcData.length || wbahTtcCount)
+                                 + (wbahRbData.length || wbahRbCount);
             const wbahAppts      = wbahCallData.filter(r => !!r.appointmentDate).length;
             const wbahDisqualCnt = wbahDqData.length || wbahDqCount;
             return (
@@ -1457,8 +1473,8 @@ function DataPage() {
               ] as { id: string; label: string }[]).map(tab => {
                 const cnt = tab.id === "leads" ? wbahCallData.length
                           : tab.id === "disqualified" ? (wbahDqData.length || wbahDqCount)
-                          : tab.id === "tried_to_contact" ? wbahTtcData.length
-                          : tab.id === "rebooking" ? wbahRbData.length
+                          : tab.id === "tried_to_contact" ? (wbahTtcData.length || wbahTtcCount)
+                          : tab.id === "rebooking" ? (wbahRbData.length || wbahRbCount)
                           : tab.id === "calls" ? (wbahCallsData.length || wbahCallsCount)
                           : 0;
                 const isCatTab = tab.id === "disqualified" || tab.id === "tried_to_contact" || tab.id === "rebooking";
@@ -1496,8 +1512,8 @@ function DataPage() {
                     : wbahPeopleSubTab === "calls" ? "Calls" : "All Leads"}
                   {(() => {
                     const total = wbahPeopleSubTab === "disqualified" ? (wbahDqData.length || wbahDqCount)
-                                : wbahPeopleSubTab === "tried_to_contact" ? wbahTtcData.length
-                                : wbahPeopleSubTab === "rebooking" ? wbahRbData.length
+                                : wbahPeopleSubTab === "tried_to_contact" ? (wbahTtcData.length || wbahTtcCount)
+                                : wbahPeopleSubTab === "rebooking" ? (wbahRbData.length || wbahRbCount)
                                 : wbahPeopleSubTab === "calls" ? wbahCallsData.length
                                 : wbahCallData.length;
                     return total > 0 ? (

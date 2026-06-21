@@ -1466,70 +1466,114 @@ export const triggerWbahCategorySync = createServerFn({ method: "POST" })
     return result;
   });
 
-// ── listWbahDisqualifiedFromCalls ─────────────────────────────────────────────
-// The "Disqualified" tab lists clients that still NEED TO BE CALLED — i.e. every
-// contact who has NOT yet booked an appointment (negative-sentiment leads are a
-// subset of this, not the whole set). Derived live from the rich `wbah_calls`
-// table, deduplicated to one row per contact (their most-recent call). The
-// `wbah_categorized_leads` table is fed by the call-output endpoint, which never
-// returns this signal, so it cannot populate this category.
+// ── WBAH call-derived categories (Disqualified / Tried To Contact / Rebooking) ─
+// All three People sub-tabs are derived live from the rich `wbah_calls` table.
+// Every contact who has NOT yet booked an appointment "needs to be called", and
+// each such contact is bucketed into exactly ONE category from their latest call
+// outcome, so the three tabs are mutually exclusive (no contact appears twice):
+//   • disqualified     — reached, but negative sentiment / not a viable lead
+//   • tried_to_contact — never actually reached (no answer / voicemail)
+//   • rebooking        — reached & warm, or has an appointment / callback to redo
+// The `wbah_categorized_leads` table (fed by the call-output endpoint) cannot
+// distinguish these reliably, so it is bypassed for WBAH.
 
-async function listWbahDisqualifiedFromCalls(
+type WbahDerivedCat = "disqualified" | "tried_to_contact" | "rebooking";
+
+const WBAH_DERIVED_LABEL: Record<WbahDerivedCat, string> = {
+  disqualified:     "Disqualified",
+  tried_to_contact: "Tried To Contact",
+  rebooking:        "Rebooking",
+};
+
+// Classify a single deduped contact (their latest call), already known to be
+// NOT booked, into exactly one category. Order matters — first match wins.
+function classifyWbahNeedCall(c: any): WbahDerivedCat {
+  const cs   = String(c.call_status ?? "").toLowerCase();
+  const sa   = String(c.sentiment ?? "").toLowerCase();
+  const dr   = String(c.disconnection_reason ?? "").toLowerCase();
+  const er   = String(c.end_reason ?? "").toLowerCase();
+  const appt = !!(c.appointment_date && String(c.appointment_date).trim());
+  const hay  = `${cs} ${dr} ${er}`;
+
+  // Disqualified — we reached them but they are negative / not interested.
+  if (sa === "negative") return "disqualified";
+  if (/not[_\s]?interested|reject|unsuitable|do[_\s]?not[_\s]?call|disqualif/.test(hay)) return "disqualified";
+
+  // Rebooking — an appointment exists to redo, or they asked for a callback.
+  if (appt) return "rebooking";
+  if (/rebook|reschedul|call[_\s]?back|call[_\s]?later|callback|pending/.test(hay)) return "rebooking";
+
+  // Tried To Contact — never actually connected (no answer / voicemail / no convo).
+  if (cs === "no_answer" || cs === "not_connected" || cs === "voicemail") return "tried_to_contact";
+  if (/voicemail|no_answer|no_input|dial_no_answer|dial_busy|dial_failed|inactivity|machine/.test(hay)) return "tried_to_contact";
+  if (!sa && cs !== "completed") return "tried_to_contact";
+
+  // Default — reached (completed), neutral/positive, no booking yet → call back
+  // to land a booking.
+  return "rebooking";
+}
+
+// Build (and cache) the deduped, classified "need to be called" set: one
+// lightweight row per contact (their latest call), excluding anyone already
+// booked, each tagged with its `__cat`. Transcripts are heavy, so they are NOT
+// loaded here — only for the current page in listWbahCallDerivedCategory().
+async function getWbahCallDerivedContacts(workspaceId: string): Promise<any[]> {
+  return cacheWrap(`webee:wbah-callcats:${workspaceId}`, 60, async () => {
+    const PAGE = 1000;
+    const all: any[] = [];
+    let from = 0;
+    for (;;) {
+      const { data, error } = await (supabaseAdmin as any)
+        .from("wbah_calls")
+        .select(
+          "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
+        )
+        .eq("workspace_id", workspaceId)
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(`DB query failed: ${error.message}`);
+      const batch: any[] = data ?? [];
+      all.push(...batch);
+      if (batch.length < PAGE) break;
+      from += PAGE;
+    }
+
+    // Dedup per contact (phone). Rows are ordered latest-first, so the first
+    // occurrence of each phone is that contact's most-recent call.
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const c of all) {
+      const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(c);
+    }
+
+    // Keep only "need to be called" (not booked) and tag each with its bucket.
+    const needCall = out.filter(
+      (c) => String(c.booking_status ?? "").toLowerCase() !== "success",
+    );
+    for (const c of needCall) c.__cat = classifyWbahNeedCall(c);
+    return needCall;
+  });
+}
+
+// Returns one category's page of contacts, derived live from wbah_calls.
+async function listWbahCallDerivedCategory(
   workspaceId: string,
+  category: WbahDerivedCat,
   page: number,
   limit: number,
   search?: string,
 ) {
-  // Build (and cache) the deduped "need to be called" set: one lightweight row
-  // per contact (their latest call), excluding anyone already booked. Transcripts
-  // are heavy, so they are NOT loaded here — only for the current page below.
-  const deduped: any[] = await cacheWrap(
-    `webee:wbah-needcall:${workspaceId}`,
-    60,
-    async () => {
-      const PAGE = 1000;
-      const all: any[] = [];
-      let from = 0;
-      for (;;) {
-        const { data, error } = await (supabaseAdmin as any)
-          .from("wbah_calls")
-          .select(
-            "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
-          )
-          .eq("workspace_id", workspaceId)
-          .order("started_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(`DB query failed: ${error.message}`);
-        const batch: any[] = data ?? [];
-        all.push(...batch);
-        if (batch.length < PAGE) break;
-        from += PAGE;
-      }
+  const derived = await getWbahCallDerivedContacts(workspaceId);
+  let filtered = derived.filter((c) => c.__cat === category);
 
-      // Dedup per contact (phone). Rows are ordered latest-first, so the first
-      // occurrence of each phone is that contact's most-recent call.
-      const seen = new Set<string>();
-      const out: any[] = [];
-      for (const c of all) {
-        const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(c);
-      }
-
-      // "Need to be called" = everyone who has not booked an appointment.
-      return out.filter(
-        (c) => String(c.booking_status ?? "").toLowerCase() !== "success",
-      );
-    },
-  );
-
-  // Search (name / phone) — applied after the cached set is built.
-  let filtered = deduped;
+  // Search (name / phone).
   if (search?.trim()) {
     const s = search.trim().toLowerCase();
-    filtered = deduped.filter(
+    filtered = filtered.filter(
       (c) =>
         String(c.customer_name ?? "").toLowerCase().includes(s) ||
         String(c.phone ?? "").toLowerCase().includes(s),
@@ -1575,9 +1619,9 @@ async function listWbahDisqualifiedFromCalls(
     return {
       id: c.id,
       external_lead_id: c.phone ?? c.id,
-      external_status_code: c.sentiment ?? "need_to_call",
-      external_status_label: "Need to Call",
-      webee_category: "disqualified",
+      external_status_code: c.sentiment ?? category,
+      external_status_label: WBAH_DERIVED_LABEL[category],
+      webee_category: category,
       full_name: c.customer_name ?? "Unknown",
       first_name: null,
       last_name: null,
@@ -1598,7 +1642,7 @@ async function listWbahDisqualifiedFromCalls(
     };
   });
 
-  return { rows, total, page, limit, category: "disqualified" as const };
+  return { rows, total, page, limit, category };
 }
 
 // ── listWbahCategorizedLeads ──────────────────────────────────────────────────
@@ -1632,54 +1676,10 @@ export const listWbahCategorizedLeads = createServerFn({ method: "GET" })
 
     const { category, page, limit, search } = data;
 
-    if (category === "disqualified") {
-      return await listWbahDisqualifiedFromCalls(ws.id, page, limit, search);
-    }
-
-    const from = (page - 1) * limit;
-    const to   = from + limit - 1;
-
-    let q = (supabaseAdmin as any)
-      .from("wbah_categorized_leads")
-      .select("*", { count: "exact" })
-      .eq("workspace_id", ws.id)
-      .eq("webee_category", category)
-      .order("last_synced_at", { ascending: false })
-      .range(from, to);
-
-    if (search?.trim()) {
-      const s = `%${search.trim()}%`;
-      q = q.or(`full_name.ilike.${s},phone.ilike.${s},email.ilike.${s},postcode.ilike.${s}`);
-    }
-
-    const { data: rows, count, error } = await q;
-    if (error) throw new Error(`DB query failed: ${error.message}`);
-
-    return {
-      rows: (rows ?? []) as {
-        id: string;
-        external_lead_id: string;
-        external_status_code: string | null;
-        external_status_label: string | null;
-        webee_category: string;
-        full_name: string;
-        first_name: string | null;
-        last_name: string | null;
-        phone: string | null;
-        email: string | null;
-        address: string | null;
-        city: string | null;
-        postcode: string | null;
-        property_type: string | null;
-        meta: Record<string, unknown>;
-        last_synced_at: string;
-        created_at: string;
-      }[],
-      total:     count ?? 0,
-      page,
-      limit,
-      category,
-    };
+    // All three WBAH categories are derived live from `wbah_calls` as mutually
+    // exclusive buckets (see getWbahCallDerivedContacts), bypassing the
+    // unreliable `wbah_categorized_leads` table.
+    return await listWbahCallDerivedCategory(ws.id, category, page, limit, search);
   });
 
 // ── getWbahCategorySyncLog ─────────────────────────────────────────────────────

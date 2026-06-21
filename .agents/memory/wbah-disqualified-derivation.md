@@ -1,17 +1,32 @@
 ---
-name: WBAH Disqualified tab = "need to be called"
-description: The WBAH People → Disqualified tab lists clients that still need to be called (everyone not yet booked), derived from wbah_calls — not negatives only, not the lead/CRM APIs.
+name: WBAH People tabs = need-to-be-called, split 3 ways
+description: All three WBAH People sub-tabs (Disqualified / Tried-To-Contact / Rebooking) are mutually-exclusive buckets of the not-yet-booked contacts, derived live from wbah_calls — not the lead/CRM APIs, not wbah_categorized_leads.
 ---
 
-# WBAH Disqualified tab = "need to be called"
+# WBAH People tabs = "need to be called", split into 3 mutually-exclusive buckets
 
-The WBAH People → **Disqualified** sub-tab + KPI list **clients that still need to
-be called** — i.e. every contact who has NOT booked an appointment
-(`booking_status <> 'success'`), deduplicated to one row per contact (their
-most-recent call, `order by started_at desc`). Negative-sentiment leads are just a
-subset. Derived live from the `wbah_calls` table. ~3,298 of 3,323 contacts qualify
-(only ~25 are booked). tried_to_contact / rebooking still read
-`wbah_categorized_leads`.
+The WBAH People sub-tabs partition the **"need to be called"** set (every contact
+NOT booked, `booking_status <> 'success'`, deduped to one row per contact by latest
+call `started_at desc`) into THREE mutually-exclusive buckets — each contact appears
+in exactly one tab. All derived live from `wbah_calls` (see
+`classifyWbahNeedCall` + `getWbahCallDerivedContacts` in wbah-workspace.server.ts).
+
+**Bucket rules (first match wins — ORDER MATTERS):**
+1. **Disqualified** — `sentiment = 'negative'`, or not-interested/reject/unsuitable/
+   do-not-call/disqualif text in disconnection/end reason. (reached, dead lead)
+2. **Rebooking** — has an `appointment_date`, or rebook/reschedule/call-back/
+   call-later/callback/pending text. (had/needs an appointment to redo)
+3. **Tried To Contact** — `call_status` no_answer/not_connected/voicemail, or
+   voicemail/no_input/dial_* reason, or (no sentiment AND not completed). (never reached)
+4. **Default → Rebooking** — reached (completed), neutral/positive, no booking yet
+   → call back to land a booking.
+
+Verified live distribution (of ~3,298 not-booked): tried_to_contact ≈ 2,534,
+rebooking ≈ 694, disqualified ≈ 70 (sums to the full not-booked set).
+**Why these defaults:** the codebase's own `classifyLead` (wbah-category-sync.ts)
+already encoded this intent; we just reuse it against the clean `wbah_calls` source.
+Boundaries (esp. where null-sentiment / neutral-completed land) are a judgment call —
+if the user disputes the sizes, tweak the order/conditions in `classifyWbahNeedCall`.
 
 **Why this source (not the obvious ones):**
 - No WeeBespoke API exposes a per-lead "Disqualified" / "Need to Call" status.
