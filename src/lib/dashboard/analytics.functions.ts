@@ -326,11 +326,12 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
         agentIds,
         calls: allCalls,
         agentNames,
+        workspaceSlug: wsSlugRow?.slug ?? null,
         error: error ?? (!apiKey ? "No Retell API key configured" : "No deployed agents found in this workspace"),
       };
     }
 
-    return { configured: true, agentIds, calls: allCalls, agentNames, error };
+    return { configured: true, agentIds, calls: allCalls, agentNames, error, workspaceSlug: wsSlugRow?.slug ?? null };
   }, bust);
   });
 

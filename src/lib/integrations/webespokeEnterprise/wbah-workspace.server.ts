@@ -433,6 +433,45 @@ export const getWbahCampaigns = createServerFn({ method: "GET" })
     return extractWbahArray(res.data).map(normalizeWbahCampaign);
   });
 
+// ── Credits / Minute Allocation Dashboard ─────────────────────────────────────
+// Powers the Analytics → Credits tab. Fetches the WeeBespoke credit summary,
+// monthly consumption trend, recharge history and Retell billing usage in
+// parallel and normalizes them for the UI (matches the WeeBespoke Credit
+// Dashboard: Total Allocated, Minutes Used, Remaining Balance, Usage %).
+export const getWbahCredits = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cbs = await requireWbahCbs(context.userId);
+    const gt = cbs.getTokens;
+    const st = cbs.saveNewAccessToken;
+
+    const [summaryR, monthlyR, historyR, retellR] = await Promise.all([
+      api.wbahGetCreditSummary(gt, st),
+      api.wbahGetMonthlyUsage(gt, st),
+      api.wbahGetCreditHistory(gt, st),
+      api.wbahGetRetellUsage(gt, st),
+    ]);
+
+    // summary / monthly / retell are objects nested under the API's
+    // { result, statuscode, message, data } envelope; history is an array.
+    const unwrap = (raw: any) =>
+      raw && typeof raw === "object" && !Array.isArray(raw) && "data" in raw ? raw.data : raw;
+
+    const summary = (unwrap(summaryR.data) ?? null) as Record<string, unknown> | null;
+    const monthlyObj = unwrap(monthlyR.data) as any;
+    const months = Array.isArray(monthlyObj)
+      ? monthlyObj
+      : Array.isArray(monthlyObj?.months)
+        ? monthlyObj.months
+        : Array.isArray(monthlyObj?.monthly_usage)
+          ? monthlyObj.monthly_usage
+          : [];
+    const retell = (unwrap(retellR.data) ?? null) as Record<string, unknown> | null;
+    const history = extractWbahArray(historyR.data);
+
+    return { summary, months, retell, history };
+  });
+
 export const createWbahCampaign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((i) => z.record(z.string(), z.unknown()).parse(i ?? {}))

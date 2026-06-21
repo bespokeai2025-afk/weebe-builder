@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn, useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getDashboardLiveAgents } from "@/lib/agents/agents.functions";
@@ -17,6 +17,7 @@ import {
   ArrowDownLeft, ArrowUpRight, Megaphone,
   Search, Mail, MessageSquare, BarChart2, DollarSign,
   Eye, MousePointerClick, Target, PauseCircle, BookOpen, Send, CheckCheck,
+  CreditCard, Wallet,
 } from "lucide-react";
 import {
   PageHeader, PanelCard, StatCard, EmptyState, TableHead,
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getRetellAnalytics } from "@/lib/dashboard/analytics.functions";
+import { getWbahCredits } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { ProviderCreditsBar } from "@/components/providers/ProviderCreditsBar";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
@@ -310,6 +312,7 @@ function computeAnalytics(allCalls: any[]) {
 const MAIN_TABS = [
   { key: "calls",     label: "Call Analytics", icon: PhoneCall },
   { key: "marketing", label: "Marketing",       icon: Megaphone },
+  { key: "credits",   label: "Credits",         icon: CreditCard },
 ] as const;
 type MainTabKey = typeof MAIN_TABS[number]["key"];
 
@@ -334,7 +337,7 @@ function AnalyticsPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectorOpen, setSelectorOpen] = useState(false);
 
-  const q = useQuery({ queryKey: ["retell-analytics", days], queryFn: () => fn({ data: { days } }), staleTime: 15 * 60_000, refetchOnWindowFocus: false, throwOnError: false });
+  const q = useQuery({ queryKey: ["retell-analytics", days], queryFn: () => fn({ data: { days } }), staleTime: 15 * 60_000, refetchOnWindowFocus: false, throwOnError: false, placeholderData: keepPreviousData });
   const liveAgentsQ = useQuery({ queryKey: ["dashboard-live-agents"], queryFn: () => getLiveAgentsFn({ data: undefined }), staleTime: 60_000 ,
     throwOnError: false,
   });
@@ -342,6 +345,7 @@ function AnalyticsPage() {
   const result   = q.data;
   const allCalls = (result?.calls ?? []) as any[];
   const agentNames: Record<string, string> = (result?.agentNames ?? {}) as Record<string, string>;
+  const isWbah = (result as any)?.workspaceSlug === "webuyanyhouse";
   // Build agent list from the Retell API response (agentNames) so the
   // dropdown appears for any workspace that has calls, not just those
   // whose agents happen to be in the local deployments DB.
@@ -384,20 +388,26 @@ function AnalyticsPage() {
     throwOnError: false,
   });
 
+  // ── Credits state (WBAH only) ──
+  const creditsFn = useServerFn(getWbahCredits);
+  const creditsQ = useQuery({ queryKey: ["wbah-credits"], queryFn: () => creditsFn(), staleTime: 5 * 60_000, enabled: mainTab === "credits" && isWbah, throwOnError: false });
+
+  const visibleTabs = MAIN_TABS.filter((t) => t.key !== "credits" || isWbah);
+
   return (
     <div className="pb-8">
       <PageHeader
         title="Analytics"
         subtitle="Call performance metrics and marketing channel intelligence"
         icon={BarChart3}
-        onRefresh={() => mainTab === "calls" ? q.refetch() : mktQ.refetch()}
+        onRefresh={() => mainTab === "calls" ? q.refetch() : mainTab === "credits" ? creditsQ.refetch() : mktQ.refetch()}
       />
 
       <ProviderCreditsBar />
 
       {/* ── Top-level tab bar ── */}
       <div className="flex gap-1 px-6 mt-4 border-b border-white/[0.06]">
-        {MAIN_TABS.map(({ key, label, icon: Icon }) => (
+        {visibleTabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setMainTab(key)}
@@ -691,6 +701,9 @@ function AnalyticsPage() {
           )}
         </div>
       )}
+
+      {/* ── CREDITS TAB ── */}
+      {mainTab === "credits" && <CreditsTab q={creditsQ} />}
     </div>
   );
 }
@@ -755,6 +768,123 @@ function LatencyTile({ label, value, color }: { label: string; value: string; co
     <div className="rounded-xl border border-white/[0.06] bg-card/40 px-3 py-3">
       <p className="text-[10px] font-medium uppercase tracking-[0.12em]" style={{ color }}>{label}</p>
       <p className="mt-1.5 text-xl font-bold tabular-nums text-foreground">{value}</p>
+    </div>
+  );
+}
+
+// ── Credits tab ────────────────────────────────────────────────────────────────
+function fmtMins(n: number | null | undefined): string {
+  if (n == null || isNaN(Number(n))) return "0";
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function fmtCreditDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function CreditCardTile({ label, value, sub, color, icon: Icon }: { label: string; value: string; sub: string; color: string; icon: React.ElementType }) {
+  return (
+    <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+      <div className="mb-2 flex items-center gap-2">
+        <Icon className="h-3.5 w-3.5" style={{ color }} />
+        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      </div>
+      <p className="text-2xl font-bold tabular-nums" style={{ color }}>{value}</p>
+      <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>
+    </div>
+  );
+}
+
+function CreditsTab({ q }: { q: any }) {
+  if (q.isLoading && !q.data) return <div className="px-6 pt-6 text-sm text-muted-foreground">Loading credits…</div>;
+  if (q.error) return (
+    <div className="mx-6 mt-5 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+      <AlertTriangle className="h-4 w-4" /><span>Could not load credits: {String(q.error?.message ?? q.error)}</span>
+    </div>
+  );
+
+  const d = q.data ?? {};
+  const s: any = d.summary ?? {};
+  const retell: any = d.retell ?? {};
+  const allocated = s.allocated_minutes ?? retell.allocated_minutes ?? 0;
+  const used      = s.used_minutes ?? retell.used_minutes ?? 0;
+  const remaining = s.remaining_minutes ?? retell.remaining_minutes ?? 0;
+  const pct       = Math.round(s.percent_used ?? retell.percent_used ?? 0);
+  const carried   = s.carried_over_minutes;
+  const months: any[]  = Array.isArray(d.months) ? d.months : [];
+  const history: any[] = Array.isArray(d.history) ? d.history : [];
+  const trendData = months.map((m: any) => ({ month: m.month, minutes: +(m.minutes_used ?? 0) }));
+  const usageColor = pct >= 90 ? CHART.danger : pct >= 70 ? CHART.warning : CHART.success;
+  const allocSub = carried != null && carried > 0 ? `Recharge + ${fmtMins(carried)} carryover` : "Recharge + carryover";
+
+  return (
+    <div className="px-6 pt-5 space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Credit Dashboard</h2>
+        <p className="text-sm text-muted-foreground">Track your AI calling minute allocations and consumption</p>
+      </div>
+
+      {/* Credit counter */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <CreditCardTile label="Total Allocated"   value={`${fmtMins(allocated)} mins`} sub={allocSub}          color={CHART.primaryGlow} icon={Wallet} />
+        <CreditCardTile label="Minutes Used"      value={`${fmtMins(used)} mins`}      sub="This cycle"        color={CHART.warning}     icon={Activity} />
+        <CreditCardTile label="Remaining Balance" value={`${fmtMins(remaining)} mins`} sub="Available to use"  color={CHART.success}     icon={CheckCircle2} />
+        <div className="rounded-2xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur-sm">
+          <div className="mb-2 flex items-center gap-2">
+            <TrendingUp className="h-3.5 w-3.5" style={{ color: usageColor }} />
+            <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Usage</p>
+          </div>
+          <p className="text-2xl font-bold tabular-nums" style={{ color: usageColor }}>{pct}%</p>
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
+            <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, pct))}%`, backgroundColor: usageColor }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Consumption trend */}
+      <ChartCard title="Consumption Trend — Minutes Used per Month" icon={BarChart3} color={CHART.primary}>
+        {trendData.length === 0 || trendData.every((t) => t.minutes === 0) ? <NoData /> : (
+          <div className="h-64 w-full">
+            <ResponsiveContainer>
+              <AreaChart data={trendData} margin={{ top: 6, right: 6, left: -6, bottom: 0 }}>
+                <defs><linearGradient id="grad_credits" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CHART.primary} stopOpacity={0.55} /><stop offset="100%" stopColor={CHART.primary} stopOpacity={0} /></linearGradient></defs>
+                <CartesianGrid stroke={CHART.grid} vertical={false} />
+                <XAxis dataKey="month" stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke={CHART.axis} fontSize={10} tickLine={false} axisLine={false} unit=" min" width={60} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="minutes" name="Minutes" stroke={CHART.primaryGlow} strokeWidth={2} fill="url(#grad_credits)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </ChartCard>
+
+      {/* Recharge history */}
+      <ChartCard title="Recharge History" icon={CreditCard} color={CHART.accent}>
+        {history.length === 0 ? <p className="text-sm text-muted-foreground">No recharge history.</p> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <TableHead>
+                <PageTh>Date</PageTh><PageTh>Minutes Added</PageTh><PageTh>Notes</PageTh><PageTh>Added By</PageTh><PageTh>Status</PageTh>
+              </TableHead>
+              <tbody>
+                {history.map((h: any, i: number) => (
+                  <tr key={h.id ?? i} className="h-11 border-b border-white/[0.04] transition-colors hover:bg-white/[0.02]">
+                    <td className="px-3 py-2.5">{fmtCreditDate(h.createdAt ?? h.allocated_at)}</td>
+                    <td className="px-3 py-2.5"><Badge className="border-emerald-500/20 bg-emerald-500/15 text-emerald-300">+{fmtMins(h.allocated_minutes)} min</Badge></td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{h.notes ?? "—"}</td>
+                    <td className="px-3 py-2.5">{h.allocated_by ?? "—"}</td>
+                    <td className="px-3 py-2.5"><span className="text-xs capitalize text-muted-foreground">{h.status ?? "—"}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
     </div>
   );
 }
