@@ -24,7 +24,7 @@ import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { listWbahLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { cn } from "@/lib/utils";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/contacts")({
   head: () => ({ meta: [{ title: "Contacts — Webee" }] }),
@@ -664,13 +664,9 @@ function ContactsPage() {
 
   // Detect webuyanyhouse workspace
   useEffect(() => {
-    const sb = createClient(
-      import.meta.env.VITE_SUPABASE_URL!,
-      import.meta.env.VITE_SUPABASE_ANON_KEY!,
-    );
-    sb.auth.getUser().then(async ({ data: u }) => {
+    supabase.auth.getUser().then(async ({ data: u }) => {
       if (!u.user) return;
-      const { data: w } = await sb
+      const { data: w } = await supabase
         .from("workspaces")
         .select("slug")
         .eq("owner_id", u.user.id)
