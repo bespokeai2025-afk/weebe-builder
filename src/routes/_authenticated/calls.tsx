@@ -338,7 +338,21 @@ function CallsPage() {
     });
   }, [wbahQ.data]);
 
-  const rows = (isWbah ? wbahRows : (q.data ?? [])) as any[];
+  // WBAH calls live in wbah_calls, which has no is_voicemail flag — the "voicemail"
+  // result is encoded in disconnection_reason / end_reason ("voicemail_reached").
+  // Native calls are already voicemail-filtered server-side by listCalls, so the
+  // client-side voicemail filter only applies to WBAH here. Filtering at the `rows`
+  // level keeps the KPI counts and the table consistent with the filter pill.
+  const rows = useMemo<any[]>(() => {
+    const base = (isWbah ? wbahRows : (q.data ?? [])) as any[];
+    if (!isWbah || voicemailFilter === "all") return base;
+    const isVoicemail = (r: any) =>
+      /voicemail/i.test(String(r.disconnection_reason ?? "")) ||
+      /voicemail/i.test(String(r.end_reason ?? ""));
+    return voicemailFilter === "only"
+      ? base.filter(isVoicemail)
+      : base.filter((r) => !isVoicemail(r));
+  }, [isWbah, wbahRows, q.data, voicemailFilter]);
 
   const testFn = useServerFn(listTestCalls);
   const testQ = useQuery({
@@ -567,9 +581,8 @@ function CallsPage() {
               <option value="all">All time</option>
             </select>
 
-            {/* Three-state voicemail filter pill (only for native WEBEE calls) */}
-            {!isWbah && (
-              <div className="flex items-center rounded-md border border-white/[0.08] bg-card/60 p-0.5 gap-0.5">
+            {/* Three-state voicemail filter pill — native filters server-side, WBAH client-side */}
+            <div className="flex items-center rounded-md border border-white/[0.08] bg-card/60 p-0.5 gap-0.5">
                 {(
                   [
                     { value: "exclude", label: "No Voicemails" },
@@ -593,7 +606,6 @@ function CallsPage() {
                   </button>
                 ))}
               </div>
-            )}
 
             {hasCallFilters && (
               <Button
