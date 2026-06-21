@@ -35,10 +35,11 @@ export const Route = createFileRoute("/_authenticated/analytics")({
 
 // ── Call analytics constants ───────────────────────────────────────────────────
 const RANGES = [
-  { label: "7d",  days: 7  },
-  { label: "30d", days: 30 },
-  { label: "60d", days: 60 },
-  { label: "90d", days: 90 },
+  { label: "Today", key: "today", days: 1  },
+  { label: "7d",    key: "7d",    days: 7  },
+  { label: "30d",   key: "30d",   days: 30 },
+  { label: "60d",   key: "60d",   days: 60 },
+  { label: "90d",   key: "90d",   days: 90 },
 ];
 
 const CHART = {
@@ -318,7 +319,18 @@ function AnalyticsPage() {
   // ── Call analytics state ──
   const fn              = useServerFn(getRetellAnalytics);
   const getLiveAgentsFn = useServerFn(getDashboardLiveAgents);
-  const [days, setDays] = useState(30);
+  const [rangeKey, setRangeKey] = useState("30d");
+  const activeRange = RANGES.find((r) => r.key === rangeKey) ?? RANGES[2];
+  const days = activeRange.days;
+  const todayOnly = rangeKey === "today";
+  // Start of today in UTC — charts and the call breakdown are UTC-based, so
+  // "Today" means calls since 00:00 UTC. The server fetches a 1-day window
+  // (days=1) and we narrow it to today client-side for an exact boundary.
+  const startOfTodayMs = useMemo(() => {
+    const d = new Date();
+    d.setUTCHours(0, 0, 0, 0);
+    return d.getTime();
+  }, [rangeKey]);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectorOpen, setSelectorOpen] = useState(false);
 
@@ -344,7 +356,11 @@ function AnalyticsPage() {
       name: liveMap[id] ?? name,
     }));
   }, [agentNames, liveAgentsQ.data]);
-  const calls    = useMemo(() => (selectedAgentId ? allCalls.filter((c) => c.agent_id === selectedAgentId) : allCalls), [allCalls, selectedAgentId]);
+  const calls    = useMemo(() => {
+    let cs = selectedAgentId ? allCalls.filter((c) => c.agent_id === selectedAgentId) : allCalls;
+    if (todayOnly) cs = cs.filter((c) => c.start_timestamp != null && c.start_timestamp >= startOfTodayMs);
+    return cs;
+  }, [allCalls, selectedAgentId, todayOnly, startOfTodayMs]);
   const analytics = useMemo(() => computeAnalytics(calls), [calls]);
   const sortedDays = useMemo(() => Object.keys(analytics.byDay).sort(), [analytics.byDay]);
   const last30Days = sortedDays.slice(-30);
@@ -419,7 +435,7 @@ function AnalyticsPage() {
             )}
             <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
               {RANGES.map((r) => (
-                <Button key={r.days} size="sm" variant={days === r.days ? "secondary" : "ghost"} onClick={() => setDays(r.days)} className={days === r.days ? "bg-primary/20 text-primary" : ""}>{r.label}</Button>
+                <Button key={r.key} size="sm" variant={rangeKey === r.key ? "secondary" : "ghost"} onClick={() => setRangeKey(r.key)} className={rangeKey === r.key ? "bg-primary/20 text-primary" : ""}>{r.label}</Button>
               ))}
             </div>
           </div>
