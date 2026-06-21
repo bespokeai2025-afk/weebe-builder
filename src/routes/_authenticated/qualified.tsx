@@ -4,7 +4,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Loader2,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -27,6 +26,7 @@ import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSect
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
+import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
@@ -456,9 +456,7 @@ function QualifiedPage() {
       <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
         <div className="p-0">
           {leadsQ.isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-            </div>
+            <LoadingProgress label="Loading qualified contacts" estimatedMs={8000} />
           ) : rows.length === 0 ? (
             <div className="py-16 text-center">
               <CheckCircle2 className="mx-auto h-8 w-8 text-muted-foreground/50" />
