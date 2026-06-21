@@ -120,8 +120,16 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     // When using the platform key (shared account), limit to only agents
     // that have been deployed in this workspace so we don't mix data across
     // all workspaces on the account.
+    //
+    // This MUST fail closed: the platform Retell key sees every workspace's
+    // agents, so the allow-list starts EMPTY. If this workspace has no
+    // recorded deployments (or the lookup errors), analytics show zero calls
+    // for this workspace rather than leaking every other workspace's data.
+    // (The workspace-own-key path leaves this null on purpose — every agent on
+    // that key already belongs to the workspace.)
     let deployedAgentIds: Set<string> | null = null;
     if (!workspaceRetellKey && apiKey) {
+      deployedAgentIds = new Set<string>();
       try {
         const { data: deps } = await sb
           .from("deployments")
@@ -129,8 +137,8 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
           .eq("workspace_id", workspaceId)
           .eq("provider", "retell")
           .not("provider_agent_id", "is", null);
-        if (deps && deps.length > 0) {
-          deployedAgentIds = new Set((deps as any[]).map((d: any) => d.provider_agent_id as string));
+        for (const d of (deps as any[]) ?? []) {
+          if (d.provider_agent_id) deployedAgentIds.add(d.provider_agent_id as string);
         }
       } catch (e) {
         console.warn("[analytics] Could not fetch workspace deployments:", e);
