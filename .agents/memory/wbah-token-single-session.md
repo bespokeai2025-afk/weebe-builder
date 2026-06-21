@@ -33,3 +33,21 @@ ping-pong of re-logins is acceptable as long as each fetch's retries are bounded
 shared token coordinator or non-overlapping schedule, but per-fetch resilience is
 the prod-safe pattern (prod runs each sync as a separate pg_cron HTTP invocation,
 so in-process coordination would not work there anyway).
+
+**Live page fetches also need this, not just background syncs.** The same single-
+session thrash surfaces in the UI as a user-facing "Token expired — reconnect
+required" error whenever a *live* WeeBespoke call (not a DB read) runs with a token
+a concurrent sync just invalidated. Gotcha: the `aGet`/`aPost`/`aPatch` shorthand
+helpers in `client.server.ts` call `authenticatedFetch` WITHOUT the optional
+`reloginFn`, so on a 401 they only try a token *refresh* and then return the
+"Token expired" string — they cannot full-relogin inline. The proactive relogin in
+`requireWbahCbs` is throttled (once/30min via module-level `_wbahReloginAt`), so a
+token that dies inside that window can't self-heal on its own. Fix pattern:
+`requireWbahCbs` exposes a `reloginFn` (full login w/ stored admin creds, persists
+to DB + closure + `_wbahReloginAt`); thread it through the specific client fn used
+by the live path (it's an optional last arg, backward-compatible). Fetch page 1
+sequentially WITH the reloginFn so it heals the shared closure token before any
+parallel page batch launches (reduces, doesn't fully eliminate, concurrent
+relogins). The WBAH People `/data` tabs (Disqualified/Tried/Rebooking) are the live
+path: `listWbahCategorizedLeads → getWbahCrmLoadedContacts → wbahGetAllCallDataPaged`
+(the get-all-calldata feed is the only source with not-yet-called contacts).

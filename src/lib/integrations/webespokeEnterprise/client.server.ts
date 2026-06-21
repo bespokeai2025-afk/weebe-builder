@@ -103,9 +103,11 @@ export async function authenticatedFetch<T>(
   return { ok: false, status: 401, data: null, error: "Token expired — reconnect required" };
 }
 
+type Relogin = () => Promise<{ accessToken: string } | null>;
+
 // Shorthand helpers
-function aGet<T>(path: string, gt: GetTokens, st: SaveToken) {
-  return authenticatedFetch<T>(path, { method: "GET" }, gt, st);
+function aGet<T>(path: string, gt: GetTokens, st: SaveToken, rl?: Relogin) {
+  return authenticatedFetch<T>(path, { method: "GET" }, gt, st, rl);
 }
 function aPost<T>(path: string, body: unknown, gt: GetTokens, st: SaveToken) {
   return authenticatedFetch<T>(path, { method: "POST", body: JSON.stringify(body) }, gt, st);
@@ -176,8 +178,8 @@ export const wbahDashboardDrops = (dr: DateRange, gt: GetTokens, st: SaveToken) 
 export const wbahGetAllCallData = (gt: GetTokens, st: SaveToken) =>
   aGet("/call-output-data/get-all-calldata", gt, st);
 
-export const wbahGetAllCallDataPaged = (page: number, gt: GetTokens, st: SaveToken) =>
-  aGet<unknown>(`/call-output-data/get-all-calldata?currentPage=${page}`, gt, st);
+export const wbahGetAllCallDataPaged = (page: number, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet<unknown>(`/call-output-data/get-all-calldata?currentPage=${page}`, gt, st, rl);
 
 /** Attempt to fetch all call records in a single request (API must honour the limit param). */
 export const wbahGetAllCallDataAll = (gt: GetTokens, st: SaveToken) =>

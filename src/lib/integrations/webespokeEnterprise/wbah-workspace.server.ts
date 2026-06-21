@@ -67,37 +67,48 @@ async function requireWbahCbs(userId: string) {
   let currentAccessToken  = integration.access_token as string;
   let currentRefreshToken = (integration.refresh_token ?? "") as string;
 
-  // Proactively relogin using stored credentials when cache has expired.
-  // This prevents "token expired" errors without adding latency to every call.
   const password = process.env.WEBESPOKE_ADMIN_PASSWORD;
   const email    = (integration.user_payload as any)?.email
                 ?? process.env.WEBESPOKE_ADMIN_EMAIL;
 
-  if (password && email && Date.now() - _wbahReloginAt > RELOGIN_TTL_MS) {
+  // Full re-login with the stored admin credentials, minting a brand-new session
+  // and persisting it for every caller. WeeBespoke allows only ONE active session
+  // per account and the token is short-lived, so a token can be silently
+  // invalidated by a concurrent background sync logging into the same account.
+  // Passing this as the 401 fallback (reloginFn) lets a live call recover a dead
+  // token inline instead of surfacing "Token expired — reconnect required".
+  const reloginFn = async (): Promise<{ accessToken: string } | null> => {
+    if (!password || !email) return null;
     try {
       const loginRes = await api.loginWithPassword(email, password);
-      if (loginRes.ok && loginRes.data) {
-        const d = loginRes.data as any;
-        const at = d.accessToken ?? d.token ?? d.access_token ?? d.jwt ??
-                   d.data?.accessToken ?? d.data?.token ?? d.data?.access_token ??
-                   d.result?.accessToken ?? d.result?.token ??
-                   d.auth?.accessToken ?? d.auth?.token ?? d.user?.token ?? null;
-        const rt = d.refreshToken ?? d.refresh_token ?? d.data?.refreshToken ??
-                   d.data?.refresh_token ?? d.result?.refreshToken ?? currentRefreshToken;
-        if (at) {
-          await (supabaseAdmin as any)
-            .from("enterprise_integrations")
-            .update({ access_token: at, refresh_token: rt, status: "connected" })
-            .eq("integration_key", "webespoke_enterprise")
-            .eq("client_name", "Webuyanyhouse");
-          currentAccessToken  = at;
-          currentRefreshToken = rt;
-          _wbahReloginAt = Date.now();
-        }
-      }
+      if (!loginRes.ok || !loginRes.data) return null;
+      const d = loginRes.data as any;
+      const at = d.accessToken ?? d.token ?? d.access_token ?? d.jwt ??
+                 d.data?.accessToken ?? d.data?.token ?? d.data?.access_token ??
+                 d.result?.accessToken ?? d.result?.token ??
+                 d.auth?.accessToken ?? d.auth?.token ?? d.user?.token ?? null;
+      const rt = d.refreshToken ?? d.refresh_token ?? d.data?.refreshToken ??
+                 d.data?.refresh_token ?? d.result?.refreshToken ?? currentRefreshToken;
+      if (!at) return null;
+      await (supabaseAdmin as any)
+        .from("enterprise_integrations")
+        .update({ access_token: at, refresh_token: rt, status: "connected" })
+        .eq("integration_key", "webespoke_enterprise")
+        .eq("client_name", "Webuyanyhouse");
+      currentAccessToken  = at;
+      currentRefreshToken = rt;
+      _wbahReloginAt = Date.now();
+      return { accessToken: at };
     } catch {
-      // Ignore relogin errors — use existing token, will fall through to refresh on 401
+      // Ignore relogin errors — caller keeps the existing token.
+      return null;
     }
+  };
+
+  // Proactively relogin using stored credentials when the cache has expired.
+  // This prevents "token expired" errors without adding latency to every call.
+  if (password && email && Date.now() - _wbahReloginAt > RELOGIN_TTL_MS) {
+    await reloginFn();
   }
 
   const getTokens = async () => ({
@@ -114,7 +125,7 @@ async function requireWbahCbs(userId: string) {
     currentAccessToken = token;
   };
 
-  return { getTokens, saveNewAccessToken };
+  return { getTokens, saveNewAccessToken, reloginFn };
 }
 
 // ── Comprehensive endpoint audit — classifies every call-output-data endpoint ──
@@ -1123,12 +1134,13 @@ export const listWbahAllCallData = createServerFn({ method: "GET" })
     const cbs = await requireWbahCbs(context.userId);
     const gt  = cbs.getTokens;
     const st  = cbs.saveNewAccessToken;
+    const rl  = cbs.reloginFn;
 
     function extractRecs(raw: any): any[] {
       return Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
     }
 
-    const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st);
+    const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
     if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch call data from WeeBespoke");
 
     const p1Raw    = p1Res.data as any;
@@ -1138,7 +1150,7 @@ export const listWbahAllCallData = createServerFn({ method: "GET" })
 
     for (let page = 2; page <= totalPages; page += 8) {
       const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
-      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st)));
+      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
       for (const r of settled) {
         if (r.status === "fulfilled" && r.value.ok) allRecs.push(...extractRecs(r.value.data as any));
       }
@@ -1570,11 +1582,18 @@ async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Pr
     const cbs = await requireWbahCbs(userId);
     const gt  = cbs.getTokens;
     const st  = cbs.saveNewAccessToken;
+    const rl  = cbs.reloginFn;
 
     const extractRecs = (raw: any): any[] =>
       Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
 
-    const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st);
+    // Page 1 is fetched first (sequentially) with the re-login fallback. If the
+    // shared token is already dead, this mints a fresh session and persists it
+    // into the closure, so the parallel page batch below reuses the healed token.
+    // This reduces — but cannot fully eliminate — concurrent re-logins: a token
+    // invalidated mid-batch (or simultaneous uncached category requests) can
+    // still trigger a few parallel relogins, but those are bounded (batch size 8).
+    const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
     if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch CRM call data from WeeBespoke");
 
     const p1Raw      = p1Res.data as any;
@@ -1589,7 +1608,7 @@ async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Pr
     const all: any[] = [...extractRecs(p1Raw)];
     for (let page = 2; page <= totalPages; page += 8) {
       const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
-      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st)));
+      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
       for (let i = 0; i < settled.length; i++) {
         const s = settled[i];
         if (s.status === "fulfilled" && s.value.ok) {
@@ -1598,7 +1617,7 @@ async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Pr
         }
         // Retry a failed page once; throw if it still fails so the bucket counts
         // never silently return partial data.
-        const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st);
+        const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st, rl);
         if (!retry.ok) throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
         all.push(...extractRecs(retry.data as any));
       }
