@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizeSentiment } from "@/lib/sentiment";
 import { Button } from "@/components/ui/button";
 import { KpiCard, MiniKpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
+import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -730,7 +731,7 @@ function LeadsPage() {
           )}
           <div className="p-0">
             {(leadsQ.isLoading || !wsResolved) ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
+              <LoadingProgress label="Loading leads" estimatedMs={8000} />
             ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-10 text-center">
                 <Users className="h-8 w-8 text-muted-foreground" />

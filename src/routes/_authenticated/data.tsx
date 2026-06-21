@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, Play, FileText, ExternalLink } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
 import { KpiCard } from "@/components/dashboard/PageShell";
+import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1394,9 +1395,7 @@ function DataPage() {
 
         {/* Table body */}
         {recordsQ.isLoading ? (
-          <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-            Loading records…
-          </div>
+          <LoadingProgress label="Loading records" estimatedMs={8000} />
         ) : records.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-16">
             <Database className="h-8 w-8 text-muted-foreground" />
@@ -1737,10 +1736,7 @@ function DataPage() {
               const loadingNoun = isLeads ? "leads" : isDq ? "disqualified records" : isTtc ? "tried-to-contact records" : isRb ? "rebooking records" : "calls";
 
               if (loading) return (
-                <div className="flex flex-col items-center justify-center gap-3 py-20 text-sm text-muted-foreground">
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                  <span>Loading {loadingNoun}…</span>
-                </div>
+                <LoadingProgress label={`Loading ${loadingNoun}`} estimatedMs={9000} className="py-20" />
               );
               if (error) return (
                 <div className="flex flex-col items-center gap-2 py-16 text-sm">

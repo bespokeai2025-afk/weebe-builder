@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
+import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
 import { listWbahCallsFromDb } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
@@ -627,10 +628,7 @@ function CallsPage() {
           {/* Calls table */}
           <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
             {wbahQ.isFetching && isWbah && rows.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-16">
-                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-                <p className="text-sm font-medium">Loading calls…</p>
-              </div>
+              <LoadingProgress label="Loading calls" estimatedMs={9000} />
             ) : rows.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-16">
                 <Phone className="h-8 w-8 text-muted-foreground" />

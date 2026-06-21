@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { getRetellAnalytics } from "@/lib/dashboard/analytics.functions";
 import { getWbahCredits } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { ProviderCreditsBar } from "@/components/providers/ProviderCreditsBar";
+import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 
 export const Route = createFileRoute("/_authenticated/analytics")({
   head: () => ({ meta: [{ title: "Analytics — Webee" }] }),
@@ -667,7 +668,7 @@ function AnalyticsPage() {
             </>
           )}
 
-          {q.isLoading && <div className="px-6 pt-5 text-sm text-muted-foreground">Loading analytics…</div>}
+          {q.isLoading && <LoadingProgress label="Loading analytics" estimatedMs={10000} />}
         </>
       )}
 
@@ -690,7 +691,7 @@ function AnalyticsPage() {
             ))}
           </div>
 
-          {mktQ.isLoading && <div className="flex items-center justify-center py-20 text-muted-foreground text-sm">Loading…</div>}
+          {mktQ.isLoading && <LoadingProgress label="Loading marketing" estimatedMs={8000} />}
           {!mktQ.isLoading && mktQ.data && (
             <>
               {mktTab === "ads"      && <AdsTab      data={mktQ.data.ads} />}
@@ -799,7 +800,7 @@ function CreditCardTile({ label, value, sub, color, icon: Icon }: { label: strin
 }
 
 function CreditsTab({ q }: { q: any }) {
-  if (q.isLoading && !q.data) return <div className="px-6 pt-6 text-sm text-muted-foreground">Loading credits…</div>;
+  if (q.isLoading && !q.data) return <LoadingProgress label="Loading credits" estimatedMs={7000} />;
   if (q.error) return (
     <div className="mx-6 mt-5 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
       <AlertTriangle className="h-4 w-4" /><span>Could not load credits: {String(q.error?.message ?? q.error)}</span>
