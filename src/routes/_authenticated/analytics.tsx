@@ -235,6 +235,45 @@ function fmtMs(ms?: number | null) {
   if (ms < 1000) return `${Math.round(ms)}ms`; return `${(ms / 1000).toFixed(2)}s`;
 }
 function humanize(key: string) { return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
+// Short, readable labels for call disconnection reasons so long provider codes
+// (e.g. "telephony_provider_permission_denied") don't overflow chart legends/axes.
+const DISCONNECT_LABELS: Record<string, string> = {
+  voicemail_reached: "Voicemail",
+  machine_detected: "Voicemail",
+  user_hangup: "User Hung Up",
+  agent_hangup: "Agent Hung Up",
+  dial_no_answer: "No Answer",
+  dial_busy: "Busy",
+  dial_failed: "Dial Failed",
+  invalid_destination: "Invalid Number",
+  inactivity: "Inactivity",
+  max_duration_reached: "Max Duration",
+  concurrency_limit_reached: "Concurrency Limit",
+  telephony_provider_permission_denied: "Provider Blocked",
+  telephony_provider_unavailable: "Provider Down",
+  registered_call_timeout: "Call Timeout",
+  no_valid_payment: "No Payment",
+  scam_detected: "Flagged Spam",
+  marked_as_spam: "Flagged Spam",
+};
+function humanizeDisconnect(key: string) {
+  if (!key) return "Unknown";
+  if (DISCONNECT_LABELS[key]) return DISCONNECT_LABELS[key];
+  if (key.startsWith("telephony_provider_")) return "Provider Issue";
+  if (key.startsWith("error_")) return "Error";
+  return humanize(key);
+}
+// Aggregate raw disconnection codes by their friendly label (several codes can
+// map to the same label, e.g. voicemail_reached + machine_detected -> "Voicemail")
+// so charts never show duplicate rows. Returns rows sorted by count desc.
+function disconnectChartData(byDisconnect: Record<string, number>) {
+  const agg: Record<string, number> = {};
+  for (const [k, v] of Object.entries(byDisconnect)) {
+    const label = humanizeDisconnect(k);
+    agg[label] = (agg[label] ?? 0) + v;
+  }
+  return Object.entries(agg).sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value }));
+}
 function shortDay(isoDate: string) { return isoDate.slice(5); }
 
 // Voicemail keyword list — must match the DB migration and webhook processor.
@@ -513,7 +552,7 @@ function AnalyticsPage() {
                   <CompactDonut data={[{ name: "Successful", value: analytics.successCount }, { name: "Unsuccessful", value: analytics.unsuccessCount }, { name: "Unknown", value: unknownSuccess }]} colors={SUCCESS_COLORS} centerLabel="Total" centerValue={analytics.total} />
                 </ChartCard>
                 <ChartCard title="Disconnection Reason" icon={XCircle} color={CHART.danger}>
-                  <CompactDonut data={Object.entries(analytics.byDisconnect).sort(([, a], [, b]) => b - a).slice(0, 6).map(([k, v]) => ({ name: humanize(k), value: v }))} colors={DISCONNECT_COLORS} centerLabel="Reasons" centerValue={Object.keys(analytics.byDisconnect).length} />
+                  <CompactDonut data={disconnectChartData(analytics.byDisconnect).slice(0, 6)} colors={DISCONNECT_COLORS} centerLabel="Reasons" centerValue={disconnectChartData(analytics.byDisconnect).length} />
                 </ChartCard>
                 <ChartCard title="User Sentiment" icon={Activity} color={CHART.warning}>
                   <CompactDonut data={[{ name: "Positive", value: analytics.bySentiment.Positive ?? 0 }, { name: "Neutral", value: analytics.bySentiment.Neutral ?? 0 }, { name: "Negative", value: analytics.bySentiment.Negative ?? 0 }, { name: "Unknown", value: analytics.bySentiment.Unknown ?? 0 }]} colors={SENTIMENT_COLORS} centerLabel="Calls" centerValue={analytics.total} />
@@ -633,7 +672,7 @@ function AnalyticsPage() {
 
               <div className="px-6 pt-4">
                 <ChartCard title="Disconnection Reasons" icon={XCircle} color={CHART.danger}>
-                  <HBarChart data={Object.entries(analytics.byDisconnect).sort(([, a], [, b]) => b - a).map(([k, v]) => ({ name: humanize(k), value: v }))} color={CHART.danger} />
+                  <HBarChart data={disconnectChartData(analytics.byDisconnect)} color={CHART.danger} />
                 </ChartCard>
               </div>
 
