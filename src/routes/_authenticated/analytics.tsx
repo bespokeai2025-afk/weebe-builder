@@ -363,11 +363,14 @@ function AnalyticsPage() {
   }, [allCalls, selectedAgentId, todayOnly, startOfTodayMs]);
   const analytics = useMemo(() => computeAnalytics(calls), [calls]);
   const sortedDays = useMemo(() => Object.keys(analytics.byDay).sort(), [analytics.byDay]);
-  const last30Days = sortedDays.slice(-30);
-  const callsPerDayData   = useMemo(() => last30Days.map((d) => ({ day: shortDay(d), calls: analytics.byDay[d] ?? 0 })), [last30Days, analytics.byDay]);
-  const durationTrendData = useMemo(() => last30Days.map((d) => { const dd = analytics.byDayDuration[d]; return { day: shortDay(d), avg: dd && dd.count ? Math.round(dd.total / dd.count) : 0 }; }), [last30Days, analytics.byDayDuration]);
-  const outcomeTrendData  = useMemo(() => last30Days.map((d) => { const o = analytics.byDayOutcome[d] ?? { success: 0, unsuccessful: 0, voicemail: 0 }; return { day: shortDay(d), ...o }; }), [last30Days, analytics.byDayOutcome]);
-  const latencyTrendData  = useMemo(() => last30Days.map((d) => { const dl = analytics.byDayLatency[d] ?? { llm: [], e2e: [], tts: [] }; const a = (arr: number[]) => (arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null); return { day: shortDay(d), LLM: a(dl.llm), E2E: a(dl.e2e), TTS: a(dl.tts) }; }), [last30Days, analytics.byDayLatency]);
+  // Trend charts span the full selected window (7/30/60/90d) — the server already
+  // scopes calls to `days`, so cap to `days` so each range renders distinctly
+  // instead of being frozen at the last 30 days.
+  const trendDays = useMemo(() => sortedDays.slice(-days), [sortedDays, days]);
+  const callsPerDayData   = useMemo(() => trendDays.map((d) => ({ day: shortDay(d), calls: analytics.byDay[d] ?? 0 })), [trendDays, analytics.byDay]);
+  const durationTrendData = useMemo(() => trendDays.map((d) => { const dd = analytics.byDayDuration[d]; return { day: shortDay(d), avg: dd && dd.count ? Math.round(dd.total / dd.count) : 0 }; }), [trendDays, analytics.byDayDuration]);
+  const outcomeTrendData  = useMemo(() => trendDays.map((d) => { const o = analytics.byDayOutcome[d] ?? { success: 0, unsuccessful: 0, voicemail: 0 }; return { day: shortDay(d), ...o }; }), [trendDays, analytics.byDayOutcome]);
+  const latencyTrendData  = useMemo(() => trendDays.map((d) => { const dl = analytics.byDayLatency[d] ?? { llm: [], e2e: [], tts: [] }; const a = (arr: number[]) => (arr.length ? Math.round(arr.reduce((x, y) => x + y, 0) / arr.length) : null); return { day: shortDay(d), LLM: a(dl.llm), E2E: a(dl.e2e), TTS: a(dl.tts) }; }), [trendDays, analytics.byDayLatency]);
   const hourData = useMemo(() => Array.from({ length: 24 }, (_, h) => ({ hour: `${h}h`, calls: analytics.byHour[h] ?? 0 })), [analytics.byHour]);
   const successRate    = analytics.total ? Math.round((analytics.successCount / analytics.total) * 100) : 0;
   const transferRate   = analytics.total ? ((analytics.transferCount / analytics.total) * 100).toFixed(1) : "0";
