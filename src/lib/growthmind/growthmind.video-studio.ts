@@ -237,10 +237,12 @@ async function resolveVideoKnowledgeContext(
       sb.from("executive_knowledge_bases")
         .select("name, description")
         .eq("id", opts.knowledgeContextId)
+        .eq("workspace_id", workspaceId)
         .maybeSingle(),
       sb.from("executive_documents")
         .select("title, content")
         .eq("knowledge_base_id", opts.knowledgeContextId)
+        .eq("workspace_id", workspaceId)
         .eq("embedding_status", "indexed")
         .limit(6),
     ]);

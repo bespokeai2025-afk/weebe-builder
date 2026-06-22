@@ -31,9 +31,16 @@ export const Route = createFileRoute("/api/monitoring/health")({
           checks.database = { ok: false, error: e?.message ?? "Unknown" };
         }
 
-        // Env check
-        const requiredEnv = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"];
-        const missingEnv = requiredEnv.filter(k => !process.env[k]);
+        // Env check — match the variable names the app actually reads
+        const hasUrl = !!(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL);
+        const hasPublishableKey = !!(
+          process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY
+        );
+        const missingEnv = [
+          ...(hasUrl ? [] : ["VITE_SUPABASE_URL"]),
+          ...(hasPublishableKey ? [] : ["VITE_SUPABASE_PUBLISHABLE_KEY"]),
+          ...(process.env.SUPABASE_SERVICE_ROLE_KEY ? [] : ["SUPABASE_SERVICE_ROLE_KEY"]),
+        ];
         checks.environment = { ok: missingEnv.length === 0, error: missingEnv.length > 0 ? `Missing: ${missingEnv.join(", ")}` : undefined };
 
         const allOk = Object.values(checks).every(c => c.ok);

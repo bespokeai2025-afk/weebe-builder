@@ -102,7 +102,7 @@ async function buildBusinessContext(workspaceId: string, contextType: KnowledgeC
   if (dna?.primary_color) parts.push(`Brand colour: ${dna.primary_color}`);
 
   if (contextType === "specific_kb" && kbId) {
-    const { data: docs } = await Promise.resolve(sb.from("documents").select("content").eq("knowledge_base_id", kbId).limit(3)).catch(() => ({ data: [] }));
+    const { data: docs } = await Promise.resolve(sb.from("documents").select("content").eq("knowledge_base_id", kbId).eq("workspace_id", workspaceId).limit(3)).catch(() => ({ data: [] }));
     const kbText = (docs ?? []).map((d: any) => d.content ?? "").join("\n").slice(0, 600);
     if (kbText) parts.push(`Knowledge base context: ${kbText}`);
   }
