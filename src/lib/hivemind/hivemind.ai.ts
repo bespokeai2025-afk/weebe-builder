@@ -3,6 +3,76 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type GrowthMindExecutiveSummary, type SystemMindExecutiveSummary } from "@/lib/executives/executive-council";
 
+// ── WBAH lead derivation ──────────────────────────────────────────────────────
+// WBAH's `leads` table is dup-inflated (~400k rows), so even a COUNT over it exceeds
+// the authenticated role's 8s statement_timeout — which silently zeroed HiveMind's
+// lead numbers ("0 leads") while the dashboard showed 1,500+. The dashboard avoids
+// this by deriving WBAH "leads" from the small, clean `wbah_calls` table. We mirror
+// that exactly (see listWbahPositiveNeutralLeads): one row per contact whose
+// MOST-RECENT call came back positive or neutral. Rows are shaped like `leads` so the
+// downstream breakdown logic works unchanged. Uses the service-role client (wbah_calls
+// is RLS-protected) via a dynamic import to keep it out of the client bundle.
+async function deriveWbahLeadsFromCalls(workspaceId: string): Promise<any[]> {
+  // Cache (short TTL) like the dashboard's listWbahPositiveNeutralLeads so we don't
+  // rescan ~12k calls on every HiveMind request. Dynamic imports keep these server-only
+  // modules out of the client bundle (hivemind.ai.ts is imported by client routes).
+  const { cacheWrap } = await import("@/lib/cache/redis.server");
+  return cacheWrap(`hivemind:wbah-leads:${workspaceId}`, 60, async () => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const PAGE = 1000;
+    const all: any[] = [];
+    let from = 0;
+    for (;;) {
+      const { data, error } = await (supabaseAdmin as any)
+        .from("wbah_calls")
+        .select("id, customer_name, phone, sentiment, started_at")
+        .eq("workspace_id", workspaceId)
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        console.error("[HiveMind] wbah_calls query error:", error.message);
+        break;
+      }
+      const batch: any[] = data ?? [];
+      all.push(...batch);
+      if (batch.length < PAGE) break;
+      from += PAGE;
+    }
+    // Dedup per contact (phone): rows are latest-first, so the first time we see a phone
+    // is that contact's most-recent call.
+    const seen = new Set<string>();
+    const latest: any[] = [];
+    for (const c of all) {
+      const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      latest.push(c);
+    }
+    const leads = latest
+      .filter((c) => {
+        const s = String(c.sentiment ?? "").toLowerCase();
+        return s === "positive" || s === "neutral";
+      })
+      .map((c) => {
+        const iso: string | null = c.started_at ?? null;
+        return {
+          id: c.id,
+          full_name: c.customer_name ?? "Unknown",
+          status: null,
+          pipeline_stage: null,
+          created_at: iso,
+          updated_at: iso,
+          source: null,
+          interest_level: null,
+          sentiment: String(c.sentiment ?? "").toLowerCase() || null,
+        };
+      });
+    console.log(`[HiveMind] WBAH leads derived from wbah_calls: ${leads.length} positive/neutral contacts (from ${all.length} calls)`);
+    return leads;
+  });
+}
+
 // ── Shared platform data fetcher ──────────────────────────────────────────────
 // Exported for reuse by the Executive Bridge. NOTE: the returned object includes a
 // raw `cfg` field with workspace settings — callers exposing data to the client
@@ -18,6 +88,21 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
+  // WBAH's leads table is dup-inflated (~400k rows); even a COUNT over it exceeds the
+  // authenticated role's 8s statement_timeout, which silently zeroed HiveMind's lead
+  // numbers. Detect WBAH up front so we (a) skip that doomed query and (b) source lead
+  // metrics from the small, clean wbah_calls table — exactly like the dashboard does.
+  const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
+  const { data: wsRow, error: wsErr } = await sb.from("workspaces").select("slug").eq("id", workspaceId).maybeSingle();
+  if (wsErr) console.error("[HiveMind] workspace slug lookup error:", wsErr.message);
+  // ID fallback: if the slug lookup is blocked (RLS) or transiently fails, we must NOT
+  // silently fall back to the doomed leads-table path for the known WBAH workspace.
+  const isWbah = wsRow?.slug === "webuyanyhouse" || workspaceId === WBAH_WORKSPACE_ID;
+  // Kick off the WBAH derivation NOW so it runs concurrently with the main batch below.
+  const wbahLeadsPromise: Promise<any[] | null> = isWbah
+    ? deriveWbahLeadsFromCalls(workspaceId)
+    : Promise.resolve(null);
+
   const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes, videoAssetsRes, videoScheduledRes, adAccountsRes, adCampsRes, adAlertsRes, seoSiteRes] = await Promise.all([
     sb.from("agents").select("id,name,retell_agent_id,inbound_phone_number,settings").eq("workspace_id", workspaceId),
     sb.from("calls").select("id,agent_id,call_successful,duration_seconds,call_type,started_at").eq("workspace_id", workspaceId).gte("started_at", s60.toISOString()).limit(1000),
@@ -27,7 +112,11 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     // the query then errors and `leads` silently falls back to [] → HiveMind reports
     // "0 leads". We instead take the EXACT total via { count: "exact" } (no sort), use the
     // unordered row sample for breakdowns, and sort the sample in JS for the recent list.
-    sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level,sentiment", { count: "exact" }).eq("workspace_id", workspaceId).limit(3000),
+    // For WBAH the leads table is unusable (see deriveWbahLeadsFromCalls); skip it
+    // entirely to avoid the statement timeout and source the data from wbah_calls instead.
+    isWbah
+      ? Promise.resolve({ data: [] as any[], count: 0, error: null })
+      : sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level,sentiment", { count: "exact" }).eq("workspace_id", workspaceId).limit(3000),
     sb.from("calendar_bookings").select("id,status,created_at,title").eq("workspace_id", workspaceId).gte("created_at", s60.toISOString()).limit(500),
     sb.from("call_campaigns").select("id,name,status,total_leads,completed_calls,created_at").eq("workspace_id", workspaceId).limit(50),
     sb.from("whatsapp_messages").select("id,direction,created_at").eq("workspace_id", workspaceId).gte("created_at", s30.toISOString()).limit(500),
@@ -59,10 +148,17 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
 
   const agents   = ag.data    ?? [];
   const calls    = ca.data    ?? [];
-  const leads    = le.data    ?? [];
+  const wbahLeadRows = await wbahLeadsPromise;
+  let leads      = le.data    ?? [];
   // Exact lead total even when the row sample is capped at PostgREST's 1000-row limit
   // (large workspaces). Falls back to the sample size if no count was returned.
-  const leadsTotal = le.count ?? leads.length;
+  let leadsTotal = le.count ?? leads.length;
+  if (isWbah && wbahLeadRows) {
+    // The wbah_calls-derived array IS the full lead set, so sampleSize === total
+    // downstream (exact figures, no "sample of N" caveat).
+    leads = wbahLeadRows;
+    leadsTotal = wbahLeadRows.length;
+  }
   const bks      = bo.data    ?? [];
   const camps    = cp.data    ?? [];
   const msgs     = wa.data    ?? [];
@@ -116,7 +212,8 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
 
   // Pipeline breakdown
   const stageCounts: Record<string, number> = {};
-  for (const l of leads) stageCounts[l.status] = (stageCounts[l.status] ?? 0) + 1;
+  // WBAH leads have no status pipeline (derived from call sentiment), so skip stage tally.
+  if (!isWbah) for (const l of leads) stageCounts[l.status] = (stageCounts[l.status] ?? 0) + 1;
 
   // Sentiment + lead-source breakdown. Derived from the (≤1000-row) lead sample, NOT from
   // exact per-sentiment COUNT queries: counting `leads` filtered by sentiment over WBAH's
@@ -132,8 +229,11 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     else if (sent === "neutral")  sentimentCounts.neutral++;
     else if (sent === "negative") sentimentCounts.negative++;
     else                          sentimentCounts.unknown++;
-    const src = String(l.source ?? "").trim() || "unknown";
-    sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
+    // WBAH leads carry no source field; only tally sources for status-pipeline workspaces.
+    if (!isWbah) {
+      const src = String(l.source ?? "").trim() || "unknown";
+      sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
+    }
   }
 
   // ── Bookings ─────────────────────────────────────────────────────────────────
@@ -222,6 +322,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
       thisMonth: callsMonth.length,
     },
     leads: {
+      isWbah,
       total: leadsTotal, active: activeLeads.length, idle: idleLeads.length,
       needCall: leads.filter((l: any) => l.status === "need_to_call").length,
       sales: salesTotal, salesMonth, conversionRate,
@@ -266,7 +367,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     },
     systemHealth,
     growthMind: (() => {
-      const gmLeads        = le.data ?? [];
+      const gmLeads        = leads;
       const gmCalls        = ca.data ?? [];
       const gmBookings     = bo.data ?? [];
       const gmCamps        = cp.data ?? [];
@@ -584,41 +685,54 @@ function buildPlatformContext(d: any): string {
 
   // LEADS
   lines.push(`\nLEADS OVERVIEW:`);
-  lines.push(`  Total: ${d.leads.total} | Active: ${d.leads.active} | Need call: ${d.leads.needCall} | Sales all-time: ${d.leads.sales} | High interest: ${d.leads.highInterest}`);
-  lines.push(`  Conversion rate: ${d.leads.conversionRate}% | Idle 14d+: ${d.leads.idle}`);
+  if (d.leads.isWbah) {
+    // WBAH leads are derived from call sentiment (no status pipeline): one row per
+    // already-called contact whose most-recent call was positive or neutral — the same
+    // figures the user sees on the "Positive / Neutral Leads" page.
+    const sent = d.leads.sentiment ?? { positive: 0, neutral: 0 };
+    lines.push(`  Total leads (already-called contacts with positive or neutral sentiment): ${Number(d.leads.total ?? 0).toLocaleString()}`);
+    lines.push(`  Sentiment: positive ${Number(sent.positive ?? 0).toLocaleString()} | neutral ${Number(sent.neutral ?? 0).toLocaleString()}`);
+    lines.push(`  New today: ${d.today.leads} | this week: ${d.week.leads} | this month: ${d.month.leads}`);
+    if (d.leads.recent?.length) {
+      lines.push(`  Recent leads: ${d.leads.recent.slice(0, 8).map((l: any) => `"${l.name}"`).join(", ")}`);
+    }
+  } else {
+    lines.push(`  Total: ${d.leads.total} | Active: ${d.leads.active} | Need call: ${d.leads.needCall} | Sales all-time: ${d.leads.sales} | High interest: ${d.leads.highInterest}`);
+    lines.push(`  Conversion rate: ${d.leads.conversionRate}% | Idle 14d+: ${d.leads.idle}`);
 
-  // Pipeline
-  const stages = Object.entries(d.leads.stageCounts ?? {})
-    .sort((a: any, b: any) => b[1] - a[1])
-    .map(([s, n]) => `${s.replace(/_/g, " ")}: ${n}`)
-    .join(" | ");
-  if (stages) lines.push(`  Pipeline: ${stages}`);
-
-  // Sentiment + lead-source split. For very large workspaces these come from a capped
-  // sample, so percentages (and scaled estimates) are shown rather than raw sample counts.
-  const leadSampleSize = Number(d.leads.sampleSize ?? 0);
-  const leadTotal      = Number(d.leads.total ?? 0);
-  const leadIsSample   = leadSampleSize > 0 && leadTotal > leadSampleSize;
-  const sent = d.leads.sentiment;
-  if (sent) {
-    const fmt = (n: number) => {
-      if (!leadIsSample) return `${n}`;
-      const pct = leadSampleSize > 0 ? Math.round((n / leadSampleSize) * 100) : 0;
-      return `${pct}% (≈${Math.round((n / leadSampleSize) * leadTotal).toLocaleString()})`;
-    };
-    lines.push(`  Sentiment: positive ${fmt(sent.positive)} | neutral ${fmt(sent.neutral)} | negative ${fmt(sent.negative)}${sent.unknown ? ` | unscored ${fmt(sent.unknown)}` : ""}${leadIsSample ? ` — % from a ${leadSampleSize}-lead sample of ${leadTotal.toLocaleString()} total` : ""}`);
-  }
-  const srcEntries = Object.entries(d.leads.sources ?? {}).sort((a: any, b: any) => b[1] - a[1]).slice(0, 6);
-  if (srcEntries.length) {
-    const srcStr = srcEntries
-      .map(([s, n]: any) => leadIsSample ? `${s}: ${Math.round((n / leadSampleSize) * 100)}%` : `${s}: ${n}`)
+    // Pipeline
+    const stages = Object.entries(d.leads.stageCounts ?? {})
+      .sort((a: any, b: any) => b[1] - a[1])
+      .map(([s, n]) => `${s.replace(/_/g, " ")}: ${n}`)
       .join(" | ");
-    lines.push(`  Top lead sources: ${srcStr}${leadIsSample ? " (sample-based %)" : ""}`);
-  }
+    if (stages) lines.push(`  Pipeline: ${stages}`);
 
-  // Recent leads
-  if (d.leads.recent?.length) {
-    lines.push(`  Recent leads: ${d.leads.recent.slice(0, 8).map((l: any) => `"${l.name}" (${l.status}${l.interest === "high" ? ", HIGH interest" : ""})`).join(", ")}`);
+    // Sentiment + lead-source split. For very large workspaces these come from a capped
+    // sample, so percentages (and scaled estimates) are shown rather than raw sample counts.
+    const leadSampleSize = Number(d.leads.sampleSize ?? 0);
+    const leadTotal      = Number(d.leads.total ?? 0);
+    const leadIsSample   = leadSampleSize > 0 && leadTotal > leadSampleSize;
+    const sent = d.leads.sentiment;
+    if (sent) {
+      const fmt = (n: number) => {
+        if (!leadIsSample) return `${n}`;
+        const pct = leadSampleSize > 0 ? Math.round((n / leadSampleSize) * 100) : 0;
+        return `${pct}% (≈${Math.round((n / leadSampleSize) * leadTotal).toLocaleString()})`;
+      };
+      lines.push(`  Sentiment: positive ${fmt(sent.positive)} | neutral ${fmt(sent.neutral)} | negative ${fmt(sent.negative)}${sent.unknown ? ` | unscored ${fmt(sent.unknown)}` : ""}${leadIsSample ? ` — % from a ${leadSampleSize}-lead sample of ${leadTotal.toLocaleString()} total` : ""}`);
+    }
+    const srcEntries = Object.entries(d.leads.sources ?? {}).sort((a: any, b: any) => b[1] - a[1]).slice(0, 6);
+    if (srcEntries.length) {
+      const srcStr = srcEntries
+        .map(([s, n]: any) => leadIsSample ? `${s}: ${Math.round((n / leadSampleSize) * 100)}%` : `${s}: ${n}`)
+        .join(" | ");
+      lines.push(`  Top lead sources: ${srcStr}${leadIsSample ? " (sample-based %)" : ""}`);
+    }
+
+    // Recent leads
+    if (d.leads.recent?.length) {
+      lines.push(`  Recent leads: ${d.leads.recent.slice(0, 8).map((l: any) => `"${l.name}" (${l.status}${l.interest === "high" ? ", HIGH interest" : ""})`).join(", ")}`);
+    }
   }
 
   // CALLS
