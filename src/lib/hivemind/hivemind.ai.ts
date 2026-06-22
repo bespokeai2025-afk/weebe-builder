@@ -21,7 +21,13 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const [ag, ca, le, bo, cp, wa, se, usage, hexCamps, hexEnroll, docs, tasks, actions, kbs, gmRecs, gmGenLogsRes, videoAssetsRes, videoScheduledRes, adAccountsRes, adCampsRes, adAlertsRes, seoSiteRes] = await Promise.all([
     sb.from("agents").select("id,name,retell_agent_id,inbound_phone_number,settings").eq("workspace_id", workspaceId),
     sb.from("calls").select("id,agent_id,call_successful,duration_seconds,call_type,started_at").eq("workspace_id", workspaceId).gte("started_at", s60.toISOString()).limit(1000),
-    sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level").eq("workspace_id", workspaceId).order("created_at", { ascending: false }).limit(3000),
+    // NOTE: deliberately NO .order() here. An `ORDER BY created_at` forces a full
+    // sequential scan + sort over the entire workspace's leads. On very large workspaces
+    // (e.g. WBAH ≈ 396k rows) that exceeds the authenticated role's 8s statement_timeout;
+    // the query then errors and `leads` silently falls back to [] → HiveMind reports
+    // "0 leads". We instead take the EXACT total via { count: "exact" } (no sort), use the
+    // unordered row sample for breakdowns, and sort the sample in JS for the recent list.
+    sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level", { count: "exact" }).eq("workspace_id", workspaceId).limit(3000),
     sb.from("calendar_bookings").select("id,status,created_at,title").eq("workspace_id", workspaceId).gte("created_at", s60.toISOString()).limit(500),
     sb.from("call_campaigns").select("id,name,status,total_leads,completed_calls,created_at").eq("workspace_id", workspaceId).limit(50),
     sb.from("whatsapp_messages").select("id,direction,created_at").eq("workspace_id", workspaceId).gte("created_at", s30.toISOString()).limit(500),
@@ -54,6 +60,9 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const agents   = ag.data    ?? [];
   const calls    = ca.data    ?? [];
   const leads    = le.data    ?? [];
+  // Exact lead total even when the row sample is capped at PostgREST's 1000-row limit
+  // (large workspaces). Falls back to the sample size if no count was returned.
+  const leadsTotal = le.count ?? leads.length;
   const bks      = bo.data    ?? [];
   const camps    = cp.data    ?? [];
   const msgs     = wa.data    ?? [];
@@ -102,7 +111,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   const activeLeads    = leads.filter((l: any) => activeStatuses.includes(l.status));
   const idleLeads      = activeLeads.filter((l: any) => new Date(l.updated_at) < s14);
   const highInterest   = leads.filter((l: any) => l.interest_level === "high" && activeStatuses.includes(l.status));
-  const recentLeads    = leads.slice(0, 10);
+  const recentLeads    = [...leads].sort((a: any, b: any) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""))).slice(0, 10);
   const conversionRate = leads.length > 0 ? Math.round((salesTotal / leads.length) * 1000) / 10 : 0;
 
   // Pipeline breakdown
@@ -195,7 +204,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
       thisMonth: callsMonth.length,
     },
     leads: {
-      total: leads.length, active: activeLeads.length, idle: idleLeads.length,
+      total: leadsTotal, active: activeLeads.length, idle: idleLeads.length,
       needCall: leads.filter((l: any) => l.status === "need_to_call").length,
       sales: salesTotal, salesMonth, conversionRate,
       highInterest: highInterest.length,
