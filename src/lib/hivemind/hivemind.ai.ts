@@ -27,7 +27,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     // the query then errors and `leads` silently falls back to [] → HiveMind reports
     // "0 leads". We instead take the EXACT total via { count: "exact" } (no sort), use the
     // unordered row sample for breakdowns, and sort the sample in JS for the recent list.
-    sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level", { count: "exact" }).eq("workspace_id", workspaceId).limit(3000),
+    sb.from("leads").select("id,full_name,status,pipeline_stage,created_at,updated_at,source,interest_level,sentiment", { count: "exact" }).eq("workspace_id", workspaceId).limit(3000),
     sb.from("calendar_bookings").select("id,status,created_at,title").eq("workspace_id", workspaceId).gte("created_at", s60.toISOString()).limit(500),
     sb.from("call_campaigns").select("id,name,status,total_leads,completed_calls,created_at").eq("workspace_id", workspaceId).limit(50),
     sb.from("whatsapp_messages").select("id,direction,created_at").eq("workspace_id", workspaceId).gte("created_at", s30.toISOString()).limit(500),
@@ -117,6 +117,24 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   // Pipeline breakdown
   const stageCounts: Record<string, number> = {};
   for (const l of leads) stageCounts[l.status] = (stageCounts[l.status] ?? 0) + 1;
+
+  // Sentiment + lead-source breakdown. Derived from the (≤1000-row) lead sample, NOT from
+  // exact per-sentiment COUNT queries: counting `leads` filtered by sentiment over WBAH's
+  // ~400k dup-inflated rows exceeds the authenticated role's 8s statement_timeout (the same
+  // failure that once zeroed the lead total). For large workspaces these are proportional
+  // estimates; for normal workspaces the sample IS the full set, so they are exact.
+  const leadSampleSize  = leads.length;
+  const sentimentCounts = { positive: 0, neutral: 0, negative: 0, unknown: 0 };
+  const sourceCounts: Record<string, number> = {};
+  for (const l of leads) {
+    const sent = String(l.sentiment ?? "").toLowerCase();
+    if (sent === "positive")      sentimentCounts.positive++;
+    else if (sent === "neutral")  sentimentCounts.neutral++;
+    else if (sent === "negative") sentimentCounts.negative++;
+    else                          sentimentCounts.unknown++;
+    const src = String(l.source ?? "").trim() || "unknown";
+    sourceCounts[src] = (sourceCounts[src] ?? 0) + 1;
+  }
 
   // ── Bookings ─────────────────────────────────────────────────────────────────
   const bksMonth = bks.filter((b: any) => b.created_at >= monthStr);
@@ -210,6 +228,9 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
       highInterest: highInterest.length,
       stale: idleLeads.length,
       stageCounts,
+      sampleSize: leadSampleSize,
+      sentiment: sentimentCounts,
+      sources: sourceCounts,
       recent: recentLeads.map((l: any) => ({
         name: l.full_name ?? "Unnamed",
         status: l.status,
@@ -464,6 +485,12 @@ function buildHiveMindRetrievalQuery(d: any): string {
   if (d.leads) {
     const { total = 0, active = 0, idle = 0, needCall = 0, conversionRate = 0, highInterest = 0, stale = 0 } = d.leads;
     parts.push(`Pipeline: ${total} total (${active} active, ${idle} idle 14d+, ${needCall} need follow-up call)`);
+    const sent = d.leads.sentiment;
+    if (sent && (sent.positive || sent.neutral || sent.negative)) {
+      parts.push(`Lead sentiment split: ${sent.positive} positive, ${sent.neutral} neutral, ${sent.negative} negative`);
+    }
+    const srcTop = Object.entries(d.leads.sources ?? {}).sort((a: any, b: any) => b[1] - a[1]).slice(0, 3).map(([s]: any) => s);
+    if (srcTop.length) parts.push(`Top lead sources: ${srcTop.join(", ")}`);
     if (highInterest > 0) parts.push(`${highInterest} high-interest lead${highInterest !== 1 ? "s" : ""} requiring priority outreach`);
     if (total > 10 && conversionRate < 5) parts.push("conversion rate below threshold — pipeline bottleneck and sales process improvements");
     if (total > 0 && stale / total > 0.3)  parts.push("high idle lead ratio — re-engagement automation and CRM hygiene");
@@ -566,6 +593,28 @@ function buildPlatformContext(d: any): string {
     .map(([s, n]) => `${s.replace(/_/g, " ")}: ${n}`)
     .join(" | ");
   if (stages) lines.push(`  Pipeline: ${stages}`);
+
+  // Sentiment + lead-source split. For very large workspaces these come from a capped
+  // sample, so percentages (and scaled estimates) are shown rather than raw sample counts.
+  const leadSampleSize = Number(d.leads.sampleSize ?? 0);
+  const leadTotal      = Number(d.leads.total ?? 0);
+  const leadIsSample   = leadSampleSize > 0 && leadTotal > leadSampleSize;
+  const sent = d.leads.sentiment;
+  if (sent) {
+    const fmt = (n: number) => {
+      if (!leadIsSample) return `${n}`;
+      const pct = leadSampleSize > 0 ? Math.round((n / leadSampleSize) * 100) : 0;
+      return `${pct}% (≈${Math.round((n / leadSampleSize) * leadTotal).toLocaleString()})`;
+    };
+    lines.push(`  Sentiment: positive ${fmt(sent.positive)} | neutral ${fmt(sent.neutral)} | negative ${fmt(sent.negative)}${sent.unknown ? ` | unscored ${fmt(sent.unknown)}` : ""}${leadIsSample ? ` — % from a ${leadSampleSize}-lead sample of ${leadTotal.toLocaleString()} total` : ""}`);
+  }
+  const srcEntries = Object.entries(d.leads.sources ?? {}).sort((a: any, b: any) => b[1] - a[1]).slice(0, 6);
+  if (srcEntries.length) {
+    const srcStr = srcEntries
+      .map(([s, n]: any) => leadIsSample ? `${s}: ${Math.round((n / leadSampleSize) * 100)}%` : `${s}: ${n}`)
+      .join(" | ");
+    lines.push(`  Top lead sources: ${srcStr}${leadIsSample ? " (sample-based %)" : ""}`);
+  }
 
   // Recent leads
   if (d.leads.recent?.length) {

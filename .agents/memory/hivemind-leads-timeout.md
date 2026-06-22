@@ -24,6 +24,14 @@ recent list).
 **Why:** PostgREST caps any response at 1000 rows here, so fetch-and-count under-reports
 anyway; and the ORDER BY is the specific thing that breaches the 8s timeout.
 
+**Filtered counts time out too:** it is not only `ORDER BY` — a `count:exact` over WBAH's
+`leads` *with a secondary filter* (e.g. `sentiment=positive`) also takes ~9-10s and 500s at
+service-role. So any per-sentiment / per-source / per-status EXACT count is unsafe here.
+HiveMind's sentiment and lead-source breakdowns are therefore derived in JS from the same
+≤1000-row sample already fetched (no extra queries): exact for normal workspaces, and shown
+as percentages + scaled estimates (with an explicit "sample of N total" caveat) for large
+ones. Only the plain workspace-wide total uses `count:exact` (the one count cheap enough).
+
 **Latent landmines (audit, don't blindly fix):** `leads.functions.ts` `getOverviewStats`
 still has an ordered `recentLeads` query and `listLeads` orders by `updated_at`;
 `hivemind.functions.ts` has ordered lead/event list queries. All are large-WBAH timeout
