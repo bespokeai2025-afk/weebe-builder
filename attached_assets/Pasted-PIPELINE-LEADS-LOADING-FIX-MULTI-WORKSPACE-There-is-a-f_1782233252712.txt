@@ -1,0 +1,97 @@
+PIPELINE + LEADS LOADING FIX - MULTI WORKSPACE
+
+There is a fault with the Pipeline page on normal user accounts, and WBAH account leads are also not loading correctly.
+
+Do not rebuild pages.
+Do not create new pages.
+Do not change UI design.
+Do not change unrelated features.
+Do not change WBAH existing analytics logic unless directly required.
+
+Goal:
+Fix Pipeline and Leads loading so every logged-in account only sees the correct workspace data.
+
+Issues:
+1. Normal account Pipeline page has a fault and does not load correctly.
+2. WBAH account does not load leads correctly.
+3. For WBAH specifically, the Leads/Pipeline should NOT load every raw normal lead because there are too many.
+4. WBAH should only load qualified/positive lead records into Pipeline/qualified lead views.
+
+Audit and fix:
+
+1. Workspace scoping
+- Confirm every Pipeline, Leads, Qualified Leads, HiveMind and Analytics query uses the logged-in user's workspace_id.
+- Remove any hardcoded workspace_id, hardcoded WBAH slug, fallback admin workspace, or global query.
+- Ensure webespoke/webee account never reads WBAH data.
+- Ensure WBAH account never reads webespoke/webee data.
+
+2. Pipeline page fault
+- Find the exact file/component/service causing the normal account Pipeline page failure.
+- Check console errors, API errors, Supabase errors and empty-state handling.
+- Fix the query or data mapping without changing layout.
+- Pipeline must load safely even when there are zero qualified leads.
+- Add defensive handling for null/undefined lead fields.
+
+3. WBAH lead loading rule
+- For WBAH workspace only, do not load all raw leads into Pipeline.
+- Load only leads that are qualified or positive.
+- Include:
+  - sentiment = positive
+  - qualification_status = qualified
+  - status = qualified
+  - lead_status = qualified
+  - positive qualification outcome
+- Neutral leads may be shown only as Partly Qualified if that behaviour already exists.
+- Do not include disqualified, tried to contact, raw imported, failed, voicemail or negative leads in Pipeline.
+
+4. WBAH raw lead pages
+- If WBAH has a raw Leads/Data Records page, keep it paginated.
+- Never fetch all records at once.
+- Use .range() pagination and date/status filters.
+- Default to the first 50 or 100 records only.
+- Add server-side count separately if needed.
+
+5. HiveMind consistency
+- HiveMind must count leads from the same workspace-aware data source as the page the user is asking about.
+- When asked about WBAH lead section, it should not answer 0 if qualified/positive leads exist.
+- HiveMind should clearly distinguish:
+  - raw leads
+  - qualified leads
+  - pipeline leads
+  - campaign records
+- Fix any Redis/Supabase cache key so it includes workspace_id and module name.
+
+6. Supabase query performance
+- Check indexes for all tables used by Pipeline and Leads:
+  - workspace_id
+  - created_at
+  - status
+  - lead_status
+  - sentiment
+  - qualification_status
+  - agent_id
+  - campaign_id
+- Add missing safe indexes only.
+- Do not add duplicate indexes.
+- Do not run huge unfiltered queries.
+
+7. RLS/server access
+- Check whether Pipeline/Leads/HiveMind are being blocked by RLS.
+- If client-side Supabase cannot access required workspace records, move read logic to a secure server function.
+- Server function must validate logged-in user workspace_id before querying.
+
+Return before making fixes:
+- Exact cause of Pipeline fault
+- Exact cause of WBAH leads not loading
+- Which table contains the correct WBAH qualified/positive leads
+- Exact files/functions to change
+
+Then apply safe fixes only.
+
+After fixing, verify:
+- Normal account Pipeline loads without crashing
+- Normal account only sees its own workspace data
+- WBAH Pipeline loads qualified/positive leads only
+- WBAH does not load every raw lead into Pipeline
+- HiveMind reports correct workspace-aware counts
+- Supabase health is not worsened by large queries
