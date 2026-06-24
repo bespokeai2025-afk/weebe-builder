@@ -83,29 +83,6 @@ export type PipelineLead = {
   hasDocuments: boolean;
 };
 
-// Core columns that are always present
-const CORE_SELECT = [
-  "id",
-  "full_name",
-  "phone",
-  "email",
-  "company_name",
-  "status",
-  "funding_amount",
-  "monthly_revenue",
-  "sentiment",
-  "call_outcome",
-  "attempt_count",
-  "interest_level",
-  "last_contacted_at",
-  "created_at",
-  "source",
-  "state_name",
-].join(", ");
-
-// Optional columns added once migrations are applied
-const BASE_SELECT = `${CORE_SELECT}, sale_amount`;
-
 function normalizePhone(p: string) {
   return p.replace(/[\s\-().]/g, "");
 }
@@ -198,9 +175,83 @@ async function fetchIndicators(
   return { bookedIds, notedIds, docsPhones };
 }
 
-const isColMissing = (err: any) =>
-  String(err?.code) === "42703" ||
-  /column .* does not exist/i.test(String(err?.message));
+// ── WBAH pipeline (derived from wbah_calls) ──────────────────────────────────
+// WBAH's `leads` table is dup-inflated to ~400k rows, so ordering it breaches the
+// DB statement timeout and the pipeline never loads. Instead we derive the board
+// from the clean wbah_calls table (one row per contact, latest call) and show
+// ONLY qualified/positive contacts (latest-call sentiment === "positive"), which
+// matches the dashboard's "Qualified" definition for this workspace.
+async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]> {
+  return cacheWrap(`webee:pipeline-leads:${workspaceId}`, 60, async () => {
+    const PAGE = 1000;
+    const all: any[] = [];
+    let from = 0;
+    for (;;) {
+      const { data, error } = await (supabaseAdmin as any)
+        .from("wbah_calls")
+        .select(
+          "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, appointment_date, booking_status, calendly_booking_url",
+        )
+        .eq("workspace_id", workspaceId)
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(`DB query failed: ${error.message}`);
+      const batch: any[] = data ?? [];
+      all.push(...batch);
+      if (batch.length < PAGE) break;
+      from += PAGE;
+    }
+
+    // Dedup per contact (phone). Rows are latest-first, so the first time we
+    // see a phone is that contact's most-recent call.
+    const seen = new Set<string>();
+    const latest: any[] = [];
+    for (const c of all) {
+      const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      latest.push(c);
+    }
+
+    // Pipeline shows only qualified/positive contacts.
+    const positive = latest.filter(
+      (c) => String(c.sentiment ?? "").toLowerCase() === "positive",
+    );
+
+    return positive.map((c): PipelineLead => {
+      const startedIso: string | null = c.started_at ?? null;
+      const booked = Boolean(
+        (c.appointment_date && String(c.appointment_date).trim()) ||
+          (c.calendly_booking_url && String(c.calendly_booking_url).trim()),
+      );
+      return {
+        id: c.id,
+        full_name: c.customer_name ?? "Unknown",
+        phone: c.phone ?? null,
+        email: null,
+        company_name: null,
+        status: "qualified",
+        pipeline_stage: null,
+        effective_stage: booked ? "bookings" : "qualified",
+        funding_amount: null,
+        monthly_revenue: null,
+        sale_amount: null,
+        sentiment: "positive",
+        call_outcome: (c.call_status as string | null) ?? null,
+        attempt_count: null,
+        interest_level: null,
+        last_contacted_at: startedIso,
+        created_at: startedIso,
+        source: null,
+        state_name: null,
+        hasBooking: booked,
+        hasNotes: false,
+        hasDocuments: false,
+      };
+    });
+  });
+}
 
 export const getPipelineLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -209,41 +260,35 @@ export const getPipelineLeads = createServerFn({ method: "GET" })
     if (!workspaceId) return [];
     const sb = supabase as any;
 
-    const query = (cols: string) =>
+    // WBAH reads from wbah_calls (its leads table is too large to order).
+    const { data: wsRow } = await sb
+      .from("workspaces")
+      .select("slug")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    if (wsRow?.slug === "webuyanyhouse") {
+      return getWbahPipelineLeads(workspaceId);
+    }
+
+    // Standard workspaces read the leads table. select("*") avoids the brittle
+    // hard-coded column list — a single missing optional column used to make all
+    // fallback tiers fail and break the whole page. mapLead reads fields
+    // defensively, so unknown/absent columns are simply ignored.
+    const [r1, indicators] = await Promise.all([
       sb
         .from("leads")
-        .select(cols)
+        .select("*")
         .eq("workspace_id", workspaceId)
-        .order("created_at", { ascending: false });
-
-    // Fetch indicators in parallel with the first attempt
-    const [r1, indicators] = await Promise.all([
-      query(`${BASE_SELECT}, pipeline_stage`),   // full: sale_amount + pipeline_stage
+        .order("created_at", { ascending: false })
+        .limit(1000),
       fetchIndicators(sb, workspaceId),
     ]);
+    if (r1.error) throw new Error(r1.error.message);
     const { bookedIds, notedIds, docsPhones } = indicators;
-
-    if (!r1.error) {
-      return ((r1.data ?? []) as Array<Record<string, unknown>>).map(
-        (l) => mapLead(l, true, bookedIds, notedIds, docsPhones),
-      );
-    }
-    if (!isColMissing(r1.error)) throw new Error(r1.error.message);
-
-    // sale_amount column missing — try without it but keep pipeline_stage
-    const r2 = await query(`${CORE_SELECT}, pipeline_stage`);
-    if (!r2.error) {
-      return ((r2.data ?? []) as Array<Record<string, unknown>>).map(
-        (l) => mapLead(l, true, bookedIds, notedIds, docsPhones),
-      );
-    }
-    if (!isColMissing(r2.error)) throw new Error(r2.error.message);
-
-    // pipeline_stage column also missing — use core only
-    const r3 = await query(CORE_SELECT);
-    if (r3.error) throw new Error(r3.error.message);
-    return ((r3.data ?? []) as Array<Record<string, unknown>>).map(
-      (l) => mapLead(l, false, bookedIds, notedIds, docsPhones),
+    const rows = (r1.data ?? []) as Array<Record<string, unknown>>;
+    const hasPipelineStage = rows.length > 0 && "pipeline_stage" in rows[0];
+    return rows.map((l) =>
+      mapLead(l, hasPipelineStage, bookedIds, notedIds, docsPhones),
     );
   });
 

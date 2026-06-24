@@ -66,3 +66,4 @@
 - [Qualified-page definition split + prefetch keys](qualified-definition-and-prefetch-keys.md) — WBAH qualified=sentiment positive, standard=status interested/qualified; PrefetchOnLogin args MUST match page query args or stale wrong data serves for staleTime.
 - [Service-role KB-context IDOR](service-role-kb-context-idor.md) — supabaseAdmin bypasses RLS; client-supplied "specific KB" context reads in Image/Video Studio must `.eq(workspace_id)` or a foreign KB id leaks another tenant's docs.
 - [Prod login outage](prod-login-supabase-outage.md) — PGRST002/503 = Supabase project paused/unhealthy (not code/password); login is Supabase Auth; WEBESPOKE_ADMIN_* secret email ≠ any real user.
+- [WBAH pipeline derivation](wbah-pipeline-derivation.md) — Pipeline derives WBAH cards from wbah_calls (positive=qualified); standard path uses select("*"); WBAH stage-move writeback is a no-op (card id is wbah_calls.id, mutation writes leads).
