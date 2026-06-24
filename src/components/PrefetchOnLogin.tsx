@@ -121,7 +121,7 @@ export function PrefetchOnLogin({ authed }: Props) {
     prefetch(["qual-agents"],                  () => listAgentsFn());
     prefetch(["my-agents-mini"],               () => listAgentsFn());
     prefetch(["call-schedule"],                () => scheduleFn());
-    prefetch(["data-records", { limit: 500 }], () => dataRecordsFn({ data: { limit: 500 } }));
+    prefetch(["data-records", { limit: 500, csvOnly: true }], () => dataRecordsFn({ data: { limit: 500, csvOnly: true } }));
 
     if (isWbah) {
       // ── WBAH "We Buy Any House" workspace ──

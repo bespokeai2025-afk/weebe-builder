@@ -68,3 +68,4 @@
 - [Prod login outage](prod-login-supabase-outage.md) — PGRST002/503 = Supabase project paused/unhealthy (not code/password); login is Supabase Auth; WEBESPOKE_ADMIN_* secret email ≠ any real user.
 - [WBAH pipeline derivation](wbah-pipeline-derivation.md) — Pipeline derives WBAH cards from wbah_calls (positive=qualified); standard path uses select("*"); WBAH stage-move writeback is a no-op (card id is wbah_calls.id, mutation writes leads).
 - [data_records list perf & bloat](data-records-list-perf.md) — Records tab hung at "Loading 99%" for WBAH (~750k rows): missing (workspace_id,is_deleted,updated_at) index → sort timeout; bloat from 1000-cap dedup in import/sync.
+- [Data Records tab = CSV-only](data-records-csv-only.md) — Records tab shows only source='csv' uploads; synced rows stay NULL/hidden; csvOnly param Records-tab-only (Contacts unfiltered); needs (ws,is_deleted,source,updated_at) index + csvOnly inside filters for prefetch key match.

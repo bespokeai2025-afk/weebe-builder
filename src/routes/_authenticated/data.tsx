@@ -547,7 +547,7 @@ function DataPage() {
   const qc = useQueryClient();
 
   const filters = useMemo(() => {
-    const f: Record<string, unknown> = { limit: 500 };
+    const f: Record<string, unknown> = { limit: 500, csvOnly: true };
     if (search.trim()) f.search = search.trim();
     if (callStatus !== "all") f.callStatus = callStatus;
     if (unassignedOnly) f.unassignedOnly = true;

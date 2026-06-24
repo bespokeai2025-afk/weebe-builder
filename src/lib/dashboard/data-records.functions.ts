@@ -40,6 +40,7 @@ export const listDataRecords = createServerFn({ method: "POST" })
           .optional(),
         assignedAgentId: z.string().uuid().nullable().optional(),
         unassignedOnly: z.boolean().optional(),
+        csvOnly: z.boolean().optional(),
         limit: z.number().int().min(1).max(10000).default(5000),
       })
       .parse(input ?? {}),
@@ -57,6 +58,7 @@ export const listDataRecords = createServerFn({ method: "POST" })
       .eq("is_deleted", false)
       .order("updated_at", { ascending: false })
       .limit(data.limit);
+    if (data.csvOnly) q = q.eq("source", "csv");
     if (data.activeOnly) q = q.eq("is_active", true);
     if (data.callStatus && data.callStatus !== "all") q = q.eq("call_status", data.callStatus);
     if (data.unassignedOnly) q = q.is("assigned_agent_id", null);
@@ -495,12 +497,16 @@ export const importDataRecords = createServerFn({ method: "POST" })
       return true;
     });
 
-    // Fetch all existing mobile numbers for this workspace so we can skip them
+    // Fetch existing CSV-uploaded mobile numbers for this workspace so we can skip
+    // duplicates. Scoped to source = "csv" so an upload is never silently dropped
+    // just because the number also exists as a synced CRM/sync record (those live
+    // in the same table but are not shown in the Records tab).
     const { data: existingRows, error: existErr } = await sb
       .from("data_records")
       .select("mobile_number")
       .eq("workspace_id", workspaceId)
-      .eq("is_deleted", false);
+      .eq("is_deleted", false)
+      .eq("source", "csv");
     if (existErr) throw new Error(existErr.message);
     const existingNumbers = new Set<string>(
       (existingRows ?? []).map((r: any) => (r.mobile_number ?? "").trim()),
@@ -528,6 +534,7 @@ export const importDataRecords = createServerFn({ method: "POST" })
       postal_code: r.postal_code || null,
       lead_external_id: r.lead_external_id || null,
       meta: r.meta && Object.keys(r.meta).length > 0 ? r.meta : {},
+      source: "csv",
       ...(data.agentId ? { assigned_agent_id: data.agentId } : {}),
     }));
     const CHUNK = 1000;

@@ -614,6 +614,7 @@ export type Database = {
           postal_code: string | null;
           property_type: string | null;
           scheduled_call_at: string | null;
+          source: string | null;
           state: string | null;
           title: string | null;
           unique_id: string | null;
@@ -646,6 +647,7 @@ export type Database = {
           postal_code?: string | null;
           property_type?: string | null;
           scheduled_call_at?: string | null;
+          source?: string | null;
           state?: string | null;
           title?: string | null;
           unique_id?: string | null;
@@ -678,6 +680,7 @@ export type Database = {
           postal_code?: string | null;
           property_type?: string | null;
           scheduled_call_at?: string | null;
+          source?: string | null;
           state?: string | null;
           title?: string | null;
           unique_id?: string | null;
