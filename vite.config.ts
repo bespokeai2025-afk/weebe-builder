@@ -15,9 +15,14 @@ import { videoJobPollerPlugin } from "./video-job-poller.plugin";
 import { providerHealthSweepPlugin } from "./provider-health-sweep.plugin";
 import { adsSyncPlugin } from "./ads-sync.plugin";
 import { accountsMindSchedulerPlugin } from "./accountsmind-scheduler.plugin";
-import { wbahLeadsSyncPlugin } from "./wbah-leads-sync.plugin";
-import { wbahCallsSyncPlugin } from "./wbah-calls-sync.plugin";
-import { wbahCategorySyncPlugin } from "./wbah-category-sync.plugin";
+// WBAH background sync plugins (leads/calls/category) are intentionally disabled.
+// They each logged into WeeBespoke with the shared admin account every few minutes,
+// and WeeBespoke only allows ONE active session — so the constant background churn
+// kept kicking the human admin out of the WeeBespoke dashboard, breaking its own
+// Dynamics → People pull. WBAH People data is now read on demand only.
+// import { wbahLeadsSyncPlugin } from "./wbah-leads-sync.plugin";
+// import { wbahCallsSyncPlugin } from "./wbah-calls-sync.plugin";
+// import { wbahCategorySyncPlugin } from "./wbah-category-sync.plugin";
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
@@ -66,7 +71,7 @@ export default defineConfig({
         ],
       },
     },
-    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin(), frejunStreamPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), accountsMindSchedulerPlugin(), wbahLeadsSyncPlugin(), wbahCallsSyncPlugin(), wbahCategorySyncPlugin()],
+    plugins: [hyperStreamRelayPlugin(), elVoiceRelayPlugin(), telephonyStreamPlugin(), frejunStreamPlugin(), campaignSchedulerPlugin(), videoJobPollerPlugin(), providerHealthSweepPlugin(), adsSyncPlugin(), accountsMindSchedulerPlugin()],
     resolve: {
       alias: {
         "entities/lib/decode.js": path.resolve(

@@ -1039,10 +1039,10 @@ function DataPage() {
     }
   }
 
-  // Lightweight COUNTS for the three People sub-tab KPIs + badges. The full rows
-  // (each with a transcript) load lazily when a tab is actually opened. The
-  // disqualified call warms the shared cache first, so the parallel ttc/rebooking
-  // calls hit it instead of each rebuilding the derived set.
+  // Lightweight COUNT for the Disqualified KPI + badge. All CRM-loaded contacts
+  // now resolve to Disqualified (see classifyWbahCrmContact), so we only probe
+  // that one category — no wasted live WeeBespoke reads for the removed
+  // Tried-To-Contact / Rebooking buckets. Full rows load lazily on tab open.
   async function handleFetchWbahCatCounts() {
     // Guard against the React StrictMode double-effect firing two cold cache
     // builds before the counts land.
@@ -1051,12 +1051,6 @@ function DataPage() {
     try {
       const dq = await listWbahCategorizedLeadsFn({ data: { category: "disqualified", page: 1, limit: 1 } });
       setWbahDqCount((dq as any)?.total ?? 0);
-      const [ttc, rb] = await Promise.all([
-        listWbahCategorizedLeadsFn({ data: { category: "tried_to_contact", page: 1, limit: 1 } }),
-        listWbahCategorizedLeadsFn({ data: { category: "rebooking", page: 1, limit: 1 } }),
-      ]);
-      setWbahTtcCount((ttc as any)?.total ?? 0);
-      setWbahRbCount((rb as any)?.total ?? 0);
     } catch {
       /* non-fatal — KPIs/badges just stay hidden until the tabs are opened */
     } finally {
@@ -1451,17 +1445,12 @@ function DataPage() {
           )}
 
           {/* ── WBAH People KPI strip ───────────────────────────────────── */}
-          {((wbahDqData.length || wbahDqCount) + (wbahTtcData.length || wbahTtcCount) + (wbahRbData.length || wbahRbCount)) > 0 && (() => {
-            const dq     = wbahDqData.length || wbahDqCount;
-            const ttc    = wbahTtcData.length || wbahTtcCount;
-            const rb     = wbahRbData.length || wbahRbCount;
-            const loaded = dq + ttc + rb;
+          {(wbahDqData.length || wbahDqCount) > 0 && (() => {
+            const dq = wbahDqData.length || wbahDqCount;
             return (
-              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <KpiCard label="CRM Contacts"                value={loaded} icon={Users}         iconBg="bg-blue-500/15"   iconColor="text-blue-400" />
-                <KpiCard label="Disqualified / Need to Call" value={dq}     icon={UserCheck}     iconBg="bg-rose-500/15"   iconColor="text-rose-400" />
-                <KpiCard label="Tried to Contact"            value={ttc}    icon={PhoneOutgoing} iconBg="bg-amber-500/15"  iconColor="text-amber-400" />
-                <KpiCard label="Rebooking"                   value={rb}     icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <KpiCard label="CRM Contacts" value={dq} icon={Users}     iconBg="bg-blue-500/15" iconColor="text-blue-400" />
+                <KpiCard label="Disqualified" value={dq} icon={UserCheck} iconBg="bg-rose-500/15" iconColor="text-rose-400" />
               </div>
             );
           })()}
@@ -1472,10 +1461,8 @@ function DataPage() {
             {/* ── CRM section sub-tabs ────────────────────────────────────── */}
             <div className="flex items-center gap-0 border-b border-white/[0.06] px-4 overflow-x-auto">
               {([
-                { id: "disqualified",     label: "Disqualified" },
-                { id: "tried_to_contact", label: "Tried To Contact" },
-                { id: "rebooking",        label: "Rebooking" },
-                { id: "calls",            label: "Calls" },
+                { id: "disqualified", label: "Disqualified" },
+                { id: "calls",        label: "Calls" },
               ] as { id: string; label: string }[]).map(tab => {
                 const cnt = tab.id === "leads" ? wbahCallData.length
                           : tab.id === "disqualified" ? (wbahDqData.length || wbahDqCount)

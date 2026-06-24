@@ -1544,39 +1544,12 @@ const WBAH_DERIVED_LABEL: Record<WbahDerivedCat, string> = {
   rebooking:        "Rebooking",
 };
 
-// Classify a single CRM-loaded contact (from get-all-calldata) into exactly one
-// bucket. The contact is already known to be NOT booked. Order matters — first
-// match wins.
-function classifyWbahCrmContact(r: any): WbahDerivedCat {
-  const cs   = String(r.callStatus ?? "").toLowerCase();
-  const sa   = String(r.sentimentAnalysis ?? "").toLowerCase();
-  const dr   = String(r.disconnectionReason ?? "").toLowerCase();
-  const er   = String(r.endReason ?? "").toLowerCase();
-  const appt = !!(r.appointment_date && String(r.appointment_date).trim());
-  const hay  = `${cs} ${dr} ${er}`;
-  const notCalled = !r.callId || cs === "need_to_call";
-
-  // Needs to call — loaded from the CRM but not yet dialled. Per WBAH these sit
-  // in the Disqualified tab alongside truly-disqualified contacts. Their raw
-  // callStatus is preserved as "need_to_call" so the UI badge still distinguishes
-  // them from negative/disqualified leads.
-  if (notCalled) return "disqualified";
-
-  // Disqualified — we reached them but they are negative / not interested.
-  if (sa === "negative") return "disqualified";
-  if (/not[_\s]?interested|reject|unsuitable|do[_\s]?not[_\s]?call|disqualif/.test(hay)) return "disqualified";
-
-  // Rebooking — an appointment exists to redo, or they asked for a callback.
-  if (appt) return "rebooking";
-  if (/rebook|reschedul|call[_\s]?back|call[_\s]?later|callback|pending/.test(hay)) return "rebooking";
-
-  // Tried To Contact — never actually connected (no answer / voicemail / no convo).
-  if (cs === "no_answer" || cs === "not_connected" || cs === "voicemail") return "tried_to_contact";
-  if (/voicemail|no_answer|no_input|dial_no_answer|dial_busy|dial_failed|inactivity|machine/.test(hay)) return "tried_to_contact";
-
-  // Default — reached (ended), neutral/positive, no booking yet → call back to
-  // land a booking.
-  return "rebooking";
+// Per WBAH, every CRM-loaded contact from the People feed (get-all-calldata) is
+// treated as Disqualified. The WeeBespoke source dashboard lists them as a single
+// People set (Opportunity: 0 across the board), so we mirror that one list instead
+// of splitting them across Tried To Contact / Rebooking buckets.
+function classifyWbahCrmContact(_r: any): WbahDerivedCat {
+  return "disqualified";
 }
 
 // Fetch ALL CRM-loaded contacts from the live `get-all-calldata` feed — the only
