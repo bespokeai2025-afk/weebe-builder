@@ -51,3 +51,15 @@ parallel page batch launches (reduces, doesn't fully eliminate, concurrent
 relogins). The WBAH People `/data` tabs (Disqualified/Tried/Rebooking) are the live
 path: `listWbahCategorizedLeads → getWbahCrmLoadedContacts → wbahGetAllCallDataPaged`
 (the get-all-calldata feed is the only source with not-yet-called contacts).
+
+**Single-shot live reads/mutations need reloginFn too — not just multi-page.** The
+`/data → Campaigns` tab (`WbahCallSchedulingSection → getWbahCampaigns → GET
+/campaigns`) and every campaign mutation (create/update/pause/resume/voicemail/
+delete) + `wbahGetAgents` are single-request live calls, but they 401 under the
+same concurrent-sync token churn. They previously passed only `getTokens,
+saveNewAccessToken` (no `reloginFn`), so a 401 returned `data:null` and the read
+did `extractWbahArray(null) → []` and returned WITHOUT throwing → UI silently
+showed "No campaigns yet" instead of mirroring the dashboard. Fix: thread
+`cbs.reloginFn` through ALL campaign client fns (added optional `rl?: Relogin` to
+`aPost/aPatch/aDel` too, not just `aGet`) and make `getWbahCampaigns` throw on
+`!res.ok` so genuine failures surface instead of looking like an empty mirror.

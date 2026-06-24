@@ -109,20 +109,20 @@ type Relogin = () => Promise<{ accessToken: string } | null>;
 function aGet<T>(path: string, gt: GetTokens, st: SaveToken, rl?: Relogin) {
   return authenticatedFetch<T>(path, { method: "GET" }, gt, st, rl);
 }
-function aPost<T>(path: string, body: unknown, gt: GetTokens, st: SaveToken) {
-  return authenticatedFetch<T>(path, { method: "POST", body: JSON.stringify(body) }, gt, st);
+function aPost<T>(path: string, body: unknown, gt: GetTokens, st: SaveToken, rl?: Relogin) {
+  return authenticatedFetch<T>(path, { method: "POST", body: JSON.stringify(body) }, gt, st, rl);
 }
-function aPatch<T>(path: string, body: unknown, gt: GetTokens, st: SaveToken) {
-  return authenticatedFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) }, gt, st);
+function aPatch<T>(path: string, body: unknown, gt: GetTokens, st: SaveToken, rl?: Relogin) {
+  return authenticatedFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) }, gt, st, rl);
 }
 function aPut<T>(path: string, body: unknown, gt: GetTokens, st: SaveToken) {
   return authenticatedFetch<T>(path, { method: "PUT", body: JSON.stringify(body) }, gt, st);
 }
-function aDel<T>(path: string, gt: GetTokens, st: SaveToken, body?: unknown) {
+function aDel<T>(path: string, gt: GetTokens, st: SaveToken, body?: unknown, rl?: Relogin) {
   return authenticatedFetch<T>(
     path,
     body ? { method: "DELETE", body: JSON.stringify(body) } : { method: "DELETE" },
-    gt, st,
+    gt, st, rl,
   );
 }
 
@@ -261,34 +261,34 @@ export async function wbahUploadCrmExcel(
 
 // ── Campaigns ─────────────────────────────────────────────────────────────────
 
-export const wbahGetCampaigns = (gt: GetTokens, st: SaveToken) =>
-  aGet("/campaigns", gt, st);
+export const wbahGetCampaigns = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/campaigns", gt, st, rl);
 
-export const wbahCreateCampaign = (payload: Record<string, unknown>, gt: GetTokens, st: SaveToken) =>
-  aPost("/campaigns", payload, gt, st);
+export const wbahCreateCampaign = (payload: Record<string, unknown>, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aPost("/campaigns", payload, gt, st, rl);
 
-export const wbahGetCampaign = (id: string, gt: GetTokens, st: SaveToken) =>
-  aGet(`/campaigns/${id}`, gt, st);
+export const wbahGetCampaign = (id: string, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet(`/campaigns/${id}`, gt, st, rl);
 
-export const wbahUpdateCampaign = (id: string, payload: Record<string, unknown>, gt: GetTokens, st: SaveToken) =>
-  aPatch(`/campaigns/${id}`, payload, gt, st);
+export const wbahUpdateCampaign = (id: string, payload: Record<string, unknown>, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aPatch(`/campaigns/${id}`, payload, gt, st, rl);
 
-export const wbahPauseCampaign = (id: string, gt: GetTokens, st: SaveToken) =>
-  aPatch(`/campaigns/${id}/pause`, {}, gt, st);
+export const wbahPauseCampaign = (id: string, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aPatch(`/campaigns/${id}/pause`, {}, gt, st, rl);
 
-export const wbahResumeCampaign = (id: string, gt: GetTokens, st: SaveToken) =>
-  aPatch(`/campaigns/${id}/resume`, {}, gt, st);
+export const wbahResumeCampaign = (id: string, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aPatch(`/campaigns/${id}/resume`, {}, gt, st, rl);
 
-export const wbahCampaignVoicemail = (id: string, payload: Record<string, unknown>, gt: GetTokens, st: SaveToken) =>
-  aPatch(`/campaigns/${id}/voicemail`, payload, gt, st);
+export const wbahCampaignVoicemail = (id: string, payload: Record<string, unknown>, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aPatch(`/campaigns/${id}/voicemail`, payload, gt, st, rl);
 
-export const wbahDeleteCampaign = (id: string, gt: GetTokens, st: SaveToken) =>
-  aDel(`/campaigns/${id}`, gt, st);
+export const wbahDeleteCampaign = (id: string, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aDel(`/campaigns/${id}`, gt, st, undefined, rl);
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 
-export const wbahGetAgents = (gt: GetTokens, st: SaveToken) =>
-  aGet("/agent/get-list", gt, st);
+export const wbahGetAgents = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/agent/get-list", gt, st, rl);
 
 export const wbahGetAgentsWithVoicemail = (gt: GetTokens, st: SaveToken) =>
   aGet("/agent/get-agents-with-voicemail", gt, st);

@@ -428,6 +428,10 @@ function normalizeWbahCampaign(raw: any): any {
 export const getWbahCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    // Enforce WBAH membership / platform-admin BEFORE any data path (engine or
+    // direct) so engine-routed campaign rows can never leak to a non-member.
+    const cbs = await requireWbahCbs(context.userId);
+
     // Try DataSourceRouter first — routes through engine if a profile is configured
     try {
       const routed = await getCampaignData(WBAH_WORKSPACE_ID);
@@ -439,8 +443,10 @@ export const getWbahCampaigns = createServerFn({ method: "GET" })
     // Fallback: direct WeeBespoke API call. The campaign array is nested at
     // res.data.data because of the API's { result, statuscode, message, data }
     // envelope — see extractWbahArray above.
-    const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahGetCampaigns(cbs.getTokens, cbs.saveNewAccessToken);
+    const res = await api.wbahGetCampaigns(cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
+    // Surface a real failure instead of silently returning an empty list — a 401
+    // with a dead refresh token would otherwise look like "no campaigns" in the UI.
+    if (!res.ok) throw new Error(res.error ?? "Failed to load campaigns from WeeBespoke");
     return extractWbahArray(res.data).map(normalizeWbahCampaign);
   });
 
@@ -488,7 +494,7 @@ export const createWbahCampaign = createServerFn({ method: "POST" })
   .inputValidator((i) => z.record(z.string(), z.unknown()).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahCreateCampaign(data as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken);
+    const res = await api.wbahCreateCampaign(data as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to create campaign");
     return res.data;
   });
@@ -498,7 +504,7 @@ export const pauseWbahCampaign = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahPauseCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken);
+    const res = await api.wbahPauseCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to pause campaign");
     return res.data;
   });
@@ -508,7 +514,7 @@ export const resumeWbahCampaign = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahResumeCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken);
+    const res = await api.wbahResumeCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to resume campaign");
     return res.data;
   });
@@ -518,7 +524,7 @@ export const deleteWbahCampaign = createServerFn({ method: "POST" })
   .inputValidator((i) => z.object({ id: z.string() }).parse(i ?? {}))
   .handler(async ({ context, data }) => {
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahDeleteCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken);
+    const res = await api.wbahDeleteCampaign(data.id, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to delete campaign");
     return res.data;
   });
@@ -541,7 +547,7 @@ export const updateWbahCampaignSettings = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { id, ...payload } = data;
     const cbs = await requireWbahCbs(context.userId);
-    const res = await api.wbahUpdateCampaign(id, payload as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken);
+    const res = await api.wbahUpdateCampaign(id, payload as Record<string, unknown>, cbs.getTokens, cbs.saveNewAccessToken, cbs.reloginFn);
     if (!res.ok) throw new Error(res.error ?? "Failed to update campaign");
     return res.data;
   });
@@ -558,6 +564,7 @@ export const toggleWbahCampaignVoicemailSetting = createServerFn({ method: "POST
       { voicemail_enabled: data.voicemail_enabled },
       cbs.getTokens,
       cbs.saveNewAccessToken,
+      cbs.reloginFn,
     );
     if (!res.ok) throw new Error(res.error ?? "Failed to update voicemail setting");
     return res.data;
@@ -569,6 +576,7 @@ export const getWbahAgentsForCampaign = createServerFn({ method: "GET" })
     const cbs = await requireWbahCbs(context.userId);
     const gt = cbs.getTokens;
     const st = cbs.saveNewAccessToken;
+    const rl = cbs.reloginFn;
 
     const normalize = (raw: any) => ({
       id:                raw._id ?? raw.id ?? raw.agent_id ?? "",
@@ -585,11 +593,11 @@ export const getWbahAgentsForCampaign = createServerFn({ method: "GET" })
       : Array.isArray(raw?.result)  ? raw.result
       : [];
 
-    const campaignOnlyRes = await api.wbahGetAgents(gt, st);
+    const campaignOnlyRes = await api.wbahGetAgents(gt, st, rl);
     const campaignArr = extractArr(campaignOnlyRes.data);
     if (campaignArr.length > 0) return campaignArr.map(normalize);
 
-    const allRes = await api.wbahGetAgents(gt, st);
+    const allRes = await api.wbahGetAgents(gt, st, rl);
     return extractArr(allRes.data).map(normalize);
   });
 
