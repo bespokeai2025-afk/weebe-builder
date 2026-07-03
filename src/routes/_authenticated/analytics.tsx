@@ -395,9 +395,7 @@ function AnalyticsPage() {
   // and OFF elsewhere; the toggle lets the user override either way.
   const [vmOverride, setVmOverride] = useState<boolean | null>(null);
   const includeVm = vmOverride === null ? isWbah : vmOverride;
-  // WBAH has no per-agent filter (calls are synced without agent identity), so
-  // never honour a selection that may persist from a previously-viewed workspace.
-  const effectiveSelectedAgentId = isWbah ? null : selectedAgentId;
+  const effectiveSelectedAgentId = selectedAgentId;
   // Build agent list from the Retell API response (agentNames) so the
   // dropdown appears for any workspace that has calls, not just those
   // whose agents happen to be in the local deployments DB.
@@ -487,11 +485,7 @@ function AnalyticsPage() {
         <>
           {/* Controls row */}
           <div className="flex items-center justify-end gap-2 px-6 pt-4">
-            {/* WBAH calls are synced without an agent name, so every call falls
-                under one synthetic bucket — a per-agent filter would be
-                meaningless (and previously misleading). Hide it for WBAH. */}
-            {!isWbah && (
-              <div className="relative">
+            <div className="relative">
                 <button
                   onClick={() => setSelectorOpen((o) => !o)}
                   className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-card/60 px-3 py-1.5 text-sm font-medium hover:bg-card/80"
@@ -521,7 +515,6 @@ function AnalyticsPage() {
                   </div>
                 )}
               </div>
-            )}
             <button
               onClick={() => setVmOverride(!includeVm)}
               title="Include or exclude voicemail calls in the totals below"
@@ -720,7 +713,7 @@ function AnalyticsPage() {
                 </ChartCard>
               </div>
 
-              {!selectedAgentId && !isWbah && (
+              {!selectedAgentId && (
                 <div className="px-6 pt-4">
                   <ChartCard title="Per-Agent Breakdown" icon={PhoneCall} color={CHART.primary}>
                     {Object.keys(analytics.byAgent).length === 0 ? (

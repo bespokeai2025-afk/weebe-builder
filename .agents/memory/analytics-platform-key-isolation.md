@@ -39,9 +39,13 @@ filter keeps working.
 - Date windows floor to whole UTC days (`startOfUtcDayMs(now) − (days−1)·24h`) on the
   server; the client "Today" narrowing uses `setUTCHours(0,0,0,0)` — keep them on the
   same UTC boundary or trend buckets and totals disagree.
-- WBAH is unaffected: the whole Retell-API block is gated by `!isWbah` (WBAH uses
-  `wbah_calls`). The dashboard `getOverviewStats` is also unaffected — it reads the
-  `calls` table scoped by `workspace_id`, never the Retell API agent list.
+- WBAH now goes through this SAME Retell-API block on the analytics page (its own
+  key, `keySource=workspace`, `deployedAgentIds=null` — the own-key path, so no
+  allow-list filtering, which is correct because every agent on WBAH's key belongs
+  to WBAH). The Retell gate is `if (apiKey)`, NOT `if (apiKey && !isWbah)` — do NOT
+  re-add the `!isWbah` gate (see `wbah-analytics-retell-doublecount.md`). Only the
+  analytics page changed; the dashboard `getOverviewStats` still reads `wbah_calls`
+  for WBAH, never the Retell API.
 - Any change to what this fn counts/returns must bump the analytics cache key
   (`webee:analytics:${ws}:retell:vN`) in lockstep, or the 15-min TTL keeps serving
   the old (leaked) shape after deploy. This is the same lockstep rule as other

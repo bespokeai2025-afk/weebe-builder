@@ -1,0 +1,121 @@
+Copy this into Replit:
+
+```text
+Add LIVE CALL MONITORING to the existing project without breaking or rebuilding any existing features.
+
+IMPORTANT SAFETY RULES:
+- Do not rebuild the app.
+- Do not redesign existing pages.
+- Do not remove or rename existing routes, tables, components, APIs, webhooks, auth, workspace logic, Retell logic, Supabase logic, Redis logic, or dashboard features.
+- Do not change existing lead, call, analytics, HiveMind, GrowthMind, SystemMind, builder, campaign, calendar, or webhook business logic unless directly required for live monitoring.
+- Preserve all current multi-tenant workspace_id scoping.
+- All new functionality must be additive and backward-compatible.
+- Before editing, inspect the existing Retell webhook, call logs, test call popup, live transcription logic, Supabase schema, Redis/API Engine, and dashboard routing.
+
+GOAL:
+Add a live call monitoring feature so users can monitor active Retell calls in real time from the dashboard.
+
+FEATURE REQUIREMENTS:
+1. Add a “Live Calls” / “Monitor” panel to the dashboard.
+2. Show currently active calls for the logged-in user’s workspace only.
+3. For each active call show:
+   - agent name
+   - caller / lead name if available
+   - phone number
+   - call start time
+   - duration timer
+   - live transcript
+   - current conversation node / flow position if available
+   - call status: ringing, in_progress, ended, failed
+4. Add a “Listen Live” button only if real-time audio streaming is safely available from the current Retell implementation.
+5. If audio listening is not already available, do not fake it. Show transcript monitoring first and mark audio as “Not enabled yet”.
+6. The live transcript must update in real time without refreshing the page.
+7. When the call ends, move it from active calls into the normal call logs flow as already designed.
+8. Do not duplicate completed calls.
+9. Do not create duplicate webhook records.
+10. Do not cause extra Retell API polling loops that overload the app.
+
+IMPLEMENTATION REQUIREMENTS:
+- Reuse the existing Retell webhook/event pipeline where possible.
+- Reuse existing call_logs, call_transcripts, webhook_events, agents, leads, and workspace tables where possible.
+- If a new table is needed, add a safe migration only. Suggested table name: live_call_sessions.
+- live_call_sessions should include:
+  - id
+  - workspace_id
+  - call_id
+  - retell_call_id if different
+  - agent_id
+  - lead_id nullable
+  - phone_number nullable
+  - status
+  - started_at
+  - ended_at nullable
+  - latest_transcript_text nullable
+  - current_node_id nullable
+  - current_node_label nullable
+  - metadata jsonb
+  - created_at
+  - updated_at
+- Add unique constraint on workspace_id + call_id to prevent duplicates.
+- Enable RLS and make policies match existing workspace isolation.
+- Use existing Supabase auth/workspace helper functions.
+- If Redis is used for active sessions, ensure cache keys include workspace_id and call_id.
+- Add safe fallback to Supabase if Redis is unavailable.
+
+REAL-TIME BEHAVIOUR:
+- Prefer existing SSE/WebSocket/realtime infrastructure if already present.
+- If Supabase Realtime is already used, subscribe only to live_call_sessions and transcript updates for the current workspace.
+- If SSE is already used for live call/test call monitor, extend it safely.
+- Do not introduce a completely separate real-time system unless necessary.
+- Avoid aggressive polling. If polling is unavoidable, use sensible intervals and stop polling when call ends.
+
+RETELL EVENT HANDLING:
+- Update Retell webhook handling so call started events create/update a live_call_sessions row.
+- Transcript delta/partial transcript events should update the active session transcript.
+- Conversation node / builder flow position should update current_node_id/current_node_label where already available.
+- Call ended events should mark live_call_sessions as ended and allow existing call log saving to continue normally.
+- All webhook processing must remain idempotent.
+- Do not break existing webhook signature validation.
+- Do not break existing post-call summaries, analytics, lead qualification, or call recording saving.
+
+UI REQUIREMENTS:
+- Add the live monitor in the dashboard in a clean, enterprise style matching the current UI.
+- Keep sizing compact and not zoomed in.
+- Do not modify the builder page styling.
+- Add empty state: “No active calls right now.”
+- Add loading and error states.
+- Add permission-safe behaviour if user has no workspace.
+- Show clear status badges.
+- Live transcript should auto-scroll, but allow user to manually scroll without forcing them back down.
+- Add a small notice for audio:
+  - If available: “Live audio enabled”
+  - If not available: “Transcript monitoring enabled. Live audio not enabled in current Retell setup.”
+
+TESTING / VALIDATION:
+After implementation, run a full audit and confirm:
+1. Existing dashboard pages still load.
+2. Existing leads page still loads.
+3. Existing calls page still loads.
+4. Existing analytics page still loads.
+5. Existing Retell webhook still processes completed calls.
+6. Existing test call popup still works.
+7. Existing multi-tenant workspace isolation still works.
+8. WBAH account is not affected.
+9. Normal Webespoke AI account is not affected.
+10. Live calls only show for the correct logged-in workspace.
+11. Ended calls do not remain stuck as live.
+12. No duplicate call logs are created.
+13. No duplicate webhook events are created.
+14. No excessive polling or API calls are introduced.
+
+DELIVERABLE:
+Return a clear summary of:
+- files changed
+- database migrations added
+- new components/routes added
+- how live monitoring works
+- whether live audio listening is actually available or transcript-only
+- any environment variables needed
+- any manual Supabase SQL needed
+- how to test with a Retell call
+```

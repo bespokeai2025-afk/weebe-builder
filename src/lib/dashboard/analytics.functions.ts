@@ -15,11 +15,13 @@ function retellAnalyticsKey(workspaceId: string, days: number) {
   // v4: the date window now floors to whole UTC days (00:00 UTC boundaries) —
   // different call sets than the old rolling `now - Nd` window, so v3 entries
   // must not be served.
-  return `webee:analytics:${workspaceId}:retell:v4:${days}d`;
+  // v5: WBAH now reads from the Retell API on the analytics page (was wbah_calls
+  // only) — different totals + real per-agent attribution, so v4 must not serve.
+  return `webee:analytics:${workspaceId}:retell:v5:${days}d`;
 }
 
 function retellAgentsKey(workspaceId: string) {
-  return `webee:analytics:${workspaceId}:retell-agents:v1`;
+  return `webee:analytics:${workspaceId}:retell-agents:v2`;
 }
 
 // Start of the given instant's UTC calendar day (00:00:00.000 UTC).
@@ -99,8 +101,8 @@ export interface VoiceAgentOption {
  * List the voice agents visible to the current workspace, for the analytics
  * agent-filter dropdown. Uses the workspace's OWN Retell key when present (all
  * agents belong to it) and falls back to the platform key restricted to agents
- * deployed in this workspace (fail closed). WBAH has no per-agent identity on its
- * synced calls, so it returns no agents (its dropdown is intentionally hidden).
+ * deployed in this workspace (fail closed). WBAH uses its own Retell key, so its
+ * five agents are returned here for the analytics-page filter.
  */
 export const listVoiceAgents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -122,8 +124,8 @@ export const listVoiceAgents = createServerFn({ method: "GET" })
       async () => {
         const ctx = await resolveRetellContext(sb, workspaceId);
 
-        // WBAH / no key → no agent filter.
-        if (ctx.isWbah || !ctx.apiKey) {
+        // No Retell key → no agent filter.
+        if (!ctx.apiKey) {
           console.log(
             `[analytics] listVoiceAgents workspace=${workspaceId} slug=${ctx.workspaceSlug ?? "?"} keySource=${ctx.keySource} hasKey=${!!ctx.apiKey} agents=0 (skipped)`,
           );
@@ -144,6 +146,10 @@ export const listVoiceAgents = createServerFn({ method: "GET" })
           console.error("[analytics] listVoiceAgents /list-agents failed:", e?.message);
         }
 
+        // Retell /list-agents returns one row per agent VERSION, so a workspace
+        // with 5 agents can come back as dozens of rows. Sort newest-first, then
+        // keep a single (latest) entry per agent_id for the dropdown.
+        const seenAgentIds = new Set<string>();
         const agents: VoiceAgentOption[] = (raw ?? [])
           .filter((a: any) => a.agent_id)
           // Platform key: only agents actually deployed in this workspace.
@@ -157,7 +163,12 @@ export const listVoiceAgents = createServerFn({ method: "GET" })
           }))
           .sort(
             (x, y) => (y.last_modification_timestamp ?? 0) - (x.last_modification_timestamp ?? 0),
-          );
+          )
+          .filter((a) => {
+            if (seenAgentIds.has(a.agent_id)) return false;
+            seenAgentIds.add(a.agent_id);
+            return true;
+          });
 
         console.log(
           `[analytics] listVoiceAgents workspace=${workspaceId} slug=${ctx.workspaceSlug ?? "?"} keySource=${ctx.keySource} hasKey=${!!ctx.apiKey} agents=${agents.length}`,
@@ -263,8 +274,8 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     // Resolve the workspace's Retell key + agent allow-list. Prefers the
     // workspace's OWN key (all agents belong to it); falls back to the shared
     // platform key restricted to agents deployed in this workspace (fail closed,
-    // so one workspace can never see another's calls). WBAH uses wbah_calls only.
-    const { workspaceSlug, isWbah, apiKey, keySource, deployedAgentIds } =
+    // so one workspace can never see another's calls).
+    const { workspaceSlug, apiKey, keySource, deployedAgentIds } =
       await resolveRetellContext(sb, workspaceId);
 
     let calls: any[] = [];
@@ -274,15 +285,15 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     let retellPages = 0;
     let retellTruncated = false;
 
-    // WBAH note: this workspace's calls are synced into wbah_calls (handled
-    // below) and are the SAME calls that live in its Retell account, but the
-    // sync does not preserve the agent name (agent_name is always null).  If we
-    // also pulled from the Retell API here we would (a) double-count the most
-    // recent page of calls in "All agents" and (b) attribute that page to the
-    // named Retell agent while the bulk of the synced calls stay under a
-    // generic "WeeBespoke Agent" bucket — making the named agent appear to have
-    // FEWER calls than "All agents".  So for WBAH we rely solely on wbah_calls.
-    if (apiKey && !isWbah) {
+    // WBAH note: this workspace's calls are ALSO synced into wbah_calls, but the
+    // sync drops the agent name (agent_name is always null), so that feed can't
+    // power a per-agent view.  The SAME calls live in WBAH's own Retell account
+    // WITH agent attribution, and the volumes match closely (~7.4k vs ~7.2k in
+    // 30d).  So on the analytics page ONLY, WBAH is treated like any other
+    // Retell workspace: we read from the Retell API here (giving real per-agent
+    // data) and DO NOT also read wbah_calls below (which would double-count).
+    // Every other page still uses wbah_calls unchanged.
+    if (apiKey) {
       // Fetch agent list — when using a workspace-specific key every agent
       // belongs to that workspace; when using the platform key restrict to
       // agents that are actually deployed in this workspace.
@@ -332,7 +343,15 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
             const res = await retellFetch<any>("/v2/list-calls", body, "POST", apiKey);
             const page_calls: any[] = Array.isArray(res) ? res : (res?.calls ?? []);
             calls.push(...page_calls);
-            paginationKey = res?.pagination_key ?? undefined;
+            // Retell v2/list-calls returns a plain array and paginates via the
+            // LAST call's id passed back as pagination_key — there is no
+            // pagination_key field on an array response.  Only continue when the
+            // page was full; otherwise we've reached the end.
+            paginationKey =
+              res?.pagination_key ??
+              (page_calls.length === PAGE_SIZE
+                ? page_calls[page_calls.length - 1]?.call_id
+                : undefined);
             page++;
           } while (paginationKey && page < MAX_PAGES);
           retellPages = page;
@@ -407,59 +426,11 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       console.warn("[analytics] ElevenLabs DB call fetch failed:", e?.message);
     }
 
-    // ── WBAH calls (from wbah_calls table, paginated) ─────────────────────────
-    // WeeBespoke calls are synced into wbah_calls — they are NOT in the Retell
-    // API or calls table.  Normalize to the Retell call shape so computeAnalytics
-    // processes them identically.
-    let wbahCalls: any[] = [];
-    if (isWbah) {
-      try {
-        const PAGE = 1000;
-        let from = 0;
-        while (true) {
-          const { data: wbahRows, error: wbahErr } = await sb
-            .from("wbah_calls")
-            .select("id, call_status, call_type, sentiment, duration_seconds, started_at, disconnection_reason, agent_name")
-            .eq("workspace_id", workspaceId)
-            .gte("started_at", sinceIso)
-            .order("started_at", { ascending: false })
-            .range(from, from + PAGE - 1);
-          if (wbahErr) { console.warn("[analytics] wbah_calls fetch error:", wbahErr.message); break; }
-          const rows: any[] = wbahRows ?? [];
-          for (const r of rows) {
-            const agentKey = r.agent_name ?? "WeeBespoke Agent";
-            if (!agentNames[agentKey]) agentNames[agentKey] = agentKey;
-            if (!agentIds.includes(agentKey)) agentIds.push(agentKey);
-            const rawSentiment: string | null = r.sentiment;
-            const normalSentiment = rawSentiment
-              ? rawSentiment.charAt(0).toUpperCase() + rawSentiment.slice(1).toLowerCase()
-              : "Unknown";
-            wbahCalls.push({
-              call_id:              r.id,
-              agent_id:             agentKey,
-              call_status:          r.call_status ?? "unknown",
-              call_type:            r.call_type === "inbound" ? "phone_call" : "phone_call",
-              direction:            r.call_type === "inbound" ? "inbound" : "outbound",
-              start_timestamp:      r.started_at ? new Date(r.started_at).getTime() : null,
-              duration_ms:          r.duration_seconds != null ? r.duration_seconds * 1000 : null,
-              disconnection_reason: r.disconnection_reason ?? null,
-              call_analysis: {
-                user_sentiment:  normalSentiment,
-                call_successful: r.call_status === "completed" ? true : r.call_status ? false : null,
-                in_voicemail:    false,
-                call_summary:    null,
-              },
-              _provider: "WBAH",
-            });
-          }
-          if (rows.length < PAGE) break;
-          from += PAGE;
-        }
-        console.debug(`[analytics] WBAH: merged ${wbahCalls.length} wbah_calls into analytics (${data.days}d window)`);
-      } catch (e: any) {
-        console.warn("[analytics] wbah_calls fetch failed:", e?.message);
-      }
-    }
+    // WBAH no longer reads wbah_calls on the analytics page — it is served from
+    // the Retell API above (real per-agent data) like any other Retell
+    // workspace.  Every OTHER WBAH page still uses wbah_calls unchanged.  Kept
+    // as an empty array so the merge / meta below stay untouched.
+    const wbahCalls: any[] = [];
 
     const allCalls = [...calls, ...elCalls, ...wbahCalls];
     // configured = true when Retell agents, VoxStream calls, or WBAH calls exist

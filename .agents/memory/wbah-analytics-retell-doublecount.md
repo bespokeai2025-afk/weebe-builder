@@ -1,38 +1,49 @@
 ---
-name: WBAH analytics Retell double-count & agent misattribution
-description: Why WBAH analytics must use wbah_calls as the SOLE source and never also merge the Retell API.
+name: WBAH analytics uses Retell API only (never both sources)
+description: On the analytics page WBAH reads from its own Retell API for real per-agent data; every other WBAH page uses wbah_calls. Never merge both — that double-counts.
 ---
 
-# WBAH analytics: never merge the Retell API alongside wbah_calls
+# WBAH analytics page = Retell API only; all other WBAH pages = wbah_calls
 
-For the WBAH workspace (slug `webuyanyhouse`), `getRetellAnalytics` must rely
-**solely** on the `wbah_calls` table and must NOT also pull from the Retell API
-(`list-agents` / `list-calls`). The Retell path is gated with `!isWbah`.
+For the WBAH workspace (slug `webuyanyhouse`), the **analytics page only**
+(`getRetellAnalytics` + `listVoiceAgents`) reads from WBAH's **own Retell key**
+(`workspace_settings.retell_workspace_id`), exactly like any other Retell
+workspace. It does NOT also read `wbah_calls`. Every OTHER WBAH surface
+(`getOverviewStats`, People tabs, pipeline, calls/leads lists) still reads
+`wbah_calls` unchanged.
 
-**Why:**
-- WBAH calls are synced from the WeeBespoke API into `wbah_calls` with
-  `agent_name = NULL` for ~100% of rows. The code buckets every such row under a
-  single synthetic agent ("WeeBespoke Agent").
-- WBAH also has a workspace-level Retell key (`workspace_settings.retell_workspace_id`),
-  so analytics previously ALSO hit the Retell API and merged calls that ARE
-  correctly attributed to the named agents (e.g. "WBAH Client qualification agent").
-- These are the SAME underlying calls (verified: identical caller ID, destination
-  numbers, and timestamps appear in both `wbah_calls` and the Retell API), stored
-  twice with different IDs (`wbah_calls.id` is a UUID; Retell uses `call_*`) and
-  different attribution. Result: "All agents" double-counted the most recent page
-  of calls, and selecting the named agent showed only that small Retell page while
-  the bulk stayed under "WeeBespoke Agent" — so the named agent looked like it had
-  FEWER calls than "All agents".
-- Retell `v2/list-calls` returns a **bare array** (no `pagination_key`), so the
-  merge only ever fetched one page (max 1,000) anyway — partial AND duplicated.
+**Why this flipped (was: "wbah_calls only, gate Retell with `!isWbah`"):**
+- The WeeBespoke→`wbah_calls` sync drops agent identity (`agent_name` is NULL for
+  ~100% of rows), so that feed CANNOT power a per-agent view or the agent-selector
+  dropdown. Users needed all 5 WBAH agents visible + per-agent filtering.
+- WBAH has its own Retell account with 5 agents and full attribution. The SAME
+  calls live there WITH agent names, and volumes match closely (verified live:
+  Retell 30d ≈7,397 vs synced wbah_calls ≈7,173). So the analytics page switched
+  to the Retell source to get real per-agent data.
+
+**The invariant that still holds — exactly ONE source, never both:**
+These are the SAME underlying calls stored twice (Retell `call_*` ids vs
+`wbah_calls` UUIDs). If `getRetellAnalytics` ever read BOTH for WBAH, "All agents"
+would double-count. The fix keeps `wbahCalls` as a hard-coded empty array in
+`getRetellAnalytics` so the two sources can never merge.
 
 **How to apply:**
-- Keep the `if (apiKey && !isWbah)` gate on the Retell path. Non-WBAH workspaces
-  must keep the full Retell + per-agent behavior.
-- On the analytics page, hide the agent selector and the Per-Agent Breakdown for
-  WBAH (`!isWbah`) and force any persisted selection to null
-  (`effectiveSelectedAgentId = isWbah ? null : selectedAgentId`) — per-agent split
-  is impossible until the WeeBespoke sync preserves agent identity.
-- Bump the analytics cache key (`retellAnalyticsKey`, currently `...:retell:v2:...`)
-  whenever the WBAH merge logic changes, or stale double-counted entries serve for
-  the 15-min TTL after deploy.
+- `getRetellAnalytics` Retell gate is `if (apiKey)` (NOT `if (apiKey && !isWbah)`);
+  the wbah_calls block is replaced by `const wbahCalls: any[] = []`.
+- `listVoiceAgents` skip is `if (!ctx.apiKey)` (NOT `if (ctx.isWbah || !ctx.apiKey)`)
+  and dedupes `/list-agents` by `agent_id` (keep latest by
+  `last_modification_timestamp`) — Retell returns one row per agent VERSION (WBAH:
+  36 rows → 5 agents).
+- Frontend `analytics.tsx`: `effectiveSelectedAgentId = selectedAgentId` (no
+  `isWbah` force-null); the agent dropdown and Per-Agent Breakdown are NOT gated by
+  `!isWbah` anymore. `isWbah` is still used for the includeVm default, credits tab,
+  and visibleTabs.
+- Retell `v2/list-calls` returns a **bare array** and paginates via the LAST call's
+  `call_id` (no `pagination_key` field) — continue only while a page is full:
+  `paginationKey = res?.pagination_key ?? (page.length === PAGE_SIZE ? last call_id : undefined)`.
+  This un-caps a latent 1-page/1000-call limit for ALL workspaces on this page.
+- Bump the analytics cache key (`retellAnalyticsKey`) AND the agents key
+  (`retellAgentsKey`) in lockstep on any count/shape change, or stale entries serve
+  for the TTL after deploy.
+- Consequence of the user decision: if the WBAH Retell fetch fails, the page shows
+  "not configured" instead of falling back to wbah_calls. Accepted.
