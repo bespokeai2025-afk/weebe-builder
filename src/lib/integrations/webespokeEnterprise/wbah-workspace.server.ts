@@ -1288,58 +1288,86 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
 
 // ── Read WBAH calls from DB (synced by wbah-calls-sync.plugin) ───────────────
 
+// Plain DB read of wbah_calls (paginated + shaped to the calls-table contract).
+// Kept OUTSIDE any cacheWrap so the "live" path can refresh THEN read without a
+// stale cached payload masking the just-upserted rows.
+async function readWbahCallsRows(supabase: any, workspaceId: string) {
+  const sb = supabase as any;
+  // Supabase PostgREST caps rows at 1000 by default — paginate to fetch all.
+  const PAGE = 1000;
+  const allRows: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await sb
+      .from("wbah_calls")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    allRows.push(...rows);
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+  return allRows.map((r: any) => ({
+    id:                   r.id,
+    agent_id:             null,
+    agent_name:           r.agent_name,
+    call_status:          r.call_status,
+    call_type:            r.call_type ?? "outbound",
+    duration_seconds:     r.duration_seconds,
+    started_at:           r.started_at,
+    ended_at:             null,
+    recording_url:        r.recording_url,
+    transcript:           r.transcript,
+    call_summary:         r.call_summary,
+    from_number:          r.call_type === "inbound"  ? r.phone : null,
+    to_number:            r.call_type === "outbound" ? r.phone : null,
+    sentiment:            r.sentiment,
+    disconnection_reason: r.disconnection_reason,
+    cost_cents:           null,
+    retell_call_id:       null,
+    lead:                 r.customer_name ? { id: r.id, full_name: r.customer_name, phone: r.phone ?? "" } : null,
+    wbah_name:            r.customer_name,
+    wbah_contact:         r.phone,
+    appointment_date:     r.appointment_date,
+    appointment_time:     r.appointment_time,
+    booking_status:       r.booking_status,
+    calendly_booking_url: r.calendly_booking_url,
+    end_reason:           r.end_reason,
+    call_count:           r.call_count ?? 1,
+  }));
+}
+
 export const listWbahCallsFromDb = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-calls:${workspaceId}`, 2 * 60, async () => {
-    const sb = supabase as any;
-    // Supabase PostgREST caps rows at 1000 by default — paginate to fetch all.
-    const PAGE = 1000;
-    const allRows: any[] = [];
-    let from = 0;
-    while (true) {
-      const { data, error } = await sb
-        .from("wbah_calls")
-        .select("*")
-        .eq("workspace_id", workspaceId)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .range(from, from + PAGE - 1);
-      if (error) throw new Error(error.message);
-      const rows = data ?? [];
-      allRows.push(...rows);
-      if (rows.length < PAGE) break;
-      from += PAGE;
-    }
-    return allRows.map((r: any) => ({
-      id:                   r.id,
-      agent_id:             null,
-      agent_name:           r.agent_name,
-      call_status:          r.call_status,
-      call_type:            r.call_type ?? "outbound",
-      duration_seconds:     r.duration_seconds,
-      started_at:           r.started_at,
-      ended_at:             null,
-      recording_url:        r.recording_url,
-      transcript:           r.transcript,
-      call_summary:         r.call_summary,
-      from_number:          r.call_type === "inbound"  ? r.phone : null,
-      to_number:            r.call_type === "outbound" ? r.phone : null,
-      sentiment:            r.sentiment,
-      disconnection_reason: r.disconnection_reason,
-      cost_cents:           null,
-      retell_call_id:       null,
-      lead:                 r.customer_name ? { id: r.id, full_name: r.customer_name, phone: r.phone ?? "" } : null,
-      wbah_name:            r.customer_name,
-      wbah_contact:         r.phone,
-      appointment_date:     r.appointment_date,
-      appointment_time:     r.appointment_time,
-      booking_status:       r.booking_status,
-      calendly_booking_url: r.calendly_booking_url,
-      end_reason:           r.end_reason,
-      call_count:           r.call_count ?? 1,
-    }));
+    return cacheWrap(`webee:wbah-calls:${workspaceId}`, 2 * 60, () => readWbahCallsRows(supabase, workspaceId));
+  });
+
+// Live variant (option 3): pulls the newest calls from WeeBespoke on open
+// (incremental, stored-token, capped), upserts them, then reads the freshly-
+// updated table. Uses its OWN cache key so the refresh runs INSIDE the factory
+// and can never be masked by listWbahCallsFromDb's 2-min snapshot cache. The
+// refresh is idempotent and guarded against concurrent runs.
+export const listWbahCallsLive = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    return cacheWrap(`webee:wbah-calls-live:${workspaceId}`, 60, async () => {
+      if (workspaceId === WBAH_WORKSPACE_ID) {
+        try {
+          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
+          await refreshWbahCallsIncremental();
+        } catch (e: any) {
+          console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
+        }
+      }
+      return readWbahCallsRows(supabase, workspaceId);
     });
   });
 
@@ -1865,6 +1893,17 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
     return cacheWrap(`webee:wbah-posneu-leads:${workspaceId}`, 60, async () => {
+      // Live on open (option 3): refresh the newest calls from WeeBespoke first
+      // (incremental, idempotent, concurrency-guarded — deduped with the Calls
+      // page), so the positive/neutral leads derived below reflect the latest data.
+      if (workspaceId === WBAH_WORKSPACE_ID) {
+        try {
+          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
+          await refreshWbahCallsIncremental();
+        } catch (e: any) {
+          console.warn("[wbah-posneu-leads] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
+        }
+      }
       const PAGE = 1000;
       const all: any[] = [];
       let from = 0;

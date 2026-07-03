@@ -267,17 +267,17 @@ function LeadsPage() {
     queryKey: ["leads-all", isWbah, wbahDaysFilter],
     queryFn: () => {
       // WBAH "Leads window" = already-called contacts whose latest call came back
-      // positive or neutral, derived live from wbah_calls (deduped to the latest
-      // call per contact, newest-first). Date narrowing is applied client-side
-      // in `filtered`, matching how WBAH date filtering already works here.
+      // positive or neutral. For WBAH the server fn first refreshes the newest
+      // calls from WeeBespoke (incremental) before deriving, so this is LIVE on
+      // open. Date narrowing is applied client-side in `filtered`.
       if (isWbah) return listWbahPositiveNeutralLeadsFn();
       const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
       return listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } });
     },
     enabled: wsResolved,
-    staleTime: 5 * 60 * 1000,
+    staleTime: isWbah ? 60_000 : 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    refetchInterval: 5 * 60 * 1000,
+    refetchInterval: isWbah ? false : 5 * 60 * 1000,
     throwOnError: false,
   });
 

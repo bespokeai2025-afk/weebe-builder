@@ -553,6 +553,104 @@ export async function runWbahCallsSyncTick(): Promise<{ calls: number; errors: s
   return results;
 }
 
+// ── Incremental live refresh — newest pages only, upsert to wbah_calls ─────────
+//
+// Powers the "live on open" Calls + Leads pages. Reuses the STORED token and only
+// re-logs-in on a 401 — so on the common path it does NOT create a fresh
+// WeeBespoke session and therefore does NOT kick the human admin out of their
+// dashboard. Walks get-user-history newest-first, upserting each page
+// (idempotent), and stops as soon as a page holds only already-known call ids
+// (caught up). Capped at INCR_MAX_PAGES so a large backlog can't hang the request;
+// the remainder catches up over subsequent opens (or a manual full resync).
+let _incrInFlight: Promise<{ calls: number; pages: number; caughtUp: boolean; errors: string[] }> | null = null;
+let _incrLastRunAt = 0;
+const INCR_MIN_INTERVAL_MS = 55_000;
+const INCR_MAX_PAGES = 40;
+const INCR_MIN_PAGES = 3;
+
+export async function refreshWbahCallsIncremental(): Promise<{ calls: number; pages: number; caughtUp: boolean; errors: string[] }> {
+  // Concurrency guard: dedupe overlapping calls (React StrictMode, or Calls +
+  // Leads opened together) so we never run two syncs fighting over the single
+  // WeeBespoke session. In-flight promise handles concurrent races; the timestamp
+  // skips a re-sync if one just completed.
+  if (_incrInFlight) return _incrInFlight;
+  if (Date.now() - _incrLastRunAt < INCR_MIN_INTERVAL_MS) {
+    return { calls: 0, pages: 0, caughtUp: true, errors: [] };
+  }
+  _incrInFlight = (async () => {
+    const sb = getAdminClient();
+    const { data: ws } = await (sb as any).from("workspaces").select("id").eq("slug", WBAH_SLUG).maybeSingle();
+    if (!ws?.id) throw new Error("Webuyanyhouse workspace not found");
+    const workspaceId: string = ws.id;
+
+    const errors: string[] = [];
+    const tokens = await getStoredTokens(sb);
+    // No stored session → do NOT force a login here (that would kick the admin);
+    // serve whatever is already in the DB. A proactive re-login happens elsewhere.
+    if (!tokens) return { calls: 0, pages: 0, caughtUp: false, errors: ["Not connected"] };
+    let accessToken = tokens.accessToken;
+
+    const fetchPage = (p: number) =>
+      apiFetch<any>(`/call-output-data/get-user-history?currentPage=${p}`, {
+        method: "POST", body: "{}", headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+    let newCount = 0;
+    let pagesFetched = 0;
+    let caughtUp = false;
+    let pageSize = 0;
+
+    for (let p = 1; p <= INCR_MAX_PAGES; p++) {
+      let res = await fetchPage(p);
+      // Token expired mid-run → re-login ONCE. This is the only path that touches
+      // the shared session; the stored-token path above never does.
+      if (!res.ok && (res.status === 401 || res.status === 403)) {
+        try {
+          await ensureFreshToken(sb);
+          const t = await getStoredTokens(sb);
+          if (t) { accessToken = t.accessToken; res = await fetchPage(p); }
+        } catch (e: any) { errors.push(`relogin failed: ${e?.message ?? e}`); }
+      }
+      if (!res.ok || !res.data) { errors.push(`page ${p} failed: status=${res.status}`); break; }
+
+      const recs: any[] = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
+      pagesFetched++;
+      if (p === 1) pageSize = recs.length;
+      if (recs.length === 0) { caughtUp = true; break; }
+
+      const rows = recs.map(r => buildCallRow(r, workspaceId)).filter(Boolean) as NonNullable<ReturnType<typeof buildCallRow>>[];
+      const ids = rows.map(r => r.id);
+
+      // Which of this page's ids do we already have? (the caught-up signal)
+      let existingSet = new Set<string>();
+      if (ids.length) {
+        const { data: existing } = await (sb as any)
+          .from("wbah_calls").select("id").eq("workspace_id", workspaceId).in("id", ids);
+        existingSet = new Set(((existing ?? []) as any[]).map(e => String(e.id)));
+      }
+
+      // Always upsert (idempotent) so a recent call's late transcript/status
+      // update refreshes even when its id is already known.
+      await upsertCallRows(sb, rows);
+      newCount += ids.filter(id => !existingSet.has(id)).length;
+
+      // Reached the end of history (a short page) → stop.
+      if (pageSize > 0 && recs.length < pageSize) { caughtUp = true; break; }
+      // Caught up (this page held only known ids). Require a few pages first as
+      // insurance in case the feed is ordered by update-time rather than start-time.
+      const allKnown = ids.length > 0 && ids.every(id => existingSet.has(id));
+      if (allKnown && p >= INCR_MIN_PAGES) { caughtUp = true; break; }
+    }
+
+    _incrLastRunAt = Date.now();
+    console.log(`[wbah-calls-incr] pages=${pagesFetched} new=${newCount} caughtUp=${caughtUp} errors=${errors.length}`);
+    return { calls: newCount, pages: pagesFetched, caughtUp, errors };
+  })();
+
+  try { return await _incrInFlight; }
+  finally { _incrInFlight = null; }
+}
+
 export async function runWbahFullResync(): Promise<{ deleted: number; sellers: number; errors: string[] }> {
   const sb = getAdminClient();
   const { data: ws } = await (sb as any).from("workspaces").select("id").eq("slug", WBAH_SLUG).maybeSingle();

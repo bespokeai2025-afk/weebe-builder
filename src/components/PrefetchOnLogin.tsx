@@ -30,7 +30,7 @@ import { listCalls }                                  from "@/lib/dashboard/call
 import { getCallSchedule }                            from "@/lib/dashboard/call-schedule.functions";
 import { listDataRecords }                            from "@/lib/dashboard/data-records.functions";
 import {
-  listWbahCallsFromDb,
+  listWbahCallsLive,
   listWbahPositiveNeutralLeads,
   listWbahCategorizedLeads,
   listWbahCallsCount,
@@ -62,7 +62,7 @@ export function PrefetchOnLogin({ authed }: Props) {
   const listAgentsFn     = useServerFn(listLiveAgents);
   const scheduleFn       = useServerFn(getCallSchedule);
   const dataRecordsFn    = useServerFn(listDataRecords);
-  const wbahCallsFn      = useServerFn(listWbahCallsFromDb);
+  const wbahCallsFn      = useServerFn(listWbahCallsLive);
   const wbahLeadsFn      = useServerFn(listWbahPositiveNeutralLeads);
   const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
   const wbahCallsCountFn = useServerFn(listWbahCallsCount);

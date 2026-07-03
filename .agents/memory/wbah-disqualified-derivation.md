@@ -43,10 +43,30 @@ wbah-token-single-session), so the constant background churn kept invalidating t
 human admin's dashboard session 24/7, breaking ITS own Dynamics → People pull.
 
 **Rule:** All three are commented out in `vite.config.ts` (imports + plugins array).
-WBAH data is now **read on demand only** (when our People/Calls page is opened).
-**Trade-off:** DB-backed WBAH tables (leads / wbah_calls / categorized) go stale
-without these — accept it; protecting the source dashboard takes priority. On-demand
-reads still mint one session per use, so they can still bump the dashboard once when
-actively used — that's intentional and far better than 24/7 churn. Do NOT re-enable
-the plugins to "fix staleness" without first solving the shared-single-session
-problem (e.g. a dedicated service account for our app).
+WBAH data is now **read on demand only** (when our People/Calls/Leads page is opened).
+On-demand reads reuse the STORED token and only mint a new session on a 401, so they
+bump the dashboard at most once every ~30 min (token lifetime) — far better than 24/7
+churn. Do NOT re-enable the timed plugins to "fix staleness" without first solving the
+shared-single-session problem (e.g. a dedicated service account for our app).
+
+## Calls + Leads now pull LIVE on open (option 3 — replaces the stale-DB trade-off)
+The user chose to make the **Calls page AND Leads page live on open**, like People.
+- `refreshWbahCallsIncremental()` (wbah-leads-sync-tick.ts): walks `get-user-history`
+  newest-first with the STORED token (401-only relogin — happy path never forces a
+  login), upserts each page via `buildCallRow`/`upsertCallRows` (idempotent), and
+  STOPS when a page holds only already-known ids (`.in("id", pageIds)` check, min 3
+  pages, cap 40). Backlog >40 pages converges over subsequent opens.
+- Guarded by a **module-level in-flight Promise + 55s last-run timestamp** — this is
+  the real dedup because Redis is unconfigured (`cacheWrap` no-ops in dev; see the
+  `require is not defined` in redis.server.ts) and `cacheWrap` has no in-flight dedup.
+- `listWbahCallsLive` (NEW cache key `webee:wbah-calls-live`, 60s) = refresh INSIDE
+  the factory → then `readWbahCallsRows()` (extracted plain read, OUTSIDE any cache so
+  the refresh isn't masked). Calls page + `PrefetchOnLogin` use it; page staleTime 60s,
+  no refetchInterval.
+- `listWbahPositiveNeutralLeads` calls the same guarded refresh inside its 60s factory
+  before deriving. Leads page WBAH branch: staleTime 60s, refetchInterval false.
+- Both refreshes are `try/catch` (serve DB snapshot on failure) and gated on
+  `workspaceId === WBAH_WORKSPACE_ID`.
+- **Still stale (out of scope):** `data.tsx` People→Calls sub-tab uses
+  `listWbahCallsFromDb` (2-min DB snapshot); it benefits indirectly from page-open
+  upserts. Repoint to `listWbahCallsLive` if the user reports staleness there.

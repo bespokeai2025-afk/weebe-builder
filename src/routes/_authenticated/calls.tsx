@@ -24,7 +24,7 @@ import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { listWbahCallsFromDb } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCallsLive } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -303,15 +303,17 @@ function CallsPage() {
     retry:                0,
   });
 
-  // WeeBespoke calls — read from DB (synced by wbah-calls-sync plugin).
-  const wbahFn = useServerFn(listWbahCallsFromDb);
+  // WeeBespoke calls — pulled LIVE from WeeBespoke on open (incremental + capped),
+  // then read from the freshly-updated wbah_calls table. staleTime 60s keeps it
+  // fresh on open without a background timer repeatedly touching the single
+  // WeeBespoke session while the tab sits idle.
+  const wbahFn = useServerFn(listWbahCallsLive);
   const wbahQ = useQuery({
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
     enabled: isWbah,
-    staleTime:            5 * 60_000,
+    staleTime:            60_000,
     refetchOnWindowFocus: false,
-    refetchInterval:      5 * 60_000,
     retry: 0,
     throwOnError: false,
   });
@@ -329,8 +331,7 @@ function CallsPage() {
     }
   }, [isWbah, q.isError, wbahQ.isError]);
 
-  // Incremental refresh — only page 1 (newest ~50 records) polled every 60s.
-  // New records are merged client-side so we never re-fetch the full set.
+  // Sort newest-first for display; freshness is handled server-side by the live fn.
   const wbahRows = useMemo(() => {
     return ((wbahQ.data ?? []) as any[]).slice().sort((a, b) => {
       const ta = a.started_at ? new Date(a.started_at).getTime() : 0;
