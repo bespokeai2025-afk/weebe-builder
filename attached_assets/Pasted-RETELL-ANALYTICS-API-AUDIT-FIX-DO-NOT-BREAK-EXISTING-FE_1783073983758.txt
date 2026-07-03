@@ -1,0 +1,139 @@
+RETELL ANALYTICS API AUDIT + FIX — DO NOT BREAK EXISTING FEATURES
+
+My analytics page is pulling from Retell AI, but the data is wrong and the agent filter is not showing all agents in the current Retell workspace.
+
+Do not rebuild the dashboard.
+Do not change unrelated pages.
+Do not change WBAH business rules unless required for workspace scoping.
+Do not remove existing Supabase/Redis/API Engine logic.
+Do not hardcode Webuyanyhouse or Webespoke data.
+
+Goal:
+Make Retell analytics pull accurately per logged-in workspace, show all Retell agents for that workspace in the filter dropdown, and calculate analytics from the correct Retell call data.
+
+Important Retell API facts:
+- Use Retell List Voice Agents to populate the agent filter.
+- Use Retell List Calls for analytics.
+- List Calls supports filter_criteria, sort_order, limit up to 1000, skip, and pagination.
+- Do not only fetch the first 50 calls.
+- Fetch all pages until no more records / has_more false / returned count less than limit.
+- Analytics must be filtered by the selected date range and selected agent_id.
+- Calls and agents must come from the Retell API key stored for the logged-in user/workspace.
+
+Audit and fix these areas:
+
+1. Workspace Retell credentials
+- Find where Retell API key is loaded.
+- Confirm analytics uses the current logged-in workspace_id.
+- Confirm it uses workspace_settings Retell key for that workspace.
+- Prevent cross-account leakage where Webespoke shows WBAH data or WBAH shows Webespoke data.
+- Add safe logs showing workspace_id, workspace_slug, and whether a Retell key exists, but never log the actual key.
+
+2. Agent filter
+- Add/fix backend endpoint:
+  GET /api/analytics/retell/agents
+- It must call Retell List Voice Agents using the current workspace Retell key.
+- Normalize returned agents to:
+  {
+    agent_id,
+    agent_name,
+    raw_agent_name,
+    last_modification_timestamp,
+    is_active
+  }
+- Include every agent from the workspace.
+- The frontend analytics filter must load these agents dynamically.
+- Add an “All agents” option.
+- When an agent is selected, analytics must pass that exact agent_id into call filtering.
+- Do not use local hardcoded agent names.
+
+3. Retell calls pagination
+- Find current Retell List Calls logic.
+- Replace any single-page fetch with full pagination.
+- Use limit: 1000.
+- Use skip/page loop or pagination_key depending on the existing SDK/response shape.
+- Continue until all calls in the date range are loaded.
+- Add debug counts:
+  - page number
+  - records returned
+  - total accumulated
+  - selected date range
+  - selected agent_id
+  - workspace_id
+- Never log transcripts or sensitive caller data.
+
+4. Date filtering
+- Ensure analytics uses start_timestamp from Retell calls.
+- Convert selected dashboard dates into millisecond timestamps correctly.
+- Date range must include the whole selected day:
+  - start: 00:00:00
+  - end: 23:59:59.999
+- Respect the dashboard timezone consistently.
+- Make sure “today”, “7 days”, “30 days”, and custom ranges return correct results.
+
+5. Analytics calculations
+Recalculate from the fetched Retell call list only:
+- total calls
+- completed calls
+- failed/error calls
+- average duration
+- total duration
+- average call cost if Retell returns cost
+- total call cost if Retell returns cost
+- sentiment counts if present
+- successful/qualified calls if present in call_analysis/custom_analysis
+- calls per day
+- calls per agent
+- average latency if present
+- voicemail/no-answer separation if present
+
+Do not invent missing values. If Retell does not return a metric, show 0 or “Unavailable” clearly.
+
+6. Data correctness checks
+Add an internal audit function that compares:
+- Retell raw call count for date range
+- after agent filter count
+- after dashboard/business filter count
+- Supabase cached analytics count if used
+- final UI count
+
+If Redis cache is used:
+- Include workspace_id, date range, and agent_id in the cache key.
+- Do not reuse one workspace’s analytics cache for another.
+- Add temporary cache bypass option for analytics debugging:
+  ?fresh=true
+
+7. Frontend analytics page
+- Ensure the agent dropdown loads from the new agents endpoint.
+- Show loading and error states.
+- If no agents are returned, show:
+  “No Retell agents found for this workspace.”
+- When filter changes, refetch analytics.
+- Add small diagnostic text in dev mode only:
+  workspace, selected agent, date range, raw Retell calls fetched.
+
+8. Supabase persistence
+If analytics stores Retell calls in Supabase:
+- Upsert by retell_call_id + workspace_id.
+- Store agent_id.
+- Store start_timestamp.
+- Store normalized duration/cost/status/sentiment.
+- Do not duplicate calls.
+- Ensure RLS/workspace filters are applied.
+
+9. Acceptance tests
+After fixing, test:
+- Webespoke account only shows Webespoke Retell agents.
+- WBAH account only shows WBAH Retell agents.
+- Agent filter dropdown contains all agents in the selected workspace.
+- “All agents” count equals sum of individual agent counts.
+- Date range count matches Retell raw API count.
+- ?fresh=true bypasses cache and returns live Retell data.
+- No existing pages break.
+
+Deliverables:
+- Explain exactly what was wrong.
+- List files changed.
+- Show before/after data flow.
+- Add safe logging only.
+- Keep the UI design the same except for fixing the filter and error/loading states.

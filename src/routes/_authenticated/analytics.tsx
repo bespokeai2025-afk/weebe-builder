@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { getRetellAnalytics } from "@/lib/dashboard/analytics.functions";
+import { getRetellAnalytics, listVoiceAgents } from "@/lib/dashboard/analytics.functions";
 import { getWbahCredits } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { ProviderCreditsBar } from "@/components/providers/ProviderCreditsBar";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
@@ -362,6 +362,7 @@ function AnalyticsPage() {
   // ── Call analytics state ──
   const fn              = useServerFn(getRetellAnalytics);
   const getLiveAgentsFn = useServerFn(getDashboardLiveAgents);
+  const listVoiceAgentsFn = useServerFn(listVoiceAgents);
   const [rangeKey, setRangeKey] = useState("30d");
   const activeRange = RANGES.find((r) => r.key === rangeKey) ?? RANGES[2];
   const days = activeRange.days;
@@ -381,6 +382,10 @@ function AnalyticsPage() {
   const liveAgentsQ = useQuery({ queryKey: ["dashboard-live-agents"], queryFn: () => getLiveAgentsFn({ data: undefined }), staleTime: 60_000 ,
     throwOnError: false,
   });
+  // Dedicated Retell voice-agent list for the filter dropdown — sourced from the
+  // workspace's own Retell key so every agent appears, independent of whether
+  // any of them have calls in the selected window.
+  const voiceAgentsQ = useQuery({ queryKey: ["voice-agents"], queryFn: () => listVoiceAgentsFn({ data: undefined }), staleTime: 5 * 60_000, refetchOnWindowFocus: false, throwOnError: false });
 
   const result   = q.data;
   const allCalls = (result?.calls ?? []) as any[];
@@ -402,11 +407,19 @@ function AnalyticsPage() {
     for (const a of liveAgentsQ.data ?? []) {
       if (a.deployedRetellAgentId) liveMap[a.deployedRetellAgentId] = a.name;
     }
-    return Object.entries(agentNames).map(([id, name]) => ({
-      id,
-      name: liveMap[id] ?? name,
-    }));
-  }, [agentNames, liveAgentsQ.data]);
+    const byId = new Map<string, string>();
+    // Primary source: the dedicated Retell voice-agents endpoint — every agent
+    // on this workspace's Retell account, even ones with no calls in the window.
+    for (const a of voiceAgentsQ.data?.agents ?? []) {
+      byId.set(a.agent_id, liveMap[a.agent_id] ?? a.agent_name);
+    }
+    // Union with agents that appear in the call data but not the agent list
+    // (e.g. VoxStream/ElevenLabs calls carry their own agent_id).
+    for (const [id, name] of Object.entries(agentNames)) {
+      if (!byId.has(id)) byId.set(id, liveMap[id] ?? name);
+    }
+    return Array.from(byId.entries()).map(([id, name]) => ({ id, name }));
+  }, [agentNames, liveAgentsQ.data, voiceAgentsQ.data]);
   const calls    = useMemo(() => {
     let cs = effectiveSelectedAgentId ? allCalls.filter((c) => c.agent_id === effectiveSelectedAgentId) : allCalls;
     if (todayOnly) cs = cs.filter((c) => c.start_timestamp != null && c.start_timestamp >= startOfTodayMs);
@@ -477,18 +490,31 @@ function AnalyticsPage() {
             {/* WBAH calls are synced without an agent name, so every call falls
                 under one synthetic bucket — a per-agent filter would be
                 meaningless (and previously misleading). Hide it for WBAH. */}
-            {agentList.length > 0 && !isWbah && (
+            {!isWbah && (
               <div className="relative">
                 <button
                   onClick={() => setSelectorOpen((o) => !o)}
                   className="flex items-center gap-2 rounded-lg border border-white/[0.1] bg-card/60 px-3 py-1.5 text-sm font-medium hover:bg-card/80"
                 >
                   <span className="max-w-[180px] truncate">{selectedAgentName}</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  {voiceAgentsQ.isPending ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-transparent" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
                 </button>
                 {selectorOpen && (
                   <div className="absolute right-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-lg border border-border bg-popover shadow-xl">
                     <button className={`w-full px-4 py-2.5 text-left text-sm hover:bg-muted/60 ${!selectedAgentId ? "text-primary font-medium" : "text-foreground"}`} onClick={() => { setSelectedAgentId(null); setSelectorOpen(false); }}>All agents</button>
+                    {voiceAgentsQ.isPending && (
+                      <div className="px-4 py-2.5 text-sm text-muted-foreground">Loading agents…</div>
+                    )}
+                    {!voiceAgentsQ.isPending && (voiceAgentsQ.isError || voiceAgentsQ.data?.error) && (
+                      <div className="px-4 py-2.5 text-sm text-amber-300">Couldn't load agents — showing all calls.</div>
+                    )}
+                    {!voiceAgentsQ.isPending && !voiceAgentsQ.isError && !voiceAgentsQ.data?.error && agentList.length === 0 && (
+                      <div className="px-4 py-2.5 text-sm text-muted-foreground">No Retell agents found for this workspace.</div>
+                    )}
                     {agentList.map((a) => (
                       <button key={a.id} className={`w-full px-4 py-2.5 text-left text-sm hover:bg-muted/60 ${selectedAgentId === a.id ? "text-primary font-medium" : "text-foreground"}`} onClick={() => { setSelectedAgentId(a.id); setSelectorOpen(false); }}>{a.name}</button>
                     ))}

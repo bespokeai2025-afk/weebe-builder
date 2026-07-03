@@ -16,6 +16,7 @@ description: Definitive mapping of WeeBespoke API endpoints to WEBEE pages for t
 
 ## get-user-history pagination — CRITICAL
 
+- **SORT ORDER IS OLDEST-FIRST**: page 1 = the OLDEST calls; the NEWEST calls live on the LAST page (`currentPage = ceil(totalItems/10)`). Any incremental "get recent calls" refresh MUST walk newest→oldest starting from the last page — walking pages 1→N and stopping after a few all-known pages never reaches recent calls and silently freezes the newest date (symptom: Calls page newest date stuck weeks in the past while DB keeps the old max). `refreshWbahCallsIncremental` probes page1 for totalItems→lastPage, auto-detects the newest end (compare max started_at epoch of page1 vs lastPage; default newest-at-end if the probe fails), then walks newest→oldest in concurrent batches, stopping when a batch reaches back to the DB's current max started_at. Cap must exceed the worst-case gap (≈290 calls/day ⇒ ~29 pages/day) or a capped run leaves a permanent middle hole (dbMax-based stopping can't detect a gap older than the newest synced call).
 - **Pagination key**: URL query param `?currentPage=N` — NOT the POST body
 - All body-based pagination keys are silently ignored (`page`, `pageNumber`, `pageNo`, `pageNum`, `offset`, `skip`, `currentPage` in body — all return the same first 10 records)
 - `wbahGetUserHistoryPaged(page)` must POST to `/call-output-data/get-user-history?currentPage=${page}` with empty body `{}`

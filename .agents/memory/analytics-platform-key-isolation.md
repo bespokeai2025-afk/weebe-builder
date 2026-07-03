@@ -21,10 +21,24 @@ every other workspace's calls. User-reported as "analytics on my normal account
 should be linked to the workspace id." Fail closed = a legit no-deployment workspace
 shows `configured:false` / "No deployed agents found" instead of leaking.
 
+**Same isolation rule now shared by two fns.** `getRetellAnalytics` and the agent-
+filter's dedicated `listVoiceAgents` server fn both derive key + allow-list from one
+helper (`resolveRetellContext`) so the fail-closed rules stay identical. The agent
+dropdown MUST be sourced from `listVoiceAgents` (the workspace's own Retell
+`/list-agents`), NOT from the cached calls response — otherwise only agents that
+happen to have calls in the window appear. Its cache key is workspace-scoped
+(`webee:analytics:${ws}:retell-agents:vN`, 5-min TTL) and `listVoiceAgents` returns
+empty for WBAH/no-key. Frontend unions `voiceAgentsQ.data.agents` with call-derived
+`agentNames`, keyed by provider `agent_id` so the client-side `c.agent_id === selected`
+filter keeps working.
+
 **How to apply:**
 - The workspace-OWN-key path (`workspaceRetellKey` set) intentionally keeps
   `deployedAgentIds = null` — every agent on that key already belongs to the
   workspace, so no filtering is correct there. Don't "fix" that.
+- Date windows floor to whole UTC days (`startOfUtcDayMs(now) − (days−1)·24h`) on the
+  server; the client "Today" narrowing uses `setUTCHours(0,0,0,0)` — keep them on the
+  same UTC boundary or trend buckets and totals disagree.
 - WBAH is unaffected: the whole Retell-API block is gated by `!isWbah` (WBAH uses
   `wbah_calls`). The dashboard `getOverviewStats` is also unaffected — it reads the
   `calls` table scoped by `workspace_id`, never the Retell API agent list.

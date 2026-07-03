@@ -5,14 +5,168 @@ import { retellFetch } from "@/lib/providers/retell/client.server";
 import { cacheWrap } from "@/lib/cache/redis.server";
 
 const RETELL_ANALYTICS_TTL = 15 * 60; // 15 minutes
+const RETELL_AGENTS_TTL = 5 * 60; // 5 minutes
 
 function retellAnalyticsKey(workspaceId: string, days: number) {
   // v2: WBAH no longer merges the Retell API page (dedup + agent attribution fix).
   // v3: standard (platform-key) workspaces now fail closed to deployed agents
   // only. Bump so any previously-cached cross-workspace entries are not served
   // after deploy.
-  return `webee:analytics:${workspaceId}:retell:v3:${days}d`;
+  // v4: the date window now floors to whole UTC days (00:00 UTC boundaries) —
+  // different call sets than the old rolling `now - Nd` window, so v3 entries
+  // must not be served.
+  return `webee:analytics:${workspaceId}:retell:v4:${days}d`;
 }
+
+function retellAgentsKey(workspaceId: string) {
+  return `webee:analytics:${workspaceId}:retell-agents:v1`;
+}
+
+// Start of the given instant's UTC calendar day (00:00:00.000 UTC).
+function startOfUtcDayMs(ms: number): number {
+  const d = new Date(ms);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+type RetellContext = {
+  workspaceSlug: string | null;
+  isWbah: boolean;
+  workspaceKey: string | undefined;
+  apiKey: string | undefined;
+  keySource: "workspace" | "platform" | "none";
+  /**
+   * Allow-list of Retell agent_ids this workspace may see, or `null` when the
+   * workspace uses its OWN Retell key (every agent on that key belongs to it).
+   * When using the shared PLATFORM key this is a Set built from the deployments
+   * table and MUST fail closed: an empty set ⇒ zero visible agents/calls rather
+   * than leaking every other workspace's data.
+   */
+  deployedAgentIds: Set<string> | null;
+};
+
+// Resolve which Retell key + agent allow-list applies to a workspace. Shared by
+// getRetellAnalytics and listVoiceAgents so the isolation rules stay identical.
+// NEVER logs or returns the raw key value.
+async function resolveRetellContext(sb: any, workspaceId: string): Promise<RetellContext> {
+  const { data: wsSlugRow } = await sb
+    .from("workspaces")
+    .select("slug")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const workspaceSlug = (wsSlugRow?.slug as string | undefined) ?? null;
+  const isWbah = workspaceSlug === "webuyanyhouse";
+
+  const { data: wsSettings } = await sb
+    .from("workspace_settings")
+    .select("retell_workspace_id")
+    .eq("workspace_id", workspaceId)
+    .maybeSingle();
+  const workspaceKey = (wsSettings?.retell_workspace_id as string | undefined)?.trim() || undefined;
+  const apiKey = workspaceKey || process.env.RETELL_API_KEY || undefined;
+  const keySource: RetellContext["keySource"] = workspaceKey ? "workspace" : apiKey ? "platform" : "none";
+
+  let deployedAgentIds: Set<string> | null = null;
+  if (!workspaceKey && apiKey) {
+    deployedAgentIds = new Set<string>();
+    try {
+      const { data: deps } = await sb
+        .from("deployments")
+        .select("provider_agent_id")
+        .eq("workspace_id", workspaceId)
+        .eq("provider", "retell")
+        .not("provider_agent_id", "is", null);
+      for (const d of (deps as any[]) ?? []) {
+        if (d.provider_agent_id) deployedAgentIds.add(d.provider_agent_id as string);
+      }
+    } catch (e) {
+      console.warn("[analytics] Could not fetch workspace deployments:", e);
+    }
+  }
+
+  return { workspaceSlug, isWbah, workspaceKey, apiKey, keySource, deployedAgentIds };
+}
+
+export interface VoiceAgentOption {
+  agent_id: string;
+  agent_name: string;
+  raw_agent_name: string | null;
+  last_modification_timestamp: number | null;
+  is_active: boolean;
+}
+
+/**
+ * List the voice agents visible to the current workspace, for the analytics
+ * agent-filter dropdown. Uses the workspace's OWN Retell key when present (all
+ * agents belong to it) and falls back to the platform key restricted to agents
+ * deployed in this workspace (fail closed). WBAH has no per-agent identity on its
+ * synced calls, so it returns no agents (its dropdown is intentionally hidden).
+ */
+export const listVoiceAgents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }: any) => {
+    const { supabase } = context;
+    const workspaceId = context.workspaceId;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+
+    const url = (context as any).request?.url ?? "";
+    const fresh =
+      process.env.NODE_ENV !== "production" &&
+      (new URL(url, "http://x").searchParams.has("fresh") ||
+        new URL(url, "http://x").searchParams.has("bust"));
+
+    return cacheWrap(
+      retellAgentsKey(workspaceId),
+      RETELL_AGENTS_TTL,
+      async () => {
+        const ctx = await resolveRetellContext(sb, workspaceId);
+
+        // WBAH / no key → no agent filter.
+        if (ctx.isWbah || !ctx.apiKey) {
+          console.log(
+            `[analytics] listVoiceAgents workspace=${workspaceId} slug=${ctx.workspaceSlug ?? "?"} keySource=${ctx.keySource} hasKey=${!!ctx.apiKey} agents=0 (skipped)`,
+          );
+          return {
+            agents: [] as VoiceAgentOption[],
+            workspaceSlug: ctx.workspaceSlug,
+            keySource: ctx.keySource,
+            error: ctx.apiKey ? null : "No Retell API key configured",
+          };
+        }
+
+        let raw: any[] = [];
+        let error: string | null = null;
+        try {
+          raw = await retellFetch<any[]>("/list-agents", null, "GET", ctx.apiKey);
+        } catch (e: any) {
+          error = e?.message || "Failed to load Retell agents";
+          console.error("[analytics] listVoiceAgents /list-agents failed:", e?.message);
+        }
+
+        const agents: VoiceAgentOption[] = (raw ?? [])
+          .filter((a: any) => a.agent_id)
+          // Platform key: only agents actually deployed in this workspace.
+          .filter((a: any) => ctx.deployedAgentIds === null || ctx.deployedAgentIds.has(a.agent_id))
+          .map((a: any) => ({
+            agent_id: a.agent_id as string,
+            agent_name: (a.agent_name as string | undefined) ?? (a.agent_id as string),
+            raw_agent_name: (a.agent_name as string | undefined) ?? null,
+            last_modification_timestamp: (a.last_modification_timestamp as number | undefined) ?? null,
+            is_active: a.is_published !== false,
+          }))
+          .sort(
+            (x, y) => (y.last_modification_timestamp ?? 0) - (x.last_modification_timestamp ?? 0),
+          );
+
+        console.log(
+          `[analytics] listVoiceAgents workspace=${workspaceId} slug=${ctx.workspaceSlug ?? "?"} keySource=${ctx.keySource} hasKey=${!!ctx.apiKey} agents=${agents.length}`,
+        );
+        return { agents, workspaceSlug: ctx.workspaceSlug, keySource: ctx.keySource, error };
+      },
+      fresh,
+    );
+  });
 
 export const syncRetellReceptionist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -76,6 +230,8 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     z
       .object({
         days: z.number().int().min(1).max(90).default(30),
+        // Debug-only cache bypass (?fresh=true). Honoured in non-prod only.
+        fresh: z.boolean().default(false),
       })
       .parse(input ?? {}),
   )
@@ -86,66 +242,37 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     const sb = supabase as any;
 
     const url = (context as any).request?.url ?? "";
-    const bust = process.env.NODE_ENV !== "production" && new URL(url, "http://x").searchParams.has("bust");
+    const bust =
+      (process.env.NODE_ENV !== "production" && data.fresh) ||
+      (process.env.NODE_ENV !== "production" &&
+        (new URL(url, "http://x").searchParams.has("bust") ||
+          new URL(url, "http://x").searchParams.has("fresh")));
 
     return cacheWrap(
       retellAnalyticsKey(workspaceId, data.days),
       RETELL_ANALYTICS_TTL,
       async () => {
-    const sinceMs = Date.now() - data.days * 24 * 60 * 60 * 1000;
+    const startedAtMs = Date.now();
+    // Whole-day window in UTC: 00:00:00 UTC of the day (days-1) days ago → now.
+    // Charts, the byDay buckets and the client-side "Today" narrowing are all
+    // UTC-based, so the window boundary must be UTC too — otherwise "Today" and
+    // the trend buckets disagree. days=1 therefore means "since 00:00 UTC today".
+    const sinceMs = startOfUtcDayMs(Date.now()) - (data.days - 1) * 24 * 60 * 60 * 1000;
     const sinceIso = new Date(sinceMs).toISOString();
 
-    // Detect WBAH workspace — uses wbah_calls table, not Retell API
-    const { data: wsSlugRow } = await sb
-      .from("workspaces")
-      .select("slug")
-      .eq("id", workspaceId)
-      .maybeSingle();
-    const isWbah = wsSlugRow?.slug === "webuyanyhouse";
+    // Resolve the workspace's Retell key + agent allow-list. Prefers the
+    // workspace's OWN key (all agents belong to it); falls back to the shared
+    // platform key restricted to agents deployed in this workspace (fail closed,
+    // so one workspace can never see another's calls). WBAH uses wbah_calls only.
+    const { workspaceSlug, isWbah, apiKey, keySource, deployedAgentIds } =
+      await resolveRetellContext(sb, workspaceId);
 
     let calls: any[] = [];
     let error: string | null = null;
     let agentNames: Record<string, string> = {};
     let agentIds: string[] = [];
-
-    // ── Retell calls (from Retell API) ───────────────────────────────────────
-    // Prefer the workspace's own Retell API key (Go Live agents live there).
-    // Fall back to the platform key for builder/test agents.
-    const { data: wsSettings } = await sb
-      .from("workspace_settings")
-      .select("retell_workspace_id")
-      .eq("workspace_id", workspaceId)
-      .maybeSingle();
-    const workspaceRetellKey = (wsSettings?.retell_workspace_id as string | undefined)?.trim() || undefined;
-    const apiKey = workspaceRetellKey || process.env.RETELL_API_KEY;
-
-    // When using the platform key (shared account), limit to only agents
-    // that have been deployed in this workspace so we don't mix data across
-    // all workspaces on the account.
-    //
-    // This MUST fail closed: the platform Retell key sees every workspace's
-    // agents, so the allow-list starts EMPTY. If this workspace has no
-    // recorded deployments (or the lookup errors), analytics show zero calls
-    // for this workspace rather than leaking every other workspace's data.
-    // (The workspace-own-key path leaves this null on purpose — every agent on
-    // that key already belongs to the workspace.)
-    let deployedAgentIds: Set<string> | null = null;
-    if (!workspaceRetellKey && apiKey) {
-      deployedAgentIds = new Set<string>();
-      try {
-        const { data: deps } = await sb
-          .from("deployments")
-          .select("provider_agent_id")
-          .eq("workspace_id", workspaceId)
-          .eq("provider", "retell")
-          .not("provider_agent_id", "is", null);
-        for (const d of (deps as any[]) ?? []) {
-          if (d.provider_agent_id) deployedAgentIds.add(d.provider_agent_id as string);
-        }
-      } catch (e) {
-        console.warn("[analytics] Could not fetch workspace deployments:", e);
-      }
-    }
+    let retellPages = 0;
+    let retellTruncated = false;
 
     // WBAH note: this workspace's calls are synced into wbah_calls (handled
     // below) and are the SAME calls that live in its Retell account, but the
@@ -208,6 +335,13 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
             paginationKey = res?.pagination_key ?? undefined;
             page++;
           } while (paginationKey && page < MAX_PAGES);
+          retellPages = page;
+          retellTruncated = !!paginationKey && page >= MAX_PAGES;
+          if (retellTruncated) {
+            console.warn(
+              `[analytics] Retell list-calls hit page cap (${MAX_PAGES} × ${PAGE_SIZE}) for workspace ${workspaceId}; results truncated`,
+            );
+          }
         } catch (e: any) {
           error = e?.message || "Failed to load Retell analytics";
           console.error("Retell list-calls failed:", e);
@@ -340,18 +474,36 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       console.debug(`[voicemail] getRetellAnalytics: ${vmFromApi} voicemail calls from Retell API will be excluded in computeAnalytics (${data.days}d window, workspace ${workspaceId})`);
     }
 
+    // Reconciliation meta — counts per source so a mismatch between "All agents"
+    // and the sum of per-agent totals can be diagnosed. Never includes the key.
+    const meta = {
+      keySource,
+      hasKey: !!apiKey,
+      pagesFetched: retellPages,
+      truncated: retellTruncated,
+      retellCount: calls.length,
+      elCount: elCalls.length,
+      wbahCount: wbahCalls.length,
+      totalCount: allCalls.length,
+      elapsedMs: Date.now() - startedAtMs,
+    };
+    console.log(
+      `[analytics] getRetellAnalytics workspace=${workspaceId} slug=${workspaceSlug ?? "?"} keySource=${keySource} hasKey=${!!apiKey} days=${data.days} pages=${retellPages}${retellTruncated ? "(truncated)" : ""} retell=${calls.length} el=${elCalls.length} wbah=${wbahCalls.length} total=${allCalls.length} ${meta.elapsedMs}ms`,
+    );
+
     if (!configured) {
       return {
         configured: false,
         agentIds,
         calls: allCalls,
         agentNames,
-        workspaceSlug: wsSlugRow?.slug ?? null,
+        workspaceSlug,
+        meta,
         error: error ?? (!apiKey ? "No Retell API key configured" : "No deployed agents found in this workspace"),
       };
     }
 
-    return { configured: true, agentIds, calls: allCalls, agentNames, error, workspaceSlug: wsSlugRow?.slug ?? null };
+    return { configured: true, agentIds, calls: allCalls, agentNames, error, workspaceSlug, meta };
   }, bust);
   });
 
