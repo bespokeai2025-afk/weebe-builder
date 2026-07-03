@@ -27,6 +27,18 @@ function sseComment(msg: string): string {
   return `: ${msg}\n\n`;
 }
 
+/** Read a cookie value from the incoming request (EventSource sends same-origin cookies). */
+function readCookie(request: Request, name: string): string | null {
+  const header = request.headers.get("cookie") ?? "";
+  const match = header.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
 function parseTranscriptString(raw: string): { role: "agent" | "user"; content: string }[] {
   if (!raw) return [];
   return raw
@@ -64,20 +76,54 @@ function extractTranscript(c: any): { role: "agent" | "user"; content: string }[
 /** Verify the JWT and resolve workspace + Retell key using the admin client (bypasses RLS). */
 async function getWorkspaceRetellKey(
   token: string,
-): Promise<{ apiKey: string | null; workspaceId: string | null }> {
+  cookieWorkspaceId?: string | null,
+): Promise<{
+  apiKey: string | null;
+  workspaceId: string | null;
+  /**
+   * When the workspace has NO dedicated Retell key and falls back to the shared
+   * PLATFORM key, this is the Set of provider_agent_ids deployed by THIS
+   * workspace — live calls are filtered to these so one tenant can never see
+   * another tenant's ongoing calls. `null` means a dedicated workspace key is
+   * in use (the key itself is already tenant-isolated, no filter needed).
+   */
+  deployedAgentIds: Set<string> | null;
+}> {
   try {
     const { data, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !data?.user?.id) return { apiKey: null, workspaceId: null };
+    if (error || !data?.user?.id)
+      return { apiKey: null, workspaceId: null, deployedAgentIds: null };
     const userId = data.user.id;
 
-    const { data: wm } = await supabaseAdmin
-      .from("workspace_members")
-      .select("workspace_id")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
-    const workspaceId = wm?.workspace_id ?? null;
-    if (!workspaceId) return { apiKey: null, workspaceId: null };
+    let workspaceId: string | null = null;
+
+    // Prefer the user's ACTIVE workspace (the wb_workspace_id cookie the rest of
+    // the app uses), but only after verifying membership. This keeps live calls
+    // scoped to the workspace the user is actually viewing and prevents a user
+    // from monitoring a workspace they don't belong to.
+    if (cookieWorkspaceId) {
+      const { data: member } = await supabaseAdmin
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("workspace_id", cookieWorkspaceId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (member?.workspace_id) workspaceId = member.workspace_id;
+    }
+
+    // Fall back to first membership if there is no valid active-workspace cookie.
+    if (!workspaceId) {
+      const { data: wm } = await supabaseAdmin
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .maybeSingle();
+      workspaceId = wm?.workspace_id ?? null;
+    }
+
+    if (!workspaceId)
+      return { apiKey: null, workspaceId: null, deployedAgentIds: null };
 
     const { data: ws } = await supabaseAdmin
       .from("workspace_settings")
@@ -85,14 +131,37 @@ async function getWorkspaceRetellKey(
       .eq("workspace_id", workspaceId)
       .maybeSingle();
 
-    const apiKey =
-      (ws?.retell_workspace_id as string | undefined)?.trim() ||
-      process.env.RETELL_API_KEY ||
-      null;
+    const workspaceKey = (ws?.retell_workspace_id as string | undefined)?.trim() || undefined;
+    const apiKey = workspaceKey || process.env.RETELL_API_KEY || null;
 
-    return { apiKey, workspaceId };
+    // FAIL CLOSED: when this workspace has no dedicated key and falls back to the
+    // shared platform key, Retell's /v2/list-calls returns EVERY tenant's ongoing
+    // calls. Restrict to the agents THIS workspace has deployed. An empty set
+    // (workspace has deployed nothing on the platform key) ⇒ zero live cards,
+    // never an unfiltered (null) view. Mirrors resolveRetellContext in
+    // analytics.functions.ts. Completed cards come from the workspace-scoped
+    // `calls` table and are already isolated, so they need no filter.
+    let deployedAgentIds: Set<string> | null = null;
+    if (!workspaceKey && apiKey) {
+      deployedAgentIds = new Set<string>();
+      try {
+        const { data: deps } = await supabaseAdmin
+          .from("deployments")
+          .select("provider_agent_id")
+          .eq("workspace_id", workspaceId)
+          .eq("provider", "retell")
+          .not("provider_agent_id", "is", null);
+        for (const d of (deps as any[]) ?? []) {
+          if (d.provider_agent_id) deployedAgentIds.add(d.provider_agent_id as string);
+        }
+      } catch {
+        // On error keep the empty set → fail closed (show nothing) rather than leak.
+      }
+    }
+
+    return { apiKey, workspaceId, deployedAgentIds };
   } catch {
-    return { apiKey: null, workspaceId: null };
+    return { apiKey: null, workspaceId: null, deployedAgentIds: null };
   }
 }
 
@@ -120,6 +189,39 @@ async function fetchDbTranscripts(
   }
 }
 
+/**
+ * Best-effort resolve caller names from the workspace's leads table by phone.
+ * Called only for NEW call ids (results are cached per connection), so we never
+ * hammer the (potentially very large) leads table on every poll tick.
+ */
+async function fetchLeadNames(
+  workspaceId: string,
+  phones: string[],
+): Promise<Record<string, string>> {
+  const unique = Array.from(new Set(phones.filter((p): p is string => !!p)));
+  if (!unique.length) return {};
+  try {
+    const { data } = await supabaseAdmin
+      .from("leads")
+      .select("phone, full_name")
+      .eq("workspace_id", workspaceId)
+      .in("phone", unique)
+      // Fixed generous bound: WBAH's leads table has many duplicate rows per
+      // phone, so limiting to unique.length could truncate before every phone
+      // is represented. Still index-bounded via (workspace_id, phone).
+      .limit(500);
+    const map: Record<string, string> = {};
+    for (const row of data ?? []) {
+      const phone = (row.phone as string | null)?.trim();
+      const name = (row.full_name as string | null)?.trim();
+      if (phone && name) map[phone] = name;
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 interface RecentCall {
   call_id: string;
   agent_id: string;
@@ -131,6 +233,10 @@ interface RecentCall {
   start_timestamp: number | null;
   transcript: { role: "agent" | "user"; content: string }[];
   status: "live" | "completed";
+  call_status: "ended" | "failed";
+  lead_name: string | null;
+  current_node_id: string | null;
+  current_node_label: string | null;
 }
 
 /**
@@ -146,7 +252,7 @@ async function fetchRecentCompletedCalls(
     const { data } = await supabaseAdmin
       .from("calls")
       .select(
-        "retell_call_id, agent_id, agent_name, call_type, from_number, to_number, started_at, transcript",
+        "retell_call_id, agent_id, agent_name, call_type, from_number, to_number, started_at, transcript, call_status",
       )
       .eq("workspace_id", workspaceId)
       .in("call_status", ["completed", "no_answer", "failed"])
@@ -157,18 +263,27 @@ async function fetchRecentCompletedCalls(
 
     return (data ?? [])
       .filter((row) => row.retell_call_id && (row.transcript ?? "").trim())
-      .map((row) => ({
-        call_id: row.retell_call_id!,
-        agent_id: row.agent_id ?? "",
-        agent_name: row.agent_name ?? agentNames[row.agent_id ?? ""] ?? "Unknown agent",
-        direction: "inbound",
-        call_type: row.call_type ?? "phone_call",
-        from_number: row.from_number ?? null,
-        to_number: row.to_number ?? null,
-        start_timestamp: row.started_at ? new Date(row.started_at).getTime() : null,
-        transcript: parseTranscriptString(row.transcript ?? ""),
-        status: "completed" as const,
-      }));
+      .map((row) => {
+        const cs = String(row.call_status ?? "").toLowerCase();
+        const callStatus: "ended" | "failed" =
+          cs === "failed" || cs === "no_answer" ? "failed" : "ended";
+        return {
+          call_id: row.retell_call_id!,
+          agent_id: row.agent_id ?? "",
+          agent_name: row.agent_name ?? agentNames[row.agent_id ?? ""] ?? "Unknown agent",
+          direction: "inbound",
+          call_type: row.call_type ?? "phone_call",
+          from_number: row.from_number ?? null,
+          to_number: row.to_number ?? null,
+          start_timestamp: row.started_at ? new Date(row.started_at).getTime() : null,
+          transcript: parseTranscriptString(row.transcript ?? ""),
+          status: "completed" as const,
+          call_status: callStatus,
+          lead_name: null as string | null,
+          current_node_id: null as string | null,
+          current_node_label: null as string | null,
+        };
+      });
   } catch {
     return [];
   }
@@ -223,8 +338,12 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const token = url.searchParams.get("token") ?? "";
+        const cookieWorkspaceId = readCookie(request, "wb_workspace_id");
 
-        const { apiKey, workspaceId } = await getWorkspaceRetellKey(token);
+        const { apiKey, workspaceId, deployedAgentIds } = await getWorkspaceRetellKey(
+          token,
+          cookieWorkspaceId,
+        );
 
         if (!apiKey || !workspaceId) {
           return new Response("Unauthorized", { status: 401 });
@@ -237,6 +356,11 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
         // Per-call transcript fingerprint — tracks last sent transcript length
         // so we re-send whenever the transcript grows.
         const transcriptLengths: Record<string, number> = {};
+
+        // Per-connection lead-name cache keyed by call_id. A call's caller is
+        // resolved once (from the workspace's leads table) then reused, so we
+        // never re-query on every 1.5s poll tick.
+        const leadNameCache: Record<string, string | null> = {};
 
         const stream = new ReadableStream({
           async start(controller) {
@@ -263,7 +387,16 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                   agentNamesLastFetched = now;
                 }
 
-                const detailed = await fetchLiveCalls(apiKey);
+                const detailedRaw = await fetchLiveCalls(apiKey);
+
+                // FAIL CLOSED: on the shared platform key, /v2/list-calls returns
+                // every tenant's ongoing calls. Restrict to agents THIS workspace
+                // deployed. deployedAgentIds is null only for dedicated workspace
+                // keys (already isolated); an empty set correctly yields nothing.
+                const detailed =
+                  deployedAgentIds === null
+                    ? detailedRaw
+                    : detailedRaw.filter((c: any) => deployedAgentIds.has(c.agent_id));
 
                 // Fetch DB transcripts as a fallback for calls where Retell REST
                 // doesn't yet have transcript data (common during the call; the
@@ -279,6 +412,17 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                   const dbRaw = dbTranscripts[c.call_id] ?? "";
                   const structured =
                     restTranscript.length > 0 ? restTranscript : parseTranscriptString(dbRaw);
+                  // Retell call_status for ongoing calls: "registered" (dialing/
+                  // ringing) or "ongoing" (connected & talking).
+                  const rawStatus = String(c.call_status ?? "").toLowerCase();
+                  const callStatus: "ringing" | "in_progress" | "ended" | "failed" =
+                    rawStatus === "registered" ? "ringing" : "in_progress";
+                  // Conversation flow position — Retell REST doesn't expose the
+                  // active node mid-call, so this stays null unless present.
+                  const nodeId =
+                    c.current_node_id ?? c.node_id ?? c.current_node?.id ?? null;
+                  const nodeLabel =
+                    c.current_node_label ?? c.current_node?.name ?? c.current_node?.label ?? null;
                   return {
                     call_id: c.call_id ?? "",
                     agent_id: c.agent_id ?? "",
@@ -290,6 +434,10 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                     start_timestamp: c.start_timestamp ?? null,
                     transcript: structured,
                     status: "live" as const,
+                    call_status: callStatus,
+                    lead_name: null as string | null,
+                    current_node_id: (nodeId as string | null) ?? null,
+                    current_node_label: (nodeLabel as string | null) ?? null,
                   };
                 });
 
@@ -301,6 +449,33 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                 );
 
                 const calls = [...liveCalls, ...completedCards];
+
+                // Enrich cards with caller/lead names. We only look up call ids
+                // we haven't seen before (cached for the connection lifetime),
+                // so a workspace's leads table is queried at most once per new
+                // call rather than every 1.5s tick.
+                const uncached = calls.filter((c) => !(c.call_id in leadNameCache));
+                if (uncached.length > 0) {
+                  const phones = uncached
+                    .map((c) =>
+                      c.direction === "outbound"
+                        ? (c.to_number ?? c.from_number)
+                        : (c.from_number ?? c.to_number),
+                    )
+                    .filter((p): p is string => !!p);
+                  const nameMap = await fetchLeadNames(workspaceId, phones);
+                  for (const c of uncached) {
+                    const phone =
+                      c.direction === "outbound"
+                        ? (c.to_number ?? c.from_number)
+                        : (c.from_number ?? c.to_number);
+                    leadNameCache[c.call_id] = (phone && nameMap[phone]) || null;
+                  }
+                }
+                for (const c of calls) {
+                  c.lead_name = leadNameCache[c.call_id] ?? null;
+                }
+
                 const callIds = calls.map((c) => c.call_id).join(",");
 
                 // Detect transcript growth per call (to know when to re-send).

@@ -596,4 +596,11 @@ export interface LiveCall {
   transcript: { role: "agent" | "user"; content: string }[];
   /** "live" = still ringing/in-progress on Retell; "completed" = ended, transcript from DB */
   status: "live" | "completed";
+  /** Best-effort caller/lead name resolved from the workspace's leads table. */
+  lead_name?: string | null;
+  /** Fine-grained call state used for the status badge. */
+  call_status?: "ringing" | "in_progress" | "ended" | "failed";
+  /** Conversation flow position, when Retell exposes it (usually null mid-call). */
+  current_node_id?: string | null;
+  current_node_label?: string | null;
 }

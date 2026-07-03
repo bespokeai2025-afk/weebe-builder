@@ -9,6 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/dashboard/PageShell";
+import { LiveCallsPanel } from "@/components/dashboard/LiveCallsPanel";
 import {
   Tooltip,
   TooltipContent,
@@ -204,6 +205,9 @@ function DashboardPage() {
           </Tooltip>
         </TooltipProvider>
       )}
+
+      {/* Live call monitoring */}
+      <LiveCallsPanel />
 
       {/* Agents */}
       {(agentsQ.isLoading || agents.length > 0) && (

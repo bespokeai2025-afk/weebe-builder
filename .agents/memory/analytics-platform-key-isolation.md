@@ -32,6 +32,18 @@ empty for WBAH/no-key. Frontend unions `voiceAgentsQ.data.agents` with call-deri
 `agentNames`, keyed by provider `agent_id` so the client-side `c.agent_id === selected`
 filter keeps working.
 
+**Applies to EVERY endpoint that hits Retell `/v2/list-calls` on the platform key,
+not just analytics.** The live-call monitoring SSE endpoint (`/api/dashboard/
+live-calls-sse`) is a second consumer: it polls `/v2/list-calls` (ongoing) and,
+because the shared key sees all tenants, MUST filter the returned calls by a
+workspace-scoped `deployedAgentIds` Set (same deployments lookup) BEFORE building
+any card / transcript / lead-name enrichment. `null` allow-list is ONLY for the
+dedicated-workspace-key path. Rule of thumb: any new feature that lists Retell
+calls/agents from the platform key inherits this leak unless it fails closed.
+Also: that SSE endpoint resolves the active workspace from the `wb_workspace_id`
+cookie but only AFTER a `workspace_members` (`user_id` + `workspace_id`) check —
+never trust the cookie alone.
+
 **How to apply:**
 - The workspace-OWN-key path (`workspaceRetellKey` set) intentionally keeps
   `deployedAgentIds = null` — every agent on that key already belongs to the

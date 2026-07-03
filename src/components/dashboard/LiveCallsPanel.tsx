@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Phone, PhoneIncoming, PhoneOutgoing, Globe, Mic, MicOff, Power, CheckCircle } from "lucide-react";
+import {
+  Phone,
+  PhoneIncoming,
+  PhoneOutgoing,
+  PhoneOff,
+  Globe,
+  Mic,
+  MicOff,
+  Power,
+  CheckCircle,
+  GitBranch,
+  Headphones,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { LiveCall } from "@/lib/dashboard/analytics.functions";
 
@@ -12,21 +24,73 @@ function elapsed(startMs: number | null): string {
   return `${m}m ${rem}s`;
 }
 
+type CallStatus = "ringing" | "in_progress" | "ended" | "failed";
+
+function resolveStatus(call: LiveCall): CallStatus {
+  if (call.call_status) return call.call_status;
+  return call.status === "completed" ? "ended" : "in_progress";
+}
+
+function StatusBadge({ status }: { status: CallStatus }) {
+  if (status === "ringing") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+        RINGING
+      </span>
+    );
+  }
+  if (status === "in_progress") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        LIVE
+      </span>
+    );
+  }
+  if (status === "failed") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-medium text-rose-400">
+        <PhoneOff className="h-2.5 w-2.5" />
+        NO ANSWER
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+      <CheckCircle className="h-2.5 w-2.5" />
+      ENDED
+    </span>
+  );
+}
+
 function CallCard({ call }: { call: LiveCall }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
   const [duration, setDuration] = useState("0s");
+  const status = resolveStatus(call);
   const isCompleted = call.status === "completed";
+  const isLive = !isCompleted;
 
   useEffect(() => {
     setDuration(elapsed(call.start_timestamp));
+    if (!isLive) return;
     const id = setInterval(() => setDuration(elapsed(call.start_timestamp)), 1000);
     return () => clearInterval(id);
-  }, [call.start_timestamp]);
+  }, [call.start_timestamp, isLive]);
 
+  // Auto-scroll to the newest transcript line, but only when the user is
+  // already near the bottom — so scrolling up to read stays put.
   useEffect(() => {
     const el = transcriptRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
   }, [call.transcript]);
+
+  const onScroll = useCallback(() => {
+    const el = transcriptRef.current;
+    if (!el) return;
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }, []);
 
   const isInbound = call.direction === "inbound";
   const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
@@ -35,6 +99,11 @@ function CallCard({ call }: { call: LiveCall }) {
     : isInbound
       ? (call.from_number ?? "Unknown caller")
       : (call.to_number ?? "Unknown");
+  const contactDisplay =
+    call.lead_name && !isWebCall ? `${call.lead_name} · ${phoneDisplay}` : phoneDisplay;
+
+  const accent = isCompleted ? "text-slate-400" : status === "ringing" ? "text-amber-400" : "text-emerald-400";
+  const iconBg = isCompleted ? "bg-slate-500/15" : status === "ringing" ? "bg-amber-500/15" : "bg-emerald-500/15";
 
   return (
     <div className={`rounded-xl border overflow-hidden ${
@@ -44,40 +113,38 @@ function CallCard({ call }: { call: LiveCall }) {
     }`}>
       <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-            isCompleted ? "bg-slate-500/15" : "bg-emerald-500/15"
-          }`}>
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${iconBg}`}>
             {isWebCall ? (
-              <Globe className={`h-3.5 w-3.5 ${isCompleted ? "text-slate-400" : "text-emerald-400"}`} />
+              <Globe className={`h-3.5 w-3.5 ${accent}`} />
             ) : isInbound ? (
-              <PhoneIncoming className={`h-3.5 w-3.5 ${isCompleted ? "text-slate-400" : "text-emerald-400"}`} />
+              <PhoneIncoming className={`h-3.5 w-3.5 ${accent}`} />
             ) : (
-              <PhoneOutgoing className={`h-3.5 w-3.5 ${isCompleted ? "text-slate-400" : "text-emerald-400"}`} />
+              <PhoneOutgoing className={`h-3.5 w-3.5 ${accent}`} />
             )}
           </span>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-foreground truncate">{call.agent_name}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{phoneDisplay}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{contactDisplay}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[10px] tabular-nums text-muted-foreground">{duration}</span>
-          {isCompleted ? (
-            <span className="flex items-center gap-1 rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-medium text-slate-400">
-              <CheckCircle className="h-2.5 w-2.5" />
-              ENDED
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              LIVE
-            </span>
-          )}
+          <StatusBadge status={status} />
         </div>
       </div>
 
+      {call.current_node_label && (
+        <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-white/[0.04] bg-white/[0.02]">
+          <GitBranch className="h-3 w-3 text-violet-400/80 shrink-0" />
+          <span className="text-[10px] text-muted-foreground truncate">
+            Step: <span className="text-foreground/80 font-medium">{call.current_node_label}</span>
+          </span>
+        </div>
+      )}
+
       <div
         ref={transcriptRef}
+        onScroll={onScroll}
         className="flex flex-col gap-1.5 overflow-y-auto px-4 py-3"
         style={{ maxHeight: 220 }}
       >
@@ -193,7 +260,7 @@ export function LiveCallsPanel() {
   const liveCount = liveCalls.length;
 
   return (
-    <div className="px-6 pt-5">
+    <div className="mb-5">
       <div className="flex items-center gap-2.5 mb-3">
         <Phone className="h-4 w-4 text-emerald-400" />
         <h2 className="text-sm font-semibold text-foreground">Live Calls</h2>
@@ -230,6 +297,13 @@ export function LiveCallsPanel() {
           {enabled ? "On" : "Off"}
         </button>
       </div>
+
+      {enabled && (
+        <div className="flex items-center gap-1.5 mb-3 text-[10px] text-muted-foreground/60">
+          <Headphones className="h-3 w-3 shrink-0" />
+          <span>Transcript monitoring enabled · live audio not enabled in current setup</span>
+        </div>
+      )}
 
       {!enabled ? (
         <div className="rounded-xl border border-white/[0.06] bg-card/30 px-5 py-5 flex items-center gap-3 text-sm text-muted-foreground">
