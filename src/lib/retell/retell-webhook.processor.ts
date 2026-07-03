@@ -10,6 +10,10 @@ import {
 } from "@/lib/qualification/qualification-engine.server";
 import { dispatchCrmPostCall } from "@/lib/crm/crm-dispatch.server";
 import { invalidateDashboardCache } from "@/lib/cache/redis.server";
+import {
+  upsertLiveCallSession,
+  markLiveCallSessionEnded,
+} from "@/lib/retell/live-call-sessions.server";
 
 const SUPPORTED_RETELL_EVENTS = new Set([
   "call_started",
@@ -497,6 +501,33 @@ export async function processRetellWebhook(
   const incomingAgentId = call.agent_id ? stripPrefix(call.agent_id) : "";
   console.log("[RETELL WEBHOOK] Received event", { event, callId, agentId: incomingAgentId });
 
+  // ── LIVE TRANSCRIPT: transcript_updated ────────────────────────────────────
+  // This is the ONLY live in-progress transcript source for managed agents. It
+  // fires MANY times per call carrying the full cumulative transcript, so it is
+  // handled here — BEFORE recordWebhookEvent — so it never bloats the webhook
+  // event log, and is intentionally kept OUT of SUPPORTED_RETELL_EVENTS so it
+  // never touches the calls table / analytics / leads / CRM. Writes are wrapped
+  // so this display-only path can never break canonical post-call processing.
+  if (event === "transcript_updated") {
+    try {
+      const isWebCall = call.call_type === "web_call" || call.call_type === "webcall";
+      if (callId && incomingAgentId && !isWebCall) {
+        const agentRow = await resolveAgent(incomingAgentId, options.forcedWorkspaceId);
+        if (agentRow) {
+          await upsertLiveCallSession({
+            workspaceId: agentRow.workspace_id as string,
+            agentName: agentRow.name as string | null,
+            event,
+            call,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("[RETELL WEBHOOK] Live transcript upsert failed (non-fatal)", e);
+    }
+    return { ok: true, status: 200, message: "live transcript", event, callId };
+  }
+
   const eventLogId = await recordWebhookEvent({
     eventType: event,
     callId: callId ?? null,
@@ -542,6 +573,34 @@ export async function processRetellWebhook(
     .from("retell_webhook_events")
     .update({ workspace_id: workspaceId } as never)
     .eq("id", eventLogId ?? "00000000-0000-0000-0000-000000000000");
+
+  // ── LIVE CALLS lifecycle (display-only, best-effort) ───────────────────────
+  // Surface the call card the moment it connects (call_started), and clear the
+  // live session when the call finishes — independent of the calls-table write
+  // below. Wrapped so it can never break canonical processing.
+  try {
+    if (event === "call_started") {
+      await upsertLiveCallSession({
+        workspaceId,
+        agentName: agentRow.name as string | null,
+        event,
+        call,
+      });
+    } else if (
+      event === "call_ended" ||
+      event === "call_analyzed" ||
+      event === "call_transferred" ||
+      event === "call_failed"
+    ) {
+      await markLiveCallSessionEnded(
+        workspaceId,
+        callId,
+        event === "call_failed" ? "failed" : "ended",
+      );
+    }
+  } catch (e) {
+    console.warn("[RETELL WEBHOOK] Live session lifecycle update failed (non-fatal)", e);
+  }
 
   const startedAt = timestampToIso(call.start_timestamp);
   const endedAt = timestampToIso(call.end_timestamp);

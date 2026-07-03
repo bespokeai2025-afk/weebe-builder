@@ -3,22 +3,33 @@
  * Client connects once; server pushes transcript diffs every 1.5s.
  * Auth: JWT passed as ?token= query param (EventSource doesn't support headers).
  *
- * Transcript strategy (two-tier):
- *  1. Retell REST API  — /v2/get-call returns transcript progressively
- *     (some Retell plans/regions populate it during the call; others only
- *      after call_analyzed). We check transcript_object, transcript_with_tool_calls
- *      and transcript string in order.
- *  2. DB fallback — the retell webhook processor writes the full transcript to
- *     the `calls` table when call_ended fires.  We join by retell_call_id so
- *     the transcript appears the moment the webhook lands, even for calls that
- *     Retell's REST API didn't stream.
+ * Transcript strategy (LIVE-first, then fallbacks):
+ *  1. live_call_sessions (PRIMARY, truly live) — the retell webhook processor
+ *     writes a per-call snapshot on every `transcript_updated` event, which
+ *     Retell emits many times DURING the call with the full cumulative
+ *     transcript. This is the only source that streams a managed-agent
+ *     transcript while the call is still in progress. Workspace-scoped.
+ *  2. Retell REST API  — /v2/get-call. For MANAGED agents this does NOT return
+ *     an in-progress transcript (gated until the call ends), so it is used to
+ *     DETECT ongoing calls + metadata; its transcript is only a late fallback.
+ *  3. DB fallback — the webhook processor writes the full transcript to the
+ *     `calls` table when call_ended fires; shown as recent completed cards.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { retellFetch } from "@/lib/providers/retell/client.server";
+import {
+  fetchActiveLiveCallSessions,
+  cleanupStaleLiveCallSessions,
+  type ActiveLiveSession,
+} from "@/lib/retell/live-call-sessions.server";
 
 const SSE_INTERVAL_MS = 1500;
 const SSE_KEEPALIVE_MS = 15_000;
+// Retell REST (list-calls/get-call) is polled less often than the DB — the live
+// transcript now comes from our own live_call_sessions table (read every tick),
+// so REST is only needed to detect ongoing calls + metadata.
+const RETELL_POLL_MS = 5000;
 
 function sseData(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
@@ -362,6 +373,13 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
         // never re-query on every 1.5s poll tick.
         const leadNameCache: Record<string, string | null> = {};
 
+        // Retell REST results are refreshed at RETELL_POLL_MS (slower than the DB
+        // tick) and reused in between — the live transcript comes from the DB
+        // (live_call_sessions) which we read every tick.
+        let cachedDetailedRaw: any[] = [];
+        let retellLastFetched = 0;
+        let staleCleanupAt = 0;
+
         const stream = new ReadableStream({
           async start(controller) {
             const enc = new TextEncoder();
@@ -387,7 +405,30 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                   agentNamesLastFetched = now;
                 }
 
-                const detailedRaw = await fetchLiveCalls(apiKey);
+                // PRIMARY live source: our own live_call_sessions table, written
+                // by the webhook processor on each `transcript_updated` event.
+                // Read every tick (cheap, indexed, workspace-scoped) so the
+                // in-progress transcript streams the moment Retell delivers it.
+                const liveSessions = await fetchActiveLiveCallSessions(workspaceId);
+                const liveSessionMap = new Map<string, ActiveLiveSession>();
+                for (const s of liveSessions) liveSessionMap.set(s.retell_call_id, s);
+
+                // Opportunistic, best-effort cleanup of stale/ended rows so the
+                // table never grows unbounded (no cron). Runs at most every 5 min
+                // per connection; never blocks or breaks the stream.
+                if (now >= staleCleanupAt) {
+                  staleCleanupAt = now + 5 * 60 * 1000;
+                  void cleanupStaleLiveCallSessions(workspaceId);
+                }
+
+                // Retell REST (list-calls/get-call) refreshed less often — only
+                // used to DETECT ongoing calls + metadata (managed-agent REST has
+                // no in-progress transcript). Reuse cached result between polls.
+                if (now - retellLastFetched > RETELL_POLL_MS) {
+                  cachedDetailedRaw = await fetchLiveCalls(apiKey);
+                  retellLastFetched = now;
+                }
+                const detailedRaw = cachedDetailedRaw;
 
                 // FAIL CLOSED: on the shared platform key, /v2/list-calls returns
                 // every tenant's ongoing calls. Restrict to agents THIS workspace
@@ -408,15 +449,26 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                 const liveOngoingIds = new Set(detailed.map((c: any) => c.call_id as string));
 
                 const liveCalls = detailed.map((c: any) => {
+                  const session = liveSessionMap.get(c.call_id);
                   const restTranscript = extractTranscript(c);
                   const dbRaw = dbTranscripts[c.call_id] ?? "";
+                  // Prefer the LIVE session transcript (streamed via webhook)
+                  // over the REST/DB transcript, which is empty mid-call.
                   const structured =
-                    restTranscript.length > 0 ? restTranscript : parseTranscriptString(dbRaw);
+                    session && session.transcript.length > 0
+                      ? session.transcript
+                      : restTranscript.length > 0
+                        ? restTranscript
+                        : parseTranscriptString(dbRaw);
                   // Retell call_status for ongoing calls: "registered" (dialing/
                   // ringing) or "ongoing" (connected & talking).
                   const rawStatus = String(c.call_status ?? "").toLowerCase();
                   const callStatus: "ringing" | "in_progress" | "ended" | "failed" =
-                    rawStatus === "registered" ? "ringing" : "in_progress";
+                    session?.call_status === "ringing"
+                      ? "ringing"
+                      : rawStatus === "registered"
+                        ? "ringing"
+                        : "in_progress";
                   // Conversation flow position — Retell REST doesn't expose the
                   // active node mid-call, so this stays null unless present.
                   const nodeId =
@@ -426,7 +478,7 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                   return {
                     call_id: c.call_id ?? "",
                     agent_id: c.agent_id ?? "",
-                    agent_name: agentNames[c.agent_id] ?? "Unknown agent",
+                    agent_name: agentNames[c.agent_id] ?? session?.agent_name ?? "Unknown agent",
                     direction: c.direction ?? c.call_direction ?? "inbound",
                     call_type: c.call_type ?? "phone_call",
                     from_number: c.from_number ?? c.caller_id ?? null,
@@ -435,18 +487,47 @@ export const Route = createFileRoute("/api/dashboard/live-calls-sse")({
                     transcript: structured,
                     status: "live" as const,
                     call_status: callStatus,
+                    live_transcript: !!session,
                     lead_name: null as string | null,
                     current_node_id: (nodeId as string | null) ?? null,
                     current_node_label: (nodeLabel as string | null) ?? null,
                   };
                 });
 
+                // Add LIVE sessions the Retell REST poll hasn't surfaced yet
+                // (webhook lands before/without list-calls returning the call).
+                // These are already workspace-scoped, so no fail-closed filter
+                // is needed. This is what makes the transcript appear instantly.
+                const restCallIds = new Set(liveCalls.map((c) => c.call_id));
+                for (const s of liveSessions) {
+                  if (restCallIds.has(s.retell_call_id)) continue;
+                  liveOngoingIds.add(s.retell_call_id);
+                  const isOutbound = s.direction === "outbound";
+                  liveCalls.push({
+                    call_id: s.retell_call_id,
+                    agent_id: s.agent_id ?? "",
+                    agent_name: s.agent_name ?? agentNames[s.agent_id ?? ""] ?? "Unknown agent",
+                    direction: s.direction ?? (isOutbound ? "outbound" : "inbound"),
+                    call_type: s.call_type ?? "phone_call",
+                    from_number: s.from_number ?? null,
+                    to_number: s.to_number ?? null,
+                    start_timestamp: s.started_at ? new Date(s.started_at).getTime() : null,
+                    transcript: s.transcript,
+                    status: "live" as const,
+                    call_status: s.call_status === "ringing" ? "ringing" : "in_progress",
+                    live_transcript: true,
+                    lead_name: null as string | null,
+                    current_node_id: null as string | null,
+                    current_node_label: null as string | null,
+                  });
+                }
+
                 // Build recently-completed cards (DB source), excluding any
                 // call that is still showing as live on Retell.
                 const recentCompleted = await fetchRecentCompletedCalls(workspaceId, agentNames);
-                const completedCards = recentCompleted.filter(
-                  (r) => !liveOngoingIds.has(r.call_id),
-                );
+                const completedCards = recentCompleted
+                  .filter((r) => !liveOngoingIds.has(r.call_id))
+                  .map((r) => ({ ...r, live_transcript: false }));
 
                 const calls = [...liveCalls, ...completedCards];
 

@@ -600,6 +600,12 @@ export interface LiveCall {
   lead_name?: string | null;
   /** Fine-grained call state used for the status badge. */
   call_status?: "ringing" | "in_progress" | "ended" | "failed";
+  /**
+   * True when this card is backed by a live_call_sessions row — i.e. the
+   * transcript is streaming in real time via the `transcript_updated` webhook.
+   * False = REST/DB-only (no live stream yet); drives the honest empty-state.
+   */
+  live_transcript?: boolean;
   /** Conversation flow position, when Retell exposes it (usually null mid-call). */
   current_node_id?: string | null;
   current_node_label?: string | null;

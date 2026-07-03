@@ -787,6 +787,21 @@ Read the \`confirmation_message\` field from the response. If a \`meeting_url\` 
     if (PUBLIC_BASE_URL_FOR_WEBHOOK && !agent.webhook_url) {
       agent.webhook_url = `${PUBLIC_BASE_URL_FOR_WEBHOOK}/api/public/voice-webhook`;
     }
+    // Subscribe to `transcript_updated` (opt-in, not in Retell's default set) so
+    // the dashboard can show a LIVE transcript during the call — while keeping
+    // the default trio (call_started/ended/analyzed) that analytics/leads rely on.
+    {
+      const LIVE_WEBHOOK_EVENTS = [
+        "call_started",
+        "call_ended",
+        "call_analyzed",
+        "transcript_updated",
+      ];
+      const existingEvents = Array.isArray(agent.webhook_events)
+        ? (agent.webhook_events as string[])
+        : [];
+      agent.webhook_events = Array.from(new Set([...existingEvents, ...LIVE_WEBHOOK_EVENTS]));
+    }
 
     // ---- Auto-inject Post-Call Analysis for booking-enabled agents ----
     if (calendarConnected || perNodeTools.length > 0) {
@@ -1828,6 +1843,22 @@ export const cloneRetellAgentForDeploy = createServerFn({ method: "POST" })
       (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "");
     if (cloneWebhookBase) {
       agentBody.webhook_url = `${cloneWebhookBase}/api/public/voice-webhook`;
+    }
+    // Enable `transcript_updated` for LIVE dashboard transcripts, preserving the
+    // default trio (call_started/ended/analyzed) the app relies on.
+    {
+      const LIVE_WEBHOOK_EVENTS = [
+        "call_started",
+        "call_ended",
+        "call_analyzed",
+        "transcript_updated",
+      ];
+      const existingEvents = Array.isArray(agentBody.webhook_events)
+        ? (agentBody.webhook_events as string[])
+        : [];
+      agentBody.webhook_events = Array.from(
+        new Set([...existingEvents, ...LIVE_WEBHOOK_EVENTS]),
+      );
     }
 
     // Create the cloned agent in the production workspace.

@@ -1,0 +1,81 @@
+Update the live call monitoring feature so the transcript is LIVE during the call, not only loaded after the call ends.
+
+CRITICAL:
+- Do not use post-call transcript as the live transcript source.
+- Do not wait for call_analyzed, call_ended, or recording_saved events before showing transcript.
+- The transcript must appear while the Retell call is actively in progress.
+- Do not break existing post-call transcript, call logs, analytics, leads, HiveMind, GrowthMind, SystemMind, or webhook logic.
+
+GOAL:
+When a Retell call is initiated, the dashboard must immediately create/show an active live call session, then stream transcript updates in real time while the call is happening.
+
+IMPLEMENTATION:
+1. Inspect the current Retell call initiation flow.
+2. When an outbound/test call is started, immediately create/update a live_call_sessions row using the returned call_id / retell_call_id.
+3. Mark status as ringing or in_progress.
+4. Subscribe the dashboard live monitor to that active call session.
+5. Capture live transcript events/deltas from Retell while the call is active.
+6. Append each live transcript delta/turn to the visible transcript immediately.
+7. Store live transcript separately from final post-call transcript if needed, but safely merge/replace after the final call transcript arrives.
+8. When Retell sends final post-call transcript, do not duplicate transcript lines already captured live.
+9. If Retell live transcript events are not currently connected, implement the correct live stream/SSE/WebSocket layer required to receive in-call transcript updates.
+10. If Retell only provides live transcript through an active call stream endpoint, connect to that stream from the backend and relay safe workspace-scoped updates to the frontend.
+
+REAL-TIME REQUIREMENTS:
+- Use existing SSE/WebSocket/Supabase Realtime infrastructure if present.
+- Avoid aggressive polling.
+- Updates must be workspace-scoped.
+- Live transcript should appear within seconds of the caller/agent speaking.
+- UI should show:
+  - “Waiting for speech…” before first transcript
+  - “Live transcript active” once deltas arrive
+  - “Final transcript saved” after call ends
+
+RETELL EVENT RULES:
+- call_started / call_initiated = create active session.
+- in-progress transcript deltas = update live transcript immediately.
+- call_ended = mark session ended.
+- call_analyzed/final transcript = save final transcript through existing logic only.
+
+DATABASE:
+If needed, add a live transcript event table:
+live_call_transcript_events:
+- id
+- workspace_id
+- call_id
+- retell_call_id
+- speaker
+- text
+- sequence_number
+- is_final boolean default false
+- event_timestamp
+- metadata jsonb
+- created_at
+
+Add unique protection using workspace_id + call_id + sequence_number where possible.
+
+UI:
+- Live monitor must render transcript from live events first.
+- Post-call transcript must not be the source of the active live transcript.
+- Keep existing post-call transcript page unchanged.
+- Do not redesign existing pages.
+
+TESTING:
+Confirm:
+1. Start a Retell test/outbound call.
+2. Live call appears immediately.
+3. Transcript shows during the active call.
+4. Transcript updates without refreshing.
+5. Ending the call saves the normal final transcript.
+6. No duplicate transcript lines.
+7. No duplicate call logs.
+8. Existing analytics still works.
+9. Existing webhook processing still works.
+10. WBAH and Webespoke workspaces remain fully isolated.
+
+Return:
+- exact source of live transcript data
+- files changed
+- whether Retell live streaming was available
+- fallback behaviour if live transcript stream is unavailable
+- test results
