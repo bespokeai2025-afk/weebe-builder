@@ -553,20 +553,54 @@ export async function runWbahCallsSyncTick(): Promise<{ calls: number; errors: s
   return results;
 }
 
-// ── Incremental live refresh — newest pages only, upsert to wbah_calls ─────────
+// ── Incremental live refresh — newest calls only, upsert to wbah_calls ─────────
 //
 // Powers the "live on open" Calls + Leads pages. Reuses the STORED token and only
 // re-logs-in on a 401 — so on the common path it does NOT create a fresh
 // WeeBespoke session and therefore does NOT kick the human admin out of their
-// dashboard. Walks get-user-history newest-first, upserting each page
-// (idempotent), and stops as soon as a page holds only already-known call ids
-// (caught up). Capped at INCR_MAX_PAGES so a large backlog can't hang the request;
-// the remainder catches up over subsequent opens (or a manual full resync).
+// dashboard.
+//
+// IMPORTANT: get-user-history paginates OLDEST-first, so the newest calls live on
+// the LAST page — NOT page 1. Walking pages 1..N (the old approach) only ever saw
+// ancient calls that were already in the DB, declared "caught up" after a few
+// pages, and never fetched anything recent. We now probe BOTH ends, detect which
+// holds the newest calls, and walk inward from there in concurrent batches,
+// stopping once a batch reaches back to what the DB already had (dbMax). Capped at
+// INCR_MAX_PAGES so a huge backlog can't hang the request; the rest converges over
+// subsequent opens.
 let _incrInFlight: Promise<{ calls: number; pages: number; caughtUp: boolean; errors: string[] }> | null = null;
 let _incrLastRunAt = 0;
 const INCR_MIN_INTERVAL_MS = 55_000;
-const INCR_MAX_PAGES = 40;
-const INCR_MIN_PAGES = 3;
+// Sized so the one-time backfill after a long sync outage (currently ~260 pages /
+// ~9 days at ~290 calls/day) completes in a SINGLE run — otherwise a capped run
+// leaves a permanent hole in the middle (dbMax-based stopping can't detect a gap
+// that sits older than the newest already-synced call). Steady state stops at the
+// boundary long before this, so a high cap costs nothing on the common path.
+const INCR_MAX_PAGES = 400;
+const INCR_BATCH = 20;
+
+// Epoch (ms) for a raw call record, mirroring buildCallRow's started_at logic, so
+// we can compare recency across pages and against the DB's current max.
+function recEpoch(rec: any): number {
+  const ts = rec?.startTimestamp;
+  if (ts != null && Number(ts) > 0) return Number(ts);
+  const s = rec?.call_updatedat ?? rec?.lastCalledAt ?? rec?.last_called_at ?? rec?.calledAt ?? rec?.createdAt ?? rec?.created_at ?? null;
+  if (!s) return 0;
+  const t = Date.parse(String(s));
+  return Number.isFinite(t) ? t : 0;
+}
+function maxEpoch(recs: any[]): number {
+  let m = 0;
+  for (const r of recs) { const e = recEpoch(r); if (e > m) m = e; }
+  return m;
+}
+// Smallest POSITIVE epoch in a batch (ignores records with unparseable dates so a
+// single bad row can't falsely signal "reached the boundary"). Infinity if none.
+function minEpochPositive(recs: any[]): number {
+  let m = Infinity;
+  for (const r of recs) { const e = recEpoch(r); if (e > 0 && e < m) m = e; }
+  return m;
+}
 
 export async function refreshWbahCallsIncremental(): Promise<{ calls: number; pages: number; caughtUp: boolean; errors: string[] }> {
   // Concurrency guard: dedupe overlapping calls (React StrictMode, or Calls +
@@ -590,60 +624,158 @@ export async function refreshWbahCallsIncremental(): Promise<{ calls: number; pa
     if (!tokens) return { calls: 0, pages: 0, caughtUp: false, errors: ["Not connected"] };
     let accessToken = tokens.accessToken;
 
-    const fetchPage = (p: number) =>
-      apiFetch<any>(`/call-output-data/get-user-history?currentPage=${p}`, {
-        method: "POST", body: "{}", headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-    let newCount = 0;
-    let pagesFetched = 0;
-    let caughtUp = false;
-    let pageSize = 0;
-
-    for (let p = 1; p <= INCR_MAX_PAGES; p++) {
-      let res = await fetchPage(p);
-      // Token expired mid-run → re-login ONCE. This is the only path that touches
-      // the shared session; the stored-token path above never does.
-      if (!res.ok && (res.status === 401 || res.status === 403)) {
-        try {
-          await ensureFreshToken(sb);
-          const t = await getStoredTokens(sb);
-          if (t) { accessToken = t.accessToken; res = await fetchPage(p); }
-        } catch (e: any) { errors.push(`relogin failed: ${e?.message ?? e}`); }
+    // Shared, generation-tracked re-login. Under concurrency (a 20-page batch) the
+    // token can expire and ALL 20 requests 401 at once — without coordination each
+    // would trigger its own login (session thrash) or, worse, skip the retry and
+    // silently drop its page. Here every 401'd fetch awaits ONE shared re-login for
+    // its token generation; a fetch whose generation is already stale just reuses
+    // the fresh token. The token can legitimately expire more than once during a
+    // ~260-page backfill, so a NEW generation can re-login again (unlike a one-shot
+    // flag). The stored-token happy path still never logs in.
+    let tokenGen = 0;
+    let reloginInFlight: Promise<void> | null = null;
+    const reloginForGen = (seenGen: number): Promise<void> => {
+      if (tokenGen > seenGen) return Promise.resolve(); // already refreshed by a peer
+      if (!reloginInFlight) {
+        reloginInFlight = (async () => {
+          try {
+            await ensureFreshToken(sb);
+            const t = await getStoredTokens(sb);
+            if (t) { accessToken = t.accessToken; tokenGen++; }
+          } catch (e: any) { errors.push(`relogin failed: ${e?.message ?? e}`); }
+          finally { reloginInFlight = null; }
+        })();
       }
-      if (!res.ok || !res.data) { errors.push(`page ${p} failed: status=${res.status}`); break; }
+      return reloginInFlight;
+    };
 
-      const recs: any[] = Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
-      pagesFetched++;
-      if (p === 1) pageSize = recs.length;
-      if (recs.length === 0) { caughtUp = true; break; }
+    // Fetch one page; on 401/403 refresh (once per generation) and retry once.
+    // Returns recs + the pagination block (needed to locate the newest page).
+    const fetchPage = async (p: number): Promise<{ ok: boolean; status: number; recs: any[]; pagination: any }> => {
+      const url = `/call-output-data/get-user-history?currentPage=${p}`;
+      const genUsed = tokenGen;
+      let res = await apiFetch<any>(url, { method: "POST", body: "{}", headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok && (res.status === 401 || res.status === 403)) {
+        await reloginForGen(genUsed);
+        res = await apiFetch<any>(url, { method: "POST", body: "{}", headers: { Authorization: `Bearer ${accessToken}` } });
+      }
+      const recs: any[] = res.ok && res.data && Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
+      if (!res.ok) errors.push(`page ${p} failed: status=${res.status}`);
+      return { ok: res.ok, status: res.status, recs, pagination: (res.data as any)?.pagination };
+    };
 
+    // Upsert a set of raw records (idempotent so late transcript/status updates
+    // refresh even when the id is known). Returns how many were NEW.
+    const upsertRecs = async (recs: any[]): Promise<{ built: number; newCount: number }> => {
       const rows = recs.map(r => buildCallRow(r, workspaceId)).filter(Boolean) as NonNullable<ReturnType<typeof buildCallRow>>[];
       const ids = rows.map(r => r.id);
-
-      // Which of this page's ids do we already have? (the caught-up signal)
       let existingSet = new Set<string>();
       if (ids.length) {
         const { data: existing } = await (sb as any)
           .from("wbah_calls").select("id").eq("workspace_id", workspaceId).in("id", ids);
         existingSet = new Set(((existing ?? []) as any[]).map(e => String(e.id)));
       }
-
-      // Always upsert (idempotent) so a recent call's late transcript/status
-      // update refreshes even when its id is already known.
       await upsertCallRows(sb, rows);
-      newCount += ids.filter(id => !existingSet.has(id)).length;
+      const known = ids.filter(id => existingSet.has(id)).length;
+      return { built: rows.length, newCount: ids.length - known };
+    };
 
-      // Reached the end of history (a short page) → stop.
-      if (pageSize > 0 && recs.length < pageSize) { caughtUp = true; break; }
-      // Caught up (this page held only known ids). Require a few pages first as
-      // insurance in case the feed is ordered by update-time rather than start-time.
-      const allKnown = ids.length > 0 && ids.every(id => existingSet.has(id));
-      if (allKnown && p >= INCR_MIN_PAGES) { caughtUp = true; break; }
+    // Newest call we already have. Everything strictly newer than this is the gap
+    // to backfill; walking newest→older, once a batch reaches back to this we stop.
+    let dbMaxEpoch = 0;
+    {
+      const { data: mx } = await (sb as any)
+        .from("wbah_calls").select("started_at").eq("workspace_id", workspaceId)
+        .not("started_at", "is", null).order("started_at", { ascending: false }).limit(1);
+      const s = (mx as any[])?.[0]?.started_at;
+      if (s) { const t = Date.parse(String(s)); if (Number.isFinite(t)) dbMaxEpoch = t; }
+    }
+
+    // Probe page 1 for pagination + the page-1-end sample.
+    const first = await fetchPage(1);
+    if (!first.ok) {
+      _incrLastRunAt = Date.now();
+      console.log(`[wbah-calls-incr] page1 failed — serving DB snapshot; errors=${errors.length}`);
+      return { calls: 0, pages: 1, caughtUp: false, errors };
+    }
+    const totalItems = first.pagination?.totalItems ?? 0;
+    const pageSize = first.recs.length || 10;
+    const lastPage = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1;
+
+    const cache = new Map<number, any[]>();
+    cache.set(1, first.recs);
+
+    // Only one page of history → upsert it and we're done.
+    if (lastPage <= 1) {
+      const r = await upsertRecs(first.recs);
+      _incrLastRunAt = Date.now();
+      console.log(`[wbah-calls-incr] single page; new=${r.newCount} total=${totalItems}`);
+      return { calls: r.newCount, pages: 1, caughtUp: true, errors };
+    }
+
+    // Detect which end holds the newest calls (robust to a future sort-order change).
+    // If the last-page probe fails we DEFAULT to newest-at-end, because the API is
+    // known to be oldest-first — a failed probe must never flip us into walking the
+    // oldest pages (which would fetch ancient calls and false-"caught up" instantly).
+    const last = await fetchPage(lastPage);
+    if (last.ok) cache.set(lastPage, last.recs);
+    const newestAtEnd = last.ok ? maxEpoch(last.recs) >= maxEpoch(first.recs) : true;
+
+    // Ordered page list, newest → oldest.
+    const order: number[] = [];
+    if (newestAtEnd) { for (let p = lastPage; p >= 1; p--) order.push(p); }
+    else { for (let p = 1; p <= lastPage; p++) order.push(p); }
+
+    let newCount = 0;
+    let pagesFetched = 0;
+    let caughtUp = false;
+
+    for (let i = 0; i < order.length && pagesFetched < INCR_MAX_PAGES && !caughtUp; i += INCR_BATCH) {
+      const batchPages = order.slice(i, i + INCR_BATCH);
+      const fetchOne = async (p: number) => {
+        const cached = cache.get(p);
+        if (cached) return { p, ok: true, recs: cached };
+        const r = await fetchPage(p);
+        return { p, ok: r.ok, recs: r.recs };
+      };
+      let results = await Promise.all(batchPages.map(fetchOne));
+      // Retry any failed pages once — by now a 401 has triggered a shared re-login,
+      // so the retry runs with a fresh token instead of dropping the page.
+      const failed = results.filter(r => !r.ok).map(r => r.p);
+      if (failed.length) {
+        const retried = await Promise.all(failed.map(fetchOne));
+        for (const rr of retried) {
+          const idx = results.findIndex(x => x.p === rr.p);
+          if (idx >= 0) results[idx] = rr;
+        }
+      }
+      const anyFailed = results.some(r => !r.ok);
+      const flat = results.flatMap(r => r.recs);
+      pagesFetched += batchPages.length;
+
+      const r = await upsertRecs(flat);
+      newCount += r.newCount;
+
+      // Only conclude "caught up" from a CLEAN batch. If any page in this batch
+      // failed to fetch (even after retry), a dropped page could masquerade as the
+      // boundary or an empty batch and leave a permanent hole — so keep walking.
+      if (!anyFailed) {
+        const batchMin = minEpochPositive(flat);
+        if (flat.length === 0) caughtUp = true;                                  // genuine end of history
+        else if (dbMaxEpoch > 0 && batchMin <= dbMaxEpoch) caughtUp = true;      // reached existing data
+        else if (r.built > 0 && r.newCount === 0) caughtUp = true;              // whole batch already known
+      }
+    }
+
+    // Cap hit without catching up → the gap is larger than INCR_MAX_PAGES; the
+    // newest pages are synced but an older slice remains. Warn loudly so it's
+    // visible (a manual full resync closes it; dbMax-based stopping won't).
+    if (!caughtUp && pagesFetched >= INCR_MAX_PAGES) {
+      console.warn(`[wbah-calls-incr] hit page cap (${INCR_MAX_PAGES}) before catching up — gap may exceed cap; older calls not yet backfilled`);
     }
 
     _incrLastRunAt = Date.now();
-    console.log(`[wbah-calls-incr] pages=${pagesFetched} new=${newCount} caughtUp=${caughtUp} errors=${errors.length}`);
+    console.log(`[wbah-calls-incr] pages=${pagesFetched} new=${newCount} caughtUp=${caughtUp} newestAtEnd=${newestAtEnd} lastPage=${lastPage} total=${totalItems} dbMax=${dbMaxEpoch ? new Date(dbMaxEpoch).toISOString() : "none"} errors=${errors.length}`);
     return { calls: newCount, pages: pagesFetched, caughtUp, errors };
   })();
 
