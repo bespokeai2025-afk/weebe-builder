@@ -76,6 +76,7 @@ import { Route as ApiPublicVoiceWebhookRouteImport } from './routes/api/public/v
 import { Route as ApiPublicVideoJobPollerRouteImport } from './routes/api/public/video-job-poller'
 import { Route as ApiPublicTiktokAdsWebhookRouteImport } from './routes/api/public/tiktok-ads-webhook'
 import { Route as ApiPublicRetellWebhookRouteImport } from './routes/api/public/retell-webhook'
+import { Route as ApiPublicRetellLiveIngestRouteImport } from './routes/api/public/retell-live-ingest'
 import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/resend-webhook'
 import { Route as ApiPublicProviderHealthSweepRouteImport } from './routes/api/public/provider-health-sweep'
 import { Route as ApiPublicMetaAdsWebhookRouteImport } from './routes/api/public/meta-ads-webhook'
@@ -586,6 +587,12 @@ const ApiPublicRetellWebhookRoute = ApiPublicRetellWebhookRouteImport.update({
   path: '/api/public/retell-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRetellLiveIngestRoute =
+  ApiPublicRetellLiveIngestRouteImport.update({
+    id: '/api/public/retell-live-ingest',
+    path: '/api/public/retell-live-ingest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicResendWebhookRoute = ApiPublicResendWebhookRouteImport.update({
   id: '/api/public/resend-webhook',
   path: '/api/public/resend-webhook',
@@ -1667,6 +1674,7 @@ export interface FileRoutesByFullPath {
   '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
+  '/api/public/retell-live-ingest': typeof ApiPublicRetellLiveIngestRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
@@ -1888,6 +1896,7 @@ export interface FileRoutesByTo {
   '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
+  '/api/public/retell-live-ingest': typeof ApiPublicRetellLiveIngestRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
@@ -2119,6 +2128,7 @@ export interface FileRoutesById {
   '/api/public/meta-ads-webhook': typeof ApiPublicMetaAdsWebhookRoute
   '/api/public/provider-health-sweep': typeof ApiPublicProviderHealthSweepRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
+  '/api/public/retell-live-ingest': typeof ApiPublicRetellLiveIngestRoute
   '/api/public/retell-webhook': typeof ApiPublicRetellWebhookRouteWithChildren
   '/api/public/tiktok-ads-webhook': typeof ApiPublicTiktokAdsWebhookRoute
   '/api/public/video-job-poller': typeof ApiPublicVideoJobPollerRoute
@@ -2351,6 +2361,7 @@ export interface FileRouteTypes {
     | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
     | '/api/public/resend-webhook'
+    | '/api/public/retell-live-ingest'
     | '/api/public/retell-webhook'
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
@@ -2572,6 +2583,7 @@ export interface FileRouteTypes {
     | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
     | '/api/public/resend-webhook'
+    | '/api/public/retell-live-ingest'
     | '/api/public/retell-webhook'
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
@@ -2802,6 +2814,7 @@ export interface FileRouteTypes {
     | '/api/public/meta-ads-webhook'
     | '/api/public/provider-health-sweep'
     | '/api/public/resend-webhook'
+    | '/api/public/retell-live-ingest'
     | '/api/public/retell-webhook'
     | '/api/public/tiktok-ads-webhook'
     | '/api/public/video-job-poller'
@@ -2924,6 +2937,7 @@ export interface RootRouteChildren {
   ApiPublicMetaAdsWebhookRoute: typeof ApiPublicMetaAdsWebhookRoute
   ApiPublicProviderHealthSweepRoute: typeof ApiPublicProviderHealthSweepRoute
   ApiPublicResendWebhookRoute: typeof ApiPublicResendWebhookRoute
+  ApiPublicRetellLiveIngestRoute: typeof ApiPublicRetellLiveIngestRoute
   ApiPublicRetellWebhookRoute: typeof ApiPublicRetellWebhookRouteWithChildren
   ApiPublicTiktokAdsWebhookRoute: typeof ApiPublicTiktokAdsWebhookRoute
   ApiPublicVideoJobPollerRoute: typeof ApiPublicVideoJobPollerRoute
@@ -3451,6 +3465,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/retell-webhook'
       fullPath: '/api/public/retell-webhook'
       preLoaderRoute: typeof ApiPublicRetellWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/retell-live-ingest': {
+      id: '/api/public/retell-live-ingest'
+      path: '/api/public/retell-live-ingest'
+      fullPath: '/api/public/retell-live-ingest'
+      preLoaderRoute: typeof ApiPublicRetellLiveIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/resend-webhook': {
@@ -5253,6 +5274,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicMetaAdsWebhookRoute: ApiPublicMetaAdsWebhookRoute,
   ApiPublicProviderHealthSweepRoute: ApiPublicProviderHealthSweepRoute,
   ApiPublicResendWebhookRoute: ApiPublicResendWebhookRoute,
+  ApiPublicRetellLiveIngestRoute: ApiPublicRetellLiveIngestRoute,
   ApiPublicRetellWebhookRoute: ApiPublicRetellWebhookRouteWithChildren,
   ApiPublicTiktokAdsWebhookRoute: ApiPublicTiktokAdsWebhookRoute,
   ApiPublicVideoJobPollerRoute: ApiPublicVideoJobPollerRoute,

@@ -86,7 +86,6 @@ externalPort = 8081
 [userenv.shared]
 RETELL_SIGNATURE_VERIFICATION_ENABLED = "true"
 WEBESPOKE_ADMIN_EMAIL = "nathan@bespoke.ai"
-RETELL_FORWARD_N8N_WEBHOOK_URL = "https://bespoke.app.n8n.cloud/webhook/392d5d13-7ee2-4fa0-ad46-7736ba4603bf"
 
 [userenv.production]
 PUBLIC_BASE_URL = "https://webeebuilder.com"

@@ -1,0 +1,66 @@
+Before making me manually edit n8n, determine whether this project can securely obtain authenticated access to my n8n instance and update workflows automatically.
+
+Do not make assumptions.
+
+Audit the following:
+
+1. Check whether an n8n API URL already exists in:
+- environment variables
+- secrets
+- config files
+- workspace settings
+- integration settings
+
+2. Check whether an n8n API key or Personal Access Token already exists.
+
+3. If credentials already exist:
+- Verify they work.
+- Confirm API access.
+- Enumerate the workflow containing the WBAH Retell webhook.
+- Modify that workflow automatically by adding the required forwarding step to WEBEE.
+- Do not change existing workflow logic.
+- Preserve all current nodes and execution order.
+- Export the workflow before making any changes as a rollback.
+- Validate the workflow after saving.
+
+4. If credentials do NOT exist:
+Generate a secure onboarding flow inside WEBEE for n8n.
+
+Create an "n8n Integration" page under Integrations that allows an administrator to enter:
+- n8n Base URL
+- Personal Access Token (preferred)
+- Optional API Key if supported
+- Workspace assignment
+- Test Connection button
+
+After successful connection:
+- Store credentials encrypted.
+- Validate permissions.
+- Discover workflows.
+- Allow WEBEE to update approved workflows automatically.
+- Never expose secrets in logs.
+- Never store tokens unencrypted.
+
+5. Once connected:
+Automatically locate workflows containing Retell webhook nodes.
+
+Offer a one-click action:
+
+"Enable WEBEE Live Monitoring"
+
+This should:
+- Back up the workflow.
+- Add the forwarding HTTP Request node after the Retell webhook.
+- Preserve all existing logic.
+- Preserve execution order.
+- Make no destructive changes.
+- Validate the workflow after update.
+
+6. Return:
+- Whether API access already existed.
+- Whether the connection succeeded.
+- Whether workflow editing is possible.
+- Whether the workflow was updated automatically.
+- Any manual steps still required.
+
+Do not continue with manual n8n instructions until this audit is complete.
