@@ -38,3 +38,31 @@ ALL schemas (auth.users triggers like `on_auth_user_created` are not in `public`
 **Applying:** manual/ALL_CAPS migrations are applied in the Supabase SQL editor (or via
 the same Management API). Additive column/table adds with IF NOT EXISTS are low risk.
 Only ONE Supabase DB is wired (shared `VITE_SUPABASE_URL`), so changes hit live data.
+
+## Applying via Management API — gotchas (learned during full reconciliation)
+
+- **The Management API `database/query` wraps statements in a TRANSACTION.** So
+  `CREATE INDEX CONCURRENTLY` is forbidden (fails in a txn block); use plain
+  `CREATE INDEX`. A whole file is applied atomically — a mid-file error rolls the
+  file back cleanly, so a fixed re-run starts fresh.
+- **Large-table DDL:** prepend `SET lock_timeout='8s';` to any batch touching the
+  `leads` table (~390k rows) — both `ALTER TABLE ... ADD COLUMN` (brief ACCESS
+  EXCLUSIVE) and `CREATE INDEX` (SHARE lock, blocks writes not reads). Fail fast
+  instead of queueing behind a long txn and blocking everything.
+- **The two ads migration files are broken/duplicated — never run whole:**
+  `ADS_PROVIDER_CREDENTIALS_MIGRATION.sql` and `GROWTHMIND_ADS_AUTOMATION_MIGRATION.sql`
+  both `CREATE TABLE` `growthmind_ad_sync_log`/`growthmind_ad_budget_alerts` with
+  CONFLICTING shapes. The LIVE tables match the ADS_PROVIDER shape (they have
+  `impressions_total/clicks_total/conversions_total`, and NO `account_id`), which is
+  what `growthmind.ads-sync-tick.ts` inserts. So when reconciling: apply ADS_PROVIDER
+  minus its two `ALTER COLUMN account_id DROP NOT NULL` (42703, col absent); apply
+  AUTOMATION's 11 cols on `growthmind_ads_accounts` + `idx_ad_webhook_events_plat`
+  only — SKIP `idx_ad_sync_log_account` (col absent) and `idx_ad_sync_log_workspace`
+  (duplicate of `idx_gm_ad_sync_log_ws`). Consolidating these two files is open tech debt.
+- **content_calendar (`20260703000000`)**: its `create policy` lines are un-guarded and
+  its tables already exist → running whole errors. Extract only the 2 missing
+  `growthmind_marketing_tasks` indexes.
+- **provider_health_sweep_cron** schedules a pg_cron job that is INERT until
+  `app_config` rows `health_sweep_url` + `health_sweep_key` (service-role key) are set —
+  leave that as a deliberate manual step; do not auto-store the service-role key.
+- Reusable applier: `scripts/apply-migrations.mjs` (stop-on-error, per-file, lock guard).

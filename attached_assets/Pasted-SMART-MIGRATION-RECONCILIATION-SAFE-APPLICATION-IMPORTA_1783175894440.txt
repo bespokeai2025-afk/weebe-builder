@@ -1,0 +1,330 @@
+SMART MIGRATION RECONCILIATION & SAFE APPLICATION
+
+IMPORTANT
+
+Do NOT blindly apply every missing migration.
+
+Do NOT reset the database.
+
+Do NOT delete data.
+
+Do NOT recreate existing tables.
+
+Do NOT create duplicate columns.
+
+Do NOT break any live functionality.
+
+Do NOT affect WBAH.
+
+Do NOT affect existing n8n workflows.
+
+Do NOT affect existing Retell agents.
+
+Do NOT affect production users.
+
+The previous migration audit identified missing, partial and obsolete migrations.
+
+Before applying anything, perform a full reconciliation between:
+
+* Current codebase
+* Current live Supabase schema
+* Existing migration files
+* Current application behaviour
+
+The objective is to determine which migrations are genuinely still required.
+
+---
+
+PHASE 1 — RECONCILIATION
+
+Review every migration previously identified as:
+
+* Missing
+* Partial
+* Duplicate
+* Obsolete
+* Superseded
+
+For every migration determine whether it is:
+
+REQUIRED
+
+REQUIRED WITH MODIFICATIONS
+
+ALREADY IMPLEMENTED
+
+SUPERSEDED
+
+OBSOLETE
+
+Provide a reason for every decision.
+
+---
+
+PHASE 2 — SCHEMA COMPARISON
+
+Compare the current codebase against the live database.
+
+For every missing object determine whether:
+
+* it already exists under another name
+* it has been replaced by a newer implementation
+* it has been moved into another table
+* it has been converted into JSON storage
+* it has been intentionally removed
+* the code still references it
+* the feature still depends on it
+
+Never assume a missing migration should automatically be applied.
+
+---
+
+PHASE 3 — DUPLICATE DETECTION
+
+Check for:
+
+Duplicate tables
+
+Duplicate columns
+
+Duplicate indexes
+
+Duplicate constraints
+
+Duplicate RLS policies
+
+Duplicate triggers
+
+Duplicate functions
+
+Duplicate migration files
+
+If duplicates exist:
+
+Recommend consolidation.
+
+Do not create duplicates.
+
+---
+
+PHASE 4 — DEPENDENCY ANALYSIS
+
+For every migration determine:
+
+Which features depend on it.
+
+Which modules use it.
+
+Which APIs use it.
+
+Which pages use it.
+
+Which scheduled jobs use it.
+
+Which background workers use it.
+
+Which Builder features use it.
+
+Which SystemMind features use it.
+
+Which HiveMind features use it.
+
+Which GrowthMind features use it.
+
+Which Analytics features use it.
+
+Which WEBEE Builder features use it.
+
+---
+
+PHASE 5 — SAFETY CHECK
+
+Before applying any migration verify:
+
+No production data will be lost.
+
+No existing table will be recreated.
+
+No duplicate schema objects will exist.
+
+No existing API will break.
+
+No Builder functionality will break.
+
+No Dashboard functionality will break.
+
+No WBAH functionality will break.
+
+No Retell integrations will break.
+
+No Twilio functionality will break.
+
+No WhatsApp functionality will break.
+
+No CRM integrations will break.
+
+No Analytics functionality will break.
+
+No workspace isolation will break.
+
+---
+
+PHASE 6 — BACKUP
+
+Before any schema modification:
+
+Create a complete backup.
+
+Record:
+
+Current schema
+
+Migration state
+
+Table counts
+
+Function counts
+
+Trigger counts
+
+Policy counts
+
+Indexes
+
+Cron jobs
+
+Provide rollback instructions.
+
+---
+
+PHASE 7 — SAFE APPLICATION
+
+Only after completing every previous phase:
+
+Apply ONLY migrations classified as:
+
+REQUIRED
+
+or
+
+REQUIRED WITH MODIFICATIONS
+
+Skip everything classified as:
+
+ALREADY IMPLEMENTED
+
+SUPERSEDED
+
+OBSOLETE
+
+Always apply in dependency order.
+
+Never force migrations.
+
+Never overwrite production data.
+
+Never drop existing schema unless absolutely required and approved.
+
+---
+
+PHASE 8 — POST VALIDATION
+
+After applying migrations verify:
+
+All required tables exist.
+
+All required columns exist.
+
+All required indexes exist.
+
+All required policies exist.
+
+All required triggers exist.
+
+All required functions exist.
+
+All required cron jobs exist.
+
+All code references resolve correctly.
+
+No duplicate schema objects exist.
+
+No migration conflicts remain.
+
+---
+
+PHASE 9 — PLATFORM VALIDATION
+
+Confirm the following still work:
+
+WEBEE Builder
+
+Retell Builder
+
+WhatsApp Builder
+
+Twilio
+
+WATI (where implemented)
+
+Calls
+
+Leads
+
+People
+
+Analytics
+
+API Engine
+
+Sync Engine
+
+HiveMind
+
+GrowthMind
+
+SystemMind
+
+Workflow Templates
+
+CRM adapters
+
+Live transcript engine
+
+Calendar integrations
+
+Campaigns
+
+HexMail
+
+Admin tools
+
+Dashboard
+
+WBAH production environment
+
+Existing n8n workflows
+
+Existing Retell agents
+
+---
+
+RETURN
+
+Provide a final report including:
+
+1. Applied migrations
+2. Skipped migrations
+3. Modified migrations
+4. Superseded migrations
+5. Obsolete migrations
+6. Duplicate migrations consolidated
+7. Database backup confirmation
+8. Validation results
+9. Remaining technical debt
+10. Manual actions still required
+11. Any future migration recommendations
+
+Final confirmation must state:
+
+"THE DATABASE SCHEMA HAS BEEN RECONCILED SAFELY. ONLY GENUINELY REQUIRED MIGRATIONS WERE APPLIED. NO EXISTING PRODUCTION FUNCTIONALITY, WBAH WORKFLOWS, RETELL AGENTS, OR N8N WORKFLOWS WERE BROKEN."
