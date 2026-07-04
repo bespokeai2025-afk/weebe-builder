@@ -92,6 +92,7 @@ import { Route as ApiBuilderScanPdfRouteImport } from './routes/api/builder/scan
 import { Route as ApiBuilderImportPdfRouteImport } from './routes/api/builder/import-pdf'
 import { Route as ApiAdminTestRetellWebhookRouteImport } from './routes/api/admin/test-retell-webhook'
 import { Route as AuthenticatedSystemmindWorkflowsRouteImport } from './routes/_authenticated/systemmind.workflows'
+import { Route as AuthenticatedSystemmindWorkflowIntelligenceRouteImport } from './routes/_authenticated/systemmind.workflow-intelligence'
 import { Route as AuthenticatedSystemmindWorkflowGeneratorRouteImport } from './routes/_authenticated/systemmind.workflow-generator'
 import { Route as AuthenticatedSystemmindWorkflowDraftsRouteImport } from './routes/_authenticated/systemmind.workflow-drafts'
 import { Route as AuthenticatedSystemmindTasksRouteImport } from './routes/_authenticated/systemmind.tasks'
@@ -673,6 +674,12 @@ const AuthenticatedSystemmindWorkflowsRoute =
   AuthenticatedSystemmindWorkflowsRouteImport.update({
     id: '/workflows',
     path: '/workflows',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindWorkflowIntelligenceRoute =
+  AuthenticatedSystemmindWorkflowIntelligenceRouteImport.update({
+    id: '/workflow-intelligence',
+    path: '/workflow-intelligence',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindWorkflowGeneratorRoute =
@@ -1659,6 +1666,7 @@ export interface FileRoutesByFullPath {
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
+  '/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
   '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -1881,6 +1889,7 @@ export interface FileRoutesByTo {
   '/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
+  '/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
   '/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -2113,6 +2122,7 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/tasks': typeof AuthenticatedSystemmindTasksRoute
   '/_authenticated/systemmind/workflow-drafts': typeof AuthenticatedSystemmindWorkflowDraftsRoute
   '/_authenticated/systemmind/workflow-generator': typeof AuthenticatedSystemmindWorkflowGeneratorRoute
+  '/_authenticated/systemmind/workflow-intelligence': typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
   '/_authenticated/systemmind/workflows': typeof AuthenticatedSystemmindWorkflowsRoute
   '/api/admin/test-retell-webhook': typeof ApiAdminTestRetellWebhookRoute
   '/api/builder/import-pdf': typeof ApiBuilderImportPdfRoute
@@ -2346,6 +2356,7 @@ export interface FileRouteTypes {
     | '/systemmind/tasks'
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
+    | '/systemmind/workflow-intelligence'
     | '/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -2568,6 +2579,7 @@ export interface FileRouteTypes {
     | '/systemmind/tasks'
     | '/systemmind/workflow-drafts'
     | '/systemmind/workflow-generator'
+    | '/systemmind/workflow-intelligence'
     | '/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -2799,6 +2811,7 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/tasks'
     | '/_authenticated/systemmind/workflow-drafts'
     | '/_authenticated/systemmind/workflow-generator'
+    | '/_authenticated/systemmind/workflow-intelligence'
     | '/_authenticated/systemmind/workflows'
     | '/api/admin/test-retell-webhook'
     | '/api/builder/import-pdf'
@@ -3577,6 +3590,13 @@ declare module '@tanstack/react-router' {
       path: '/workflows'
       fullPath: '/systemmind/workflows'
       preLoaderRoute: typeof AuthenticatedSystemmindWorkflowsRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/workflow-intelligence': {
+      id: '/_authenticated/systemmind/workflow-intelligence'
+      path: '/workflow-intelligence'
+      fullPath: '/systemmind/workflow-intelligence'
+      preLoaderRoute: typeof AuthenticatedSystemmindWorkflowIntelligenceRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/workflow-generator': {
@@ -4944,6 +4964,7 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindTasksRoute: typeof AuthenticatedSystemmindTasksRoute
   AuthenticatedSystemmindWorkflowDraftsRoute: typeof AuthenticatedSystemmindWorkflowDraftsRoute
   AuthenticatedSystemmindWorkflowGeneratorRoute: typeof AuthenticatedSystemmindWorkflowGeneratorRoute
+  AuthenticatedSystemmindWorkflowIntelligenceRoute: typeof AuthenticatedSystemmindWorkflowIntelligenceRoute
   AuthenticatedSystemmindWorkflowsRoute: typeof AuthenticatedSystemmindWorkflowsRoute
   AuthenticatedSystemmindIndexRoute: typeof AuthenticatedSystemmindIndexRoute
 }
@@ -4975,6 +4996,8 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
       AuthenticatedSystemmindWorkflowDraftsRoute,
     AuthenticatedSystemmindWorkflowGeneratorRoute:
       AuthenticatedSystemmindWorkflowGeneratorRoute,
+    AuthenticatedSystemmindWorkflowIntelligenceRoute:
+      AuthenticatedSystemmindWorkflowIntelligenceRoute,
     AuthenticatedSystemmindWorkflowsRoute:
       AuthenticatedSystemmindWorkflowsRoute,
     AuthenticatedSystemmindIndexRoute: AuthenticatedSystemmindIndexRoute,

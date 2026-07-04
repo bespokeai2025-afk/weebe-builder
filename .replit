@@ -86,6 +86,7 @@ externalPort = 8081
 [userenv.shared]
 RETELL_SIGNATURE_VERIFICATION_ENABLED = "true"
 WEBESPOKE_ADMIN_EMAIL = "nathan@bespoke.ai"
+N8N_API_BASE_URL = "https://bespoke.app.n8n.cloud/api/v1"
 
 [userenv.production]
 PUBLIC_BASE_URL = "https://webeebuilder.com"
