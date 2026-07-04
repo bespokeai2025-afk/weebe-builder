@@ -1,0 +1,681 @@
+SYSTEMMIND EVOLUTION — WORKFLOW INTELLIGENCE, TEMPLATE LEARNING & DEPLOYMENT ARCHITECT
+
+IMPORTANT
+
+This is an architectural enhancement.
+
+Do not modify existing production workflows.
+
+Do not interrupt existing customers.
+
+Do not change existing business logic.
+
+Do not rename or edit live n8n workflows.
+
+Do not activate or deactivate any workflow.
+
+All functionality added in this project must be completely backwards compatible.
+
+---
+
+OBJECTIVE
+
+Transform SystemMind from a monitoring assistant into WEBEE's Deployment Architect.
+
+Its role is to learn, understand, document and eventually recreate entire customer deployments using the accumulated knowledge of WEBEE.
+
+SystemMind should no longer think in terms of fixed workflows.
+
+Instead it should understand:
+
+• business objectives
+• deployment architecture
+• reusable workflow patterns
+• integrations
+• API mappings
+• deployment order
+• tenant isolation
+• infrastructure requirements
+• CRM abstraction
+• automation templates
+
+The long-term goal is that a user can describe an automation in natural language and SystemMind can assemble the complete deployment safely.
+
+Automatic deployment is NOT enabled during this phase.
+
+---
+
+PHASE 1 — COMPLETE N8N DISCOVERY
+
+Connect to the existing n8n instance using the configured API.
+
+Read every workflow.
+
+For every workflow collect:
+
+• Workflow ID
+• Name
+• Description
+• Folder
+• Tags
+• Active Status
+• Nodes
+• Connections
+• Trigger Types
+• Webhooks
+• HTTP Requests
+• Credentials
+• Expressions
+• Environment Variables
+• APIs
+• External Services
+• Execution Order
+• Retry Logic
+• Error Handling
+• Dependencies
+• Notes
+• Variables
+• Inputs
+• Outputs
+
+Store as structured metadata.
+
+---
+
+PHASE 2 — AI UNDERSTANDING
+
+For every workflow generate:
+
+Business Summary
+
+Technical Summary
+
+Purpose
+
+Business Process
+
+Trigger
+
+Execution Flow
+
+Inputs
+
+Outputs
+
+Required Services
+
+Dependencies
+
+Failure Points
+
+Retry Behaviour
+
+Security Considerations
+
+Workspace Dependencies
+
+Tenant-specific Values
+
+Reusable Components
+
+Deployment Sequence
+
+Human Explanation
+
+Technical Explanation
+
+Confidence Score
+
+---
+
+PHASE 3 — TEMPLATE EXTRACTION
+
+Identify reusable workflow patterns.
+
+Examples include:
+
+Receptionist
+
+Lead Generation
+
+Client Qualification
+
+Outbound Calling
+
+Inbound Calling
+
+Appointment Booking
+
+Calendar Sync
+
+CRM Synchronisation
+
+Transcript Processing
+
+Analytics
+
+Lead Scoring
+
+Follow-up
+
+Email Automation
+
+WhatsApp
+
+Broadcast Campaigns
+
+Reporting
+
+Notifications
+
+Data Import
+
+CSV Processing
+
+Knowledge Base Updates
+
+Webhook Processing
+
+Conversation Analysis
+
+API Synchronisation
+
+Mark every workflow as either:
+
+Reusable Template
+
+Customer Specific
+
+Experimental
+
+Legacy
+
+Archive
+
+---
+
+PHASE 4 — PARAMETER EXTRACTION
+
+Automatically replace customer-specific values with deployment parameters.
+
+Examples:
+
+Workspace ID
+
+Tenant ID
+
+Company Name
+
+Business Logo
+
+Brand Colours
+
+Retell API Key
+
+Retell Agent ID
+
+Phone Number
+
+Webhook URLs
+
+Calendar Provider
+
+CRM Type
+
+CRM Credentials
+
+Email Provider
+
+WhatsApp Provider
+
+Supabase Project
+
+Redis Configuration
+
+Secrets
+
+API Keys
+
+Prompt Templates
+
+Voice Selection
+
+Store these as deployment variables.
+
+---
+
+PHASE 5 — CRM ABSTRACTION LAYER
+
+SystemMind must never learn Microsoft Dynamics as the only CRM.
+
+Instead it must learn CRM concepts.
+
+Separate every workflow into:
+
+Universal Business Action
+
+and
+
+CRM-specific Implementation.
+
+Examples of universal actions:
+
+Create Lead
+
+Update Lead
+
+Create Contact
+
+Update Contact
+
+Create Deal
+
+Update Deal
+
+Assign Owner
+
+Create Note
+
+Attach Transcript
+
+Attach Recording
+
+Move Pipeline Stage
+
+Update Qualification
+
+Schedule Callback
+
+Create Appointment
+
+Tag Record
+
+Search Record
+
+Merge Duplicate
+
+Archive Record
+
+Every CRM integration should be converted into a CRM Adapter.
+
+Supported adapters should include:
+
+Microsoft Dynamics
+
+Pipedrive
+
+HubSpot
+
+Salesforce
+
+GoHighLevel
+
+Zoho
+
+Generic REST CRM
+
+Webhook CRM
+
+Each adapter should define:
+
+Authentication
+
+Objects
+
+Field Mapping
+
+Status Mapping
+
+Pipeline Mapping
+
+Owner Mapping
+
+Notes
+
+Activities
+
+Appointments
+
+Recordings
+
+Transcripts
+
+Rate Limits
+
+Pagination
+
+Error Handling
+
+Retry Strategy
+
+Testing Method
+
+SystemMind must understand the intent behind each action.
+
+Example:
+
+Instead of learning:
+
+"Update Dynamics Status Reason"
+
+Learn:
+
+"Mark Lead as Qualified."
+
+This intent must be translatable to any supported CRM.
+
+---
+
+PHASE 6 — KNOWLEDGE GRAPH
+
+Build a searchable knowledge graph connecting:
+
+Builder Templates
+
+n8n Workflows
+
+Retell Agents
+
+API Engine
+
+HiveMind
+
+GrowthMind
+
+SystemMind
+
+Analytics
+
+CRM Integrations
+
+Calendar Integrations
+
+WhatsApp
+
+Email
+
+Phone Systems
+
+Redis
+
+Supabase
+
+Deployment History
+
+Every workflow should become part of a connected deployment graph.
+
+---
+
+PHASE 7 — WORKFLOW TEMPLATE LIBRARY
+
+Expand the existing Workflow Templates section within the WEBEE Hub (Admin account: [admin@webespokeai.com](mailto:admin@webespokeai.com)).
+
+This must become the central repository for reusable deployment templates.
+
+Each template should include:
+
+Template Name
+
+Business Purpose
+
+Workflow Category
+
+Supported Agent Types
+
+Supported CRM Systems
+
+Supported Calendar Providers
+
+Supported Telephony Providers
+
+Supported Messaging Providers
+
+Required APIs
+
+Required Credentials
+
+Deployment Variables
+
+Business Logic Summary
+
+Technical Architecture
+
+Linked n8n Workflows
+
+Linked Builder Templates
+
+Linked Retell Agents
+
+Version History
+
+Approval Status
+
+Created By
+
+Modified Date
+
+Dependencies
+
+Confidence Score
+
+Deployment Readiness
+
+Reusable Components
+
+Known Limitations
+
+Template Notes
+
+Risk Rating
+
+Template Status
+
+The library must support:
+
+Versioning
+
+Drafts
+
+Approval before production
+
+Search
+
+Categories
+
+Tags
+
+Cloning
+
+Export
+
+Import
+
+Documentation
+
+Visual workflow diagrams
+
+SystemMind must continuously consult this Workflow Template Library before generating any deployment plan and treat approved templates as trusted knowledge.
+
+---
+
+PHASE 8 — MULTI-SOURCE LEARNING
+
+SystemMind must learn from multiple sources, not only n8n.
+
+Knowledge sources include:
+
+Workflow Template Library
+
+Builder Templates
+
+Live n8n Workflows
+
+Retell Agent Configurations
+
+Deployment History
+
+API Engine
+
+System Documentation
+
+Connector Definitions
+
+CRM Adapters
+
+Calendar Adapters
+
+Voice Provider Adapters
+
+Existing Customer Deployments
+
+Successful Previous Installations
+
+Failure Reports
+
+Audit Logs
+
+Feature Documentation
+
+When planning a deployment, SystemMind should consult all available knowledge sources before making recommendations.
+
+---
+
+PHASE 9 — DEPLOYMENT PLANNER
+
+Given a Builder request such as:
+
+"Create an outbound lead generation agent using Retell, Pipedrive, Cal.com and WhatsApp."
+
+SystemMind should determine:
+
+Required templates
+
+Required workflows
+
+Required APIs
+
+Required adapters
+
+Required credentials
+
+Deployment order
+
+Webhook requirements
+
+Infrastructure requirements
+
+Configuration variables
+
+Security requirements
+
+Validation steps
+
+Testing steps
+
+Risk assessment
+
+Estimated deployment time
+
+Generate a complete deployment plan.
+
+Do not automatically deploy.
+
+---
+
+PHASE 10 — CONFIDENCE ENGINE
+
+Every learned template should receive:
+
+Understanding Score
+
+Documentation Score
+
+Reuse Score
+
+CRM Portability Score
+
+Deployment Readiness Score
+
+Dependency Score
+
+Risk Rating
+
+Only templates above the configured confidence threshold should be recommended for production deployments.
+
+---
+
+ADMIN UI
+
+Add a new SystemMind Intelligence area.
+
+Include:
+
+Workflow Intelligence
+
+Deployment Knowledge
+
+Workflow Templates
+
+CRM Adapters
+
+Knowledge Graph
+
+Deployment Planner
+
+Confidence Scores
+
+Template Library
+
+Learning Queue
+
+Suggested Improvements
+
+Architecture Explorer
+
+Dependency Viewer
+
+Version History
+
+Deployment Readiness Dashboard
+
+---
+
+FUTURE PREPARATION
+
+Do NOT enable autonomous deployment.
+
+Prepare the architecture so that a future release can safely:
+
+Build n8n workflows
+
+Create Builder templates
+
+Configure CRM integrations
+
+Create webhooks
+
+Inject credentials
+
+Configure calendars
+
+Configure WhatsApp
+
+Configure email automation
+
+Configure Redis
+
+Configure Supabase
+
+Connect Retell
+
+Provision agents
+
+Validate deployments
+
+Run automated tests
+
+Activate workflows
+
+Maintain strict multi-tenancy, workspace isolation, security boundaries and backwards compatibility at all times.
+
+The objective is for SystemMind to become WEBEE's intelligent deployment architect, capable of understanding natural-language deployment requests and assembling the correct architecture using reusable templates, CRM adapters and accumulated deployment knowledge while ensuring every customer deployment remains isolated, secure and fully configurable.
