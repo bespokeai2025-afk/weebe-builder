@@ -41,6 +41,10 @@ const BASE_NAV_GROUPS: Array<{ title?: string; adminOnly?: boolean; items: NavIt
     title: "Intelligence",
     adminOnly: true,
     items: [
+      { label: "Intelligence Hub",      href: "/systemmind/intelligence",          icon: BrainCircuit  },
+      { label: "Deployment Planner",    href: "/systemmind/deployment-planner",    icon: Rocket        },
+      { label: "Deployment Readiness",  href: "/systemmind/deployment-readiness",  icon: Gauge         },
+      { label: "Learning",              href: "/systemmind/learning",              icon: GraduationCap },
       { label: "Workflow Intelligence", href: "/systemmind/workflow-intelligence", icon: Network },
       { label: "Template Library",      href: "/systemmind/template-library",      icon: Boxes   },
       { label: "Knowledge Graph",       href: "/systemmind/graph",                 icon: Network },
