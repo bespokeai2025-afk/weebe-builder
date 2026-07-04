@@ -1,0 +1,90 @@
+FINAL PRE-PUBLISH LIVE INGEST AUDIT
+
+Do not modify any code unless a fault is found.
+
+Goal:
+Confirm the WEBEE Live Transcript ingest endpoint is production-ready before publishing, and ensure it does not break any existing n8n, Retell, Dynamics 365, dashboard, analytics, HiveMind, GrowthMind, SystemMind, API Engine, or workspace-specific functionality.
+
+Audit and verify:
+
+1. Confirm the route exists:
+   /api/public/retell-live-ingest
+
+2. Confirm the route is exported correctly and included in the production build.
+
+3. Confirm no middleware, auth guard, SPA fallback, routing issue, or deployment config causes this endpoint to return 404 in production.
+
+4. Confirm the production environment variable exists:
+   WEBEE_LIVE_INGEST_SECRET
+
+5. Confirm this secret is available in Production, not only Development.
+
+6. Confirm the endpoint expects the exact header:
+   x-webee-live-ingest-secret
+
+7. Confirm this matches the header currently being sent from n8n.
+
+8. Test auth behaviour locally/build-preview:
+
+   POST without header should return:
+   401
+
+   It must NOT return:
+   404 or 503
+
+9. Test with correct header:
+
+   POST with correct x-webee-live-ingest-secret should return:
+   200
+
+10. Confirm the endpoint accepts the raw Retell payload shape:
+    {
+    event,
+    call
+    }
+
+n8n forwards this from:
+$json.body
+
+11. Confirm the endpoint correctly maps the WBAH platform Retell agent:
+    agent_0440750bb59597eef7352901bf
+
+12. Confirm the workspace/account mapping is correct and does not confuse the WBAH workspace Retell copy:
+    agent_50598858538a69272a4bf04bf8
+
+13. Confirm all writes are workspace-scoped and cannot leak data between accounts.
+
+14. Confirm duplicate Retell events are ignored or handled idempotently.
+
+15. Confirm failed WEBEE writes cannot crash the API.
+
+16. Confirm this endpoint cannot interfere with:
+
+* existing Retell webhooks
+* existing n8n workflows
+* Dynamics 365 updates
+* dashboard updates
+* analytics
+* API Engine
+* HiveMind
+* GrowthMind
+* SystemMind
+* builder
+* workspace isolation
+
+17. Confirm the n8n live forwarding node can safely hit this endpoint even while production is unpublished or temporarily unavailable.
+
+18. Recommend whether the n8n HTTP Request node should use retries, exponential backoff, or a dead-letter/replay workflow for failed WEBEE transcript forwards. Do not change n8n unless explicitly instructed.
+
+19. Produce a clear deployment checklist.
+
+20. Only if every check passes, state clearly:
+
+READY FOR PRODUCTION PUBLISH
+
+Important:
+Do not rebuild pages.
+Do not rename routes.
+Do not change existing business logic.
+Do not alter any existing Retell, n8n, Dynamics, analytics, dashboard, or workspace functionality unless a specific fault is found.
+If a fault is found, explain it first, then make the smallest safe fix only.
