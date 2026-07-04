@@ -1,0 +1,268 @@
+PERFORMANCE FIX — DAILY + INCREMENTAL SYNC ENGINE FOR CALLS, LEADS AND PEOPLE
+
+Do not rebuild pages.
+Do not change UI design unless required.
+Do not remove existing functionality.
+Do not break WBAH or any existing workspace.
+Do not change business rules.
+
+Problem:
+The platform appears to call external APIs every time a user clicks pages such as Calls, Leads, People, Analytics or Dashboard sections. This is causing slow page loads, excessive API calls, lag and inconsistent data.
+
+Goal:
+Change the data architecture so pages load from stored local data first, and external APIs are only called through a controlled sync process.
+
+Required behaviour:
+
+1. Pages must load from Supabase/local stored data first.
+2. Do not fetch the full external API dataset on every page navigation.
+3. Add or verify a Sync Engine that handles:
+
+   * daily automatic sync
+   * manual “Sync Now” button
+   * incremental sync
+   * webhook-triggered updates where available
+4. Old data must remain stored locally.
+5. Only new or changed records should be fetched from external APIs after the first full import.
+6. Each workspace must have its own sync state.
+7. Sync must be workspace-scoped and user-account-specific.
+8. WBAH must remain working exactly as it currently does.
+9. Existing n8n workflows must not break.
+10. Existing analytics, HiveMind, GrowthMind, SystemMind, API Engine and dashboard pages must continue working.
+
+Implementation requirements:
+
+Create or verify sync state tracking per workspace and per data source.
+
+Use a table such as:
+
+sync_state
+
+Fields should include:
+
+* id
+* workspace_id
+* source_name
+* module
+* last_successful_sync_at
+* last_attempted_sync_at
+* last_cursor
+* last_external_updated_at
+* sync_status
+* error_message
+* records_created
+* records_updated
+* records_skipped
+* created_at
+* updated_at
+
+Modules should include at minimum:
+
+* calls
+* leads
+* people
+* analytics
+* qualified_leads
+* campaigns where relevant
+
+External API sync logic:
+
+For each external data source, replace full reload behaviour with incremental fetching using the best available method:
+
+* updated_after
+* created_after
+* modified_since
+* cursor
+* page token
+* external updated_at timestamp
+* fallback to created_at
+* fallback to stored external IDs
+
+If the external API does not support incremental filtering, then:
+
+* fetch in controlled batches
+* compare external IDs against stored IDs
+* insert only new records
+* update changed records only
+* skip unchanged records
+
+Local storage rules:
+
+Every imported record must store:
+
+* workspace_id
+* external_source
+* external_id
+* external_created_at
+* external_updated_at
+* raw_payload
+* normalized fields
+* last_synced_at
+
+Use upsert logic, not blind insert.
+
+Uniqueness should be enforced by:
+
+workspace_id + external_source + external_id
+
+This prevents duplicates and allows safe repeated syncs.
+
+Page loading rules:
+
+Calls page:
+Load from local calls table first.
+Do not call Retell/API Engine directly on page load unless user clicks Sync Now or data has never been synced.
+
+Leads page:
+Load from local leads table first.
+Do not call CRM/API Engine directly on page load unless user clicks Sync Now or first import is required.
+
+People/Data section:
+Load from local people/contacts table first.
+Do not call external CRM/API on page navigation.
+
+Analytics page:
+Calculate from stored calls/leads/qualified data where possible.
+Only refresh external analytics through scheduled sync or manual sync.
+
+HiveMind/GrowthMind/SystemMind:
+Read from local workspace-scoped data.
+Do not trigger full external API refresh on every assistant load.
+
+Manual Sync:
+
+Add or verify a visible “Sync Now” action for each major module.
+
+When clicked:
+
+* start sync job
+* show syncing state
+* fetch only new/changed data
+* update local database
+* update sync_state
+* refresh UI from local data
+* show last synced time
+
+Scheduled Sync:
+
+Add daily automatic sync for each workspace.
+
+Daily sync should run off-page, not when a user clicks a page.
+
+It should:
+
+* sync calls
+* sync leads
+* sync people
+* sync analytics where required
+* update sync_state
+* log errors without crashing the app
+
+Optional:
+Allow workspace settings to configure sync frequency later, but default should be daily.
+
+Caching:
+
+Use Redis/Upstash only as a fast cache layer.
+Supabase/Postgres remains the source of truth.
+
+Redis cache keys must include:
+
+* workspace_id
+* module
+* filters
+* pagination
+* date range
+
+Cache should be invalidated after successful sync.
+
+Do not allow Redis to cause cross-workspace data leakage.
+
+API Engine rules:
+
+The API Engine should become the controlled sync layer, not a page-load fetch layer.
+
+Pages should call internal WEBEE endpoints that read local database records.
+
+External APIs should only be contacted by:
+
+* Sync Engine
+* Manual Sync
+* Scheduled Jobs
+* Webhook ingestion
+* Admin diagnostic tools
+
+Not normal page navigation.
+
+First import behaviour:
+
+If a workspace has never synced a module before:
+
+* perform one controlled full import
+* paginate correctly
+* store all records locally
+* record sync_state
+* after that use incremental sync only
+
+Safety:
+
+Do not delete old local data unless explicitly required.
+Do not overwrite good local data with empty API responses.
+Do not clear tables during sync.
+Do not block page loading while sync runs.
+Do not allow one workspace sync failure to affect another workspace.
+Do not expose secrets in logs.
+Do not change sentiment or qualification rules.
+Do not change WBAH positive/qualified filtering unless required by existing logic.
+
+Diagnostics:
+
+Add logging to prove:
+
+* when a page loads from local DB
+* when an external API is called
+* why an external API was called
+* which workspace triggered it
+* how many records were created, updated, skipped
+* last successful sync time
+
+Audit task:
+
+Before changing anything, identify every place where page navigation currently triggers external API calls for:
+
+* calls
+* leads
+* people
+* analytics
+* qualified leads
+* dashboard stats
+* HiveMind
+* GrowthMind
+* SystemMind
+
+Then refactor safely so these use local stored data by default.
+
+Expected result:
+
+Clicking between dashboard pages should be fast.
+
+External API calls should reduce dramatically.
+
+Old data should remain available instantly.
+
+Only new or changed records should be synced.
+
+Manual Sync should still allow users to refresh on demand.
+
+Daily sync should keep data current automatically.
+
+At the end, report:
+
+* which page-load API calls were removed
+* which modules now read from local data
+* where sync_state is stored
+* how manual sync works
+* how daily sync works
+* how duplicates are prevented
+* how workspace isolation is protected
+* any remaining risks
