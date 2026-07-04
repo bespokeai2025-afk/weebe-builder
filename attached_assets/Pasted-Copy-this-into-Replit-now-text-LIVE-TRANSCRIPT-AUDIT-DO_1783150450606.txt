@@ -1,0 +1,110 @@
+Copy this into Replit now:
+
+```text
+LIVE TRANSCRIPT AUDIT — DO THIS BEFORE CONTINUING IMPLEMENTATION
+
+Stop building new live transcript features until this audit is complete.
+
+Do not remove any existing work already started.
+Do not rebuild existing pages.
+Do not change existing Retell call logic.
+Do not change existing post-call transcript, analytics, leads, HiveMind, GrowthMind, SystemMind, or webhook behaviour.
+
+Goal:
+Find out whether the current implementation can show TRUE live transcript during an active Retell call, or whether it is only using post-call transcript data.
+
+Audit these areas:
+
+1. Retell agent mode
+- Are our active agents using Retell Agent Builder / Conversation Flow?
+- Are any agents using Retell Custom LLM WebSocket?
+- Which model is configured for calls? Confirm GPT-4.1 Fast is still being used.
+- Confirm whether adding live monitoring changes the call LLM or not.
+
+2. Live transcript source
+Find the exact source currently being used for transcript display:
+- post-call webhook transcript
+- call_analyzed event
+- call_ended event
+- stored call_transcripts table
+- Retell live stream
+- Custom LLM WebSocket update_only event
+- frontend polling
+- Supabase Realtime
+- SSE
+- WebSocket
+
+Clearly state whether the current transcript source is live or post-call only.
+
+3. Current build status
+Inspect any new files/tables/components already created for live monitoring:
+- live_call_sessions
+- live_call_transcript_events
+- live monitor routes/components
+- SSE/WebSocket handlers
+- Retell webhook changes
+- Supabase Realtime subscriptions
+
+Report what has been added so far and whether it is safe.
+
+4. Webhook audit
+Check Retell webhook handling:
+- call_started / call_initiated
+- call_in_progress
+- transcript delta / partial transcript event, if present
+- call_ended
+- call_analyzed
+
+Confirm whether any event currently arrives during the live call containing transcript text.
+
+5. Database audit
+Check whether live transcript data is being written during the call.
+Confirm:
+- rows created when call starts
+- transcript rows inserted before call ends
+- workspace_id included
+- duplicate protection exists
+- RLS policies are safe
+- ended calls are marked ended
+
+6. Frontend audit
+Check whether dashboard live monitor:
+- subscribes to the correct workspace
+- listens to active calls only
+- renders transcript events from live_call_transcript_events
+- avoids using final call_transcripts as the live source
+- shows correct states:
+  - Waiting for speech
+  - Live transcript active
+  - Live transcript unavailable
+  - Final transcript saved
+
+7. Risk audit
+Confirm the new work does not break:
+- existing Retell calls
+- existing test call popup
+- post-call logs
+- post-call transcripts
+- analytics
+- leads
+- qualified leads
+- WBAH workspace
+- Webespoke AI workspace
+- HiveMind / GrowthMind / SystemMind
+- Redis/API Engine
+- Supabase auth and workspace isolation
+
+8. Required conclusion
+At the end, return a clear answer:
+
+A) TRUE LIVE TRANSCRIPT IS AVAILABLE NOW
+Explain the live source and what remains to connect.
+
+B) TRUE LIVE TRANSCRIPT IS NOT AVAILABLE WITH CURRENT RETELL MODE
+Explain that current Retell Agent Builder setup only provides post-call transcript, and live transcript requires Custom LLM WebSocket or Retell live monitoring stream.
+
+C) IMPLEMENTATION IS PARTIAL
+Explain exactly what is built and what is missing.
+
+Do not continue coding until this report is produced.
+```

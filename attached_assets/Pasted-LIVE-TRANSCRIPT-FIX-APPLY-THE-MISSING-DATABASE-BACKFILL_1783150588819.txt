@@ -1,0 +1,54 @@
+LIVE TRANSCRIPT FIX — APPLY THE MISSING DATABASE + BACKFILL ONLY
+
+Do not rebuild the feature.
+Do not redesign the UI.
+Do not change existing Retell call logic, post-call logs, analytics, leads, HiveMind, GrowthMind, SystemMind, WBAH, or Webespoke workspace logic.
+
+The audit confirmed the implementation is partial and the blocker is:
+supabase/migrations/20260724000000_live_call_sessions.sql exists in the repo but has NOT been applied to Supabase.
+
+Tasks:
+
+1. Apply the migration manually or provide the exact SQL to run in Supabase SQL Editor for:
+- live_call_sessions table
+- unique constraint on workspace_id + retell_call_id
+- indexes
+- RLS policies
+- updated_at trigger if required
+
+2. Confirm the table exists after applying:
+select to_regclass('public.live_call_sessions');
+
+3. Backfill transcript_updated webhook support onto all already-deployed Retell agents.
+Important:
+- Do not replace existing webhook_events.
+- Union/add transcript_updated to existing webhook_events.
+- Preserve all existing events.
+- Preserve existing webhook URL.
+- Preserve existing agent config, model, tools, prompts, voice, phone numbers, and conversation_flow_id.
+
+4. Confirm GPT-4.1 Fast remains unchanged.
+
+5. Set/check production env:
+RETELL_SIGNATURE_VERIFICATION_ENABLED=true
+
+6. Test live call:
+- Start a Retell call.
+- Confirm live_call_sessions row is created immediately.
+- Confirm latest_transcript_text updates during the call from transcript_updated.
+- Confirm dashboard SSE displays transcript during the active call.
+- Confirm call_ended marks the session ended.
+- Confirm existing final transcript/call logs still save normally.
+- Confirm no duplicate call logs or duplicate webhook events.
+
+7. Add a small frontend state improvement:
+If live call is active for more than 20 seconds but no transcript_updated has arrived, show:
+“Live transcript not received yet. Check transcript_updated webhook event and Retell webhook URL.”
+Do not leave it stuck on “Waiting for speech…” forever.
+
+Return:
+- exact SQL applied
+- agents backfilled count
+- test result
+- files changed
+- confirmation that existing features were not changed
