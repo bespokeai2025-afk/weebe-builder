@@ -3,7 +3,7 @@ import {
   Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield,
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
   CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2, Database,
-  Users, Activity, Network, Boxes, Share2,
+  Users, Activity, Network, Boxes, Share2, BrainCircuit, Rocket, Gauge, GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";

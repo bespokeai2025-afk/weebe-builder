@@ -102,10 +102,14 @@ import { Route as AuthenticatedSystemmindReportsRouteImport } from './routes/_au
 import { Route as AuthenticatedSystemmindRecommendationsRouteImport } from './routes/_authenticated/systemmind.recommendations'
 import { Route as AuthenticatedSystemmindProvidersRouteImport } from './routes/_authenticated/systemmind.providers'
 import { Route as AuthenticatedSystemmindPlaybooksRouteImport } from './routes/_authenticated/systemmind.playbooks'
+import { Route as AuthenticatedSystemmindLearningRouteImport } from './routes/_authenticated/systemmind.learning'
 import { Route as AuthenticatedSystemmindKnowledgeRouteImport } from './routes/_authenticated/systemmind.knowledge'
 import { Route as AuthenticatedSystemmindIssuesRouteImport } from './routes/_authenticated/systemmind.issues'
+import { Route as AuthenticatedSystemmindIntelligenceRouteImport } from './routes/_authenticated/systemmind.intelligence'
 import { Route as AuthenticatedSystemmindGraphRouteImport } from './routes/_authenticated/systemmind.graph'
 import { Route as AuthenticatedSystemmindFixPlansRouteImport } from './routes/_authenticated/systemmind.fix-plans'
+import { Route as AuthenticatedSystemmindDeploymentReadinessRouteImport } from './routes/_authenticated/systemmind.deployment-readiness'
+import { Route as AuthenticatedSystemmindDeploymentPlannerRouteImport } from './routes/_authenticated/systemmind.deployment-planner'
 import { Route as AuthenticatedSystemmindDataLimitsRouteImport } from './routes/_authenticated/systemmind.data-limits'
 import { Route as AuthenticatedSystemmindCrmAdaptersRouteImport } from './routes/_authenticated/systemmind.crm-adapters'
 import { Route as AuthenticatedSystemmindClientsRouteImport } from './routes/_authenticated/systemmind.clients'
@@ -739,6 +743,12 @@ const AuthenticatedSystemmindPlaybooksRoute =
     path: '/playbooks',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
+const AuthenticatedSystemmindLearningRoute =
+  AuthenticatedSystemmindLearningRouteImport.update({
+    id: '/learning',
+    path: '/learning',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
 const AuthenticatedSystemmindKnowledgeRoute =
   AuthenticatedSystemmindKnowledgeRouteImport.update({
     id: '/knowledge',
@@ -751,6 +761,12 @@ const AuthenticatedSystemmindIssuesRoute =
     path: '/issues',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
+const AuthenticatedSystemmindIntelligenceRoute =
+  AuthenticatedSystemmindIntelligenceRouteImport.update({
+    id: '/intelligence',
+    path: '/intelligence',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
 const AuthenticatedSystemmindGraphRoute =
   AuthenticatedSystemmindGraphRouteImport.update({
     id: '/graph',
@@ -761,6 +777,18 @@ const AuthenticatedSystemmindFixPlansRoute =
   AuthenticatedSystemmindFixPlansRouteImport.update({
     id: '/fix-plans',
     path: '/fix-plans',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindDeploymentReadinessRoute =
+  AuthenticatedSystemmindDeploymentReadinessRouteImport.update({
+    id: '/deployment-readiness',
+    path: '/deployment-readiness',
+    getParentRoute: () => AuthenticatedSystemmindRoute,
+  } as any)
+const AuthenticatedSystemmindDeploymentPlannerRoute =
+  AuthenticatedSystemmindDeploymentPlannerRouteImport.update({
+    id: '/deployment-planner',
+    path: '/deployment-planner',
     getParentRoute: () => AuthenticatedSystemmindRoute,
   } as any)
 const AuthenticatedSystemmindDataLimitsRoute =
@@ -1677,10 +1705,14 @@ export interface FileRoutesByFullPath {
   '/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
+  '/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
+  '/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
   '/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
   '/systemmind/graph': typeof AuthenticatedSystemmindGraphRoute
+  '/systemmind/intelligence': typeof AuthenticatedSystemmindIntelligenceRoute
   '/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
+  '/systemmind/learning': typeof AuthenticatedSystemmindLearningRoute
   '/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
   '/systemmind/providers': typeof AuthenticatedSystemmindProvidersRoute
   '/systemmind/recommendations': typeof AuthenticatedSystemmindRecommendationsRoute
@@ -1903,10 +1935,14 @@ export interface FileRoutesByTo {
   '/systemmind/chat': typeof AuthenticatedSystemmindChatRoute
   '/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
   '/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
+  '/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
+  '/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
   '/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
   '/systemmind/graph': typeof AuthenticatedSystemmindGraphRoute
+  '/systemmind/intelligence': typeof AuthenticatedSystemmindIntelligenceRoute
   '/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
+  '/systemmind/learning': typeof AuthenticatedSystemmindLearningRoute
   '/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
   '/systemmind/providers': typeof AuthenticatedSystemmindProvidersRoute
   '/systemmind/recommendations': typeof AuthenticatedSystemmindRecommendationsRoute
@@ -2139,10 +2175,14 @@ export interface FileRoutesById {
   '/_authenticated/systemmind/clients': typeof AuthenticatedSystemmindClientsRouteWithChildren
   '/_authenticated/systemmind/crm-adapters': typeof AuthenticatedSystemmindCrmAdaptersRoute
   '/_authenticated/systemmind/data-limits': typeof AuthenticatedSystemmindDataLimitsRoute
+  '/_authenticated/systemmind/deployment-planner': typeof AuthenticatedSystemmindDeploymentPlannerRoute
+  '/_authenticated/systemmind/deployment-readiness': typeof AuthenticatedSystemmindDeploymentReadinessRoute
   '/_authenticated/systemmind/fix-plans': typeof AuthenticatedSystemmindFixPlansRoute
   '/_authenticated/systemmind/graph': typeof AuthenticatedSystemmindGraphRoute
+  '/_authenticated/systemmind/intelligence': typeof AuthenticatedSystemmindIntelligenceRoute
   '/_authenticated/systemmind/issues': typeof AuthenticatedSystemmindIssuesRoute
   '/_authenticated/systemmind/knowledge': typeof AuthenticatedSystemmindKnowledgeRoute
+  '/_authenticated/systemmind/learning': typeof AuthenticatedSystemmindLearningRoute
   '/_authenticated/systemmind/playbooks': typeof AuthenticatedSystemmindPlaybooksRoute
   '/_authenticated/systemmind/providers': typeof AuthenticatedSystemmindProvidersRoute
   '/_authenticated/systemmind/recommendations': typeof AuthenticatedSystemmindRecommendationsRoute
@@ -2376,10 +2416,14 @@ export interface FileRouteTypes {
     | '/systemmind/clients'
     | '/systemmind/crm-adapters'
     | '/systemmind/data-limits'
+    | '/systemmind/deployment-planner'
+    | '/systemmind/deployment-readiness'
     | '/systemmind/fix-plans'
     | '/systemmind/graph'
+    | '/systemmind/intelligence'
     | '/systemmind/issues'
     | '/systemmind/knowledge'
+    | '/systemmind/learning'
     | '/systemmind/playbooks'
     | '/systemmind/providers'
     | '/systemmind/recommendations'
@@ -2602,10 +2646,14 @@ export interface FileRouteTypes {
     | '/systemmind/chat'
     | '/systemmind/crm-adapters'
     | '/systemmind/data-limits'
+    | '/systemmind/deployment-planner'
+    | '/systemmind/deployment-readiness'
     | '/systemmind/fix-plans'
     | '/systemmind/graph'
+    | '/systemmind/intelligence'
     | '/systemmind/issues'
     | '/systemmind/knowledge'
+    | '/systemmind/learning'
     | '/systemmind/playbooks'
     | '/systemmind/providers'
     | '/systemmind/recommendations'
@@ -2837,10 +2885,14 @@ export interface FileRouteTypes {
     | '/_authenticated/systemmind/clients'
     | '/_authenticated/systemmind/crm-adapters'
     | '/_authenticated/systemmind/data-limits'
+    | '/_authenticated/systemmind/deployment-planner'
+    | '/_authenticated/systemmind/deployment-readiness'
     | '/_authenticated/systemmind/fix-plans'
     | '/_authenticated/systemmind/graph'
+    | '/_authenticated/systemmind/intelligence'
     | '/_authenticated/systemmind/issues'
     | '/_authenticated/systemmind/knowledge'
+    | '/_authenticated/systemmind/learning'
     | '/_authenticated/systemmind/playbooks'
     | '/_authenticated/systemmind/providers'
     | '/_authenticated/systemmind/recommendations'
@@ -3701,6 +3753,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemmindPlaybooksRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
+    '/_authenticated/systemmind/learning': {
+      id: '/_authenticated/systemmind/learning'
+      path: '/learning'
+      fullPath: '/systemmind/learning'
+      preLoaderRoute: typeof AuthenticatedSystemmindLearningRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
     '/_authenticated/systemmind/knowledge': {
       id: '/_authenticated/systemmind/knowledge'
       path: '/knowledge'
@@ -3715,6 +3774,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemmindIssuesRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
+    '/_authenticated/systemmind/intelligence': {
+      id: '/_authenticated/systemmind/intelligence'
+      path: '/intelligence'
+      fullPath: '/systemmind/intelligence'
+      preLoaderRoute: typeof AuthenticatedSystemmindIntelligenceRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
     '/_authenticated/systemmind/graph': {
       id: '/_authenticated/systemmind/graph'
       path: '/graph'
@@ -3727,6 +3793,20 @@ declare module '@tanstack/react-router' {
       path: '/fix-plans'
       fullPath: '/systemmind/fix-plans'
       preLoaderRoute: typeof AuthenticatedSystemmindFixPlansRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/deployment-readiness': {
+      id: '/_authenticated/systemmind/deployment-readiness'
+      path: '/deployment-readiness'
+      fullPath: '/systemmind/deployment-readiness'
+      preLoaderRoute: typeof AuthenticatedSystemmindDeploymentReadinessRouteImport
+      parentRoute: typeof AuthenticatedSystemmindRoute
+    }
+    '/_authenticated/systemmind/deployment-planner': {
+      id: '/_authenticated/systemmind/deployment-planner'
+      path: '/deployment-planner'
+      fullPath: '/systemmind/deployment-planner'
+      preLoaderRoute: typeof AuthenticatedSystemmindDeploymentPlannerRouteImport
       parentRoute: typeof AuthenticatedSystemmindRoute
     }
     '/_authenticated/systemmind/data-limits': {
@@ -5014,10 +5094,14 @@ interface AuthenticatedSystemmindRouteChildren {
   AuthenticatedSystemmindClientsRoute: typeof AuthenticatedSystemmindClientsRouteWithChildren
   AuthenticatedSystemmindCrmAdaptersRoute: typeof AuthenticatedSystemmindCrmAdaptersRoute
   AuthenticatedSystemmindDataLimitsRoute: typeof AuthenticatedSystemmindDataLimitsRoute
+  AuthenticatedSystemmindDeploymentPlannerRoute: typeof AuthenticatedSystemmindDeploymentPlannerRoute
+  AuthenticatedSystemmindDeploymentReadinessRoute: typeof AuthenticatedSystemmindDeploymentReadinessRoute
   AuthenticatedSystemmindFixPlansRoute: typeof AuthenticatedSystemmindFixPlansRoute
   AuthenticatedSystemmindGraphRoute: typeof AuthenticatedSystemmindGraphRoute
+  AuthenticatedSystemmindIntelligenceRoute: typeof AuthenticatedSystemmindIntelligenceRoute
   AuthenticatedSystemmindIssuesRoute: typeof AuthenticatedSystemmindIssuesRoute
   AuthenticatedSystemmindKnowledgeRoute: typeof AuthenticatedSystemmindKnowledgeRoute
+  AuthenticatedSystemmindLearningRoute: typeof AuthenticatedSystemmindLearningRoute
   AuthenticatedSystemmindPlaybooksRoute: typeof AuthenticatedSystemmindPlaybooksRoute
   AuthenticatedSystemmindProvidersRoute: typeof AuthenticatedSystemmindProvidersRoute
   AuthenticatedSystemmindRecommendationsRoute: typeof AuthenticatedSystemmindRecommendationsRoute
@@ -5044,11 +5128,18 @@ const AuthenticatedSystemmindRouteChildren: AuthenticatedSystemmindRouteChildren
       AuthenticatedSystemmindCrmAdaptersRoute,
     AuthenticatedSystemmindDataLimitsRoute:
       AuthenticatedSystemmindDataLimitsRoute,
+    AuthenticatedSystemmindDeploymentPlannerRoute:
+      AuthenticatedSystemmindDeploymentPlannerRoute,
+    AuthenticatedSystemmindDeploymentReadinessRoute:
+      AuthenticatedSystemmindDeploymentReadinessRoute,
     AuthenticatedSystemmindFixPlansRoute: AuthenticatedSystemmindFixPlansRoute,
     AuthenticatedSystemmindGraphRoute: AuthenticatedSystemmindGraphRoute,
+    AuthenticatedSystemmindIntelligenceRoute:
+      AuthenticatedSystemmindIntelligenceRoute,
     AuthenticatedSystemmindIssuesRoute: AuthenticatedSystemmindIssuesRoute,
     AuthenticatedSystemmindKnowledgeRoute:
       AuthenticatedSystemmindKnowledgeRoute,
+    AuthenticatedSystemmindLearningRoute: AuthenticatedSystemmindLearningRoute,
     AuthenticatedSystemmindPlaybooksRoute:
       AuthenticatedSystemmindPlaybooksRoute,
     AuthenticatedSystemmindProvidersRoute:
