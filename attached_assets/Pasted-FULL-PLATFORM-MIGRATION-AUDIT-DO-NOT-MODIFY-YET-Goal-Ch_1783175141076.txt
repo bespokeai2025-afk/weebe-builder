@@ -1,0 +1,86 @@
+FULL PLATFORM MIGRATION AUDIT — DO NOT MODIFY YET
+
+Goal:
+Check whether all required database migrations have been applied across the whole WEBEE platform.
+
+Important:
+Do not apply migrations yet.
+Do not change schema yet.
+Do not delete anything.
+Do not reset the database.
+Do not run destructive commands.
+Do not affect production data.
+
+Audit the entire platform and report:
+
+1. All migration files in the repo
+2. All migrations recorded as applied in the database
+3. Any migration files missing from the database history
+4. Any database tables expected by the code but missing from Supabase/Postgres
+5. Any columns expected by the code but missing
+6. Any indexes expected by the code but missing
+7. Any constraints expected by the code but missing
+8. Any RLS policies expected by the code but missing
+9. Any functions, triggers or cron jobs expected by the code but missing
+10. Any migrations that appear partially applied
+11. Any duplicate or conflicting migrations
+12. Any environment-specific differences between local/dev/prod if detectable
+
+Check all major modules:
+
+* Workspaces
+* Users/auth
+* Builder
+* Retell agents
+* WhatsApp Builder
+* WATI
+* Twilio
+* Calls
+* Leads
+* People/Data
+* Analytics
+* Qualified leads
+* API Engine
+* Sync Engine
+* HiveMind
+* GrowthMind
+* SystemMind
+* Workflow Templates
+* n8n intelligence
+* CRM adapters
+* Webhooks
+* Live transcripts
+* Campaigns
+* HexMail
+* Calendar/Cal.com
+* Redis/Upstash cache references
+* Admin tools
+* Audit logs
+
+Return a clear report with:
+
+* Applied migrations
+* Pending migrations
+* Missing tables
+* Missing columns
+* Missing indexes
+* Missing policies
+* Missing triggers/functions
+* Risk level for each missing item
+* Whether it is safe to apply
+* Exact migration file name that should be run
+* Recommended order to run migrations
+
+If any migrations are missing, produce a numbered list titled:
+
+MIGRATIONS THAT NEED APPLYING
+
+Do not apply them until I approve.
+
+Final output must state either:
+
+ALL MIGRATIONS ARE UP TO DATE
+
+or
+
+MIGRATIONS ARE MISSING — APPROVAL REQUIRED BEFORE APPLYING
