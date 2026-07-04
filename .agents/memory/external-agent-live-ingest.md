@@ -38,3 +38,31 @@ model/prompt/voice/tools/flow/workspace logic".
 **How to apply:** to add another externally-hosted agent, add an entry to the
 allow-map in `src/routes/api/public/retell-live-ingest.ts` and have that agent's
 n8n forward the same events. Requires a production republish to go live.
+
+## WBAH concrete topology (the live wiring)
+
+- **Two Retell accounts, same n8n webhook.** The allow-mapped agent
+  `agent_0440750bb59597eef7352901bf` ("WBAH Client qualification agent outbound")
+  lives in the **platform** account (`RETELL_API_KEY`) — that is the account that
+  actually runs the calls. WBAH's *own* Retell key holds a parallel copy of the
+  same-named agent under a DIFFERENT id (`agent_50598858538a69272a4bf04bf8`), plus
+  siblings (Tried-to-contact, New-Leads, Rebooking). Don't assume the workspace
+  key contains the mapped agent — it 404s there; check the platform key.
+- **WBAH's own Retell API key** is stored in `workspace_settings.retell_workspace_id`
+  (misnamed column — it holds the key, not a workspace id); read via
+  `requireWbahRetellKey()`.
+- **n8n instance:** `https://bespoke.app.n8n.cloud` (public API base `/api/v1`,
+  header `X-N8N-API-KEY`; PUT /workflows/{id} accepts only `{name,nodes,connections,settings}` and does NOT toggle `active`).
+- **The workflow that receives WBAH Retell events** is `yR3vAIdZNLovD8jx`,
+  confusingly named *"Test Gyana - Receive Data From Retell ... (CALLBACK SUPPORT)"*
+  — it IS the live production receiver (authoritative proof: every WBAH agent's
+  `webhook_url` = `bespoke.app.n8n.cloud/webhook/392d5d13-7ee2-4fa0-ad46-7736ba4603bf`,
+  which is this workflow's Webhook-trigger path). Don't be fooled by the "Test" name.
+- **Forwarder node** "WEBEE Live Ingest" (httpRequest, `onError:continueRegularOutput`)
+  is hung as an extra parallel branch off the "Webhook" trigger's `main[0]` — no
+  existing node/connection touched, webhook path preserved. **Raw Retell payload is
+  at `$json.body`** (downstream nodes read `$json.body.call`), so the node posts
+  `={{ JSON.stringify($json.body) }}`.
+- **Why:** identifies exactly where a future change (new agent, moved webhook,
+  broken forward) must land, and records that the platform vs workspace Retell key
+  split is real — a lesson that cost several 404s to learn.
