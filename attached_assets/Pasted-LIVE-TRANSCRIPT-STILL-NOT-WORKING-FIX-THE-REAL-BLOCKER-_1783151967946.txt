@@ -1,0 +1,56 @@
+LIVE TRANSCRIPT STILL NOT WORKING — FIX THE REAL BLOCKER NOW
+
+The UI is showing:
+“Recording in progress — transcript appears when the call ends”
+
+That means the app is still using post-call transcript fallback, not true live transcript.
+
+Do not rebuild the feature.
+Do not redesign the dashboard.
+Do not change existing calls, analytics, leads, HiveMind, GrowthMind, SystemMind, WBAH, or Webespoke logic.
+
+Immediate checks:
+
+1. Confirm if live_call_sessions table exists in the actual Supabase project:
+select to_regclass('public.live_call_sessions');
+
+If NULL, stop and give me the exact SQL migration to paste into Supabase SQL Editor. Do not claim it is done unless the table exists in Supabase.
+
+2. Confirm this live call created a row:
+select *
+from live_call_sessions
+order by created_at desc
+limit 10;
+
+3. Confirm whether transcript_updated is enabled on the exact Retell agent used in the screenshot:
+“WBAH Client qualification agent outbo...”
+
+Check the deployed Retell agent config. It must include webhook_events containing transcript_updated.
+Do not only check code defaults. Check the live deployed Retell agent.
+
+4. If transcript_updated is missing, update/backfill the live Retell agent config by adding transcript_updated to webhook_events without removing existing events.
+
+5. Confirm Retell is posting transcript_updated to our webhook:
+- log every incoming Retell webhook event type temporarily
+- specifically confirm whether transcript_updated arrives during the active call
+- do not store transcript_updated in normal webhook_events if that was intentionally avoided
+- but do log it to server console for debugging
+
+6. If transcript_updated arrives, confirm it writes to live_call_sessions.latest_transcript_text during the call.
+
+7. If transcript_updated does NOT arrive, the problem is Retell agent webhook_events/backfill or webhook URL, not the frontend.
+
+8. Fix the frontend message:
+Do not show “transcript appears when the call ends” when live monitoring is switched on.
+Instead show one of:
+- “Waiting for Retell transcript_updated event…”
+- “Live transcript active”
+- “Live transcript unavailable: transcript_updated not received from Retell”
+
+Return:
+- Does live_call_sessions exist in Supabase? yes/no
+- Did this call create a live_call_sessions row? yes/no
+- Is transcript_updated enabled on the exact Retell agent? yes/no
+- Did the webhook receive transcript_updated during the call? yes/no
+- What exact blocker was found
+- What was changed

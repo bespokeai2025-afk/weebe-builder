@@ -41,6 +41,19 @@ REST/`calls` table, both empty during the call.
 `RETELL_SIGNATURE_VERIFICATION_ENABLED=true`. It defaults to DISABLED
 (`… !== "true"`). If unset in prod, anyone can POST fake transcripts into
 `live_call_sessions`. Ensure the env var is set in production secrets.
+
+**Routing blocker (why live transcript can silently do nothing):** Retell
+agent-level `webhook_url` OVERRIDES the account-level webhook — if it is set,
+the account webhook is NOT triggered for that agent. Many WBAH/production Retell
+agents (e.g. "WBAH Client qualification agent outbound") have their `webhook_url`
+pointed at an EXTERNAL n8n endpoint (`bespoke.app.n8n.cloud/webhook/...`), so
+Retell delivers ALL their events — including `transcript_updated` — to n8n and
+NEVER to WEBEE. Result: 0 rows in `live_call_sessions`, panel shows the fallback,
+and no code change on our side can fix it. Verify the exact agent's live config
+with `GET https://api.retellai.com/get-agent/<id>` (Bearer RETELL_API_KEY) before
+assuming the feature is broken. Fixes require a routing decision: repoint the
+agent to WEBEE and forward to n8n, or have n8n forward to WEBEE — both touch
+production lead routing, so get user consent.
 The webhook "signing key" is NOT a separate secret — `verifyRetellSignature`
 uses the Retell API key itself (platform `RETELL_API_KEY`, falling back to the
 per-workspace key). So the flag is safe to flip on whenever `RETELL_API_KEY`

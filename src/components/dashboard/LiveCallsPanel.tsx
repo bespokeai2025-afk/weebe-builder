@@ -161,30 +161,27 @@ function CallCard({ call }: { call: LiveCall }) {
               <Mic className="h-3.5 w-3.5" />
               No transcript recorded
             </div>
-          ) : call.live_transcript ? (
-            transcriptOverdue ? (
-              <div className="flex items-start gap-2 py-3 text-[11px] text-amber-400/80">
-                <Mic className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <span>
-                  Live transcript not received yet. Check the{" "}
-                  <code className="text-amber-300">transcript_updated</code> webhook event
-                  and Retell webhook URL.
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
-                <span className="flex gap-0.5">
-                  <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0s_infinite]" />
-                  <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
-                  <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
-                </span>
-                <span>Waiting for speech…</span>
-              </div>
-            )
+          ) : transcriptOverdue ? (
+            // Live call, but no `transcript_updated` has reached us after 20s.
+            // The usual cause is the agent's Retell webhook URL pointing somewhere
+            // other than WEBEE (e.g. an external automation), so Retell never
+            // delivers the live transcript to this app.
+            <div className="flex items-start gap-2 py-3 text-[11px] text-amber-400/80">
+              <Mic className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>
+                Live transcript unavailable:{" "}
+                <code className="text-amber-300">transcript_updated</code> not received
+                from Retell. Confirm this agent's Retell webhook URL points to WEBEE.
+              </span>
+            </div>
           ) : (
             <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
-              <Mic className="h-3.5 w-3.5" />
-              <span>Recording in progress — transcript appears when the call ends</span>
+              <span className="flex gap-0.5">
+                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0s_infinite]" />
+                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
+                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
+              </span>
+              <span>Waiting for Retell transcript_updated event…</span>
             </div>
           )
         ) : (
