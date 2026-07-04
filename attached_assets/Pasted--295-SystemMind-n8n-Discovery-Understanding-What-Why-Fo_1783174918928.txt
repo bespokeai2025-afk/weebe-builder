@@ -1,0 +1,37 @@
+#295 - SystemMind n8n Discovery & Understanding
+What & Why
+Foundation for turning SystemMind into WEBEE's Deployment Architect. Connect to the existing n8n instance (read-only), catalog every workflow as structured metadata, and use AI to generate a business + technical understanding of each workflow. This is the knowledge base everything later (templates, CRM abstraction, deployment planner) reads from. Covers spec Phases 1–2.
+
+Done looks like
+An admin-only "Workflow Intelligence" view under SystemMind lists every discovered n8n workflow with its name, folder, tags, active status, trigger type, node/connection counts, and detected integrations.
+Clicking a workflow shows an AI-generated business summary, technical summary, purpose, trigger, execution flow, inputs/outputs, required services, dependencies, failure points, retry behaviour, security considerations, tenant-specific values, reusable components, and a confidence score.
+A "Re-scan" action refreshes the catalog on demand; results persist between visits.
+Discovery is strictly read-only: no n8n workflow is created, edited, renamed, activated, or deactivated at any point.
+Out of scope
+Classifying workflows as reusable/customer-specific (Phase 3 — next task).
+Parameter extraction and the template library UI (Phases 4/7 — next task).
+CRM abstraction, knowledge graph, deployment planner (later tasks).
+Any write/mutation against n8n.
+Steps
+n8n read-only client — Add a server-side client that lists all workflows and fetches each full workflow definition from the configured n8n instance using GET requests only. Prerequisite: an N8N_API_KEY secret and N8N_API_BASE_URL env var must be configured; if the secret is absent, request it from the user before proceeding.
+Discovery storage — Add new additive tables to store the raw workflow snapshot plus extracted metadata (id, name, description, folder, tags, active status, trigger types, webhooks, http requests, credentials referenced, expressions, external services, execution order, retry/error handling, dependencies, inputs, outputs). Store as structured rows, one per workflow, upserted by n8n workflow id.
+AI understanding engine — For each discovered workflow, generate the business + technical understanding fields and a confidence score, reusing the existing SystemMind AI + knowledge-grounding patterns. Persist results alongside the workflow row so they survive refreshes.
+Workflow Intelligence admin view — Add a new admin page in the SystemMind area listing discovered workflows and a detail panel showing the AI understanding, wired to a "Re-scan" server action. Add its nav entry to the SystemMind shell.
+Constraints & conventions
+Additive and fully backwards compatible; do not modify existing SystemMind tables, pages, or business logic.
+Admin-only (WEBEE Hub admin area); preserve workspace isolation.
+New tables go in a new migration file following the repo's manual-apply convention; note in the task summary that the migration must be applied in the Supabase SQL editor.
+Follow existing TanStack Start conventions: server-fn inputs use .inputValidator() (never .validator()); client useServerFn calls wrap input as { data: input }; no-input fns are called as fn(); add throwOnError: false to route useQuery calls; never put .client. in a route/component filename.
+Relevant files
+src/lib/systemmind/systemmind-workflow-intelligence.server.ts
+src/lib/systemmind/systemmind-workflow.server.ts
+src/lib/systemmind/systemmind.ai.ts
+src/lib/systemmind/systemmind-kb-seed.server.ts
+src/routes/api/public/retell-live-ingest.ts
+src/lib/integrations/webespokeEnterprise/client.server.ts
+src/components/systemmind/SystemMindShell.tsx
+src/components/systemmind/SystemMindWorkflowsPage.tsx
+src/routes/_authenticated/systemmind.tsx
+src/routes/_authenticated/systemmind.workflows.tsx
+supabase/migrations/20260708000000_systemmind_workflow_library.sql
+supabase/migrations/20260715000000_systemmind_cto_module.sql
