@@ -13,6 +13,13 @@ calls, NO execution, NO deployment. Strictly additive.
   `systemmind_graph_nodes`, `_edges`, `_builds`. RLS: member SELECT, service_role-only writes.
 - Builder does a **full rebuild** from existing DB tables into derived nodes/edges;
   never mutates any source system. Readers: summary / list / view / dependency-BFS.
+- **Phase 8 multi-source learning is a hard done-criterion** (a prior review REJECTED
+  for omitting it): the builder MUST ingest docs (`executive_knowledge_bases`),
+  successful installations (`deployments` status=success), failure reports
+  (`systemmind_fix_plans`), and audit logs (`systemmind_audits`) — as their own node
+  types (`document`/`installation`/`failure_report`/`audit_log`), not just n8n/agents.
+  When adding a source, add the node_type to `knowledge-graph.schema.ts` NODE_TYPES +
+  NODE_TYPE_META **and** the lucide icon to the page ICONS map, or the node renders blank.
 - CRM adapters are a **frozen in-code seed** (`crm-definitions/registry.ts`) with
   deep-clone-on-read; endpoint/method/auth are string metadata only — never fetched.
 

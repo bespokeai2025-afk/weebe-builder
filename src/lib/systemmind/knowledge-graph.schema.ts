@@ -20,6 +20,10 @@ export const NODE_TYPES = [
   "universal_action",
   "deployment",
   "infrastructure",
+  "document",
+  "installation",
+  "failure_report",
+  "audit_log",
 ] as const;
 
 export type NodeType = (typeof NODE_TYPES)[number];
@@ -63,6 +67,10 @@ export const NODE_TYPE_META: Record<NodeType, NodeTypeMeta> = {
   universal_action:  { label: "Universal Action", color: "#a3e635", icon: "Zap",         group: "CRM" },
   deployment:        { label: "Deployment",       color: "#4ade80", icon: "Rocket",      group: "Ops" },
   infrastructure:    { label: "Infrastructure",   color: "#94a3b8", icon: "Database",    group: "Ops" },
+  document:          { label: "Documentation",    color: "#e879f9", icon: "FileText",    group: "Knowledge" },
+  installation:      { label: "Successful Install",color: "#16a34a", icon: "PackageCheck",group: "Ops" },
+  failure_report:    { label: "Failure Report",   color: "#f87171", icon: "AlertTriangle",group: "Reliability" },
+  audit_log:         { label: "Audit Log",        color: "#fcd34d", icon: "ClipboardList",group: "Reliability" },
 };
 
 export const EDGE_TYPE_META: Record<EdgeType, { label: string }> = {

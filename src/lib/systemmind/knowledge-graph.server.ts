@@ -514,6 +514,153 @@ function ingestInfrastructure(workspaceId: string): Staged {
   };
 }
 
+// Phase 8 multi-source learning: System / Feature Documentation.
+async function ingestDocumentation(workspaceId: string): Promise<Staged> {
+  const { data } = await sb
+    .from("executive_knowledge_bases")
+    .select("id, slug, mind_type, name, description, is_shared")
+    .eq("workspace_id", workspaceId)
+    .limit(CAP);
+  const rows: any[] = data ?? [];
+  const nodes: StagedNode[] = [];
+  const edges: StagedEdge[] = [];
+  for (const r of rows) {
+    const key = `executive_knowledge_bases:${r.id}`;
+    // Presence/count only — never document contents or storage paths.
+    let documentCount = 0;
+    try {
+      const { count } = await sb
+        .from("executive_documents")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", workspaceId)
+        .eq("knowledge_base_id", r.id);
+      documentCount = count ?? 0;
+    } catch {
+      documentCount = 0;
+    }
+    nodes.push({
+      node_key: key,
+      node_type: "document",
+      source_table: "executive_knowledge_bases",
+      source_id: String(r.id),
+      label: r.name ?? r.slug ?? "Knowledge base",
+      summary: r.description ?? null,
+      status: r.is_shared ? "shared" : "private",
+      tags: r.mind_type ? [r.mind_type] : [],
+      metadata: {
+        mind_type: r.mind_type ?? null,
+        is_shared: !!r.is_shared,
+        document_count: documentCount,
+      },
+    });
+    edges.push({ from_key: key, to_key: workspaceKey(workspaceId), edge_type: "belongs_to" });
+  }
+  return { nodes, edges };
+}
+
+// Phase 8 multi-source learning: Successful Previous Installations.
+async function ingestInstallations(workspaceId: string): Promise<Staged> {
+  const { data } = await sb
+    .from("deployments")
+    .select("id, provider, agent_id, status, deployed_at")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "success")
+    .limit(CAP);
+  const rows: any[] = data ?? [];
+  const nodes: StagedNode[] = [];
+  const edges: StagedEdge[] = [];
+  for (const r of rows) {
+    const key = `installation:${r.id}`;
+    nodes.push({
+      node_key: key,
+      node_type: "installation",
+      source_table: "deployments",
+      source_id: String(r.id),
+      label: `${r.provider ?? "provider"} installation`,
+      status: "success",
+      summary: "A previously successful installation SystemMind can learn from.",
+      metadata: {
+        provider: r.provider ?? null,
+        deployed_at: r.deployed_at ?? null,
+      },
+    });
+    edges.push({ from_key: key, to_key: workspaceKey(workspaceId), edge_type: "belongs_to" });
+    // Same row, deployment-history lens — relate the two so the graph stays connected.
+    edges.push({ from_key: key, to_key: `deployments:${r.id}`, edge_type: "derived_from" });
+  }
+  return { nodes, edges };
+}
+
+// Phase 8 multi-source learning: Failure Reports.
+async function ingestFailureReports(workspaceId: string): Promise<Staged> {
+  const { data } = await sb
+    .from("systemmind_fix_plans")
+    .select("id, source_type, source_id, title, status, steps, created_at")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(CAP);
+  const rows: any[] = data ?? [];
+  const nodes: StagedNode[] = [];
+  const edges: StagedEdge[] = [];
+  for (const r of rows) {
+    const key = `systemmind_fix_plans:${r.id}`;
+    const stepCount = Array.isArray(r.steps) ? r.steps.length : 0;
+    nodes.push({
+      node_key: key,
+      node_type: "failure_report",
+      source_table: "systemmind_fix_plans",
+      source_id: String(r.id),
+      label: r.title ?? "Failure report",
+      status: r.status ?? null,
+      tags: r.source_type ? [r.source_type] : [],
+      metadata: {
+        source_type: r.source_type ?? null,
+        status: r.status ?? null,
+        step_count: stepCount,
+        created_at: r.created_at ?? null,
+      },
+    });
+    edges.push({ from_key: key, to_key: workspaceKey(workspaceId), edge_type: "belongs_to" });
+  }
+  return { nodes, edges };
+}
+
+// Phase 8 multi-source learning: Audit Logs.
+async function ingestAuditLogs(workspaceId: string): Promise<Staged> {
+  const { data } = await sb
+    .from("systemmind_audits")
+    .select("id, triggered_by, status, score, findings, created_at, completed_at")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(CAP);
+  const rows: any[] = data ?? [];
+  const nodes: StagedNode[] = [];
+  const edges: StagedEdge[] = [];
+  for (const r of rows) {
+    const key = `systemmind_audits:${r.id}`;
+    // Findings recorded as a count only — never the finding contents.
+    const findingCount = Array.isArray(r.findings) ? r.findings.length : 0;
+    const when = r.created_at ? String(r.created_at).slice(0, 10) : "";
+    nodes.push({
+      node_key: key,
+      node_type: "audit_log",
+      source_table: "systemmind_audits",
+      source_id: String(r.id),
+      label: `Audit ${when}`.trim(),
+      status: r.status ?? null,
+      metadata: {
+        triggered_by: r.triggered_by ?? null,
+        status: r.status ?? null,
+        score: typeof r.score === "number" ? r.score : null,
+        finding_count: findingCount,
+        created_at: r.created_at ?? null,
+      },
+    });
+    edges.push({ from_key: key, to_key: workspaceKey(workspaceId), edge_type: "belongs_to" });
+  }
+  return { nodes, edges };
+}
+
 // ── Builder ───────────────────────────────────────────────────────────────────
 
 export interface BuildResult {
@@ -550,6 +697,11 @@ export async function buildKnowledgeGraph(
   staged.push(await runSource("crm_adapters", async () => ingestCrmAdapters(workspaceId), results));
   staged.push(await runSource("universal_actions", async () => ingestUniversalActions(), results));
   staged.push(await runSource("infrastructure", async () => ingestInfrastructure(workspaceId), results));
+  // Phase 8 — multi-source learning inputs.
+  staged.push(await runSource("documentation", () => ingestDocumentation(workspaceId), results));
+  staged.push(await runSource("installations", () => ingestInstallations(workspaceId), results));
+  staged.push(await runSource("failure_reports", () => ingestFailureReports(workspaceId), results));
+  staged.push(await runSource("audit_logs", () => ingestAuditLogs(workspaceId), results));
 
   // 2) Dedupe nodes by node_key; collect edges.
   const nodeByKey = new Map<string, StagedNode>();

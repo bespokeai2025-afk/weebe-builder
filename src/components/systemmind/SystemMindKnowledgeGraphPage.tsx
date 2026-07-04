@@ -6,7 +6,7 @@ import {
   Share2, RefreshCw, Loader2, Search, Network, AlertTriangle, Info,
   Building2, Bot, Copy, GitBranch, Boxes, Cable, Waypoints, Brain,
   TrendingUp, Server, BarChart3, PlugZap, Zap, Rocket, Database, Circle,
-  ArrowRight, X,
+  ArrowRight, X, FileText, PackageCheck, ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import {
 const ICONS: Record<string, React.ElementType> = {
   Building2, Bot, Copy, GitBranch, Boxes, Cable, Waypoints, Brain,
   TrendingUp, Server, BarChart3, PlugZap, Share2, Zap, Rocket, Database,
+  FileText, PackageCheck, AlertTriangle, ClipboardList,
 };
 
 function NodeIcon({ type, className }: { type: string; className?: string }) {
