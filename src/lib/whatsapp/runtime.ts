@@ -32,7 +32,7 @@
  *   replaced with values accumulated in session.workflow_variables.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { createWhatsAppProviderWithFallback } from "@/lib/providers/whatsapp/factory";
+import { createWhatsAppProviderWithFallback, createWhatsAppProvider } from "@/lib/providers/whatsapp/factory";
 import type { WhatsAppConfig } from "@/lib/providers/whatsapp/factory";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +55,8 @@ interface FlowNode {
     extractVarPrompt?: string;
     tagName?: string;
     templateBody?: string;
+    watiTemplateName?: string;
+    watiTemplateParams?: string[];
     transitions: Array<{ id: string; condition: string; target: string | null }>;
     [key: string]: unknown;
   };
@@ -481,6 +483,53 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
       .eq("contact_phone", contactPhone);
   }
 
+  // Helper: resolve the workspace's WATI config (used as fallback for all sends,
+  // and as the primary transport for wa_template nodes that pick a WATI template).
+  // Cached so a single inbound message never queries twice.
+  //
+  // Canonical store is `wati_connections` (populated by the WATI connect flow).
+  // The adapter appends `/api/v1/...` to apiEndpoint, so the endpoint base must
+  // be the tenant root WITHOUT `/api/v1`. provider_settings is kept as a
+  // secondary source for any workspace configured via the provider framework.
+  let _watiConfigResolved = false;
+  let _watiConfig: WhatsAppConfig | null = null;
+  async function resolveWatiConfig(): Promise<WhatsAppConfig | null> {
+    if (_watiConfigResolved) return _watiConfig;
+    _watiConfigResolved = true;
+
+    const { data: conn } = await (supabaseAdmin as any)
+      .from("wati_connections")
+      .select("api_key, tenant_id, status")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (conn?.status === "connected" && conn.api_key && conn.tenant_id) {
+      _watiConfig = {
+        provider: "wati" as const,
+        apiEndpoint: `https://live-mt-server.wati.io/${conn.tenant_id}`,
+        apiKey: conn.api_key as string,
+      };
+      return _watiConfig;
+    }
+
+    const { data: fallbackRow } = await (supabaseAdmin as any)
+      .from("provider_settings")
+      .select("credentials")
+      .eq("workspace_id", workspaceId)
+      .eq("provider_category", "whatsapp")
+      .eq("provider_name", "wati")
+      .eq("status", "connected")
+      .maybeSingle();
+    _watiConfig =
+      fallbackRow?.credentials?.apiEndpoint && fallbackRow?.credentials?.apiKey
+        ? {
+            provider: "wati" as const,
+            apiEndpoint: fallbackRow.credentials.apiEndpoint as string,
+            apiKey: fallbackRow.credentials.apiKey as string,
+          }
+        : null;
+    return _watiConfig;
+  }
+
   // Helper: send message via active provider (with automatic fallback) and persist it
   async function sendAndPersist(body: string, mediaUrl?: string): Promise<void> {
     const msg = interpolate(body, variables);
@@ -491,19 +540,8 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
         ? { provider: "meta", accessToken: ws.meta_access_token as string, phoneNumberId: ws.meta_phone_number_id as string, workspaceId }
         : { provider: "twilio", accountSid: (ws?.twilio_account_sid ?? process.env.TWILIO_ACCOUNT_SID) as string, authToken: (ws?.twilio_auth_token ?? process.env.TWILIO_AUTH_TOKEN) as string, from: ws?.whatsapp_phone_id as string, workspaceId };
 
-    // Read optional WATI fallback from provider_settings
-    const { data: fallbackRow } = await (supabaseAdmin as any)
-      .from("provider_settings")
-      .select("credentials")
-      .eq("workspace_id", workspaceId)
-      .eq("provider_category", "whatsapp")
-      .eq("provider_name", "wati")
-      .eq("status", "connected")
-      .maybeSingle();
-    const fallbackConfig: WhatsAppConfig | null =
-      fallbackRow?.credentials?.apiEndpoint && fallbackRow?.credentials?.apiKey
-        ? { provider: "wati" as const, apiEndpoint: fallbackRow.credentials.apiEndpoint as string, apiKey: fallbackRow.credentials.apiKey as string }
-        : null;
+    // Optional WATI fallback (resolved + cached from provider_settings)
+    const fallbackConfig = await resolveWatiConfig();
 
     const waProvider = createWhatsAppProviderWithFallback(primaryConfig, fallbackConfig);
     const { messageId } = await waProvider.sendMessage({ to: contactPhone, body: msg, mediaUrl });
@@ -641,10 +679,52 @@ export async function processWhatsAppMessage(input: RuntimeInput): Promise<void>
     return;
   }
 
-  // ── wa_template — fixed message with variable interpolation ───────────────
+  // ── wa_template — WATI approved template (when selected + WATI connected), else fixed text ──
   if (currentNode.data.kind === "wa_template") {
-    const body = currentNode.data.templateBody ?? currentNode.data.dialogue ?? "";
-    if (body) await sendAndPersist(body);
+    let templateSent = false;
+    const watiTemplateName = currentNode.data.watiTemplateName;
+    if (watiTemplateName) {
+      const watiCfg = await resolveWatiConfig();
+      if (watiCfg) {
+        try {
+          // Interpolate params, then drop only TRAILING empties so WATI's
+          // positional {{1}}/{{2}} mapping is preserved for blank middle slots.
+          const params = (currentNode.data.watiTemplateParams ?? []).map((p) =>
+            interpolate(p, variables),
+          );
+          while (params.length > 0 && params[params.length - 1] === "") params.pop();
+
+          const watiProvider = createWhatsAppProvider({ ...watiCfg, workspaceId });
+          const { messageId } = await watiProvider.sendTemplate({
+            to: contactPhone,
+            templateName: watiTemplateName,
+            parameters: params,
+          });
+          await sb.from("whatsapp_messages").insert({
+            workspace_id: workspaceId,
+            external_id: messageId,
+            contact_phone: contactPhone,
+            contact_name: contactName,
+            direction: "outbound",
+            body: `[WATI template: ${watiTemplateName}]`,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+          });
+          templateSent = true;
+        } catch (err) {
+          // WATI template send failed — fall back to the free-text body path
+          // below so the flow still advances instead of aborting the turn.
+          console.warn(
+            "[wa-runtime] WATI template send failed, falling back to text:",
+            (err as Error)?.message,
+          );
+        }
+      }
+    }
+    if (!templateSent) {
+      const body = currentNode.data.templateBody ?? currentNode.data.dialogue ?? "";
+      if (body) await sendAndPersist(body);
+    }
 
     const nextNode =
       mode === "structured"

@@ -130,6 +130,10 @@ export interface FlowNodeData {
   tagName?: string;
   /** For wa_template — body text with {variable} placeholders */
   templateBody?: string;
+  /** For wa_template — name of a WATI approved template to send via WATI's template API (provider-agnostic builder; only used at deploy time when WATI is connected) */
+  watiTemplateName?: string;
+  /** For wa_template — ordered parameter values for the WATI template ({{1}}, {{2}}…); supports {variable} placeholders */
+  watiTemplateParams?: string[];
   /** For extract_variable — legacy single-variable fields (kept for round-trip compat) */
   variableName?: string;
   variableDescription?: string;

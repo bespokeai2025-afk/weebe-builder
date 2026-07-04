@@ -25,6 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getWorkspaceCalendarSettings } from "@/lib/calendar/calendar.functions";
 import { listMyAgents } from "@/lib/agents/agents.functions";
+import { listWatiTemplates } from "@/lib/whatsapp/wati.functions";
 
 const BOOKING_PRESETS: {
   id: string;
@@ -91,6 +92,16 @@ export function NodeEditorDialog() {
     queryKey: ["workspace-calendar-settings"],
     queryFn: () => fetchCal(),
     staleTime: 60_000,
+    throwOnError: false,
+  });
+
+  // WATI approved templates — only returns rows when a WATI connection exists,
+  // so the template picker below is naturally gated on WATI being connected.
+  const fetchWatiTemplates = useServerFn(listWatiTemplates);
+  const { data: watiTemplates } = useQuery({
+    queryKey: ["wati-templates-for-builder"],
+    queryFn: () => fetchWatiTemplates(),
+    staleTime: 5 * 60_000,
     throwOnError: false,
   });
 
@@ -1045,8 +1056,60 @@ export function NodeEditorDialog() {
                 Sends a fixed message with variable substitution — no AI generation.
                 Use <code>{"{"}<em>variable_name</em>{"}"}</code> placeholders for values collected earlier.
               </div>
-              <div>
-                <Label>Message body</Label>
+
+              {watiTemplates && watiTemplates.length > 0 && (
+                <div className="space-y-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/30">
+                  <Label>WATI approved template (optional)</Label>
+                  <Select
+                    value={d.watiTemplateName ?? "__none__"}
+                    onValueChange={(v) =>
+                      updateNode(node.id, {
+                        watiTemplateName: v === "__none__" ? undefined : v,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Free text (no template)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Free text (no template)</SelectItem>
+                      {watiTemplates.map((t: any) => (
+                        <SelectItem key={t.id ?? t.wati_template_id ?? t.name} value={t.name}>
+                          {t.name}
+                          {t.language ? ` (${t.language})` : ""}
+                          {t.status ? ` · ${t.status}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {d.watiTemplateName && (
+                    <div>
+                      <Label>Template parameters (one per line)</Label>
+                      <Textarea
+                        rows={3}
+                        value={(d.watiTemplateParams ?? []).join("\n")}
+                        onChange={(e) =>
+                          updateNode(node.id, {
+                            watiTemplateParams: e.target.value.split("\n"),
+                          })
+                        }
+                        placeholder={"{name}\n{budget}"}
+                      />
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Sent via WATI's approved-template API. Each line maps in order to{" "}
+                        {"{{1}}"}, {"{{2}}"}… Supports {"{"}<em>variable</em>{"}"} placeholders.
+                        Used whenever this workspace has WATI connected; otherwise the message
+                        body below is sent instead.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className={d.watiTemplateName ? "opacity-60" : ""}>
+                <Label>
+                  Message body{d.watiTemplateName ? " (fallback when not deployed via WATI)" : ""}
+                </Label>
                 <Textarea
                   rows={4}
                   value={d.templateBody ?? ""}

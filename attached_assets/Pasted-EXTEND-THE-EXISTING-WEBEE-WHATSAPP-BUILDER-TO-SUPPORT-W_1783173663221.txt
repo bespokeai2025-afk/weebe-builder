@@ -1,0 +1,327 @@
+EXTEND THE EXISTING WEBEE WHATSAPP BUILDER TO SUPPORT WATI
+
+IMPORTANT
+
+Do NOT create a new WhatsApp Builder.
+
+Do NOT redesign the Builder.
+
+Do NOT remove Twilio.
+
+Do NOT break any existing Twilio functionality.
+
+Do NOT affect existing Retell Builder functionality.
+
+Do NOT affect Voice Builder functionality.
+
+Do NOT change existing node types.
+
+Do NOT interfere with WBAH, n8n workflows, CRM integrations, analytics, HiveMind, GrowthMind, SystemMind or any existing deployments.
+
+The objective is to extend the CURRENT WEBEE Builder only.
+
+---
+
+GOAL
+
+The existing WEBEE Builder already supports WhatsApp deployment using Twilio.
+
+Extend this Builder so users can choose which WhatsApp provider they want to deploy through.
+
+The Builder itself must remain identical.
+
+Only the provider adapter changes.
+
+---
+
+BUILDER PAGE
+
+Locate the existing WhatsApp Builder inside WEBEE.
+
+Do not replace it.
+
+Do not duplicate it.
+
+Do not create another builder.
+
+Modify the existing Builder so that when the user selects:
+
+Agent Type
+
+WhatsApp Agent
+
+they see a new section called:
+
+WhatsApp Provider
+
+with options:
+
+○ Twilio
+
+○ WATI
+
+Twilio must remain the default for existing deployments.
+
+---
+
+DYNAMIC PROVIDER CONFIGURATION
+
+When Twilio is selected:
+
+Display only the current Twilio configuration fields exactly as they exist today.
+
+When WATI is selected:
+
+Display only WATI configuration fields.
+
+Suggested fields:
+
+• Connection Name
+• WATI Base URL
+• API Endpoint
+• API Access Token
+• WhatsApp Number
+• Account ID if required
+• Template Namespace if required
+• Default Sender
+• Test Connection button
+
+Store credentials securely.
+
+Never expose secrets to the frontend.
+
+---
+
+BUILDER EXPERIENCE
+
+The Builder experience must remain identical regardless of provider.
+
+Do not change:
+
+Flow Builder
+
+Canvas
+
+Node Editor
+
+Conversation Designer
+
+Conditions
+
+Variables
+
+Campaign Builder
+
+Deployment Wizard
+
+Validation
+
+Preview
+
+Only the transport provider changes.
+
+---
+
+NODE COMPATIBILITY
+
+Existing WhatsApp nodes must continue working.
+
+Examples:
+
+wa_start
+
+wa_message
+
+wa_media
+
+wa_delay
+
+wa_wait_reply
+
+wa_extract_var
+
+wa_tag
+
+wa_booking
+
+wa_template
+
+Do not duplicate nodes.
+
+Do not create WATI-specific nodes.
+
+One set of nodes should work with every provider.
+
+---
+
+PROVIDER ADAPTER ARCHITECTURE
+
+Create or extend a provider adapter layer.
+
+The Builder should never call Twilio or WATI directly.
+
+Instead:
+
+Builder
+
+↓
+
+Deployment Engine
+
+↓
+
+WhatsApp Provider Adapter
+
+↓
+
+Selected Provider
+
+Supported providers:
+
+Twilio
+
+WATI
+
+Future providers should be easy to add without changing the Builder.
+
+---
+
+DEPLOYMENT
+
+When the user presses:
+
+Deploy
+
+the deployment engine must:
+
+Read the selected provider.
+
+If provider = Twilio
+
+Use the existing deployment process unchanged.
+
+If provider = WATI
+
+Use the new WATI deployment adapter.
+
+The Builder should not need separate deployment logic.
+
+---
+
+WORKSPACE SETTINGS
+
+Each workspace should be able to save:
+
+Twilio configuration
+
+WATI configuration
+
+independently.
+
+The deployment engine should automatically use the correct credentials for the selected provider.
+
+No workspace should be able to access another workspace's credentials.
+
+---
+
+WEBHOOK SUPPORT
+
+If WATI is selected:
+
+Automatically prepare or register the WEBEE webhook endpoint required for WATI.
+
+Normalise inbound messages so they appear identical to Twilio inside WEBEE.
+
+The rest of the platform should not need to know which provider delivered the message.
+
+---
+
+SYSTEMMIND
+
+Teach SystemMind that:
+
+WhatsApp Builder is provider-agnostic.
+
+Twilio and WATI are simply transport providers.
+
+The business workflow remains identical.
+
+Only the provider adapter changes.
+
+Future providers should plug into the same architecture.
+
+---
+
+ADMIN UI
+
+Update [admin@webespokeai.com](mailto:admin@webespokeai.com) tools to show:
+
+Provider
+
+Connection Status
+
+Last Sync
+
+Last Message
+
+Deployment Status
+
+Webhook Status
+
+Provider Health
+
+Configuration Validation
+
+---
+
+TESTING
+
+Verify:
+
+✓ Existing Twilio Builder still works.
+
+✓ Existing Twilio deployments are unaffected.
+
+✓ Existing WhatsApp flows still deploy.
+
+✓ Existing campaigns still function.
+
+✓ WATI can be selected.
+
+✓ WATI configuration saves correctly.
+
+✓ WATI deployment works.
+
+✓ WATI inbound webhook works.
+
+✓ Builder UI behaves identically regardless of provider.
+
+✓ No Builder pages are duplicated.
+
+✓ No existing functionality is removed.
+
+---
+
+RETURN
+
+Return:
+
+• Files modified
+
+• Builder components modified
+
+• Provider adapter architecture
+
+• Database changes
+
+• Workspace settings added
+
+• Deployment engine changes
+
+• Webhook additions
+
+• Tests completed
+
+Finally confirm:
+
+"THE EXISTING WEBEE WHATSAPP BUILDER HAS BEEN EXTENDED TO SUPPORT WATI WITHOUT CREATING A NEW BUILDER OR BREAKING TWILIO."
