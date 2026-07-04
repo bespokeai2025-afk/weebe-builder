@@ -3,7 +3,7 @@ import {
   Server, BarChart3, ShieldCheck, BookOpen, GitBranch, Shield,
   AlertTriangle, PlugZap, ClipboardList, Lightbulb, Wrench,
   CheckSquare, FileText, Layers, MessageSquare, Settings2, Wand2, Database,
-  Users, Activity, Network,
+  Users, Activity, Network, Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -42,6 +42,7 @@ const BASE_NAV_GROUPS: Array<{ title?: string; adminOnly?: boolean; items: NavIt
     adminOnly: true,
     items: [
       { label: "Workflow Intelligence", href: "/systemmind/workflow-intelligence", icon: Network },
+      { label: "Template Library",      href: "/systemmind/template-library",      icon: Boxes   },
     ],
   },
   {
