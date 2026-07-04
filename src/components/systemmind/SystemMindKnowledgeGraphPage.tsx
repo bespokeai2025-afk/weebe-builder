@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode, type ElementType } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -22,8 +22,9 @@ import {
   NODE_TYPE_META, EDGE_TYPE_META, type NodeType,
   type GraphSummary, type DependencyView, type GraphNode,
 } from "@/lib/systemmind/knowledge-graph.schema";
+import { SystemMindShell } from "./SystemMindShell";
 
-const ICONS: Record<string, React.ElementType> = {
+const ICONS: Record<string, ElementType> = {
   Building2, Bot, Copy, GitBranch, Boxes, Cable, Waypoints, Brain,
   TrendingUp, Server, BarChart3, PlugZap, Share2, Zap, Rocket, Database,
   FileText, PackageCheck, AlertTriangle, ClipboardList,
@@ -156,6 +157,7 @@ export function SystemMindKnowledgeGraphPage() {
   const lastBuild = summary.data?.lastBuild;
 
   return (
+    <SystemMindShell>
     <div className="p-5 max-w-6xl mx-auto">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
@@ -306,10 +308,11 @@ export function SystemMindKnowledgeGraphPage() {
         </p>
       )}
     </div>
+    </SystemMindShell>
   );
 }
 
-function Stat({ label, value, small }: { label: string; value: React.ReactNode; small?: boolean }) {
+function Stat({ label, value, small }: { label: string; value: ReactNode; small?: boolean }) {
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5">
       <p className="text-[10px] text-muted-foreground/60">{label}</p>

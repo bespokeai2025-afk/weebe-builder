@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode, type ElementType } from "react";
 import {
   Share2, Zap, ShieldCheck, Search, CheckCircle2, XCircle, KeyRound,
   Link2, GitBranch, Repeat, AlertTriangle, Info, Layers, ArrowRight,
@@ -16,6 +16,7 @@ import {
   UNIVERSAL_ACTION_CATEGORIES,
   type UniversalAction,
 } from "@/lib/systemmind/universal-actions";
+import { SystemMindShell } from "./SystemMindShell";
 
 // ── Static data (pure, client-safe — no server calls) ─────────────────────────
 const ADAPTERS: CrmAdapterDefinition[] = listCrmAdapterDefinitions();
@@ -27,7 +28,7 @@ const STATUS_CLS: Record<string, string> = {
   planned: "border-white/[0.1] text-muted-foreground",
 };
 
-function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
+function Chip({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <span className={cn("text-[10px] border border-white/[0.08] rounded px-1.5 py-0.5 text-muted-foreground", className)}>
       {children}
@@ -35,7 +36,7 @@ function Chip({ children, className }: { children: React.ReactNode; className?: 
   );
 }
 
-function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
+function Section({ icon: Icon, title, children }: { icon: ElementType; title: string; children: ReactNode }) {
   return (
     <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
       <p className="text-[11px] font-semibold flex items-center gap-1.5 mb-2">
@@ -232,6 +233,7 @@ export function SystemMindCrmAdaptersPage() {
   const selectedDef = ADAPTERS.find((d) => d.name === selected) ?? ADAPTERS[0];
 
   return (
+    <SystemMindShell>
     <div className="p-5 max-w-6xl mx-auto">
       <div className="mb-4">
         <h1 className="text-lg font-semibold flex items-center gap-2">
@@ -310,5 +312,6 @@ export function SystemMindCrmAdaptersPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </SystemMindShell>
   );
 }
