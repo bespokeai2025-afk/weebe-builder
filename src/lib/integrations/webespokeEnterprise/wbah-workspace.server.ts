@@ -14,6 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { cacheWrap } from "@/lib/cache/redis.server";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
@@ -1550,6 +1551,38 @@ export const triggerWbahCategorySync = createServerFn({ method: "POST" })
         : undefined;
 
     const result = await runWbahCategorySyncTick({ categoriesOnly });
+
+    // Record the outcome for the unified sync-state panel. Best-effort only.
+    try {
+      const { data: wsRow } = await (supabaseAdmin as any)
+        .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
+      if (wsRow?.id) {
+        const cats = ["disqualified", "tried_to_contact", "rebooking"] as const;
+        let created = 0, updated = 0, skipped = 0;
+        for (const c of cats) {
+          created += Number((result as any)?.[c]?.imported ?? 0);
+          updated += Number((result as any)?.[c]?.updated ?? 0);
+          skipped += Number((result as any)?.[c]?.skipped ?? 0);
+        }
+        const errs = Array.isArray((result as any)?.errors) ? (result as any).errors : [];
+        const totalTouched = created + updated + skipped;
+        const status: "success" | "partial" | "error" =
+          errs.length === 0 ? "success" : totalTouched === 0 ? "error" : "partial";
+        await recordSyncState({
+          workspaceId: wsRow.id,
+          sourceName: "webespoke_enterprise",
+          module: "people",
+          status,
+          recordsCreated: created,
+          recordsUpdated: updated,
+          recordsSkipped: skipped,
+          errorMessage: errs.length ? errs.join("; ") : null,
+        });
+      }
+    } catch {
+      /* sync-state recording is best-effort */
+    }
+
     return result;
   });
 

@@ -21,6 +21,7 @@ import {
   cleanupWbahDuplicateLeads,
 } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
 import { wbahProbeApi } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { getSyncState } from "@/lib/sync-state/sync-state.server";
 
 export const Route = createFileRoute(
   "/_authenticated/admin/accounts/clients/webuyanyhouse",
@@ -48,6 +49,24 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
     )}>
       {ok ? <CheckCircle2 className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5" />}
       {label}
+    </span>
+  );
+}
+
+function SyncStatusPill({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    success: "bg-emerald-500/20 text-emerald-400",
+    partial: "bg-yellow-500/20 text-yellow-400",
+    running: "bg-sky-500/20 text-sky-400",
+    error:   "bg-red-500/20 text-red-400",
+    idle:    "bg-gray-800 text-gray-500",
+  };
+  return (
+    <span className={cn(
+      "inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full capitalize",
+      map[status] ?? "bg-gray-800 text-gray-500",
+    )}>
+      {status}
     </span>
   );
 }
@@ -95,6 +114,15 @@ function WebuyanyhouseAdminPanel() {
   const { data: status, isLoading } = useQuery({
     queryKey: ["wbah-admin-status"],
     queryFn:  () => getStatusFn(),
+    refetchInterval: 30_000,
+    throwOnError: false,
+  });
+
+  const getSyncStateFn = useServerFn(getSyncState);
+  const { data: syncState, isLoading: syncStateLoading } = useQuery({
+    queryKey: ["wbah-sync-state", status?.workspaceId],
+    queryFn:  () => getSyncStateFn({ data: { workspaceId: status?.workspaceId } }),
+    enabled:  !!status?.workspaceId,
     refetchInterval: 30_000,
     throwOnError: false,
   });
@@ -378,6 +406,62 @@ function WebuyanyhouseAdminPanel() {
                   <StatCard icon={Phone}      label="Tried To Contact" value={status.leadCounts.tried_to_contact} color="text-yellow-400" />
                   <StatCard icon={Users}      label="Disqualified"     value={status.leadCounts.disqualified}     color="text-red-400" />
                   <StatCard icon={HelpCircle} label="Qualified"        value={status.leadCounts.qualified}        color="text-purple-400" />
+                </div>
+              )}
+            </Section>
+
+            {/* 3b — Sync History */}
+            <Section title="Sync History">
+              <p className="text-xs text-gray-500">
+                Outcome of each on-demand / manual sync for this workspace. Calls refresh live when
+                the Calls page is opened — this account has no background or automatic sync.
+              </p>
+              {syncStateLoading ? (
+                <div className="flex items-center gap-2 text-gray-500 text-xs">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…
+                </div>
+              ) : !syncState?.applied ? (
+                <p className="text-xs text-gray-600">
+                  Sync tracking table not applied yet — run{" "}
+                  <span className="font-mono">SYNC_STATE_MIGRATION.sql</span> in Supabase to enable it.
+                </p>
+              ) : syncState.rows.length === 0 ? (
+                <p className="text-xs text-gray-600">
+                  No syncs recorded yet. Use <strong>Sync Now</strong> above (or Sync on the People
+                  page) to populate this.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b border-gray-800">
+                        <th className="py-1.5 pr-3 font-medium">Module</th>
+                        <th className="py-1.5 pr-3 font-medium">Status</th>
+                        <th className="py-1.5 pr-3 font-medium">Last success</th>
+                        <th className="py-1.5 pr-3 font-medium">Records</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {syncState.rows.map((r) => (
+                        <tr key={r.id} className="border-b border-gray-900/80">
+                          <td className="py-1.5 pr-3 capitalize text-gray-300">{r.module}</td>
+                          <td className="py-1.5 pr-3"><SyncStatusPill status={r.sync_status} /></td>
+                          <td className="py-1.5 pr-3 text-gray-400">
+                            {r.last_successful_sync_at
+                              ? new Date(r.last_successful_sync_at).toLocaleString("en-GB")
+                              : "—"}
+                          </td>
+                          <td className="py-1.5 pr-3 text-gray-500">
+                            {(r.records_created + r.records_updated) || 0} synced
+                            {r.records_skipped ? ` · ${r.records_skipped} skipped` : ""}
+                            {r.sync_status === "error" && r.error_message
+                              ? <span className="text-red-400/80"> · {r.error_message.slice(0, 80)}</span>
+                              : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </Section>

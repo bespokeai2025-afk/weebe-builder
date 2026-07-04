@@ -8,6 +8,7 @@
  * Tokens are NEVER returned to the browser — stored server-side only.
  */
 import { createServerFn } from "@tanstack/react-start";
+import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requirePlatformAdmin } from "@/lib/auth/require-platform-admin";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -754,6 +755,34 @@ export const adminSyncWebuyanyhouseLeads = createServerFn({ method: "POST" })
         : buyersRes.value?.error ?? "Contacts sync failed";
       results.errors.push(err);
     }
+
+    // Record the outcome for the unified sync-state panel. Best-effort: this
+    // never throws and makes no external calls — it only reflects the sync
+    // that just ran on demand.
+    const sellersOk = sellersRes.status === "fulfilled" && (sellersRes as any).value?.ok === true;
+    const buyersOk  = buyersRes.status === "fulfilled" && (buyersRes as any).value?.ok === true;
+    const sellersErr = sellersOk ? null : ((sellersRes.status === "rejected"
+      ? sellersRes.reason?.message
+      : (sellersRes as any).value?.error) ?? "Sellers sync failed");
+    const buyersErr = buyersOk ? null : ((buyersRes.status === "rejected"
+      ? buyersRes.reason?.message
+      : (buyersRes as any).value?.error) ?? "Contacts sync failed");
+    await recordSyncState({
+      workspaceId,
+      sourceName: "webespoke_enterprise",
+      module: "leads",
+      status: sellersOk ? "success" : "error",
+      recordsUpdated: results.sellers,
+      errorMessage: sellersErr,
+    });
+    await recordSyncState({
+      workspaceId,
+      sourceName: "webespoke_enterprise",
+      module: "contacts",
+      status: buyersOk ? "success" : "error",
+      recordsUpdated: results.contacts,
+      errorMessage: buyersErr,
+    });
 
     return results;
   });
