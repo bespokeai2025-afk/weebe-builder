@@ -66,3 +66,21 @@ Only ONE Supabase DB is wired (shared `VITE_SUPABASE_URL`), so changes hit live 
   `app_config` rows `health_sweep_url` + `health_sweep_key` (service-role key) are set —
   leave that as a deliberate manual step; do not auto-store the service-role key.
 - Reusable applier: `scripts/apply-migrations.mjs` (stop-on-error, per-file, lock guard).
+
+## Audit blind spot: root-level .sql files are NOT in supabase/migrations/
+
+**Rule:** `scripts/audit-db-crosscheck.mjs` globs ONLY `supabase/migrations/*.sql`.
+There are ALSO manual migration files at the **repo root** that it silently ignores —
+each says "Apply via Supabase SQL Editor". Any true reconciliation MUST scan both
+locations (`rg --files -g '*.sql'`), not just the migrations dir.
+
+**Why:** these root files were merged as manual-apply docs and never tracked. Some
+define tables that are STILL queried by current code but absent from the live DB, so
+scoping an audit to `supabase/migrations/` alone reports "fully reconciled" while real
+feature tables are missing (the app swallows the errors via `.catch(() => {})`, so the
+features degrade silently instead of crashing — easy to miss).
+
+**How to apply:** treat any repo-root `*_MIGRATION.sql` as a candidate; verify its
+`CREATE TABLE` objects against the live schema and grep `src/` for `.from("<table>")`
+before deciding applied/obsolete. Confirm object-by-object — a file can be PARTIALLY
+applied (e.g. one sibling table exists while others in the same file are missing).
