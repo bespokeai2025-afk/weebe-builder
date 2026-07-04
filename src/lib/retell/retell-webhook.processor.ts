@@ -26,6 +26,63 @@ const SUPPORTED_RETELL_EVENTS = new Set([
 const RETELL_SIGNATURE_VERIFICATION_DISABLED =
   process.env.RETELL_SIGNATURE_VERIFICATION_ENABLED !== "true";
 
+// ── n8n forwarding ──────────────────────────────────────────────────────────
+// Some agents historically pointed their Retell webhook_url straight at an
+// external n8n automation. To make WEBEE the single webhook target WITHOUT
+// breaking that pipeline, we forward the EXACT raw Retell payload on to n8n.
+// Forwarding is fire-and-forget (never blocks or fails WEBEE processing) and
+// only fires for authentic, signature-verified Retell events — never
+// admin-test / synthetic ones. Idempotent per delivery: WEBEE always returns
+// 200 fast so Retell never retries, and each delivery is forwarded exactly once.
+const N8N_FORWARD_URL = process.env.RETELL_FORWARD_N8N_WEBHOOK_URL?.trim() || "";
+const N8N_FORWARD_EVENTS = new Set([
+  "call_started",
+  "call_ended",
+  "call_analyzed",
+  "call_failed",
+  "call_transferred",
+  "transcript_updated",
+]);
+
+function forwardToN8n(rawBody: string, headers: Headers, event: string, source: string): void {
+  if (!N8N_FORWARD_URL) return;
+  if (source === "admin-test") return;
+  if (!N8N_FORWARD_EVENTS.has(event)) return;
+
+  const signature = headers.get("x-retell-signature");
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+
+  // Fire-and-forget: n8n latency/failure must never affect the Retell response.
+  void fetch(N8N_FORWARD_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(signature ? { "x-retell-signature": signature } : {}),
+      "x-webee-forwarded": "retell",
+    },
+    body: rawBody,
+    signal: controller.signal,
+  })
+    .then((res) => {
+      if (!res.ok) {
+        console.warn("[RETELL WEBHOOK] n8n forward non-2xx (non-fatal)", {
+          event,
+          status: res.status,
+        });
+      } else {
+        console.log("[RETELL WEBHOOK] n8n forward ok", { event, status: res.status });
+      }
+    })
+    .catch((err) => {
+      console.warn("[RETELL WEBHOOK] n8n forward failed (non-fatal)", {
+        event,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    })
+    .finally(() => clearTimeout(timer));
+}
+
 export const RETELL_CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -500,6 +557,12 @@ export async function processRetellWebhook(
   const callId = call.call_id;
   const incomingAgentId = call.agent_id ? stripPrefix(call.agent_id) : "";
   console.log("[RETELL WEBHOOK] Received event", { event, callId, agentId: incomingAgentId });
+
+  // Mirror the authentic (signature-verified) Retell payload to the external
+  // n8n pipeline if configured, so making WEBEE the webhook target does not
+  // break n8n. Runs for EVERY event type (incl. transcript_updated below) and
+  // is non-blocking — see forwardToN8n.
+  forwardToN8n(rawBody, headers, event, options.source ?? "retell");
 
   // ── LIVE TRANSCRIPT: transcript_updated ────────────────────────────────────
   // This is the ONLY live in-progress transcript source for managed agents. It
