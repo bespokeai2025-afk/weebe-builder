@@ -41,3 +41,13 @@ REST/`calls` table, both empty during the call.
 `RETELL_SIGNATURE_VERIFICATION_ENABLED=true`. It defaults to DISABLED
 (`… !== "true"`). If unset in prod, anyone can POST fake transcripts into
 `live_call_sessions`. Ensure the env var is set in production secrets.
+The webhook "signing key" is NOT a separate secret — `verifyRetellSignature`
+uses the Retell API key itself (platform `RETELL_API_KEY`, falling back to the
+per-workspace key). So the flag is safe to flip on whenever `RETELL_API_KEY`
+exists. It's currently set in the `shared` env (covers dev + prod).
+
+**Applied state (as of this project):** the migration
+(`20260724000000_live_call_sessions.sql`) is already applied to Supabase and all
+deployed agents are already subscribed to `transcript_updated` — `SUPABASE_ACCESS_TOKEN`
+is NOT present, so DDL can't be re-run via the Management API; the table + unique
+constraint were verified via a service-role `onConflict` upsert instead.

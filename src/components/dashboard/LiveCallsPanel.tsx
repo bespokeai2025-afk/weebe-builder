@@ -68,14 +68,21 @@ function CallCard({ call }: { call: LiveCall }) {
   const transcriptRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const [duration, setDuration] = useState("0s");
+  const [transcriptOverdue, setTranscriptOverdue] = useState(false);
   const status = resolveStatus(call);
   const isCompleted = call.status === "completed";
   const isLive = !isCompleted;
 
   useEffect(() => {
-    setDuration(elapsed(call.start_timestamp));
+    const tick = () => {
+      setDuration(elapsed(call.start_timestamp));
+      setTranscriptOverdue(
+        call.start_timestamp != null && Date.now() - call.start_timestamp > 20_000,
+      );
+    };
+    tick();
     if (!isLive) return;
-    const id = setInterval(() => setDuration(elapsed(call.start_timestamp)), 1000);
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [call.start_timestamp, isLive]);
 
@@ -155,14 +162,25 @@ function CallCard({ call }: { call: LiveCall }) {
               No transcript recorded
             </div>
           ) : call.live_transcript ? (
-            <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
-              <span className="flex gap-0.5">
-                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0s_infinite]" />
-                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
-                <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
-              </span>
-              <span>Waiting for speech…</span>
-            </div>
+            transcriptOverdue ? (
+              <div className="flex items-start gap-2 py-3 text-[11px] text-amber-400/80">
+                <Mic className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>
+                  Live transcript not received yet. Check the{" "}
+                  <code className="text-amber-300">transcript_updated</code> webhook event
+                  and Retell webhook URL.
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
+                <span className="flex gap-0.5">
+                  <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0s_infinite]" />
+                  <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.15s_infinite]" />
+                  <span className="h-3 w-0.5 rounded-full bg-emerald-400/60 animate-[bounce_1s_ease-in-out_0.3s_infinite]" />
+                </span>
+                <span>Waiting for speech…</span>
+              </div>
+            )
           ) : (
             <div className="flex items-center gap-2 py-3 text-[11px] text-muted-foreground">
               <Mic className="h-3.5 w-3.5" />
