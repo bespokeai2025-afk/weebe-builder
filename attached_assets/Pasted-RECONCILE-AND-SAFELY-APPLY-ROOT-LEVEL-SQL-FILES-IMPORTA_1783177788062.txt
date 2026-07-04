@@ -1,0 +1,142 @@
+RECONCILE AND SAFELY APPLY ROOT-LEVEL SQL FILES
+
+IMPORTANT
+
+Do NOT blindly execute the root-level SQL files.
+
+Do NOT duplicate tables.
+
+Do NOT overwrite production data.
+
+Do NOT break WBAH.
+
+Do NOT break existing n8n workflows.
+
+Do NOT break existing Retell agents.
+
+Do NOT break GrowthMind, HiveMind, SystemMind, Builder, Analytics or API Engine.
+
+This is a controlled reconciliation and application task.
+
+---
+
+BACKGROUND
+
+The SQL audit has identified SQL files located outside the standard supabase/migrations directory.
+
+These files were not included in the previous migration reconciliation.
+
+Some of the tables defined within them are actively referenced by the current codebase but do not exist in the live database.
+
+These files require investigation before any SQL is executed.
+
+---
+
+PHASE 1 — RECONCILIATION
+
+Review the following root-level SQL files:
+
+* GROWTHMIND_CMO_MIGRATION.sql
+* GROWTHMIND_SEO_EMAIL_MIGRATION.sql
+* Any other root-level .sql files not already reconciled
+
+For every object inside those files determine whether it is:
+
+* Already implemented
+* Missing
+* Superseded
+* Duplicated
+* Obsolete
+
+Do not assume every CREATE TABLE should be executed.
+
+---
+
+PHASE 2 — CODE VALIDATION
+
+For every missing table determine:
+
+* Is it actively referenced by the current code?
+* Which files reference it?
+* Which modules depend on it?
+* Is it currently causing runtime failures?
+* Is it silently failing because of missing tables?
+* Is the feature currently disabled?
+* Is there already an alternative implementation?
+
+---
+
+PHASE 3 — SAFE APPLICATION
+
+Only if a table is genuinely required:
+
+Apply only the missing schema objects.
+
+Never recreate objects that already exist.
+
+Never duplicate indexes.
+
+Never duplicate RLS policies.
+
+Never duplicate triggers.
+
+Never duplicate functions.
+
+All SQL must remain idempotent.
+
+---
+
+PHASE 4 — GROWTHMIND VALIDATION
+
+After reconciliation verify the following GrowthMind modules:
+
+* CMO Analysis
+* Opportunity Scoring
+* Trend Engine
+* Video Proposals
+* Campaign Proposals
+* SEO Brief Generation
+* Email Campaign Generation
+* Domain Warm-up
+
+Confirm:
+
+* database tables exist
+* queries succeed
+* inserts succeed
+* updates succeed
+* RLS works
+* workspace isolation remains intact
+
+---
+
+PHASE 5 — POST VALIDATION
+
+Verify:
+
+* No duplicate schema objects
+* No duplicate indexes
+* No duplicate policies
+* No duplicate triggers
+* No duplicate functions
+* No broken references
+* No SQL errors
+* No runtime errors
+* No relation does not exist errors
+
+---
+
+RETURN
+
+Provide:
+
+1. Root-level SQL files discovered
+2. Objects already implemented
+3. Objects genuinely missing
+4. Objects safely applied
+5. Objects skipped
+6. Runtime features now enabled
+7. Validation results
+8. Remaining SQL technical debt
+
+Final confirmation must clearly state whether the GrowthMind feature set is now fully backed by the required database schema without introducing duplicate or conflicting database objects.

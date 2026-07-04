@@ -27,10 +27,13 @@ CREATE INDEX IF NOT EXISTS idx_gm_service_scores_total
 
 ALTER TABLE growthmind_service_scores ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "growthmind_service_scores_workspace_isolation" ON growthmind_service_scores;
 DO $$ BEGIN
-  CREATE POLICY "growthmind_service_scores_workspace_isolation"
+  CREATE POLICY "growthmind_service_scores_workspace_members"
     ON growthmind_service_scores
-    USING (workspace_id::text = (current_setting('app.workspace_id', true)));
+    FOR ALL
+    USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+    WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
@@ -61,10 +64,13 @@ CREATE INDEX IF NOT EXISTS idx_gm_trend_signals_computed
 
 ALTER TABLE growthmind_trend_signals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "growthmind_trend_signals_workspace_isolation" ON growthmind_trend_signals;
 DO $$ BEGIN
-  CREATE POLICY "growthmind_trend_signals_workspace_isolation"
+  CREATE POLICY "growthmind_trend_signals_workspace_members"
     ON growthmind_trend_signals
-    USING (workspace_id::text = (current_setting('app.workspace_id', true)));
+    FOR ALL
+    USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+    WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
@@ -100,10 +106,13 @@ CREATE INDEX IF NOT EXISTS idx_gm_campaign_proposals_generated
 
 ALTER TABLE growthmind_campaign_proposals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "growthmind_campaign_proposals_workspace_isolation" ON growthmind_campaign_proposals;
 DO $$ BEGIN
-  CREATE POLICY "growthmind_campaign_proposals_workspace_isolation"
+  CREATE POLICY "growthmind_campaign_proposals_workspace_members"
     ON growthmind_campaign_proposals
-    USING (workspace_id::text = (current_setting('app.workspace_id', true)));
+    FOR ALL
+    USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+    WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
@@ -139,10 +148,13 @@ CREATE INDEX IF NOT EXISTS idx_gm_video_proposals_generated
 
 ALTER TABLE growthmind_video_proposals ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "growthmind_video_proposals_workspace_isolation" ON growthmind_video_proposals;
 DO $$ BEGIN
-  CREATE POLICY "growthmind_video_proposals_workspace_isolation"
+  CREATE POLICY "growthmind_video_proposals_workspace_members"
     ON growthmind_video_proposals
-    USING (workspace_id::text = (current_setting('app.workspace_id', true)));
+    FOR ALL
+    USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+    WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 

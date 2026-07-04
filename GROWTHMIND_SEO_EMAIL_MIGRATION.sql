@@ -30,10 +30,13 @@ CREATE INDEX IF NOT EXISTS idx_gm_seo_briefs_generated
 
 ALTER TABLE growthmind_seo_briefs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "growthmind_seo_briefs_workspace_isolation" ON growthmind_seo_briefs;
 DO $$ BEGIN
-  CREATE POLICY "growthmind_seo_briefs_workspace_isolation"
+  CREATE POLICY "growthmind_seo_briefs_workspace_members"
     ON growthmind_seo_briefs
-    USING (workspace_id::text = (current_setting('app.workspace_id', true)));
+    FOR ALL
+    USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+    WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
@@ -77,10 +80,13 @@ CREATE INDEX IF NOT EXISTS idx_gm_email_campaigns_created
 
 ALTER TABLE growthmind_email_campaigns ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "growthmind_email_campaigns_workspace_isolation" ON growthmind_email_campaigns;
 DO $$ BEGIN
-  CREATE POLICY "growthmind_email_campaigns_workspace_isolation"
+  CREATE POLICY "growthmind_email_campaigns_workspace_members"
     ON growthmind_email_campaigns
-    USING (workspace_id::text = (current_setting('app.workspace_id', true)));
+    FOR ALL
+    USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+    WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
@@ -116,10 +122,13 @@ CREATE INDEX IF NOT EXISTS idx_gm_domain_warmups_domain
 
 ALTER TABLE growthmind_domain_warmups ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "growthmind_domain_warmups_workspace_isolation" ON growthmind_domain_warmups;
 DO $$ BEGIN
-  CREATE POLICY "growthmind_domain_warmups_workspace_isolation"
+  CREATE POLICY "growthmind_domain_warmups_workspace_members"
     ON growthmind_domain_warmups
-    USING (workspace_id::text = (current_setting('app.workspace_id', true)));
+    FOR ALL
+    USING (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()))
+    WITH CHECK (workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
