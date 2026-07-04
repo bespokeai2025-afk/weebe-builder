@@ -51,6 +51,33 @@ export interface PlanAdapter {
   matched: boolean;
 }
 
+export interface PlanGraphPrerequisite {
+  /** Selected template that has the dependency. */
+  template: string;
+  /** Node the template depends on / links to. */
+  depends_on: string;
+  node_type: string;
+  /** Human-readable edge type (e.g. "depends on"). */
+  edge: string;
+}
+
+export interface PlanGraphContext {
+  /** True when the knowledge-graph tables exist and were queried. */
+  consulted: boolean;
+  /** True when a graph build has produced nodes. */
+  build_present: boolean;
+  /** How many selected templates were found as nodes in the graph. */
+  matched_nodes: number;
+  /** Edge-based prerequisites/links discovered for the selected templates. */
+  prerequisites: PlanGraphPrerequisite[];
+  /** Architecture nodes (infrastructure, APIs, integrations, adapters) reachable from the selection. */
+  architecture: Array<{ label: string; node_type: string }>;
+  /** Past failure-report nodes linked to the selected templates. */
+  related_failures: string[];
+  /** Graph-derived caveats surfaced to the human operator. */
+  notes: string[];
+}
+
 export interface DeploymentPlanBody {
   interpreted_goal: string;
   summary: string;
@@ -73,6 +100,7 @@ export interface DeploymentPlanBody {
   validation_steps: string[];
   testing_steps: string[];
   risk_assessment: { rating: "low" | "medium" | "high"; notes: string[] };
+  knowledge_graph: PlanGraphContext;
   estimated_minutes: number;
   requires_human_execution: true;
   execution_note: string;
@@ -309,6 +337,268 @@ async function loadConfidenceMap(workspaceId: string): Promise<Map<string, { ove
   }
 }
 
+// ── Knowledge-graph consultation (READ-ONLY, descriptive) ─────────────────────
+// The planner consults the SystemMind knowledge graph so that plan composition,
+// deployment order, risk and architecture reflect real dependency edges — not
+// just per-template metadata. This runs in BOTH the AI and deterministic paths,
+// so graph signals are applied even when no OpenAI key is present. Read-only: it
+// queries graph nodes/edges and never writes or executes anything.
+
+const GRAPH_PREREQ_EDGES = new Set(["depends_on", "supported_by", "integrates_with", "uses_provider"]);
+const GRAPH_ARCH_TYPES = new Set([
+  "infrastructure", "api_connection", "api_endpoint", "integration", "crm_adapter", "universal_action", "deployment",
+]);
+const TEMPLATE_SOURCE_TABLE = "systemmind_workflow_templates";
+
+const EDGE_LABELS: Record<string, string> = {
+  depends_on: "depends on",
+  supported_by: "supported by",
+  integrates_with: "integrates with",
+  uses_provider: "uses provider",
+  belongs_to: "belongs to",
+  maps_to_action: "maps to action",
+  derived_from: "derived from",
+  deployed_as: "deployed as",
+};
+
+interface GraphCtx {
+  available: boolean;
+  buildPresent: boolean;
+  nodeById: Map<string, any>;
+  adj: Map<string, any[]>;
+  /** template row → graph node id (by source_table+source_id, then by label). */
+  templateNodeId: (t: any) => string | undefined;
+  /** graph node id → candidate template id (reverse of templateNodeId over candidates). */
+  nodeIdToTemplateId: Map<string, string>;
+}
+
+async function loadGraphContext(workspaceId: string, candidates: any[]): Promise<GraphCtx> {
+  const sb = supabaseAdmin as any;
+  const empty: GraphCtx = {
+    available: false, buildPresent: false, nodeById: new Map(), adj: new Map(),
+    templateNodeId: () => undefined, nodeIdToTemplateId: new Map(),
+  };
+  try {
+    const [nodesRes, edgesRes] = await Promise.all([
+      sb.from("systemmind_graph_nodes")
+        .select("id, node_type, source_table, source_id, label, status")
+        .eq("workspace_id", workspaceId).limit(5000),
+      sb.from("systemmind_graph_edges")
+        .select("id, from_node_id, to_node_id, edge_type")
+        .eq("workspace_id", workspaceId).limit(20000),
+    ]);
+    if (nodesRes.error) {
+      if (isRelationMissing(nodesRes.error)) return empty;
+      throw new Error(nodesRes.error.message);
+    }
+    if (edgesRes.error) {
+      if (isRelationMissing(edgesRes.error)) return empty;
+      throw new Error(edgesRes.error.message);
+    }
+    const nodes = (nodesRes.data ?? []) as any[];
+    const edges = (edgesRes.data ?? []) as any[];
+    const nodeById = new Map<string, any>(nodes.map((n) => [n.id, n]));
+    const adj = new Map<string, any[]>();
+    for (const e of edges) {
+      if (!adj.has(e.from_node_id)) adj.set(e.from_node_id, []);
+      if (!adj.has(e.to_node_id)) adj.set(e.to_node_id, []);
+      adj.get(e.from_node_id)!.push(e);
+      adj.get(e.to_node_id)!.push(e);
+    }
+    const bySource = new Map<string, string>();
+    const byLabel = new Map<string, string>();
+    for (const n of nodes) {
+      if (n.source_table === TEMPLATE_SOURCE_TABLE && n.source_id) bySource.set(String(n.source_id), n.id);
+      if (n.node_type === "workflow_template" && n.label) byLabel.set(String(n.label).toLowerCase(), n.id);
+    }
+    const templateNodeId = (t: any): string | undefined =>
+      bySource.get(String(t.id)) ?? byLabel.get(String(t.name ?? "").toLowerCase());
+    const nodeIdToTemplateId = new Map<string, string>();
+    for (const t of candidates) {
+      const nid = templateNodeId(t);
+      if (nid) nodeIdToTemplateId.set(nid, t.id);
+    }
+    return { available: true, buildPresent: nodes.length > 0, nodeById, adj, templateNodeId, nodeIdToTemplateId };
+  } catch (e) {
+    if (isRelationMissing(e)) return empty;
+    throw e;
+  }
+}
+
+/** Direct prerequisite/link labels for a node — used to make AI selection graph-aware. */
+function directPrereqLabels(graph: GraphCtx, nodeId: string | undefined): string[] {
+  if (!nodeId) return [];
+  const out: string[] = [];
+  for (const e of graph.adj.get(nodeId) ?? []) {
+    if (e.from_node_id !== nodeId) continue;
+    if (!GRAPH_PREREQ_EDGES.has(e.edge_type)) continue;
+    const to = graph.nodeById.get(e.to_node_id);
+    if (to?.label) out.push(String(to.label));
+  }
+  return uniq(out).slice(0, 4);
+}
+
+interface GraphPlanResult {
+  finalSelectedIds: string[];
+  orderedIds: string[];
+  addedPrerequisiteIds: string[];
+  prerequisites: PlanGraphPrerequisite[];
+  architecture: Array<{ label: string; node_type: string }>;
+  relatedFailures: string[];
+  notes: string[];
+  matchedNodes: number;
+  consulted: boolean;
+  buildPresent: boolean;
+}
+
+/**
+ * Consults the knowledge graph for an initial template selection: pulls in
+ * edge-based prerequisite templates, orders the plan so prerequisites come
+ * first, and surfaces architecture/failure context. Pure over the loaded graph.
+ */
+function consultGraphForPlan(selectedIds: string[], candidates: any[], graph: GraphCtx): GraphPlanResult {
+  const byId = new Map<string, any>(candidates.map((t) => [t.id, t]));
+  const notes: string[] = [];
+
+  // 1. Auto-include prerequisite templates the selection depends on (graph edges).
+  const selectedSet = new Set(selectedIds);
+  const addedPrerequisiteIds: string[] = [];
+  if (graph.available && graph.buildPresent) {
+    for (const id of selectedIds) {
+      const nid = graph.templateNodeId(byId.get(id));
+      if (!nid) continue;
+      for (const e of graph.adj.get(nid) ?? []) {
+        if (e.from_node_id !== nid || e.edge_type !== "depends_on") continue;
+        const prereqTemplateId = graph.nodeIdToTemplateId.get(e.to_node_id);
+        if (prereqTemplateId && !selectedSet.has(prereqTemplateId) && addedPrerequisiteIds.length < 5) {
+          selectedSet.add(prereqTemplateId);
+          addedPrerequisiteIds.push(prereqTemplateId);
+        }
+      }
+    }
+  }
+  const finalSelectedIds = [...selectedSet].filter((id) => byId.has(id));
+
+  // 2. Map final selection → graph node ids.
+  const nodeIdBySelected = new Map<string, string>();
+  for (const id of finalSelectedIds) {
+    const nid = graph.templateNodeId(byId.get(id));
+    if (nid) nodeIdBySelected.set(id, nid);
+  }
+  const matchedNodes = nodeIdBySelected.size;
+  const selectedNodeIds = new Set(nodeIdBySelected.values());
+
+  // 3. BFS (depth 2) from matched selection to gather reachable context.
+  const reachable = new Set<string>(selectedNodeIds);
+  let frontier = [...selectedNodeIds];
+  for (let d = 0; d < 2; d++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      for (const e of graph.adj.get(id) ?? []) {
+        const other = e.from_node_id === id ? e.to_node_id : e.from_node_id;
+        if (!reachable.has(other)) { reachable.add(other); next.push(other); }
+      }
+    }
+    frontier = next;
+    if (!frontier.length) break;
+  }
+
+  // 4. Prerequisites/links, architecture nodes and failure reports.
+  const prerequisites: PlanGraphPrerequisite[] = [];
+  const seenPrereq = new Set<string>();
+  for (const nid of selectedNodeIds) {
+    const from = graph.nodeById.get(nid);
+    for (const e of graph.adj.get(nid) ?? []) {
+      if (e.from_node_id !== nid || !GRAPH_PREREQ_EDGES.has(e.edge_type)) continue;
+      const to = graph.nodeById.get(e.to_node_id);
+      if (!to?.label) continue;
+      const key = `${from?.label}|${to.label}|${e.edge_type}`;
+      if (seenPrereq.has(key)) continue;
+      seenPrereq.add(key);
+      prerequisites.push({
+        template: String(from?.label ?? "template"),
+        depends_on: String(to.label),
+        node_type: String(to.node_type),
+        edge: EDGE_LABELS[e.edge_type] ?? String(e.edge_type),
+      });
+    }
+  }
+  const architecture: Array<{ label: string; node_type: string }> = [];
+  const seenArch = new Set<string>();
+  const relatedFailures: string[] = [];
+  const seenFail = new Set<string>();
+  for (const nid of reachable) {
+    if (selectedNodeIds.has(nid)) continue;
+    const n = graph.nodeById.get(nid);
+    if (!n?.label) continue;
+    if (GRAPH_ARCH_TYPES.has(n.node_type) && !seenArch.has(n.label) && architecture.length < 25) {
+      seenArch.add(n.label);
+      architecture.push({ label: String(n.label), node_type: String(n.node_type) });
+    }
+    if (n.node_type === "failure_report" && !seenFail.has(n.label) && relatedFailures.length < 10) {
+      seenFail.add(n.label);
+      relatedFailures.push(String(n.label));
+    }
+  }
+
+  // 5. Graph-aware deployment order: prerequisites before dependents (topological).
+  const before = new Map<string, Set<string>>(); // templateId → prerequisite templateIds (must come first)
+  for (const id of finalSelectedIds) before.set(id, new Set());
+  for (const [depTemplateId, nid] of nodeIdBySelected) {
+    for (const e of graph.adj.get(nid) ?? []) {
+      if (e.from_node_id !== nid || e.edge_type !== "depends_on") continue;
+      const prereqTemplateId = graph.nodeIdToTemplateId.get(e.to_node_id);
+      if (prereqTemplateId && selectedSet.has(prereqTemplateId) && prereqTemplateId !== depTemplateId) {
+        before.get(depTemplateId)!.add(prereqTemplateId);
+      }
+    }
+  }
+  const orderedIds = topoOrder(finalSelectedIds, before, byId);
+
+  // 6. Notes / caveats.
+  if (!graph.available) {
+    notes.push("Knowledge graph is not available in this workspace — deployment order and prerequisites use template metadata only.");
+  } else if (!graph.buildPresent) {
+    notes.push("Knowledge graph has not been built yet — rebuild it for dependency-aware planning.");
+  } else if (matchedNodes === 0) {
+    notes.push("Selected templates are not yet represented in the knowledge graph — rebuild the graph to enable dependency-aware ordering.");
+  } else {
+    notes.push(`Knowledge graph consulted: ${matchedNodes} selected template(s) matched as graph nodes.`);
+    if (prerequisites.length) notes.push(`${prerequisites.length} dependency/link edge(s) found across the selected templates.`);
+    if (addedPrerequisiteIds.length) notes.push(`Auto-included ${addedPrerequisiteIds.length} prerequisite template(s) the selection depends on (per the graph).`);
+    if (architecture.length) notes.push(`${architecture.length} related architecture node(s) (infrastructure/APIs/integrations) linked to the selection.`);
+    if (relatedFailures.length) notes.push(`${relatedFailures.length} past failure report(s) linked to the selected templates — review before deploying.`);
+  }
+
+  return {
+    finalSelectedIds, orderedIds, addedPrerequisiteIds, prerequisites, architecture,
+    relatedFailures, notes, matchedNodes, consulted: graph.available, buildPresent: graph.buildPresent,
+  };
+}
+
+/** Kahn topological sort; ties broken by category order then original position; cycle-safe. */
+function topoOrder(ids: string[], before: Map<string, Set<string>>, byId: Map<string, any>): string[] {
+  const pos = new Map<string, number>(ids.map((id, i) => [id, i]));
+  const tie = (a: string, b: string): number => {
+    const oa = orderIndex(byId.get(a)?.category ?? null);
+    const ob = orderIndex(byId.get(b)?.category ?? null);
+    if (oa !== ob) return oa - ob;
+    return (pos.get(a) ?? 0) - (pos.get(b) ?? 0);
+  };
+  const remaining = new Set(ids);
+  const out: string[] = [];
+  while (remaining.size) {
+    const ready = [...remaining].filter((id) =>
+      [...(before.get(id) ?? [])].every((p) => !remaining.has(p)),
+    );
+    // Cycle guard: if nothing is ready, release the best tie-break candidate.
+    const pick = (ready.length ? ready : [...remaining]).sort(tie)[0];
+    out.push(pick);
+    remaining.delete(pick);
+  }
+  return out;
+}
+
 // ── Core: generate a plan ──────────────────────────────────────────────────────
 
 export async function generateDeploymentPlan(
@@ -342,6 +632,10 @@ export async function generateDeploymentPlan(
   const candidates = [...all].sort((a, b) => scoreOf(b) - scoreOf(a));
   const candidateIds = new Set(candidates.map((t) => t.id));
 
+  // Consult the knowledge graph up front so selection (AI) and composition,
+  // ordering, risk & architecture (deterministic) are all dependency-aware.
+  const graph = await loadGraphContext(workspaceId, candidates);
+
   // 1. Select templates (AI when a key is present, deterministic otherwise).
   let selectedIds: string[] = [];
   let interpretedGoal = "";
@@ -352,9 +646,11 @@ export async function generateDeploymentPlan(
     try {
       const candidateList = candidates
         .slice(0, 60)
-        .map((t) =>
-          `- id:${t.id} | ${t.name} | category:${t.category ?? "General"} | score:${scoreOf(t)}${isRecommended(t) ? " (recommended)" : ""} | purpose:${String(t.business_purpose ?? t.description ?? "").slice(0, 120)}`,
-        )
+        .map((t) => {
+          const deps = directPrereqLabels(graph, graph.templateNodeId(t));
+          const depHint = deps.length ? ` | graph-links:${deps.join(", ")}` : "";
+          return `- id:${t.id} | ${t.name} | category:${t.category ?? "General"} | score:${scoreOf(t)}${isRecommended(t) ? " (recommended)" : ""} | purpose:${String(t.business_purpose ?? t.description ?? "").slice(0, 120)}${depHint}`;
+        })
         .join("\n");
       const crmNames = listCrmAdapterDefinitions().map((d) => d.label).join(", ");
       const prompt = `A platform admin wants to plan (NOT execute) a deployment.
@@ -362,12 +658,12 @@ export async function generateDeploymentPlan(
 Request:
 """${request.slice(0, 2000)}"""
 
-Available workflow templates (choose ONLY from these ids):
+Available workflow templates (choose ONLY from these ids). "graph-links" lists dependencies/integrations discovered in the knowledge graph — prefer selections whose prerequisites are also included:
 ${candidateList}
 
 Available CRM adapters: ${crmNames}
 
-Pick the templates that together fulfil the request. Prefer higher-scored / recommended ones. Return ONLY JSON:
+Pick the templates that together fulfil the request. Prefer higher-scored / recommended ones and include prerequisite templates named in graph-links. Return ONLY JSON:
 {"title":"short title","interpreted_goal":"one sentence restating the goal","template_ids":["<id>", ...]}`;
       const raw = await gptSelect(apiKey, [
         { role: "system", content: "You assemble descriptive deployment plans by selecting existing templates. Return ONLY valid JSON. Never invent template ids." },
@@ -395,25 +691,37 @@ Pick the templates that together fulfil the request. Prefer higher-scored / reco
     selectedIds = (hits.length ? hits : ranked.slice(0, 3)).map((r) => r.t.id);
   }
 
-  const selected = candidates.filter((t) => selectedIds.includes(t.id));
+  // 3. Consult the knowledge graph: pull in edge-based prerequisite templates,
+  //    order prerequisites first, and gather architecture/failure context. This
+  //    applies in BOTH the AI and deterministic paths.
+  const graphResult = consultGraphForPlan(selectedIds, candidates, graph);
+  selectedIds = graphResult.finalSelectedIds;
+  const byId = new Map<string, any>(candidates.map((t) => [t.id, t]));
+  // `orderedIds` is the final selection already sorted prerequisite-first.
+  const selected = graphResult.orderedIds.map((id) => byId.get(id)).filter(Boolean) as any[];
+
   if (!interpretedGoal) interpretedGoal = request.slice(0, 400);
   if (!title) title = request.split(/[.\n]/)[0].slice(0, 80) || "Deployment plan";
 
-  // 3. Deterministic enrichment.
+  // 4. Deterministic enrichment (graph-aware where relevant).
   const providers = bucketProviders(selected);
   const requiredApis = uniq(selected.flatMap((t) => (t.required_apis ?? []) as string[]));
   const requiredCredentials = uniq(selected.flatMap((t) => (t.required_credentials ?? []) as string[]));
   const configVariables = collectVariables(selected);
   const webhookRequirements = configVariables.filter((v) => v.category === "webhook");
   const adapters = matchAdapters(providers.crm);
-  const infrastructure = buildInfrastructure(providers);
+  // Merge graph-discovered architecture nodes into the infrastructure list.
+  const infrastructure = uniq([
+    ...buildInfrastructure(providers),
+    ...graphResult.architecture.map((a) => `${a.label} (${a.node_type.replace(/_/g, " ")}, per knowledge graph)`),
+  ]);
   const security = buildSecurity(configVariables, selected);
   const validation = buildValidation(providers, configVariables);
   const testing = buildTesting(providers);
   const estimatedMinutes = estimateMinutes(selected, requiredCredentials, providers);
 
-  const ordered = [...selected].sort((a, b) => orderIndex(a.category) - orderIndex(b.category));
-  const deploymentOrder = ordered.map((t, i) => ({
+  // Deployment order follows the graph-derived (prerequisite-first) ordering.
+  const deploymentOrder = selected.map((t, i) => ({
     step: i + 1,
     template: t.name,
     category: t.category ?? null,
@@ -430,13 +738,19 @@ Pick the templates that together fulfil the request. Prefer higher-scored / reco
     recommended: isRecommended(t),
   }));
 
-  const rating = maxRisk(selected);
+  // Graph-linked past failures escalate risk to at least medium.
+  const baseRating = maxRisk(selected);
+  const rating: "low" | "medium" | "high" =
+    graphResult.relatedFailures.length && baseRating === "low" ? "medium" : baseRating;
   const belowThreshold = selected.filter((t) => !isRecommended(t));
   const riskNotes: string[] = [];
   riskNotes.push(`${selected.length} template(s) selected; overall risk assessed as ${rating}.`);
   if (requiredCredentials.length) riskNotes.push(`${requiredCredentials.length} credential type(s) must be provisioned securely.`);
   if (belowThreshold.length) riskNotes.push(`${belowThreshold.length} selected template(s) score below the confidence threshold (${threshold}) — review carefully.`);
   if (adapters.some((a) => !a.matched)) riskNotes.push("Some CRM providers have no built-in adapter — a custom integration may be required.");
+  // Fold knowledge-graph caveats (prerequisites, failures, build status) into the risk notes.
+  for (const n of graphResult.notes) riskNotes.push(n);
+  for (const f of graphResult.relatedFailures.slice(0, 5)) riskNotes.push(`Linked failure report: ${f}`);
 
   const planConfidence = selected.length
     ? Math.round(selected.reduce((n, t) => n + scoreOf(t), 0) / selected.length)
@@ -460,12 +774,21 @@ Pick the templates that together fulfil the request. Prefer higher-scored / reco
     validation_steps: validation,
     testing_steps: testing,
     risk_assessment: { rating, notes: riskNotes },
+    knowledge_graph: {
+      consulted: graphResult.consulted,
+      build_present: graphResult.buildPresent,
+      matched_nodes: graphResult.matchedNodes,
+      prerequisites: graphResult.prerequisites,
+      architecture: graphResult.architecture,
+      related_failures: graphResult.relatedFailures,
+      notes: graphResult.notes,
+    },
     estimated_minutes: estimatedMinutes,
     requires_human_execution: true,
     execution_note: EXECUTION_NOTE,
   };
 
-  // 4. Persist. execution_status is left to its DB default ('not_executed').
+  // 5. Persist. execution_status is left to its DB default ('not_executed').
   const { data: inserted, error: insErr } = await sb
     .from("systemmind_deployment_plans")
     .insert({

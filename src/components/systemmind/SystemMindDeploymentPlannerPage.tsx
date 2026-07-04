@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   Rocket, Loader2, Sparkles, Trash2, ListChecks, KeyRound, Share2, Boxes,
   ServerCog, Webhook, ShieldCheck, ClipboardCheck, FlaskConical, Clock, Cpu,
-  AlertTriangle, ArrowRight, Target,
+  AlertTriangle, ArrowRight, Target, Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -140,6 +140,57 @@ function PlanView({ plan }: { plan: DeploymentPlanBody }) {
         <Section icon={ClipboardCheck} title="Validation"><List items={p.validation_steps} /></Section>
         <Section icon={FlaskConical} title="Testing"><List items={p.testing_steps} /></Section>
       </div>
+
+      {p.knowledge_graph && (
+        <Section
+          icon={Network}
+          title={`Knowledge graph${p.knowledge_graph.consulted ? ` (${p.knowledge_graph.matched_nodes} matched)` : ""}`}
+        >
+          {!p.knowledge_graph.consulted ? (
+            <p className="text-[11px] text-muted-foreground/60">
+              Knowledge graph unavailable — plan composition used template metadata only.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {p.knowledge_graph.prerequisites.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-sky-200/80 mb-1">Dependencies &amp; links</p>
+                  <ul className="space-y-1">
+                    {p.knowledge_graph.prerequisites.map((d, i) => (
+                      <li key={i} className="text-[11px] text-foreground/80 flex items-start gap-1.5">
+                        <ArrowRight className="h-3 w-3 text-sky-400/60 shrink-0 mt-0.5" />
+                        <span>
+                          <span className="font-medium">{d.template}</span>{" "}
+                          <span className="text-muted-foreground/60">{d.edge}</span>{" "}
+                          <span className="font-medium">{d.depends_on}</span>{" "}
+                          <Chip className="ml-1">{d.node_type.replace(/_/g, " ")}</Chip>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {p.knowledge_graph.architecture.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-sky-200/80 mb-1">Linked architecture</p>
+                  <div className="flex flex-wrap gap-1">
+                    {p.knowledge_graph.architecture.map((a) => (
+                      <Chip key={a.label} className="text-sky-400/80 border-sky-500/20">{a.label}</Chip>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {p.knowledge_graph.related_failures.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold text-red-300/80 mb-1">Linked failure reports</p>
+                  <List items={p.knowledge_graph.related_failures} />
+                </div>
+              )}
+              <List items={p.knowledge_graph.notes} />
+            </div>
+          )}
+        </Section>
+      )}
 
       <Section icon={AlertTriangle} title="Risk assessment">
         <div className="flex items-center gap-2 mb-1.5"><RiskPill rating={p.risk_assessment.rating} /></div>
