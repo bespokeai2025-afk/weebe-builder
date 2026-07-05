@@ -4,8 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import {
-  ChevronLeft, Building2, ShieldCheck, PowerOff, RefreshCw,
-  Loader2, AlertTriangle, CheckCircle2, XCircle, UserPlus,
+  ChevronLeft, Building2, RefreshCw,
+  Loader2, CheckCircle2, XCircle, UserPlus,
   Home, Phone, Users, HelpCircle, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -15,8 +15,6 @@ import { AccountsMindShell } from "@/components/accountsmind/AccountsMindShell";
 import {
   provisionWebuyanyhouseAccount,
   getWebuyanyhouseAdminStatus,
-  adminConnectWebuyanyhouseApi,
-  adminDisconnectWebuyanyhouseApi,
   adminSyncWebuyanyhouseLeads,
   cleanupWbahDuplicateLeads,
 } from "@/lib/integrations/webespokeEnterprise/wbah.functions";
@@ -102,8 +100,6 @@ function WebuyanyhouseAdminPanel() {
 
   const getStatusFn   = useServerFn(getWebuyanyhouseAdminStatus);
   const provisionFn   = useServerFn(provisionWebuyanyhouseAccount);
-  const connectFn     = useServerFn(adminConnectWebuyanyhouseApi);
-  const disconnectFn  = useServerFn(adminDisconnectWebuyanyhouseApi);
   const syncFn        = useServerFn(adminSyncWebuyanyhouseLeads);
   const cleanupFn     = useServerFn(cleanupWbahDuplicateLeads);
   const probeFn       = useServerFn(wbahProbeApi);
@@ -142,27 +138,6 @@ function WebuyanyhouseAdminPanel() {
       );
       invalidate();
     } catch (e: any) { toast.error(e?.message ?? "Provisioning failed"); }
-    finally { setBusy(null); }
-  }
-
-  async function handleConnect() {
-    setBusy("connect");
-    try {
-      await connectFn();
-      toast.success("Connected to WeeBespoke AI Enterprise API");
-      invalidate();
-    } catch (e: any) { toast.error(e?.message ?? "Connection failed"); }
-    finally { setBusy(null); }
-  }
-
-  async function handleDisconnect() {
-    if (!confirm("Disconnect from WeeBespoke AI Enterprise API?")) return;
-    setBusy("disconnect");
-    try {
-      await disconnectFn();
-      toast.success("Disconnected");
-      invalidate();
-    } catch (e: any) { toast.error(e?.message ?? "Disconnect failed"); }
     finally { setBusy(null); }
   }
 
@@ -295,67 +270,8 @@ function WebuyanyhouseAdminPanel() {
               </div>
             </Section>
 
-            {/* 2 — API Connection */}
-            <Section title="2 · WeeBespoke AI Enterprise API">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <StatusDot connected={apiConn} />
-                    <span className="text-sm text-white font-medium">
-                      {apiConn ? "Connected" : "Disconnected"}
-                    </span>
-                  </div>
-                  {status.apiUpdatedAt && (
-                    <p className="text-xs text-gray-600 pl-4">
-                      Last updated: {new Date(status.apiUpdatedAt).toLocaleString("en-GB")}
-                    </p>
-                  )}
-                  {!apiConn && (
-                    <p className="text-xs text-gray-600 pl-4">
-                      Uses <span className="font-mono">WEBESPOKE_ADMIN_EMAIL</span> + <span className="font-mono">WEBESPOKE_ADMIN_PASSWORD</span> from Secrets.
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {apiConn ? (
-                    <Button
-                      size="sm" variant="outline"
-                      className="border-gray-700 text-gray-400 hover:text-red-400 hover:border-red-500/30 h-8 text-xs gap-1"
-                      disabled={isBusy}
-                      onClick={handleDisconnect}
-                    >
-                      {busy === "disconnect"
-                        ? <Loader2 className="w-3 h-3 animate-spin" />
-                        : <PowerOff className="w-3 h-3" />}
-                      Disconnect
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs gap-1.5"
-                      disabled={isBusy}
-                      onClick={handleConnect}
-                    >
-                      {busy === "connect"
-                        ? <><Loader2 className="w-3 h-3 animate-spin" />Connecting…</>
-                        : <><ShieldCheck className="w-3 h-3" />Admin Connect</>}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {!apiConn && (
-                <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-3 py-2 flex items-start gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-yellow-200">
-                    Ensure <span className="font-mono">WEBESPOKE_ADMIN_EMAIL</span> and <span className="font-mono">WEBESPOKE_ADMIN_PASSWORD</span> are set in Replit Secrets before connecting.
-                  </p>
-                </div>
-              )}
-            </Section>
-
-            {/* 3 — Sync */}
-            <Section title="3 · Sync Leads">
+            {/* 2 — Sync */}
+            <Section title="2 · Sync Leads">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -466,9 +382,9 @@ function WebuyanyhouseAdminPanel() {
               )}
             </Section>
 
-            {/* 4 — API Diagnostic Probe */}
+            {/* 3 — API Diagnostic Probe */}
             {apiConn && (
-              <Section title="4 · API Diagnostic Probe">
+              <Section title="3 · API Diagnostic Probe">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <p className="text-xs text-gray-500">
                     Fires 7 parallel requests to WeeBespoke API and returns record counts for each.
