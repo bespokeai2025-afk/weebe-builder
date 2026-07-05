@@ -233,7 +233,7 @@ function WebuyanyhouseAdminPanel() {
                   {wsCreated ? (
                     <div className="text-xs text-gray-500 space-y-0.5 pl-4">
                       <p>Login: <span className="font-mono text-gray-400">admin@webuyanyhouse.co.uk</span></p>
-                      <p>Password: <span className="font-mono text-gray-400">Bespoke2025!</span></p>
+                      <p>Password: <span className="text-gray-600 italic">managed securely — not shown</span></p>
                       <p>Workspace ID: <span className="font-mono text-gray-600 text-[10px]">{status.workspaceId}</span></p>
                     </div>
                   ) : (
