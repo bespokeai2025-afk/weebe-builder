@@ -19,6 +19,83 @@ export type HiveMindTask = {
   completedAt?: string;
 };
 
+// ── WBAH lead/booking derivation ───────────────────────────────────────────────
+// WBAH's `leads` table is dup-inflated (~400k rows) — any ORDER BY / COUNT over it
+// exceeds the authenticated role's 8s statement_timeout and silently returns [] →
+// "0 leads / 0 bookings" on the HiveMind pages. The dashboard, Pipeline board and
+// HiveMind chat all avoid this by deriving WBAH "leads" from the small, clean
+// `wbah_calls` table (one row per contact whose MOST-RECENT call was positive or
+// neutral). We mirror that exactly (see deriveWbahLeadsFromCalls in hivemind.ai.ts
+// and getWbahPipelineLeads in pipeline.functions.ts). Rows are shaped like `leads`
+// so the downstream breakdown logic works unchanged. Uses the service-role client
+// (wbah_calls is RLS-protected). Cached (short TTL) — key shared with hivemind.ai.ts.
+const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
+
+async function deriveWbahLeadsFromCalls(workspaceId: string): Promise<any[]> {
+  return cacheWrap(`hivemind:wbah-leads-v2:${workspaceId}`, 60, async () => {
+    const PAGE = 1000;
+    const all: any[] = [];
+    let from = 0;
+    for (;;) {
+      const { data, error } = await (supabaseAdmin as any)
+        .from("wbah_calls")
+        .select("id, customer_name, phone, sentiment, started_at, appointment_date, calendly_booking_url")
+        .eq("workspace_id", workspaceId)
+        .order("started_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        console.error("[HiveMind] wbah_calls query error:", error.message);
+        break;
+      }
+      const batch: any[] = data ?? [];
+      all.push(...batch);
+      if (batch.length < PAGE) break;
+      from += PAGE;
+    }
+    // Dedup per contact (phone): rows are latest-first, so the first time we see a
+    // phone is that contact's most-recent call.
+    const seen = new Set<string>();
+    const latest: any[] = [];
+    for (const c of all) {
+      const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      latest.push(c);
+    }
+    const leads = latest
+      .filter((c) => {
+        const s = String(c.sentiment ?? "").toLowerCase();
+        return s === "positive" || s === "neutral";
+      })
+      .map((c) => {
+        const iso: string | null = c.started_at ?? null;
+        // "booked" mirrors the Sales Pipeline board: positive contact with an
+        // appointment_date or a Calendly link (WBAH's calendar_bookings is empty).
+        const booked = Boolean(
+          (c.appointment_date && String(c.appointment_date).trim()) ||
+            (c.calendly_booking_url && String(c.calendly_booking_url).trim()),
+        );
+        return {
+          id: c.id,
+          full_name: c.customer_name ?? "Unknown",
+          name: c.customer_name ?? "Unknown",
+          status: null,
+          pipeline_stage: null,
+          created_at: iso,
+          updated_at: iso,
+          agent_id: null,
+          source: null,
+          interest_level: null,
+          sentiment: String(c.sentiment ?? "").toLowerCase() || null,
+          booked,
+        };
+      });
+    console.log(`[HiveMind pages] WBAH leads derived from wbah_calls: ${leads.length} positive/neutral contacts (from ${all.length} calls)`);
+    return leads;
+  });
+}
+
 // ── Main platform data aggregator ──────────────────────────────────────────────
 export const getHiveMindPlatformData = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -45,6 +122,19 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
     const s14str    = since14.toISOString();
     const s30str    = since30.toISOString();
 
+    // WBAH's leads table is unusable (~400k dup rows → statement timeout → "0 leads");
+    // detect it up front so we skip the doomed leads/calendar_bookings queries and
+    // derive both from the small, clean wbah_calls table instead (see comment above
+    // deriveWbahLeadsFromCalls). ID fallback guards against an RLS-blocked slug lookup.
+    const { data: wsRow, error: wsErr } = await sb
+      .from("workspaces").select("slug").eq("id", workspaceId).maybeSingle();
+    if (wsErr) console.error("[HiveMind pages] workspace slug lookup error:", wsErr.message);
+    const isWbah = wsRow?.slug === "webuyanyhouse" || workspaceId === WBAH_WORKSPACE_ID;
+    // Kick off the WBAH derivation now so it runs concurrently with the main batch.
+    const wbahLeadsPromise: Promise<any[] | null> = isWbah
+      ? deriveWbahLeadsFromCalls(workspaceId)
+      : Promise.resolve(null);
+
     const [
       agentsRes, callsRes, leadsRes, bookingsRes, settingsRes,
       campaignsRes, waMessagesRes, watiContactsRes,
@@ -61,16 +151,23 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
         .order("started_at", { ascending: false })
         .limit(1000),
 
-      sb.from("leads")
-        .select("id, status, pipeline_stage, updated_at, created_at, full_name, name")
-        .eq("workspace_id", workspaceId)
-        .limit(5000),
+      // For WBAH skip the leads table entirely (see isWbah note) — derived below.
+      isWbah
+        ? Promise.resolve({ data: [] as any[], error: null })
+        : sb.from("leads")
+            .select("id, status, pipeline_stage, updated_at, created_at, full_name, name")
+            .eq("workspace_id", workspaceId)
+            .limit(5000),
 
+      // WBAH's calendar_bookings table is empty (bookings live in wbah_calls) — skip
+      // and derive below. Standard workspaces keep using calendar_bookings.
       // Fix #2: column is `title`, not `event_name`
-      sb.from("calendar_bookings")
-        .select("id, agent_id, status, created_at, title")
-        .eq("workspace_id", workspaceId)
-        .limit(500),
+      isWbah
+        ? Promise.resolve({ data: [] as any[], error: null })
+        : sb.from("calendar_bookings")
+            .select("id, agent_id, status, created_at, title")
+            .eq("workspace_id", workspaceId)
+            .limit(500),
 
       sb.from("workspace_settings")
         .select("calcom_api_key, retell_default_agent_id, retell_workspace_id, elevenlabs_api_key, openai_api_key, hivemind_retell_agent_id, hivemind_tasks, whatsapp_phone_id, twilio_auth_token, twilio_account_sid")
@@ -118,8 +215,16 @@ export const getHiveMindPlatformData = createServerFn({ method: "GET" })
 
     const agents: any[]          = agentsRes.data          ?? [];
     const calls: any[]           = callsRes.data           ?? [];
-    const leads: any[]           = leadsRes.data           ?? [];
-    const bookings: any[]        = bookingsRes.data        ?? [];
+    const wbahLeadRows           = await wbahLeadsPromise;
+    // For WBAH, the wbah_calls-derived array IS the full lead set (see isWbah note);
+    // it replaces the (deliberately empty) leads-table result so all downstream
+    // counts match the Pipeline board and HiveMind chat.
+    const leads: any[]           = (isWbah && wbahLeadRows) ? wbahLeadRows : (leadsRes.data ?? []);
+    // WBAH bookings = positive contacts with an appointment/Calendly link (mirrors the
+    // Sales Pipeline "Bookings" stage); standard workspaces use calendar_bookings.
+    const bookings: any[]        = (isWbah && wbahLeadRows)
+      ? wbahLeadRows.filter(l => l.sentiment === "positive" && l.booked)
+      : (bookingsRes.data ?? []);
     const settings: any          = settingsRes.data        ?? {};
     const campaigns: any[]       = campaignsRes.data       ?? [];
     const waMessages: any[]      = waMessagesRes.data      ?? [];
