@@ -132,3 +132,30 @@ pass while real calls fail — always replay a REAL n8n payload (top-level array
 resurrection guard also silently drops a replayed `transcript_updated` for an
 already-ended call_id, so test with a FRESH call_id + `call_status:"ongoing"`.
 **Prod requires a REPUBLISH** (ingest baked into the Autoscale build).
+
+## Managed (WEBEE-builder) agents already get live transcript — no WBAH-style wiring
+
+For agents created/deployed THROUGH the WEBEE builder (managed path, distinct from
+the external n8n ingest above) the whole chain is already coded and needs no new work:
+- **Deploy** (`retell.functions.ts`): both `deployAgentToRetell` and the Go-Live clone
+  `goLiveAgent` set `webhook_url = {PUBLIC_BASE_URL}/api/public/voice-webhook` (only
+  `if (!agent.webhook_url)`; `agent` = `{...data.agent}`, and builder agents arrive with
+  no webhook_url so it's always injected) AND union `transcript_updated` into
+  `webhook_events`. Neither `webhook_url` nor `webhook_events` is in `READONLY_KEYS`, so
+  they survive update-mode too. `PUBLIC_BASE_URL` must be set in PROD (dev uses
+  `REPLIT_DEV_DOMAIN`); a live prod agent pointing at `webeebuilder.com/.../voice-webhook`
+  confirms prod has it.
+- **Processor** (`retell-webhook.processor.ts`): `transcript_updated` branch maps agent→
+  workspace via `resolveAgent` then `upsertLiveCallSession` — fixed by the same
+  top-level `mergeWebhookTranscript` merge as the ingest path.
+- **Read/display** is workspace-AGNOSTIC: `live-calls-sse.ts` adds `live_call_sessions`
+  rows to cards WITHOUT the platform-key fail-closed filter (comment: "already
+  workspace-scoped… makes the transcript appear instantly"). No WBAH hardcoding.
+
+**Operational caveat:** an agent deployed BEFORE the 2026-07-03 `transcript_updated`
+subscription code has `webhook_events:null` (= Retell default started/ended/analyzed,
+no transcript) and needs a one-time re-deploy from the builder to enable; NEW agents
+get it automatically. **Retell `get-agent`/`list-agents` returns `webhook_events:null`
+whenever it's unset** (default set) — null does NOT prove the field is broken, only that
+it was never explicitly set; verify by checking an agent known to have it (e.g. WBAH's
+agent_50598 returns the explicit array).
