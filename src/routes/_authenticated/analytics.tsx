@@ -284,6 +284,10 @@ function hasVoicemailKeyword(text?: string | null): boolean {
   return VOICEMAIL_KW.some((kw) => lower.includes(kw));
 }
 function isCallVoicemail(c: any): boolean {
+  // Retell calls are trimmed server-side (transcript dropped) with the voicemail
+  // flag pre-computed from the full record — trust it directly. Other sources
+  // (ElevenLabs, etc.) keep their shape and fall through to the full heuristic.
+  if (typeof c._isVoicemail === "boolean") return c._isVoicemail;
   return (
     c.call_analysis?.in_voicemail === true ||
     c.call_status === "voicemail" ||
@@ -549,6 +553,24 @@ function AnalyticsPage() {
                 </div>
               )}
 
+              {result && result.configured !== false && !result.error && analytics.total === 0 ? (
+                <div className="px-6 pt-5">
+                  <PanelCard>
+                    <EmptyState
+                      icon={BarChart3}
+                      title="No calls in this range"
+                      message={
+                        todayOnly
+                          ? "No calls have come in yet today. Try a wider range like 7 or 30 days."
+                          : effectiveSelectedAgentId
+                            ? "This agent has no calls in the selected range. Pick “All agents” or a wider range."
+                            : "No calls were found in the selected range. Try a wider range."
+                      }
+                    />
+                  </PanelCard>
+                </div>
+              ) : (
+              <>
               <div className="grid grid-cols-2 gap-3 px-6 pt-5 md:grid-cols-4">
                 <StatCard label="Total calls"  tone="primary" value={analytics.total} />
                 <StatCard label="Minutes used" tone="info"    value={`${analytics.totalMinutes}m`} />

@@ -31,6 +31,111 @@ function startOfUtcDayMs(ms: number): number {
   return d.getTime();
 }
 
+// ── Voicemail heuristic (server-side mirror of the client) ────────────────────
+// MUST stay in sync with analytics.tsx (VOICEMAIL_KW / isCallVoicemail). We
+// compute the voicemail flag HERE, on the RAW Retell call (which still carries
+// the transcript + summary + outcome), so those heavy text fields can be dropped
+// from the payload without changing any voicemail classification downstream.
+const VOICEMAIL_KW = [
+  "voicemail",
+  "answering machine",
+  "leave a message",
+  "mailbox",
+  "beep",
+  "not available",
+  "automated message",
+];
+function hasVoicemailKeyword(text?: string | null): boolean {
+  if (!text) return false;
+  const lower = String(text).toLowerCase();
+  return VOICEMAIL_KW.some((kw) => lower.includes(kw));
+}
+function computeIsVoicemail(c: any): boolean {
+  return (
+    c?.call_analysis?.in_voicemail === true ||
+    c?.call_status === "voicemail" ||
+    hasVoicemailKeyword(c?.disconnection_reason) ||
+    hasVoicemailKeyword(c?.call_analysis?.call_summary) ||
+    hasVoicemailKeyword(c?.call_analysis?.call_outcome) ||
+    hasVoicemailKeyword(c?.transcript)
+  );
+}
+
+// Reduce a raw Retell call to only the fields computeAnalytics / isCallVoicemail
+// actually read, with the voicemail flag pre-computed as `_isVoicemail`. Dropping
+// the transcript and the long summary/outcome strings keeps the 60/90-day
+// payloads small enough to serialize + transfer without changing any aggregate.
+function trimRetellCall(c: any): any {
+  return {
+    call_id: c.call_id,
+    agent_id: c.agent_id,
+    call_status: c.call_status,
+    call_type: c.call_type,
+    direction: c.direction,
+    call_direction: c.call_direction,
+    disconnection_reason: c.disconnection_reason ?? null,
+    disconnect_reason: c.disconnect_reason ?? null,
+    transfer_destination: c.transfer_destination ?? null,
+    start_timestamp: c.start_timestamp ?? null,
+    end_timestamp: c.end_timestamp ?? null,
+    duration_ms: c.duration_ms ?? null,
+    call_cost:
+      c.call_cost?.total_duration_seconds != null
+        ? { total_duration_seconds: c.call_cost.total_duration_seconds }
+        : undefined,
+    call_analysis: {
+      user_sentiment: c.call_analysis?.user_sentiment ?? null,
+      call_successful: c.call_analysis?.call_successful ?? null,
+      in_voicemail: c.call_analysis?.in_voicemail ?? false,
+    },
+    latency: c.latency
+      ? {
+          llm: c.latency.llm?.p50 != null ? { p50: c.latency.llm.p50 } : undefined,
+          e2e: c.latency.e2e?.p50 != null ? { p50: c.latency.e2e.p50 } : undefined,
+          tts: c.latency.tts?.p50 != null ? { p50: c.latency.tts.p50 } : undefined,
+        }
+      : undefined,
+    _isVoicemail: computeIsVoicemail(c),
+  };
+}
+
+// Paginate Retell /v2/list-calls for a single [lowerMs, upperMs] window,
+// descending by start_timestamp, cursoring on the last returned call_id (Retell
+// returns a plain array with no pagination_key field). Returns the raw calls
+// plus page count and whether the window hit its page cap.
+async function fetchCallsWindow(
+  apiKey: string,
+  agentIds: string[],
+  lowerMs: number,
+  upperMs: number | undefined,
+  pageSize: number,
+  maxPages: number,
+): Promise<{ calls: any[]; pages: number; truncated: boolean }> {
+  const out: any[] = [];
+  let paginationKey: string | undefined;
+  let page = 0;
+  do {
+    const startFilter: Record<string, number> = { lower_threshold: lowerMs };
+    if (upperMs != null) startFilter.upper_threshold = upperMs;
+    const body: Record<string, any> = {
+      filter_criteria: { agent_id: agentIds, start_timestamp: startFilter },
+      limit: pageSize,
+      sort_order: "descending",
+    };
+    if (paginationKey) body.pagination_key = paginationKey;
+
+    const res = await retellFetch<any>("/v2/list-calls", body, "POST", apiKey);
+    const page_calls: any[] = Array.isArray(res) ? res : (res?.calls ?? []);
+    out.push(...page_calls);
+    paginationKey =
+      res?.pagination_key ??
+      (page_calls.length === pageSize ? page_calls[page_calls.length - 1]?.call_id : undefined);
+    page++;
+  } while (paginationKey && page < maxPages);
+
+  return { calls: out, pages: page, truncated: !!paginationKey && page >= maxPages };
+}
+
 type RetellContext = {
   workspaceSlug: string | null;
   isWbah: boolean;
@@ -321,44 +426,45 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
       }
 
       if (agentIds.length > 0) {
-        // Paginate through Retell /v2/list-calls using pagination_key.
-        // Each page returns up to 1000 records. Cap at 20 pages (20 000
-        // calls) so a single request can never run indefinitely.
+        // Fetch Retell calls in parallel 30-day chunks. For days ≤ 30 this is a
+        // SINGLE window covering [sinceMs, now], which returns exactly the same
+        // call set as the previous single-pass fetch (no call starts in the
+        // future, so the upper bound excludes nothing) — the working 30d numbers
+        // are unchanged.  Wider windows (60/90d) are split so they complete well
+        // within the request budget instead of timing out, and each chunk gets
+        // its own generous page cap so the full window is never truncated.
         const PAGE_SIZE = 1000;
-        const MAX_PAGES = 20;
-        let paginationKey: string | undefined;
-        let page = 0;
+        const CHUNK_MS = 30 * 24 * 60 * 60 * 1000;
+        const MAX_PAGES_PER_CHUNK = 15; // 15k calls/chunk — far above real volumes
+        const nowMs = Date.now();
+        const windows: Array<[number, number]> = [];
+        for (let lo = sinceMs; lo < nowMs; lo += CHUNK_MS) {
+          windows.push([lo, Math.min(lo + CHUNK_MS, nowMs)]);
+        }
         try {
-          do {
-            const body: Record<string, any> = {
-              filter_criteria: {
-                agent_id: agentIds,
-                start_timestamp: { lower_threshold: sinceMs },
-              },
-              limit: PAGE_SIZE,
-              sort_order: "descending",
-            };
-            if (paginationKey) body.pagination_key = paginationKey;
-
-            const res = await retellFetch<any>("/v2/list-calls", body, "POST", apiKey);
-            const page_calls: any[] = Array.isArray(res) ? res : (res?.calls ?? []);
-            calls.push(...page_calls);
-            // Retell v2/list-calls returns a plain array and paginates via the
-            // LAST call's id passed back as pagination_key — there is no
-            // pagination_key field on an array response.  Only continue when the
-            // page was full; otherwise we've reached the end.
-            paginationKey =
-              res?.pagination_key ??
-              (page_calls.length === PAGE_SIZE
-                ? page_calls[page_calls.length - 1]?.call_id
-                : undefined);
-            page++;
-          } while (paginationKey && page < MAX_PAGES);
-          retellPages = page;
-          retellTruncated = !!paginationKey && page >= MAX_PAGES;
+          const results = await Promise.all(
+            windows.map(([lo, hi]) =>
+              fetchCallsWindow(apiKey, agentIds, lo, hi, PAGE_SIZE, MAX_PAGES_PER_CHUNK),
+            ),
+          );
+          // Merge, dedupe by call_id (adjacent windows can share a boundary
+          // call), and trim each record to the slim analytics shape.
+          const seen = new Set<string>();
+          for (const r of results) {
+            retellPages += r.pages;
+            if (r.truncated) retellTruncated = true;
+            for (const c of r.calls) {
+              const id = c?.call_id;
+              if (id != null) {
+                if (seen.has(id)) continue;
+                seen.add(id);
+              }
+              calls.push(trimRetellCall(c));
+            }
+          }
           if (retellTruncated) {
             console.warn(
-              `[analytics] Retell list-calls hit page cap (${MAX_PAGES} × ${PAGE_SIZE}) for workspace ${workspaceId}; results truncated`,
+              `[analytics] Retell list-calls hit per-chunk page cap (${MAX_PAGES_PER_CHUNK} × ${PAGE_SIZE}) for workspace ${workspaceId}; results truncated`,
             );
           }
         } catch (e: any) {
@@ -436,11 +542,10 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     // configured = true when Retell agents, VoxStream calls, or WBAH calls exist
     const configured = agentIds.length > 0 || elCalls.length > 0 || wbahCalls.length > 0;
 
-    // Debug log: voicemail calls that will still be filtered in computeAnalytics
-    // (Retell API calls where in_voicemail=true or call_status='voicemail')
-    const vmFromApi = calls.filter(
-      (c: any) => c.call_analysis?.in_voicemail === true || c.call_status === "voicemail",
-    ).length;
+    // Debug log: voicemail calls that will be screened out by default in
+    // computeAnalytics. `_isVoicemail` is pre-computed on the raw record (full
+    // heuristic incl. transcript) before trimming, so this is the exact count.
+    const vmFromApi = calls.filter((c: any) => c._isVoicemail === true).length;
     if (vmFromApi > 0) {
       console.debug(`[voicemail] getRetellAnalytics: ${vmFromApi} voicemail calls from Retell API will be excluded in computeAnalytics (${data.days}d window, workspace ${workspaceId})`);
     }
@@ -475,7 +580,14 @@ export const getRetellAnalytics = createServerFn({ method: "POST" })
     }
 
     return { configured: true, agentIds, calls: allCalls, agentNames, error, workspaceSlug, meta };
-  }, bust);
+      },
+      bust,
+      // Never cache a result produced by an upstream failure (error set) or one
+      // with no agents/key (configured=false) — otherwise a transient Retell
+      // outage would pin an all-zero window for the full 15-minute TTL. A valid
+      // empty window (configured=true, error=null, calls=[]) IS cached.
+      (r: any) => !r?.error && r?.configured !== false,
+    );
   });
 
 /**

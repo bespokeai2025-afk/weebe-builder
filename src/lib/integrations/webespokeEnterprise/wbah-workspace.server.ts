@@ -462,12 +462,28 @@ export const getWbahCredits = createServerFn({ method: "GET" })
     const cbs = await requireWbahCbs(context.userId);
     const gt = cbs.getTokens;
     const st = cbs.saveNewAccessToken;
+    const rl = cbs.reloginFn;
 
-    const [summaryR, monthlyR, historyR, retellR] = await Promise.all([
-      api.wbahGetCreditSummary(gt, st),
-      api.wbahGetMonthlyUsage(gt, st),
-      api.wbahGetCreditHistory(gt, st),
-      api.wbahGetRetellUsage(gt, st),
+    // The credit summary is the authoritative source for the tiles. Fetch it
+    // FIRST with the relogin fallback so a stale single-session token self-heals
+    // (WeeBespoke allows one active session and expires tokens quickly — every
+    // other WBAH read passes reloginFn for exactly this reason). Doing it first
+    // also lets the remaining three calls reuse the refreshed token instead of
+    // racing four parallel 401→relogin attempts against the single-session limit.
+    const summaryR = await api.wbahGetCreditSummary(gt, st, rl);
+    if (!summaryR.ok) {
+      // Surface the failure instead of silently returning a null summary, which
+      // rendered every tile as 0 with no error (the original bug).
+      console.error(
+        `[wbah-credits] summary fetch failed status=${summaryR.status} err=${summaryR.error ?? "?"}`,
+      );
+      throw new Error(summaryR.error ?? "Failed to load credit summary from WeeBespoke");
+    }
+
+    const [monthlyR, historyR, retellR] = await Promise.all([
+      api.wbahGetMonthlyUsage(gt, st, rl),
+      api.wbahGetCreditHistory(gt, st, rl),
+      api.wbahGetRetellUsage(gt, st, rl),
     ]);
 
     // summary / monthly / retell are objects nested under the API's

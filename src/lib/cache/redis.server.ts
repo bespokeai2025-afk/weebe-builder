@@ -17,34 +17,45 @@
 
 let _redis: any = null;
 let _initialized = false;
+let _initPromise: Promise<any | null> | null = null;
 
-function getRedis(): any | null {
+// Lazy async initializer. This file runs in an ESM runtime where CommonJS
+// `require` is undefined, so the Upstash client MUST be loaded via a dynamic
+// `import()` (a string-literal specifier so the prod Rollup build resolves it).
+// The init promise is memoized so concurrent callers share one initialization.
+async function getRedis(): Promise<any | null> {
   if (_initialized) return _redis;
-  _initialized = true;
+  if (_initPromise) return _initPromise;
 
-  const url   = process.env.UPSTASH_REDIS_REST_URL?.trim();
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  _initPromise = (async () => {
+    const url   = process.env.UPSTASH_REDIS_REST_URL?.trim();
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
 
-  if (!url || !token) {
-    return null;
-  }
+    if (!url || !token) {
+      _initialized = true;
+      return null;
+    }
 
-  try {
-    const { Redis } = require("@upstash/redis");
-    _redis = new Redis({ url, token });
-  } catch (e) {
-    console.warn("[cache] Failed to initialize Upstash Redis:", e);
-    _redis = null;
-  }
+    try {
+      const mod: any = await import("@upstash/redis");
+      const Redis = mod.Redis ?? mod.default?.Redis;
+      _redis = new Redis({ url, token });
+    } catch (e) {
+      console.warn("[cache] Failed to initialize Upstash Redis:", e);
+      _redis = null;
+    }
+    _initialized = true;
+    return _redis;
+  })();
 
-  return _redis;
+  return _initPromise;
 }
 
 /**
  * Read a value from Redis. Returns null on miss or when Redis is unavailable.
  */
 export async function cacheGet<T>(key: string): Promise<T | null> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return null;
   try {
     const val = await redis.get(key);
@@ -60,7 +71,7 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
  * Write a value to Redis with a TTL in seconds.
  */
 export async function cacheSet(key: string, ttlSeconds: number, value: unknown): Promise<void> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return;
   try {
     await redis.set(key, value, { ex: ttlSeconds });
@@ -74,7 +85,7 @@ export async function cacheSet(key: string, ttlSeconds: number, value: unknown):
  * Supports glob-style patterns via KEYS + DEL when key ends with *.
  */
 export async function cacheDel(...keys: string[]): Promise<void> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return;
   try {
     for (const key of keys) {
@@ -102,6 +113,7 @@ export async function cacheWrap<T>(
   ttlSeconds: number,
   factory: () => Promise<T>,
   bust = false,
+  shouldCache?: (result: T) => boolean,
 ): Promise<T> {
   if (!bust) {
     const cached = await cacheGet<T>(key);
@@ -109,7 +121,12 @@ export async function cacheWrap<T>(
   }
 
   const result = await factory();
-  await cacheSet(key, ttlSeconds, result);
+  // Only persist results the caller considers cacheable. This prevents an
+  // error/empty-due-to-error result from being pinned in the cache for the full
+  // TTL (which would make a transient upstream failure "stick" as zero data).
+  if (!shouldCache || shouldCache(result)) {
+    await cacheSet(key, ttlSeconds, result);
+  }
   return result;
 }
 
@@ -125,7 +142,7 @@ export async function cacheHealthCheck(): Promise<{
   keyCount: number | null;
   error: string | null;
 }> {
-  const redis = getRedis();
+  const redis = await getRedis();
 
   if (!redis) {
     return { configured: false, connected: false, latencyMs: null, keyCount: null, error: null };
@@ -165,7 +182,7 @@ export async function cacheHealthCheck(): Promise<{
  * Returns 0 (no-op) when Redis is not configured.
  */
 export async function cacheFlushWorkspace(workspaceId: string): Promise<number> {
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) return 0;
   const pattern = `webee:*:${workspaceId}:*`;
   const matched: string[] = await redis.keys(pattern);
@@ -208,7 +225,7 @@ export async function redisRateLimit(
   windowStart.setSeconds(0, 0);
   const windowExpireAt = Math.ceil(windowStart.getTime() / 1000) + 60;
 
-  const redis = getRedis();
+  const redis = await getRedis();
   if (!redis) {
     return { count: 0, allowed: false, windowExpireAt, redisUsed: false };
   }

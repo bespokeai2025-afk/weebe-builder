@@ -327,17 +327,17 @@ export const wbahPhoneVoicemailSetting = (id: string, payload: Record<string, un
 
 // ── Credits ───────────────────────────────────────────────────────────────────
 
-export const wbahGetCreditSummary = (gt: GetTokens, st: SaveToken) =>
-  aGet("/credits/summary", gt, st);
+export const wbahGetCreditSummary = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/credits/summary", gt, st, rl);
 
-export const wbahGetCreditHistory = (gt: GetTokens, st: SaveToken) =>
-  aGet("/credits/history", gt, st);
+export const wbahGetCreditHistory = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/credits/history", gt, st, rl);
 
-export const wbahGetMonthlyUsage = (gt: GetTokens, st: SaveToken) =>
-  aGet("/credits/monthly-usage", gt, st);
+export const wbahGetMonthlyUsage = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/credits/monthly-usage", gt, st, rl);
 
-export const wbahGetRetellUsage = (gt: GetTokens, st: SaveToken) =>
-  aGet("/credits/retell-usage", gt, st);
+export const wbahGetRetellUsage = (gt: GetTokens, st: SaveToken, rl?: Relogin) =>
+  aGet("/credits/retell-usage", gt, st, rl);
 
 export const wbahAllocateCredits = (payload: Record<string, unknown>, gt: GetTokens, st: SaveToken) =>
   aPost("/credits/allocate", payload, gt, st);
