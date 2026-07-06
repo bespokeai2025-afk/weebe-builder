@@ -13,72 +13,37 @@ import { type GrowthMindExecutiveSummary, type SystemMindExecutiveSummary } from
 // downstream breakdown logic works unchanged. Uses the service-role client (wbah_calls
 // is RLS-protected) via a dynamic import to keep it out of the client bundle.
 async function deriveWbahLeadsFromCalls(workspaceId: string): Promise<any[]> {
-  // Cache (short TTL) like the dashboard's listWbahPositiveNeutralLeads so we don't
-  // rescan ~12k calls on every HiveMind request. Dynamic imports keep these server-only
-  // modules out of the client bundle (hivemind.ai.ts is imported by client routes).
-  const { cacheWrap } = await import("@/lib/cache/redis.server");
-  return cacheWrap(`hivemind:wbah-leads-v2:${workspaceId}`, 60, async () => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const PAGE = 1000;
-    const all: any[] = [];
-    let from = 0;
-    for (;;) {
-      const { data, error } = await (supabaseAdmin as any)
-        .from("wbah_calls")
-        .select("id, customer_name, phone, sentiment, started_at, appointment_date, calendly_booking_url")
-        .eq("workspace_id", workspaceId)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) {
-        console.error("[HiveMind] wbah_calls query error:", error.message);
-        break;
-      }
-      const batch: any[] = data ?? [];
-      all.push(...batch);
-      if (batch.length < PAGE) break;
-      from += PAGE;
-    }
-    // Dedup per contact (phone): rows are latest-first, so the first time we see a phone
-    // is that contact's most-recent call.
-    const seen = new Set<string>();
-    const latest: any[] = [];
-    for (const c of all) {
-      const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      latest.push(c);
-    }
-    const leads = latest
-      .filter((c) => {
-        const s = String(c.sentiment ?? "").toLowerCase();
-        return s === "positive" || s === "neutral";
-      })
-      .map((c) => {
-        const iso: string | null = c.started_at ?? null;
-        // Mirror the Sales Pipeline board: a contact is "booked" when their call has
-        // an appointment_date or a Calendly link. Used for HiveMind's booking counts
-        // (WBAH's calendar_bookings table is empty — bookings live in wbah_calls).
-        const booked = Boolean(
-          (c.appointment_date && String(c.appointment_date).trim()) ||
-            (c.calendly_booking_url && String(c.calendly_booking_url).trim()),
-        );
-        return {
-          id: c.id,
-          full_name: c.customer_name ?? "Unknown",
-          status: null,
-          pipeline_stage: null,
-          created_at: iso,
-          updated_at: iso,
-          source: null,
-          interest_level: null,
-          sentiment: String(c.sentiment ?? "").toLowerCase() || null,
-          booked,
-        };
-      });
-    console.log(`[HiveMind] WBAH leads derived from wbah_calls: ${leads.length} positive/neutral contacts (from ${all.length} calls)`);
+  // Paging/dedup/booking logic lives in the shared getWbahDerivedLeads helper so the
+  // WBAH "lead"/"booking" definition can never drift between the Pipeline board,
+  // HiveMind chat and HiveMind pages. Dynamic import keeps that server-only module out
+  // of the client bundle (hivemind.ai.ts is imported by client routes). We swallow
+  // errors here and return [] so a transient wbah_calls read failure degrades to
+  // "0 leads" (logged) rather than crashing the whole HiveMind data fetch.
+  try {
+    const { getWbahDerivedLeads, isWbahPositiveOrNeutral } = await import(
+      "@/lib/integrations/webespokeEnterprise/wbah-leads.server"
+    );
+    const rows = await getWbahDerivedLeads(workspaceId);
+    const leads = rows.filter(isWbahPositiveOrNeutral).map((c) => ({
+      id: c.id,
+      full_name: c.customer_name ?? "Unknown",
+      status: null,
+      pipeline_stage: null,
+      created_at: c.started_at,
+      updated_at: c.started_at,
+      source: null,
+      interest_level: null,
+      sentiment: c.sentiment,
+      // Mirror the Sales Pipeline board: a contact is "booked" when their latest call
+      // has an appointment_date or a Calendly link (WBAH's calendar_bookings is empty).
+      booked: c.booked,
+    }));
+    console.log(`[HiveMind] WBAH leads derived from wbah_calls: ${leads.length} positive/neutral contacts`);
     return leads;
-  });
+  } catch (e: any) {
+    console.error("[HiveMind] wbah_calls derivation error:", e?.message ?? e);
+    return [];
+  }
 }
 
 // ── Shared platform data fetcher ──────────────────────────────────────────────

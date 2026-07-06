@@ -3,6 +3,10 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { cacheWrap, cacheDel } from "@/lib/cache/redis.server";
+import {
+  getWbahDerivedLeads,
+  isWbahPositiveOrNeutral,
+} from "@/lib/integrations/webespokeEnterprise/wbah-leads.server";
 
 const HIVEMIND_PLATFORM_TTL = 5 * 60; // 5 minutes
 
@@ -24,76 +28,42 @@ export type HiveMindTask = {
 // exceeds the authenticated role's 8s statement_timeout and silently returns [] →
 // "0 leads / 0 bookings" on the HiveMind pages. The dashboard, Pipeline board and
 // HiveMind chat all avoid this by deriving WBAH "leads" from the small, clean
-// `wbah_calls` table (one row per contact whose MOST-RECENT call was positive or
-// neutral). We mirror that exactly (see deriveWbahLeadsFromCalls in hivemind.ai.ts
-// and getWbahPipelineLeads in pipeline.functions.ts). Rows are shaped like `leads`
-// so the downstream breakdown logic works unchanged. Uses the service-role client
-// (wbah_calls is RLS-protected). Cached (short TTL) — key shared with hivemind.ai.ts.
+// `wbah_calls` table. The actual paging/dedup/booking logic now lives in the shared
+// getWbahDerivedLeads helper (wbah-leads.server.ts) so this surface can never drift
+// from the Pipeline board or HiveMind chat. Here we just apply the positive/neutral
+// filter and shape rows like `leads` so the downstream breakdown logic works unchanged.
 const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
 
 async function deriveWbahLeadsFromCalls(workspaceId: string): Promise<any[]> {
-  return cacheWrap(`hivemind:wbah-leads-v2:${workspaceId}`, 60, async () => {
-    const PAGE = 1000;
-    const all: any[] = [];
-    let from = 0;
-    for (;;) {
-      const { data, error } = await (supabaseAdmin as any)
-        .from("wbah_calls")
-        .select("id, customer_name, phone, sentiment, started_at, appointment_date, calendly_booking_url")
-        .eq("workspace_id", workspaceId)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) {
-        console.error("[HiveMind] wbah_calls query error:", error.message);
-        break;
-      }
-      const batch: any[] = data ?? [];
-      all.push(...batch);
-      if (batch.length < PAGE) break;
-      from += PAGE;
-    }
-    // Dedup per contact (phone): rows are latest-first, so the first time we see a
-    // phone is that contact's most-recent call.
-    const seen = new Set<string>();
-    const latest: any[] = [];
-    for (const c of all) {
-      const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      latest.push(c);
-    }
-    const leads = latest
-      .filter((c) => {
-        const s = String(c.sentiment ?? "").toLowerCase();
-        return s === "positive" || s === "neutral";
-      })
-      .map((c) => {
-        const iso: string | null = c.started_at ?? null;
-        // "booked" mirrors the Sales Pipeline board: positive contact with an
-        // appointment_date or a Calendly link (WBAH's calendar_bookings is empty).
-        const booked = Boolean(
-          (c.appointment_date && String(c.appointment_date).trim()) ||
-            (c.calendly_booking_url && String(c.calendly_booking_url).trim()),
-        );
-        return {
-          id: c.id,
-          full_name: c.customer_name ?? "Unknown",
-          name: c.customer_name ?? "Unknown",
-          status: null,
-          pipeline_stage: null,
-          created_at: iso,
-          updated_at: iso,
-          agent_id: null,
-          source: null,
-          interest_level: null,
-          sentiment: String(c.sentiment ?? "").toLowerCase() || null,
-          booked,
-        };
-      });
-    console.log(`[HiveMind pages] WBAH leads derived from wbah_calls: ${leads.length} positive/neutral contacts (from ${all.length} calls)`);
+  // Paging/dedup/booking logic lives in the shared getWbahDerivedLeads helper so the
+  // WBAH "lead"/"booking" definition can never drift between the Pipeline board,
+  // HiveMind chat and HiveMind pages. Swallow errors and return [] so a transient
+  // wbah_calls read failure degrades to "0 leads" (logged) rather than crashing the
+  // whole HiveMind pages data fetch.
+  try {
+    const rows = await getWbahDerivedLeads(workspaceId);
+    const leads = rows.filter(isWbahPositiveOrNeutral).map((c) => ({
+      id: c.id,
+      full_name: c.customer_name ?? "Unknown",
+      name: c.customer_name ?? "Unknown",
+      status: null,
+      pipeline_stage: null,
+      created_at: c.started_at,
+      updated_at: c.started_at,
+      agent_id: null,
+      source: null,
+      interest_level: null,
+      sentiment: c.sentiment,
+      // "booked" mirrors the Sales Pipeline board: positive contact with an
+      // appointment_date or a Calendly link (WBAH's calendar_bookings is empty).
+      booked: c.booked,
+    }));
+    console.log(`[HiveMind pages] WBAH leads derived from wbah_calls: ${leads.length} positive/neutral contacts`);
     return leads;
-  });
+  } catch (e: any) {
+    console.error("[HiveMind pages] wbah_calls derivation error:", e?.message ?? e);
+    return [];
+  }
 }
 
 // ── Main platform data aggregator ──────────────────────────────────────────────

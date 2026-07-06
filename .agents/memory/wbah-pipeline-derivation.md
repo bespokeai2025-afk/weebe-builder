@@ -30,6 +30,19 @@ persists, so an optimistic drag reverts on refetch. This is inherent to the data
 WBAH pipeline is effectively read-only for stage moves. If you ever need WBAH DnD to
 persist, add a WBAH-specific store keyed by wbah_calls.id — do NOT point it at `leads`.
 
+**Single source of truth (do NOT re-duplicate):** the paging/dedup/booking logic now
+lives in one shared helper, `getWbahDerivedLeads` in
+`src/lib/integrations/webespokeEnterprise/wbah-leads.server.ts` (service-role, cached
+`webee:wbah-derived-leads:<ws>` 60s). It returns one row per contact (latest call, NOT
+sentiment-filtered) with a `booked` flag; callers apply `isWbahPositive` (Pipeline =
+qualified) or `isWbahPositiveOrNeutral` (HiveMind = leads). Pipeline board
+(`getWbahPipelineLeads`) and both HiveMind `deriveWbahLeadsFromCalls`
+(hivemind.ai.ts + hivemind.functions.ts) all call it — never re-implement the loop.
+hivemind.ai.ts is client-imported so it must dynamic-import the helper; the HiveMind
+wrappers swallow errors → `[]` (graceful "0 leads") whereas the helper itself throws.
+The dashboard's `listWbahPositiveNeutralLeads` is deliberately separate (it also
+live-refreshes + pulls transcripts).
+
 **Any platform-wide aggregation that reports WBAH bookings/leads MUST reuse this
 derivation, not `calendar_bookings`/`leads`.** HiveMind's chat/briefing/system-context/
 executive-bridge aggregator (`fetchFullPlatformData`) reported "0 bookings" for WBAH

@@ -3,6 +3,10 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { cacheWrap } from "@/lib/cache/redis.server";
+import {
+  getWbahDerivedLeads,
+  isWbahPositive,
+} from "@/lib/integrations/webespokeEnterprise/wbah-leads.server";
 
 export type PipelineStage =
   | "lead"
@@ -180,51 +184,19 @@ async function fetchIndicators(
 // DB statement timeout and the pipeline never loads. Instead we derive the board
 // from the clean wbah_calls table (one row per contact, latest call) and show
 // ONLY qualified/positive contacts (latest-call sentiment === "positive"), which
-// matches the dashboard's "Qualified" definition for this workspace.
+// matches the dashboard's "Qualified" definition for this workspace. The paging/
+// dedup/booking logic lives in the shared getWbahDerivedLeads helper so Pipeline,
+// HiveMind chat and HiveMind pages can never drift apart on the WBAH definition.
 async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]> {
   return cacheWrap(`webee:pipeline-leads:${workspaceId}`, 60, async () => {
-    const PAGE = 1000;
-    const all: any[] = [];
-    let from = 0;
-    for (;;) {
-      const { data, error } = await (supabaseAdmin as any)
-        .from("wbah_calls")
-        .select(
-          "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, appointment_date, booking_status, calendly_booking_url",
-        )
-        .eq("workspace_id", workspaceId)
-        .order("started_at", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) throw new Error(`DB query failed: ${error.message}`);
-      const batch: any[] = data ?? [];
-      all.push(...batch);
-      if (batch.length < PAGE) break;
-      from += PAGE;
-    }
-
-    // Dedup per contact (phone). Rows are latest-first, so the first time we
-    // see a phone is that contact's most-recent call.
-    const seen = new Set<string>();
-    const latest: any[] = [];
-    for (const c of all) {
-      const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      latest.push(c);
-    }
+    const leads = await getWbahDerivedLeads(workspaceId);
 
     // Pipeline shows only qualified/positive contacts.
-    const positive = latest.filter(
-      (c) => String(c.sentiment ?? "").toLowerCase() === "positive",
-    );
+    const positive = leads.filter(isWbahPositive);
 
     return positive.map((c): PipelineLead => {
       const startedIso: string | null = c.started_at ?? null;
-      const booked = Boolean(
-        (c.appointment_date && String(c.appointment_date).trim()) ||
-          (c.calendly_booking_url && String(c.calendly_booking_url).trim()),
-      );
+      const booked = c.booked;
       return {
         id: c.id,
         full_name: c.customer_name ?? "Unknown",
