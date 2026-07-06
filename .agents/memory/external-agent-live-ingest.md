@@ -66,3 +66,23 @@ n8n forward the same events. Requires a production republish to go live.
 - **Why:** identifies exactly where a future change (new agent, moved webhook,
   broken forward) must land, and records that the platform vs workspace Retell key
   split is real — a lesson that cost several 404s to learn.
+
+## ⚠️ n8n instance appears OFFLINE (verify before assuming the relay works)
+
+Every path on `bespoke.app.n8n.cloud` — `/`, `/healthz`, `/rest/login`, `/api/v1/*`,
+AND the actual production webhook `/webhook/392d5d13-…` (and `/webhook-test/…`) —
+returns n8n Cloud's branded **"404 - No workspace here"** HTML page. That page is
+served by n8n Cloud's edge only when the subdomain no longer maps to a live
+workspace. (Retell API egress from the same env works fine, so it's not a network
+block.) **Implication:** Retell is posting all WBAH call events into a dead
+endpoint; the "WEBEE Live Ingest" forwarder that copied events to
+`/api/public/retell-live-ingest` is gone with the instance, so `live_call_sessions`
+receives nothing (0 rows) — the dominant reason live transcript is empty, on top of
+`transcript_updated` not being subscribed. **Do NOT bother enabling
+`transcript_updated` while the relay is dead — events still go nowhere.** The
+instance may simply have been renamed/migrated (so `N8N_API_BASE_URL` + the Retell
+`webhook_url` are stale) OR decommissioned. Resolving requires the user: either the
+new n8n URL, or a decision to repoint the agent webhook to WEBEE directly (a routing
+change touching lead automation — needs consent). **How to apply:** re-run the
+liveness GETs above before any n8n-dependent work; if they still 404, the relay is
+down and no WEBEE-side code change can surface a live transcript.
