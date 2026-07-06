@@ -41,13 +41,16 @@ n8n forward the same events. Requires a production republish to go live.
 
 ## WBAH concrete topology (the live wiring)
 
-- **Two Retell accounts, same n8n webhook.** The allow-mapped agent
-  `agent_0440750bb59597eef7352901bf` ("WBAH Client qualification agent outbound")
-  lives in the **platform** account (`RETELL_API_KEY`) — that is the account that
-  actually runs the calls. WBAH's *own* Retell key holds a parallel copy of the
-  same-named agent under a DIFFERENT id (`agent_50598858538a69272a4bf04bf8`), plus
-  siblings (Tried-to-contact, New-Leads, Rebooking). Don't assume the workspace
-  key contains the mapped agent — it 404s there; check the platform key.
+- **Two Retell accounts, same n8n webhook.** Two same-named copies of the
+  qualification agent exist: `agent_0440750bb59597eef7352901bf` on the **platform**
+  account (`RETELL_API_KEY`) and `agent_50598858538a69272a4bf04bf8` on WBAH's **own**
+  workspace key (plus siblings Tried-to-contact, New-Leads, Rebooking). As of
+  2026-07-06 the **active dialer is agent_50598 (workspace key), version 27** — recent
+  outbound calls all use it; agent_0440 has NO recent WBAH calls. (An older note here
+  said agent_0440 "runs the calls"; that is no longer true — verify via recent call
+  history before assuming.) Both ids are in the ingest allow-map, but
+  `transcript_updated` is enabled ONLY on agent_50598 (the live dialer); if a future
+  campaign switches to agent_0440, enable it there too or transcripts go dark.
 - **WBAH's own Retell API key** is stored in `workspace_settings.retell_workspace_id`
   (misnamed column — it holds the key, not a workspace id); read via
   `requireWbahRetellKey()`.
@@ -67,22 +70,38 @@ n8n forward the same events. Requires a production republish to go live.
   broken forward) must land, and records that the platform vs workspace Retell key
   split is real — a lesson that cost several 404s to learn.
 
-## ⚠️ n8n instance appears OFFLINE (verify before assuming the relay works)
+## n8n relay status: ONLINE (verified 2026-07-06)
 
-Every path on `bespoke.app.n8n.cloud` — `/`, `/healthz`, `/rest/login`, `/api/v1/*`,
-AND the actual production webhook `/webhook/392d5d13-…` (and `/webhook-test/…`) —
-returns n8n Cloud's branded **"404 - No workspace here"** HTML page. That page is
-served by n8n Cloud's edge only when the subdomain no longer maps to a live
-workspace. (Retell API egress from the same env works fine, so it's not a network
-block.) **Implication:** Retell is posting all WBAH call events into a dead
-endpoint; the "WEBEE Live Ingest" forwarder that copied events to
-`/api/public/retell-live-ingest` is gone with the instance, so `live_call_sessions`
-receives nothing (0 rows) — the dominant reason live transcript is empty, on top of
-`transcript_updated` not being subscribed. **Do NOT bother enabling
-`transcript_updated` while the relay is dead — events still go nowhere.** The
-instance may simply have been renamed/migrated (so `N8N_API_BASE_URL` + the Retell
-`webhook_url` are stale) OR decommissioned. Resolving requires the user: either the
-new n8n URL, or a decision to repoint the agent webhook to WEBEE directly (a routing
-change touching lead automation — needs consent). **How to apply:** re-run the
-liveness GETs above before any n8n-dependent work; if they still 404, the relay is
-down and no WEBEE-side code change can surface a live transcript.
+An earlier note claimed `bespoke.app.n8n.cloud` was OFFLINE ("404 - No workspace
+here"). That is NO LONGER TRUE. Verified 2026-07-06 by POSTing a synthetic
+`transcript_updated` to the production webhook and reading n8n execution history
+(public API `/api/v1/executions?workflowId=...&includeData=true`): the run succeeded
+and the "WEBEE Live Ingest" branch forwarded to WEBEE. Always re-check liveness
+before assuming — don't trust a stale "offline" note.
+
+## The live-transcript chain has THREE independent parts (all required)
+
+1. **Retell** — the ACTIVE dialer agent must subscribe `transcript_updated` (opt-in,
+   NOT in Retell's default started/ended/analyzed set). Set via
+   `PATCH /update-agent/{id}` with `webhook_events` = the union. PATCHing an
+   UNPUBLISHED draft (is_published:false) edits it in place (version number
+   unchanged) and touches nothing else (flow_id/voice/model preserved).
+2. **n8n** — the relay must forward events to `/api/public/retell-live-ingest` AND
+   must NOT leak `transcript_updated` into legacy branches. The "started/ended"
+   branch must POSITIVELY whitelist `event=="call_started" OR "call_ended"` — a
+   catch-all `event != "call_analyzed"` silently forwards transcript chunks (and
+   call_failed/transferred) to the legacy UAT dashboard. Update via full PUT
+   (`{name,nodes,connections,settings}`; active state preserved); deep-diff nodes +
+   connections to prove ONLY the intended node changed.
+3. **WEBEE ingest allow-map** — `LIVE_INGEST_AGENTS` in `retell-live-ingest.ts` must
+   contain the dialer's agent_id. This is CODE, baked into the immutable Replit
+   Autoscale build, so **prod requires a REPUBLISH** to pick up allow-map additions.
+   Diagnose prod's live map by POSTing a synthetic `transcript_updated` with the
+   secret header and checking for `{"ignored":"unmapped agent"}` vs a processed
+   `{"ok":true,"event":...}`. Dev (current code) and prod (last published build) can
+   disagree — that gap == "needs republish".
+
+**Read path (no code change needed):** `live-calls-sse.ts` ticks ~every 1.5s calling
+`fetchActiveLiveCallSessions` (returns ringing/in_progress within 15 min) and prefers
+the session transcript; an ingest upsert with `call_status:"ongoing"` derives
+`in_progress` and surfaces immediately.
