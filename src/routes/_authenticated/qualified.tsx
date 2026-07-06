@@ -30,7 +30,8 @@ import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
-import { setLeadStatus, listLeads } from "@/lib/dashboard/leads.functions";
+import { setLeadStatus } from "@/lib/dashboard/leads.functions";
+import { listWbahQualifiedLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { normalizeSentiment } from "@/lib/sentiment";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
@@ -192,12 +193,13 @@ type PanelTarget = {
 function QualifiedPage() {
   const qc = useQueryClient();
   const getLeads = useServerFn(listQualifiedLeads);
-  const getAllLeads = useServerFn(listLeads);
+  const getWbahQualified = useServerFn(listWbahQualifiedLeads);
   const getStats = useServerFn(getQualificationStats);
   const setStatusFn = useServerFn(setLeadStatus);
 
   const [search, setSearch] = useState("");
   const [wbahDaysFilter, setWbahDaysFilter] = useState("30");
+  const [wbahAgentFilter, setWbahAgentFilter] = useState("all");
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
   const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
@@ -256,8 +258,8 @@ function QualifiedPage() {
   });
 
   const wbahLeadsQ = useQuery({
-    queryKey:             ["leads-wbah-all-qual"],
-    queryFn:              () => getAllLeads({ data: { limit: 5000 } }),
+    queryKey:             ["wbah-qualified-leads"],
+    queryFn:              () => getWbahQualified(),
     enabled:              isWbahResolved && isWbah,
     staleTime:            5 * 60_000,
     refetchOnWindowFocus: false,
@@ -287,7 +289,9 @@ function QualifiedPage() {
       (r.full_name ?? "").toLowerCase().includes(q) ||
       (r.phone ?? "").toLowerCase().includes(q) ||
       (r.company_name ?? "").toLowerCase().includes(q));
-    if (isWbah) out = out.filter((r: any) => normalizeSentiment(r.sentiment) === "positive");
+    if (isWbah && wbahAgentFilter !== "all") {
+      out = out.filter((r: any) => (r.meta?.agent_name ?? "") === wbahAgentFilter);
+    }
     if (isWbah && wbahDaysFilter !== "all") {
       const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
       out = out.filter((r: any) => {
@@ -301,18 +305,19 @@ function QualifiedPage() {
       });
     }
     return out;
-  }, [rows, search, isWbah, wbahDaysFilter]);
+  }, [rows, search, isWbah, wbahDaysFilter, wbahAgentFilter]);
 
-  useEffect(() => {
-    if (!isWbah || !import.meta.env.DEV) return;
-    const all = (wbahLeadsQ.data ?? []) as any[];
-    const pos = all.filter((r: any) => normalizeSentiment(r.sentiment) === "positive").length;
-    const neu = all.filter((r: any) => normalizeSentiment(r.sentiment) === "neutral").length;
-    const neg = all.filter((r: any) => normalizeSentiment(r.sentiment) === "negative").length;
-    const unk = all.filter((r: any) => normalizeSentiment(r.sentiment) === "unknown").length;
-    console.log("[WBAH Qualified] total=%d positive=%d neutral=%d negative=%d unknown=%d qualifiedPageCount=%d",
-      all.length, pos, neu, neg, unk, pos);
-  }, [isWbah, wbahLeadsQ.data]);
+  // Distinct agents present in the qualified set — powers the per-agent filter.
+  // Hidden entirely when agent attribution is unavailable (all null).
+  const wbahAgentOptions = useMemo(
+    () =>
+      isWbah
+        ? Array.from(
+            new Set((rows as any[]).map((r) => r.meta?.agent_name).filter(Boolean) as string[]),
+          ).sort()
+        : [],
+    [rows, isWbah],
+  );
 
   const qualPag = useTablePagination(filtered, 50);
 
@@ -404,21 +409,34 @@ function QualifiedPage() {
       <>
       {/* KPI strip */}
       {(() => {
-        const wbahAll = (wbahLeadsQ.data ?? []) as any[];
-        const wbahPos = isWbah ? filtered.length : 0;
-        const wbahNeu = isWbah ? wbahAll.filter((r: any) => normalizeSentiment(r.sentiment) === "neutral").length : 0;
+        const wbahTotal = isWbah ? filtered.length : 0;
+        const wbahBooked = isWbah ? filtered.filter((r: any) => r.meta?.calendly_booking_url).length : 0;
+        const wbahPositive = isWbah ? filtered.filter((r: any) => normalizeSentiment(r.sentiment) === "positive").length : 0;
         return (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">
-            <KpiCard label="Total Qualified" value={isWbah ? wbahPos : (stats?.total ?? "—")} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
             <KpiCard
-              label="Qualified"
-              value={isWbah ? wbahPos : (stats?.qualified ?? "—")}
+              label="Total Qualified"
+              value={isWbah ? wbahTotal : (stats?.total ?? "—")}
+              icon={Users}
+              iconBg="bg-blue-500/15"
+              iconColor="text-blue-400"
+              hint={isWbah ? "positive or booked" : undefined}
+            />
+            <KpiCard
+              label={isWbah ? "Positive Sentiment" : "Qualified"}
+              value={isWbah ? wbahPositive : (stats?.qualified ?? "—")}
               icon={ShieldCheck}
               iconBg="bg-emerald-500/15"
               iconColor="text-emerald-400"
-              hint={isWbah ? "positive sentiment only" : (stats && stats.total > 0 ? `${stats.qualificationRate}% rate` : undefined)}
+              hint={!isWbah && stats && stats.total > 0 ? `${stats.qualificationRate}% rate` : undefined}
             />
-            <KpiCard label="Partly Qualified" value={isWbah ? wbahNeu : (stats?.partiallyQualified ?? "—")} icon={TrendingUp} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
+            <KpiCard
+              label={isWbah ? "Booked Appointment" : "Partly Qualified"}
+              value={isWbah ? wbahBooked : (stats?.partiallyQualified ?? "—")}
+              icon={isWbah ? CheckCircle2 : TrendingUp}
+              iconBg="bg-amber-500/15"
+              iconColor="text-amber-400"
+            />
             <KpiCard label="Avg Score" value={isWbah ? "—" : (stats?.avgScore ?? "—")} icon={Target} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
           </div>
         );
@@ -451,12 +469,24 @@ function QualifiedPage() {
             <option value="all">All time</option>
           </select>
         )}
+        {isWbah && wbahAgentOptions.length > 0 && (
+          <select
+            value={wbahAgentFilter}
+            onChange={(e) => setWbahAgentFilter(e.target.value)}
+            className="h-8 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+          >
+            <option value="all">All agents</option>
+            {wbahAgentOptions.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Table */}
       <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
         <div className="p-0">
-          {leadsQ.isLoading ? (
+          {(isWbah ? wbahLeadsQ.isLoading : leadsQ.isLoading) ? (
             <LoadingProgress label="Loading qualified contacts" estimatedMs={8000} />
           ) : rows.length === 0 ? (
             <div className="py-16 text-center">
@@ -491,6 +521,7 @@ function QualifiedPage() {
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
                     </>}
                     {isWbah && <>
+                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Agent</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
                       <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
@@ -566,6 +597,7 @@ function QualifiedPage() {
                         </td>
                       </>}
                       {isWbah && <>
+                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.agent_name ?? "—"}</td>
                         <td className="px-3 py-1.5">{callStatusBadge(lead.meta?.call_status)}</td>
                         <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
                         <td className="px-3 py-1.5">

@@ -32,6 +32,7 @@ import { listDataRecords }                            from "@/lib/dashboard/data
 import {
   listWbahCallsLive,
   listWbahPositiveNeutralLeads,
+  listWbahQualifiedLeads,
   listWbahCategorizedLeads,
   listWbahCallsCount,
 } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
@@ -64,6 +65,7 @@ export function PrefetchOnLogin({ authed }: Props) {
   const dataRecordsFn    = useServerFn(listDataRecords);
   const wbahCallsFn      = useServerFn(listWbahCallsLive);
   const wbahLeadsFn      = useServerFn(listWbahPositiveNeutralLeads);
+  const wbahQualifiedFn  = useServerFn(listWbahQualifiedLeads);
   const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
   const wbahCallsCountFn = useServerFn(listWbahCallsCount);
 
@@ -126,7 +128,7 @@ export function PrefetchOnLogin({ authed }: Props) {
     if (isWbah) {
       // ── WBAH "We Buy Any House" workspace ──
       prefetch(["leads-all", true, "30"], () => wbahLeadsFn());
-      prefetch(["leads-wbah-all-qual"],   () => listLeadsFn({ data: { limit: 5000 } }));
+      prefetch(["wbah-qualified-leads"],  () => wbahQualifiedFn());
       prefetch(["wbah-calls"],            () => wbahCallsFn());
 
       // The Data → People sub-tabs use local component state (not React Query),

@@ -2026,6 +2026,201 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
     });
   });
 
+// ── WBAH Qualified Leads (derived live from wbah_calls) ───────────────────────
+// Build a digits-normalized phone→agentName map from WBAH's own Retell call log.
+// wbah_calls (synced from WeeBespoke) carries NO per-call agent, so agent
+// attribution for the Qualified page must come from Retell. Calls are fetched
+// newest-first, so the first sighting of a number wins (its latest agent).
+// Bounded by page count and by the set of numbers we actually need to resolve.
+async function buildWbahAgentPhoneMap(
+  apiKey: string,
+  neededDigits: Set<string>,
+): Promise<Record<string, string>> {
+  const { retellFetch } = await import("@/lib/providers/retell/client.server");
+  const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []);
+  const agentNames: Record<string, string> = {};
+  for (const a of agentList ?? []) {
+    if (a.agent_id) agentNames[a.agent_id] = a.agent_name ?? a.agent_id;
+  }
+
+  const map: Record<string, string> = {};
+  const remaining = new Set(neededDigits);
+  const MAX_PAGES = 20;
+  let paginationKey: string | null = null;
+  for (let page = 0; page < MAX_PAGES && remaining.size > 0; page++) {
+    const callRes: any = await retellFetch<any>(
+      "/v2/list-calls",
+      { limit: 50, sort_order: "descending", ...(paginationKey ? { pagination_key: paginationKey } : {}) },
+      "POST",
+      apiKey,
+    );
+    const calls: any[] = Array.isArray(callRes) ? callRes : (callRes?.calls ?? []);
+    if (calls.length === 0) break;
+    for (const c of calls) {
+      const d = String(c.to_number ?? "").replace(/\D/g, "");
+      if (!d || d in map) continue;
+      const name = agentNames[c.agent_id] ?? (c.agent_id ? String(c.agent_id) : null);
+      if (name) {
+        map[d] = name;
+        remaining.delete(d);
+      }
+    }
+    paginationKey = callRes?.pagination_key ?? null;
+    if (!paginationKey) break;
+  }
+  return map;
+}
+
+// Qualified = a contact whose latest call came back positive OR who booked an
+// appointment (a non-empty calendly_booking_url on ANY of their calls). Rows are
+// deduped per contact (phone), newest-first by started_at, and shaped to the
+// /leads table contract so the Qualified page renderer works unchanged. Agent
+// name is enriched from Retell (see buildWbahAgentPhoneMap).
+export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { workspaceId, userId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    return cacheWrap(`webee:wbah-qualified-leads:${workspaceId}`, 60, async () => {
+      // Live on open: refresh the newest calls from WeeBespoke first (guarded,
+      // idempotent, deduped with the Calls page) so qualification reflects the
+      // latest data.
+      if (workspaceId === WBAH_WORKSPACE_ID) {
+        try {
+          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
+          await refreshWbahCallsIncremental();
+        } catch (e: any) {
+          console.warn("[wbah-qualified-leads] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
+        }
+      }
+
+      const PAGE = 1000;
+      const all: any[] = [];
+      let from = 0;
+      for (;;) {
+        const { data, error } = await (supabaseAdmin as any)
+          .from("wbah_calls")
+          .select(
+            "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
+          )
+          .eq("workspace_id", workspaceId)
+          .order("started_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw new Error(`DB query failed: ${error.message}`);
+        const batch: any[] = data ?? [];
+        all.push(...batch);
+        if (batch.length < PAGE) break;
+        from += PAGE;
+      }
+
+      // Dedup per contact (phone). Rows are latest-first, so the first time we
+      // see a phone is that contact's most-recent call. Separately remember the
+      // most-recent call that carried a booking — a contact may have booked on
+      // an earlier call and then had a neutral follow-up, and must stay qualified
+      // with its appointment details intact.
+      const hasUrl = (c: any) =>
+        c.calendly_booking_url != null && String(c.calendly_booking_url).trim() !== "";
+      const latestByPhone = new Map<string, any>();
+      const bookingByPhone = new Map<string, any>();
+      const orderKeys: string[] = [];
+      for (const c of all) {
+        // Dedup key is digits-normalized so the same contact under different
+        // phone formats (+44… vs 0…) collapses to one row (parity with the
+        // agent-map matching below).
+        const digitsKey = String(c.phone ?? "").replace(/\D/g, "");
+        const key = digitsKey || `id:${c.id}`;
+        if (!latestByPhone.has(key)) {
+          latestByPhone.set(key, c);
+          orderKeys.push(key);
+        }
+        if (hasUrl(c) && !bookingByPhone.has(key)) bookingByPhone.set(key, c);
+      }
+
+      // Qualified = latest call positive, OR the contact booked an appointment.
+      const qualifiedKeys = orderKeys.filter((key) => {
+        const latest = latestByPhone.get(key);
+        const s = String(latest?.sentiment ?? "").toLowerCase();
+        return s === "positive" || bookingByPhone.has(key);
+      });
+
+      // Transcripts are heavy — pull them only for the kept contacts, chunked to
+      // stay under PostgREST's row cap.
+      const keptIds = qualifiedKeys.map((k) => latestByPhone.get(k)?.id).filter(Boolean);
+      const transcriptById = new Map<string, string | null>();
+      for (let i = 0; i < keptIds.length; i += 500) {
+        const chunk = keptIds.slice(i, i + 500);
+        const { data: trows } = await (supabaseAdmin as any)
+          .from("wbah_calls")
+          .select("id, transcript")
+          .in("id", chunk);
+        for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
+      }
+
+      // Agent attribution — best-effort, bounded, and cached 1h separately so we
+      // don't re-page Retell on every 60s leads refresh. On any failure agents
+      // stay null and the UI hides the agent filter (graceful degradation).
+      const neededDigits = new Set<string>();
+      for (const key of qualifiedKeys) {
+        const d = String(latestByPhone.get(key)?.phone ?? "").replace(/\D/g, "");
+        if (d) neededDigits.add(d);
+      }
+      let agentByDigits: Record<string, string> = {};
+      try {
+        if (neededDigits.size > 0) {
+          const apiKey = await requireWbahRetellKey(userId);
+          agentByDigits = await cacheWrap(
+            `webee:wbah-agent-map:${workspaceId}`,
+            3600,
+            () => buildWbahAgentPhoneMap(apiKey, neededDigits),
+          );
+        }
+      } catch (e: any) {
+        console.warn("[wbah-qualified-leads] agent enrichment skipped:", e?.message ?? e);
+      }
+
+      console.log(`[WBAH qualified] qualified contacts: ${qualifiedKeys.length}`);
+      // Shape rows to the /leads ("Leads window") contract: top-level lead fields
+      // + a `meta` blob carrying the latest-call (and booking) details.
+      return qualifiedKeys.map((key) => {
+        const c = latestByPhone.get(key);
+        const booking = bookingByPhone.get(key) ?? null;
+        const apptSrc = booking ?? c; // appointment info from the booking call
+        const startedIso: string | null = c.started_at ?? null;
+        const digits = String(c.phone ?? "").replace(/\D/g, "");
+        const agentName = (digits && agentByDigits[digits]) || c.agent_name || null;
+        return {
+          id:                c.id,
+          full_name:         c.customer_name ?? "Unknown",
+          company_name:      null,
+          phone:             c.phone ?? null,
+          email:             null,
+          sentiment:         (String(c.sentiment ?? "").toLowerCase() || null),
+          lead_score:        null,
+          interest_level:    null,
+          status:            null,
+          call_summary:      transcriptById.get(c.id) ?? null,
+          next_action:       null,
+          last_contacted_at: startedIso,
+          created_at:        startedIso,
+          meta: {
+            last_called_at:       startedIso,
+            call_status:          c.call_status ?? null,
+            duration_ms:          c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
+            recording_url:        c.recording_url ?? null,
+            appointment_date:     apptSrc.appointment_date ?? null,
+            appointment_time:     apptSrc.appointment_time ?? null,
+            booking_status:       apptSrc.booking_status ?? null,
+            end_reason:           c.end_reason ?? null,
+            disconnection_reason: c.disconnection_reason ?? null,
+            calendly_booking_url: apptSrc.calendly_booking_url ?? null,
+            agent_name:           agentName,
+          },
+        };
+      });
+    });
+  });
+
 // ── Disqualified leads from WeeBespoke API (filter master UUID approach) ───────
 // Fetches leads tagged as "Disqualified" in the WeeBespoke AI app using the
 // filter master UUID returned by /leadfiltermaster/get-leadfiltermaster.
