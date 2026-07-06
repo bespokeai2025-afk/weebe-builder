@@ -29,3 +29,14 @@ update the `leads` table by `id` → zero rows match → returns `{ok:true}` whi
 persists, so an optimistic drag reverts on refetch. This is inherent to the data model;
 WBAH pipeline is effectively read-only for stage moves. If you ever need WBAH DnD to
 persist, add a WBAH-specific store keyed by wbah_calls.id — do NOT point it at `leads`.
+
+**Any platform-wide aggregation that reports WBAH bookings/leads MUST reuse this
+derivation, not `calendar_bookings`/`leads`.** HiveMind's chat/briefing/system-context/
+executive-bridge aggregator (`fetchFullPlatformData`) reported "0 bookings" for WBAH
+because it counted `calendar_bookings`, which is empty for WBAH. Fix pattern: gate on
+isWbah, derive positive+booked leads from wbah_calls, and count from that. **Booked =
+`sentiment === "positive" && (appointment_date || calendly_booking_url)`** — matches the
+board's Bookings stage exactly (dedup-per-phone happens before the sentiment filter in
+both). **Still unfixed:** the HiveMind PAGES path (`getHiveMindPlatformData` in
+hivemind.functions.ts) still reads calendar_bookings and has no wbah_calls lead
+derivation, so index/reports/system-health/recommendations still show 0 for WBAH.

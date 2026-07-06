@@ -344,7 +344,7 @@ function PipelineColumn({
     <div
       ref={setDragRef}
       style={style}
-      className="flex flex-col w-44 shrink-0"
+      className="flex flex-col w-44 shrink-0 h-full min-h-0"
     >
       {/* Column header */}
       <div className="mb-2 group/col">
@@ -370,7 +370,7 @@ function PipelineColumn({
       <div
         ref={setDropRef}
         className={cn(
-          "flex flex-col gap-1.5 min-h-20 rounded-md p-1.5 transition-colors",
+          "flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto rounded-md p-1.5 transition-colors",
           "bg-muted/40 border border-dashed border-transparent",
           isOver && !isDraggingColumn && "border-primary/40 bg-primary/5",
           isSaleDone && "bg-green-500/5 border-green-500/20",
@@ -740,7 +740,7 @@ function PipelinePage() {
   const totalFunding = leads.reduce((s, l) => s + (l.funding_amount ?? 0), 0);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-[calc(100dvh-3rem)]">
       {/* Page header */}
       <div className="px-6 py-4 border-b bg-background/95 backdrop-blur-sm sticky top-0 z-10">
         <div className="flex items-center justify-between gap-4">
@@ -768,8 +768,9 @@ function PipelinePage() {
       {/* KPI strip — always visible, even while loading */}
       {!isLoading && !isError && <KpiStrip leads={leads} />}
 
-      {/* Board */}
-      <div className="flex-1 overflow-auto">
+      {/* Board — scrolls horizontally; each column scrolls its own cards vertically so
+          the horizontal scrollbar stays visible instead of being pushed below a tall column. */}
+      <div className="flex-1 overflow-x-auto overflow-y-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -788,7 +789,7 @@ function PipelinePage() {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-3 p-4 h-full">
+            <div className="flex gap-3 p-4 h-full min-h-0">
               {orderedStages.map((stage) => (
                 <PipelineColumn
                   key={stage.id}

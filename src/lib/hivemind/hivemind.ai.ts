@@ -17,7 +17,7 @@ async function deriveWbahLeadsFromCalls(workspaceId: string): Promise<any[]> {
   // rescan ~12k calls on every HiveMind request. Dynamic imports keep these server-only
   // modules out of the client bundle (hivemind.ai.ts is imported by client routes).
   const { cacheWrap } = await import("@/lib/cache/redis.server");
-  return cacheWrap(`hivemind:wbah-leads:${workspaceId}`, 60, async () => {
+  return cacheWrap(`hivemind:wbah-leads-v2:${workspaceId}`, 60, async () => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const PAGE = 1000;
     const all: any[] = [];
@@ -25,7 +25,7 @@ async function deriveWbahLeadsFromCalls(workspaceId: string): Promise<any[]> {
     for (;;) {
       const { data, error } = await (supabaseAdmin as any)
         .from("wbah_calls")
-        .select("id, customer_name, phone, sentiment, started_at")
+        .select("id, customer_name, phone, sentiment, started_at, appointment_date, calendly_booking_url")
         .eq("workspace_id", workspaceId)
         .order("started_at", { ascending: false, nullsFirst: false })
         .order("id", { ascending: true })
@@ -56,6 +56,13 @@ async function deriveWbahLeadsFromCalls(workspaceId: string): Promise<any[]> {
       })
       .map((c) => {
         const iso: string | null = c.started_at ?? null;
+        // Mirror the Sales Pipeline board: a contact is "booked" when their call has
+        // an appointment_date or a Calendly link. Used for HiveMind's booking counts
+        // (WBAH's calendar_bookings table is empty — bookings live in wbah_calls).
+        const booked = Boolean(
+          (c.appointment_date && String(c.appointment_date).trim()) ||
+            (c.calendly_booking_url && String(c.calendly_booking_url).trim()),
+        );
         return {
           id: c.id,
           full_name: c.customer_name ?? "Unknown",
@@ -66,6 +73,7 @@ async function deriveWbahLeadsFromCalls(workspaceId: string): Promise<any[]> {
           source: null,
           interest_level: null,
           sentiment: String(c.sentiment ?? "").toLowerCase() || null,
+          booked,
         };
       });
     console.log(`[HiveMind] WBAH leads derived from wbah_calls: ${leads.length} positive/neutral contacts (from ${all.length} calls)`);
@@ -237,9 +245,19 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
   }
 
   // ── Bookings ─────────────────────────────────────────────────────────────────
-  const bksMonth = bks.filter((b: any) => b.created_at >= monthStr);
-  const bksToday = bks.filter((b: any) => b.created_at >= todayStr);
-  const bksWeek  = bks.filter((b: any) => b.created_at >= weekStr);
+  // WBAH's calendar_bookings table is empty — its bookings live in wbah_calls (a
+  // positive contact with an appointment_date / Calendly link), which is exactly what
+  // the Sales Pipeline "Bookings" stage counts. Derive from the wbah_calls-sourced
+  // leads so HiveMind's numbers match the pipeline board the user sees. All other
+  // workspaces keep using calendar_bookings (already correct for them).
+  const wbahBooked: any[] | null = isWbah
+    ? (leads as any[]).filter((l) => l.sentiment === "positive" && l.booked)
+    : null;
+  const bksSource     = wbahBooked ?? bks;
+  const bksTotalCount = bksSource.length;
+  const bksMonthCount = bksSource.filter((b: any) => b.created_at >= monthStr).length;
+  const bksTodayCount = bksSource.filter((b: any) => b.created_at >= todayStr).length;
+  const bksWeekCount  = bksSource.filter((b: any) => b.created_at >= weekStr).length;
 
   // ── Costs ────────────────────────────────────────────────────────────────────
   const totalMins   = usageRows.reduce((s: number, u: any) => s + (Number(u.minutes) || 0), 0);
@@ -306,12 +324,12 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     mode: cfg.hivemind_mode ?? "assistant",
     today: {
       leads:    leadsToday.length,
-      bookings: bksToday.length,
+      bookings: bksTodayCount,
       calls:    callsToday.length,
       messages: msgs.filter((m: any) => m.created_at >= todayStr).length,
     },
-    week:  { leads: leadsWeek.length, bookings: bksWeek.length },
-    month: { leads: leadsMonth.length, bookings: bksMonth.length, sales: salesMonth },
+    week:  { leads: leadsWeek.length, bookings: bksWeekCount },
+    month: { leads: leadsMonth.length, bookings: bksMonthCount, sales: salesMonth },
     prevMonth: { leads: leadsPrevMonth.length },
     calls: {
       total: totalCalls, success: succCalls,
@@ -339,7 +357,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
         created: l.created_at,
       })),
     },
-    bookings: { total: bks.length, thisMonth: bksMonth.length, thisWeek: bksWeek.length, today: bksToday.length },
+    bookings: { total: bksTotalCount, thisMonth: bksMonthCount, thisWeek: bksWeekCount, today: bksTodayCount },
     campaigns: {
       total: camps.length,
       active: camps.filter((c: any) => ["running","active"].includes(c.status ?? "")).length,
@@ -369,7 +387,6 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
     growthMind: (() => {
       const gmLeads        = leads;
       const gmCalls        = ca.data ?? [];
-      const gmBookings     = bo.data ?? [];
       const gmCamps        = cp.data ?? [];
       const totalLeads     = gmLeads.length;
       const saleLeads      = gmLeads.filter((l: any) => l.status === "sale_done").length;
@@ -377,7 +394,7 @@ export async function fetchFullPlatformData(sb: any, workspaceId: string) {
       const conversionRate = totalLeads > 0 ? Math.round((saleLeads / totalLeads) * 100) : 0;
       const succCalls2     = gmCalls.filter((c: any) => c.call_successful).length;
       const callSuccessRate= gmCalls.length > 0 ? Math.round((succCalls2 / gmCalls.length) * 100) : 0;
-      const totalBookings  = gmBookings.length;
+      const totalBookings  = bksTotalCount;
       const bookingRate    = totalLeads > 0 ? Math.round((totalBookings / totalLeads) * 100) : 0;
       const activeCampaigns= gmCamps.filter((c: any) => ["running","active"].includes(c.status ?? "")).length;
       let sc = 0;

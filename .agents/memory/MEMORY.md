@@ -81,3 +81,4 @@
 - [WBAH unified sync_state](wbah-sync-state.md) — descriptive-only sync tracking; record outcomes of manual syncs only, never add background/auto sync (single-session logs admin out); error upserts omit last_successful_sync_at to preserve it.
 - [WBAH "not showing latest calls" — dialer stopped vs sync bug](wbah-calls-stopped-vs-syncbug.md) — check BOTH wbah_calls AND WBAH's own Retell newest ts; if they agree, calling stopped (operational), not a bug; only merge Retell when it's genuinely ahead.
 - [Workspace RLS policy pattern](workspace-rls-policy-pattern.md) — use workspace_members/auth.uid() not current_setting; context.supabase=authenticated role; validate under SET ROLE authenticated, not Mgmt-API (bypasses RLS).
+- [Full-height page layout trap](fullheight-page-layout-trap.md) — `h-full` page root → `auto` inside the min-h-screen sidebar chain, so overflow/flex-1 scrolls never engage; bound the PAGE ROOT with `h-[calc(100dvh-3rem)]` (3rem = h-12 app header).
