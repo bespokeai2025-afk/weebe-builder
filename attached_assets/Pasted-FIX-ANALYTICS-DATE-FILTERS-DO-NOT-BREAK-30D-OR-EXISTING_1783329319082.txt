@@ -1,0 +1,188 @@
+FIX ANALYTICS DATE FILTERS — DO NOT BREAK 30D OR EXISTING DATA
+
+Issue:
+Analytics is only showing data correctly on the 30d filter. Other filters such as Today, 7d, 60d and 90d are showing zero or incorrect data.
+
+Screenshots confirm:
+
+* 30d shows real data
+* 7d shows zero
+* the filter switching logic is broken or the backend is only returning data for 30d
+
+Important:
+Do not rebuild the Analytics page.
+Do not redesign the UI.
+Do not change existing styling.
+Do not break the working 30d view.
+Do not change WBAH business rules.
+Do not break n8n workflows.
+Do not break Retell agents.
+Do not change call ingestion.
+Do not change lead qualification logic.
+
+Goal:
+Make every Analytics date filter return correct data.
+
+Filters that must work:
+
+* Today
+* 7d
+* 30d
+* 60d
+* 90d
+
+Audit the full analytics path:
+
+Frontend filter button
+↓
+Analytics state
+↓
+API request/query params
+↓
+Backend analytics endpoint
+↓
+Date range calculation
+↓
+Supabase/local calls data query
+↓
+Voicemail include/exclude logic
+↓
+Agent filter
+↓
+Returned metrics
+↓
+Frontend cards update
+
+Check specifically:
+
+1. Confirm the selected date range is actually sent from the frontend to the backend.
+
+2. Confirm the backend does not hardcode 30d.
+
+3. Confirm Today, 7d, 60d and 90d generate the correct start_date and end_date.
+
+4. Confirm date calculations use the correct timezone.
+
+5. Confirm calls are filtered using the correct timestamp field.
+
+Check all possible fields and use the correct one consistently:
+
+* started_at
+* start_timestamp
+* call_started_at
+* created_at
+* end_timestamp
+* call_ended_at
+
+6. Confirm date values in Supabase are stored as UTC and converted correctly.
+
+7. Confirm the 7d filter does not accidentally mean exactly 7 days ago instead of the last 7 days.
+
+8. Confirm Today means from start of current day to now in the workspace timezone.
+
+9. Confirm 60d and 90d are not blocked by pagination, cache, or limit.
+
+10. Confirm the frontend clears stale 30d data only after the new filter response arrives.
+
+11. Confirm the cards update after filter selection.
+
+12. Confirm all metric cards use the same filtered dataset:
+
+* Total Calls
+* Minutes Used
+* Average Duration
+* E2E Latency
+* Inbound
+* Outbound
+* Success Rate
+* Transfer Rate
+* Voicemails Counted
+
+13. Confirm voicemail toggle works correctly with each date filter.
+
+When “Voicemails: shown” is selected:
+
+* include voicemail calls
+
+When “Voicemails: hidden” is selected:
+
+* exclude voicemail calls
+
+14. Confirm agent selector works correctly with each date filter.
+
+15. Confirm analytics reads from stored local data, not external Retell API on every tab click.
+
+16. Confirm cache keys include:
+
+* workspace_id
+* date_range
+* agent_id
+* voicemail setting
+
+Do not allow 30d cached results to be reused for 7d, Today, 60d or 90d.
+
+17. Add debug logging only if needed.
+
+Logs should show:
+
+* selected range
+* computed start date
+* computed end date
+* workspace_id
+* agent_id filter
+* voicemail filter
+* number of records found
+* cache key used
+
+Do not log sensitive transcript data or secrets.
+
+18. Create a direct validation query for each range and compare expected counts against UI counts.
+
+19. Fix the smallest confirmed issue.
+
+Likely causes:
+
+* frontend always sends 30d
+* backend defaults to 30d and ignores range
+* cache key missing range
+* date calculation bug
+* wrong timestamp field
+* timezone issue
+* query uses exact day instead of rolling period
+* UI state not refetching on filter change
+* React Query key missing date range
+* Supabase query uses wrong comparison operator
+
+Required final tests:
+
+Test with the same workspace shown in screenshots.
+
+Verify:
+
+* Today returns correct same-day data
+* 7d returns correct last 7 days data
+* 30d still returns correct existing data
+* 60d returns correct last 60 days data
+* 90d returns correct last 90 days data
+* switching filters updates cards correctly
+* voicemail toggle works on every range
+* agent filter works on every range
+* refresh button respects the selected range
+* analytics does not call Retell/external APIs unnecessarily on every filter click
+
+Return:
+
+1. Exact root cause
+2. Files changed
+3. Backend query fixed
+4. Frontend state/query key fixed
+5. Cache key fixed if applicable
+6. Date field used
+7. Timezone handling
+8. Test results for Today, 7d, 30d, 60d, 90d
+9. Confirmation that 30d still works
+10. Confirmation that WBAH/n8n/Retell workflows were not changed
+
+Final confirmation must state:
+
+ANALYTICS DATE FILTERS NOW WORK CORRECTLY FOR TODAY, 7D, 30D, 60D AND 90D WITHOUT BREAKING THE EXISTING 30D ANALYTICS OR WBAH WORKFLOWS.
