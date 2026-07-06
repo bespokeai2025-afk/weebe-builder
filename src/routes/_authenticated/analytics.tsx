@@ -527,6 +527,12 @@ function AnalyticsPage() {
               <PauseCircle className="h-3.5 w-3.5" />
               {includeVm ? "Voicemails: shown" : "Voicemails: hidden"}
             </button>
+            {q.isFetching && !q.isLoading && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground" aria-live="polite">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-transparent" />
+                Updating…
+              </span>
+            )}
             <div className="flex gap-1 rounded-lg border border-white/[0.06] bg-card/40 p-1">
               {RANGES.map((r) => (
                 <Button key={r.key} size="sm" variant={rangeKey === r.key ? "secondary" : "ghost"} onClick={() => setRangeKey(r.key)} className={rangeKey === r.key ? "bg-primary/20 text-primary" : ""}>{r.label}</Button>

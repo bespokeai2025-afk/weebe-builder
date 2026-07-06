@@ -491,7 +491,7 @@ export const getWbahCredits = createServerFn({ method: "GET" })
     const unwrap = (raw: any) =>
       raw && typeof raw === "object" && !Array.isArray(raw) && "data" in raw ? raw.data : raw;
 
-    const summary = (unwrap(summaryR.data) ?? null) as Record<string, unknown> | null;
+    const rawSummary = (unwrap(summaryR.data) ?? null) as Record<string, unknown> | null;
     const monthlyObj = unwrap(monthlyR.data) as any;
     const months = Array.isArray(monthlyObj)
       ? monthlyObj
@@ -500,10 +500,73 @@ export const getWbahCredits = createServerFn({ method: "GET" })
         : Array.isArray(monthlyObj?.monthly_usage)
           ? monthlyObj.monthly_usage
           : [];
-    const retell = (unwrap(retellR.data) ?? null) as Record<string, unknown> | null;
+    const rawRetell = (unwrap(retellR.data) ?? null) as Record<string, unknown> | null;
     const history = extractWbahArray(historyR.data);
 
-    return { summary, months, retell, history };
+    // Normalize the credit KPIs to the canonical field names the UI reads
+    // (allocated_minutes / used_minutes / remaining_minutes / percent_used).
+    // WeeBespoke's payload key naming/casing isn't contractually guaranteed, so
+    // we tolerate common variants and draw from the summary first, then the
+    // retell-usage object as a fallback — otherwise a single renamed key would
+    // silently render every tile as 0 (the class of bug this task fixes).
+    const num = (...vals: unknown[]): number | undefined => {
+      for (const v of vals) {
+        if (v == null) continue;
+        const n = typeof v === "string" ? Number(v) : (v as number);
+        if (typeof n === "number" && Number.isFinite(n)) return n;
+      }
+      return undefined;
+    };
+    const pick = (keys: string[]): number | undefined => {
+      const a = rawSummary ?? {};
+      const b = rawRetell ?? {};
+      // Strict precedence: exhaust ALL summary variants before falling back to
+      // any retell-usage variant, so the authoritative summary always wins even
+      // when the two sources spell the same KPI differently.
+      return num(...keys.map((k) => a[k]), ...keys.map((k) => b[k]));
+    };
+    const allocated = pick([
+      "allocated_minutes", "allocatedMinutes", "total_allocated_minutes",
+      "total_allocated", "totalAllocated", "minutes_allocated", "allocated",
+      "credits_allocated",
+    ]);
+    const used = pick([
+      "used_minutes", "usedMinutes", "total_used_minutes", "minutes_used",
+      "total_used", "used", "consumed_minutes", "credits_used",
+    ]);
+    let remaining = pick([
+      "remaining_minutes", "remainingMinutes", "minutes_remaining",
+      "available_minutes", "balance_minutes", "remaining", "balance",
+      "credits_remaining",
+    ]);
+    let percent = pick([
+      "percent_used", "percentUsed", "usage_percent", "usagePercent",
+      "percentage_used", "percentage", "percent",
+    ]);
+    const carried = pick([
+      "carried_over_minutes", "carriedOverMinutes", "carryover_minutes",
+      "carried_over", "carryover",
+    ]);
+    // Derive anything the API didn't send directly.
+    if (remaining == null && allocated != null && used != null) {
+      remaining = Math.max(0, allocated - used);
+    }
+    if (percent == null && allocated != null && allocated > 0 && used != null) {
+      percent = (used / allocated) * 100;
+    }
+    const summary =
+      rawSummary || rawRetell
+        ? {
+            ...(rawSummary ?? {}),
+            allocated_minutes: allocated ?? 0,
+            used_minutes: used ?? 0,
+            remaining_minutes: remaining ?? 0,
+            percent_used: percent ?? 0,
+            ...(carried != null ? { carried_over_minutes: carried } : {}),
+          }
+        : null;
+
+    return { summary, months, retell: rawRetell, history };
   });
 
 export const createWbahCampaign = createServerFn({ method: "POST" })
