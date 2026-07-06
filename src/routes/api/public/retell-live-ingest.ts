@@ -30,9 +30,18 @@ const SECRET_HEADER = "x-webee-live-ingest-secret";
  * never influences the calls table, analytics, leads, CRM, or the WBAH sync.
  */
 const LIVE_INGEST_AGENTS: Record<string, { workspaceId: string; agentName: string }> = {
+  // Platform-account (RETELL_API_KEY) copy of the outbound qualification agent.
   agent_0440750bb59597eef7352901bf: {
     workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
     agentName: "WBAH Client qualification agent outbound",
+  },
+  // WBAH workspace-account copy (same call runs here when the workspace Retell
+  // key is used). Same n8n webhook forwards its events; mapping it ensures a
+  // live transcript is stored regardless of which account dialled the call.
+  // Display-only: never touches calls/leads/CRM/analytics or the WBAH sync.
+  agent_50598858538a69272a4bf04bf8: {
+    workspaceId: "5cb750b6-fabf-4e84-9b92-740df1cd8d53",
+    agentName: "WBAH Client qualification agent",
   },
 };
 

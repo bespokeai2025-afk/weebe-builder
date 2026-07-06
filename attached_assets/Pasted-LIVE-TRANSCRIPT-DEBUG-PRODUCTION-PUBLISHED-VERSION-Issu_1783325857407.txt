@@ -1,0 +1,185 @@
+LIVE TRANSCRIPT DEBUG — PRODUCTION PUBLISHED VERSION
+
+Issue:
+The published WEBEE version shows that someone is live on a call, but live transcript data is not appearing in the dashboard.
+
+This means live call detection is working, but transcript ingestion, storage, forwarding, or frontend streaming is failing.
+
+Important:
+Do not break existing WBAH n8n workflows.
+Do not change existing Retell agents unless required and confirmed.
+Do not change prompts, voices, models, tools, phone numbers, or conversation_flow_ids.
+Do not affect post-call processing.
+Do not affect Dynamics, dashboard, analytics, HiveMind, GrowthMind, SystemMind, or existing workflows.
+
+Goal:
+Find exactly why live transcripts are not appearing in production and fix the smallest safe issue.
+
+Audit the full path:
+
+Retell live event
+↓
+n8n forwarder if used
+↓
+WEBEE live ingest endpoint
+↓
+auth/secret validation
+↓
+agent/workspace mapping
+↓
+live_call_sessions table
+↓
+transcript storage
+↓
+SSE/WebSocket/live dashboard subscription
+↓
+frontend rendering
+
+Check:
+
+1. Confirm Retell is sending transcript/live transcript events.
+
+Verify the agent webhook_events include transcript-related events such as:
+
+* transcript_updated
+* call_analyzed
+* call_ended
+* call_started
+* any Retell live transcript event currently supported
+
+If transcript_updated is missing, report it before changing anything.
+
+2. Confirm n8n is forwarding the full raw Retell payload.
+
+The WEBEE forwarder should send:
+
+$json.body
+
+not only call_started or call status.
+
+Confirm transcript payload is not being stripped, transformed, filtered, or ignored.
+
+3. Confirm production endpoint exists and is live:
+
+POST /api/public/retell-live-ingest
+
+It must not return 404.
+
+4. Confirm production secret is correct:
+
+WEBEE_LIVE_INGEST_SECRET
+
+Confirm n8n sends the exact header:
+
+x-webee-live-ingest-secret
+
+5. Confirm the endpoint accepts transcript events.
+
+Check whether it only handles call_started / call_ended but ignores transcript_updated.
+
+If transcript_updated is ignored, add safe handling.
+
+6. Confirm agent mapping.
+
+Verify the live WBAH agent currently on the call maps to the correct workspace.
+
+Check both possible agent IDs:
+
+* agent_0440750bb59597eef7352901bf
+* agent_50598858538a69272a4bf04bf8
+
+Do not assume only one Retell account is involved.
+
+7. Confirm live_call_sessions updates.
+
+When a transcript event arrives, verify the relevant row is updated with:
+
+* call_id
+* workspace_id
+* agent_id
+* transcript text
+* transcript chunks
+* last_transcript_at
+* status = live
+* raw payload if needed
+
+8. Confirm database schema exists.
+
+Check required tables/columns for live transcript storage.
+
+If any columns are missing, report before applying migration.
+
+9. Confirm frontend live dashboard reads the correct field.
+
+The UI may show call status from live_call_sessions but read transcript from a different field/table.
+
+Find exactly which field the frontend expects.
+
+10. Confirm live updates are pushed to the frontend.
+
+Check whether the production dashboard uses:
+
+* polling
+* SSE
+* WebSocket
+* Supabase realtime
+
+Confirm the selected method is active in production.
+
+11. Confirm Supabase Realtime/RLS is not blocking transcript updates.
+
+Verify workspace-scoped user can read the live transcript rows.
+
+12. Confirm logs.
+
+Add temporary safe debug logs showing:
+
+* event received
+* event type
+* call_id
+* agent_id
+* workspace_id
+* transcript length
+* DB update success/failure
+* frontend subscription/poll response
+
+Do not log secrets or full sensitive transcript content.
+
+13. Confirm no duplicate rows issue.
+
+Check whether call status and transcript are being written to different call/session rows due to mismatched call_id, retell_call_id, or agent_id.
+
+14. Confirm production build.
+
+Make sure the published version includes the latest live transcript endpoint and frontend code.
+
+15. Fix only the smallest confirmed issue.
+
+Likely issues to check first:
+
+* transcript_updated not included in Retell webhook_events
+* n8n forwarder only forwards some events
+* endpoint handles live status but ignores transcript event
+* production secret mismatch
+* workspace/agent mapping missing for the actual Retell agent ID
+* frontend reads wrong transcript field
+* RLS blocks transcript rows
+* Supabase realtime not enabled for live_call_sessions
+* published version missing latest build
+
+Return:
+
+1. Exact root cause
+2. Files changed
+3. Database changes if any
+4. Retell webhook_events status
+5. n8n forwarding status
+6. Production endpoint test results
+7. Agent/workspace mapping result
+8. Live transcript database write result
+9. Frontend display result
+10. Confirmation existing WBAH n8n workflows were not broken
+
+Final confirmation must state:
+
+LIVE TRANSCRIPTS NOW APPEAR IN THE PUBLISHED WEBEE DASHBOARD WITHOUT BREAKING EXISTING WBAH N8N WORKFLOWS.
