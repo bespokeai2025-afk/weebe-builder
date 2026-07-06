@@ -558,13 +558,19 @@ function AnalyticsPage() {
                   <PanelCard>
                     <EmptyState
                       icon={BarChart3}
-                      title="No calls in this range"
+                      title={
+                        !includeVm && analytics.voicemailTotal > 0
+                          ? "Only voicemails in this range"
+                          : "No calls in this range"
+                      }
                       message={
-                        todayOnly
-                          ? "No calls have come in yet today. Try a wider range like 7 or 30 days."
-                          : effectiveSelectedAgentId
-                            ? "This agent has no calls in the selected range. Pick “All agents” or a wider range."
-                            : "No calls were found in the selected range. Try a wider range."
+                        !includeVm && analytics.voicemailTotal > 0
+                          ? `Every call in this range (${analytics.voicemailTotal}) went to voicemail and is currently hidden. Turn on “Voicemails: shown” to include them.`
+                          : todayOnly
+                            ? "No calls have come in yet today. Try a wider range like 7 or 30 days."
+                            : effectiveSelectedAgentId
+                              ? "This agent has no calls in the selected range. Pick “All agents” or a wider range."
+                              : "No calls were found in the selected range. Try a wider range."
                       }
                     />
                   </PanelCard>
@@ -762,6 +768,8 @@ function AnalyticsPage() {
                     )}
                   </ChartCard>
                 </div>
+              )}
+              </>
               )}
             </>
           )}

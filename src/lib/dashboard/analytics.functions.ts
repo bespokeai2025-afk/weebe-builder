@@ -17,7 +17,9 @@ function retellAnalyticsKey(workspaceId: string, days: number) {
   // must not be served.
   // v5: WBAH now reads from the Retell API on the analytics page (was wbah_calls
   // only) — different totals + real per-agent attribution, so v4 must not serve.
-  return `webee:analytics:${workspaceId}:retell:v5:${days}d`;
+  // v6: call payloads are now trimmed server-side (transcript dropped,
+  // _isVoicemail precomputed) — the shape changed, so v5 entries must not serve.
+  return `webee:analytics:${workspaceId}:retell:v6:${days}d`;
 }
 
 function retellAgentsKey(workspaceId: string) {
