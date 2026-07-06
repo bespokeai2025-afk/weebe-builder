@@ -17,6 +17,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
   markLiveCallSessionEnded,
+  mergeWebhookTranscript,
   upsertLiveCallSession,
 } from "@/lib/retell/live-call-sessions.server";
 
@@ -127,6 +128,10 @@ export const Route = createFileRoute("/api/public/retell-live-ingest")({
         try {
           const event = String(payload.event ?? payload.event_type ?? "unknown");
           const call = ((payload.call ?? payload) as unknown) as IngestCall;
+          // Retell's transcript_updated delivers the transcript at the TOP LEVEL
+          // of the body (sibling of `call`), so merge it onto `call` — otherwise
+          // every live row stores an empty transcript ("Waiting for transcript").
+          mergeWebhookTranscript(call, payload);
           const callId = call.call_id;
           const incomingAgentId = call.agent_id ? stripAgentPrefix(String(call.agent_id)) : "";
 

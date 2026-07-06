@@ -64,6 +64,43 @@ export function extractLiveTranscript(call: RetellCallLike): LiveTranscriptLine[
   return parseTranscriptString(call.transcript ?? "");
 }
 
+/**
+ * Retell's `transcript_updated` webhook delivers the live transcript at the TOP
+ * LEVEL of the body — as a SIBLING of `call` (`transcript_with_tool_calls`, and
+ * occasionally `transcript_object` / `transcript`), NOT inside `call`. Both
+ * live-transcript callers build `call` from `payload.call`, so without merging
+ * these the extractor sees an empty transcript and every live row stores 0
+ * lines (the exact "Waiting for transcript" symptom). Only fills fields `call`
+ * doesn't already carry — post-call events keep the transcript inside `call`,
+ * so this is a no-op for them. Mutates and returns the same object.
+ */
+export function mergeWebhookTranscript(
+  call: RetellCallLike,
+  payload: Record<string, unknown>,
+): RetellCallLike {
+  const c = call as Record<string, unknown>;
+  if (
+    (!Array.isArray(c.transcript_with_tool_calls) ||
+      c.transcript_with_tool_calls.length === 0) &&
+    Array.isArray(payload.transcript_with_tool_calls)
+  ) {
+    c.transcript_with_tool_calls = payload.transcript_with_tool_calls;
+  }
+  if (
+    (!Array.isArray(c.transcript_object) || c.transcript_object.length === 0) &&
+    Array.isArray(payload.transcript_object)
+  ) {
+    c.transcript_object = payload.transcript_object;
+  }
+  if (
+    (c.transcript == null || c.transcript === "") &&
+    typeof payload.transcript === "string"
+  ) {
+    c.transcript = payload.transcript;
+  }
+  return call;
+}
+
 /** Parse Retell's plain-text transcript ("Agent: ...\nUser: ...") into lines. */
 export function parseTranscriptString(text: string): LiveTranscriptLine[] {
   if (!text || !text.trim()) return [];

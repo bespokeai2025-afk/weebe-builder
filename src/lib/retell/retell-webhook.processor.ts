@@ -13,6 +13,7 @@ import { invalidateDashboardCache } from "@/lib/cache/redis.server";
 import {
   upsertLiveCallSession,
   markLiveCallSessionEnded,
+  mergeWebhookTranscript,
 } from "@/lib/retell/live-call-sessions.server";
 
 const SUPPORTED_RETELL_EVENTS = new Set([
@@ -514,6 +515,9 @@ export async function processRetellWebhook(
       if (callId && incomingAgentId && !isWebCall) {
         const agentRow = await resolveAgent(incomingAgentId, options.forcedWorkspaceId);
         if (agentRow) {
+          // transcript_updated carries the transcript at the TOP LEVEL of the
+          // body (sibling of `call`), not inside it — merge before extracting.
+          mergeWebhookTranscript(call, payload as Record<string, unknown>);
           await upsertLiveCallSession({
             workspaceId: agentRow.workspace_id as string,
             agentName: agentRow.name as string | null,

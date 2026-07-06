@@ -105,3 +105,30 @@ before assuming — don't trust a stale "offline" note.
 `fetchActiveLiveCallSessions` (returns ringing/in_progress within 15 min) and prefers
 the session transcript; an ingest upsert with `call_status:"ongoing"` derives
 `in_progress` and surfaces immediately.
+
+## 4th requirement: transcript_updated carries the transcript at the TOP LEVEL
+
+Retell's real `transcript_updated` body is `{event, call, transcript_with_tool_calls,
+event_timestamp}` — the transcript array is a **SIBLING of `call`**
+(`body.transcript_with_tool_calls`), NOT inside `body.call`. `body.call` has only
+call metadata (no `transcript`/`transcript_object`/`transcript_with_tool_calls`).
+Post-call events (call_ended/analyzed) DO carry the transcript inside `call`; only
+the live `transcript_updated` puts it at top level.
+
+Both live callers build `call = payload.call ?? payload` and pass `call` to the
+transcript extractor, which reads ONLY from `call` — so live rows silently store
+`transcript_len:0` ("Waiting for Retell transcript_updated event…") even while the
+events themselves flow correctly through Retell → n8n → prod ingest. The rule:
+before extracting a live transcript, merge the top-level
+`transcript_with_tool_calls`/`transcript_object`/`transcript` onto `call` (only when
+`call` lacks them, so post-call events are unaffected). This applies to BOTH the
+external ingest path AND the managed-agent webhook path (both had the identical
+latent bug). `transcript_with_tool_calls` mixes roles
+(agent/user/node_transition/tool_call_*); the extractor keeps only agent/user with
+string content.
+
+**Diagnosis trap:** a synthetic test that nests the transcript INSIDE `call` will
+pass while real calls fail — always replay a REAL n8n payload (top-level array). The
+resurrection guard also silently drops a replayed `transcript_updated` for an
+already-ended call_id, so test with a FRESH call_id + `call_status:"ongoing"`.
+**Prod requires a REPUBLISH** (ingest baked into the Autoscale build).
