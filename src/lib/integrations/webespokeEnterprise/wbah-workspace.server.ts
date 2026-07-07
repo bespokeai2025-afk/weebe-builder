@@ -1420,35 +1420,36 @@ async function readWbahCallsRows(supabase: any, workspaceId: string) {
   }));
 }
 
+// NOTE: the full WBAH calls list is ~20MB (15k+ rows with transcripts) — far
+// over Upstash's 10MB request limit and against the "no full lists in Redis"
+// policy. Supabase is the source of truth and is read directly (indexed,
+// paginated). We do NOT cacheWrap the whole list.
 export const listWbahCallsFromDb = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-calls:${workspaceId}`, 2 * 60, () => readWbahCallsRows(supabase, workspaceId));
+    return readWbahCallsRows(supabase, workspaceId);
   });
 
-// Live variant (option 3): pulls the newest calls from WeeBespoke on open
-// (incremental, stored-token, capped), upserts them, then reads the freshly-
-// updated table. Uses its OWN cache key so the refresh runs INSIDE the factory
-// and can never be masked by listWbahCallsFromDb's 2-min snapshot cache. The
-// refresh is idempotent and guarded against concurrent runs.
+// Live variant: pulls the newest calls from WeeBespoke on open (incremental,
+// stored-token, capped), upserts them, then reads the freshly-updated table
+// straight from Supabase. The incremental refresh has its own module-level
+// throttle; the full list is never cached in Redis (too large).
 export const listWbahCallsLive = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-calls-live:${workspaceId}`, 60, async () => {
-      if (workspaceId === WBAH_WORKSPACE_ID) {
-        try {
-          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-          await refreshWbahCallsIncremental();
-        } catch (e: any) {
-          console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
-        }
+    if (workspaceId === WBAH_WORKSPACE_ID) {
+      try {
+        const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
+        await refreshWbahCallsIncremental();
+      } catch (e: any) {
+        console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
       }
-      return readWbahCallsRows(supabase, workspaceId);
-    });
+    }
+    return readWbahCallsRows(supabase, workspaceId);
   });
 
 // Lightweight count for the Calls sub-tab badge — avoids downloading all

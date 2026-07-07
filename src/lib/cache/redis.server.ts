@@ -71,29 +71,65 @@ export async function cacheGet<T>(key: string): Promise<T | null> {
   }
 }
 
-/**
- * Write a value to Redis with a TTL in seconds.
- */
-// Upstash's REST API rejects oversized request bodies (~1MB on the free tier,
-// higher on paid). Large derived payloads (e.g. the full WBAH calls list with
-// transcripts) exceed that, so we skip caching them rather than let the write
-// fail. ~900KB keeps a safety margin below the 1MB limit.
-const MAX_CACHE_VALUE_BYTES = 900_000;
+// ── Redis value-size policy ───────────────────────────────────────────────────
+// Upstash's REST API enforces a max request size (10MB on pay-as-you-go, 1MB on
+// the free tier). Redis is only meant to cache SMALL, short-lived data (counts,
+// summaries, paginated slices, sync status, locks). Full lists (e.g. the WBAH
+// calls list ~20MB, or full lead lists) must NOT be cached here — Supabase is the
+// source of truth for those. These thresholds enforce that:
+//   • WARN above 500KB  — a value this large usually means an unpaginated list;
+//     it should be paginated or served from Supabase instead.
+//   • SKIP above 5MB    — never write it (well below Upstash's 10MB hard limit,
+//     with margin). The caller still gets its freshly-computed result.
+const REDIS_WARN_BYTES = 512_000;    // 500 KB
+const REDIS_MAX_BYTES  = 5_000_000;  // 5 MB hard skip (Upstash limit is 10 MB)
 
+function mb(bytes: number): string {
+  return (bytes / 1_000_000).toFixed(2);
+}
+
+/** Structured log for every Redis write so payload sizes are always observable. */
+function logRedisWrite(op: string, key: string, bytes: number, extra?: Record<string, unknown>) {
+  const wsMatch = /:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(key);
+  const workspaceId = wsMatch?.[1] ?? "n/a";
+  console.log(
+    `[redis] op=${op} provider=redis key=${key} workspace_id=${workspaceId} ` +
+    `bytes=${bytes} sizeMB=${mb(bytes)}` +
+    (extra ? " " + Object.entries(extra).map(([k, v]) => `${k}=${v}`).join(" ") : ""),
+  );
+}
+
+/**
+ * Write a value to Redis with a TTL in seconds. Never throws; logs size + errors.
+ */
 export async function cacheSet(key: string, ttlSeconds: number, value: unknown): Promise<void> {
   const redis = await getRedis();
   if (!redis) return;
+
+  let size = 0;
+  try { size = JSON.stringify(value)?.length ?? 0; } catch { size = 0; }
+
+  logRedisWrite("SET", key, size, { ttl: ttlSeconds });
+
+  if (size > REDIS_MAX_BYTES) {
+    console.error(
+      `[redis] SKIP oversized SET key=${key} sizeMB=${mb(size)} exceeds cap ${mb(REDIS_MAX_BYTES)}MB ` +
+      `(Upstash request limit is 10MB). This should be paginated or read from Supabase, not cached whole.`,
+    );
+    return;
+  }
+  if (size > REDIS_WARN_BYTES) {
+    console.warn(
+      `[redis] LARGE SET key=${key} sizeMB=${mb(size)} (>500KB). ` +
+      `Prefer caching counts/summaries/paginated slices; keep full lists in Supabase.`,
+    );
+  }
+
   try {
-    // Guard against oversized values (avoids an Upstash request-too-large error).
-    let size = 0;
-    try { size = JSON.stringify(value)?.length ?? 0; } catch { size = 0; }
-    if (size > MAX_CACHE_VALUE_BYTES) {
-      console.warn(`[cache] skipping oversized value for ${key} (${size} bytes)`);
-      return;
-    }
     await redis.set(key, value, { ex: ttlSeconds });
-  } catch (e) {
-    console.warn("[cache] cacheSet error:", key, e);
+  } catch (e: any) {
+    console.error(`[redis] SET FAILED key=${key} bytes=${size} sizeMB=${mb(size)} msg=${e?.message}`);
+    if (e?.stack) console.error(e.stack);
   }
 }
 
