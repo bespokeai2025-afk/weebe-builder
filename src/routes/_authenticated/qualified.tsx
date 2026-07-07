@@ -34,6 +34,7 @@ import {
   wbahBookingStatus,
   isWbahPartialQualified,
   hasWbahAppointmentBooked,
+  parseWbahAppointmentIso,
 } from "@/lib/dashboard/wbah-appointment-display";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
@@ -350,6 +351,25 @@ function QualifiedPage() {
     if (isWbah && wbahDaysFilter !== "all") {
       const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
       out = out.filter((r: any) => {
+        // Booked contacts stay visible when the appointment falls in range,
+        // even if the qualifying call was outside the window.
+        if (hasWbahAppointmentBooked(r)) {
+          const apptIso = parseWbahAppointmentIso(
+            r.meta?.appointment_date,
+            r.meta?.appointment_time,
+            r.meta?.calendly_booking_url,
+          );
+          if (apptIso) {
+            const ts = new Date(apptIso).getTime();
+            if (!isNaN(ts)) {
+              if (dateFrom && ts < new Date(dateFrom).getTime()) return false;
+              if (dateTo && ts > new Date(dateTo).getTime()) return false;
+              return true;
+            }
+          }
+          // Booked but no parseable appt date — always show.
+          return true;
+        }
         const dateStr = r.meta?.last_called_at ?? r.created_at ?? null;
         if (!dateStr) return false;
         const ts = new Date(dateStr).getTime();

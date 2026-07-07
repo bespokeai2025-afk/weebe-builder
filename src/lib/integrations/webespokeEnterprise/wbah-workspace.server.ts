@@ -14,7 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { enrichWbahCallRowsWithBookings, findWbahBookingCall, resolveWbahBookingFields, phoneDigits, isWbahRecordBooked } from "@/lib/dashboard/wbah-booking-meta";
+import { enrichWbahCallRowsWithBookings, findWbahBookingCall, resolveWbahBookingFields, phoneDigits, isWbahRecordBooked, listWbahBookedContacts } from "@/lib/dashboard/wbah-booking-meta";
 import { getWbahCallsAggregate } from "./wbah-leads.server";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
@@ -1680,7 +1680,7 @@ async function refreshWbahLiveData(
       const booked = await syncWbahBookedContactsFromCrm();
       if (booked.rows > 0) {
         const { cacheDel } = await import("@/lib/cache/redis.server");
-        await cacheDel(`webee:wbah-calls-aggregate:v3:${workspaceId}`);
+        await cacheDel(`webee:wbah-calls-aggregate:v4:${workspaceId}`);
       }
       await refreshWbahAppointmentBackfill(
         opts?.lightBackfill ? { maxPages: 3 } : undefined,
@@ -2775,9 +2775,9 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
       }
 
       console.log(`[WBAH qualified] qualified contacts: ${qualifiedKeys.length}`);
-      return qualifiedKeys.map((key) => {
-        const c = latestByPhone.get(key);
-        const calls = byPhone.get(key) ?? (c ? [c] : []);
+      const fromCalls = qualifiedKeys.map((key) => {
+        const c = latestByPhone.get(key)!;
+        const calls = byPhone.get(key) ?? [c];
         const bookingCall = findWbahBookingCall(calls);
         const digits = phoneDigits(c.phone);
         const crm = digits ? crmBookingByDigits.get(digits) : null;
@@ -2789,7 +2789,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
         const partialQualified = sentiment === "neutral" && durationSec != null && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
         return {
           id:                c.id,
-          full_name:         c.customer_name ?? "Unknown",
+          full_name:         crm?.name ?? c.customer_name ?? "Unknown",
           company_name:      null,
           phone:             c.phone ?? null,
           email:             null,
@@ -2819,6 +2819,46 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
           },
         };
       });
+
+      const qualifiedKeySet = new Set(qualifiedKeys);
+      const bookedAll = listWbahBookedContacts({ byPhone, crmBookingByDigits });
+      const fromCrmOnly = bookedAll
+        .filter((b) => !qualifiedKeySet.has(b.key))
+        .map((b) => ({
+          id:                b.id,
+          full_name:         b.customer_name ?? "Unknown",
+          company_name:      null,
+          phone:             b.phone ?? null,
+          email:             null,
+          sentiment:         "positive" as const,
+          lead_score:        null,
+          interest_level:    null,
+          status:            null,
+          call_summary:      null,
+          next_action:       null,
+          last_contacted_at: null,
+          created_at:        null,
+          meta: {
+            last_called_at:       null,
+            call_status:          null,
+            duration_ms:          null,
+            recording_url:        null,
+            appointment_date:     b.appt.appointment_date ?? null,
+            appointment_time:     b.appt.appointment_time ?? null,
+            booking_status:       b.appt.booking_status ?? null,
+            end_reason:           null,
+            disconnection_reason: null,
+            calendly_booking_url: b.appt.calendly_booking_url ?? null,
+            agent_name:           b.appt.agent_name ?? null,
+            partial_qualified:    false,
+            call_count:           b.calls.length || 1,
+            has_transcript:       false,
+            crm_only_booking:     true,
+          },
+        }));
+
+      console.log(`[WBAH qualified] crm-only booked: ${fromCrmOnly.length} total=${fromCalls.length + fromCrmOnly.length}`);
+      return [...fromCalls, ...fromCrmOnly];
   });
 
 // ── Disqualified leads from WeeBespoke API (filter master UUID approach) ───────

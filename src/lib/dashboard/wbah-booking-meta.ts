@@ -52,20 +52,92 @@ export function resolveWbahBookingFields(
   };
 }
 
+export type WbahBookedContactRow = {
+  key: string;
+  id: string;
+  customer_name: string | null;
+  phone: string | null;
+  calls: any[];
+  crm: (WbahBookingFields & { name?: string | null; phone?: string | null }) | null;
+  appt: WbahBookingFields;
+};
+
+/** Every booked contact: wbah_calls history + CRM-only orphans (one row each). */
+export function listWbahBookedContacts(aggregate: {
+  byPhone: Map<string, any[]>;
+  crmBookingByDigits: Map<string, WbahBookingFields & { name?: string | null; phone?: string | null }>;
+}): WbahBookedContactRow[] {
+  const seen = new Set<string>();
+  const rows: WbahBookedContactRow[] = [];
+
+  const push = (
+    key: string,
+    id: string,
+    name: string | null,
+    phone: string | null,
+    calls: any[],
+    crm: WbahBookedContactRow["crm"],
+    appt: WbahBookingFields,
+  ) => {
+    if (!isWbahRecordBooked(appt) || seen.has(key)) return;
+    seen.add(key);
+    const d = phoneDigits(phone);
+    if (d) seen.add(d);
+    rows.push({ key, id, customer_name: name, phone, calls, crm, appt });
+  };
+
+  for (const [key, calls] of aggregate.byPhone) {
+    const sorted = [...calls].sort(
+      (a, b) => (Date.parse(b.started_at ?? "") || 0) - (Date.parse(a.started_at ?? "") || 0),
+    );
+    const main = sorted[0];
+    const bookingCall = findWbahBookingCall(sorted);
+    const digits = phoneDigits(main.phone);
+    const crm = digits ? aggregate.crmBookingByDigits.get(digits) ?? null : null;
+    const appt = resolveWbahBookingFields(main, bookingCall, crm);
+    push(key, String(main.id), crm?.name ?? main.customer_name ?? null, main.phone ?? null, sorted, crm, appt);
+  }
+
+  for (const [digits, crm] of aggregate.crmBookingByDigits) {
+    if (seen.has(digits)) continue;
+    const appt = resolveWbahBookingFields({}, null, crm);
+    push(
+      digits,
+      `crm:${digits}`,
+      crm.name ?? null,
+      crm.phone ?? null,
+      [],
+      crm,
+      appt,
+    );
+  }
+
+  return rows;
+}
+
 export async function loadWbahCrmBookingByDigits(
   supabaseAdmin: { from: (t: string) => any },
   workspaceId: string,
 ): Promise<Map<string, WbahBookingFields & { name?: string | null; phone?: string | null }>> {
   const map = new Map<string, WbahBookingFields & { name?: string | null; phone?: string | null }>();
   try {
-    const { data: crm } = await (supabaseAdmin as any)
-      .from("wbah_crm_contacts")
-      .select("phone, name, booking_status, appointment_date, appointment_time, calendly_booking_url, agent_name")
-      .eq("workspace_id", workspaceId);
-    for (const r of (crm ?? []) as any[]) {
-      if (!isWbahRecordBooked(r)) continue;
-      const d = phoneDigits(r.phone);
-      if (d && !map.has(d)) map.set(d, r);
+    const PAGE = 1000;
+    let from = 0;
+    for (;;) {
+      const { data: crm, error } = await (supabaseAdmin as any)
+        .from("wbah_crm_contacts")
+        .select("phone, name, booking_status, appointment_date, appointment_time, calendly_booking_url, agent_name")
+        .eq("workspace_id", workspaceId)
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      const batch = (crm ?? []) as any[];
+      for (const r of batch) {
+        if (!isWbahRecordBooked(r)) continue;
+        const d = phoneDigits(r.phone);
+        if (d && !map.has(d)) map.set(d, r);
+      }
+      if (batch.length < PAGE) break;
+      from += PAGE;
     }
   } catch (e: any) {
     console.warn("[wbah-booking-meta] CRM load failed:", e?.message ?? e);
