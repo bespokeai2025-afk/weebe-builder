@@ -53,6 +53,12 @@ import {
   fireScheduledCalls,
 } from "@/lib/dashboard/leads.functions";
 import { listWbahPositiveNeutralLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import {
+  LEAD_STATUS_CATEGORIES,
+  leadMatchesStatusCategory,
+  isLeadStatusCategory,
+  type LeadStatusCategory,
+} from "@/lib/dashboard/lead-status-categories";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { DialogDescription } from "@/components/ui/dialog";
@@ -214,6 +220,7 @@ function LeadsPage() {
   const [tab, setTab] = useState<"leads" | "campaigns">("leads");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [leadStatusCat, setLeadStatusCat] = useState<LeadStatusCategory>("all");
   const [sentimentFilter, setSentimentFilter] = useState("");
   const [callStatusFilter, setCallStatusFilter] = useState("");
   const [quickFilter, setQuickFilter] = useState("");
@@ -222,11 +229,17 @@ function LeadsPage() {
   useEffect(() => {
     const stored = localStorage.getItem("wbahDaysFilter");
     if (stored) setWbahDaysFilter(stored);
+    const storedCat = localStorage.getItem("leadStatusCategory");
+    if (storedCat && isLeadStatusCategory(storedCat)) setLeadStatusCat(storedCat);
   }, []);
 
   useEffect(() => {
     localStorage.setItem("wbahDaysFilter", wbahDaysFilter);
   }, [wbahDaysFilter]);
+
+  useEffect(() => {
+    localStorage.setItem("leadStatusCategory", leadStatusCat);
+  }, [leadStatusCat]);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [qualDialogOpen, setQualDialogOpen] = useState(false);
@@ -345,6 +358,7 @@ function LeadsPage() {
       )) return false;
     }
     if (statusFilter && l.status !== statusFilter) return false;
+    if (!leadMatchesStatusCategory(l.status, leadStatusCat)) return false;
     if (sentimentFilter && normalizeSentiment(l.sentiment) !== sentimentFilter) return false;
     if (callStatusFilter) {
       const cs = isRetell
@@ -399,7 +413,7 @@ function LeadsPage() {
       leads.length, pos, neu, neg, unk);
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || sentimentFilter || callStatusFilter || quickFilter;
+  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter;
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -622,6 +636,11 @@ function LeadsPage() {
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {isWbah ? "Positive / Neutral Leads" : "Lead Records"}
+              {hasLeadFilters && (
+                <span className="ml-2 normal-case text-xs font-normal text-muted-foreground tracking-normal">
+                  {filtered.length} matching
+                </span>
+              )}
               {selectedIds.size > 0 && (
                 <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selectedIds.size} selected</span>
               )}
@@ -643,6 +662,18 @@ function LeadsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="h-7 w-44 text-xs"
               />
+              <select
+                aria-label="Lead Status"
+                value={leadStatusCat}
+                onChange={(e) => setLeadStatusCat(e.target.value as LeadStatusCategory)}
+                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                {LEAD_STATUS_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.value === "all" ? "Lead Status: All" : c.label}
+                  </option>
+                ))}
+              </select>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -697,7 +728,7 @@ function LeadsPage() {
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => { setSearch(""); setStatusFilter(""); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); }}
+                  onClick={() => { setSearch(""); setStatusFilter(""); setLeadStatusCat("all"); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); }}
                 >
                   Clear filters
                 </Button>
