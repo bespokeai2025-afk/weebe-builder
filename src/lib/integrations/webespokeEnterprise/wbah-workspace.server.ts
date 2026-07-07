@@ -1371,8 +1371,15 @@ function normaliseWbahCall(r: any, idx: number): Record<string, unknown> {
 // Plain DB read of wbah_calls (paginated + shaped to the calls-table contract).
 // Kept OUTSIDE any cacheWrap so the "live" path can refresh THEN read without a
 // stale cached payload masking the just-upserted rows.
-async function readWbahCallsRows(supabase: any, workspaceId: string) {
+// `lite` excludes the heavy transcript/call_summary fields so the full list
+// stays well under Upstash/browser limits (transcripts load on demand via
+// getWbahCallDetail). KPIs, filters and search do not need those fields.
+async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { lite?: boolean }) {
   const sb = supabase as any;
+  const lite = opts?.lite ?? false;
+  const cols = lite
+    ? "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count, transcript"
+    : "*";
   // Supabase PostgREST caps rows at 1000 by default — paginate to fetch all.
   const PAGE = 1000;
   const allRows: any[] = [];
@@ -1380,7 +1387,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string) {
   while (true) {
     const { data, error } = await sb
       .from("wbah_calls")
-      .select("*")
+      .select(cols)
       .eq("workspace_id", workspaceId)
       .order("started_at", { ascending: false, nullsFirst: false })
       .range(from, from + PAGE - 1);
@@ -1400,8 +1407,11 @@ async function readWbahCallsRows(supabase: any, workspaceId: string) {
     started_at:           r.started_at,
     ended_at:             null,
     recording_url:        r.recording_url,
-    transcript:           r.transcript,
-    call_summary:         r.call_summary,
+    // In lite mode the transcript text is dropped from the payload; the client
+    // fetches it on demand. `hasTranscript` still drives the "View" button.
+    transcript:           lite ? null : r.transcript,
+    hasTranscript:        !!(r.transcript && String(r.transcript).trim()),
+    call_summary:         lite ? null : r.call_summary,
     from_number:          r.call_type === "inbound"  ? r.phone : null,
     to_number:            r.call_type === "outbound" ? r.phone : null,
     sentiment:            r.sentiment,
@@ -1449,7 +1459,11 @@ export const listWbahCallsLive = createServerFn({ method: "GET" })
         console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
       }
     }
-    return readWbahCallsRows(supabase, workspaceId);
+    // Lite = no transcripts in the list payload (loaded on demand). Cuts the
+    // Calls page response from ~20MB to a few MB and keeps it under limits.
+    const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
+    logWbahResponse("listWbahCallsLive", workspaceId, rows.length, rows);
+    return rows;
   });
 
 // Lightweight count for the Calls sub-tab badge — avoids downloading all
@@ -1468,6 +1482,145 @@ export const listWbahCallsCount = createServerFn({ method: "GET" })
       if (error) throw new Error(error.message);
       return { count: count ?? 0 };
     });
+  });
+
+// ── Server-side paginated WBAH Calls ──────────────────────────────────────────
+// Returns ONE lightweight page of calls (no transcripts / summaries) so the
+// browser never receives the full ~20MB list. Supabase is the source of truth;
+// only the small page response is cached in Redis (short TTL, paginated key).
+
+function logWbahResponse(fn: string, workspaceId: string, rows: number, payload: unknown, extra?: Record<string, unknown>) {
+  let bytes = 0;
+  try { bytes = JSON.stringify(payload)?.length ?? 0; } catch { bytes = 0; }
+  console.log(
+    `[wbah-response] fn=${fn} workspace_id=${workspaceId} rows=${rows} bytes=${bytes} ` +
+    `sizeKB=${(bytes / 1024).toFixed(1)} sizeMB=${(bytes / 1_000_000).toFixed(2)}` +
+    (extra ? " " + Object.entries(extra).map(([k, v]) => `${k}=${v}`).join(" ") : ""),
+  );
+}
+
+// UI status buckets → raw wbah_calls.call_status values.
+const WBAH_CALL_STATUS_FILTER: Record<string, string[]> = {
+  completed:     ["completed", "ended", "call_analyzed", "analyzed"],
+  not_connected: ["no_answer", "not_connected", "voicemail", "voicemail_reached", "missed"],
+  need_to_call:  ["need_to_call"],
+  failed:        ["failed", "error", "call_failed"],
+};
+
+export const listWbahCallsPaged = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({
+      page:      z.coerce.number().int().min(1).default(1),
+      pageSize:  z.coerce.number().int().min(1).max(100).default(50),
+      search:    z.string().trim().max(120).optional(),
+      dateFrom:  z.string().optional(),
+      dateTo:    z.string().optional(),
+      status:    z.string().optional(),
+      sentiment: z.string().optional(),
+      refresh:   z.coerce.boolean().optional(),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+
+    // Optional live refresh (throttled internally) — only worth doing on the
+    // first page of an unfiltered view so opening the tab shows fresh data.
+    if (data.refresh && workspaceId === WBAH_WORKSPACE_ID) {
+      try {
+        const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
+        await refreshWbahCallsIncremental();
+      } catch (e: any) {
+        console.warn("[wbah-calls-paged] incremental refresh failed:", e?.message ?? e);
+      }
+    }
+
+    const { page, pageSize, search, dateFrom, dateTo, status, sentiment } = data;
+    const filtersHash = Buffer.from(
+      JSON.stringify({ q: search ?? "", f: dateFrom ?? "", t: dateTo ?? "", s: status ?? "", se: sentiment ?? "" }),
+    ).toString("base64").replace(/[^a-zA-Z0-9]/g, "").slice(0, 24);
+
+    const key = `webee:wbah-calls-page:${workspaceId}:p${page}:ps${pageSize}:${filtersHash}`;
+    return cacheWrap(key, 60, async () => {
+      const sb = supabase as any;
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let q = sb
+        .from("wbah_calls")
+        // transcript is selected only to derive `hasTranscript`; it is NOT
+        // returned in the response (fetched on demand via getWbahCallDetail).
+        .select(
+          "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, transcript, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count",
+          { count: "exact" },
+        )
+        .eq("workspace_id", workspaceId);
+
+      if (search) q = q.or(`customer_name.ilike.%${search}%,phone.ilike.%${search}%`);
+      if (dateFrom) q = q.gte("started_at", dateFrom);
+      if (dateTo) q = q.lte("started_at", dateTo);
+      if (sentiment && sentiment !== "all") q = q.eq("sentiment", sentiment);
+      if (status && status !== "all" && WBAH_CALL_STATUS_FILTER[status]) {
+        q = q.in("call_status", WBAH_CALL_STATUS_FILTER[status]);
+      }
+      q = q.order("started_at", { ascending: false, nullsFirst: false }).range(from, to);
+
+      const { data: rows, count, error } = await q;
+      if (error) throw new Error(error.message);
+
+      const mapped = (rows ?? []).map((r: any, i: number) => ({
+        id:                  r.id,
+        srNo:                from + i + 1,
+        name:                r.customer_name ?? null,
+        contact:             r.phone ?? null,
+        email:               null,
+        callType:            r.call_type ?? "outbound",
+        callStatus:          r.call_status,
+        sentimentAnalysis:   r.sentiment,
+        disconnectionReason: r.disconnection_reason,
+        appointmentDate:     r.appointment_date ?? null,
+        appointmentTime:     r.appointment_time ?? null,
+        bookingStatus:       r.booking_status ?? null,
+        calendlyBookingUrl:  r.calendly_booking_url ?? null,
+        agentName:           r.agent_name ?? null,
+        startTimestamp:      r.started_at ? new Date(r.started_at).getTime() : null,
+        durationMs:          r.duration_seconds ? r.duration_seconds * 1000 : null,
+        recordingUrl:        r.recording_url ?? null,
+        endReason:           r.end_reason ?? null,
+        hasTranscript:       !!(r.transcript && String(r.transcript).trim()),
+      }));
+
+      const result = { rows: mapped, total: count ?? 0, page, pageSize };
+      logWbahResponse("listWbahCallsPaged", workspaceId, mapped.length, result, {
+        page, pageSize, filters: filtersHash,
+      });
+      return result;
+    });
+  });
+
+// ── Single-call detail (full transcript / summary / recording) ────────────────
+// Loaded on demand when a user opens a call — never included in the list page.
+export const getWbahCallDetail = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const sb = supabase as any;
+    const { data: row, error } = await sb
+      .from("wbah_calls")
+      .select("id, transcript, call_summary, recording_url, disconnection_reason, end_reason, sentiment, started_at, duration_seconds")
+      .eq("workspace_id", workspaceId)
+      .eq("id", data.id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return {
+      id:           data.id,
+      transcript:   row?.transcript ?? null,
+      callSummary:  row?.call_summary ?? null,
+      recordingUrl: row?.recording_url ?? null,
+    };
   });
 
 // ── Retell helper — get WBAH workspace's Retell API key ───────────────────────

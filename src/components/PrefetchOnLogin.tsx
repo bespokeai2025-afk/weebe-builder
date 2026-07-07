@@ -30,7 +30,6 @@ import { listCalls }                                  from "@/lib/dashboard/call
 import { getCallSchedule }                            from "@/lib/dashboard/call-schedule.functions";
 import { listDataRecords }                            from "@/lib/dashboard/data-records.functions";
 import {
-  listWbahCallsLive,
   listWbahPositiveNeutralLeads,
   listWbahQualifiedLeads,
   listWbahCategorizedLeads,
@@ -63,7 +62,6 @@ export function PrefetchOnLogin({ authed }: Props) {
   const listAgentsFn     = useServerFn(listLiveAgents);
   const scheduleFn       = useServerFn(getCallSchedule);
   const dataRecordsFn    = useServerFn(listDataRecords);
-  const wbahCallsFn      = useServerFn(listWbahCallsLive);
   const wbahLeadsFn      = useServerFn(listWbahPositiveNeutralLeads);
   const wbahQualifiedFn  = useServerFn(listWbahQualifiedLeads);
   const wbahCatFn        = useServerFn(listWbahCategorizedLeads);
@@ -129,7 +127,8 @@ export function PrefetchOnLogin({ authed }: Props) {
       // ── WBAH "We Buy Any House" workspace ──
       prefetch(["leads-all", true, "30"], () => wbahLeadsFn());
       prefetch(["wbah-qualified-leads"],  () => wbahQualifiedFn());
-      prefetch(["wbah-calls"],            () => wbahCallsFn());
+      // NOTE: the full WBAH calls list is ~20MB — never prefetch it on login.
+      // The Calls page loads page-1 on demand via server-side pagination.
 
       // The Data → People sub-tabs use local component state (not React Query),
       // so prefetching cannot populate them directly. Instead warm the server-side

@@ -24,7 +24,7 @@ import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { cn } from "@/lib/utils";
 import { listCalls, listTestCalls } from "@/lib/dashboard/calls.functions";
-import { listWbahCallsLive } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahCallsLive, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -373,6 +373,20 @@ function CallsPage() {
   const [recordingPlayer, setRecordingPlayer] = useState<{ url: string; contact: string } | null>(null);
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<{ text: string; name: string } | null>(null);
+  const getWbahCallDetailFn = useServerFn(getWbahCallDetail);
+
+  // Transcripts are omitted from the list payload — load on demand when opened.
+  async function openWbahTranscript(c: any, name: string) {
+    if (c?.transcript) { setWbahTranscript({ text: c.transcript, name }); return; }
+    if (!c?.id) return;
+    setWbahTranscript({ text: "Loading transcript…", name });
+    try {
+      const d = await getWbahCallDetailFn({ data: { id: String(c.id) } });
+      setWbahTranscript({ text: (d as any)?.transcript || "No transcript available.", name });
+    } catch {
+      setWbahTranscript({ text: "Failed to load transcript.", name });
+    }
+  }
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [callTypeFilter, setCallTypeFilter] = useState("");
@@ -692,8 +706,8 @@ function CallsPage() {
                             </span>
                           </td>
                           <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                            {c.transcript
-                              ? <button onClick={() => setWbahTranscript({ text: c.transcript, name })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
+                            {(c.transcript || c.hasTranscript)
+                              ? <button onClick={() => openWbahTranscript(c, name)} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
                               : <span className="text-[11px] text-muted-foreground">N/A</span>}
                           </td>
                           <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
@@ -787,8 +801,8 @@ function CallsPage() {
                                 : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
                             <td className="px-3 py-1.5" onClick={(e) => e.stopPropagation()}>
-                              {c.transcript
-                                ? <button onClick={() => setWbahTranscript({ text: c.transcript, name: contact })} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
+                              {(c.transcript || c.hasTranscript)
+                                ? <button onClick={() => openWbahTranscript(c, contact)} className="inline-flex items-center gap-1 text-[11px] rounded bg-primary/20 text-primary px-2 py-0.5 hover:bg-primary/30 whitespace-nowrap font-medium">Transcript</button>
                                 : <span className="text-[11px] text-muted-foreground">—</span>}
                             </td>
                             <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">

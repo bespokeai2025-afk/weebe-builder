@@ -45,7 +45,7 @@ import {
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
-import { listWbahLeadsForPeople, listWbahCallsFromDb, listWbahCallsCount, listWbahCategorizedLeads, listWbahPeopleCategories, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahLeadsForPeople, listWbahCallsCount, listWbahCallsPaged, getWbahCallDetail, listWbahCategorizedLeads, listWbahPeopleCategories, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -484,10 +484,14 @@ function DataPage() {
   const [wbahCallData, setWbahCallData]               = useState<any[]>([]);
   const [wbahCallDataLoading, setWbahCallDataLoading] = useState(false);
   const [wbahCallDataError, setWbahCallDataError]     = useState<string | null>(null);
-  const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]);
+  // WBAH Calls tab — server-side paginated (never loads the full ~20MB list).
+  const [wbahCallsData, setWbahCallsData]             = useState<any[]>([]); // current page rows
   const [wbahCallsLoading, setWbahCallsLoading]       = useState(false);
   const [wbahCallsError, setWbahCallsError]           = useState<string | null>(null);
-  const [wbahCallsCount, setWbahCallsCount]           = useState(0);
+  const [wbahCallsCount, setWbahCallsCount]           = useState(0);         // total (badge)
+  const [wbahCallsPage, setWbahCallsPage]             = useState(1);
+  const [wbahCallsPageSize, setWbahCallsPageSize]     = useState<number>(50);
+  const [wbahCallsTotal, setWbahCallsTotal]           = useState(0);
   // Dynamic lead-filter categories (one People sub-tab each). Each category is a
   // distinct WeeBespoke `lead_status` present in the loaded get-all-calldata feed.
   const [wbahCategories, setWbahCategories]           = useState<{ name: string; count: number }[]>([]);
@@ -532,7 +536,8 @@ function DataPage() {
   const fetchQualifiedLeadsFn = useServerFn(fetchQualifiedLeads);
   const setStatusFn = useServerFn(setRecordCallStatus);
   const listWbahLeadsForPeopleFn      = useServerFn(listWbahLeadsForPeople);
-  const listWbahCallsFromDbFn         = useServerFn(listWbahCallsFromDb);
+  const listWbahCallsPagedFn          = useServerFn(listWbahCallsPaged);
+  const getWbahCallDetailFn           = useServerFn(getWbahCallDetail);
   const listWbahCallsCountFn          = useServerFn(listWbahCallsCount);
   const listWbahCategorizedLeadsFn    = useServerFn(listWbahCategorizedLeads);
   const listWbahPeopleCategoriesFn    = useServerFn(listWbahPeopleCategories);
@@ -619,35 +624,27 @@ function DataPage() {
     [wbahActiveCatRows, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter],
   );
 
-  const wbahCallsFiltered = useMemo(() => {
-    return wbahCallsData.map((r: any, idx: number) => ({
-      id:                  r.id,
-      srNo:                idx + 1,
-      name:                r.wbah_name ?? r.lead?.full_name ?? null,
-      contact:             r.wbah_contact ?? r.from_number ?? r.to_number ?? null,
-      email:               null,
-      callType:            r.call_type ?? "outbound",
-      callStatus:          r.call_status,
-      sentimentAnalysis:   r.sentiment,
-      disconnectionReason: r.disconnection_reason,
-      appointmentDate:     r.appointment_date ?? null,
-      appointmentTime:     r.appointment_time ?? null,
-      bookingStatus:       r.booking_status ?? null,
-      calendlyBookingUrl:  r.calendly_booking_url ?? null,
-      agentName:           r.agent_name ?? null,
-      startTimestamp:      r.started_at ? new Date(r.started_at).getTime() : null,
-      durationMs:          r.duration_seconds ? r.duration_seconds * 1000 : null,
-      recordingUrl:        r.recording_url ?? null,
-      transcript:          r.transcript ?? null,
-      endReason:           r.end_reason ?? null,
-    })).filter(r => wbahRowPasses(r, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter));
-  }, [wbahCallsData, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateCut, wbahAgentFilter]);
+  // Calls rows come pre-shaped and already filtered/paginated by the server —
+  // no client-side re-mapping or wbahRowPasses filtering (that would only filter
+  // the current page and break the server total count).
+  const wbahCallsRows = wbahCallsData;
 
   const recordsPag = useTablePagination(records);
   const wbahPag    = useTablePagination(wbahFiltered);
   const wbahCatPag   = useTablePagination(wbahCatFiltered);
-  const wbahCallsPag = useTablePagination(wbahCallsFiltered);
   const crmPag     = useTablePagination(crmPeople);
+
+  // Server-driven pagination object with the same shape the table + TablePagBar
+  // expect. Changing page/pageSize triggers a refetch via the effect below.
+  const wbahCallsPag = {
+    page:       wbahCallsPage,
+    pageSize:   wbahCallsPageSize as any,
+    totalPages: Math.max(1, Math.ceil(wbahCallsTotal / wbahCallsPageSize)),
+    total:      wbahCallsTotal,
+    sliced:     wbahCallsRows,
+    setPage:    (p: number) => handleFetchWbahCallsPage(p),
+    changePageSize: (s: number) => handleFetchWbahCallsPage(1, { pageSize: s }),
+  };
 
   const wbahPeopleTotal = useMemo(
     () => wbahCategories.reduce((a, c) => a + c.count, 0),
@@ -656,6 +653,7 @@ function DataPage() {
   const wbahAnyPeopleData =
     wbahCallData.length > 0 ||
     wbahCallsData.length > 0 ||
+    wbahCallsTotal > 0 ||
     Object.values(wbahCatData).some((a) => a.length > 0);
   const wbahActiveCatCount =
     wbahCategories.find((c) => c.name === wbahPeopleSubTab)?.count ??
@@ -1038,17 +1036,55 @@ function DataPage() {
     }
   }
 
-  async function handleFetchWbahCalls() {
+  const wbahCallsDateIso = useMemo(() => {
+    const cut = wbahDateCutoff(wbahDateFilter);
+    return cut > 0 ? new Date(cut).toISOString() : undefined;
+  }, [wbahDateFilter]);
+
+  // Fetch ONE server-paginated page of WBAH calls (lightweight rows only —
+  // no transcripts). The full list is never loaded into the browser.
+  async function handleFetchWbahCallsPage(page: number, opts?: { refresh?: boolean; pageSize?: number }) {
+    const pageSize = opts?.pageSize ?? wbahCallsPageSize;
     setWbahCallsLoading(true);
     setWbahCallsError(null);
     try {
-      const rows = await listWbahCallsFromDbFn();
-      setWbahCallsData(rows as any[]);
-      setWbahCallsCount((rows as any[]).length);
+      const res = await listWbahCallsPagedFn({
+        data: {
+          page,
+          pageSize,
+          search: wbahPeopleSearch.trim() || undefined,
+          dateFrom: wbahCallsDateIso,
+          status: wbahStatusFilter !== "all" ? wbahStatusFilter : undefined,
+          sentiment: wbahSentimentFilter !== "all" ? wbahSentimentFilter : undefined,
+          refresh: opts?.refresh ?? false,
+        },
+      });
+      const r = res as any;
+      setWbahCallsData((r?.rows ?? []) as any[]);
+      setWbahCallsTotal(r?.total ?? 0);
+      if (typeof r?.total === "number") setWbahCallsCount(r.total);
+      setWbahCallsPage(page);
+      if (opts?.pageSize) setWbahCallsPageSize(opts.pageSize);
     } catch (err) {
       setWbahCallsError((err as Error).message);
     } finally {
       setWbahCallsLoading(false);
+    }
+  }
+
+  // Open a call's transcript — fetched on demand (never in the list payload).
+  async function openWbahTranscript(r: any) {
+    if (r?.transcript) {
+      setWbahTranscript({ name: r.name || "Record", text: r.transcript });
+      return;
+    }
+    if (!r?.id) return;
+    setWbahTranscript({ name: r.name || "Record", text: "Loading transcript…" });
+    try {
+      const d = await getWbahCallDetailFn({ data: { id: String(r.id) } });
+      setWbahTranscript({ name: r.name || "Record", text: (d as any)?.transcript || "No transcript available." });
+    } catch {
+      setWbahTranscript({ name: r.name || "Record", text: "Failed to load transcript." });
     }
   }
 
@@ -1090,18 +1126,27 @@ function DataPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah]);
 
-  // Load the active sub-tab's rows when it changes (category or Calls).
+  // Load the active category sub-tab's rows when it changes (Calls handled below).
   useEffect(() => {
-    if (!isWbah || dataTab !== "people" || !wbahPeopleSubTab) return;
+    if (!isWbah || dataTab !== "people" || !wbahPeopleSubTab || wbahPeopleSubTab === "calls") return;
     setWbahSelected(new Set());
     setWbahQualAgentId("");
-    if (wbahPeopleSubTab === "calls") {
-      if (wbahCallsData.length === 0 && !wbahCallsLoading) handleFetchWbahCalls();
-    } else if (!wbahCatData[wbahPeopleSubTab] && !wbahCatLoadingMap[wbahPeopleSubTab]) {
+    if (!wbahCatData[wbahPeopleSubTab] && !wbahCatLoadingMap[wbahPeopleSubTab]) {
       handleFetchWbahCategory(wbahPeopleSubTab);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataTab, isWbah, wbahPeopleSubTab]);
+
+  // Calls tab: server-side paginated. Refetch page 1 (debounced) when the tab is
+  // opened or when search/status/sentiment/date filters change. A live refresh
+  // from WeeBespoke (throttled server-side) runs only on the initial open.
+  useEffect(() => {
+    if (!isWbah || dataTab !== "people" || wbahPeopleSubTab !== "calls") return;
+    const firstOpen = wbahCallsData.length === 0 && wbahCallsTotal === 0;
+    const t = setTimeout(() => { handleFetchWbahCallsPage(1, { refresh: firstOpen }); }, firstOpen ? 0 : 300);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataTab, isWbah, wbahPeopleSubTab, wbahPeopleSearch, wbahStatusFilter, wbahSentimentFilter, wbahDateFilter]);
 
   async function handleImportWbahSelected() {
     const toImport = wbahCallData.filter(r => wbahSelected.has(r.id));
@@ -1466,7 +1511,7 @@ function DataPage() {
             <div className="flex items-center gap-0 border-b border-white/[0.06] px-4 overflow-x-auto">
               {[
                 ...wbahCategories.map((c) => ({ id: c.name, label: c.name, count: c.count })),
-                { id: "calls", label: "Calls", count: wbahCallsData.length || wbahCallsCount },
+                { id: "calls", label: "Calls", count: wbahCallsTotal || wbahCallsCount },
               ].map(tab => {
                 const isActive = wbahPeopleSubTab === tab.id;
                 const isCatTab = tab.id !== "calls";
@@ -1511,7 +1556,7 @@ function DataPage() {
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   {wbahPeopleSubTab === "calls" ? "Calls" : (wbahPeopleSubTab || "Leads")}
                   {(() => {
-                    const total = wbahPeopleSubTab === "calls" ? wbahCallsData.length : wbahActiveCatCount;
+                    const total = wbahPeopleSubTab === "calls" ? wbahCallsTotal : wbahActiveCatCount;
                     return total > 0 ? (
                       <span className="ml-2 normal-case text-xs font-normal tracking-normal text-muted-foreground">
                         {total} total
@@ -1689,10 +1734,10 @@ function DataPage() {
                 })()}
                 {wbahPeopleSubTab === "calls" && (
                   <Button variant="outline" size="sm" className="h-7 text-xs"
-                    onClick={handleFetchWbahCalls} disabled={wbahCallsLoading}
+                    onClick={() => handleFetchWbahCallsPage(1, { refresh: true })} disabled={wbahCallsLoading}
                   >
                     <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${wbahCallsLoading ? "animate-spin" : ""}`} />
-                    {wbahCallsData.length > 0 ? "Refresh" : "Load Calls"}
+                    Refresh
                   </Button>
                 )}
               </div>
@@ -1706,13 +1751,13 @@ function DataPage() {
 
               const loading = isCalls ? wbahCallsLoading : !!wbahCatLoadingMap[wbahPeopleSubTab];
               const error   = isCalls ? wbahCallsError   : (wbahCatErrorMap[wbahPeopleSubTab] ?? null);
-              const knownTotal = isCat ? wbahActiveCatCount : 0;
+              const knownTotal = isCalls ? wbahCallsTotal : (isCat ? wbahActiveCatCount : 0);
               const rowCount   = isCalls ? wbahCallsData.length : wbahActiveCatRows.length;
               const empty      = rowCount === 0 && !(knownTotal > 0 && loading);
               const showLoading = loading || (rowCount === 0 && knownTotal > 0 && !error);
-              const onLoad  = isCalls ? handleFetchWbahCalls : () => handleFetchWbahCategory(wbahPeopleSubTab);
+              const onLoad  = isCalls ? () => handleFetchWbahCallsPage(1, { refresh: true }) : () => handleFetchWbahCategory(wbahPeopleSubTab);
               const loadLabel = isCalls ? "Load Calls" : `Load ${wbahPeopleSubTab || "data"}`;
-              const rows    = isCalls ? wbahCallsFiltered : wbahCatFiltered;
+              const rows    = isCalls ? wbahCallsRows : wbahCatFiltered;
               const pag     = isCalls ? wbahCallsPag : wbahCatPag;
               const loadingNoun = isCalls ? "calls" : `${wbahPeopleSubTab || "records"} records`;
 
@@ -1830,9 +1875,9 @@ function DataPage() {
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
                             <td className="px-3 py-2">
-                              {r.transcript ? (
+                              {(r.transcript || r.hasTranscript) ? (
                                 <button
-                                  onClick={() => setWbahTranscript({ name: r.name || "Record", text: r.transcript })}
+                                  onClick={() => openWbahTranscript(r)}
                                   className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                 >
                                   <FileText className="h-3 w-3" /> View
