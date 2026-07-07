@@ -286,6 +286,40 @@ function wbahDateCutoff(filter: string): number {
   return 0;
 }
 
+// ── Per-category colour coding for the People sub-tabs ─────────────────────────
+type WbahCatStyle = { active: string; badge: string; icon: string; banner: string };
+
+function wbahCatStyleKey(name: string): string {
+  return String(name ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+const WBAH_CAT_STYLES: Record<string, WbahCatStyle> = {
+  disqualified:                { active: "border-rose-400 text-rose-300",       badge: "bg-rose-500/20 text-rose-400",       icon: "text-rose-400",    banner: "bg-rose-500/5 border-rose-500/10 text-rose-400" },
+  tried_to_contact:            { active: "border-amber-400 text-amber-300",     badge: "bg-amber-500/20 text-amber-400",     icon: "text-amber-400",   banner: "bg-amber-500/5 border-amber-500/10 text-amber-400" },
+  rebook_initial_consultation: { active: "border-violet-400 text-violet-300",   badge: "bg-violet-500/20 text-violet-400",   icon: "text-violet-400",  banner: "bg-violet-500/5 border-violet-500/10 text-violet-400" },
+  rebooking:                   { active: "border-violet-400 text-violet-300",   badge: "bg-violet-500/20 text-violet-400",   icon: "text-violet-400",  banner: "bg-violet-500/5 border-violet-500/10 text-violet-400" },
+  call_back_request:           { active: "border-sky-400 text-sky-300",         badge: "bg-sky-500/20 text-sky-400",         icon: "text-sky-400",     banner: "bg-sky-500/5 border-sky-500/10 text-sky-400" },
+  frontline_pre_qualified:     { active: "border-emerald-400 text-emerald-300", badge: "bg-emerald-500/20 text-emerald-400", icon: "text-emerald-400", banner: "bg-emerald-500/5 border-emerald-500/10 text-emerald-400" },
+  logged:                      { active: "border-slate-400 text-slate-300",     badge: "bg-slate-500/20 text-slate-300",     icon: "text-slate-400",   banner: "bg-slate-500/5 border-slate-500/10 text-slate-300" },
+  testlead:                    { active: "border-zinc-400 text-zinc-300",       badge: "bg-zinc-500/20 text-zinc-300",       icon: "text-zinc-400",    banner: "bg-zinc-500/5 border-zinc-500/10 text-zinc-300" },
+};
+
+const WBAH_CAT_FALLBACK_STYLES: WbahCatStyle[] = [
+  { active: "border-blue-400 text-blue-300",       badge: "bg-blue-500/20 text-blue-400",       icon: "text-blue-400",    banner: "bg-blue-500/5 border-blue-500/10 text-blue-400" },
+  { active: "border-teal-400 text-teal-300",       badge: "bg-teal-500/20 text-teal-400",       icon: "text-teal-400",    banner: "bg-teal-500/5 border-teal-500/10 text-teal-400" },
+  { active: "border-fuchsia-400 text-fuchsia-300", badge: "bg-fuchsia-500/20 text-fuchsia-400", icon: "text-fuchsia-400", banner: "bg-fuchsia-500/5 border-fuchsia-500/10 text-fuchsia-400" },
+  { active: "border-orange-400 text-orange-300",   badge: "bg-orange-500/20 text-orange-400",   icon: "text-orange-400",  banner: "bg-orange-500/5 border-orange-500/10 text-orange-400" },
+  { active: "border-cyan-400 text-cyan-300",       badge: "bg-cyan-500/20 text-cyan-400",       icon: "text-cyan-400",    banner: "bg-cyan-500/5 border-cyan-500/10 text-cyan-400" },
+];
+
+function wbahCatStyle(name: string): WbahCatStyle {
+  const key = wbahCatStyleKey(name);
+  if (WBAH_CAT_STYLES[key]) return WBAH_CAT_STYLES[key];
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return WBAH_CAT_FALLBACK_STYLES[h % WBAH_CAT_FALLBACK_STYLES.length];
+}
+
 function wbahRowPasses(
   r: any,
   search: string,
@@ -1515,21 +1549,22 @@ function DataPage() {
               ].map(tab => {
                 const isActive = wbahPeopleSubTab === tab.id;
                 const isCatTab = tab.id !== "calls";
+                const style = isCatTab ? wbahCatStyle(tab.id) : null;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setWbahPeopleSubTab(tab.id)}
                     className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                       isActive
-                        ? "border-primary text-foreground"
+                        ? (style ? style.active : "border-primary text-foreground")
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {isCatTab && <AlertCircle className="h-3 w-3" />}
+                    {isCatTab && <AlertCircle className={`h-3 w-3 ${style?.icon ?? ""}`} />}
                     {tab.label}
                     {tab.count > 0 && (
                       <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        isCatTab ? "bg-rose-500/20 text-rose-400" : "bg-muted/60 text-muted-foreground"
+                        style ? style.badge : "bg-muted/60 text-muted-foreground"
                       }`}>{tab.count}</span>
                     )}
                   </button>
@@ -1788,7 +1823,7 @@ function DataPage() {
                   {isCat && (() => {
                     const cat   = wbahPeopleSubTab;
                     const label = wbahPeopleSubTab;
-                    const tone  = "bg-rose-500/5 border-rose-500/10 text-rose-400";
+                    const tone  = wbahCatStyle(cat).banner;
                     const log   = wbahCatSyncLog?.[cat];
                     return (
                       <div className={`flex flex-wrap items-center gap-2 px-4 py-2 border-b text-[11px] ${tone}`}>
