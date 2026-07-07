@@ -22,6 +22,11 @@ import {
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSentiment } from "@/lib/sentiment";
+import {
+  wbahAppointmentDate,
+  wbahAppointmentTime,
+  wbahBookingStatus,
+} from "@/lib/dashboard/wbah-appointment-display";
 import { Button } from "@/components/ui/button";
 import { DashboardPage, KpiCard, MiniKpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { cn } from "@/lib/utils";
@@ -1051,9 +1056,9 @@ function LeadsPage() {
                               ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
-                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
-                          <td className="px-2 py-0.5">{bookingStatusBadge(lead.meta?.booking_status)}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDate(lead) ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTime(lead) ?? "—"}</td>
+                          <td className="px-2 py-0.5">{bookingStatusBadge(wbahBookingStatus(lead))}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
                         </>}

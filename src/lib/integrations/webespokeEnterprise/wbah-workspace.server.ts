@@ -2841,13 +2841,16 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
         const apptSrc = booking ?? c; // appointment info from the booking source
         const startedIso: string | null = c.started_at ?? null;
         const agentName = (digits && agentByDigits[digits]) || c.agent_name || null;
+        const sentiment = (String(c.sentiment ?? "").toLowerCase() || null);
+        const durationSec = c.duration_seconds != null ? Number(c.duration_seconds) : null;
+        const partialQualified = sentiment === "neutral" && durationSec != null && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
         return {
           id:                c.id,
           full_name:         c.customer_name ?? "Unknown",
           company_name:      null,
           phone:             c.phone ?? null,
           email:             null,
-          sentiment:         (String(c.sentiment ?? "").toLowerCase() || null),
+          sentiment,
           lead_score:        null,
           interest_level:    null,
           status:            null,
@@ -2858,7 +2861,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
           meta: {
             last_called_at:       startedIso,
             call_status:          c.call_status ?? null,
-            duration_ms:          c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
+            duration_ms:          durationSec != null ? durationSec * 1000 : null,
             recording_url:        c.recording_url ?? null,
             appointment_date:     apptSrc.appointment_date ?? null,
             appointment_time:     apptSrc.appointment_time ?? null,
@@ -2867,6 +2870,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
             disconnection_reason: c.disconnection_reason ?? null,
             calendly_booking_url: apptSrc.calendly_booking_url ?? null,
             agent_name:           agentName,
+            partial_qualified:    partialQualified,
             call_count:           countByPhone.get(key) ?? 1,
           },
         };

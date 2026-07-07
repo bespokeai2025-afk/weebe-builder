@@ -27,7 +27,14 @@ import {
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DashboardPage, KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
+import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
+import { cn } from "@/lib/utils";
+import {
+  wbahAppointmentDate,
+  wbahAppointmentTime,
+  wbahBookingStatus,
+  isWbahPartialQualified,
+} from "@/lib/dashboard/wbah-appointment-display";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
@@ -116,6 +123,50 @@ function scoreBadge(score: number | null) {
   if (score == null) return <span className="text-muted-foreground">—</span>;
   const color = score >= 70 ? "text-emerald-400" : score >= 40 ? "text-amber-400" : "text-red-400";
   return <span className={`font-semibold tabular-nums ${color}`}>{score}</span>;
+}
+
+function sentimentBadge(s: string | null) {
+  if (!s) return <span className="text-muted-foreground text-[11px]">—</span>;
+  const map: Record<string, string> = {
+    positive: "bg-emerald-500/15 text-emerald-400",
+    neutral: "bg-amber-500/15 text-amber-400",
+    negative: "bg-red-500/15 text-red-400",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${map[s] ?? "bg-muted text-muted-foreground"}`}>
+      {s}
+    </span>
+  );
+}
+
+function interestBadge(level: string | null) {
+  if (!level) return <span className="text-muted-foreground text-[11px]">—</span>;
+  const map: Record<string, string> = {
+    high: "bg-emerald-500/15 text-emerald-400",
+    medium: "bg-amber-500/15 text-amber-400",
+    low: "bg-red-500/15 text-red-400",
+  };
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] capitalize ${map[level] ?? "bg-muted text-muted-foreground"}`}>
+      {level}
+    </span>
+  );
+}
+
+function wbahLeadStatusBadge(lead: { sentiment?: string | null; meta?: { partial_qualified?: boolean } | null }) {
+  const ns = normalizeSentiment(lead.sentiment);
+  if (ns === "neutral") {
+    return isWbahPartialQualified(lead)
+      ? <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-sky-500/15 text-sky-400 ring-sky-500/20">Partial Qualified</span>
+      : <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-amber-500/15 text-amber-400 ring-amber-500/20">Neutral</span>;
+  }
+  const cfg: Record<string, { label: string; cls: string }> = {
+    positive: { label: "Qualified", cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20" },
+    negative: { label: "Not Qualified", cls: "bg-red-500/15 text-red-400 ring-red-500/20" },
+    unknown: { label: "Unknown", cls: "bg-muted text-muted-foreground ring-border" },
+  };
+  const { label, cls } = cfg[ns] ?? cfg.unknown;
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cls}`}>{label}</span>;
 }
 
 function boolBadge(v: boolean | null, trueLabel = "Yes", falseLabel = "No") {
@@ -365,6 +416,7 @@ function QualifiedPage() {
 
   function refresh() {
     qc.invalidateQueries({ queryKey: ["leads-qualified"] });
+    qc.invalidateQueries({ queryKey: ["wbah-qualified-leads"] });
     qc.invalidateQueries({ queryKey: ["qualification-stats"] });
     qc.invalidateQueries({ queryKey: ["leads-all"] });
   }
@@ -471,49 +523,57 @@ function QualifiedPage() {
         );
       })()}
 
-      {/* Filters */}
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <div className="relative min-w-0 flex-shrink-0">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name, phone…"
-            className="h-6 w-36 pl-7 text-[11px] sm:w-40"
-          />
-        </div>
-        {isWbah && (
-          <select
-            value={wbahDaysFilter}
-            onChange={(e) => setWbahDaysFilter(e.target.value)}
-            className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
-          >
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="7">Last 7 days</option>
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="180">Last 6 months</option>
-            <option value="all">All time</option>
-          </select>
-        )}
-        {isWbah && wbahAgentOptions.length > 0 && (
-          <select
-            value={wbahAgentFilter}
-            onChange={(e) => setWbahAgentFilter(e.target.value)}
-            className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
-          >
-            <option value="all">All agents</option>
-            {wbahAgentOptions.map((a) => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </select>
-        )}
-      </div>
-
       {/* Table */}
       <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+        <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+          <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            {isWbah ? "Qualified Contacts" : "Qualified Records"}
+            {search.trim() && (
+              <span className="ml-2 normal-case text-xs font-normal text-muted-foreground tracking-normal">
+                {filtered.length} matching
+              </span>
+            )}
+          </p>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div className="relative min-w-0 flex-shrink-0">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name, phone…"
+                className="h-6 w-36 pl-7 text-[11px] sm:w-40"
+              />
+            </div>
+            {isWbah && (
+              <select
+                value={wbahDaysFilter}
+                onChange={(e) => setWbahDaysFilter(e.target.value)}
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="7">Last 7 days</option>
+                <option value="14">Last 14 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="180">Last 6 months</option>
+                <option value="all">All time</option>
+              </select>
+            )}
+            {isWbah && wbahAgentOptions.length > 0 && (
+              <select
+                value={wbahAgentFilter}
+                onChange={(e) => setWbahAgentFilter(e.target.value)}
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                <option value="all">All agents</option>
+                {wbahAgentOptions.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
         <div className="p-0">
           {(isWbah ? wbahLeadsQ.isLoading : leadsQ.isLoading) ? (
             <LoadingProgress label="Loading qualified contacts" estimatedMs={8000} />
@@ -530,16 +590,19 @@ function QualifiedPage() {
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Name</th>
+                    <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", isWbah && cn(stickyHead, "left-0 w-44"))}>Name</th>
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Phone</th>
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Status</th>
+                    {isWbah && <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Sentiment</th>}
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Score</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Budget</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Decision</th>
+                    {!isWbah && <>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Budget</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Decision</th>
+                    </>}
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Interest</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Urgency</th>
+                    {!isWbah && <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Urgency</th>}
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Summary</th>
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Next Step</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{isWbah ? "Next Action" : "Next Step"}</th>
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Contact</th>
                     <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Called At</th>
                     {isRetell && <>
@@ -550,7 +613,6 @@ function QualifiedPage() {
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
                     </>}
                     {isWbah && <>
-                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Agent</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Call Status</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Duration</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Recording</th>
@@ -561,7 +623,7 @@ function QualifiedPage() {
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Disconnection</th>
                     </>}
-                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Actions</th>
+                    {!isWbah && <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Actions</th>}
                     <th className="px-2 py-1 w-8"></th>
                   </tr>
                 </thead>
@@ -571,9 +633,9 @@ function QualifiedPage() {
                       key={lead.id}
                       className="group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
                     >
-                      <td className="max-w-[11rem] px-2 py-0.5 text-[11px] font-medium">
+                      <td className={cn("px-2 py-0.5", isWbah && cn(stickyCell, "left-0 w-44 overflow-hidden"))}>
                         <div className="min-w-0">
-                          <div className="truncate">{lead.full_name ?? "—"}</div>
+                          <div className="truncate text-[11px] font-medium">{lead.full_name ?? "—"}</div>
                           {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
                             <button
                               onClick={() => openCallHistory(lead)}
@@ -592,22 +654,31 @@ function QualifiedPage() {
                         {lead.phone}
                       </td>
                       <td className="px-2 py-0.5">
-                        {qualStatusBadge(lead.qualification_status ?? lead.status)}
+                        {isWbah
+                          ? wbahLeadStatusBadge(lead)
+                          : qualStatusBadge(lead.qualification_status ?? lead.status)}
                       </td>
+                      {isWbah && (
+                        <td className="px-2 py-0.5">{sentimentBadge(normalizeSentiment(lead.sentiment))}</td>
+                      )}
                       <td className="px-2 py-0.5">{scoreBadge(lead.qualification_score ?? lead.lead_score)}</td>
-                      <td className="px-2 py-0.5">{boolBadge(lead.budget_confirmed, "✓", "—")}</td>
-                      <td className="px-2 py-0.5">{boolBadge(lead.decision_maker, "✓", "—")}</td>
+                      {!isWbah && <>
+                        <td className="px-2 py-0.5">{boolBadge(lead.budget_confirmed, "✓", "—")}</td>
+                        <td className="px-2 py-0.5">{boolBadge(lead.decision_maker, "✓", "—")}</td>
+                      </>}
                       <td className="px-2 py-0.5">
-                        {lead.interest_level ? (
-                          <span className="text-[11px] capitalize text-muted-foreground">{lead.interest_level}</span>
-                        ) : "—"}
+                        {isWbah
+                          ? interestBadge(lead.interest_level)
+                          : lead.interest_level
+                            ? <span className="text-[11px] capitalize text-muted-foreground">{lead.interest_level}</span>
+                            : "—"}
                       </td>
-                      <td className="px-2 py-0.5">{urgencyBadge(lead.urgency)}</td>
+                      {!isWbah && <td className="px-2 py-0.5">{urgencyBadge(lead.urgency)}</td>}
                       <td className="px-2 py-0.5 text-xs text-muted-foreground max-w-[200px] align-middle">
                         <SummaryTooltip text={lead.call_summary} lines={2} />
                       </td>
                       <td className="px-2 py-0.5 text-[11px] text-muted-foreground max-w-[160px] align-middle">
-                        <span className="line-clamp-1">{lead.next_step ?? lead.next_action ?? "—"}</span>
+                        <span className="line-clamp-1">{lead.next_action ?? lead.next_step ?? "—"}</span>
                       </td>
                       <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
                         {fmtDate(lead.last_contacted_at)}
@@ -637,7 +708,6 @@ function QualifiedPage() {
                         </td>
                       </>}
                       {isWbah && <>
-                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.agent_name ?? "—"}</td>
                         <td className="px-2 py-0.5">{callStatusBadge(lead.meta?.call_status)}</td>
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
                         <td className="px-2 py-0.5">
@@ -650,12 +720,13 @@ function QualifiedPage() {
                             ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                             : <span className="text-muted-foreground text-[11px]">—</span>}
                         </td>
-                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
-                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
-                        <td className="px-2 py-0.5">{bookingStatusBadge(lead.meta?.booking_status)}</td>
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDate(lead) ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTime(lead) ?? "—"}</td>
+                        <td className="px-2 py-0.5">{bookingStatusBadge(wbahBookingStatus(lead))}</td>
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
                       </>}
+                      {!isWbah && (
                       <td className="px-2 py-0.5">
                         <div className="flex gap-1">
                           {STATUS_ACTIONS.map((opt) => (
@@ -670,6 +741,7 @@ function QualifiedPage() {
                           ))}
                         </div>
                       </td>
+                      )}
                       <td className="px-2 py-0.5">
                         <button
                           onClick={() => openPanel(lead)}
