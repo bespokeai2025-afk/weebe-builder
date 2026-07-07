@@ -14,7 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { enrichWbahCallRowsWithBookings, findWbahBookingCall, resolveWbahBookingFields, phoneDigits, isWbahRecordBooked, listWbahBookedContacts } from "@/lib/dashboard/wbah-booking-meta";
+import { enrichWbahCallRowsWithBookings, findWbahBookingCall, resolveWbahBookingFields, phoneDigits, isWbahRecordBooked, listWbahBookedContacts, WBAH_BOOKED_STATUSES } from "@/lib/dashboard/wbah-booking-meta";
 import { getWbahCallsAggregate } from "./wbah-leads.server";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
@@ -1676,14 +1676,21 @@ async function refreshWbahLiveData(
       console.warn("[wbah-live] retell refresh failed:", e?.message ?? e);
     }
     try {
-      const { refreshWbahAppointmentBackfill, syncWbahBookedContactsFromCrm } = await import("./wbah-leads-sync-tick");
-      const booked = await syncWbahBookedContactsFromCrm();
-      if (booked.rows > 0) {
+      const {
+        refreshWbahAppointmentBackfill,
+        syncWbahBookedContactsFromCrm,
+        syncWbahBookedContactsFromCalls,
+      } = await import("./wbah-leads-sync-tick");
+      const [booked, fromCalls] = await Promise.all([
+        syncWbahBookedContactsFromCrm(),
+        syncWbahBookedContactsFromCalls(),
+      ]);
+      if (booked.rows > 0 || fromCalls.rows > 0) {
         const { cacheDel } = await import("@/lib/cache/redis.server");
-        await cacheDel(`webee:wbah-calls-aggregate:v4:${workspaceId}`);
+        await cacheDel(`webee:wbah-calls-aggregate:v5:${workspaceId}`);
       }
       await refreshWbahAppointmentBackfill(
-        opts?.lightBackfill ? { maxPages: 3 } : undefined,
+        opts?.lightBackfill ? { maxPages: 3 } : { maxPages: 25 },
       );
     } catch (e: any) {
       console.warn("[wbah-live] appointment backfill failed:", e?.message ?? e);
@@ -2130,7 +2137,13 @@ async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
 
   const out: any[] = [];
   for (const r of byKey.values()) {
-    if (String(r.booking_status ?? "").toLowerCase() === "success") continue;
+    if (isWbahRecordBooked({
+      appointment_date: r.call_appointment_date ?? r.appointmentDate ?? r.appointment_date ?? null,
+      appointment_time: r.call_appointment_time ?? r.appointmentTime ?? r.appointment_time ?? null,
+      booking_status: r.call_booking_status ?? r.bookingStatus ?? r.booking_status ?? null,
+      calendly_booking_url:
+        r.call_calendly_booking_url ?? r.calendlyBookingUrl ?? r.calendly_booking_url ?? r.calendlyUrl ?? null,
+    })) continue;
     r.__cat = classifyWbahCrmContact(r);
     r.__leadStatus = wbahContactLeadStatus(r);
     out.push(r);
@@ -2226,13 +2239,16 @@ async function syncWbahCrmContactsToDb(userId: string, workspaceId: string): Pro
     if (error) throw new Error(error.message);
   }
   // Prune stale non-booked contacts only. Booked Calendly rows are maintained by
-  // syncWbahBookedContactsFromCrm and must not be deleted here.
+  // syncWbahBookedContactsFromCrm / syncWbahBookedContactsFromCalls and must not be deleted here.
+  const statusNe = WBAH_BOOKED_STATUSES.map((s) => `booking_status.neq.${s}`).join(",");
   await (supabaseAdmin as any)
     .from("wbah_crm_contacts")
     .delete()
     .eq("workspace_id", workspaceId)
     .lt("synced_at", syncTime)
-    .or("booking_status.is.null,and(booking_status.neq.success,booking_status.neq.booked,booking_status.neq.confirmed)");
+    .is("appointment_date", null)
+    .is("calendly_booking_url", null)
+    .or(`booking_status.is.null,and(${statusNe})`);
 
   // Keep the Redis cold-start fallback fresh too.
   await cacheSet(`webee:wbah-crm-contacts-good:${workspaceId}`, WBAH_CRM_LASTGOOD_TTL, live);
@@ -2248,12 +2264,19 @@ async function readWbahCrmContactsFromDb(workspaceId: string): Promise<any[]> {
       .from("wbah_crm_contacts")
       .select("*")
       .eq("workspace_id", workspaceId)
-      .neq("booking_status", "success")
       .range(from, from + PAGE - 1);
     if (error) throw new Error(error.message);
-    const rows = data ?? [];
+    const rows = (data ?? []).filter(
+      (row: any) =>
+        !isWbahRecordBooked({
+          appointment_date: row.appointment_date,
+          appointment_time: row.appointment_time,
+          booking_status: row.booking_status,
+          calendly_booking_url: row.calendly_booking_url,
+        }),
+    );
     all.push(...rows);
-    if (rows.length < PAGE) break;
+    if ((data ?? []).length < PAGE) break;
     from += PAGE;
   }
   return all.map(dbRowToCrmContact);
@@ -2711,7 +2734,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No active workspace");
     void refreshWbahLiveData(workspaceId, { lightBackfill: true });
 
-    const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
+    const { all, byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
 
       const latestByPhone = new Map<string, any>();
       const countByPhone = new Map<string, number>();
@@ -2821,7 +2844,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
       });
 
       const qualifiedKeySet = new Set(qualifiedKeys);
-      const bookedAll = listWbahBookedContacts({ byPhone, crmBookingByDigits });
+      const bookedAll = listWbahBookedContacts({ all, byPhone, crmBookingByDigits });
       const fromCrmOnly = bookedAll
         .filter((b) => !qualifiedKeySet.has(b.key))
         .map((b) => ({

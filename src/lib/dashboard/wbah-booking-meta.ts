@@ -12,11 +12,28 @@ export type WbahBookingFields = {
   agent_name?: string | null;
 };
 
+/** Booking statuses seen in WeeBespoke CRM + call history feeds. */
+export const WBAH_BOOKED_STATUSES = [
+  "success",
+  "booked",
+  "confirmed",
+  "scheduled",
+  "pending",
+  "complete",
+  "completed",
+  "appointment",
+  "appointment_booked",
+] as const;
+
+export function isWbahBookingStatus(status: string | null | undefined): boolean {
+  const bs = String(status ?? "").toLowerCase().trim();
+  return (WBAH_BOOKED_STATUSES as readonly string[]).includes(bs);
+}
+
 export function isWbahRecordBooked(c: WbahBookingFields | null | undefined): boolean {
   if (!c) return false;
   if (c.calendly_booking_url != null && String(c.calendly_booking_url).trim() !== "") return true;
-  const bs = String(c.booking_status ?? "").toLowerCase();
-  if (bs === "success" || bs === "booked" || bs === "confirmed") return true;
+  if (isWbahBookingStatus(c.booking_status)) return true;
   return !!(c.appointment_date && String(c.appointment_date).trim());
 }
 
@@ -64,6 +81,7 @@ export type WbahBookedContactRow = {
 
 /** Every booked contact: wbah_calls history + CRM-only orphans (one row each). */
 export function listWbahBookedContacts(aggregate: {
+  all?: any[];
   byPhone: Map<string, any[]>;
   crmBookingByDigits: Map<string, WbahBookingFields & { name?: string | null; phone?: string | null }>;
 }): WbahBookedContactRow[] {
@@ -107,6 +125,25 @@ export function listWbahBookedContacts(aggregate: {
       crm.name ?? null,
       crm.phone ?? null,
       [],
+      crm,
+      appt,
+    );
+  }
+
+  // Safety net: booked calls that did not merge into a contact bucket (phone mismatch, etc.).
+  for (const c of aggregate.all ?? []) {
+    if (!isWbahRecordBooked(c)) continue;
+    const key = phoneDigits(c.phone) || `id:${c.id}`;
+    if (seen.has(key)) continue;
+    const digits = phoneDigits(c.phone);
+    const crm = digits ? aggregate.crmBookingByDigits.get(digits) ?? null : null;
+    const appt = resolveWbahBookingFields(c, c, crm);
+    push(
+      key,
+      String(c.id),
+      crm?.name ?? c.customer_name ?? null,
+      c.phone ?? null,
+      [c],
       crm,
       appt,
     );

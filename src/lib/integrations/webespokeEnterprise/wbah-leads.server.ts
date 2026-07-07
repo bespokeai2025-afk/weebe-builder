@@ -7,6 +7,7 @@ import {
   resolveWbahBookingFields,
   listWbahBookedContacts,
   phoneDigits,
+  WBAH_BOOKED_STATUSES,
   type WbahBookingFields,
 } from "@/lib/dashboard/wbah-booking-meta";
 import { parseWbahAppointmentIso } from "@/lib/dashboard/wbah-appointment-display";
@@ -75,40 +76,93 @@ function buildWbahByPhone(all: any[]): Map<string, any[]> {
   return byPhone;
 }
 
+const WBAH_AGGREGATE_CACHE_KEY = "webee:wbah-calls-aggregate:v5";
+
+async function countBookedCallsInDb(workspaceId: string): Promise<number> {
+  const sb = supabaseAdmin as any;
+  const COLS =
+    "id, phone, appointment_date, appointment_time, booking_status, calendly_booking_url";
+  let count = 0;
+  const PAGE = 1000;
+  let from = 0;
+  for (;;) {
+    const { data, error } = await sb
+      .from("wbah_calls")
+      .select(COLS)
+      .eq("workspace_id", workspaceId)
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .range(from, from + PAGE - 1);
+    if (error) break;
+    const batch = (data ?? []) as any[];
+    for (const c of batch) {
+      if (isWbahRecordBooked(c)) count++;
+    }
+    if (batch.length < PAGE) break;
+    from += PAGE;
+  }
+  return count;
+}
+
 /**
  * Single cached scan of wbah_calls + CRM booking map. Leads, Qualified, and
  * Calendar all derive from this instead of each paging the full table.
  */
 async function ensureWbahBookedContactsInDb(workspaceId: string): Promise<void> {
   const sb = supabaseAdmin as any;
-  const { count: bookedCount } = await sb
+  const { count: crmBookedCount } = await sb
     .from("wbah_crm_contacts")
     .select("dedup_key", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
-    .in("booking_status", ["success", "booked", "confirmed"]);
+    .in("booking_status", [...WBAH_BOOKED_STATUSES]);
   const { count: datedCount } = await sb
     .from("wbah_crm_contacts")
     .select("dedup_key", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
-    .in("booking_status", ["success", "booked", "confirmed"])
+    .in("booking_status", [...WBAH_BOOKED_STATUSES])
     .not("appointment_date", "is", null);
-  const needsSync = (bookedCount ?? 0) === 0 || ((bookedCount ?? 0) > 0 && (datedCount ?? 0) === 0);
+  const { count: crmWithCalendly } = await sb
+    .from("wbah_crm_contacts")
+    .select("dedup_key", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .not("calendly_booking_url", "is", null);
+
+  const crmHint = Math.max(crmBookedCount ?? 0, crmWithCalendly ?? 0);
+  const callsBooked = crmHint < 30 || (datedCount ?? 0) === 0
+    ? await countBookedCallsInDb(workspaceId)
+    : 0;
+
+  const needsSync =
+    crmHint === 0 ||
+    ((crmBookedCount ?? 0) > 0 && (datedCount ?? 0) === 0 && (crmWithCalendly ?? 0) === 0) ||
+    (callsBooked > 0 && callsBooked > crmHint + 5);
+
   if (!needsSync) return;
+
   try {
-    const { syncWbahBookedContactsFromCrm } = await import("./wbah-leads-sync-tick");
-    const res = await syncWbahBookedContactsFromCrm({ force: true });
-    if (res.rows > 0) {
+    const {
+      syncWbahBookedContactsFromCrm,
+      syncWbahBookedContactsFromCalls,
+      refreshWbahAppointmentBackfill,
+    } = await import("./wbah-leads-sync-tick");
+
+    await refreshWbahAppointmentBackfill({ maxPages: 25, force: true });
+    const [crmRes, callsRes] = await Promise.all([
+      syncWbahBookedContactsFromCrm({ force: true }),
+      syncWbahBookedContactsFromCalls({ force: true }),
+    ]);
+
+    if (crmRes.rows > 0 || callsRes.rows > 0 || callsBooked > crmHint) {
       const { cacheDel } = await import("@/lib/cache/redis.server");
-      await cacheDel(`webee:wbah-calls-aggregate:v4:${workspaceId}`);
+      await cacheDel(`${WBAH_AGGREGATE_CACHE_KEY}:${workspaceId}`);
     }
   } catch (e: any) {
-    console.warn("[WBAH aggregate] booked CRM sync failed:", e?.message ?? e);
+    console.warn("[WBAH aggregate] booked sync failed:", e?.message ?? e);
   }
 }
 
 export async function getWbahCallsAggregate(workspaceId: string): Promise<WbahCallsAggregate> {
   await ensureWbahBookedContactsInDb(workspaceId);
-  const cached = await cacheWrap(`webee:wbah-calls-aggregate:v4:${workspaceId}`, WBAH_AGGREGATE_TTL, async () => {
+  const cached = await cacheWrap(`${WBAH_AGGREGATE_CACHE_KEY}:${workspaceId}`, WBAH_AGGREGATE_TTL, async () => {
     const crmMap = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
     const crm: WbahCallsAggregateCached["crm"] = {};
     crmMap.forEach((v, k) => { crm[k] = v; });
