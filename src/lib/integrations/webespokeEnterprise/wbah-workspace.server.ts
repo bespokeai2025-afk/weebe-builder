@@ -15,7 +15,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
-import { cacheWrap } from "@/lib/cache/redis.server";
+import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
 import * as api from "./client.server";
 import { wbahCallsParamTest, wbahCallsPostPage, wbahLeadsParamTest } from "./client.server";
 import { getCampaignData } from "@/lib/api-engine/data-source-router.server";
@@ -2005,75 +2005,88 @@ function wbahContactMatchesCategory(c: any, category: string): boolean {
 // load wins), already-booked contacts are dropped, and each survivor is tagged
 // with its `__cat`. Cached per-workspace for 60s so the three category tabs and
 // their count probes share a single fetch.
-async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
-  return cacheWrap(`webee:wbah-crm-contacts:${workspaceId}`, 60, async () => {
-    const cbs = await requireWbahCbs(userId);
-    const gt  = cbs.getTokens;
-    const st  = cbs.saveNewAccessToken;
-    const rl  = cbs.reloginFn;
+// Live fetch of all CRM-loaded contacts from get-all-calldata (14 pages), deduped
+// and classified. Throws on failure/empty so the caller can fall back.
+async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
+  const cbs = await requireWbahCbs(userId);
+  const gt  = cbs.getTokens;
+  const st  = cbs.saveNewAccessToken;
+  const rl  = cbs.reloginFn;
 
-    const extractRecs = (raw: any): any[] =>
-      Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
+  const extractRecs = (raw: any): any[] =>
+    Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
 
-    // Page 1 is fetched first (sequentially) with the re-login fallback. If the
-    // shared token is already dead, this mints a fresh session and persists it
-    // into the closure, so the parallel page batch below reuses the healed token.
-    // This reduces — but cannot fully eliminate — concurrent re-logins: a token
-    // invalidated mid-batch (or simultaneous uncached category requests) can
-    // still trigger a few parallel relogins, but those are bounded (batch size 8).
-    const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
-    if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch CRM call data from WeeBespoke");
+  const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
+  if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch CRM call data from WeeBespoke");
 
-    const p1Raw      = p1Res.data as any;
-    const pag        = p1Raw?.pagination ?? {};
-    const totalItems = Number(pag.totalItems ?? 0);
-    const pageSize   = Number(pag.pageSize ?? 50) || 50;
-    const apiPages   = Number(pag.totalPages ?? 1) || 1;
-    // Trust whichever page count is larger — guards against an unreliable
-    // totalPages under-fetching and dropping contacts from the buckets.
-    const totalPages = Math.max(apiPages, totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1);
+  const p1Raw      = p1Res.data as any;
+  const pag        = p1Raw?.pagination ?? {};
+  const totalItems = Number(pag.totalItems ?? 0);
+  const pageSize   = Number(pag.pageSize ?? 50) || 50;
+  const apiPages   = Number(pag.totalPages ?? 1) || 1;
+  const totalPages = Math.max(apiPages, totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1);
 
-    const all: any[] = [...extractRecs(p1Raw)];
-    for (let page = 2; page <= totalPages; page += 8) {
-      const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
-      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
-      for (let i = 0; i < settled.length; i++) {
-        const s = settled[i];
-        if (s.status === "fulfilled" && s.value.ok) {
-          all.push(...extractRecs(s.value.data as any));
-          continue;
-        }
-        // Retry a failed page once; throw if it still fails so the bucket counts
-        // never silently return partial data.
-        const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st, rl);
-        if (!retry.ok) throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
-        all.push(...extractRecs(retry.data as any));
+  const all: any[] = [...extractRecs(p1Raw)];
+  for (let page = 2; page <= totalPages; page += 8) {
+    const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
+    const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
+    for (let i = 0; i < settled.length; i++) {
+      const s = settled[i];
+      if (s.status === "fulfilled" && s.value.ok) {
+        all.push(...extractRecs(s.value.data as any));
+        continue;
       }
+      const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st, rl);
+      if (!retry.ok) throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
+      all.push(...extractRecs(retry.data as any));
     }
+  }
 
-    // Dedup by phone, keeping each contact's most-recently-loaded row so the
-    // latest booking/call state (and load date) wins.
-    const byKey = new Map<string, any>();
-    for (const r of all) {
-      const phone = r.toNumber ?? r.fromNumber ?? r.phone ?? null;
-      const key = phone && String(phone).trim()
-        ? String(phone).trim()
-        : `id:${r.lead_id ?? r.callId ?? r.id}`;
-      const ts   = Date.parse(r.createdAt ?? r.created_at ?? "") || 0;
-      const prev = byKey.get(key);
-      const prevTs = prev ? (Date.parse(prev.createdAt ?? prev.created_at ?? "") || 0) : -1;
-      if (!prev || ts >= prevTs) byKey.set(key, r);
-    }
+  // Dedup by phone, keeping each contact's most-recently-loaded row.
+  const byKey = new Map<string, any>();
+  for (const r of all) {
+    const phone = r.toNumber ?? r.fromNumber ?? r.phone ?? null;
+    const key = phone && String(phone).trim()
+      ? String(phone).trim()
+      : `id:${r.lead_id ?? r.callId ?? r.id}`;
+    const ts   = Date.parse(r.createdAt ?? r.created_at ?? "") || 0;
+    const prev = byKey.get(key);
+    const prevTs = prev ? (Date.parse(prev.createdAt ?? prev.created_at ?? "") || 0) : -1;
+    if (!prev || ts >= prevTs) byKey.set(key, r);
+  }
 
-    // Drop already-booked contacts (latest state booked) and classify the rest.
-    const out: any[] = [];
-    for (const r of byKey.values()) {
-      if (String(r.booking_status ?? "").toLowerCase() === "success") continue;
-      r.__cat = classifyWbahCrmContact(r);
-      r.__leadStatus = wbahContactLeadStatus(r);
-      out.push(r);
+  const out: any[] = [];
+  for (const r of byKey.values()) {
+    if (String(r.booking_status ?? "").toLowerCase() === "success") continue;
+    r.__cat = classifyWbahCrmContact(r);
+    r.__leadStatus = wbahContactLeadStatus(r);
+    out.push(r);
+  }
+  if (out.length === 0) throw new Error("WeeBespoke returned no CRM contacts (session may have been invalidated)");
+  return out;
+}
+
+// Resilient wrapper: the WeeBespoke API allows only ONE active session, so a
+// concurrent login (another WBAH request, or a background relogin) can invalidate
+// the token mid-fetch and return empty/401 — which used to blank the People tab.
+// We keep a durable "last-good" snapshot (30 min) and serve it whenever the live
+// fetch fails or comes back empty, so People never goes blank on a transient
+// session hiccup. The snapshot (~1.8MB) is well under the Redis size cap.
+async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
+  const goodKey = `webee:wbah-crm-contacts-good:${workspaceId}`;
+  return cacheWrap(`webee:wbah-crm-contacts:${workspaceId}`, 60, async () => {
+    try {
+      const live = await fetchWbahCrmLoadedContactsLive(userId);
+      await cacheSet(goodKey, 30 * 60, live); // durable last-good snapshot
+      return live;
+    } catch (e: any) {
+      const lastGood = await cacheGet<any[]>(goodKey);
+      if (Array.isArray(lastGood) && lastGood.length > 0) {
+        console.warn(`[wbah-crm-contacts] live fetch failed (${e?.message}); serving last-good snapshot (${lastGood.length} contacts)`);
+        return lastGood;
+      }
+      throw e;
     }
-    return out;
   });
 }
 
