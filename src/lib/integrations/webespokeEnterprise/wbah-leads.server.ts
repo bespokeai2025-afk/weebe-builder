@@ -78,7 +78,27 @@ function buildWbahByPhone(all: any[]): Map<string, any[]> {
  * Single cached scan of wbah_calls + CRM booking map. Leads, Qualified, and
  * Calendar all derive from this instead of each paging the full table.
  */
+async function ensureWbahBookedContactsInDb(workspaceId: string): Promise<void> {
+  const { count } = await (supabaseAdmin as any)
+    .from("wbah_crm_contacts")
+    .select("dedup_key", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .in("booking_status", ["success", "booked", "confirmed"]);
+  if ((count ?? 0) > 0) return;
+  try {
+    const { syncWbahBookedContactsFromCrm } = await import("./wbah-leads-sync-tick");
+    const res = await syncWbahBookedContactsFromCrm({ force: true });
+    if (res.rows > 0) {
+      const { cacheDel } = await import("@/lib/cache/redis.server");
+      await cacheDel(`webee:wbah-calls-aggregate:v3:${workspaceId}`);
+    }
+  } catch (e: any) {
+    console.warn("[WBAH aggregate] booked CRM sync failed:", e?.message ?? e);
+  }
+}
+
 export async function getWbahCallsAggregate(workspaceId: string): Promise<WbahCallsAggregate> {
+  await ensureWbahBookedContactsInDb(workspaceId);
   const cached = await cacheWrap(`webee:wbah-calls-aggregate:v3:${workspaceId}`, WBAH_AGGREGATE_TTL, async () => {
     const crmMap = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
     const crm: WbahCallsAggregateCached["crm"] = {};

@@ -869,6 +869,122 @@ export async function refreshWbahAppointmentBackfill(opts?: { maxPages?: number 
   finally { _apptBackfillInflight = null; }
 }
 
+// ── Booked appointments from get-all-calldata ────────────────────────────────
+// Calendly bookings live in the CRM feed (booking_status=success) with full
+// appointment_date/time/url. get-user-history does NOT carry these fields on
+// completed calls, so wbah_calls alone can never populate the Qualified page
+// or calendar. Persist booked CRM rows separately — never prune them when the
+// non-booked People sync runs.
+
+function isBookedCrmRecord(raw: any): boolean {
+  const bs = String(raw?.booking_status ?? "").toLowerCase();
+  if (bs === "success" || bs === "booked" || bs === "confirmed") return true;
+  if (raw?.calendly_booking_url && String(raw.calendly_booking_url).trim()) return true;
+  return !!(raw?.appointment_date && String(raw.appointment_date).trim());
+}
+
+function buildBookedCrmRow(raw: any, workspaceId: string) {
+  const phone = raw.toNumber ?? raw.fromNumber ?? raw.phone ?? null;
+  const dedup = phone && String(phone).trim()
+    ? String(phone).trim()
+    : `id:${raw.lead_id ?? raw.callId ?? raw.id}`;
+  const sent = raw.sentimentAnalysis ?? raw.sentiment ?? null;
+  return {
+    dedup_key:            dedup,
+    workspace_id:         workspaceId,
+    external_id:          String(raw.lead_id ?? raw.callId ?? raw.id ?? ""),
+    phone,
+    name:                 raw.name ?? raw.fullName ?? null,
+    email:                raw.email ?? null,
+    lead_status:          raw.lead_status ?? raw.crmData?.lead_status ?? "Booked",
+    call_status:          raw.callStatus ?? null,
+    sentiment:            typeof sent === "string" ? sent : null,
+    disconnection_reason: raw.disconnectionReason ?? null,
+    end_reason:           raw.endReason ?? null,
+    agent_name:           raw.agentName ?? null,
+    duration_ms:          raw.durationMs != null ? Number(raw.durationMs) : null,
+    start_timestamp:      raw.startTimestamp != null ? Number(raw.startTimestamp) : null,
+    recording_url:        raw.recordingUrl ?? null,
+    transcript:           raw.transcript ?? null,
+    appointment_date:     raw.appointment_date ?? null,
+    appointment_time:     raw.appointment_time ?? null,
+    booking_status:       raw.booking_status ?? "success",
+    calendly_booking_url: raw.calendly_booking_url ?? null,
+    crm_loaded_at:        raw.createdAt ?? raw.created_at ?? null,
+    synced_at:            new Date().toISOString(),
+    meta:                 { wbah_booked: true },
+  };
+}
+
+let _bookedSyncAt = 0;
+let _bookedSyncInflight: Promise<{ rows: number }> | null = null;
+const BOOKED_SYNC_MS = 3 * 60 * 1000;
+
+export async function syncWbahBookedContactsFromCrm(opts?: { force?: boolean }): Promise<{ rows: number }> {
+  if (_bookedSyncInflight) return _bookedSyncInflight;
+  if (!opts?.force && Date.now() - _bookedSyncAt < BOOKED_SYNC_MS) return { rows: 0 };
+
+  _bookedSyncInflight = (async () => {
+    const sb = getAdminClient();
+    const { data: ws } = await (sb as any).from("workspaces").select("id").eq("slug", WBAH_SLUG).maybeSingle();
+    if (!ws?.id) return { rows: 0 };
+    const workspaceId: string = ws.id;
+
+    let accessToken = (await getStoredTokens(sb))?.accessToken;
+    const fetchPage = async (p: number) => {
+      const url = `/call-output-data/get-all-calldata?currentPage=${p}`;
+      return apiFetch<any>(url, { method: "GET", headers: { Authorization: `Bearer ${accessToken}` } });
+    };
+
+    let p1 = await fetchPage(1);
+    if (!p1.ok || !p1.data) {
+      await ensureFreshToken(sb);
+      accessToken = (await getStoredTokens(sb))?.accessToken;
+      if (!accessToken) return { rows: 0 };
+      p1 = await fetchPage(1);
+    }
+    if (!p1.ok || !p1.data) return { rows: 0 };
+    const pag = (p1.data as any)?.pagination ?? {};
+    const totalPages = Number(pag.totalPages ?? 1) || 1;
+
+    const booked: ReturnType<typeof buildBookedCrmRow>[] = [];
+    const seen = new Set<string>();
+    const ingest = (recs: any[]) => {
+      for (const r of recs) {
+        if (!isBookedCrmRecord(r)) continue;
+        const row = buildBookedCrmRow(r, workspaceId);
+        if (seen.has(row.dedup_key)) continue;
+        seen.add(row.dedup_key);
+        booked.push(row);
+      }
+    };
+
+    ingest(Array.isArray((p1.data as any)?.data) ? (p1.data as any).data : []);
+    for (let p = 2; p <= totalPages; p++) {
+      const res = await fetchPage(p);
+      if (!res.ok || !res.data) continue;
+      ingest(Array.isArray((res.data as any)?.data) ? (res.data as any).data : []);
+    }
+
+    if (!booked.length) return { rows: 0 };
+
+    for (let i = 0; i < booked.length; i += 200) {
+      const chunk = booked.slice(i, i + 200);
+      const { error } = await (sb as any)
+        .from("wbah_crm_contacts")
+        .upsert(chunk, { onConflict: "workspace_id,dedup_key" });
+      if (error) console.error("[wbah-booked-sync] upsert error:", error.message);
+    }
+
+    _bookedSyncAt = Date.now();
+    console.log(`[wbah-booked-sync] upserted=${booked.length} from get-all-calldata`);
+    return { rows: booked.length };
+  })();
+
+  try { return await _bookedSyncInflight; }
+  finally { _bookedSyncInflight = null; }
+}
+
 export async function runWbahFullResync(): Promise<{ deleted: number; sellers: number; errors: string[] }> {
   const sb = getAdminClient();
   const { data: ws } = await (sb as any).from("workspaces").select("id").eq("slug", WBAH_SLUG).maybeSingle();

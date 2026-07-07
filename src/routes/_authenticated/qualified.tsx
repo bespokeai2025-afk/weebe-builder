@@ -34,6 +34,7 @@ import {
   wbahAppointmentTime,
   wbahBookingStatus,
   isWbahPartialQualified,
+  hasWbahAppointmentBooked,
 } from "@/lib/dashboard/wbah-appointment-display";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
@@ -425,6 +426,7 @@ function QualifiedPage() {
     qc.invalidateQueries({ queryKey: ["wbah-qualified-leads"] });
     qc.invalidateQueries({ queryKey: ["qualification-stats"] });
     qc.invalidateQueries({ queryKey: ["leads-all"] });
+    qc.invalidateQueries({ queryKey: ["calendar-bookings"] });
   }
 
   function openPanel(lead: any) {
@@ -497,7 +499,7 @@ function QualifiedPage() {
       {/* KPI strip */}
       {(() => {
         const wbahTotal = isWbah ? filtered.length : 0;
-        const wbahBooked = isWbah ? filtered.filter((r: any) => r.meta?.calendly_booking_url).length : 0;
+        const wbahBooked = isWbah ? filtered.filter((r: any) => hasWbahAppointmentBooked(r)).length : 0;
         const wbahPositive = isWbah ? filtered.filter((r: any) => normalizeSentiment(r.sentiment) === "positive").length : 0;
         return (
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">

@@ -1676,7 +1676,12 @@ async function refreshWbahLiveData(
       console.warn("[wbah-live] retell refresh failed:", e?.message ?? e);
     }
     try {
-      const { refreshWbahAppointmentBackfill } = await import("./wbah-leads-sync-tick");
+      const { refreshWbahAppointmentBackfill, syncWbahBookedContactsFromCrm } = await import("./wbah-leads-sync-tick");
+      const booked = await syncWbahBookedContactsFromCrm();
+      if (booked.rows > 0) {
+        const { cacheDel } = await import("@/lib/cache/redis.server");
+        await cacheDel(`webee:wbah-calls-aggregate:v3:${workspaceId}`);
+      }
       await refreshWbahAppointmentBackfill(
         opts?.lightBackfill ? { maxPages: 3 } : undefined,
       );
@@ -2220,13 +2225,14 @@ async function syncWbahCrmContactsToDb(userId: string, workspaceId: string): Pro
       .upsert(chunk, { onConflict: "workspace_id,dedup_key" });
     if (error) throw new Error(error.message);
   }
-  // Remove contacts no longer in the feed (booked / cleared) — anything not
-  // touched by this sync.
+  // Prune stale non-booked contacts only. Booked Calendly rows are maintained by
+  // syncWbahBookedContactsFromCrm and must not be deleted here.
   await (supabaseAdmin as any)
     .from("wbah_crm_contacts")
     .delete()
     .eq("workspace_id", workspaceId)
-    .lt("synced_at", syncTime);
+    .lt("synced_at", syncTime)
+    .or("booking_status.is.null,and(booking_status.neq.success,booking_status.neq.booked,booking_status.neq.confirmed)");
 
   // Keep the Redis cold-start fallback fresh too.
   await cacheSet(`webee:wbah-crm-contacts-good:${workspaceId}`, WBAH_CRM_LASTGOOD_TTL, live);

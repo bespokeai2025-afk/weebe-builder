@@ -86,6 +86,26 @@ export function isWbahPartialQualified(lead: WbahLeadLike): boolean {
   return ms != null && ms > PARTIAL_QUALIFIED_MS;
 }
 
+function formatWbahAppointmentTime(v: string): string {
+  if (/T\d{2}:\d{2}/.test(v)) {
+    try {
+      return new Date(v).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    } catch { /* fall through */ }
+  }
+  return v;
+}
+
+function formatWbahAppointmentDate(v: string): string {
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
+    try {
+      return new Date(v.length > 10 ? v : `${v}T12:00:00`).toLocaleDateString(undefined, {
+        day: "2-digit", month: "short", year: "numeric",
+      });
+    } catch { /* fall through */ }
+  }
+  return v;
+}
+
 /**
  * Appointment columns: hidden for partial-qualified only.
  * Shown whenever booking data exists (positive calls, or booked contacts whose
@@ -104,11 +124,13 @@ function wbahAppointmentField(
 }
 
 export function wbahAppointmentDate(lead: WbahLeadLike): string | null {
-  return wbahAppointmentField(lead, "appointment_date");
+  const v = wbahAppointmentField(lead, "appointment_date");
+  return v ? formatWbahAppointmentDate(v) : null;
 }
 
 export function wbahAppointmentTime(lead: WbahLeadLike): string | null {
-  return wbahAppointmentField(lead, "appointment_time");
+  const v = wbahAppointmentField(lead, "appointment_time");
+  return v ? formatWbahAppointmentTime(v) : null;
 }
 
 export function wbahBookingStatus(lead: WbahLeadLike): string | null {
