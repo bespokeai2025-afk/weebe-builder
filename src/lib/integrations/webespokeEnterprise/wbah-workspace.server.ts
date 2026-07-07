@@ -1692,6 +1692,29 @@ function classifyWbahCrmContact(_r: any): WbahDerivedCat {
   return "disqualified";
 }
 
+// The WeeBespoke "Lead Filter Master" tags each loaded CRM contact with a
+// `lead_status` (e.g. "Disqualified", "Tried To Contact", "Rebook Initial
+// Consultation"). We surface that verbatim so the WeBee People section can split
+// the combined feed back into one tab per lead-filter category.
+function wbahContactLeadStatus(r: any): string {
+  return String(r?.crmData?.lead_status ?? r?.lead_status ?? "").trim() || "Uncategorized";
+}
+
+// Slug used to match a category name across the old enum values and the live
+// lead_status labels: "Tried To Contact" ⟺ "tried_to_contact", etc.
+function wbahCatSlug(s: string): string {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function wbahContactMatchesCategory(c: any, category: string): boolean {
+  if (!category || category === "all") return true;
+  return wbahCatSlug(c.__leadStatus ?? wbahContactLeadStatus(c)) === wbahCatSlug(category);
+}
+
 // Fetch ALL CRM-loaded contacts from the live `get-all-calldata` feed — the only
 // WeeBespoke source that carries not-yet-called ("need_to_call") contacts plus a
 // per-record CRM load date (`createdAt`). Records are deduped by phone (latest
@@ -1763,6 +1786,7 @@ async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Pr
     for (const r of byKey.values()) {
       if (String(r.booking_status ?? "").toLowerCase() === "success") continue;
       r.__cat = classifyWbahCrmContact(r);
+      r.__leadStatus = wbahContactLeadStatus(r);
       out.push(r);
     }
     return out;
@@ -1774,13 +1798,13 @@ async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Pr
 async function listWbahCrmLoadedCategory(
   userId: string,
   workspaceId: string,
-  category: WbahDerivedCat,
+  category: string,
   page: number,
   limit: number,
   search?: string,
 ) {
   const contacts = await getWbahCrmLoadedContacts(userId, workspaceId);
-  let filtered = contacts.filter((c) => c.__cat === category);
+  let filtered = contacts.filter((c) => wbahContactMatchesCategory(c, category));
 
   // Search (name / phone).
   if (search?.trim()) {
@@ -1799,6 +1823,7 @@ async function listWbahCrmLoadedCategory(
   const rows = pageRows.map((c) => {
     const phone    = c.toNumber ?? c.fromNumber ?? c.phone ?? null;
     const loadedAt = c.createdAt ?? c.created_at ?? null;
+    const leadStatus = c.__leadStatus ?? wbahContactLeadStatus(c);
     const raw = {
       callStatus: c.callStatus ?? null,
       sentimentAnalysis: c.sentimentAnalysis ?? null,
@@ -1815,11 +1840,11 @@ async function listWbahCrmLoadedCategory(
       transcript: c.transcript ?? null,
     };
     return {
-      id: String(c.id ?? c.callId ?? c.lead_id ?? phone ?? `${category}-${start}`),
+      id: String(c.id ?? c.callId ?? c.lead_id ?? phone ?? `${wbahCatSlug(category)}-${start}`),
       external_lead_id: phone ?? c.lead_id ?? c.id,
-      external_status_code: c.callStatus ?? category,
-      external_status_label: WBAH_DERIVED_LABEL[category],
-      webee_category: category,
+      external_status_code: c.callStatus ?? leadStatus,
+      external_status_label: leadStatus,
+      webee_category: leadStatus,
       full_name: c.name ?? "Unknown",
       first_name: null,
       last_name: null,
@@ -1831,6 +1856,7 @@ async function listWbahCrmLoadedCategory(
       property_type: null,
       meta: {
         raw_lead: raw,
+        lead_status: leadStatus,
         appointment_date: c.appointment_date ?? null,
         booking_status: c.booking_status ?? null,
         recording_url: c.recordingUrl ?? null,
@@ -1844,42 +1870,68 @@ async function listWbahCrmLoadedCategory(
   return { rows, total, page, limit, category };
 }
 
+// Resolve the WBAH workspace id + enforce that the caller can view it. Shared by
+// the People category endpoints below.
+async function requireWbahView(userId: string): Promise<string> {
+  const { data: ws } = await (supabaseAdmin as any)
+    .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
+  if (!ws?.id) throw new Error("WBAH workspace not found");
+
+  const isAdmin = await isPlatformAdmin(userId);
+  if (!isAdmin) {
+    const { data: mem } = await (supabaseAdmin as any)
+      .from("workspace_members")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("workspace_id", ws.id)
+      .maybeSingle();
+    if (!mem) throw new Error("Access denied");
+  }
+  return ws.id as string;
+}
+
+// ── listWbahPeopleCategories ──────────────────────────────────────────────────
+// Distinct lead-filter categories present in the loaded People feed, with counts.
+// Drives the dynamic People sub-tabs so the combined get-all-calldata feed can be
+// split back into one tab per WeeBespoke "Lead Filter Master" category.
+
+export const listWbahPeopleCategories = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const wsId = await requireWbahView(context.userId);
+    const contacts = await getWbahCrmLoadedContacts(context.userId, wsId);
+    const counts = new Map<string, number>();
+    for (const c of contacts) {
+      const name = c.__leadStatus ?? wbahContactLeadStatus(c);
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    const categories = Array.from(counts, ([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    return { categories, total: contacts.length };
+  });
+
 // ── listWbahCategorizedLeads ──────────────────────────────────────────────────
 
 export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     z.object({
-      category: z.enum(["disqualified", "tried_to_contact", "rebooking"]),
+      // Accepts either the legacy enum slugs (disqualified / tried_to_contact /
+      // rebooking) or a live "Lead Filter Master" category name ("Disqualified",
+      // "Tried To Contact", …) or "all". Matched via slug so both forms work.
+      category: z.string().min(1),
       page:     z.coerce.number().int().min(1).default(1),
       limit:    z.coerce.number().int().min(1).max(200).default(100),
       search:   z.string().optional(),
     }),
   )
   .handler(async ({ data, context }) => {
-    // WBAH members and platform admins can view
-    const { data: ws } = await (supabaseAdmin as any)
-      .from("workspaces").select("id").eq("slug", "webuyanyhouse").maybeSingle();
-    if (!ws?.id) throw new Error("WBAH workspace not found");
-
-    const isAdmin = await isPlatformAdmin(context.userId);
-    if (!isAdmin) {
-      const { data: mem } = await (supabaseAdmin as any)
-        .from("workspace_members")
-        .select("id")
-        .eq("user_id", context.userId)
-        .eq("workspace_id", ws.id)
-        .maybeSingle();
-      if (!mem) throw new Error("Access denied");
-    }
-
+    const wsId = await requireWbahView(context.userId);
     const { category, page, limit, search } = data;
 
-    // All three WBAH categories are derived live from the CRM `get-all-calldata`
-    // feed as mutually exclusive buckets (see getWbahCrmLoadedContacts). This is
-    // the only source that includes not-yet-called contacts plus a CRM load date;
-    // needs-to-call contacts are folded into the Disqualified bucket.
-    return await listWbahCrmLoadedCategory(context.userId, ws.id, category, page, limit, search);
+    // Categories are derived live from the CRM `get-all-calldata` feed, split by
+    // each record's WeeBespoke `lead_status` (the Lead Filter Master category).
+    return await listWbahCrmLoadedCategory(context.userId, wsId, category, page, limit, search);
   });
 
 // ── getWbahCategorySyncLog ─────────────────────────────────────────────────────
