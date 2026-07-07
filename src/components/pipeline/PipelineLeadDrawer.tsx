@@ -738,10 +738,22 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  {fmtDatetime(existingBooking.start_at)}
-                  {" · "}
-                  {fmtDuration(existingBooking.start_at, existingBooking.end_at)}
+                  {existingBooking.start_at
+                    ? fmtDatetime(existingBooking.start_at)
+                    : detail?.appointmentDate ?? "Appointment scheduled"}
+                  {existingBooking.start_at && existingBooking.end_at && (
+                    <>
+                      {" · "}
+                      {fmtDuration(existingBooking.start_at, existingBooking.end_at)}
+                    </>
+                  )}
                 </p>
+
+                {detail?.appointmentDate && !existingBooking.start_at && (
+                  <p className="text-xs text-muted-foreground">
+                    Appt date: {detail.appointmentDate}
+                  </p>
+                )}
 
                 {existingBooking.attendee_name && (
                   <p className="text-xs text-muted-foreground">
@@ -766,17 +778,29 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
                     className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                   >
                     <ExternalLink className="h-3 w-3" />
-                    Join meeting
+                    {existingBooking.meeting_url.includes("calendly") ? "Open Calendly booking" : "Join meeting"}
                   </a>
                 )}
 
-                {/* Option to book another */}
+                {lead.source === "wbah" ? null : (
+                /* Option to book another */
                 <button
                   onClick={() => setBookOpen((v) => !v)}
                   className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                 >
                   + Book another appointment
                 </button>
+                )}
+              </div>
+            ) : detail?.appointmentBooked ? (
+              <div className="rounded-lg border border-green-500/20 bg-green-500/5 px-4 py-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="h-4 w-4 text-green-500 shrink-0" />
+                  <p className="text-sm font-semibold text-foreground">Calendly appointment booked</p>
+                </div>
+                {detail.appointmentDate && (
+                  <p className="text-xs text-muted-foreground">Appt date: {detail.appointmentDate}</p>
+                )}
               </div>
             ) : (
               /* ── No booking yet ── */
@@ -785,8 +809,8 @@ export function PipelineLeadDrawer({ lead, open, onOpenChange, onSaleAmountSaved
               </p>
             )}
 
-            {/* Book appointment collapsible */}
-            {!existingBooking && (
+            {/* Book appointment collapsible — standard workspaces only */}
+            {!existingBooking && !detail?.appointmentBooked && lead.source !== "wbah" && (
               <button
                 type="button"
                 onClick={() => setBookOpen((v) => !v)}

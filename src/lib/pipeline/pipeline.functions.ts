@@ -3,10 +3,14 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { cacheWrap } from "@/lib/cache/redis.server";
+import { parseWbahAppointmentIso } from "@/lib/dashboard/wbah-appointment-display";
 import {
-  getWbahDerivedLeads,
-  isWbahPositive,
-} from "@/lib/integrations/webespokeEnterprise/wbah-leads.server";
+  findWbahBookingCall,
+  isWbahRecordBooked,
+  phoneDigits,
+  resolveWbahBookingFields,
+} from "@/lib/dashboard/wbah-booking-meta";
+import { getWbahCallsAggregate } from "@/lib/integrations/webespokeEnterprise/wbah-leads.server";
 
 export type PipelineStage =
   | "lead"
@@ -179,27 +183,33 @@ async function fetchIndicators(
   return { bookedIds, notedIds, docsPhones };
 }
 
-// ── WBAH pipeline (derived from wbah_calls) ──────────────────────────────────
-// WBAH's `leads` table is dup-inflated to ~400k rows, so ordering it breaches the
-// DB statement timeout and the pipeline never loads. Instead we derive the board
-// from the clean wbah_calls table (one row per contact, latest call) and show
-// ONLY qualified/positive contacts (latest-call sentiment === "positive"), which
-// matches the dashboard's "Qualified" definition for this workspace. The paging/
-// dedup/booking logic lives in the shared getWbahDerivedLeads helper so Pipeline,
-// HiveMind chat and HiveMind pages can never drift apart on the WBAH definition.
+// ── WBAH pipeline (derived from wbah_calls + CRM bookings) ───────────────────
+// Uses the same aggregate + CRM enrichment as Leads / Qualified / Calendar so
+// booking detection and appointment fields never drift.
 async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]> {
   return cacheWrap(`webee:pipeline-leads:${workspaceId}`, 60, async () => {
-    const leads = await getWbahDerivedLeads(workspaceId);
+    const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
+    const results: PipelineLead[] = [];
 
-    // Pipeline shows only qualified/positive contacts.
-    const positive = leads.filter(isWbahPositive);
+    for (const [key, calls] of byPhone) {
+      calls.sort(
+        (a, b) => (Date.parse(b.started_at ?? "") || 0) - (Date.parse(a.started_at ?? "") || 0),
+      );
+      const c = calls[0];
+      const bookingCall = findWbahBookingCall(calls);
+      const digits = phoneDigits(c.phone);
+      const crm = digits ? crmBookingByDigits.get(digits) : null;
+      const appt = resolveWbahBookingFields(c, bookingCall, crm);
+      const booked = isWbahRecordBooked(appt);
+      const sentiment = String(c.sentiment ?? "").toLowerCase();
 
-    return positive.map((c): PipelineLead => {
+      // Show positive contacts and anyone with a CRM / Calendly booking.
+      if (sentiment !== "positive" && !booked) continue;
+
       const startedIso: string | null = c.started_at ?? null;
-      const booked = c.booked;
-      return {
+      results.push({
         id: c.id,
-        full_name: c.customer_name ?? "Unknown",
+        full_name: crm?.name ?? c.customer_name ?? "Unknown",
         phone: c.phone ?? null,
         email: null,
         company_name: null,
@@ -209,20 +219,98 @@ async function getWbahPipelineLeads(workspaceId: string): Promise<PipelineLead[]
         funding_amount: null,
         monthly_revenue: null,
         sale_amount: null,
-        sentiment: "positive",
+        sentiment: (sentiment === "positive" || sentiment === "neutral" || sentiment === "negative"
+          ? sentiment
+          : "positive") as PipelineLead["sentiment"],
         call_outcome: (c.call_status as string | null) ?? null,
-        attempt_count: null,
+        attempt_count: calls.length > 1 ? calls.length : null,
         interest_level: null,
         last_contacted_at: startedIso,
         created_at: startedIso,
-        source: null,
+        source: "wbah",
         state_name: null,
         hasBooking: booked,
         hasNotes: false,
         hasDocuments: false,
-      };
-    });
+      });
+    }
+
+    results.sort(
+      (a, b) =>
+        (Date.parse(b.last_contacted_at ?? "") || 0) - (Date.parse(a.last_contacted_at ?? "") || 0),
+    );
+    return results;
   });
+}
+
+function normWbahBookingStatus(status: string | null | undefined): string {
+  const s = String(status ?? "").toLowerCase();
+  if (s === "success" || s === "booked" || s === "confirmed") return "confirmed";
+  if (s === "cancelled" || s === "canceled") return "cancelled";
+  if (s === "pending") return "pending";
+  return s || "confirmed";
+}
+
+async function getWbahLeadDetail(leadId: string, phone: string | null): Promise<LeadDetail> {
+  const empty: LeadDetail = {
+    callSummary: null,
+    appointmentBooked: false,
+    appointmentDate: null,
+    appointmentReason: null,
+    booking: null,
+  };
+
+  const { data: callRow } = await (supabaseAdmin as any)
+    .from("wbah_calls")
+    .select(
+      "id, workspace_id, customer_name, phone, call_summary, appointment_date, appointment_time, booking_status, calendly_booking_url, agent_name",
+    )
+    .eq("id", leadId)
+    .maybeSingle();
+  if (!callRow?.workspace_id) return empty;
+
+  const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(callRow.workspace_id);
+  const digits = phoneDigits(callRow.phone ?? phone);
+  const key = digits || `id:${leadId}`;
+  const calls = byPhone.get(key) ?? [callRow];
+  const main = calls[0] ?? callRow;
+  const bookingCall = findWbahBookingCall(calls);
+  const crm = digits ? crmBookingByDigits.get(digits) : null;
+  const appt = resolveWbahBookingFields(main, bookingCall, crm);
+  const booked = isWbahRecordBooked(appt);
+  const callSummary =
+    callRow.call_summary && String(callRow.call_summary).trim()
+      ? String(callRow.call_summary).trim()
+      : null;
+
+  if (!booked) {
+    return { ...empty, callSummary };
+  }
+
+  const startAt = parseWbahAppointmentIso(
+    appt.appointment_date,
+    appt.appointment_time,
+    appt.calendly_booking_url,
+  );
+
+  return {
+    callSummary,
+    appointmentBooked: true,
+    appointmentDate: appt.appointment_date ?? null,
+    appointmentReason: null,
+    booking: {
+      id: `wbah:${leadId}`,
+      title: `${crm?.name ?? callRow.customer_name ?? "Contact"} — Appointment`,
+      start_at: startAt ?? "",
+      end_at: startAt ?? "",
+      attendee_name: crm?.name ?? callRow.customer_name ?? null,
+      attendee_phone: callRow.phone ?? phone,
+      attendee_email: null,
+      meeting_url: appt.calendly_booking_url ?? null,
+      notes: null,
+      status: normWbahBookingStatus(appt.booking_status),
+    },
+  };
 }
 
 export const getPipelineLeads = createServerFn({ method: "GET" })
@@ -307,6 +395,15 @@ export const getLeadDetail = createServerFn({ method: "GET" })
     };
     if (!workspaceId) return empty;
     const sb = supabase as any;
+
+    const { data: wsRow } = await sb
+      .from("workspaces")
+      .select("slug")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    if (wsRow?.slug === "webuyanyhouse") {
+      return getWbahLeadDetail(data.leadId, data.phone ?? null);
+    }
 
     // Latest call summary for this lead's phone
     let callSummary: string | null = null;
