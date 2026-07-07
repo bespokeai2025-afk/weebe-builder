@@ -1423,9 +1423,10 @@ async function readWbahCallsRows(supabase: any, workspaceId: string) {
 export const listWbahCallsFromDb = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, workspaceId } = context;
-    if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-calls:${workspaceId}`, 2 * 60, () => readWbahCallsRows(supabase, workspaceId));
+    await requireWbahCbs(context.userId);
+    return cacheWrap(`webee:wbah-calls:${WBAH_WORKSPACE_ID}`, 2 * 60, () =>
+      readWbahCallsRows(supabaseAdmin, WBAH_WORKSPACE_ID),
+    );
   });
 
 // Live variant (option 3): pulls the newest calls from WeeBespoke on open
@@ -1436,18 +1437,15 @@ export const listWbahCallsFromDb = createServerFn({ method: "GET" })
 export const listWbahCallsLive = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, workspaceId } = context;
-    if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-calls-live:${workspaceId}`, 60, async () => {
-      if (workspaceId === WBAH_WORKSPACE_ID) {
-        try {
-          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-          await refreshWbahCallsIncremental();
-        } catch (e: any) {
-          console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
-        }
+    await requireWbahCbs(context.userId);
+    return cacheWrap(`webee:wbah-calls-live:${WBAH_WORKSPACE_ID}`, 60, async () => {
+      try {
+        const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
+        await refreshWbahCallsIncremental();
+      } catch (e: any) {
+        console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
       }
-      return readWbahCallsRows(supabase, workspaceId);
+      return readWbahCallsRows(supabaseAdmin, WBAH_WORKSPACE_ID);
     });
   });
 
@@ -1456,14 +1454,12 @@ export const listWbahCallsLive = createServerFn({ method: "GET" })
 export const listWbahCallsCount = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, workspaceId } = context;
-    if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-calls-count:${workspaceId}`, 2 * 60, async () => {
-      const sb = supabase as any;
-      const { count, error } = await sb
+    await requireWbahCbs(context.userId);
+    return cacheWrap(`webee:wbah-calls-count:${WBAH_WORKSPACE_ID}`, 2 * 60, async () => {
+      const { count, error } = await (supabaseAdmin as any)
         .from("wbah_calls")
         .select("id", { count: "exact", head: true })
-        .eq("workspace_id", workspaceId);
+        .eq("workspace_id", WBAH_WORKSPACE_ID);
       if (error) throw new Error(error.message);
       return { count: count ?? 0 };
     });
@@ -1692,6 +1688,86 @@ function classifyWbahCrmContact(_r: any): WbahDerivedCat {
   return "disqualified";
 }
 
+const WBAH_DISQ_FILTER_UUID = "6c113950-a5ae-461d-90b1-a187ee173673";
+
+function wbahPeoplePhoneKey(r: any): string {
+  const phone = r.toNumber ?? r.fromNumber ?? r.phone ?? null;
+  return phone && String(phone).trim()
+    ? String(phone).trim()
+    : `id:${r.lead_id ?? r.callId ?? r.id}`;
+}
+
+/** Merge People rows by phone — prefer the row with call history, then newest load date. */
+function mergeWbahPeopleByPhone(records: any[]): any[] {
+  const byKey = new Map<string, any>();
+  for (const r of records) {
+    const key = wbahPeoplePhoneKey(r);
+    const prev = byKey.get(key);
+    if (!prev) { byKey.set(key, r); continue; }
+    const score = (x: any) => {
+      let s = 0;
+      if (x.startTimestamp || x.callId) s += 1_000_000_000_000;
+      s += Date.parse(x.createdAt ?? x.created_at ?? "") || 0;
+      return s;
+    };
+    if (score(r) >= score(prev)) byKey.set(key, r);
+  }
+  return Array.from(byKey.values());
+}
+
+function mapFilteredLeadToContact(r: any): any {
+  return {
+    id:                  r.id ?? r._id ?? r.lead_id,
+    name:                r.name ?? r.fullName ?? r.full_name ?? null,
+    toNumber:            r.toNumber ?? r.phone ?? r.mobile_number ?? null,
+    fromNumber:          r.fromNumber ?? null,
+    phone:               r.toNumber ?? r.fromNumber ?? r.phone ?? null,
+    email:               r.email ?? null,
+    callStatus:          r.callStatus ?? r.call_status ?? null,
+    sentimentAnalysis:   r.sentimentAnalysis ?? r.sentiment_analysis ?? null,
+    disconnectionReason: r.disconnectionReason ?? r.disconnection_reason ?? null,
+    endReason:           r.endReason ?? r.end_reason ?? null,
+    appointment_date:    r.appointment_date ?? r.appointmentDate ?? null,
+    appointment_time:    r.appointment_time ?? r.appointmentTime ?? null,
+    booking_status:      r.booking_status ?? r.bookingStatus ?? null,
+    calendly_booking_url: r.calendly_booking_url ?? r.calendlyBookingUrl ?? null,
+    agentName:           r.agentName ?? r.agent_name ?? null,
+    startTimestamp:      r.startTimestamp ?? r.start_timestamp ?? null,
+    durationMs:          r.durationMs ?? r.duration_ms ?? null,
+    recordingUrl:        r.recordingUrl ?? r.recording_url ?? null,
+    transcript:          r.transcript ?? null,
+    createdAt:           r.createdAt ?? r.created_at ?? null,
+    created_at:          r.created_at ?? r.createdAt ?? null,
+    __cat:               "disqualified" as const,
+    __src:               "filter",
+  };
+}
+
+// Disqualified leads tagged in WeeBespoke (get-userCall-lead + leadStatus filter).
+// ~2k records — the source the dashboard uses for the Disqualified bucket.
+async function getWbahDisqualifiedFilteredLeads(userId: string, workspaceId: string): Promise<any[]> {
+  return cacheWrap(`webee:wbah-disq-filter-v2:${workspaceId}`, 60, async () => {
+    const cbs = await requireWbahCbs(userId);
+    const gt  = cbs.getTokens;
+    const st  = cbs.saveNewAccessToken;
+    const rl  = cbs.reloginFn;
+
+    for (const code of [WBAH_DISQ_FILTER_UUID, "Disqualified"]) {
+      const p1Res = await api.wbahGetLeadsFiltered(code, 1, gt, st, rl);
+      if (!p1Res.ok) continue;
+      const allRecs = await fetchAllPages(
+        (page) => api.wbahGetLeadsFiltered(code, page, gt, st, rl),
+        p1Res.data,
+        "disq-filter",
+      );
+      if (allRecs.length === 0) continue;
+      console.log(`[WBAH disq-filter] fetched ${allRecs.length} leads via code="${code}"`);
+      return allRecs.map(mapFilteredLeadToContact);
+    }
+    return [];
+  }, false, (rows) => rows.length > 0);
+}
+
 // Fetch ALL CRM-loaded contacts from the live `get-all-calldata` feed — the only
 // WeeBespoke source that carries not-yet-called ("need_to_call") contacts plus a
 // per-record CRM load date (`createdAt`). Records are deduped by phone (latest
@@ -1699,59 +1775,26 @@ function classifyWbahCrmContact(_r: any): WbahDerivedCat {
 // with its `__cat`. Cached per-workspace for 60s so the three category tabs and
 // their count probes share a single fetch.
 async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
-  return cacheWrap(`webee:wbah-crm-contacts:${workspaceId}`, 60, async () => {
+  return cacheWrap(`webee:wbah-crm-contacts-v2:${workspaceId}`, 60, async () => {
     const cbs = await requireWbahCbs(userId);
     const gt  = cbs.getTokens;
     const st  = cbs.saveNewAccessToken;
     const rl  = cbs.reloginFn;
 
-    const extractRecs = (raw: any): any[] =>
-      Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
-
-    // Page 1 is fetched first (sequentially) with the re-login fallback. If the
-    // shared token is already dead, this mints a fresh session and persists it
-    // into the closure, so the parallel page batch below reuses the healed token.
-    // This reduces — but cannot fully eliminate — concurrent re-logins: a token
-    // invalidated mid-batch (or simultaneous uncached category requests) can
-    // still trigger a few parallel relogins, but those are bounded (batch size 8).
     const p1Res = await api.wbahGetAllCallDataPaged(1, gt, st, rl);
     if (!p1Res.ok) throw new Error(p1Res.error ?? "Failed to fetch CRM call data from WeeBespoke");
 
-    const p1Raw      = p1Res.data as any;
-    const pag        = p1Raw?.pagination ?? {};
-    const totalItems = Number(pag.totalItems ?? 0);
-    const pageSize   = Number(pag.pageSize ?? 50) || 50;
-    const apiPages   = Number(pag.totalPages ?? 1) || 1;
-    // Trust whichever page count is larger — guards against an unreliable
-    // totalPages under-fetching and dropping contacts from the buckets.
-    const totalPages = Math.max(apiPages, totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1);
-
-    const all: any[] = [...extractRecs(p1Raw)];
-    for (let page = 2; page <= totalPages; page += 8) {
-      const batch = Array.from({ length: Math.min(8, totalPages - page + 1) }, (_, i) => page + i);
-      const settled = await Promise.allSettled(batch.map(p => api.wbahGetAllCallDataPaged(p, gt, st, rl)));
-      for (let i = 0; i < settled.length; i++) {
-        const s = settled[i];
-        if (s.status === "fulfilled" && s.value.ok) {
-          all.push(...extractRecs(s.value.data as any));
-          continue;
-        }
-        // Retry a failed page once; throw if it still fails so the bucket counts
-        // never silently return partial data.
-        const retry = await api.wbahGetAllCallDataPaged(batch[i], gt, st, rl);
-        if (!retry.ok) throw new Error(retry.error ?? `Failed to fetch CRM call data page ${batch[i]}`);
-        all.push(...extractRecs(retry.data as any));
-      }
-    }
+    const all = await fetchAllPages(
+      (page) => api.wbahGetAllCallDataPaged(page, gt, st, rl),
+      p1Res.data,
+      "crm-contacts",
+    );
 
     // Dedup by phone, keeping each contact's most-recently-loaded row so the
     // latest booking/call state (and load date) wins.
     const byKey = new Map<string, any>();
     for (const r of all) {
-      const phone = r.toNumber ?? r.fromNumber ?? r.phone ?? null;
-      const key = phone && String(phone).trim()
-        ? String(phone).trim()
-        : `id:${r.lead_id ?? r.callId ?? r.id}`;
+      const key = wbahPeoplePhoneKey(r);
       const ts   = Date.parse(r.createdAt ?? r.created_at ?? "") || 0;
       const prev = byKey.get(key);
       const prevTs = prev ? (Date.parse(prev.createdAt ?? prev.created_at ?? "") || 0) : -1;
@@ -1763,10 +1806,12 @@ async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Pr
     for (const r of byKey.values()) {
       if (String(r.booking_status ?? "").toLowerCase() === "success") continue;
       r.__cat = classifyWbahCrmContact(r);
+      r.__src = "crm";
       out.push(r);
     }
+    console.log(`[WBAH crm-contacts] raw=${all.length} deduped=${byKey.size} non-booked=${out.length}`);
     return out;
-  });
+  }, false, (rows) => rows.length > 0);
 }
 
 // Returns one category's page of CRM-loaded contacts, mapped to the row shape
@@ -1779,7 +1824,13 @@ async function listWbahCrmLoadedCategory(
   limit: number,
   search?: string,
 ) {
-  const contacts = await getWbahCrmLoadedContacts(userId, workspaceId);
+  const contacts = category === "disqualified"
+    ? mergeWbahPeopleByPhone([
+        ...(await getWbahCrmLoadedContacts(userId, workspaceId)),
+        ...(await getWbahDisqualifiedFilteredLeads(userId, workspaceId)),
+      ])
+    : await getWbahCrmLoadedContacts(userId, workspaceId);
+
   let filtered = contacts.filter((c) => c.__cat === category);
 
   // Search (name / phone).

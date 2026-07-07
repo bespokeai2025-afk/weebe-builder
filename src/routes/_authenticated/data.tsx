@@ -45,7 +45,7 @@ import {
 } from "@/lib/dashboard/data-records.functions";
 import { getCallSchedule, setCallSchedule } from "@/lib/dashboard/call-schedule.functions";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
-import { listWbahLeadsForPeople, listWbahCallsFromDb, listWbahCallsCount, listWbahCategorizedLeads, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahLeadsForPeople, listWbahCallsLive, listWbahCallsCount, listWbahCategorizedLeads, triggerWbahCategorySync, getWbahCategorySyncLog, getWbahCategorySyncAccess } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/data")({
@@ -538,7 +538,7 @@ function DataPage() {
   const fetchQualifiedLeadsFn = useServerFn(fetchQualifiedLeads);
   const setStatusFn = useServerFn(setRecordCallStatus);
   const listWbahLeadsForPeopleFn      = useServerFn(listWbahLeadsForPeople);
-  const listWbahCallsFromDbFn         = useServerFn(listWbahCallsFromDb);
+  const listWbahCallsLiveFn           = useServerFn(listWbahCallsLive);
   const listWbahCallsCountFn          = useServerFn(listWbahCallsCount);
   const listWbahCategorizedLeadsFn    = useServerFn(listWbahCategorizedLeads);
   const triggerWbahCategorySyncFn     = useServerFn(triggerWbahCategorySync);
@@ -1031,7 +1031,7 @@ function DataPage() {
     setWbahCallsLoading(true);
     setWbahCallsError(null);
     try {
-      const rows = await listWbahCallsFromDbFn();
+      const rows = await listWbahCallsLiveFn();
       setWbahCallsData(rows as any[]);
       setWbahCallsCount((rows as any[]).length);
     } catch (err) {
