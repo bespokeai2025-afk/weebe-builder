@@ -427,6 +427,7 @@ function LeadsPage() {
         case "after_call":   if (st === "need_to_call") return false; break;
         case "positive":     if (ns !== "positive") return false; break;
         case "neutral":      if (ns !== "neutral") return false; break;
+        case "partial_qualified": if (!l.meta?.partial_qualified) return false; break;
         case "disqualified": if (st !== "not_interested") return false; break;
         case "callback":     if (!(l.callback_date || st === "callback_requested")) return false; break;
         case "not_called":   if (st !== "not_connected") return false; break;
@@ -826,8 +827,9 @@ function LeadsPage() {
             <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-white/[0.06]">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
               {[
-                { value: "positive",     label: "Positive" },
-                { value: "neutral",      label: "Neutral" },
+                { value: "positive",          label: "Positive" },
+                { value: "neutral",           label: "Neutral" },
+                { value: "partial_qualified", label: "Partial Qualified" },
               ].map((c) => {
                 const active = quickFilter === c.value;
                 return (
@@ -927,13 +929,19 @@ function LeadsPage() {
                             {(() => {
                               if (isWbah) {
                                 const ns = normalizeSentiment(lead.sentiment);
+                                // Neutral + >5min call = "Partial Qualified" (distinct sky badge);
+                                // shorter neutral calls are just "Neutral".
+                                if (ns === "neutral") {
+                                  return lead.meta?.partial_qualified
+                                    ? <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-sky-500/15 text-sky-400 ring-sky-500/20">Partial Qualified</span>
+                                    : <span className="rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 bg-amber-500/15 text-amber-400 ring-amber-500/20">Neutral</span>;
+                                }
                                 const cfg: Record<string, { label: string; cls: string }> = {
-                                  positive: { label: "Qualified",        cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20" },
-                                  neutral:  { label: "Partly Qualified", cls: "bg-amber-500/15   text-amber-400   ring-amber-500/20"   },
-                                  negative: { label: "Not Qualified",    cls: "bg-red-500/15     text-red-400     ring-red-500/20"     },
-                                  unknown:  { label: "Unknown",          cls: "bg-muted text-muted-foreground ring-border"            },
+                                  positive: { label: "Qualified",     cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/20" },
+                                  negative: { label: "Not Qualified", cls: "bg-red-500/15     text-red-400     ring-red-500/20"     },
+                                  unknown:  { label: "Unknown",       cls: "bg-muted text-muted-foreground ring-border"            },
                                 };
-                                const { label, cls } = cfg[ns];
+                                const { label, cls } = cfg[ns] ?? cfg.unknown;
                                 return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${cls}`}>{label}</span>;
                               }
                               const sd = statusDisplay(lead.status);

@@ -2484,6 +2484,9 @@ export const listWbahLeadsForPeople = createServerFn({ method: "GET" })
 // the NOT-yet-booked contacts), so a warm, unbooked contact can legitimately
 // appear in both this window and the Rebooking tab.
 
+// A neutral call must last longer than this to count as "partial qualified".
+const WBAH_PARTIAL_QUALIFIED_MIN_SECONDS = 5 * 60; // 5 minutes
+
 export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -2558,13 +2561,20 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
       return posNeu.map((c) => {
         const startedIso: string | null = c.started_at ?? null;
         const transcript = transcriptById.get(c.id) ?? null;
+        const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
+        const durationSec = Number(c.duration_seconds ?? 0);
+        // Partial-qualified (WBAH): a NEUTRAL call that lasted > 5 minutes — a
+        // meaningful partial qualification, distinct from short "normal" neutral
+        // calls. This only annotates the row; it does not change which leads are
+        // returned, so existing flows are untouched.
+        const partialQualified = sentiment === "neutral" && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
         return {
           id:                c.id,
           full_name:         c.customer_name ?? "Unknown",
           company_name:      null,
           phone:             c.phone ?? null,
           email:             null,
-          sentiment:         (String(c.sentiment ?? "").toLowerCase() || null),
+          sentiment,
           lead_score:        null,
           interest_level:    null,
           status:            null,
@@ -2584,6 +2594,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
             disconnection_reason: c.disconnection_reason ?? null,
             calendly_booking_url: c.calendly_booking_url ?? null,
             agent_name:           c.agent_name ?? null,
+            partial_qualified:    partialQualified,
           },
         };
       });
