@@ -14,6 +14,8 @@ import {
   StickyNote,
   BarChart3,
   PlayCircle,
+  Phone,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -31,7 +33,7 @@ import { useTablePagination, TablePagBar } from "@/components/ui/table-paginatio
 import { toast } from "sonner";
 import { listQualifiedLeads, getQualificationStats } from "@/lib/dashboard/qualified.functions";
 import { setLeadStatus } from "@/lib/dashboard/leads.functions";
-import { listWbahQualifiedLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahQualifiedLeads, getWbahContactCallHistory, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import { normalizeSentiment } from "@/lib/sentiment";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
@@ -204,6 +206,33 @@ function QualifiedPage() {
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
   const [qualTab, setQualTab] = useState<"contacts" | "campaigns">("contacts");
   const listAgentsFn = useServerFn(listLiveAgents);
+  const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
+  const getCallDetailFn = useServerFn(getWbahCallDetail);
+  const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
+
+  function fmtDurQ(sec: number | null | undefined) {
+    if (sec == null) return "—";
+    const m = Math.floor(sec / 60); const s = sec % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
+  async function openCallHistory(lead: any) {
+    if (!lead?.phone) return;
+    setCallHistory({ name: lead.full_name ?? "Contact", phone: lead.phone, loading: true, calls: [] });
+    try {
+      const res = await getContactHistoryFn({ data: { phone: lead.phone } });
+      setCallHistory({ name: lead.full_name ?? "Contact", phone: lead.phone, loading: false, calls: (res as any)?.calls ?? [] });
+    } catch {
+      setCallHistory({ name: lead.full_name ?? "Contact", phone: lead.phone, loading: false, calls: [] });
+    }
+  }
+  async function openHistoryTranscript(call: any) {
+    if (!call?.id) return;
+    setWbahTranscript("Loading transcript…");
+    try {
+      const d = await getCallDetailFn({ data: { id: String(call.id) } });
+      setWbahTranscript((d as any)?.transcript || "No transcript available.");
+    } catch { setWbahTranscript("Failed to load transcript."); }
+  }
 
   const [isWbah, setIsWbah] = useState(false);
   const [isWbahResolved, setIsWbahResolved] = useState(false);
@@ -543,7 +572,18 @@ function QualifiedPage() {
                       className="h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
                     >
                       <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
-                        {lead.full_name ?? "—"}
+                        <span className="inline-flex items-center gap-1.5">
+                          {lead.full_name ?? "—"}
+                          {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
+                            <button
+                              onClick={() => openCallHistory(lead)}
+                              title="View all calls for this contact"
+                              className="inline-flex items-center gap-0.5 rounded-full bg-blue-500/15 text-blue-400 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-500/25 transition-colors"
+                            >
+                              <Phone className="h-2.5 w-2.5" />{lead.meta.call_count}×
+                            </button>
+                          )}
+                        </span>
                         {lead.company_name && (
                           <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
                         )}
@@ -650,6 +690,64 @@ function QualifiedPage() {
         </div>
       </div>
       </>
+      )}
+
+      {/* Contact call-history drill-down */}
+      {callHistory !== null && (
+        <Dialog open onOpenChange={() => setCallHistory(null)}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{callHistory.name} — Call History</DialogTitle>
+              <DialogDescription>
+                {callHistory.phone} · {callHistory.calls.length} call{callHistory.calls.length !== 1 ? "s" : ""}. The row shows the definitive outcome (a positive call wins); all attempts are listed here.
+              </DialogDescription>
+            </DialogHeader>
+            {callHistory.loading ? (
+              <div className="py-8 flex items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading calls…
+              </div>
+            ) : callHistory.calls.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No calls found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <th className="px-2 py-1.5">Date</th>
+                      <th className="px-2 py-1.5">Status</th>
+                      <th className="px-2 py-1.5">Sentiment</th>
+                      <th className="px-2 py-1.5">Duration</th>
+                      <th className="px-2 py-1.5">Agent</th>
+                      <th className="px-2 py-1.5">Recording</th>
+                      <th className="px-2 py-1.5">Transcript</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {callHistory.calls.map((c: any) => (
+                      <tr key={c.id} className="border-b border-white/[0.04] align-middle">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.startedAt ? new Date(c.startedAt).toLocaleString() : "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap capitalize">{(c.callStatus ?? "—").replace(/_/g, " ")}</td>
+                        <td className="px-2 py-1.5 capitalize">{c.sentiment ?? "—"}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDurQ(c.durationSeconds)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.agentName ?? "—"}</td>
+                        <td className="px-2 py-1.5">
+                          {c.recordingUrl
+                            ? <a href={c.recordingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><PlayCircle className="h-3 w-3" />Play</a>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {c.hasTranscript
+                            ? <button onClick={() => openHistoryTranscript(c)} className="text-violet-400 hover:underline">View</button>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* WBAH Transcript modal */}

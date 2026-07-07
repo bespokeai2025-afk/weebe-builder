@@ -1453,8 +1453,8 @@ export const listWbahCallsLive = createServerFn({ method: "GET" })
     if (!workspaceId) throw new Error("No active workspace");
     if (workspaceId === WBAH_WORKSPACE_ID) {
       try {
-        const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-        await refreshWbahCallsIncremental();
+        const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
+        await refreshWbahCallsFromRetell();
       } catch (e: any) {
         console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
       }
@@ -1529,8 +1529,8 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
     // first page of an unfiltered view so opening the tab shows fresh data.
     if (data.refresh && workspaceId === WBAH_WORKSPACE_ID) {
       try {
-        const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-        await refreshWbahCallsIncremental();
+        const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
+        await refreshWbahCallsFromRetell();
       } catch (e: any) {
         console.warn("[wbah-calls-paged] incremental refresh failed:", e?.message ?? e);
       }
@@ -1597,6 +1597,43 @@ export const listWbahCallsPaged = createServerFn({ method: "POST" })
       });
       return result;
     });
+  });
+
+// ── Contact call history (drill-down) ─────────────────────────────────────────
+// All calls for one phone number, newest first (lightweight — transcript loaded
+// on demand via getWbahCallDetail). Powers the "N calls" drill-down on the Leads
+// and Qualified pages.
+export const getWbahContactCallHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ phone: z.string().min(1) }))
+  .handler(async ({ context, data }) => {
+    const { supabase, workspaceId } = context;
+    if (!workspaceId) throw new Error("No active workspace");
+    const { data: rows, error } = await (supabase as any)
+      .from("wbah_calls")
+      .select("id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, transcript, call_summary, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status")
+      .eq("workspace_id", workspaceId)
+      .eq("phone", data.phone)
+      .order("started_at", { ascending: false, nullsFirst: false })
+      .limit(100);
+    if (error) throw new Error(error.message);
+    const calls = (rows ?? []).map((r: any) => ({
+      id:                  r.id,
+      name:                r.customer_name ?? null,
+      agentName:           r.agent_name ?? null,
+      callStatus:          r.call_status ?? null,
+      sentiment:           r.sentiment ?? null,
+      durationSeconds:     r.duration_seconds ?? null,
+      startedAt:           r.started_at ?? null,
+      recordingUrl:        r.recording_url ?? null,
+      callSummary:         r.call_summary ?? null,
+      disconnectionReason: r.disconnection_reason ?? null,
+      endReason:           r.end_reason ?? null,
+      appointmentDate:     r.appointment_date ?? null,
+      bookingStatus:       r.booking_status ?? null,
+      hasTranscript:       !!(r.transcript && String(r.transcript).trim()),
+    }));
+    return { phone: data.phone, calls };
   });
 
 // ── Single-call detail (full transcript / summary / recording) ────────────────
@@ -2498,8 +2535,8 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
       // page), so the positive/neutral leads derived below reflect the latest data.
       if (workspaceId === WBAH_WORKSPACE_ID) {
         try {
-          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-          await refreshWbahCallsIncremental();
+          const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
+          await refreshWbahCallsFromRetell();
         } catch (e: any) {
           console.warn("[wbah-posneu-leads] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
         }
@@ -2524,22 +2561,35 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
         from += PAGE;
       }
 
-      // Dedup per contact (phone). Rows are latest-first, so the first time we
-      // encounter a phone is that contact's most-recent call.
-      const seen = new Set<string>();
-      const latest: any[] = [];
+      // Aggregate per contact (phone): one row per person, carrying the call
+      // COUNT and a "definitive outcome" — if any call was positive the contact
+      // is treated as positive (its best/positive call becomes the main call);
+      // otherwise the latest call wins. Previous calls are available via the
+      // drill-down (getWbahContactCallHistory).
+      const byPhone = new Map<string, any[]>();
       for (const c of all) {
         const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        latest.push(c);
+        const arr = byPhone.get(key) ?? [];
+        arr.push(c);
+        byPhone.set(key, arr);
       }
-
-      // Keep only contacts whose latest call came back positive or neutral.
-      const posNeu = latest.filter((c) => {
-        const s = String(c.sentiment ?? "").toLowerCase();
-        return s === "positive" || s === "neutral";
-      });
+      const sentRank = (s: string) => (s === "positive" ? 3 : s === "neutral" ? 2 : s === "negative" ? 1 : 0);
+      const posNeu: any[] = [];
+      for (const calls of byPhone.values()) {
+        // Latest-first (rows already ordered, but be explicit).
+        calls.sort((a, b) => (Date.parse(b.started_at ?? "") || 0) - (Date.parse(a.started_at ?? "") || 0));
+        // Definitive outcome = best sentiment across all the contact's calls.
+        let main = calls[0];
+        let best = sentRank(String(calls[0].sentiment ?? "").toLowerCase());
+        for (const c of calls) {
+          const r = sentRank(String(c.sentiment ?? "").toLowerCase());
+          if (r > best) { best = r; main = c; } // first (latest) call at the best rank
+        }
+        const definitive = String(main.sentiment ?? "").toLowerCase();
+        if (definitive !== "positive" && definitive !== "neutral") continue;
+        main.__callCount = calls.length;
+        posNeu.push(main);
+      }
 
       // Transcripts are heavy, so pull them only for the kept contacts, chunked
       // to stay under PostgREST's row cap.
@@ -2595,6 +2645,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
             calendly_booking_url: c.calendly_booking_url ?? null,
             agent_name:           c.agent_name ?? null,
             partial_qualified:    partialQualified,
+            call_count:           c.__callCount ?? 1,
           },
         };
       });
@@ -2662,8 +2713,8 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
       // latest data.
       if (workspaceId === WBAH_WORKSPACE_ID) {
         try {
-          const { refreshWbahCallsIncremental } = await import("./wbah-leads-sync-tick");
-          await refreshWbahCallsIncremental();
+          const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
+          await refreshWbahCallsFromRetell();
         } catch (e: any) {
           console.warn("[wbah-qualified-leads] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
         }
@@ -2698,6 +2749,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
         c.calendly_booking_url != null && String(c.calendly_booking_url).trim() !== "";
       const latestByPhone = new Map<string, any>();
       const bookingByPhone = new Map<string, any>();
+      const countByPhone = new Map<string, number>();
       const orderKeys: string[] = [];
       for (const c of all) {
         // Dedup key is digits-normalized so the same contact under different
@@ -2705,6 +2757,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
         // agent-map matching below).
         const digitsKey = String(c.phone ?? "").replace(/\D/g, "");
         const key = digitsKey || `id:${c.id}`;
+        countByPhone.set(key, (countByPhone.get(key) ?? 0) + 1);
         if (!latestByPhone.has(key)) {
           latestByPhone.set(key, c);
           orderKeys.push(key);
@@ -2712,11 +2765,34 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
         if (hasUrl(c) && !bookingByPhone.has(key)) bookingByPhone.set(key, c);
       }
 
-      // Qualified = latest call positive, OR the contact booked an appointment.
+      // Booking data lives in the WeeBespoke CRM feed (wbah_crm_contacts), not in
+      // the Retell call log — enrich it so booked contacts stay Qualified with
+      // their appointment details even though Retell carries no booking field.
+      const crmBookingByDigits = new Map<string, any>();
+      try {
+        const { data: crm } = await (supabaseAdmin as any)
+          .from("wbah_crm_contacts")
+          .select("phone, booking_status, appointment_date, appointment_time, calendly_booking_url")
+          .eq("workspace_id", workspaceId)
+          .not("booking_status", "is", null);
+        for (const r of (crm ?? []) as any[]) {
+          const bs = String(r.booking_status ?? "").toLowerCase();
+          const booked = bs === "success" || bs === "booked" || bs === "confirmed" || !!(r.appointment_date && String(r.appointment_date).trim());
+          if (!booked) continue;
+          const d = String(r.phone ?? "").replace(/\D/g, "");
+          if (d) crmBookingByDigits.set(d, r);
+        }
+      } catch (e: any) {
+        console.warn("[wbah-qualified-leads] CRM booking enrichment skipped:", e?.message ?? e);
+      }
+
+      // Qualified = latest call positive, OR the contact booked an appointment
+      // (from the Retell call log OR the WeeBespoke CRM feed).
       const qualifiedKeys = orderKeys.filter((key) => {
         const latest = latestByPhone.get(key);
         const s = String(latest?.sentiment ?? "").toLowerCase();
-        return s === "positive" || bookingByPhone.has(key);
+        const digits = String(latest?.phone ?? "").replace(/\D/g, "");
+        return s === "positive" || bookingByPhone.has(key) || crmBookingByDigits.has(digits);
       });
 
       // Transcripts are heavy — pull them only for the kept contacts, chunked to
@@ -2759,10 +2835,11 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
       // + a `meta` blob carrying the latest-call (and booking) details.
       return qualifiedKeys.map((key) => {
         const c = latestByPhone.get(key);
-        const booking = bookingByPhone.get(key) ?? null;
-        const apptSrc = booking ?? c; // appointment info from the booking call
-        const startedIso: string | null = c.started_at ?? null;
         const digits = String(c.phone ?? "").replace(/\D/g, "");
+        const crmBooking = crmBookingByDigits.get(digits) ?? null;
+        const booking = bookingByPhone.get(key) ?? crmBooking ?? null;
+        const apptSrc = booking ?? c; // appointment info from the booking source
+        const startedIso: string | null = c.started_at ?? null;
         const agentName = (digits && agentByDigits[digits]) || c.agent_name || null;
         return {
           id:                c.id,
@@ -2790,6 +2867,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
             disconnection_reason: c.disconnection_reason ?? null,
             calendly_booking_url: apptSrc.calendly_booking_url ?? null,
             agent_name:           agentName,
+            call_count:           countByPhone.get(key) ?? 1,
           },
         };
       });

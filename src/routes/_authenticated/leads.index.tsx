@@ -52,7 +52,7 @@ import {
   scheduleQualificationCalls,
   fireScheduledCalls,
 } from "@/lib/dashboard/leads.functions";
-import { listWbahPositiveNeutralLeads } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
+import { listWbahPositiveNeutralLeads, getWbahContactCallHistory, getWbahCallDetail } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 import {
   LEAD_STATUS_CATEGORIES,
   leadMatchesStatusCategory,
@@ -285,6 +285,32 @@ function LeadsPage() {
   };
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
+  const getContactHistoryFn = useServerFn(getWbahContactCallHistory);
+  const getCallDetailFn = useServerFn(getWbahCallDetail);
+  const [callHistory, setCallHistory] = useState<{ name: string; phone: string; loading: boolean; calls: any[] } | null>(null);
+
+  async function openCallHistory(lead: any) {
+    const phone = lead.phone;
+    if (!phone) return;
+    setCallHistory({ name: lead.full_name ?? "Contact", phone, loading: true, calls: [] });
+    try {
+      const res = await getContactHistoryFn({ data: { phone } });
+      setCallHistory({ name: lead.full_name ?? "Contact", phone, loading: false, calls: (res as any)?.calls ?? [] });
+    } catch {
+      setCallHistory({ name: lead.full_name ?? "Contact", phone, loading: false, calls: [] });
+    }
+  }
+
+  async function openHistoryTranscript(call: any) {
+    if (!call?.id) return;
+    setWbahTranscript("Loading transcript…");
+    try {
+      const d = await getCallDetailFn({ data: { id: String(call.id) } });
+      setWbahTranscript((d as any)?.transcript || "No transcript available.");
+    } catch {
+      setWbahTranscript("Failed to load transcript.");
+    }
+  }
 
   // Workspace detection drives this window's data source.
   const [isWbah, setIsWbah] = useState(false);
@@ -915,7 +941,18 @@ function LeadsPage() {
                           />
                         </td>
                         <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
-                          {lead.full_name ?? "—"}
+                          <span className="inline-flex items-center gap-1.5">
+                            {lead.full_name ?? "—"}
+                            {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
+                              <button
+                                onClick={() => openCallHistory(lead)}
+                                title="View all calls for this contact"
+                                className="inline-flex items-center gap-0.5 rounded-full bg-blue-500/15 text-blue-400 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-500/25 transition-colors"
+                              >
+                                <Phone className="h-2.5 w-2.5" />{lead.meta.call_count}×
+                              </button>
+                            )}
+                          </span>
                           {lead.company_name && (
                             <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
                           )}
@@ -1183,6 +1220,64 @@ function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Contact call-history drill-down */}
+      {callHistory !== null && (
+        <Dialog open onOpenChange={() => setCallHistory(null)}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{callHistory.name} — Call History</DialogTitle>
+              <DialogDescription>
+                {callHistory.phone} · {callHistory.calls.length} call{callHistory.calls.length !== 1 ? "s" : ""}. The main lead shows the definitive outcome (a positive call wins); here are all attempts.
+              </DialogDescription>
+            </DialogHeader>
+            {callHistory.loading ? (
+              <div className="py-8 flex items-center justify-center text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading calls…
+              </div>
+            ) : callHistory.calls.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No calls found.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <th className="px-2 py-1.5">Date</th>
+                      <th className="px-2 py-1.5">Outcome</th>
+                      <th className="px-2 py-1.5">Sentiment</th>
+                      <th className="px-2 py-1.5">Duration</th>
+                      <th className="px-2 py-1.5">Agent</th>
+                      <th className="px-2 py-1.5">Recording</th>
+                      <th className="px-2 py-1.5">Transcript</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {callHistory.calls.map((c: any) => (
+                      <tr key={c.id} className="border-b border-white/[0.04] align-middle">
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtCallDate(c.startedAt)}</td>
+                        <td className="px-2 py-1.5">{callStatusBadge(c.callStatus)}</td>
+                        <td className="px-2 py-1.5">{sentimentBadge(c.sentiment)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{fmtDuration(c.durationSeconds != null ? c.durationSeconds * 1000 : null)}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.agentName ?? "—"}</td>
+                        <td className="px-2 py-1.5">
+                          {c.recordingUrl
+                            ? <a href={c.recordingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><PlayCircle className="h-3 w-3" />Play</a>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {c.hasTranscript
+                            ? <button onClick={() => openHistoryTranscript(c)} className="text-violet-400 hover:underline">View</button>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* WBAH Transcript modal */}
       {wbahTranscript !== null && (
