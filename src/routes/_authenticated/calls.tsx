@@ -729,9 +729,9 @@ function CallsPage() {
                           className={cn(
                             "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
                             i === 0 && cn(stickyHead, "left-0 w-9"),
-                            i === 1 && cn(stickyHead, "left-9 w-14"),
-                            i === 2 && cn(stickyHead, "left-[5.75rem] w-10"),
-                            i === 3 && cn(stickyHead, "left-[8.25rem] w-24"),
+                            i === 1 && cn(stickyHead, "left-9 w-10 text-center"),
+                            i === 2 && cn(stickyHead, "left-[4.75rem] w-10"),
+                            i === 3 && cn(stickyHead, "left-[7.25rem] w-28"),
                             i === 4 && cn(stickyHead, "left-[14.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
                           )}
                         >
@@ -748,19 +748,19 @@ function CallsPage() {
                       return (
                         <tr key={c.id} className="group h-8 border-b border-white/[0.04] last:border-0 align-middle hover:bg-white/[0.02] transition-colors">
                           <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-0 w-9")}>{idx + 1}</td>
-                          <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-14")}>
+                          <td className={cn("px-2 py-0.5", stickyCell, "left-9 w-10 text-center")}>
                             {(c.call_count ?? 1) > 1 ? (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400 tabular-nums">×{c.call_count}</span>
+                              <span className="inline-flex items-center justify-center rounded-full bg-amber-500/15 px-1 py-0.5 text-[9px] font-semibold text-amber-400 tabular-nums">×{c.call_count}</span>
                             ) : (
                               <span className="text-[10px] text-muted-foreground tabular-nums">1</span>
                             )}
                           </td>
-                          <td className={cn("px-2 py-0.5", stickyCell, "left-[5.75rem] w-10")} onClick={(e) => e.stopPropagation()}>
+                          <td className={cn("px-2 py-0.5", stickyCell, "left-[4.75rem] w-10")} onClick={(e) => e.stopPropagation()}>
                             {phone
                               ? <a href={`tel:${phone}`} className="inline-flex rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"><Phone className="h-3 w-3" /></a>
                               : <Phone className="h-3 w-3 text-muted-foreground/30" />}
                           </td>
-                          <td className={cn("max-w-[6rem] truncate px-2 py-0.5 text-[11px] font-medium", stickyCell, "left-[8.25rem] w-24")}>{name}</td>
+                          <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[11px] font-medium", stickyCell, "left-[7.25rem] w-28")}>{name}</td>
                           <td className={cn("max-w-[7rem] truncate px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums", stickyCell, "left-[14.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>{phone ?? "N/A"}</td>
                           <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{callType}</td>
                           <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">

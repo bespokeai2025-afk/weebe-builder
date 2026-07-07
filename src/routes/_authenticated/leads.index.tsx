@@ -898,8 +898,8 @@ function LeadsPage() {
                           onCheckedChange={toggleSelectAll}
                         />
                       </th>
-                      <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", isWbah && cn(stickyHead, "left-8 w-28"))}>Name</th>
-                      <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", isWbah && cn(stickyHead, "left-[9.75rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"))}>Phone</th>
+                      <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", isWbah && cn(stickyHead, "left-8 w-44"))}>Name</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Phone</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Status</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Sentiment</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Score</th>
@@ -941,24 +941,24 @@ function LeadsPage() {
                             onCheckedChange={() => toggleSelect(lead.id)}
                           />
                         </td>
-                        <td className={cn("max-w-[7rem] px-2 py-0.5 text-[11px] font-medium", isWbah && cn(stickyCell, "left-8 w-28"))}>
-                          <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
-                            <span className="truncate">{lead.full_name ?? "—"}</span>
+                        <td className={cn("px-2 py-0.5", isWbah && cn(stickyCell, "left-8 w-44 overflow-hidden"))}>
+                          <div className="min-w-0">
+                            <div className="truncate text-[11px] font-medium">{lead.full_name ?? "—"}</div>
                             {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
                               <button
                                 onClick={() => openCallHistory(lead)}
                                 title="View all calls for this contact"
-                                className="inline-flex items-center gap-0.5 rounded-full bg-blue-500/15 text-blue-400 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-500/25 transition-colors"
+                                className="mt-0.5 inline-flex items-center gap-0.5 rounded-full bg-blue-500/15 text-blue-400 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-500/25 transition-colors"
                               >
-                                <Phone className="h-2.5 w-2.5" />{lead.meta.call_count}×
+                                <Phone className="h-2.5 w-2.5 shrink-0" />{lead.meta.call_count}×
                               </button>
                             )}
-                          </span>
+                          </div>
                           {lead.company_name && (
-                            <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
+                            <div className="truncate text-[10px] text-muted-foreground font-normal">{lead.company_name}</div>
                           )}
                         </td>
-                        <td className={cn("px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px] font-mono", isWbah && cn(stickyCell, "left-[9.75rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]"))}>
+                        <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px] font-mono">
                           {lead.phone}
                         </td>
                         {/* Status picker */}

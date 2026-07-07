@@ -27,7 +27,7 @@ import {
 import { CallSchedulingSection } from "@/components/dashboard/CallSchedulingSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
+import { DashboardPage, KpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { useTablePagination, TablePagBar } from "@/components/ui/table-pagination";
 import { toast } from "sonner";
@@ -381,28 +381,28 @@ function QualifiedPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-5">
+    <DashboardPage>
       {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-base font-semibold tracking-tight">Qualified</h1>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <h1 className="text-sm font-semibold tracking-tight">Qualified</h1>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
             Contacts scored and routed after qualification calls
           </p>
         </div>
-        <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={refresh}>
-          <RefreshCw className="h-3.5 w-3.5" />
+        <Button variant="ghost" size="sm" className="h-7 gap-1 px-2.5 text-xs" onClick={refresh}>
+          <RefreshCw className="h-3 w-3" />
           Refresh
         </Button>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-white/[0.06]">
+      <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
         {(["contacts", "campaigns"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setQualTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-2.5 py-1 text-[11px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               qualTab === t
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -442,7 +442,7 @@ function QualifiedPage() {
         const wbahBooked = isWbah ? filtered.filter((r: any) => r.meta?.calendly_booking_url).length : 0;
         const wbahPositive = isWbah ? filtered.filter((r: any) => normalizeSentiment(r.sentiment) === "positive").length : 0;
         return (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-5">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             <KpiCard
               label="Total Qualified"
               value={isWbah ? wbahTotal : (stats?.total ?? "—")}
@@ -472,21 +472,21 @@ function QualifiedPage() {
       })()}
 
       {/* Filters */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <div className="relative flex-shrink-0">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <div className="relative min-w-0 flex-shrink-0">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, phone…"
-            className="h-8 w-52 pl-8 text-xs"
+            className="h-6 w-36 pl-7 text-[11px] sm:w-40"
           />
         </div>
         {isWbah && (
           <select
             value={wbahDaysFilter}
             onChange={(e) => setWbahDaysFilter(e.target.value)}
-            className="h-8 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+            className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -502,7 +502,7 @@ function QualifiedPage() {
           <select
             value={wbahAgentFilter}
             onChange={(e) => setWbahAgentFilter(e.target.value)}
-            className="h-8 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+            className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
           >
             <option value="all">All agents</option>
             {wbahAgentOptions.map((a) => (
@@ -513,106 +513,106 @@ function QualifiedPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
         <div className="p-0">
           {(isWbah ? wbahLeadsQ.isLoading : leadsQ.isLoading) ? (
             <LoadingProgress label="Loading qualified contacts" estimatedMs={8000} />
           ) : rows.length === 0 ? (
-            <div className="py-16 text-center">
-              <CheckCircle2 className="mx-auto h-8 w-8 text-muted-foreground/50" />
+            <div className="flex flex-col items-center gap-2 py-10 text-center">
+              <CheckCircle2 className="h-7 w-7 text-muted-foreground/50" />
               <h3 className="mt-3 text-sm font-medium">No qualified contacts yet</h3>
               <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">
                 Build a Client Qualification agent, run calls, and qualified contacts will appear here automatically.
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+            <div className="min-w-0 overflow-x-auto">
+              <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Budget</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Decision</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Urgency</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Step</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Contact</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Name</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Phone</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Status</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Score</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Budget</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Decision</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Interest</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Urgency</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Summary</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Next Step</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Contact</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Called At</th>
                     {isRetell && <>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Call Status</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Duration</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Recording</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
                     </>}
                     {isWbah && <>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Agent</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Date</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Time</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Booking</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Disconnection</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Agent</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Call Status</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Duration</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Recording</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Appt Date</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Appt Time</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Booking</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Disconnection</th>
                     </>}
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Actions</th>
-                    <th className="px-3 py-2 w-8"></th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Actions</th>
+                    <th className="px-2 py-1 w-8"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {qualPag.sliced.map((lead: any) => (
                     <tr
                       key={lead.id}
-                      className="h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
+                      className="group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors"
                     >
-                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5">
-                          {lead.full_name ?? "—"}
+                      <td className="max-w-[11rem] px-2 py-0.5 text-[11px] font-medium">
+                        <div className="min-w-0">
+                          <div className="truncate">{lead.full_name ?? "—"}</div>
                           {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
                             <button
                               onClick={() => openCallHistory(lead)}
                               title="View all calls for this contact"
-                              className="inline-flex items-center gap-0.5 rounded-full bg-blue-500/15 text-blue-400 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-500/25 transition-colors"
+                              className="mt-0.5 inline-flex items-center gap-0.5 rounded-full bg-blue-500/15 text-blue-400 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-500/25 transition-colors"
                             >
-                              <Phone className="h-2.5 w-2.5" />{lead.meta.call_count}×
+                              <Phone className="h-2.5 w-2.5 shrink-0" />{lead.meta.call_count}×
                             </button>
                           )}
-                        </span>
+                        </div>
                         {lead.company_name && (
-                          <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
+                          <div className="truncate text-[10px] text-muted-foreground font-normal">{lead.company_name}</div>
                         )}
                       </td>
-                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px] font-mono">
+                      <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px] font-mono">
                         {lead.phone}
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2 py-0.5">
                         {qualStatusBadge(lead.qualification_status ?? lead.status)}
                       </td>
-                      <td className="px-3 py-1.5">{scoreBadge(lead.qualification_score ?? lead.lead_score)}</td>
-                      <td className="px-3 py-1.5">{boolBadge(lead.budget_confirmed, "✓", "—")}</td>
-                      <td className="px-3 py-1.5">{boolBadge(lead.decision_maker, "✓", "—")}</td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2 py-0.5">{scoreBadge(lead.qualification_score ?? lead.lead_score)}</td>
+                      <td className="px-2 py-0.5">{boolBadge(lead.budget_confirmed, "✓", "—")}</td>
+                      <td className="px-2 py-0.5">{boolBadge(lead.decision_maker, "✓", "—")}</td>
+                      <td className="px-2 py-0.5">
                         {lead.interest_level ? (
                           <span className="text-[11px] capitalize text-muted-foreground">{lead.interest_level}</span>
                         ) : "—"}
                       </td>
-                      <td className="px-3 py-1.5">{urgencyBadge(lead.urgency)}</td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground max-w-[200px] align-middle">
+                      <td className="px-2 py-0.5">{urgencyBadge(lead.urgency)}</td>
+                      <td className="px-2 py-0.5 text-xs text-muted-foreground max-w-[200px] align-middle">
                         <SummaryTooltip text={lead.call_summary} lines={2} />
                       </td>
-                      <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[160px] align-middle">
+                      <td className="px-2 py-0.5 text-[11px] text-muted-foreground max-w-[160px] align-middle">
                         <span className="line-clamp-1">{lead.next_step ?? lead.next_action ?? "—"}</span>
                       </td>
-                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
+                      <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
                         {fmtDate(lead.last_contacted_at)}
                       </td>
-                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
+                      <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
                         {fmtCallDate(
                           isWbah ? lead.meta?.last_called_at
                           : isRetell ? lead.retell_call?.started_at
@@ -620,43 +620,43 @@ function QualifiedPage() {
                         )}
                       </td>
                       {isRetell && <>
-                        <td className="px-3 py-1.5">{callStatusBadge(lead.retell_call?.call_status)}</td>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
-                        <td className="px-3 py-1.5">
+                        <td className="px-2 py-0.5">{callStatusBadge(lead.retell_call?.call_status)}</td>
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
+                        <td className="px-2 py-0.5">
                           {lead.retell_call?.recording_url
                             ? <a href={lead.retell_call.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
                             : <span className="text-muted-foreground text-[11px]">—</span>}
                         </td>
-                        <td className="px-3 py-1.5">
+                        <td className="px-2 py-0.5">
                           {lead.retell_call?.transcript
                             ? <button onClick={() => setWbahTranscript(lead.retell_call.transcript)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                             : <span className="text-muted-foreground text-[11px]">—</span>}
                         </td>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
                           {lead.retell_call?.disconnection_reason ? String(lead.retell_call.disconnection_reason).replace(/_/g, " ") : "—"}
                         </td>
                       </>}
                       {isWbah && <>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.agent_name ?? "—"}</td>
-                        <td className="px-3 py-1.5">{callStatusBadge(lead.meta?.call_status)}</td>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
-                        <td className="px-3 py-1.5">
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.agent_name ?? "—"}</td>
+                        <td className="px-2 py-0.5">{callStatusBadge(lead.meta?.call_status)}</td>
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
+                        <td className="px-2 py-0.5">
                           {lead.meta?.recording_url
                             ? <a href={lead.meta.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
                             : <span className="text-muted-foreground text-[11px]">—</span>}
                         </td>
-                        <td className="px-3 py-1.5">
+                        <td className="px-2 py-0.5">
                           {lead.call_summary
                             ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                             : <span className="text-muted-foreground text-[11px]">—</span>}
                         </td>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
-                        <td className="px-3 py-1.5">{bookingStatusBadge(lead.meta?.booking_status)}</td>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
+                        <td className="px-2 py-0.5">{bookingStatusBadge(lead.meta?.booking_status)}</td>
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
                       </>}
-                      <td className="px-3 py-1.5">
+                      <td className="px-2 py-0.5">
                         <div className="flex gap-1">
                           {STATUS_ACTIONS.map((opt) => (
                             <button
@@ -670,7 +670,7 @@ function QualifiedPage() {
                           ))}
                         </div>
                       </td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2 py-0.5">
                         <button
                           onClick={() => openPanel(lead)}
                           title="Notes & appointment"
@@ -776,6 +776,6 @@ function QualifiedPage() {
           leadId={panel.leadId}
         />
       )}
-    </div>
+    </DashboardPage>
   );
 }
