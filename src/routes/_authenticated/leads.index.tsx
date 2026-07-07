@@ -290,6 +290,7 @@ function LeadsPage() {
     defaultPhone?: string;
     defaultEmail?: string;
     leadId?: string | null;
+    callSummary?: string | null;
   };
   const [panel, setPanel] = useState<PanelTarget | null>(null);
   const [wbahTranscript, setWbahTranscript] = useState<string | null>(null);
@@ -332,7 +333,19 @@ function LeadsPage() {
       defaultPhone: lead.phone ?? undefined,
       defaultEmail: lead.email ?? undefined,
       leadId: lead.id,
+      callSummary: lead.call_summary ?? null,
     });
+  }
+
+  async function openWbahTranscriptFromLead(lead: any) {
+    if (!lead?.id) return;
+    setWbahTranscript("Loading transcript…");
+    try {
+      const d = await getCallDetailFn({ data: { id: String(lead.id) } });
+      setWbahTranscript((d as any)?.transcript || "No transcript available.");
+    } catch {
+      setWbahTranscript("Failed to load transcript.");
+    }
   }
 
   const leadsQ = useQuery({
@@ -1062,7 +1075,11 @@ function LeadsPage() {
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
                           <td className="px-2 py-0.5">
-                            {lead.call_summary
+                            {isWbah
+                              ? (lead.meta?.has_transcript
+                                ? <button onClick={() => openWbahTranscriptFromLead(lead)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
+                                : <span className="text-muted-foreground text-[11px]">—</span>)
+                              : lead.call_summary
                               ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
@@ -1328,6 +1345,7 @@ function LeadsPage() {
           defaultPhone={panel.defaultPhone}
           defaultEmail={panel.defaultEmail}
           leadId={panel.leadId}
+          callSummary={panel.callSummary}
         />
       )}
 

@@ -1380,7 +1380,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
   const sb = supabase as any;
   const lite = opts?.lite ?? false;
   const cols = lite
-    ? "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count, transcript"
+    ? "id, customer_name, phone, agent_name, call_status, call_type, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url, call_count, call_summary, transcript"
     : "*";
   // Supabase PostgREST caps rows at 1000 by default — paginate to fetch all.
   const PAGE = 1000;
@@ -1413,7 +1413,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
     // fetches it on demand. `hasTranscript` still drives the "View" button.
     transcript:           lite ? null : r.transcript,
     hasTranscript:        !!(r.transcript && String(r.transcript).trim()),
-    call_summary:         lite ? null : r.call_summary,
+    call_summary:         lite ? (r.call_summary && String(r.call_summary).trim() ? String(r.call_summary).trim() : null) : r.call_summary,
     from_number:          r.call_type === "inbound"  ? r.phone : null,
     to_number:            r.call_type === "outbound" ? r.phone : null,
     sentiment:            r.sentiment,
@@ -2588,17 +2588,23 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
         posNeu.push(main);
       }
 
-      // Transcripts are heavy, so pull them only for the kept contacts, chunked
-      // to stay under PostgREST's row cap.
-      const transcriptById = new Map<string, string | null>();
+      // Transcripts are heavy — pull them only for the kept contacts, chunked to
+      // stay under PostgREST's row cap. call_summary is small and returned for the
+      // Summary column; full transcript stays on-demand via getWbahCallDetail.
+      const summaryById = new Map<string, string | null>();
+      const hasTranscriptById = new Map<string, boolean>();
       const ids = posNeu.map((c) => c.id).filter(Boolean);
       for (let i = 0; i < ids.length; i += 500) {
         const chunk = ids.slice(i, i + 500);
         const { data: trows } = await (supabaseAdmin as any)
           .from("wbah_calls")
-          .select("id, transcript")
+          .select("id, transcript, call_summary")
           .in("id", chunk);
-        for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
+        for (const t of (trows ?? []) as any[]) {
+          const summary = t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
+          summaryById.set(t.id, summary);
+          hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
+        }
       }
 
       console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
@@ -2610,7 +2616,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
         const crm = phoneDigits(c.phone) ? crmBookingByDigits.get(phoneDigits(c.phone)) : null;
         const appt = resolveWbahBookingFields(c, bookingCall, crm);
         const startedIso: string | null = c.started_at ?? null;
-        const transcript = transcriptById.get(c.id) ?? null;
+        const summary = summaryById.get(c.id) ?? null;
         const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
         const durationSec = Number(c.duration_seconds ?? 0);
         const partialQualified = sentiment === "neutral" && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
@@ -2624,7 +2630,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
           lead_score:        null,
           interest_level:    null,
           status:            null,
-          call_summary:      transcript,
+          call_summary:      summary,
           next_action:       null,
           last_contacted_at: startedIso,
           created_at:        startedIso,
@@ -2642,6 +2648,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
             agent_name:           appt.agent_name ?? c.agent_name ?? null,
             partial_qualified:    partialQualified,
             call_count:           c.__callCount ?? 1,
+            has_transcript:       hasTranscriptById.get(c.id) ?? false,
           },
         };
       });
@@ -2733,14 +2740,19 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
       });
 
       const keptIds = qualifiedKeys.map((k) => latestByPhone.get(k)?.id).filter(Boolean);
-      const transcriptById = new Map<string, string | null>();
+      const summaryById = new Map<string, string | null>();
+      const hasTranscriptById = new Map<string, boolean>();
       for (let i = 0; i < keptIds.length; i += 500) {
         const chunk = keptIds.slice(i, i + 500);
         const { data: trows } = await (supabaseAdmin as any)
           .from("wbah_calls")
-          .select("id, transcript")
+          .select("id, transcript, call_summary")
           .in("id", chunk);
-        for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
+        for (const t of (trows ?? []) as any[]) {
+          const summary = t.call_summary && String(t.call_summary).trim() ? String(t.call_summary).trim() : null;
+          summaryById.set(t.id, summary);
+          hasTranscriptById.set(t.id, !!(t.transcript && String(t.transcript).trim()));
+        }
       }
 
       const neededDigits = new Set<string>();
@@ -2785,7 +2797,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
           lead_score:        null,
           interest_level:    null,
           status:            null,
-          call_summary:      transcriptById.get(c.id) ?? null,
+          call_summary:      summaryById.get(c.id) ?? null,
           next_action:       null,
           last_contacted_at: startedIso,
           created_at:        startedIso,
@@ -2803,6 +2815,7 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
             agent_name:           agentName,
             partial_qualified:    partialQualified,
             call_count:           countByPhone.get(key) ?? 1,
+            has_transcript:       hasTranscriptById.get(c.id) ?? false,
           },
         };
       });

@@ -112,6 +112,7 @@ type PanelTarget = {
   defaultPhone?: string;
   defaultEmail?: string;
   leadId?: string | null;
+  callSummary?: string | null;
 };
 
 function fmtCost(cents?: number | null) {
@@ -454,6 +455,7 @@ function CallsPage() {
       entityName: contact,
       defaultPhone: phone ?? undefined,
       leadId: c.lead_id ?? null,
+      callSummary: c.call_summary ?? null,
     });
   }
 
@@ -723,7 +725,7 @@ function CallsPage() {
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map((h, i) => (
+                      {["SR No","Times Called","Dial","Name","Contact","Type","Last Called At","Call Status","Call Duration","Recording","Sentiment Analysis","Summary","Transcript","View","Appointment Date","Appointment Time","Booking Status","Calendly Booking Url","End Reason","Disconnection Reason"].map((h, i) => (
                         <th
                           key={h}
                           className={cn(
@@ -783,6 +785,9 @@ function CallsPage() {
                             <span className={cn("text-[11px] capitalize", sentimentClass(c.sentiment ?? "neutral").replace(/bg-\S+/g, "").replace(/\s+/g, " ").trim())}>
                               {c.sentiment ? c.sentiment.charAt(0).toUpperCase() + c.sentiment.slice(1) : "Neutral"}
                             </span>
+                          </td>
+                          <td className="max-w-[200px] px-2 py-0.5 text-xs text-muted-foreground align-middle">
+                            <SummaryTooltip text={c.call_summary} lines={2} />
                           </td>
                           <td className="px-2 py-0.5" onClick={(e) => e.stopPropagation()}>
                             {(c.transcript || c.hasTranscript)
@@ -1014,6 +1019,7 @@ function CallsPage() {
           defaultPhone={panel.defaultPhone}
           defaultEmail={panel.defaultEmail}
           leadId={panel.leadId}
+          callSummary={panel.callSummary}
         />
       )}
     </DashboardPage>
