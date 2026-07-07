@@ -2066,30 +2066,164 @@ async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
   return out;
 }
 
-// Resilient wrapper: the WeeBespoke API allows only ONE active session, so a
-// concurrent login (another WBAH request, or a background relogin) can invalidate
-// the token mid-fetch and return empty/401 — which used to blank the People tab.
-// We keep a durable "last-good" snapshot (24h) and serve it whenever the live
-// fetch fails or comes back empty, so People stays up even through an extended
-// session outage. The snapshot (~1.8MB) is well under the Redis size cap and is
-// refreshed on every successful live fetch.
-const WBAH_CRM_LASTGOOD_TTL = 24 * 60 * 60; // 24h
-async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
-  const goodKey = `webee:wbah-crm-contacts-good:${workspaceId}`;
-  return cacheWrap(`webee:wbah-crm-contacts:${workspaceId}`, 60, async () => {
+// ── Durable People contacts via Supabase (source of truth) ────────────────────
+// The WeeBespoke API allows only ONE active session, so live reads blank the
+// People tab whenever the session is invalidated. We persist the CRM-loaded
+// contacts into `wbah_crm_contacts` and READ from Supabase; the live WeeBespoke
+// feed is only touched by a throttled background sync. A Redis "last-good"
+// snapshot remains as a cold-start fallback.
+
+const WBAH_CRM_LASTGOOD_TTL = 24 * 60 * 60; // 24h Redis fallback
+const WBAH_CRM_SYNC_TTL_MS  = 5 * 60 * 1000; // refresh from WeeBespoke at most every 5 min
+let _wbahCrmSyncAt = 0;
+let _wbahCrmSyncInflight: Promise<void> | null = null;
+
+function crmContactToDbRow(c: any, workspaceId: string, syncTime: string) {
+  const phone = c.toNumber ?? c.fromNumber ?? c.phone ?? null;
+  const dedup = phone && String(phone).trim()
+    ? String(phone).trim()
+    : `id:${c.lead_id ?? c.callId ?? c.id}`;
+  return {
+    dedup_key:            dedup,
+    workspace_id:         workspaceId,
+    external_id:          String(c.lead_id ?? c.callId ?? c.id ?? ""),
+    phone,
+    name:                 c.name ?? null,
+    email:                c.email ?? null,
+    lead_status:          c.__leadStatus ?? wbahContactLeadStatus(c),
+    call_status:          c.callStatus ?? null,
+    sentiment:            c.sentimentAnalysis ?? null,
+    disconnection_reason: c.disconnectionReason ?? null,
+    end_reason:           c.endReason ?? null,
+    agent_name:           c.agentName ?? null,
+    duration_ms:          c.durationMs != null ? Number(c.durationMs) : null,
+    start_timestamp:      c.startTimestamp != null ? Number(c.startTimestamp) : null,
+    recording_url:        c.recordingUrl ?? null,
+    transcript:           c.transcript ?? null,
+    appointment_date:     c.appointment_date ?? null,
+    appointment_time:     c.appointment_time ?? null,
+    booking_status:       c.booking_status ?? null,
+    calendly_booking_url: c.calendly_booking_url ?? null,
+    crm_loaded_at:        c.createdAt ?? c.created_at ?? null,
+    synced_at:            syncTime,
+  };
+}
+
+function dbRowToCrmContact(row: any) {
+  return {
+    id:                  row.external_id || row.dedup_key,
+    callId:              null,
+    lead_id:             row.external_id,
+    name:                row.name,
+    toNumber:            row.phone,
+    fromNumber:          null,
+    phone:               row.phone,
+    email:               row.email,
+    callStatus:          row.call_status,
+    sentimentAnalysis:   row.sentiment,
+    disconnectionReason: row.disconnection_reason,
+    endReason:           row.end_reason,
+    agentName:           row.agent_name,
+    durationMs:          row.duration_ms,
+    startTimestamp:      row.start_timestamp,
+    recordingUrl:        row.recording_url,
+    transcript:          row.transcript,
+    appointment_date:    row.appointment_date,
+    appointment_time:    row.appointment_time,
+    booking_status:      row.booking_status,
+    calendly_booking_url: row.calendly_booking_url,
+    createdAt:           row.crm_loaded_at,
+    created_at:          row.crm_loaded_at,
+    __cat:               "disqualified",
+    __leadStatus:        row.lead_status || "Uncategorized",
+  };
+}
+
+// Pull the live feed and replace the workspace's rows in wbah_crm_contacts.
+async function syncWbahCrmContactsToDb(userId: string, workspaceId: string): Promise<void> {
+  const live = await fetchWbahCrmLoadedContactsLive(userId); // non-booked, deduped; throws on failure/empty
+  const syncTime = new Date().toISOString();
+  const rows = live.map((c) => crmContactToDbRow(c, workspaceId, syncTime));
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
+    const { error } = await (supabaseAdmin as any)
+      .from("wbah_crm_contacts")
+      .upsert(chunk, { onConflict: "workspace_id,dedup_key" });
+    if (error) throw new Error(error.message);
+  }
+  // Remove contacts no longer in the feed (booked / cleared) — anything not
+  // touched by this sync.
+  await (supabaseAdmin as any)
+    .from("wbah_crm_contacts")
+    .delete()
+    .eq("workspace_id", workspaceId)
+    .lt("synced_at", syncTime);
+
+  // Keep the Redis cold-start fallback fresh too.
+  await cacheSet(`webee:wbah-crm-contacts-good:${workspaceId}`, WBAH_CRM_LASTGOOD_TTL, live);
+  console.log(`[wbah-crm-contacts] synced ${rows.length} contacts to Supabase`);
+}
+
+async function readWbahCrmContactsFromDb(workspaceId: string): Promise<any[]> {
+  const PAGE = 1000;
+  const all: any[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await (supabaseAdmin as any)
+      .from("wbah_crm_contacts")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .neq("booking_status", "success")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+  return all.map(dbRowToCrmContact);
+}
+
+// Throttled background refresh (best-effort; non-blocking on warm reads).
+function ensureWbahCrmSynced(userId: string, workspaceId: string): void {
+  if (Date.now() - _wbahCrmSyncAt < WBAH_CRM_SYNC_TTL_MS) return;
+  if (_wbahCrmSyncInflight) return;
+  _wbahCrmSyncInflight = (async () => {
     try {
-      const live = await fetchWbahCrmLoadedContactsLive(userId);
-      await cacheSet(goodKey, WBAH_CRM_LASTGOOD_TTL, live); // durable last-good snapshot
-      return live;
+      await syncWbahCrmContactsToDb(userId, workspaceId);
+      _wbahCrmSyncAt = Date.now();
     } catch (e: any) {
-      const lastGood = await cacheGet<any[]>(goodKey);
+      console.warn(`[wbah-crm-contacts] background sync failed: ${e?.message}`);
+    } finally {
+      _wbahCrmSyncInflight = null;
+    }
+  })();
+}
+
+async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
+  let rows = await readWbahCrmContactsFromDb(workspaceId);
+
+  if (rows.length === 0) {
+    // Cold start — populate synchronously so the tab has data on first open.
+    try {
+      await syncWbahCrmContactsToDb(userId, workspaceId);
+      _wbahCrmSyncAt = Date.now();
+      rows = await readWbahCrmContactsFromDb(workspaceId);
+    } catch (e: any) {
+      // Live fetch failed on cold start — try the Redis last-good snapshot.
+      const lastGood = await cacheGet<any[]>(`webee:wbah-crm-contacts-good:${workspaceId}`);
       if (Array.isArray(lastGood) && lastGood.length > 0) {
-        console.warn(`[wbah-crm-contacts] live fetch failed (${e?.message}); serving last-good snapshot (${lastGood.length} contacts)`);
+        console.warn(`[wbah-crm-contacts] cold start live fetch failed (${e?.message}); serving Redis last-good (${lastGood.length})`);
         return lastGood;
       }
       throw e;
     }
-  });
+  } else {
+    // Warm — refresh from WeeBespoke in the background (throttled, non-blocking).
+    ensureWbahCrmSynced(userId, workspaceId);
+  }
+  return rows;
 }
 
 // Returns one category's page of CRM-loaded contacts, mapped to the row shape
