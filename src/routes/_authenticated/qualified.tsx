@@ -44,7 +44,7 @@ import { listWbahQualifiedLeads, getWbahContactCallHistory, getWbahCallDetail } 
 import { normalizeSentiment } from "@/lib/sentiment";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
-import { WbahNotesButton, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
+import { WbahNotesButton, WbahBookedStickyBadge, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 function QualifiedErrorFallback() {
@@ -642,6 +642,9 @@ function QualifiedPage() {
                       <td className={cn("px-2 py-0.5", isWbah && cn(stickyCell, "left-0 w-44 overflow-hidden"))}>
                         <div className="min-w-0">
                           <div className="truncate text-[11px] font-medium">{lead.full_name ?? "—"}</div>
+                          {isWbah && (
+                            <WbahBookedStickyBadge lead={lead} agentColorMap={wbahAgentColorMap} />
+                          )}
                           {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
                             <button
                               onClick={() => openCallHistory(lead)}

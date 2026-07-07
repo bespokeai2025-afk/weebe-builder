@@ -2529,7 +2529,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-posneu-leads:${workspaceId}`, 60, async () => {
+    return cacheWrap(`webee:wbah-posneu-leads:v2:${workspaceId}`, 60, async () => {
       // Live on open (option 3): refresh the newest calls from WeeBespoke first
       // (incremental, idempotent, concurrency-guarded — deduped with the Calls
       // page), so the positive/neutral leads derived below reflect the latest data.
@@ -2605,10 +2605,20 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
       }
 
       console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
+
+      const { loadWbahCrmBookingByDigits, findWbahBookingCall, resolveWbahBookingFields, phoneDigits } =
+        await import("@/lib/dashboard/wbah-booking-meta");
+      const crmBookingByDigits = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
+
       // Shape rows to match the /leads ("Leads window") table contract so the
       // existing WBAH renderer works unchanged: top-level lead fields + a `meta`
       // blob carrying the latest-call details.
       return posNeu.map((c) => {
+        const phoneKey = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+        const calls = byPhone.get(phoneKey) ?? [c];
+        const bookingCall = findWbahBookingCall(calls);
+        const crm = phoneDigits(c.phone) ? crmBookingByDigits.get(phoneDigits(c.phone)) : null;
+        const appt = resolveWbahBookingFields(c, bookingCall, crm);
         const startedIso: string | null = c.started_at ?? null;
         const transcript = transcriptById.get(c.id) ?? null;
         const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
@@ -2637,13 +2647,13 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
             call_status:          c.call_status ?? null,
             duration_ms:          c.duration_seconds != null ? Number(c.duration_seconds) * 1000 : null,
             recording_url:        c.recording_url ?? null,
-            appointment_date:     c.appointment_date ?? null,
-            appointment_time:     c.appointment_time ?? null,
-            booking_status:       c.booking_status ?? null,
+            appointment_date:     appt.appointment_date ?? null,
+            appointment_time:     appt.appointment_time ?? null,
+            booking_status:       appt.booking_status ?? null,
             end_reason:           c.end_reason ?? null,
             disconnection_reason: c.disconnection_reason ?? null,
-            calendly_booking_url: c.calendly_booking_url ?? null,
-            agent_name:           c.agent_name ?? null,
+            calendly_booking_url: appt.calendly_booking_url ?? null,
+            agent_name:           appt.agent_name ?? c.agent_name ?? null,
             partial_qualified:    partialQualified,
             call_count:           c.__callCount ?? 1,
           },

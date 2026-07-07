@@ -119,9 +119,33 @@ async function getWbahRetellKey(sb: Sb): Promise<{ workspaceId: string; apiKey: 
   return { workspaceId: ws.id as string, apiKey };
 }
 
+const BOOKING_PRESERVE = ["appointment_date", "appointment_time", "booking_status", "calendly_booking_url"] as const;
+
 async function upsertRows(sb: Sb, rows: any[]): Promise<void> {
-  for (let i = 0; i < rows.length; i += 200) {
-    const { error } = await (sb as any).from("wbah_calls").upsert(rows.slice(i, i + 200), { onConflict: "id" });
+  if (rows.length === 0) return;
+  const ids = rows.map((r) => r.id);
+  const { data: existing } = await (sb as any)
+    .from("wbah_calls")
+    .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url")
+    .in("id", ids);
+  const byId = new Map<string, any>(((existing ?? []) as any[]).map((e) => [String(e.id), e]));
+
+  const merged = rows.map((row) => {
+    const prev = byId.get(String(row.id));
+    if (!prev) return row;
+    const out = { ...row };
+    for (const f of BOOKING_PRESERVE) {
+      const next = out[f];
+      const kept = prev[f];
+      if ((next == null || String(next).trim() === "") && kept != null && String(kept).trim() !== "") {
+        out[f] = kept;
+      }
+    }
+    return out;
+  });
+
+  for (let i = 0; i < merged.length; i += 200) {
+    const { error } = await (sb as any).from("wbah_calls").upsert(merged.slice(i, i + 200), { onConflict: "id" });
     if (error) console.error("[wbah-retell-calls] upsert error:", error.message);
   }
 }

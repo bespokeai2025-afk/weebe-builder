@@ -1,5 +1,13 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { cacheWrap } from "@/lib/cache/redis.server";
+import {
+  isWbahRecordBooked,
+  loadWbahCrmBookingByDigits,
+  findWbahBookingCall,
+  resolveWbahBookingFields,
+  phoneDigits,
+} from "@/lib/dashboard/wbah-booking-meta";
+import { parseWbahAppointmentIso } from "@/lib/dashboard/wbah-appointment-display";
 
 // ── Single source of truth for WBAH lead/booking derivation ────────────────────
 // WBAH's `leads` table is dup-inflated (~400k rows), so any ORDER BY / COUNT over it
@@ -106,18 +114,7 @@ export function isWbahPositiveOrNeutral(lead: WbahDerivedLead): boolean {
 }
 
 const BOOKING_COLS =
-  "id, customer_name, phone, agent_name, appointment_date, appointment_time, booking_status, calendly_booking_url";
-
-function isWbahCallBooked(c: {
-  appointment_date?: string | null;
-  booking_status?: string | null;
-  calendly_booking_url?: string | null;
-}): boolean {
-  if (c.calendly_booking_url != null && String(c.calendly_booking_url).trim() !== "") return true;
-  const bs = String(c.booking_status ?? "").toLowerCase();
-  if (bs === "success" || bs === "booked" || bs === "confirmed") return true;
-  return !!(c.appointment_date && String(c.appointment_date).trim());
-}
+  "id, customer_name, phone, agent_name, started_at, appointment_date, appointment_time, booking_status, calendly_booking_url";
 
 function normWbahBookingStatus(status: string | null | undefined): string {
   const s = String(status ?? "").toLowerCase();
@@ -145,9 +142,9 @@ export type WbahCalendarBookingRow = {
 export async function getWbahCalendarBookings(
   workspaceId: string,
 ): Promise<WbahCalendarBookingRow[]> {
-  const { parseWbahAppointmentIso } = await import("@/lib/dashboard/wbah-appointment-display");
+  return cacheWrap(`webee:wbah-calendar-bookings:v2:${workspaceId}`, 60, async () => {
+    const crmBookingByDigits = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
 
-  return cacheWrap(`webee:wbah-calendar-bookings:${workspaceId}`, 60, async () => {
     const PAGE = 1000;
     const all: any[] = [];
     let from = 0;
@@ -166,79 +163,62 @@ export async function getWbahCalendarBookings(
       from += PAGE;
     }
 
-    const bookingByPhone = new Map<string, any>();
+    const byPhone = new Map<string, any[]>();
     for (const c of all) {
-      if (!isWbahCallBooked(c)) continue;
-      const digits = String(c.phone ?? "").replace(/\D/g, "");
-      const key = digits || `id:${c.id}`;
-      if (!bookingByPhone.has(key)) bookingByPhone.set(key, c);
-    }
-
-    const crmBookingByDigits = new Map<string, any>();
-    try {
-      const { data: crm } = await (supabaseAdmin as any)
-        .from("wbah_crm_contacts")
-        .select("phone, name, booking_status, appointment_date, appointment_time, calendly_booking_url, agent_name")
-        .eq("workspace_id", workspaceId);
-      for (const r of (crm ?? []) as any[]) {
-        if (!isWbahCallBooked(r)) continue;
-        const d = String(r.phone ?? "").replace(/\D/g, "");
-        if (d && !crmBookingByDigits.has(d)) crmBookingByDigits.set(d, r);
-      }
-    } catch {
-      /* CRM enrichment is best-effort */
+      const key = phoneDigits(c.phone) || `id:${c.id}`;
+      const arr = byPhone.get(key) ?? [];
+      arr.push(c);
+      byPhone.set(key, arr);
     }
 
     const seen = new Set<string>();
     const rows: WbahCalendarBookingRow[] = [];
 
-    for (const c of bookingByPhone.values()) {
-      const digits = String(c.phone ?? "").replace(/\D/g, "");
-      const key = digits || `id:${c.id}`;
-      if (seen.has(key)) continue;
+    const pushRow = (
+      key: string,
+      c: any,
+      appt: ReturnType<typeof resolveWbahBookingFields>,
+      crm?: { name?: string | null } | null,
+    ) => {
+      if (seen.has(key) || !isWbahRecordBooked(appt)) return;
+      const startAt = parseWbahAppointmentIso(
+        appt.appointment_date,
+        appt.appointment_time,
+        c.started_at ?? null,
+      );
+      if (!startAt) return;
       seen.add(key);
-
-      const crm = digits ? crmBookingByDigits.get(digits) : null;
-      const src = crm ?? c;
-      const startAt = parseWbahAppointmentIso(src.appointment_date, src.appointment_time);
-      if (!startAt) continue;
-
       rows.push({
-        id: String(c.id),
-        title: `${src.name ?? c.customer_name ?? "Contact"} — Appointment`,
+        id: String(c.id ?? key),
+        title: `${crm?.name ?? c.customer_name ?? "Contact"} — Appointment`,
         start_at: startAt,
         end_at: null,
-        status: normWbahBookingStatus(src.booking_status),
-        attendee_name: src.name ?? c.customer_name ?? null,
+        status: normWbahBookingStatus(appt.booking_status),
+        attendee_name: crm?.name ?? c.customer_name ?? null,
         attendee_phone: c.phone ?? null,
-        meeting_url: src.calendly_booking_url ?? c.calendly_booking_url ?? null,
-        agent_name: c.agent_name ?? src.agent_name ?? null,
-        appointment_date: src.appointment_date ?? null,
-        appointment_time: src.appointment_time ?? null,
+        meeting_url: appt.calendly_booking_url ?? null,
+        agent_name: appt.agent_name ?? null,
+        appointment_date: appt.appointment_date ?? null,
+        appointment_time: appt.appointment_time ?? null,
       });
+    };
+
+    for (const [key, calls] of byPhone) {
+      const main = calls[0];
+      const bookingCall = findWbahBookingCall(calls);
+      const crm = phoneDigits(main.phone) ? crmBookingByDigits.get(phoneDigits(main.phone)) : null;
+      const appt = resolveWbahBookingFields(main, bookingCall, crm);
+      pushRow(key, main, appt, crm);
     }
 
     for (const [digits, crm] of crmBookingByDigits) {
       if (seen.has(digits)) continue;
-      const startAt = parseWbahAppointmentIso(crm.appointment_date, crm.appointment_time);
-      if (!startAt) continue;
-      seen.add(digits);
-      rows.push({
-        id: `crm:${digits}`,
-        title: `${crm.name ?? "Contact"} — Appointment`,
-        start_at: startAt,
-        end_at: null,
-        status: normWbahBookingStatus(crm.booking_status),
-        attendee_name: crm.name ?? null,
-        attendee_phone: crm.phone ?? null,
-        meeting_url: crm.calendly_booking_url ?? null,
-        agent_name: crm.agent_name ?? null,
-        appointment_date: crm.appointment_date ?? null,
-        appointment_time: crm.appointment_time ?? null,
-      });
+      const appt = resolveWbahBookingFields({}, null, crm);
+      pushRow(digits, { id: `crm:${digits}`, phone: crm.phone, customer_name: crm.name, started_at: null }, appt, crm);
     }
 
     rows.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+    console.log(`[WBAH calendar] booked appointments: ${rows.length} (crm=${crmBookingByDigits.size})`);
     return rows;
   });
 }

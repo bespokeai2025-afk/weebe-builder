@@ -1,4 +1,5 @@
 import { normalizeSentiment } from "@/lib/sentiment";
+import { isWbahRecordBooked } from "@/lib/dashboard/wbah-booking-meta";
 
 const PARTIAL_QUALIFIED_MS = 5 * 60 * 1000;
 
@@ -15,18 +16,9 @@ type WbahLeadLike = {
   } | null;
 };
 
-function normBookingStatus(v: string | null | undefined): string {
-  return String(v ?? "").toLowerCase().trim();
-}
-
 /** True when the contact has a Calendly / CRM appointment booked. */
 export function hasWbahAppointmentBooked(lead: WbahLeadLike): boolean {
-  const url = lead.meta?.calendly_booking_url;
-  if (url != null && String(url).trim() !== "") return true;
-  const bs = normBookingStatus(lead.meta?.booking_status);
-  if (bs === "success" || bs === "booked" || bs === "confirmed") return true;
-  const d = lead.meta?.appointment_date;
-  return d != null && String(d).trim() !== "";
+  return isWbahRecordBooked(lead.meta ?? undefined);
 }
 
 export function wbahBookingAgentName(lead: WbahLeadLike): string | null {
@@ -38,10 +30,19 @@ export function wbahBookingAgentName(lead: WbahLeadLike): string | null {
 export function parseWbahAppointmentIso(
   appointmentDate: string | null | undefined,
   appointmentTime: string | null | undefined,
+  fallbackIso?: string | null,
 ): string | null {
-  if (!appointmentDate || !String(appointmentDate).trim()) return null;
+  if (!appointmentDate || !String(appointmentDate).trim()) {
+    return fallbackIso && !isNaN(Date.parse(fallbackIso)) ? fallbackIso : null;
+  }
   const d = String(appointmentDate).trim();
   const t = appointmentTime && String(appointmentTime).trim() ? String(appointmentTime).trim() : "09:00";
+
+  // Full ISO / RFC datetime in appointment_date alone
+  const direct = Date.parse(d);
+  if (!isNaN(direct) && /[T\-\/]/.test(d) && d.length > 8) {
+    return new Date(direct).toISOString();
+  }
 
   if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
     const timePart = /^\d{1,2}:\d{2}/.test(t) ? t : "09:00";
@@ -49,19 +50,27 @@ export function parseWbahAppointmentIso(
     if (!isNaN(parsed.getTime())) return parsed.toISOString();
   }
 
+  // DD/MM/YYYY or DD-MM-YYYY (UK)
   const slash = d.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (slash) {
-    const [, day, month, year] = slash;
+    const [, a, b, year] = slash;
+    const day = Number(a);
+    const month = Number(b);
     const tm = t.match(/^(\d{1,2}):(\d{2})/);
     const hh = tm ? Number(tm[1]) : 9;
     const mm = tm ? Number(tm[2]) : 0;
-    const parsed = new Date(Number(year), Number(month) - 1, Number(day), hh, mm);
+    const parsed = new Date(Number(year), month - 1, day, hh, mm);
     if (!isNaN(parsed.getTime())) return parsed.toISOString();
   }
 
+  // "6 January 2025" / "January 6, 2025"
+  const named = Date.parse(`${d} ${t}`);
+  if (!isNaN(named)) return new Date(named).toISOString();
+
   const fallback = new Date(`${d} ${t}`);
   if (!isNaN(fallback.getTime())) return fallback.toISOString();
-  return null;
+
+  return fallbackIso && !isNaN(Date.parse(fallbackIso)) ? fallbackIso : null;
 }
 
 export function wbahAppointmentStartIso(lead: WbahLeadLike): string | null {
