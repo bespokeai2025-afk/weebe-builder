@@ -1030,8 +1030,8 @@ function WbahAgentReconcileSection() {
       setReport(res);
       if (apply) {
         const imp = (res as any).actions?.imported?.length ?? 0;
-        const cleared = (res as any).actions?.clearedStale?.length ?? 0;
-        toast.success(`Reconciled: imported ${imp}, cleared ${cleared} stale`);
+        const arch = (res as any).actions?.archivedStale?.length ?? 0;
+        toast.success(`Reconciled: imported ${imp}, archived ${arch} stale`);
       }
     } catch (e) {
       toast.error("Reconcile failed", { description: (e as Error).message });
@@ -1091,7 +1091,7 @@ function WbahAgentReconcileSection() {
 
           {(report.orphaned?.length ?? 0) > 0 && (
             <div>
-              <p className="font-medium text-rose-400 mb-1">Stale WeBee agents (Retell id missing){report.applied ? " (cleared, marked undeployed)" : ""}</p>
+              <p className="font-medium text-rose-400 mb-1">Stale WeBee agents (Retell id missing){report.applied ? " (archived)" : ""}</p>
               <ul className="space-y-0.5 text-muted-foreground">
                 {report.orphaned.map((o: any) => <li key={o.id}>• {o.name} <span className="font-mono text-[10px]">{o.retell_agent_id}</span></li>)}
               </ul>

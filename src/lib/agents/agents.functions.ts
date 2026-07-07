@@ -21,6 +21,11 @@ export interface AgentRow {
   created_at: string;
 }
 
+/** True when an agent has been soft-archived (hidden from all agent listings). */
+function isArchivedAgent(settings: unknown): boolean {
+  return (settings as Record<string, unknown> | null)?.archived === true;
+}
+
 /** List the signed-in user's saved agents. */
 export const listMyAgents = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -31,7 +36,7 @@ export const listMyAgents = createServerFn({ method: "GET" })
       .select("id, retell_agent_id, name, cost_seconds, settings, updated_at, created_at, inbound_phone_number")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []) as Array<{
+    return ((data ?? []) as any[]).filter((r) => !isArchivedAgent(r.settings)) as Array<{
       id: string;
       retell_agent_id: string | null;
       name: string;
@@ -57,7 +62,7 @@ export const listAllWorkspaceAgents = createServerFn({ method: "GET" })
       .select("id, retell_agent_id, name, settings")
       .order("updated_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []) as Array<{
+    return ((data ?? []) as any[]).filter((r) => !isArchivedAgent(r.settings)) as Array<{
       id: string;
       retell_agent_id: string | null;
       name: string;
@@ -87,7 +92,7 @@ export const listLiveAgents = createServerFn({ method: "GET" })
     }>;
     return rows.filter((r) => {
       const s = (r.settings ?? {}) as Record<string, unknown>;
-      return s.isLive === true;
+      return s.isLive === true && s.archived !== true;
     });
   });
 
@@ -101,17 +106,19 @@ export const getWorkspaceAgents = createServerFn({ method: "GET" })
       .select("id, name, settings, inbound_phone_number, retell_agent_id, created_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []).map((r: any) => {
-      const s = (r.settings ?? {}) as Record<string, unknown>;
-      return {
-        id:         r.id as string,
-        name:       r.name as string,
-        agentType:  (s.dashboardAgentType as string | undefined) ?? "receptionist",
-        phoneNumber: (s.phoneNumber as string | undefined) ?? (r.inbound_phone_number as string | null) ?? null,
-        isLive:     s.isLive === true,
-        isDeployed: !!(s.deployedRetellAgentId || r.retell_agent_id),
-      };
-    });
+    return (data ?? [])
+      .filter((r: any) => !isArchivedAgent(r.settings))
+      .map((r: any) => {
+        const s = (r.settings ?? {}) as Record<string, unknown>;
+        return {
+          id:         r.id as string,
+          name:       r.name as string,
+          agentType:  (s.dashboardAgentType as string | undefined) ?? "receptionist",
+          phoneNumber: (s.phoneNumber as string | undefined) ?? (r.inbound_phone_number as string | null) ?? null,
+          isLive:     s.isLive === true,
+          isDeployed: !!(s.deployedRetellAgentId || r.retell_agent_id),
+        };
+      });
   });
 
 export const getDashboardLiveAgents = createServerFn({ method: "GET" })
@@ -159,7 +166,7 @@ export const getDashboardLiveAgents = createServerFn({ method: "GET" })
     const localLive: DashAgent[] = rows
       .filter((r) => {
         const s = (r.settings ?? {}) as Record<string, unknown>;
-        return s.isLive === true;
+        return s.isLive === true && s.archived !== true;
       })
       .map(rowToDashAgent);
 

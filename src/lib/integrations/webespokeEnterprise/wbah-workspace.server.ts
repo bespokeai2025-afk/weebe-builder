@@ -1641,7 +1641,8 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
       .select("id, name, retell_agent_id, agent_type, deployment_mode, settings, created_at")
       .eq("workspace_id", WBAH_WORKSPACE_ID);
 
-    const dbRows: any[] = dbAgents ?? [];
+    // Ignore already-archived agents when computing the reconciliation.
+    const dbRows: any[] = (dbAgents ?? []).filter((a: any) => !(a.settings?.archived));
     const dbRetellIds = new Set(dbRows.map((a) => a.retell_agent_id).filter(Boolean));
 
     const matched = dbRows
@@ -1665,7 +1666,7 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
       .filter((arr) => arr.length > 1)
       .map((arr) => ({ retell_agent_id: arr[0].retell_agent_id, rows: arr.map((r) => ({ id: r.id, name: r.name })) }));
 
-    const actions = { imported: [] as any[], clearedStale: [] as any[] };
+    const actions = { imported: [] as any[], archivedStale: [] as any[] };
 
     if (data.apply) {
       // Resolve the WBAH workspace owner as the creator for imported rows.
@@ -1698,17 +1699,21 @@ export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
         if (!error) actions.imported.push({ id: row?.id, name: m.name, retell_agent_id: m.agent_id, agent_type: dashType });
       }
 
-      // Non-destructive: clear the dead Retell id and mark not-live so the agent
-      // shows as an undeployed draft (its builder flow_data is preserved for
-      // re-deploy). deployment_mode is left unchanged to respect its CHECK.
+      // Archive orphaned agents whose Retell agent no longer exists — these are
+      // the stale "old" agents that otherwise linger on the dashboard. A hard
+      // delete cascades ON DELETE SET NULL across many large tables and hits the
+      // DB statement timeout, so we soft-archive instead (cheap single-row
+      // update). Archived agents are filtered out of every agent listing and
+      // their builder flow_data is preserved.
       const orphanRows = dbRows.filter((a) => a.retell_agent_id && !retellById.has(a.retell_agent_id));
       for (const o of orphanRows) {
-        const nextSettings = { ...(o.settings ?? {}), isLive: false };
+        const nextSettings = { ...(o.settings ?? {}), isLive: false, archived: true, archivedAt: new Date().toISOString() };
         const { error } = await (supabaseAdmin as any)
           .from("agents")
           .update({ retell_agent_id: null, settings: nextSettings, updated_at: new Date().toISOString() })
-          .eq("id", o.id);
-        if (!error) actions.clearedStale.push({ id: o.id, name: o.name, retell_agent_id: o.retell_agent_id });
+          .eq("id", o.id)
+          .eq("workspace_id", WBAH_WORKSPACE_ID);
+        if (!error) actions.archivedStale.push({ id: o.id, name: o.name, retell_agent_id: o.retell_agent_id });
       }
     }
 
