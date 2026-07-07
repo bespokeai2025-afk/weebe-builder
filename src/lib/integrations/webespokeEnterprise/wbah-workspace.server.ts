@@ -1599,6 +1599,131 @@ export const getWbahRetellAgents = createServerFn({ method: "GET" })
     }));
   });
 
+// ── Reconcile WeBee agents ↔ Retell (WBAH workspace) ──────────────────────────
+// Cross-references the WBAH `agents` rows against the live Retell agent list
+// (deduped — Retell's /list-agents returns one row per agent version) and, when
+// `apply` is set, heals the mismatch non-destructively:
+//   • imports Retell agents that are missing from WeBee (so they're selectable)
+//   • clears stale `retell_agent_id`s on WeBee agents whose Retell agent no
+//     longer exists (prevents calls/deploys firing at a dead agent). The row and
+//     its builder `flow_data` are preserved so it can simply be re-deployed.
+
+// Fine-grained dashboard type stored in settings.dashboardAgentType (drives the
+// qualification agent picker). The `agent_type` enum column only has coarse
+// values ('lead_gen' | 'receptionist').
+function inferWbahDashboardType(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes("qualif") || n.includes("rebook")) return "client_qualification";
+  return "lead_generation";
+}
+
+export const reconcileWbahRetellAgents = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(
+    z.object({ apply: z.coerce.boolean().default(false) }),
+  )
+  .handler(async ({ context, data }) => {
+    const { retellFetch } = await import("@/lib/providers/retell/client.server");
+    const apiKey = await requireWbahRetellKey(context.userId);
+    const isAdmin = await isPlatformAdmin(context.userId);
+    if (data.apply && !isAdmin) throw new Error("Admin access required to apply changes");
+
+    // Live Retell agents (dedupe versions by agent_id).
+    const agentList = await retellFetch<any[]>("/list-agents", null, "GET", apiKey).catch(() => []);
+    const retellById = new Map<string, string>();
+    for (const a of agentList ?? []) {
+      if (a?.agent_id && !retellById.has(a.agent_id)) retellById.set(a.agent_id, a.agent_name ?? a.agent_id);
+    }
+
+    // WeBee agents for the WBAH workspace.
+    const { data: dbAgents } = await (supabaseAdmin as any)
+      .from("agents")
+      .select("id, name, retell_agent_id, agent_type, deployment_mode, settings, created_at")
+      .eq("workspace_id", WBAH_WORKSPACE_ID);
+
+    const dbRows: any[] = dbAgents ?? [];
+    const dbRetellIds = new Set(dbRows.map((a) => a.retell_agent_id).filter(Boolean));
+
+    const matched = dbRows
+      .filter((a) => a.retell_agent_id && retellById.has(a.retell_agent_id))
+      .map((a) => ({ id: a.id, name: a.name, retell_agent_id: a.retell_agent_id }));
+    const orphaned = dbRows
+      .filter((a) => a.retell_agent_id && !retellById.has(a.retell_agent_id))
+      .map((a) => ({ id: a.id, name: a.name, retell_agent_id: a.retell_agent_id }));
+    const missing = Array.from(retellById, ([agent_id, name]) => ({ agent_id, name }))
+      .filter((m) => !dbRetellIds.has(m.agent_id));
+
+    // Duplicate WeBee rows sharing one retell_agent_id.
+    const byRetell = new Map<string, any[]>();
+    for (const a of dbRows) {
+      if (!a.retell_agent_id) continue;
+      const arr = byRetell.get(a.retell_agent_id) ?? [];
+      arr.push(a);
+      byRetell.set(a.retell_agent_id, arr);
+    }
+    const duplicates = Array.from(byRetell.values())
+      .filter((arr) => arr.length > 1)
+      .map((arr) => ({ retell_agent_id: arr[0].retell_agent_id, rows: arr.map((r) => ({ id: r.id, name: r.name })) }));
+
+    const actions = { imported: [] as any[], clearedStale: [] as any[] };
+
+    if (data.apply) {
+      // Resolve the WBAH workspace owner as the creator for imported rows.
+      const { data: owner } = await (supabaseAdmin as any)
+        .from("workspace_members")
+        .select("user_id")
+        .eq("workspace_id", WBAH_WORKSPACE_ID)
+        .eq("role", "owner")
+        .maybeSingle();
+      const ownerId = owner?.user_id ?? context.userId;
+
+      for (const m of missing) {
+        const dashType = inferWbahDashboardType(m.name);
+        const enumType = dashType === "lead_generation" ? "lead_gen" : "receptionist";
+        const { data: row, error } = await (supabaseAdmin as any)
+          .from("agents")
+          .insert({
+            user_id: ownerId,
+            workspace_id: WBAH_WORKSPACE_ID,
+            retell_agent_id: m.agent_id,
+            name: m.name,
+            agent_type: enumType,
+            deployment_mode: "RETELL",
+            flow_data: { nodes: [], edges: [] },
+            settings: { dashboardAgentType: dashType, isLive: true, liveAt: new Date().toISOString(), importedFromRetell: true },
+            variables: {},
+          })
+          .select("id")
+          .maybeSingle();
+        if (!error) actions.imported.push({ id: row?.id, name: m.name, retell_agent_id: m.agent_id, agent_type: dashType });
+      }
+
+      // Non-destructive: clear the dead Retell id and mark not-live so the agent
+      // shows as an undeployed draft (its builder flow_data is preserved for
+      // re-deploy). deployment_mode is left unchanged to respect its CHECK.
+      const orphanRows = dbRows.filter((a) => a.retell_agent_id && !retellById.has(a.retell_agent_id));
+      for (const o of orphanRows) {
+        const nextSettings = { ...(o.settings ?? {}), isLive: false };
+        const { error } = await (supabaseAdmin as any)
+          .from("agents")
+          .update({ retell_agent_id: null, settings: nextSettings, updated_at: new Date().toISOString() })
+          .eq("id", o.id);
+        if (!error) actions.clearedStale.push({ id: o.id, name: o.name, retell_agent_id: o.retell_agent_id });
+      }
+    }
+
+    return {
+      retellAgentCount: retellById.size,
+      webeeAgentCount: dbRows.length,
+      matched,
+      orphaned,
+      missing,
+      duplicates,
+      applied: data.apply,
+      actions,
+    };
+  });
+
 // ─────────────────────────────────────────────────────────────────────────────
 // WBAH Categorized Lead Sync — server functions
 // Tables: wbah_categorized_leads, wbah_category_sync_log

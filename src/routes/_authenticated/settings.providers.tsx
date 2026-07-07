@@ -39,6 +39,7 @@ import {
   adminOverrideConnectWebespokeEnterprise,
   syncAllWebespokeEnterpriseData,
 } from "@/lib/integrations/webespokeEnterprise/enterprise.functions";
+import { reconcileWbahRetellAgents } from "@/lib/integrations/webespokeEnterprise/wbah-workspace.server";
 
 export const Route = createFileRoute("/_authenticated/settings/providers")({
   head: () => ({ meta: [{ title: "Provider Settings — Webee" }] }),
@@ -1015,6 +1016,97 @@ function getSetupLink(category: string, providerName: string): string {
   return overrides[key] ?? "/settings/integrations";
 }
 
+// ── WBAH Agents ↔ Retell reconciliation ───────────────────────────────────────
+
+function WbahAgentReconcileSection() {
+  const reconcileFn = useServerFn(reconcileWbahRetellAgents);
+  const [report, setReport] = useState<any | null>(null);
+  const [busy, setBusy] = useState<"scan" | "apply" | null>(null);
+
+  async function run(apply: boolean) {
+    setBusy(apply ? "apply" : "scan");
+    try {
+      const res = await reconcileFn({ data: { apply } });
+      setReport(res);
+      if (apply) {
+        const imp = (res as any).actions?.imported?.length ?? 0;
+        const cleared = (res as any).actions?.clearedStale?.length ?? 0;
+        toast.success(`Reconciled: imported ${imp}, cleared ${cleared} stale`);
+      }
+    } catch (e) {
+      toast.error("Reconcile failed", { description: (e as Error).message });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const hasIssues =
+    report && ((report.orphaned?.length ?? 0) > 0 || (report.missing?.length ?? 0) > 0 || (report.duplicates?.length ?? 0) > 0);
+
+  return (
+    <div className="mb-8 rounded-xl border border-white/[0.06] bg-card/60 p-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <UserCheck className="h-4 w-4 text-blue-400" />
+          <div>
+            <h3 className="text-sm font-semibold">WBAH Agents ↔ Retell</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Cross-reference the WeBee agent roster with the live Retell agent list for the WeBuyAnyHouse workspace.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => run(false)} disabled={busy !== null}>
+            {busy === "scan" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1 h-3.5 w-3.5" />}
+            Scan
+          </Button>
+          <Button size="sm" onClick={() => run(true)} disabled={busy !== null || (report != null && !hasIssues)}>
+            {busy === "apply" ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="mr-1 h-3.5 w-3.5" />}
+            Fix all
+          </Button>
+        </div>
+      </div>
+
+      {report && (
+        <div className="mt-4 space-y-3 text-xs">
+          <div className="flex flex-wrap gap-3">
+            <span className="rounded-md bg-muted/50 px-2 py-1">Retell agents: <strong>{report.retellAgentCount}</strong></span>
+            <span className="rounded-md bg-muted/50 px-2 py-1">WeBee agents: <strong>{report.webeeAgentCount}</strong></span>
+            <span className="rounded-md bg-emerald-500/10 text-emerald-400 px-2 py-1">Matched: <strong>{report.matched?.length ?? 0}</strong></span>
+            <span className="rounded-md bg-amber-500/10 text-amber-400 px-2 py-1">Missing in WeBee: <strong>{report.missing?.length ?? 0}</strong></span>
+            <span className="rounded-md bg-rose-500/10 text-rose-400 px-2 py-1">Orphaned (stale): <strong>{report.orphaned?.length ?? 0}</strong></span>
+            {(report.duplicates?.length ?? 0) > 0 && (
+              <span className="rounded-md bg-violet-500/10 text-violet-400 px-2 py-1">Duplicates: <strong>{report.duplicates.length}</strong></span>
+            )}
+          </div>
+
+          {(report.missing?.length ?? 0) > 0 && (
+            <div>
+              <p className="font-medium text-amber-400 mb-1">In Retell but not WeBee{report.applied ? " (imported)" : ""}</p>
+              <ul className="space-y-0.5 text-muted-foreground">
+                {report.missing.map((m: any) => <li key={m.agent_id}>• {m.name} <span className="font-mono text-[10px]">{m.agent_id}</span></li>)}
+              </ul>
+            </div>
+          )}
+
+          {(report.orphaned?.length ?? 0) > 0 && (
+            <div>
+              <p className="font-medium text-rose-400 mb-1">Stale WeBee agents (Retell id missing){report.applied ? " (cleared, marked undeployed)" : ""}</p>
+              <ul className="space-y-0.5 text-muted-foreground">
+                {report.orphaned.map((o: any) => <li key={o.id}>• {o.name} <span className="font-mono text-[10px]">{o.retell_agent_id}</span></li>)}
+              </ul>
+            </div>
+          )}
+
+          {report && !hasIssues && (
+            <p className="text-emerald-400 flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" /> Everything is in sync.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 function ProvidersSettingsPage() {
@@ -1142,6 +1234,9 @@ function ProvidersSettingsPage() {
 
             {/* Enterprise Integrations section */}
             <WebespokeEnterpriseSection />
+
+            {/* WBAH agents ↔ Retell reconciliation */}
+            <WbahAgentReconcileSection />
 
             {/* Category sections */}
             {categoryOrder.map((cat) => {
