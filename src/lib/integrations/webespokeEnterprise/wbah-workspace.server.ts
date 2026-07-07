@@ -1846,13 +1846,13 @@ async function listWbahCrmLoadedCategory(
 
 // ── listWbahCategorizedLeads ──────────────────────────────────────────────────
 
-export const listWbahCategorizedLeads = createServerFn({ method: "GET" })
+export const listWbahCategorizedLeads = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
     z.object({
       category: z.enum(["disqualified", "tried_to_contact", "rebooking"]),
-      page:     z.number().int().min(1).default(1),
-      limit:    z.number().int().min(1).max(200).default(100),
+      page:     z.coerce.number().int().min(1).default(1),
+      limit:    z.coerce.number().int().min(1).max(200).default(100),
       search:   z.string().optional(),
     }),
   )

@@ -965,6 +965,12 @@ function DataPage() {
     rebooking:        { setData: setWbahRbData,  setLoading: setWbahRbLoading,  setError: setWbahRbError },
   };
 
+  const WBAH_CAT_COUNT_SETTERS: Record<WbahCategoryTab, (n: number) => void> = {
+    disqualified:     setWbahDqCount,
+    tried_to_contact: setWbahTtcCount,
+    rebooking:        setWbahRbCount,
+  };
+
   async function handleFetchWbahCategory(cat: WbahCategoryTab) {
     const s = WBAH_CAT_SETTERS[cat];
     s.setLoading(true);
@@ -973,14 +979,19 @@ function DataPage() {
       const all: any[] = [];
       let page = 1;
       const limit = 200;
+      let total: number | undefined;
       for (;;) {
         const res = await listWbahCategorizedLeadsFn({ data: { category: cat, page, limit } });
         const rows = ((res as any)?.rows ?? []) as any[];
+        if (page === 1 && typeof (res as any)?.total === "number") {
+          total = (res as any).total;
+        }
         all.push(...rows);
         if (rows.length < limit || page >= 50) break;
         page += 1;
       }
       s.setData(all.map(mapWbahCatRow));
+      if (typeof total === "number") WBAH_CAT_COUNT_SETTERS[cat](total);
     } catch (err) {
       s.setError((err as Error).message);
     } finally {
@@ -1058,23 +1069,25 @@ function DataPage() {
     }
   }
 
+  // Load People sub-tab data when the tab is opened (not on initial mount while the
+  // user is still on Records). The previous wbahPeopleSubTab-only effect fired once
+  // on mount — often before auth/workspace context was ready — and never re-ran when
+  // the user navigated to People, leaving the Disqualified table empty while badges
+  // showed counts from a later probe.
   useEffect(() => {
-    // Fetch only the calls COUNT for the sub-tab badge. The full call rows
-    // (11k+, each with a transcript) are a multi-MB payload, so they load
-    // lazily when the Calls tab is actually opened — keeping the People page
-    // (default "Disqualified" view) fast on first load.
-    if (dataTab === "people" && isWbah && wbahCallsData.length === 0 && wbahCallsCount === 0) {
-      handleFetchWbahCallsCount();
-    }
-    if (dataTab === "people" && isWbah && wbahDqCount === 0 && wbahTtcCount === 0 && wbahRbCount === 0) {
-      handleFetchWbahCatCounts();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataTab, isWbah]);
+    if (!isWbah || dataTab !== "people") return;
 
-  useEffect(() => {
     setWbahSelected(new Set());
     setWbahQualAgentId("");
+
+    // Lightweight counts for KPI strip + tab badges (full rows load below).
+    if (wbahCallsData.length === 0 && wbahCallsCount === 0) {
+      handleFetchWbahCallsCount();
+    }
+    if (wbahDqCount === 0 && wbahTtcCount === 0 && wbahRbCount === 0) {
+      handleFetchWbahCatCounts();
+    }
+
     if (wbahPeopleSubTab === "disqualified" && wbahDqData.length === 0 && !wbahDqLoading) {
       handleFetchWbahCategory("disqualified");
     }
@@ -1094,7 +1107,7 @@ function DataPage() {
       handleFetchWbahCalls();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wbahPeopleSubTab]);
+  }, [dataTab, isWbah, wbahPeopleSubTab]);
 
   async function handleImportWbahSelected() {
     const toImport = wbahCallData.filter(r => wbahSelected.has(r.id));
@@ -1721,14 +1734,17 @@ function DataPage() {
 
               const loading = isLeads ? wbahCallDataLoading : isDq ? wbahDqLoading : isTtc ? wbahTtcLoading : isRb ? wbahRbLoading : wbahCallsLoading;
               const error   = isLeads ? wbahCallDataError   : isDq ? wbahDqError   : isTtc ? wbahTtcError   : isRb ? wbahRbError   : wbahCallsError;
-              const empty   = isLeads ? wbahCallData.length === 0 : isDq ? wbahDqData.length === 0 : isTtc ? wbahTtcData.length === 0 : isRb ? wbahRbData.length === 0 : wbahCallsData.length === 0;
+              const knownTotal = isDq ? wbahDqCount : isTtc ? wbahTtcCount : isRb ? wbahRbCount : 0;
+              const rowCount   = isLeads ? wbahCallData.length : isDq ? wbahDqData.length : isTtc ? wbahTtcData.length : isRb ? wbahRbData.length : wbahCallsData.length;
+              const empty      = rowCount === 0 && !(knownTotal > 0 && loading);
+              const showLoading = loading || (rowCount === 0 && knownTotal > 0 && !error);
               const onLoad  = isLeads ? handleFetchWbahCallData : isDq ? () => handleFetchWbahCategory("disqualified") : isTtc ? () => handleFetchWbahCategory("tried_to_contact") : isRb ? () => handleFetchWbahCategory("rebooking") : handleFetchWbahCalls;
               const loadLabel = isLeads ? "Load Leads" : isDq ? "Load Disqualified" : isTtc ? "Load Tried To Contact" : isRb ? "Load Rebooking" : "Load Calls";
               const rows    = isLeads ? wbahFiltered : isDq ? wbahDqFiltered : isTtc ? wbahTtcFiltered : isRb ? wbahRbFiltered : wbahCallsFiltered;
               const pag     = isLeads ? wbahPag : isDq ? wbahDqPag : isTtc ? wbahTtcPag : isRb ? wbahRbPag : wbahCallsPag;
               const loadingNoun = isLeads ? "leads" : isDq ? "disqualified records" : isTtc ? "tried-to-contact records" : isRb ? "rebooking records" : "calls";
 
-              if (loading) return (
+              if (showLoading) return (
                 <LoadingProgress label={`Loading ${loadingNoun}`} estimatedMs={9000} className="py-20" />
               );
               if (error) return (
