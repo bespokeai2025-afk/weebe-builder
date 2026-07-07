@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import {
   hasWbahAppointmentBooked,
   wbahBookingAgentName,
+  wbahCalendlyBookingUrl,
 } from "@/lib/dashboard/wbah-appointment-display";
 import {
   buildWbahAgentColorMap,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/dashboard/wbah-agent-colors";
 
 type LeadLike = {
+  sentiment?: string | null;
   full_name?: string | null;
   meta?: {
     agent_name?: string | null;
@@ -43,8 +45,9 @@ export function WbahBookedStickyBadge({
   const tip = `Appointment booked${agent ? ` · ${agent}` : ""}${
     lead.meta?.appointment_date ? ` · ${lead.meta.appointment_date}` : ""
   }${lead.meta?.appointment_time ? ` ${lead.meta.appointment_time}` : ""}`;
+  const calendlyUrl = wbahCalendlyBookingUrl(lead);
 
-  return (
+  const badge = (
     <span
       title={tip}
       className={cn(
@@ -57,6 +60,33 @@ export function WbahBookedStickyBadge({
       <StickyNote className="h-3 w-3 shrink-0" />
       Booked
     </span>
+  );
+
+  if (calendlyUrl) {
+    return (
+      <a href={calendlyUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+        {badge}
+      </a>
+    );
+  }
+
+  return badge;
+}
+
+/** Clickable Calendly link for table columns. */
+export function WbahCalendlyLink({ lead }: { lead: LeadLike }) {
+  const url = wbahCalendlyBookingUrl(lead);
+  if (!url) return <span className="text-muted-foreground text-[11px]">—</span>;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[11px] font-medium text-primary hover:underline whitespace-nowrap"
+      onClick={(e) => e.stopPropagation()}
+    >
+      Calendly
+    </a>
   );
 }
 

@@ -136,3 +136,13 @@ export function wbahAppointmentTime(lead: WbahLeadLike): string | null {
 export function wbahBookingStatus(lead: WbahLeadLike): string | null {
   return wbahAppointmentField(lead, "booking_status");
 }
+
+/** Calendly booking URL — same visibility rules as other appointment columns. */
+export function wbahCalendlyBookingUrl(lead: WbahLeadLike): string | null {
+  if (isWbahPartialQualified(lead)) return null;
+  const url = lead.meta?.calendly_booking_url;
+  if (url == null || String(url).trim() === "") return null;
+  if (normalizeSentiment(lead.sentiment) === "positive") return String(url).trim();
+  if (hasWbahAppointmentBooked(lead)) return String(url).trim();
+  return null;
+}

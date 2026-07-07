@@ -45,7 +45,7 @@ import { listWbahQualifiedLeads, getWbahContactCallHistory, getWbahCallDetail } 
 import { normalizeSentiment } from "@/lib/sentiment";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
-import { WbahNotesButton, WbahBookedStickyBadge, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
+import { WbahNotesButton, WbahBookedStickyBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 function QualifiedErrorFallback() {
@@ -220,6 +220,7 @@ function bookingStatusBadge(status: string | null) {
   const map: Record<string, string> = {
     booked:    "bg-emerald-500/15 text-emerald-400",
     confirmed: "bg-emerald-500/15 text-emerald-400",
+    success:   "bg-emerald-500/15 text-emerald-400",
     pending:   "bg-amber-500/15 text-amber-400",
     cancelled: "bg-red-500/15 text-red-400",
   };
@@ -628,6 +629,7 @@ function QualifiedPage() {
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Appt Date</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Appt Time</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Booking</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Calendly</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
                       <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Disconnection</th>
                     </>}
@@ -734,6 +736,7 @@ function QualifiedPage() {
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentDate(lead) ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{wbahAppointmentTime(lead) ?? "—"}</td>
                         <td className="px-2 py-0.5">{bookingStatusBadge(wbahBookingStatus(lead))}</td>
+                        <td className="px-2 py-0.5"><WbahCalendlyLink lead={lead} /></td>
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
                       </>}
