@@ -225,6 +225,31 @@ function LeadsPage() {
   const [callStatusFilter, setCallStatusFilter] = useState("");
   const [quickFilter, setQuickFilter] = useState("");
   const [wbahDaysFilter, setWbahDaysFilter] = useState("30");
+  // Call duration threshold, outcome, and custom date range filters.
+  const [leadsDuration, setLeadsDuration] = useState("");  // min seconds ("" = any)
+  const [leadsOutcome, setLeadsOutcome]   = useState("");  // "" | "successful" | "unsuccessful"
+  const [leadsFrom, setLeadsFrom]         = useState("");  // yyyy-mm-dd
+  const [leadsTo, setLeadsTo]             = useState("");
+
+  // Effective {dateFrom,dateTo}: "custom" uses the Between inputs, else a preset.
+  const leadsDateRange = useMemo<{ dateFrom?: string; dateTo?: string }>(() => {
+    if (wbahDaysFilter === "custom") {
+      const r: { dateFrom?: string; dateTo?: string } = {};
+      if (leadsFrom) r.dateFrom = new Date(`${leadsFrom}T00:00:00`).toISOString();
+      if (leadsTo)   r.dateTo   = new Date(`${leadsTo}T23:59:59.999`).toISOString();
+      return r;
+    }
+    return filterToDates(wbahDaysFilter);
+  }, [wbahDaysFilter, leadsFrom, leadsTo]);
+
+  function leadDurationSeconds(l: any): number {
+    if (l?.retell_call?.duration_seconds != null) return Number(l.retell_call.duration_seconds) || 0;
+    if (l?.meta?.duration_ms != null) return (Number(l.meta.duration_ms) || 0) / 1000;
+    return 0;
+  }
+  function leadCallStatus(l: any): string {
+    return String(l?.retell_call?.call_status ?? l?.meta?.call_status ?? "").toLowerCase();
+  }
 
   useEffect(() => {
     const stored = localStorage.getItem("wbahDaysFilter");
@@ -277,14 +302,14 @@ function LeadsPage() {
   }
 
   const leadsQ = useQuery({
-    queryKey: ["leads-all", isWbah, wbahDaysFilter],
+    queryKey: ["leads-all", isWbah, wbahDaysFilter, leadsFrom, leadsTo],
     queryFn: () => {
       // WBAH "Leads window" = already-called contacts whose latest call came back
       // positive or neutral. For WBAH the server fn first refreshes the newest
       // calls from WeeBespoke (incremental) before deriving, so this is LIVE on
       // open. Date narrowing is applied client-side in `filtered`.
       if (isWbah) return listWbahPositiveNeutralLeadsFn();
-      const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
+      const { dateFrom, dateTo } = leadsDateRange;
       return listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } });
     },
     enabled: wsResolved,
@@ -366,14 +391,33 @@ function LeadsPage() {
         : (isWbah ? l.meta?.call_status : null);
       if (cs !== callStatusFilter) return false;
     }
-    if (isWbah && wbahDaysFilter !== "all") {
-      const { dateFrom, dateTo } = filterToDates(wbahDaysFilter);
-      const dateStr = l.meta?.last_called_at ?? l.created_at ?? null;
-      if (!dateStr) return false;
-      const ts = new Date(dateStr).getTime();
-      if (isNaN(ts)) return false;
-      if (dateFrom && ts < new Date(dateFrom).getTime()) return false;
-      if (dateTo && ts > new Date(dateTo).getTime()) return false;
+    // Call duration greater than N minutes.
+    if (leadsDuration) {
+      const minDur = parseInt(leadsDuration, 10);
+      if (minDur > 0 && leadDurationSeconds(l) < minDur) return false;
+    }
+    // Call outcome: successful = completed / positive; unsuccessful = failed/no-answer/busy/negative.
+    if (leadsOutcome === "successful") {
+      const cs = leadCallStatus(l);
+      const ok = cs === "completed" || normalizeSentiment(l.sentiment) === "positive";
+      if (!ok) return false;
+    }
+    if (leadsOutcome === "unsuccessful") {
+      const cs = leadCallStatus(l);
+      const bad = ["failed", "no_answer", "busy", "not_connected"].includes(cs) || normalizeSentiment(l.sentiment) === "negative";
+      if (!bad) return false;
+    }
+    // Date range (applies to all leads; "custom" = Between).
+    if (wbahDaysFilter !== "all") {
+      const { dateFrom, dateTo } = leadsDateRange;
+      if (dateFrom || dateTo) {
+        const dateStr = l.meta?.last_called_at ?? l.last_contacted_at ?? l.created_at ?? null;
+        if (!dateStr) return false;
+        const ts = new Date(dateStr).getTime();
+        if (isNaN(ts)) return false;
+        if (dateFrom && ts < new Date(dateFrom).getTime()) return false;
+        if (dateTo && ts > new Date(dateTo).getTime()) return false;
+      }
     }
     if (quickFilter && isWbah) {
       const ns = normalizeSentiment(l.sentiment);
@@ -413,7 +457,7 @@ function LeadsPage() {
       leads.length, pos, neu, neg, unk);
   }, [isWbah, leads]);
 
-  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter;
+  const hasLeadFilters = search.trim() || statusFilter || leadStatusCat !== "all" || sentimentFilter || callStatusFilter || quickFilter || leadsDuration || leadsOutcome || wbahDaysFilter === "custom";
 
   const positive = leads.filter((l: any) => normalizeSentiment(l.sentiment) === "positive").length;
   const withScore = leads.filter((l: any) => l.lead_score != null);
@@ -707,28 +751,71 @@ function LeadsPage() {
                   <option value="busy">Busy</option>
                 </select>
               )}
-              {isWbah && (
-                <select
-                  value={wbahDaysFilter}
-                  onChange={(e) => setWbahDaysFilter(e.target.value)}
-                  className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
-                >
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="7">Last 7 days</option>
-                  <option value="14">Last 14 days</option>
-                  <option value="30">Last 30 days</option>
-                  <option value="90">Last 90 days</option>
-                  <option value="180">Last 6 months</option>
-                  <option value="all">All time</option>
-                </select>
+              <select
+                value={leadsDuration}
+                onChange={(e) => setLeadsDuration(e.target.value)}
+                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                title="Call duration"
+              >
+                <option value="">Any duration</option>
+                <option value="60">&gt; 1 min</option>
+                <option value="300">&gt; 5 min</option>
+                <option value="600">&gt; 10 min</option>
+                <option value="900">&gt; 15 min</option>
+                <option value="1800">&gt; 30 min</option>
+              </select>
+              <select
+                value={leadsOutcome}
+                onChange={(e) => setLeadsOutcome(e.target.value)}
+                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                title="Call outcome"
+              >
+                <option value="">All Outcomes</option>
+                <option value="successful">Successful</option>
+                <option value="unsuccessful">Unsuccessful</option>
+              </select>
+              <select
+                value={wbahDaysFilter}
+                onChange={(e) => setWbahDaysFilter(e.target.value)}
+                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              >
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="7">Last 7 days</option>
+                <option value="14">Last 14 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+                <option value="180">Last 6 months</option>
+                <option value="all">All time</option>
+                <option value="custom">Custom range…</option>
+              </select>
+              {wbahDaysFilter === "custom" && (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    value={leadsFrom}
+                    max={leadsTo || undefined}
+                    onChange={(e) => setLeadsFrom(e.target.value)}
+                    className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    title="From date"
+                  />
+                  <span className="text-[11px] text-muted-foreground">to</span>
+                  <input
+                    type="date"
+                    value={leadsTo}
+                    min={leadsFrom || undefined}
+                    onChange={(e) => setLeadsTo(e.target.value)}
+                    className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    title="To date"
+                  />
+                </div>
               )}
               {hasLeadFilters && (
                 <Button
                   size="sm"
                   variant="ghost"
                   className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => { setSearch(""); setStatusFilter(""); setLeadStatusCat("all"); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); }}
+                  onClick={() => { setSearch(""); setStatusFilter(""); setLeadStatusCat("all"); setSentimentFilter(""); setCallStatusFilter(""); setQuickFilter(""); setLeadsDuration(""); setLeadsOutcome(""); }}
                 >
                   Clear filters
                 </Button>

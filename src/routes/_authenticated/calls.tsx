@@ -291,11 +291,27 @@ function CallsPage() {
     vm === "only" || vm === "all" ? vm : "exclude",
   );
   const [daysFilter, setDaysFilter] = useState("30");
+  // Additional filters (call duration threshold, outcome, custom date range).
+  const [durationFilter, setDurationFilter] = useState("");   // min seconds ("" = any)
+  const [outcomeFilter, setOutcomeFilter]   = useState("");   // "" | "successful" | "unsuccessful"
+  const [customFrom, setCustomFrom]         = useState("");   // yyyy-mm-dd
+  const [customTo, setCustomTo]             = useState("");
+
+  // Effective {dateFrom,dateTo} — "custom" reveals a Between range; else a preset.
+  const effectiveDateRange = useMemo<{ dateFrom?: string; dateTo?: string }>(() => {
+    if (daysFilter === "custom") {
+      const r: { dateFrom?: string; dateTo?: string } = {};
+      if (customFrom) r.dateFrom = new Date(`${customFrom}T00:00:00`).toISOString();
+      if (customTo)   r.dateTo   = new Date(`${customTo}T23:59:59.999`).toISOString();
+      return r;
+    }
+    return filterToDates(daysFilter);
+  }, [daysFilter, customFrom, customTo]);
 
   const fn = useServerFn(listCalls);
   const q = useQuery({
-    queryKey:             ["calls", voicemailFilter, daysFilter],
-    queryFn:              () => { const dates = filterToDates(daysFilter); return fn({ data: { voicemailFilter, ...dates } }); },
+    queryKey:             ["calls", voicemailFilter, daysFilter, customFrom, customTo],
+    queryFn:              () => fn({ data: { voicemailFilter, ...effectiveDateRange } }),
     enabled:              !isWbah,
     staleTime:            3 * 60_000,
     refetchOnWindowFocus: false,
@@ -393,7 +409,8 @@ function CallsPage() {
   const [sentimentFilter, setSentimentFilter] = useState("");
 
   const filteredRows = useMemo(() => {
-    const { dateFrom: cutFrom, dateTo: cutTo } = filterToDates(daysFilter);
+    const { dateFrom: cutFrom, dateTo: cutTo } = effectiveDateRange;
+    const minDur = durationFilter ? parseInt(durationFilter, 10) : 0;
     return rows.filter((r: any) => {
       if (search.trim()) {
         const q = search.toLowerCase();
@@ -404,6 +421,11 @@ function CallsPage() {
       if (statusFilter && r.call_status !== statusFilter) return false;
       if (callTypeFilter && r.call_type !== callTypeFilter) return false;
       if (sentimentFilter && r.sentiment !== sentimentFilter) return false;
+      // Call duration greater than N minutes.
+      if (minDur > 0 && (r.duration_seconds ?? 0) < minDur) return false;
+      // Call outcome: successful = completed; unsuccessful = failed/no-answer/busy.
+      if (outcomeFilter === "successful" && r.call_status !== "completed") return false;
+      if (outcomeFilter === "unsuccessful" && !["failed", "no_answer", "busy"].includes(r.call_status)) return false;
       if (cutFrom || cutTo) {
         const dateStr = r.started_at ?? null;
         if (!dateStr) return false;
@@ -414,11 +436,11 @@ function CallsPage() {
       }
       return true;
     });
-  }, [rows, search, daysFilter, statusFilter, callTypeFilter, sentimentFilter]);
+  }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter]);
 
   const callsPag = useTablePagination(filteredRows, 50);
 
-  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter;
+  const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom";
 
   function openPanel(c: any) {
     const inbound = c.call_type === "inbound";
@@ -583,6 +605,29 @@ function CallsPage() {
               <option value="negative">Negative</option>
             </select>
             <select
+              value={durationFilter}
+              onChange={(e) => setDurationFilter(e.target.value)}
+              className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              title="Call duration"
+            >
+              <option value="">Any duration</option>
+              <option value="60">&gt; 1 min</option>
+              <option value="300">&gt; 5 min</option>
+              <option value="600">&gt; 10 min</option>
+              <option value="900">&gt; 15 min</option>
+              <option value="1800">&gt; 30 min</option>
+            </select>
+            <select
+              value={outcomeFilter}
+              onChange={(e) => setOutcomeFilter(e.target.value)}
+              className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+              title="Call outcome"
+            >
+              <option value="">All Outcomes</option>
+              <option value="successful">Successful</option>
+              <option value="unsuccessful">Unsuccessful</option>
+            </select>
+            <select
               value={daysFilter}
               onChange={(e) => setDaysFilter(e.target.value)}
               className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
@@ -595,7 +640,29 @@ function CallsPage() {
               <option value="90">Last 90 days</option>
               <option value="180">Last 6 months</option>
               <option value="all">All time</option>
+              <option value="custom">Custom range…</option>
             </select>
+            {daysFilter === "custom" && (
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={customFrom}
+                  max={customTo || undefined}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  title="From date"
+                />
+                <span className="text-[11px] text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  min={customFrom || undefined}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  title="To date"
+                />
+              </div>
+            )}
 
             {/* Three-state voicemail filter pill — native filters server-side, WBAH client-side */}
             <div className="flex items-center rounded-md border border-white/[0.08] bg-card/60 p-0.5 gap-0.5">
@@ -628,7 +695,7 @@ function CallsPage() {
                 size="sm"
                 variant="ghost"
                 className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); }}
+                onClick={() => { setSearch(""); setStatusFilter(""); setCallTypeFilter(""); setSentimentFilter(""); setDurationFilter(""); setOutcomeFilter(""); }}
               >
                 Clear filters
               </Button>
