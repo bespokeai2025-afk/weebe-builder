@@ -26,51 +26,87 @@ export function wbahBookingAgentName(lead: WbahLeadLike): string | null {
   return n != null && String(n).trim() !== "" ? String(n).trim() : null;
 }
 
+/** Extract an ISO-ish datetime from a Calendly booking URL path or query. */
+function parseCalendlyUrlIso(url: string | null | undefined): string | null {
+  if (!url || !String(url).trim()) return null;
+  const raw = String(url);
+  try {
+    const decoded = decodeURIComponent(raw);
+    const pathIso = decoded.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)/i);
+    if (pathIso) {
+      let iso = pathIso[1];
+      if (!/Z$/i.test(iso)) iso += "Z";
+      const parsed = Date.parse(iso);
+      if (!isNaN(parsed)) return new Date(parsed).toISOString();
+    }
+  } catch { /* malformed URI — fall through to query parse */ }
+  const qDate = raw.match(/[?&]date=(\d{4}-\d{2}-\d{2})/i);
+  if (qDate) {
+    const parsed = new Date(`${qDate[1]}T09:00:00`);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+  return null;
+}
+
 /** Parse WBAH appointment date + time strings into an ISO timestamp for the calendar. */
 export function parseWbahAppointmentIso(
   appointmentDate: string | null | undefined,
   appointmentTime: string | null | undefined,
-  fallbackIso?: string | null,
+  calendlyUrl?: string | null,
 ): string | null {
-  if (!appointmentDate || !String(appointmentDate).trim()) {
-    return fallbackIso && !isNaN(Date.parse(fallbackIso)) ? fallbackIso : null;
-  }
-  const d = String(appointmentDate).trim();
-  const t = appointmentTime && String(appointmentTime).trim() ? String(appointmentTime).trim() : "09:00";
+  const dRaw = appointmentDate && String(appointmentDate).trim() ? String(appointmentDate).trim() : null;
+  const tRaw = appointmentTime && String(appointmentTime).trim() ? String(appointmentTime).trim() : null;
 
-  // Full ISO / RFC datetime in appointment_date alone
-  const direct = Date.parse(d);
-  if (!isNaN(direct) && /[T\-\/]/.test(d) && d.length > 8) {
-    return new Date(direct).toISOString();
+  // Full ISO / RFC datetime in appointment_time (e.g. 2026-07-08T10:00:00.000Z from CRM).
+  if (tRaw && /T\d{1,2}:\d{2}/.test(tRaw)) {
+    const parsed = Date.parse(tRaw);
+    if (!isNaN(parsed)) return new Date(parsed).toISOString();
   }
 
-  if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
-    const timePart = /^\d{1,2}:\d{2}/.test(t) ? t : "09:00";
-    const parsed = new Date(`${d}T${timePart}`);
-    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  // Full ISO in appointment_date alone.
+  if (dRaw && /T\d{1,2}:\d{2}/.test(dRaw)) {
+    const parsed = Date.parse(dRaw);
+    if (!isNaN(parsed)) return new Date(parsed).toISOString();
   }
 
-  // DD/MM/YYYY or DD-MM-YYYY (UK)
-  const slash = d.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-  if (slash) {
-    const [, a, b, year] = slash;
-    const day = Number(a);
-    const month = Number(b);
-    const tm = t.match(/^(\d{1,2}):(\d{2})/);
-    const hh = tm ? Number(tm[1]) : 9;
-    const mm = tm ? Number(tm[2]) : 0;
-    const parsed = new Date(Number(year), month - 1, day, hh, mm);
-    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  if (dRaw) {
+    const t = tRaw ?? "09:00";
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(dRaw)) {
+      const datePart = dRaw.slice(0, 10);
+      const isoHm = t.match(/T(\d{2}:\d{2})/);
+      const hm = t.match(/^(\d{1,2}:\d{2})/);
+      const timePart = isoHm?.[1] ?? hm?.[1] ?? "09:00";
+      const parsed = new Date(`${datePart}T${timePart}`);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString();
+    }
+
+    // DD/MM/YYYY or DD-MM-YYYY (UK)
+    const slash = dRaw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (slash) {
+      const [, a, b, year] = slash;
+      const day = Number(a);
+      const month = Number(b);
+      const isoHm = t.match(/T(\d{2}):(\d{2})/);
+      const hm = t.match(/^(\d{1,2}):(\d{2})/);
+      const hh = isoHm ? Number(isoHm[1]) : hm ? Number(hm[1]) : 9;
+      const mm = isoHm ? Number(isoHm[2]) : hm ? Number(hm[2]) : 0;
+      const parsed = new Date(Number(year), month - 1, day, hh, mm);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString();
+    }
+
+    const named = Date.parse(`${dRaw} ${t}`);
+    if (!isNaN(named)) return new Date(named).toISOString();
+
+    const loose = new Date(`${dRaw} ${t}`);
+    if (!isNaN(loose.getTime())) return loose.toISOString();
   }
 
-  // "6 January 2025" / "January 6, 2025"
-  const named = Date.parse(`${d} ${t}`);
-  if (!isNaN(named)) return new Date(named).toISOString();
+  const fromCalendly = parseCalendlyUrlIso(calendlyUrl);
+  if (fromCalendly) return fromCalendly;
 
-  const fallback = new Date(`${d} ${t}`);
-  if (!isNaN(fallback.getTime())) return fallback.toISOString();
-
-  return fallbackIso && !isNaN(Date.parse(fallbackIso)) ? fallbackIso : null;
+  // Never place calendar events on the call date — only explicit appointment data.
+  return null;
 }
 
 export function wbahAppointmentStartIso(lead: WbahLeadLike): string | null {

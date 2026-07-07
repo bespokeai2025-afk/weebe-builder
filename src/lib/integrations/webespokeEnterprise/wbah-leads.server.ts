@@ -238,7 +238,7 @@ export async function getWbahCalendarBookings(
     const startAt = parseWbahAppointmentIso(
       appt.appointment_date,
       appt.appointment_time,
-      c.started_at ?? null,
+      appt.calendly_booking_url,
     );
     if (!startAt) return;
     seen.add(key);
