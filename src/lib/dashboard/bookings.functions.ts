@@ -3,21 +3,25 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { calFetch, cancelBooking as calcomCancelBooking } from "@/lib/calendar/calcom.server";
 import { invalidateDashboardCache } from "@/lib/cache/redis.server";
+import { getWbahCalendarBookings } from "@/lib/integrations/webespokeEnterprise/wbah-leads.server";
 
 export type UnifiedBooking = {
   id: string;
-  source: "calcom" | "local";
+  source: "calcom" | "local" | "wbah";
   title: string;
   start_at: string;
   end_at: string | null;
   status: string;
   attendee_name: string | null;
   attendee_email: string | null;
+  attendee_phone?: string | null;
   meeting_url: string | null;
   db_id: string | null;
   external_id: string | null;
   notes: string | null;
   agent_name: string | null;
+  appointment_date?: string | null;
+  appointment_time?: string | null;
 };
 
 export type BookingDetail = {
@@ -128,6 +132,13 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
     const { supabase } = context;
     const workspaceId = context.workspaceId;
     if (!workspaceId) throw new Error("No active workspace");
+
+    const { data: wsRow } = await (supabase as any)
+      .from("workspaces")
+      .select("slug")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    const isWbah = wsRow?.slug === "webuyanyhouse";
 
     const [{ data: settings, error: sErr }, { data: localRows, error: lErr }] = await Promise.all([
       supabase
@@ -270,12 +281,42 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
       }));
 
     const combined = [...calcom, ...manualBookings].filter((b) => !!b.start_at);
-    combined.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
+
+    let wbahBookings: UnifiedBooking[] = [];
+    if (isWbah) {
+      try {
+        const wbahRows = await getWbahCalendarBookings(workspaceId);
+        wbahBookings = wbahRows.map((b) => ({
+          id: `wbah:${b.id}`,
+          source: "wbah" as const,
+          title: b.title,
+          start_at: b.start_at,
+          end_at: b.end_at,
+          status: b.status,
+          attendee_name: b.attendee_name,
+          attendee_email: null,
+          attendee_phone: b.attendee_phone,
+          meeting_url: b.meeting_url,
+          db_id: null,
+          external_id: `wbah:${b.id}`,
+          notes: null,
+          agent_name: b.agent_name,
+          appointment_date: b.appointment_date,
+          appointment_time: b.appointment_time,
+        }));
+      } catch (e: any) {
+        console.warn("[listCalendarBookings] WBAH calendar load failed:", e?.message ?? e);
+      }
+    }
+
+    const merged = [...combined, ...wbahBookings].filter((b) => !!b.start_at);
+    merged.sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
 
     return {
-      bookings: combined,
+      bookings: merged,
       calcomConfigured,
       calcomError,
+      isWbah,
     };
   });
 

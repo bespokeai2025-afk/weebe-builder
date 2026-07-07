@@ -66,6 +66,7 @@ import {
   type LeadStatusCategory,
 } from "@/lib/dashboard/lead-status-categories";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import { WbahNotesButton, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { DialogDescription } from "@/components/ui/dialog";
 import {
@@ -469,6 +470,11 @@ function LeadsPage() {
   });
 
   const leadsPag = useTablePagination(filtered, 50);
+
+  const wbahAgentColorMap = useMemo(
+    () => (isWbah ? wbahAgentColorMapFromLeads(leads) : new Map()),
+    [isWbah, leads],
+  );
 
   useEffect(() => {
     if (!leadsQ.isError) return;
@@ -1063,6 +1069,13 @@ function LeadsPage() {
                           <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
                         </>}
                         <td className="px-2 py-0.5">
+                          {isWbah ? (
+                            <WbahNotesButton
+                              lead={lead}
+                              agentColorMap={wbahAgentColorMap}
+                              onClick={() => openLeadPanel(lead)}
+                            />
+                          ) : (
                           <button
                             onClick={() => openLeadPanel(lead)}
                             title="Notes & appointment"
@@ -1071,6 +1084,7 @@ function LeadsPage() {
                             <StickyNote className="h-3 w-3" />
                             <span>Notes</span>
                           </button>
+                          )}
                         </td>
                       </tr>
                     ))}

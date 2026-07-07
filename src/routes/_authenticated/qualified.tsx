@@ -44,6 +44,7 @@ import { listWbahQualifiedLeads, getWbahContactCallHistory, getWbahCallDetail } 
 import { normalizeSentiment } from "@/lib/sentiment";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import { WbahNotesButton, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 
 function QualifiedErrorFallback() {
@@ -401,6 +402,11 @@ function QualifiedPage() {
 
   const qualPag = useTablePagination(filtered, 50);
 
+  const wbahAgentColorMap = useMemo(
+    () => (isWbah ? wbahAgentColorMapFromLeads(rows) : new Map()),
+    [isWbah, rows],
+  );
+
 
   async function handleSetStatus(id: string, status: typeof STATUS_ACTIONS[number]["value"]) {
     try {
@@ -743,6 +749,13 @@ function QualifiedPage() {
                       </td>
                       )}
                       <td className="px-2 py-0.5">
+                        {isWbah ? (
+                          <WbahNotesButton
+                            lead={lead}
+                            agentColorMap={wbahAgentColorMap}
+                            onClick={() => openPanel(lead)}
+                          />
+                        ) : (
                         <button
                           onClick={() => openPanel(lead)}
                           title="Notes & appointment"
@@ -751,6 +764,7 @@ function QualifiedPage() {
                           <StickyNote className="h-3 w-3" />
                           <span>Notes</span>
                         </button>
+                        )}
                       </td>
                     </tr>
                   ))}

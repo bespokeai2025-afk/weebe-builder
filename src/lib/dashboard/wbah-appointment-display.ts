@@ -11,8 +11,63 @@ type WbahLeadLike = {
     appointment_time?: string | null;
     booking_status?: string | null;
     calendly_booking_url?: string | null;
+    agent_name?: string | null;
   } | null;
 };
+
+function normBookingStatus(v: string | null | undefined): string {
+  return String(v ?? "").toLowerCase().trim();
+}
+
+/** True when the contact has a Calendly / CRM appointment booked. */
+export function hasWbahAppointmentBooked(lead: WbahLeadLike): boolean {
+  const url = lead.meta?.calendly_booking_url;
+  if (url != null && String(url).trim() !== "") return true;
+  const bs = normBookingStatus(lead.meta?.booking_status);
+  if (bs === "success" || bs === "booked" || bs === "confirmed") return true;
+  const d = lead.meta?.appointment_date;
+  return d != null && String(d).trim() !== "";
+}
+
+export function wbahBookingAgentName(lead: WbahLeadLike): string | null {
+  const n = lead.meta?.agent_name;
+  return n != null && String(n).trim() !== "" ? String(n).trim() : null;
+}
+
+/** Parse WBAH appointment date + time strings into an ISO timestamp for the calendar. */
+export function parseWbahAppointmentIso(
+  appointmentDate: string | null | undefined,
+  appointmentTime: string | null | undefined,
+): string | null {
+  if (!appointmentDate || !String(appointmentDate).trim()) return null;
+  const d = String(appointmentDate).trim();
+  const t = appointmentTime && String(appointmentTime).trim() ? String(appointmentTime).trim() : "09:00";
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+    const timePart = /^\d{1,2}:\d{2}/.test(t) ? t : "09:00";
+    const parsed = new Date(`${d}T${timePart}`);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+
+  const slash = d.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (slash) {
+    const [, day, month, year] = slash;
+    const tm = t.match(/^(\d{1,2}):(\d{2})/);
+    const hh = tm ? Number(tm[1]) : 9;
+    const mm = tm ? Number(tm[2]) : 0;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day), hh, mm);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+
+  const fallback = new Date(`${d} ${t}`);
+  if (!isNaN(fallback.getTime())) return fallback.toISOString();
+  return null;
+}
+
+export function wbahAppointmentStartIso(lead: WbahLeadLike): string | null {
+  if (!hasWbahAppointmentBooked(lead)) return null;
+  return parseWbahAppointmentIso(lead.meta?.appointment_date, lead.meta?.appointment_time);
+}
 
 /** WBAH-only: neutral calls >5min (or explicit meta flag). */
 export function isWbahPartialQualified(lead: WbahLeadLike): boolean {
