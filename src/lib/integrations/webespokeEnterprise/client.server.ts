@@ -392,5 +392,5 @@ export const wbahGetCrmDataFiltered = (statusCode: string, gt: GetTokens, st: Sa
   aGet(`/crm-data/get-crm-data?leadStatus=${encodeURIComponent(statusCode)}`, gt, st);
 
 // GET /call-output-data/get-userCall-lead with optional lead status filter
-export const wbahGetLeadsFiltered = (statusCode: string, page: number, gt: GetTokens, st: SaveToken, rl?: Relogin) =>
-  aGet<unknown>(`/call-output-data/get-userCall-lead?leadStatus=${encodeURIComponent(statusCode)}&currentPage=${page}`, gt, st, rl);
+export const wbahGetLeadsFiltered = (statusCode: string, page: number, gt: GetTokens, st: SaveToken) =>
+  aGet<unknown>(`/call-output-data/get-userCall-lead?leadStatus=${encodeURIComponent(statusCode)}&currentPage=${page}`, gt, st);
