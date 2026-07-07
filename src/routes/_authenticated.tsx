@@ -88,7 +88,7 @@ function AuthenticatedLayout() {
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="relative flex min-h-screen w-full bg-background bg-noise">
+      <div className="relative flex min-h-screen w-full min-w-0 bg-background bg-noise">
         {/* Dashboard depth: soft dotted grid that fades toward the bottom */}
         <div
           aria-hidden
@@ -100,7 +100,7 @@ function AuthenticatedLayout() {
           aria-hidden
           className="pointer-events-none hidden md:block w-px shrink-0 bg-gradient-to-b from-transparent via-white/10 to-transparent backdrop-blur-sm"
         />
-        <SidebarInset className="flex-1 bg-transparent">
+        <SidebarInset className="flex min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent">
           {!hideHeader && (
             <div className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-white/[0.04] bg-background/60 px-3 backdrop-blur-xl">
               <SidebarTrigger />

@@ -599,11 +599,11 @@ function LeadsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-5">
+    <div className="w-full min-w-0 max-w-full px-4 py-4 sm:px-5">
       {/* Header */}
-      <div className="mb-4 flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold tracking-tight">
             {isWbah ? "Positive / Neutral Leads" : "Leads"}
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -646,7 +646,7 @@ function LeadsPage() {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Total Leads" value={leads.length} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
         <KpiCard
           label="Positive Sentiment"
@@ -668,7 +668,7 @@ function LeadsPage() {
 
       {/* Campaign stats mini strip */}
       {stats && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-4">
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MiniKpiCard label="Calls Made" value={stats.called} hint={`of ${stats.total} records`} />
           <MiniKpiCard label="Contacts Reached" value={stats.reached} hint={`${stats.conversionRate}% connect rate`} />
           <MiniKpiCard label="Positive Sentiment" value={`${stats.positivePct}%`} />
@@ -677,12 +677,12 @@ function LeadsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b">
+      <div className="mb-4 flex gap-1 overflow-x-auto border-b">
         {(["leads", "campaigns"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-2.5 py-1 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               tab === t
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -703,9 +703,9 @@ function LeadsPage() {
 
       {/* Lead Intelligence Tab */}
       {tab === "leads" && (
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
+          <div className="flex flex-col gap-2 border-b border-white/[0.06] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+            <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               {isWbah ? "Positive / Neutral Leads" : "Lead Records"}
               {hasLeadFilters && (
                 <span className="ml-2 normal-case text-xs font-normal text-muted-foreground tracking-normal">
@@ -716,7 +716,7 @@ function LeadsPage() {
                 <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selectedIds.size} selected</span>
               )}
             </p>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               {selectedIds.size > 0 && (
                 <Button
                   size="sm"
@@ -731,7 +731,7 @@ function LeadsPage() {
                 placeholder="Search name, phone, email…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-7 w-44 text-xs"
+                className="h-7 min-w-0 flex-1 basis-32 max-w-[200px] text-xs sm:flex-none sm:w-40"
               />
               <select
                 aria-label="Lead Status"
@@ -850,7 +850,7 @@ function LeadsPage() {
             </div>
           </div>
           {isWbah && (
-            <div className="flex flex-wrap items-center gap-1.5 px-4 py-2.5 border-b border-white/[0.06]">
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-4">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
               {[
                 { value: "positive",          label: "Positive" },
@@ -887,45 +887,45 @@ function LeadsPage() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="min-w-0 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      <th className="px-3 py-2 w-8">
+                      <th className="px-2.5 py-1.5 w-8">
                         <Checkbox
                           checked={selectedIds.size === filtered.length && filtered.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Contact</th>
-                      <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Contact</th>
+                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
                       {isRetell && <>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
                       </>}
                       {isWbah && <>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Date</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Time</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Booking</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
-                        <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Disconnection</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Date</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Time</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Booking</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Disconnection</th>
                       </>}
-                      <th className="px-3 py-2 w-8"></th>
+                      <th className="px-2.5 py-1.5 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -934,15 +934,15 @@ function LeadsPage() {
                         key={lead.id}
                         className={`h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
                       >
-                        <td className="px-3 py-1.5">
+                        <td className="px-2.5 py-1">
                           <Checkbox
                             checked={selectedIds.has(lead.id)}
                             onCheckedChange={() => toggleSelect(lead.id)}
                           />
                         </td>
-                        <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1.5">
-                            {lead.full_name ?? "—"}
+                        <td className="max-w-[140px] px-2.5 py-1 text-xs font-medium">
+                          <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
+                            <span className="truncate">{lead.full_name ?? "—"}</span>
                             {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
                               <button
                                 onClick={() => openCallHistory(lead)}
@@ -957,11 +957,11 @@ function LeadsPage() {
                             <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px] font-mono">
+                        <td className="px-2.5 py-1 text-muted-foreground whitespace-nowrap text-[11px] font-mono">
                           {lead.phone}
                         </td>
                         {/* Status picker */}
-                        <td className="px-3 py-1.5">
+                        <td className="px-2.5 py-1">
                           <div className="flex flex-col gap-1">
                             {(() => {
                               if (isWbah) {
@@ -1000,20 +1000,20 @@ function LeadsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-3 py-1.5">{sentimentBadge(lead.sentiment)}</td>
-                        <td className="px-3 py-1.5">{scoreBadge(lead.lead_score)}</td>
-                        <td className="px-3 py-1.5">{interestBadge(lead.interest_level)}</td>
+                        <td className="px-2.5 py-1">{sentimentBadge(lead.sentiment)}</td>
+                        <td className="px-2.5 py-1">{scoreBadge(lead.lead_score)}</td>
+                        <td className="px-2.5 py-1">{interestBadge(lead.interest_level)}</td>
                         {/* Call summary */}
-                        <td className="px-3 py-1.5 text-xs text-muted-foreground max-w-[200px] align-middle">
+                        <td className="px-2.5 py-1 text-xs text-muted-foreground max-w-[200px] align-middle">
                           <SummaryTooltip text={lead.call_summary} lines={2} />
                         </td>
-                        <td className="px-3 py-1.5 text-[11px] text-muted-foreground max-w-[180px] align-middle">
+                        <td className="px-2.5 py-1 text-[11px] text-muted-foreground max-w-[180px] align-middle">
                           <span className="line-clamp-1">{lead.next_action ?? "—"}</span>
                         </td>
-                        <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
+                        <td className="px-2.5 py-1 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtDate(lead.last_contacted_at)}
                         </td>
-                        <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap text-[11px]">
+                        <td className="px-2.5 py-1 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtCallDate(
                             isWbah ? lead.meta?.last_called_at
                             : isRetell ? lead.retell_call?.started_at
@@ -1021,42 +1021,42 @@ function LeadsPage() {
                           )}
                         </td>
                         {isRetell && <>
-                          <td className="px-3 py-1.5">{callStatusBadge(lead.retell_call?.call_status)}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
-                          <td className="px-3 py-1.5">
+                          <td className="px-2.5 py-1">{callStatusBadge(lead.retell_call?.call_status)}</td>
+                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
+                          <td className="px-2.5 py-1">
                             {lead.retell_call?.recording_url
                               ? <a href={lead.retell_call.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-3 py-1.5">
+                          <td className="px-2.5 py-1">
                             {lead.retell_call?.transcript
                               ? <button onClick={() => setWbahTranscript(lead.retell_call.transcript)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">
+                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">
                             {lead.retell_call?.disconnection_reason ? String(lead.retell_call.disconnection_reason).replace(/_/g, " ") : "—"}
                           </td>
                         </>}
                         {isWbah && <>
-                          <td className="px-3 py-1.5">{callStatusBadge(lead.meta?.call_status)}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
-                          <td className="px-3 py-1.5">
+                          <td className="px-2.5 py-1">{callStatusBadge(lead.meta?.call_status)}</td>
+                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
+                          <td className="px-2.5 py-1">
                             {lead.meta?.recording_url
                               ? <a href={lead.meta.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-3 py-1.5">
+                          <td className="px-2.5 py-1">
                             {lead.call_summary
                               ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
-                          <td className="px-3 py-1.5">{bookingStatusBadge(lead.meta?.booking_status)}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
-                          <td className="px-3 py-1.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
+                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
+                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
+                          <td className="px-2.5 py-1">{bookingStatusBadge(lead.meta?.booking_status)}</td>
+                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
+                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
                         </>}
-                        <td className="px-3 py-1.5">
+                        <td className="px-2.5 py-1">
                           <button
                             onClick={() => openLeadPanel(lead)}
                             title="Notes & appointment"
@@ -1238,7 +1238,7 @@ function LeadsPage() {
             ) : callHistory.calls.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No calls found.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="min-w-0 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">

@@ -392,51 +392,51 @@ function DynamicDataTable({
   }, [records]);
 
   return (
-    <div className="overflow-x-auto">
+    <div className="min-w-0 overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-white/[0.06] bg-card/30">
-            <th className="w-8 px-3 py-2">
+            <th className="w-8 px-2.5 py-1.5">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
             </th>
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
             {extraCols.map((c) => (
-              <th key={c.key} className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
+              <th key={c.key} className="whitespace-nowrap px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
             ))}
             {metaKeys.map((k) => (
-              <th key={`meta_${k}`} className="whitespace-nowrap px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <th key={`meta_${k}`} className="whitespace-nowrap px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 {k}
                 <span className="ml-1 font-normal normal-case tracking-normal text-amber-500/70">meta</span>
               </th>
             ))}
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-            <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
+            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
           </tr>
         </thead>
         <tbody>
           {records.map((r: any) => (
             <tr key={r.id} className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selected.has(r.id) ? "bg-blue-500/5" : ""}`}>
-              <td className="px-3 py-1.5">
+              <td className="px-2.5 py-1">
                 <Checkbox
                   checked={selected.has(r.id)}
                   onCheckedChange={() => toggleOne(r.id)}
                 />
               </td>
-              <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{r.name}</td>
-              <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px] font-mono">{r.mobile_number}</td>
+              <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">{r.name}</td>
+              <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">{r.mobile_number}</td>
               {extraCols.map((c) => (
-                <td key={c.key} className="px-3 py-1.5 text-muted-foreground text-[11px]">
+                <td key={c.key} className="px-2.5 py-1 text-muted-foreground text-[11px]">
                   {r[c.key] ?? "—"}
                 </td>
               ))}
               {metaKeys.map((k) => (
-                <td key={`meta_${k}`} className="px-3 py-1.5 text-muted-foreground text-[11px]">
+                <td key={`meta_${k}`} className="px-2.5 py-1 text-muted-foreground text-[11px]">
                   {r.meta?.[k] ?? "—"}
                 </td>
               ))}
-              <td className="px-3 py-1.5">
+              <td className="px-2.5 py-1">
                 <div className="flex items-center gap-1.5">
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ring-1 ${statusBadgeClass(r.call_status)}`}>
                     {(r.call_status ?? "").replace(/_/g, " ") || "—"}
@@ -450,12 +450,12 @@ function DynamicDataTable({
                   </button>
                 </div>
               </td>
-              <td className="px-3 py-1.5 text-muted-foreground text-[11px]">
+              <td className="px-2.5 py-1 text-muted-foreground text-[11px]">
                 {r.assigned_agent_id
                   ? (agents.find((a: any) => a.id === r.assigned_agent_id)?.name ?? "—")
                   : "—"}
               </td>
-              <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">{fmtDate(r.updated_at)}</td>
+              <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">{fmtDate(r.updated_at)}</td>
             </tr>
           ))}
         </tbody>
@@ -1254,10 +1254,10 @@ function DataPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-5">
-      <div className="mb-4 flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Data Records</h1>
+    <div className="w-full min-w-0 max-w-full px-4 py-4 sm:px-5">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold tracking-tight">Data Records</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {isWbah
               ? "Manage calling data, import records, and control outbound campaigns"
@@ -1296,7 +1296,7 @@ function DataPage() {
       </div>
 
       {/* Tabs — Records + Campaigns only for WBAH; People for all */}
-      <div className="flex gap-1 mb-4 border-b border-white/[0.06]">
+      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-white/[0.06]">
         {(isWbah
           ? (["records", "people", "campaigns"] as const)
           : (["people"] as const)
@@ -1304,7 +1304,7 @@ function DataPage() {
           <button
             key={t}
             onClick={() => setDataTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            className={`px-2.5 py-1 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               dataTab === t
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1382,7 +1382,7 @@ function DataPage() {
       {dataTab === "records" && (
       <>
       {/* KPI strip — matches Leads page */}
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label="Total" value={stats.total} icon={Database} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
         <KpiCard label="Need to Call" value={stats.needToCall} icon={PhoneOutgoing} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
         <KpiCard label="Queued" value={stats.queued} icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
@@ -1390,16 +1390,16 @@ function DataPage() {
       </div>
 
       {/* Table card — matches Leads page container */}
-      <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+      <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
         {/* Toolbar row */}
-        <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="flex flex-col gap-2 border-b border-white/[0.06] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+          <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Data Records
             {selected.size > 0 && (
               <span className="ml-2 normal-case text-xs font-normal text-blue-400 tracking-normal">{selected.size} selected</span>
             )}
           </p>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {selected.size > 0 && (
               <>
                 <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => setSelected(new Set())}>
@@ -1442,7 +1442,7 @@ function DataPage() {
                 placeholder="Search name, phone…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-7 w-44 pl-7 text-xs"
+                className="h-7 min-w-0 flex-1 basis-32 max-w-[200px] pl-7 text-xs sm:flex-none sm:w-44"
               />
             </div>
             <Select value={callStatus} onValueChange={setCallStatus}>
@@ -1532,17 +1532,17 @@ function DataPage() {
 
           {/* ── WBAH People KPI strip ───────────────────────────────────── */}
           {wbahPeopleTotal > 0 && (
-            <div className="mb-4 grid grid-cols-2 gap-3">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <KpiCard label="CRM Contacts" value={wbahPeopleTotal} icon={Users}     iconBg="bg-blue-500/15" iconColor="text-blue-400" />
               <KpiCard label="Lead Categories" value={wbahCategories.length} icon={UserCheck} iconBg="bg-rose-500/15" iconColor="text-rose-400" />
             </div>
           )}
 
           {/* ── WBAH People toolbar ─────────────────────────────────────── */}
-          <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+          <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
 
             {/* ── Lead-filter category sub-tabs (one per WeeBespoke lead_status) ─ */}
-            <div className="flex items-center gap-0 border-b border-white/[0.06] px-4 overflow-x-auto">
+            <div className="flex items-center gap-0 overflow-x-auto border-b border-white/[0.06] px-3 sm:px-4">
               {[
                 ...wbahCategories.map((c) => ({ id: c.name, label: c.name, count: c.count })),
                 { id: "calls", label: "Calls", count: wbahCallsTotal || wbahCallsCount },
@@ -1554,7 +1554,7 @@ function DataPage() {
                   <button
                     key={tab.id}
                     onClick={() => setWbahPeopleSubTab(tab.id)}
-                    className={`relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                       isActive
                         ? (style ? style.active : "border-primary text-foreground")
                         : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1571,14 +1571,14 @@ function DataPage() {
                 );
               })}
               {wbahCatLoadingList && wbahCategories.length === 0 && (
-                <span className="px-3 py-2.5 text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="px-2.5 py-1.5.5 text-xs text-muted-foreground flex items-center gap-1.5">
                   <RefreshCw className="h-3 w-3 animate-spin" /> Loading categories…
                 </span>
               )}
               {!wbahCatLoadingList && wbahCategories.length === 0 && wbahCatListError && (
                 <button
                   onClick={() => handleFetchWbahCategoryList()}
-                  className="px-3 py-2.5 text-xs text-destructive hover:text-destructive/80 flex items-center gap-1.5"
+                  className="px-2.5 py-1.5.5 text-xs text-destructive hover:text-destructive/80 flex items-center gap-1.5"
                   title={wbahCatListError}
                 >
                   <AlertCircle className="h-3 w-3" /> Couldn't load categories — Retry
@@ -1586,8 +1586,8 @@ function DataPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
-              <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-col gap-2 border-b border-white/[0.06] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   {wbahPeopleSubTab === "calls" ? "Calls" : (wbahPeopleSubTab || "Leads")}
                   {(() => {
@@ -1612,7 +1612,7 @@ function DataPage() {
                       value={wbahPeopleSearch}
                       onChange={e => setWbahPeopleSearch(e.target.value)}
                       placeholder="Search name, phone…"
-                      className="h-7 rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 w-44"
+                      className="h-7 min-w-0 w-full max-w-[180px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-40"
                     />
                     {wbahPeopleSearch && (
                       <button
@@ -1677,7 +1677,7 @@ function DataPage() {
                 )}
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 {/* Assign Qualification Agent — only when rows are selected on Leads tab */}
                 {wbahSelected.size > 0 && wbahPeopleSubTab === "leads" && (
                   <>
@@ -1819,7 +1819,7 @@ function DataPage() {
               );
 
               return (
-                <div className="overflow-x-auto">
+                <div className="min-w-0 overflow-x-auto">
                   {isCat && (() => {
                     const cat   = wbahPeopleSubTab;
                     const label = wbahPeopleSubTab;
@@ -1839,7 +1839,7 @@ function DataPage() {
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-card/30">
                         {isLeads && (
-                          <th className="w-8 px-3 py-2">
+                          <th className="w-8 px-2.5 py-1.5">
                             <Checkbox
                               checked={rows.length > 0 && rows.every(r => wbahSelected.has(r.id))}
                               onCheckedChange={(v) => {
@@ -1854,7 +1854,7 @@ function DataPage() {
                           ...(isCat ? ["LOADED"] : []),
                           "TYPE","LAST CALLED AT","CALL STATUS","DURATION","RECORDING","TRANSCRIPT","SENTIMENT","APPT DATE","APPT TIME","BOOKING STATUS","CALENDLY","END REASON","DISCONNECTION",
                         ] as string[]).map(col => (
-                          <th key={col} className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground whitespace-nowrap">{col}</th>
+                          <th key={col} className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground whitespace-nowrap">{col}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1869,7 +1869,7 @@ function DataPage() {
                             className={`group border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
                           >
                             {isLeads && (
-                              <td className="px-3 py-2">
+                              <td className="px-2.5 py-1.5">
                                 <Checkbox
                                   checked={isSelected}
                                   onCheckedChange={() => {
@@ -1880,9 +1880,9 @@ function DataPage() {
                                 />
                               </td>
                             )}
-                            <td className="px-3 py-2 text-muted-foreground text-[11px]">{r.srNo}</td>
-                            <td className="px-3 py-2 font-medium whitespace-nowrap max-w-[140px] truncate">{r.name || "—"}</td>
-                            <td className="px-3 py-2 font-mono text-muted-foreground text-[11px] whitespace-nowrap">
+                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px]">{r.srNo}</td>
+                            <td className="px-2.5 py-1.5 font-medium whitespace-nowrap max-w-[140px] truncate">{r.name || "—"}</td>
+                            <td className="px-2.5 py-1.5 font-mono text-muted-foreground text-[11px] whitespace-nowrap">
                               {r.contact ? (
                                 <a href={`tel:${r.contact}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
                                   <Phone className="h-3 w-3" />{r.contact}
@@ -1890,17 +1890,17 @@ function DataPage() {
                               ) : "—"}
                             </td>
                             {isCat && (
-                              <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
+                              <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
                             )}
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
-                            <td className="px-3 py-2 whitespace-nowrap">
+                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
+                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
+                            <td className="px-2.5 py-1.5 whitespace-nowrap">
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}>
                                 {statusBadge.label}
                               </span>
                             </td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
-                            <td className="px-3 py-2">
+                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
+                            <td className="px-2.5 py-1.5">
                               {r.recordingUrl ? (
                                 <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
@@ -1909,7 +1909,7 @@ function DataPage() {
                                 </a>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-2.5 py-1.5">
                               {(r.transcript || r.hasTranscript) ? (
                                 <button
                                   onClick={() => openWbahTranscript(r)}
@@ -1919,17 +1919,17 @@ function DataPage() {
                                 </button>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className={`px-3 py-2 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}>{sentBadge.label}</td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentDate || "—"}</td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentTime || "—"}</td>
-                            <td className="px-3 py-2">
+                            <td className={`px-2.5 py-1.5 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}>{sentBadge.label}</td>
+                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentDate || "—"}</td>
+                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentTime || "—"}</td>
+                            <td className="px-2.5 py-1.5">
                               {r.bookingStatus ? (
                                 <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
                                   {r.bookingStatus.replace(/_/g, " ")}
                                 </span>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-3 py-2">
+                            <td className="px-2.5 py-1.5">
                               {r.calendlyBookingUrl ? (
                                 <a href={r.calendlyBookingUrl} target="_blank" rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
@@ -1938,10 +1938,10 @@ function DataPage() {
                                 </a>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
+                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
                               {r.endReason ? r.endReason.replace(/_/g, " ") : "—"}
                             </td>
-                            <td className="px-3 py-2 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
+                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
                               {r.disconnectionReason ? r.disconnectionReason.replace(/_/g, " ") : "—"}
                             </td>
                           </tr>
@@ -1964,9 +1964,9 @@ function DataPage() {
       )}
 
       {dataTab === "people" && !isWbah && (
-        <div className="rounded-xl border border-white/[0.06] bg-card/60 overflow-hidden">
+        <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
           {/* People toolbar */}
-          <div className="flex items-center justify-between gap-2 flex-wrap px-4 py-2.5 border-b border-white/[0.06]">
+          <div className="flex flex-col gap-2 border-b border-white/[0.06] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Inbound Leads from CRM
               {crmPeople.length > 0 && (
@@ -1980,7 +1980,7 @@ function DataPage() {
                 </span>
               )}
             </p>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               {crmPeopleSelected.size > 0 && (
                 <>
                   <Select
@@ -2061,11 +2061,11 @@ function DataPage() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="min-w-0 overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
-                    <th className="w-8 px-3 py-2">
+                    <th className="w-8 px-2.5 py-1.5">
                       <Checkbox
                         checked={crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length}
                         onCheckedChange={(v) => {
@@ -2074,12 +2074,12 @@ function DataPage() {
                         }}
                       />
                     </th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
+                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
+                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
+                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
+                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2088,7 +2088,7 @@ function DataPage() {
                       key={p.external_id}
                       className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
                     >
-                      <td className="px-3 py-1.5">
+                      <td className="px-2.5 py-1">
                         <Checkbox
                           checked={crmPeopleSelected.has(p.external_id)}
                           onCheckedChange={() => {
@@ -2099,18 +2099,18 @@ function DataPage() {
                           }}
                         />
                       </td>
-                      <td className="px-3 py-1.5 text-xs font-medium whitespace-nowrap">{p.name || "—"}</td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px] font-mono">{p.phone || "—"}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground text-[11px]">{p.email || "—"}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground text-[11px]">{p.source || "—"}</td>
-                      <td className="px-3 py-1.5">
+                      <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">{p.name || "—"}</td>
+                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">{p.phone || "—"}</td>
+                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">{p.email || "—"}</td>
+                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">{p.source || "—"}</td>
+                      <td className="px-2.5 py-1">
                         {p.status ? (
                           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground ring-1 ring-white/[0.06]">
                             {p.status.replace(/_/g, " ")}
                           </span>
                         ) : "—"}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground text-[11px]">
+                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">
                         {p.created_at ? fmtDate(p.created_at) : "—"}
                       </td>
                     </tr>
@@ -2474,7 +2474,7 @@ function CsvMappingDialog({
                           const f = SYSTEM_FIELDS.find((x) => x.value === effective);
                           const customKeyVal = customKeys[h] || toMetaKey(h) || h;
                           return (
-                            <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">
+                            <th key={h} className="whitespace-nowrap px-2.5 py-1.5 font-semibold">
                               <div className="text-[11px] text-foreground/80">{h}</div>
                               <div className="text-[10px] font-normal">
                                 {isCustom ? (
@@ -2499,7 +2499,7 @@ function CsvMappingDialog({
                       {previewRows.map((row, i) => (
                         <tr key={i} className="border-b border-border/40">
                           {headers.map((h) => (
-                            <td key={h} className="whitespace-nowrap px-3 py-1.5" title={row[h]}>
+                            <td key={h} className="whitespace-nowrap px-2.5 py-1" title={row[h]}>
                               {row[h] || <span className="text-muted-foreground/50">—</span>}
                             </td>
                           ))}

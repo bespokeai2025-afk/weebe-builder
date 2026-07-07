@@ -22,7 +22,7 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-white/[0.06]">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-white/[0.06] sm:px-5">
       <div className="flex items-center gap-3">
         {Icon && (
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -67,15 +67,15 @@ export function KpiCard({
   hint?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-card/60 px-4 py-3 backdrop-blur">
-      <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", iconBg)}>
-        <Icon className={cn("h-4 w-4", iconColor)} />
+    <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.06] bg-card/60 px-3 py-2.5 backdrop-blur">
+      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>
+        <Icon className={cn("h-3.5 w-3.5", iconColor)} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground leading-none mb-1">
+        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground leading-none mb-0.5">
           {label}
         </p>
-        <p className="text-xl font-bold leading-tight tabular-nums text-foreground">{value}</p>
+        <p className="text-lg font-bold leading-tight tabular-nums text-foreground">{value}</p>
         {hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
       </div>
       {delta != null && (
@@ -98,9 +98,9 @@ export function MiniKpiCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-white/[0.08] bg-card/30 px-4 py-3">
+    <div className="min-w-0 rounded-xl border border-dashed border-white/[0.08] bg-card/30 px-3 py-2.5">
       <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-bold tabular-nums">{value}</p>
+      <p className="mt-0.5 text-base font-bold tabular-nums">{value}</p>
       {hint && <p className="text-[10px] text-muted-foreground mt-0.5">{hint}</p>}
     </div>
   );
@@ -126,10 +126,10 @@ export function StatCard({
   tone?: keyof typeof toneStyles;
 }) {
   return (
-    <div className={cn("relative overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 p-4 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
+    <div className={cn("relative min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60 p-3 backdrop-blur", toneStyles[tone].split(" ").slice(2).join(" "))}>
       <div className={cn("absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r", toneStyles[tone].split(" ").slice(0, 2).join(" "))} />
       <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
+      <p className="mt-0.5 text-xl font-bold tracking-tight text-foreground tabular-nums">{value}</p>
       {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
@@ -137,7 +137,7 @@ export function StatCard({
 
 export function PanelCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("rounded-xl border border-white/[0.06] bg-card/50 p-4 backdrop-blur", className)}>
+    <div className={cn("min-w-0 rounded-xl border border-white/[0.06] bg-card/50 p-3 backdrop-blur sm:p-4", className)}>
       {children}
     </div>
   );
@@ -176,7 +176,7 @@ export function TableHead({ children }: { children: React.ReactNode }) {
 
 export function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground", className)}>
+    <th className={cn("px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground", className)}>
       {children}
     </th>
   );
