@@ -2069,15 +2069,17 @@ async function fetchWbahCrmLoadedContactsLive(userId: string): Promise<any[]> {
 // Resilient wrapper: the WeeBespoke API allows only ONE active session, so a
 // concurrent login (another WBAH request, or a background relogin) can invalidate
 // the token mid-fetch and return empty/401 — which used to blank the People tab.
-// We keep a durable "last-good" snapshot (30 min) and serve it whenever the live
-// fetch fails or comes back empty, so People never goes blank on a transient
-// session hiccup. The snapshot (~1.8MB) is well under the Redis size cap.
+// We keep a durable "last-good" snapshot (24h) and serve it whenever the live
+// fetch fails or comes back empty, so People stays up even through an extended
+// session outage. The snapshot (~1.8MB) is well under the Redis size cap and is
+// refreshed on every successful live fetch.
+const WBAH_CRM_LASTGOOD_TTL = 24 * 60 * 60; // 24h
 async function getWbahCrmLoadedContacts(userId: string, workspaceId: string): Promise<any[]> {
   const goodKey = `webee:wbah-crm-contacts-good:${workspaceId}`;
   return cacheWrap(`webee:wbah-crm-contacts:${workspaceId}`, 60, async () => {
     try {
       const live = await fetchWbahCrmLoadedContactsLive(userId);
-      await cacheSet(goodKey, 30 * 60, live); // durable last-good snapshot
+      await cacheSet(goodKey, WBAH_CRM_LASTGOOD_TTL, live); // durable last-good snapshot
       return live;
     } catch (e: any) {
       const lastGood = await cacheGet<any[]>(goodKey);
