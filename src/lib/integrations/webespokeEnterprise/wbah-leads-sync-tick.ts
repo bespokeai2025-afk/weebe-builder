@@ -812,9 +812,11 @@ let _apptBackfillInflight: Promise<{ rows: number }> | null = null;
 const APPT_BACKFILL_MS = 5 * 60 * 1000;
 const APPT_BACKFILL_PAGES = 15;
 
-export async function refreshWbahAppointmentBackfill(): Promise<{ rows: number }> {
+export async function refreshWbahAppointmentBackfill(opts?: { maxPages?: number }): Promise<{ rows: number }> {
   if (_apptBackfillInflight) return _apptBackfillInflight;
   if (Date.now() - _apptBackfillAt < APPT_BACKFILL_MS) return { rows: 0 };
+
+  const maxPages = opts?.maxPages ?? APPT_BACKFILL_PAGES;
 
   _apptBackfillInflight = (async () => {
     const sb = getAdminClient();
@@ -844,9 +846,9 @@ export async function refreshWbahAppointmentBackfill(): Promise<{ rows: number }
 
     const pages: number[] = [];
     if (newestAtEnd) {
-      for (let p = lastPage; p >= Math.max(1, lastPage - APPT_BACKFILL_PAGES + 1); p--) pages.push(p);
+      for (let p = lastPage; p >= Math.max(1, lastPage - maxPages + 1); p--) pages.push(p);
     } else {
-      for (let p = 1; p <= Math.min(lastPage, APPT_BACKFILL_PAGES); p++) pages.push(p);
+      for (let p = 1; p <= Math.min(lastPage, maxPages); p++) pages.push(p);
     }
 
     let total = 0;

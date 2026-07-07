@@ -335,7 +335,7 @@ function LeadsPage() {
   }
 
   const leadsQ = useQuery({
-    queryKey: ["leads-all", isWbah, wbahDaysFilter, leadsFrom, leadsTo],
+    queryKey: ["leads-all", isWbah],
     queryFn: () => {
       // WBAH "Leads window" = already-called contacts whose latest call came back
       // positive or neutral. For WBAH the server fn first refreshes the newest
@@ -346,7 +346,7 @@ function LeadsPage() {
       return listLeadsFn({ data: { limit: 1000, dateFrom, dateTo } });
     },
     enabled: wsResolved,
-    staleTime: isWbah ? 60_000 : 5 * 60 * 1000,
+    staleTime: isWbah ? 180_000 : 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: isWbah ? false : 5 * 60 * 1000,
     throwOnError: false,

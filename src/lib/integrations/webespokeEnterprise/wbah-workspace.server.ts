@@ -14,7 +14,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { enrichWbahCallRowsWithBookings, loadWbahCrmBookingByDigits, findWbahBookingCall, resolveWbahBookingFields, phoneDigits } from "@/lib/dashboard/wbah-booking-meta";
+import { enrichWbahCallRowsWithBookings, findWbahBookingCall, resolveWbahBookingFields, phoneDigits, isWbahRecordBooked } from "@/lib/dashboard/wbah-booking-meta";
+import { getWbahCallsAggregate } from "./wbah-leads.server";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
 import * as api from "./client.server";
@@ -1453,12 +1454,12 @@ export const listWbahCallsLive = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    await refreshWbahLiveData(workspaceId);
-    // Lite = no transcripts in the list payload (loaded on demand). Cuts the
-    // Calls page response from ~20MB to a few MB and keeps it under limits.
-    const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
-    logWbahResponse("listWbahCallsLive", workspaceId, rows.length, rows);
-    return rows;
+    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
+    return cacheWrap(`webee:wbah-calls-live-lite:v1:${workspaceId}`, 180, async () => {
+      const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
+      logWbahResponse("listWbahCallsLive", workspaceId, rows.length, rows);
+      return rows;
+    });
   });
 
 // Lightweight count for the Calls sub-tab badge — avoids downloading all
@@ -1659,20 +1660,39 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
 
 const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
 
-async function refreshWbahLiveData(workspaceId: string): Promise<void> {
+let _liveRefreshInflight: Promise<void> | null = null;
+
+async function refreshWbahLiveData(
+  workspaceId: string,
+  opts?: { awaitResult?: boolean; lightBackfill?: boolean },
+): Promise<void> {
   if (workspaceId !== WBAH_WORKSPACE_ID) return;
-  try {
-    const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
-    await refreshWbahCallsFromRetell();
-  } catch (e: any) {
-    console.warn("[wbah-live] retell refresh failed:", e?.message ?? e);
+
+  const run = async () => {
+    try {
+      const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
+      await refreshWbahCallsFromRetell();
+    } catch (e: any) {
+      console.warn("[wbah-live] retell refresh failed:", e?.message ?? e);
+    }
+    try {
+      const { refreshWbahAppointmentBackfill } = await import("./wbah-leads-sync-tick");
+      await refreshWbahAppointmentBackfill(
+        opts?.lightBackfill ? { maxPages: 3 } : undefined,
+      );
+    } catch (e: any) {
+      console.warn("[wbah-live] appointment backfill failed:", e?.message ?? e);
+    }
+  };
+
+  if (opts?.awaitResult) {
+    return run();
   }
-  try {
-    const { refreshWbahAppointmentBackfill } = await import("./wbah-leads-sync-tick");
-    await refreshWbahAppointmentBackfill();
-  } catch (e: any) {
-    console.warn("[wbah-live] appointment backfill failed:", e?.message ?? e);
+
+  if (!_liveRefreshInflight) {
+    _liveRefreshInflight = run().finally(() => { _liveRefreshInflight = null; });
   }
+  void _liveRefreshInflight;
 }
 
 async function requireWbahRetellKey(userId: string): Promise<string> {
@@ -2540,40 +2560,10 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-posneu-leads:v3:${workspaceId}`, 60, async () => {
-      await refreshWbahLiveData(workspaceId);
-      const PAGE = 1000;
-      const all: any[] = [];
-      let from = 0;
-      for (;;) {
-        const { data, error } = await (supabaseAdmin as any)
-          .from("wbah_calls")
-          .select(
-            "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
-          )
-          .eq("workspace_id", workspaceId)
-          .order("started_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(`DB query failed: ${error.message}`);
-        const batch: any[] = data ?? [];
-        all.push(...batch);
-        if (batch.length < PAGE) break;
-        from += PAGE;
-      }
+    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
 
-      // Aggregate per contact (phone): one row per person, carrying the call
-      // COUNT and a "definitive outcome" — if any call was positive the contact
-      // is treated as positive (its best/positive call becomes the main call);
-      // otherwise the latest call wins. Previous calls are available via the
-      // drill-down (getWbahContactCallHistory).
-      const byPhone = new Map<string, any[]>();
-      for (const c of all) {
-        const key = phoneDigits(c.phone) || `id:${c.id}`;
-        const arr = byPhone.get(key) ?? [];
-        arr.push(c);
-        byPhone.set(key, arr);
-      }
+    const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
+
       const sentRank = (s: string) => (s === "positive" ? 3 : s === "neutral" ? 2 : s === "negative" ? 1 : 0);
       const posNeu: any[] = [];
       for (const calls of byPhone.values()) {
@@ -2607,8 +2597,6 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
 
       console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
 
-      const crmBookingByDigits = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
-
       return posNeu.map((c) => {
         const phoneKey = phoneDigits(c.phone) || `id:${c.id}`;
         const calls = byPhone.get(phoneKey) ?? [c];
@@ -2619,10 +2607,6 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
         const transcript = transcriptById.get(c.id) ?? null;
         const sentiment = String(c.sentiment ?? "").toLowerCase() || null;
         const durationSec = Number(c.duration_seconds ?? 0);
-        // Partial-qualified (WBAH): a NEUTRAL call that lasted > 5 minutes — a
-        // meaningful partial qualification, distinct from short "normal" neutral
-        // calls. This only annotates the row; it does not change which leads are
-        // returned, so existing flows are untouched.
         const partialQualified = sentiment === "neutral" && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
         return {
           id:                c.id,
@@ -2655,7 +2639,6 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
           },
         };
       });
-    });
   });
 
 // ── WBAH Qualified Leads (derived live from wbah_calls) ───────────────────────
@@ -2713,86 +2696,36 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-qualified-leads:v2:${workspaceId}`, 60, async () => {
-      await refreshWbahLiveData(workspaceId);
+    void refreshWbahLiveData(workspaceId, { lightBackfill: true });
 
-      const PAGE = 1000;
-      const all: any[] = [];
-      let from = 0;
-      for (;;) {
-        const { data, error } = await (supabaseAdmin as any)
-          .from("wbah_calls")
-          .select(
-            "id, customer_name, phone, agent_name, call_status, sentiment, duration_seconds, started_at, recording_url, disconnection_reason, end_reason, appointment_date, appointment_time, booking_status, calendly_booking_url",
-          )
-          .eq("workspace_id", workspaceId)
-          .order("started_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: true })
-          .range(from, from + PAGE - 1);
-        if (error) throw new Error(`DB query failed: ${error.message}`);
-        const batch: any[] = data ?? [];
-        all.push(...batch);
-        if (batch.length < PAGE) break;
-        from += PAGE;
-      }
+    const { byPhone, crmBookingByDigits } = await getWbahCallsAggregate(workspaceId);
 
-      // Dedup per contact (phone). Rows are latest-first, so the first time we
-      // see a phone is that contact's most-recent call. Separately remember the
-      // most-recent call that carried a booking — a contact may have booked on
-      // an earlier call and then had a neutral follow-up, and must stay qualified
-      // with its appointment details intact.
-      const hasUrl = (c: any) =>
-        c.calendly_booking_url != null && String(c.calendly_booking_url).trim() !== "";
       const latestByPhone = new Map<string, any>();
-      const bookingByPhone = new Map<string, any>();
       const countByPhone = new Map<string, number>();
       const orderKeys: string[] = [];
-      for (const c of all) {
-        // Dedup key is digits-normalized so the same contact under different
-        // phone formats (+44… vs 0…) collapses to one row (parity with the
-        // agent-map matching below).
-        const digitsKey = String(c.phone ?? "").replace(/\D/g, "");
-        const key = digitsKey || `id:${c.id}`;
-        countByPhone.set(key, (countByPhone.get(key) ?? 0) + 1);
-        if (!latestByPhone.has(key)) {
-          latestByPhone.set(key, c);
-          orderKeys.push(key);
-        }
-        if (hasUrl(c) && !bookingByPhone.has(key)) bookingByPhone.set(key, c);
+      for (const [key, calls] of byPhone) {
+        const c = calls[0];
+        countByPhone.set(key, calls.length);
+        latestByPhone.set(key, c);
+        orderKeys.push(key);
       }
 
-      // Booking data lives in the WeeBespoke CRM feed (wbah_crm_contacts), not in
-      // the Retell call log — enrich it so booked contacts stay Qualified with
-      // their appointment details even though Retell carries no booking field.
-      const crmBookingByDigits = new Map<string, any>();
-      try {
-        const { data: crm } = await (supabaseAdmin as any)
-          .from("wbah_crm_contacts")
-          .select("phone, booking_status, appointment_date, appointment_time, calendly_booking_url")
-          .eq("workspace_id", workspaceId)
-          .not("booking_status", "is", null);
-        for (const r of (crm ?? []) as any[]) {
-          const bs = String(r.booking_status ?? "").toLowerCase();
-          const booked = bs === "success" || bs === "booked" || bs === "confirmed" || !!(r.appointment_date && String(r.appointment_date).trim());
-          if (!booked) continue;
-          const d = String(r.phone ?? "").replace(/\D/g, "");
-          if (d) crmBookingByDigits.set(d, r);
-        }
-      } catch (e: any) {
-        console.warn("[wbah-qualified-leads] CRM booking enrichment skipped:", e?.message ?? e);
-      }
+      const contactBooked = (key: string): boolean => {
+        const c = latestByPhone.get(key);
+        if (!c) return false;
+        const calls = byPhone.get(key) ?? [c];
+        const bookingCall = findWbahBookingCall(calls);
+        const digits = phoneDigits(c.phone);
+        const crm = digits ? crmBookingByDigits.get(digits) : null;
+        return isWbahRecordBooked(resolveWbahBookingFields(c, bookingCall, crm));
+      };
 
-      // Qualified = latest call positive, OR the contact booked an appointment
-      // (from the Retell call log OR the WeeBespoke CRM feed).
       const qualifiedKeys = orderKeys.filter((key) => {
         const latest = latestByPhone.get(key);
         const s = String(latest?.sentiment ?? "").toLowerCase();
-        const digits = String(latest?.phone ?? "").replace(/\D/g, "");
-        return s === "positive" || bookingByPhone.has(key) || crmBookingByDigits.has(digits);
+        return s === "positive" || contactBooked(key);
       });
 
-      // Transcripts are heavy — pull them only for the kept contacts, chunked to
-      // stay under PostgREST's row cap.
       const keptIds = qualifiedKeys.map((k) => latestByPhone.get(k)?.id).filter(Boolean);
       const transcriptById = new Map<string, string | null>();
       for (let i = 0; i < keptIds.length; i += 500) {
@@ -2804,12 +2737,9 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
         for (const t of (trows ?? []) as any[]) transcriptById.set(t.id, t.transcript ?? null);
       }
 
-      // Agent attribution — best-effort, bounded, and cached 1h separately so we
-      // don't re-page Retell on every 60s leads refresh. On any failure agents
-      // stay null and the UI hides the agent filter (graceful degradation).
       const neededDigits = new Set<string>();
       for (const key of qualifiedKeys) {
-        const d = String(latestByPhone.get(key)?.phone ?? "").replace(/\D/g, "");
+        const d = phoneDigits(latestByPhone.get(key)?.phone);
         if (d) neededDigits.add(d);
       }
       let agentByDigits: Record<string, string> = {};
@@ -2827,16 +2757,15 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
       }
 
       console.log(`[WBAH qualified] qualified contacts: ${qualifiedKeys.length}`);
-      // Shape rows to the /leads ("Leads window") contract: top-level lead fields
-      // + a `meta` blob carrying the latest-call (and booking) details.
       return qualifiedKeys.map((key) => {
         const c = latestByPhone.get(key);
-        const digits = String(c.phone ?? "").replace(/\D/g, "");
-        const crmBooking = crmBookingByDigits.get(digits) ?? null;
-        const booking = bookingByPhone.get(key) ?? crmBooking ?? null;
-        const apptSrc = booking ?? c; // appointment info from the booking source
+        const calls = byPhone.get(key) ?? (c ? [c] : []);
+        const bookingCall = findWbahBookingCall(calls);
+        const digits = phoneDigits(c.phone);
+        const crm = digits ? crmBookingByDigits.get(digits) : null;
+        const appt = resolveWbahBookingFields(c, bookingCall, crm);
         const startedIso: string | null = c.started_at ?? null;
-        const agentName = (digits && agentByDigits[digits]) || c.agent_name || null;
+        const agentName = (digits && agentByDigits[digits]) || appt.agent_name || c.agent_name || null;
         const sentiment = (String(c.sentiment ?? "").toLowerCase() || null);
         const durationSec = c.duration_seconds != null ? Number(c.duration_seconds) : null;
         const partialQualified = sentiment === "neutral" && durationSec != null && durationSec > WBAH_PARTIAL_QUALIFIED_MIN_SECONDS;
@@ -2859,19 +2788,18 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
             call_status:          c.call_status ?? null,
             duration_ms:          durationSec != null ? durationSec * 1000 : null,
             recording_url:        c.recording_url ?? null,
-            appointment_date:     apptSrc.appointment_date ?? null,
-            appointment_time:     apptSrc.appointment_time ?? null,
-            booking_status:       apptSrc.booking_status ?? null,
+            appointment_date:     appt.appointment_date ?? null,
+            appointment_time:     appt.appointment_time ?? null,
+            booking_status:       appt.booking_status ?? null,
             end_reason:           c.end_reason ?? null,
             disconnection_reason: c.disconnection_reason ?? null,
-            calendly_booking_url: apptSrc.calendly_booking_url ?? null,
+            calendly_booking_url: appt.calendly_booking_url ?? null,
             agent_name:           agentName,
             partial_qualified:    partialQualified,
             call_count:           countByPhone.get(key) ?? 1,
           },
         };
       });
-    });
   });
 
 // ── Disqualified leads from WeeBespoke API (filter master UUID approach) ───────

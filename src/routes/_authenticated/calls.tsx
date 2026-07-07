@@ -328,7 +328,7 @@ function CallsPage() {
     queryKey: ["wbah-calls"],
     queryFn: () => wbahFn(),
     enabled: isWbah,
-    staleTime:            60_000,
+    staleTime:            180_000,
     refetchOnWindowFocus: false,
     retry: 0,
     throwOnError: false,
