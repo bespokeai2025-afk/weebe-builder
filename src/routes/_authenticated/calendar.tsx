@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { KpiCard } from "@/components/dashboard/PageShell";
+import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import {
   Dialog,
   DialogContent,
@@ -299,7 +300,9 @@ function CalendarPage() {
   const fn = useServerFn(listCalendarBookings);
   const qc = useQueryClient();
 
-  const q = useQuery({ queryKey: ["calendar-bookings"], queryFn: () => fn() ,
+  const q = useQuery({
+    queryKey: ["calendar-bookings"],
+    queryFn: () => fn(),
     throwOnError: false,
   });
   const data = q.data;
@@ -410,6 +413,16 @@ function CalendarPage() {
         </div>
       )}
 
+      {q.isError && (
+        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-xs text-destructive">
+          Failed to load bookings. Try refreshing the page.
+        </div>
+      )}
+
+      {q.isLoading ? (
+        <LoadingProgress label="Loading calendar bookings" estimatedMs={6000} />
+      ) : (
+      <>
       {/* KPI strip */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard label="Total Bookings" value={bookings.length} icon={CalendarCheck} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
@@ -417,6 +430,12 @@ function CalendarPage() {
         <KpiCard label="Pending" value={pending} icon={Clock} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
         <KpiCard label="Past" value={past.length} icon={CheckCircle2} iconBg="bg-emerald-500/15" iconColor="text-emerald-400" />
       </div>
+
+      {data?.isWbah && allBookings.length === 0 && (
+        <div className="mb-4 rounded-lg border border-white/[0.08] bg-card/40 px-4 py-3 text-xs text-muted-foreground">
+          No Calendly appointments found yet. Bookings from qualified calls with an appointment date will appear here — try Refresh to sync the latest CRM data.
+        </div>
+      )}
 
       {/* ── Legend + Agent filter ── */}
       {legendEntries.length > 0 && (
@@ -597,6 +616,8 @@ function CalendarPage() {
         booking={detailBooking} open={detailOpen} onOpenChange={setDetailOpen}
         onNotesSaved={handleNotesSaved} onCancelled={handleCancelled}
       />
+      </>
+      )}
     </div>
   );
 }

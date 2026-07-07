@@ -285,6 +285,8 @@ export const listCalendarBookings = createServerFn({ method: "GET" })
     let wbahBookings: UnifiedBooking[] = [];
     if (isWbah) {
       try {
+        const { cacheDel } = await import("@/lib/cache/redis.server");
+        await cacheDel(`webee:wbah-calls-aggregate:v3:${workspaceId}`);
         const wbahRows = await getWbahCalendarBookings(workspaceId);
         wbahBookings = wbahRows.map((b) => ({
           id: `wbah:${b.id}`,

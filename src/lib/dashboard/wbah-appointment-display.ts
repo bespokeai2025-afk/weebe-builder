@@ -48,6 +48,18 @@ function parseCalendlyUrlIso(url: string | null | undefined): string | null {
   return null;
 }
 
+/** Parse 12-hour clock times like "03:30 PM". */
+function parse12HourClock(t: string): { hour: number; minute: number } | null {
+  const m = t.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (!m) return null;
+  let hour = Number(m[1]);
+  const minute = Number(m[2]);
+  const ampm = m[3].toUpperCase();
+  if (hour === 12) hour = ampm === "AM" ? 0 : 12;
+  else if (ampm === "PM") hour += 12;
+  return { hour, minute };
+}
+
 /** Parse WBAH appointment date + time strings into an ISO timestamp for the calendar. */
 export function parseWbahAppointmentIso(
   appointmentDate: string | null | undefined,
@@ -56,6 +68,16 @@ export function parseWbahAppointmentIso(
 ): string | null {
   const dRaw = appointmentDate && String(appointmentDate).trim() ? String(appointmentDate).trim() : null;
   const tRaw = appointmentTime && String(appointmentTime).trim() ? String(appointmentTime).trim() : null;
+
+  // Unix epoch (seconds or ms) in either field.
+  for (const raw of [tRaw, dRaw]) {
+    if (raw && /^\d{10,13}$/.test(raw)) {
+      const n = Number(raw);
+      const ms = n > 1e12 ? n : n * 1000;
+      const parsed = new Date(ms);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString();
+    }
+  }
 
   // Full ISO / RFC datetime in appointment_time (e.g. 2026-07-08T10:00:00.000Z from CRM).
   if (tRaw && /T\d{1,2}:\d{2}/.test(tRaw)) {
@@ -71,12 +93,23 @@ export function parseWbahAppointmentIso(
 
   if (dRaw) {
     const t = tRaw ?? "09:00";
+    const clock12 = parse12HourClock(t);
 
     if (/^\d{4}-\d{2}-\d{2}/.test(dRaw)) {
       const datePart = dRaw.slice(0, 10);
       const isoHm = t.match(/T(\d{2}:\d{2})/);
       const hm = t.match(/^(\d{1,2}:\d{2})/);
       const timePart = isoHm?.[1] ?? hm?.[1] ?? "09:00";
+      if (clock12) {
+        const parsed = new Date(
+          Number(datePart.slice(0, 4)),
+          Number(datePart.slice(5, 7)) - 1,
+          Number(datePart.slice(8, 10)),
+          clock12.hour,
+          clock12.minute,
+        );
+        if (!isNaN(parsed.getTime())) return parsed.toISOString();
+      }
       const parsed = new Date(`${datePart}T${timePart}`);
       if (!isNaN(parsed.getTime())) return parsed.toISOString();
     }
@@ -87,10 +120,11 @@ export function parseWbahAppointmentIso(
       const [, a, b, year] = slash;
       const day = Number(a);
       const month = Number(b);
+      const clock12uk = parse12HourClock(t);
       const isoHm = t.match(/T(\d{2}):(\d{2})/);
       const hm = t.match(/^(\d{1,2}):(\d{2})/);
-      const hh = isoHm ? Number(isoHm[1]) : hm ? Number(hm[1]) : 9;
-      const mm = isoHm ? Number(isoHm[2]) : hm ? Number(hm[2]) : 0;
+      const hh = clock12uk ? clock12uk.hour : isoHm ? Number(isoHm[1]) : hm ? Number(hm[1]) : 9;
+      const mm = clock12uk ? clock12uk.minute : isoHm ? Number(isoHm[2]) : hm ? Number(hm[2]) : 0;
       const parsed = new Date(Number(year), month - 1, day, hh, mm);
       if (!isNaN(parsed.getTime())) return parsed.toISOString();
     }
@@ -100,6 +134,12 @@ export function parseWbahAppointmentIso(
 
     const loose = new Date(`${dRaw} ${t}`);
     if (!isNaN(loose.getTime())) return loose.toISOString();
+  }
+
+  // Time-only with ISO date embedded in appointment_time.
+  if (tRaw && !dRaw) {
+    const parsed = Date.parse(tRaw);
+    if (!isNaN(parsed)) return new Date(parsed).toISOString();
   }
 
   const fromCalendly = parseCalendlyUrlIso(calendlyUrl);

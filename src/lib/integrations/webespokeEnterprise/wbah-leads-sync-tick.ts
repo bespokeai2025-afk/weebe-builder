@@ -877,10 +877,12 @@ export async function refreshWbahAppointmentBackfill(opts?: { maxPages?: number 
 // non-booked People sync runs.
 
 function isBookedCrmRecord(raw: any): boolean {
-  const bs = String(raw?.booking_status ?? "").toLowerCase();
+  const appt = raw?.call_appointment_date ?? raw?.appointmentDate ?? raw?.appointment_date ?? null;
+  const bs = String(raw?.call_booking_status ?? raw?.bookingStatus ?? raw?.booking_status ?? "").toLowerCase();
   if (bs === "success" || bs === "booked" || bs === "confirmed") return true;
-  if (raw?.calendly_booking_url && String(raw.calendly_booking_url).trim()) return true;
-  return !!(raw?.appointment_date && String(raw.appointment_date).trim());
+  const url = raw?.call_calendly_booking_url ?? raw?.calendlyBookingUrl ?? raw?.calendly_booking_url ?? raw?.calendlyUrl ?? null;
+  if (url && String(url).trim()) return true;
+  return !!(appt && String(appt).trim());
 }
 
 function buildBookedCrmRow(raw: any, workspaceId: string) {
@@ -889,6 +891,11 @@ function buildBookedCrmRow(raw: any, workspaceId: string) {
     ? String(phone).trim()
     : `id:${raw.lead_id ?? raw.callId ?? raw.id}`;
   const sent = raw.sentimentAnalysis ?? raw.sentiment ?? null;
+  const appointment_date = raw.call_appointment_date ?? raw.appointmentDate ?? raw.appointment_date ?? null;
+  const appointment_time = raw.call_appointment_time ?? raw.appointmentTime ?? raw.appointment_time ?? null;
+  const booking_status = raw.call_booking_status ?? raw.bookingStatus ?? raw.booking_status ?? "success";
+  const calendly_booking_url =
+    raw.call_calendly_booking_url ?? raw.calendlyBookingUrl ?? raw.calendly_booking_url ?? raw.calendlyUrl ?? null;
   return {
     dedup_key:            dedup,
     workspace_id:         workspaceId,
@@ -901,15 +908,15 @@ function buildBookedCrmRow(raw: any, workspaceId: string) {
     sentiment:            typeof sent === "string" ? sent : null,
     disconnection_reason: raw.disconnectionReason ?? null,
     end_reason:           raw.endReason ?? null,
-    agent_name:           raw.agentName ?? null,
+    agent_name:           raw.agentName ?? raw.agent_name ?? null,
     duration_ms:          raw.durationMs != null ? Number(raw.durationMs) : null,
     start_timestamp:      raw.startTimestamp != null ? Number(raw.startTimestamp) : null,
     recording_url:        raw.recordingUrl ?? null,
     transcript:           raw.transcript ?? null,
-    appointment_date:     raw.appointment_date ?? null,
-    appointment_time:     raw.appointment_time ?? null,
-    booking_status:       raw.booking_status ?? "success",
-    calendly_booking_url: raw.calendly_booking_url ?? null,
+    appointment_date,
+    appointment_time,
+    booking_status,
+    calendly_booking_url,
     crm_loaded_at:        raw.createdAt ?? raw.created_at ?? null,
     synced_at:            new Date().toISOString(),
     meta:                 { wbah_booked: true },

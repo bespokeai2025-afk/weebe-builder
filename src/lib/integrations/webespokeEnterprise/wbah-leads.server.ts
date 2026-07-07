@@ -79,12 +79,20 @@ function buildWbahByPhone(all: any[]): Map<string, any[]> {
  * Calendar all derive from this instead of each paging the full table.
  */
 async function ensureWbahBookedContactsInDb(workspaceId: string): Promise<void> {
-  const { count } = await (supabaseAdmin as any)
+  const sb = supabaseAdmin as any;
+  const { count: bookedCount } = await sb
     .from("wbah_crm_contacts")
     .select("dedup_key", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
     .in("booking_status", ["success", "booked", "confirmed"]);
-  if ((count ?? 0) > 0) return;
+  const { count: datedCount } = await sb
+    .from("wbah_crm_contacts")
+    .select("dedup_key", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .in("booking_status", ["success", "booked", "confirmed"])
+    .not("appointment_date", "is", null);
+  const needsSync = (bookedCount ?? 0) === 0 || ((bookedCount ?? 0) > 0 && (datedCount ?? 0) === 0);
+  if (!needsSync) return;
   try {
     const { syncWbahBookedContactsFromCrm } = await import("./wbah-leads-sync-tick");
     const res = await syncWbahBookedContactsFromCrm({ force: true });
@@ -240,7 +248,12 @@ export async function getWbahCalendarBookings(
       appt.appointment_time,
       appt.calendly_booking_url,
     );
-    if (!startAt) return;
+    if (!startAt) {
+      console.warn(
+        `[WBAH calendar] skip unparseable appointment key=${key} date=${appt.appointment_date ?? "—"} time=${appt.appointment_time ?? "—"}`,
+      );
+      return;
+    }
     seen.add(key);
     rows.push({
       id: String(c.id ?? key),
