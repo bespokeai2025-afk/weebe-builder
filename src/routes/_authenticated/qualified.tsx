@@ -374,7 +374,7 @@ function QualifiedPage() {
     [rows, isWbah],
   );
 
-  const qualPag = useTablePagination(filtered, 50);
+  const qualPag = useTablePagination(filtered);
 
   const wbahAgentColorMap = useMemo(
     () => (isWbah ? wbahAgentColorMapFromLeads(rows) : new Map()),

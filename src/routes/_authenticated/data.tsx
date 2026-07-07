@@ -525,7 +525,7 @@ function DataPage() {
   const [wbahCallsError, setWbahCallsError]           = useState<string | null>(null);
   const [wbahCallsCount, setWbahCallsCount]           = useState(0);         // total (badge)
   const [wbahCallsPage, setWbahCallsPage]             = useState(1);
-  const [wbahCallsPageSize, setWbahCallsPageSize]     = useState<number>(50);
+  const [wbahCallsPageSize, setWbahCallsPageSize]     = useState<number>(25);
   const [wbahCallsTotal, setWbahCallsTotal]           = useState(0);
   // Dynamic lead-filter categories (one People sub-tab each). Each category is a
   // distinct WeeBespoke `lead_status` present in the loaded get-all-calldata feed.

@@ -439,7 +439,7 @@ function CallsPage() {
     });
   }, [rows, search, effectiveDateRange, statusFilter, callTypeFilter, sentimentFilter, durationFilter, outcomeFilter]);
 
-  const callsPag = useTablePagination(filteredRows, 50);
+  const callsPag = useTablePagination(filteredRows);
 
   const hasCallFilters = search.trim() || statusFilter || callTypeFilter || sentimentFilter || durationFilter || outcomeFilter || daysFilter === "custom";
 

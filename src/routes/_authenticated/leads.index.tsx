@@ -483,7 +483,7 @@ function LeadsPage() {
     return true;
   });
 
-  const leadsPag = useTablePagination(filtered, 50);
+  const leadsPag = useTablePagination(filtered);
 
   const wbahAgentColorMap = useMemo(
     () => (isWbah ? wbahAgentColorMapFromLeads(leads) : new Map()),
