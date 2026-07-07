@@ -8,6 +8,21 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+/** Shared compact page shell for Calls / Leads / Data dashboard routes */
+export function DashboardPage({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn("w-full min-w-0 max-w-full space-y-3 px-3 py-3 text-sm leading-snug sm:px-4", className)}>
+      {children}
+    </div>
+  );
+}
+
+/** Sticky left columns for wide WBAH tables (layout-only) */
+export const stickyHead =
+  "sticky z-20 bg-card/95 backdrop-blur-sm after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-white/[0.08]";
+export const stickyCell =
+  "sticky z-10 bg-card/95 backdrop-blur-sm group-hover:bg-[#141a24] after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-white/[0.06]";
+
 export function PageHeader({
   title,
   subtitle,
@@ -22,23 +37,23 @@ export function PageHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-white/[0.06] sm:px-5">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-white/[0.06] sm:px-4">
+      <div className="flex items-center gap-2.5">
         {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
-            <Icon className="h-4 w-4" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 text-primary">
+            <Icon className="h-3.5 w-3.5" />
           </div>
         )}
         <div>
-          <h1 className="text-base font-semibold tracking-tight text-foreground">{title}</h1>
-          {subtitle && <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>}
+          <h1 className="text-sm font-semibold tracking-tight text-foreground">{title}</h1>
+          {subtitle && <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {actions}
         {onRefresh && (
-          <Button size="sm" variant="ghost" onClick={onRefresh} className="h-8 gap-1.5 text-xs">
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          <Button size="sm" variant="ghost" onClick={onRefresh} className="h-7 gap-1 text-xs px-2.5">
+            <RefreshCw className="h-3 w-3" /> Refresh
           </Button>
         )}
       </div>
@@ -67,16 +82,16 @@ export function KpiCard({
   hint?: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-white/[0.06] bg-card/60 px-3 py-2.5 backdrop-blur">
-      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", iconBg)}>
-        <Icon className={cn("h-3.5 w-3.5", iconColor)} />
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-white/[0.06] bg-card/60 px-2.5 py-2 backdrop-blur">
+      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md", iconBg)}>
+        <Icon className={cn("h-3 w-3", iconColor)} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground leading-none mb-0.5">
+        <p className="text-[9px] font-medium uppercase tracking-[0.1em] text-muted-foreground leading-none">
           {label}
         </p>
-        <p className="text-lg font-bold leading-tight tabular-nums text-foreground">{value}</p>
-        {hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
+        <p className="mt-0.5 text-sm font-bold leading-none tabular-nums text-foreground">{value}</p>
+        {hint && <p className="mt-0.5 text-[9px] text-muted-foreground leading-tight">{hint}</p>}
       </div>
       {delta != null && (
         <span className={cn("text-xs font-semibold shrink-0", deltaUp ? "text-emerald-400" : "text-red-400")}>
@@ -98,10 +113,10 @@ export function MiniKpiCard({
   hint?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-dashed border-white/[0.08] bg-card/30 px-3 py-2.5">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-base font-bold tabular-nums">{value}</p>
-      {hint && <p className="text-[10px] text-muted-foreground mt-0.5">{hint}</p>}
+    <div className="min-w-0 rounded-lg border border-dashed border-white/[0.08] bg-card/30 px-2.5 py-2">
+      <p className="text-[9px] font-medium uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-sm font-bold leading-none tabular-nums">{value}</p>
+      {hint && <p className="text-[9px] text-muted-foreground mt-0.5 leading-tight">{hint}</p>}
     </div>
   );
 }
@@ -176,7 +191,7 @@ export function TableHead({ children }: { children: React.ReactNode }) {
 
 export function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <th className={cn("px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground", className)}>
+    <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground", className)}>
       {children}
     </th>
   );

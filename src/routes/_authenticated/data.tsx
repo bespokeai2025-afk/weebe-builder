@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, Play, FileText, ExternalLink } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
-import { KpiCard } from "@/components/dashboard/PageShell";
+import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
+import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -396,23 +397,23 @@ function DynamicDataTable({
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-white/[0.06] bg-card/30">
-            <th className="w-8 px-2.5 py-1.5">
+            <th className="w-8 px-2 py-0.5">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
             </th>
-            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
             {extraCols.map((c) => (
-              <th key={c.key} className="whitespace-nowrap px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
+              <th key={c.key} className="whitespace-nowrap px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{c.label}</th>
             ))}
             {metaKeys.map((k) => (
-              <th key={`meta_${k}`} className="whitespace-nowrap px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <th key={`meta_${k}`} className="whitespace-nowrap px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 {k}
                 <span className="ml-1 font-normal normal-case tracking-normal text-amber-500/70">meta</span>
               </th>
             ))}
-            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
-            <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Agent</th>
+            <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Updated</th>
           </tr>
         </thead>
         <tbody>
@@ -1254,11 +1255,11 @@ function DataPage() {
   }
 
   return (
-    <div className="w-full min-w-0 max-w-full px-4 py-4 sm:px-5">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+    <DashboardPage>
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h1 className="text-base font-semibold tracking-tight">Data Records</h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <h1 className="text-sm font-semibold tracking-tight">Data Records</h1>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
             {isWbah
               ? "Manage calling data, import records, and control outbound campaigns"
               : "Pull inbound leads from your CRM and manage people"}
@@ -1296,7 +1297,7 @@ function DataPage() {
       </div>
 
       {/* Tabs — Records + Campaigns only for WBAH; People for all */}
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-white/[0.06]">
+      <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06]">
         {(isWbah
           ? (["records", "people", "campaigns"] as const)
           : (["people"] as const)
@@ -1304,7 +1305,7 @@ function DataPage() {
           <button
             key={t}
             onClick={() => setDataTab(t)}
-            className={`px-2.5 py-1 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+            className={`px-2.5 py-1 text-[11px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               dataTab === t
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1382,7 +1383,7 @@ function DataPage() {
       {dataTab === "records" && (
       <>
       {/* KPI strip — matches Leads page */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Total" value={stats.total} icon={Database} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
         <KpiCard label="Need to Call" value={stats.needToCall} icon={PhoneOutgoing} iconBg="bg-amber-500/15" iconColor="text-amber-400" />
         <KpiCard label="Queued" value={stats.queued} icon={CalendarClock} iconBg="bg-violet-500/15" iconColor="text-violet-400" />
@@ -1392,7 +1393,7 @@ function DataPage() {
       {/* Table card — matches Leads page container */}
       <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
         {/* Toolbar row */}
-        <div className="flex flex-col gap-2 border-b border-white/[0.06] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
           <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Data Records
             {selected.size > 0 && (
@@ -1442,7 +1443,7 @@ function DataPage() {
                 placeholder="Search name, phone…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-7 min-w-0 flex-1 basis-32 max-w-[200px] pl-7 text-xs sm:flex-none sm:w-44"
+                className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] pl-7 text-[11px] sm:flex-none sm:w-36"
               />
             </div>
             <Select value={callStatus} onValueChange={setCallStatus}>
@@ -1532,7 +1533,7 @@ function DataPage() {
 
           {/* ── WBAH People KPI strip ───────────────────────────────────── */}
           {wbahPeopleTotal > 0 && (
-            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2">
               <KpiCard label="CRM Contacts" value={wbahPeopleTotal} icon={Users}     iconBg="bg-blue-500/15" iconColor="text-blue-400" />
               <KpiCard label="Lead Categories" value={wbahCategories.length} icon={UserCheck} iconBg="bg-rose-500/15" iconColor="text-rose-400" />
             </div>
@@ -1554,7 +1555,7 @@ function DataPage() {
                   <button
                     key={tab.id}
                     onClick={() => setWbahPeopleSubTab(tab.id)}
-                    className={`relative flex items-center gap-1.5 px-2.5 py-1.5.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
+                    className={`relative flex items-center gap-1.5 px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
                       isActive
                         ? (style ? style.active : "border-primary text-foreground")
                         : "border-transparent text-muted-foreground hover:text-foreground"
@@ -1571,14 +1572,14 @@ function DataPage() {
                 );
               })}
               {wbahCatLoadingList && wbahCategories.length === 0 && (
-                <span className="px-2.5 py-1.5.5 text-xs text-muted-foreground flex items-center gap-1.5">
+                <span className="px-2 py-1 text-xs text-muted-foreground flex items-center gap-1.5">
                   <RefreshCw className="h-3 w-3 animate-spin" /> Loading categories…
                 </span>
               )}
               {!wbahCatLoadingList && wbahCategories.length === 0 && wbahCatListError && (
                 <button
                   onClick={() => handleFetchWbahCategoryList()}
-                  className="px-2.5 py-1.5.5 text-xs text-destructive hover:text-destructive/80 flex items-center gap-1.5"
+                  className="px-2 py-1 text-xs text-destructive hover:text-destructive/80 flex items-center gap-1.5"
                   title={wbahCatListError}
                 >
                   <AlertCircle className="h-3 w-3" /> Couldn't load categories — Retry
@@ -1586,7 +1587,7 @@ function DataPage() {
               )}
             </div>
 
-            <div className="flex flex-col gap-2 border-b border-white/[0.06] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:gap-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                   {wbahPeopleSubTab === "calls" ? "Calls" : (wbahPeopleSubTab || "Leads")}
@@ -1612,7 +1613,7 @@ function DataPage() {
                       value={wbahPeopleSearch}
                       onChange={e => setWbahPeopleSearch(e.target.value)}
                       placeholder="Search name, phone…"
-                      className="h-7 min-w-0 w-full max-w-[180px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-40"
+                      className="h-6 min-w-0 w-full max-w-[160px] rounded-md border border-white/[0.08] bg-muted/40 pl-6 pr-2 text-[11px] placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/40 sm:w-36"
                     />
                     {wbahPeopleSearch && (
                       <button
@@ -1835,11 +1836,11 @@ function DataPage() {
                       </div>
                     );
                   })()}
-                  <table className="w-full text-xs">
+                  <table className="w-full text-[11px]">
                     <thead>
                       <tr className="border-b border-white/[0.06] bg-card/30">
                         {isLeads && (
-                          <th className="w-8 px-2.5 py-1.5">
+                          <th className={cn("w-8 px-2 py-1", stickyHead, "left-0")}>
                             <Checkbox
                               checked={rows.length > 0 && rows.every(r => wbahSelected.has(r.id))}
                               onCheckedChange={(v) => {
@@ -1854,7 +1855,17 @@ function DataPage() {
                           ...(isCat ? ["LOADED"] : []),
                           "TYPE","LAST CALLED AT","CALL STATUS","DURATION","RECORDING","TRANSCRIPT","SENTIMENT","APPT DATE","APPT TIME","BOOKING STATUS","CALENDLY","END REASON","DISCONNECTION",
                         ] as string[]).map(col => (
-                          <th key={col} className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground whitespace-nowrap">{col}</th>
+                          <th
+                            key={col}
+                            className={cn(
+                              "px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap",
+                              col === "SR NO" && cn(stickyHead, isLeads ? "left-8 w-9" : "left-0 w-9"),
+                              col === "NAME" && cn(stickyHead, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24"),
+                              col === "CONTACT" && cn(stickyHead, isLeads ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]" : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"),
+                            )}
+                          >
+                            {col}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -1866,10 +1877,10 @@ function DataPage() {
                         return (
                           <tr
                             key={r.id}
-                            className={`group border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
+                            className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${isSelected ? "bg-blue-500/5" : ""}`}
                           >
                             {isLeads && (
-                              <td className="px-2.5 py-1.5">
+                              <td className={cn("px-2 py-0.5", stickyCell, "left-0 w-8")}>
                                 <Checkbox
                                   checked={isSelected}
                                   onCheckedChange={() => {
@@ -1880,27 +1891,27 @@ function DataPage() {
                                 />
                               </td>
                             )}
-                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px]">{r.srNo}</td>
-                            <td className="px-2.5 py-1.5 font-medium whitespace-nowrap max-w-[140px] truncate">{r.name || "—"}</td>
-                            <td className="px-2.5 py-1.5 font-mono text-muted-foreground text-[11px] whitespace-nowrap">
+                            <td className={cn("px-2 py-0.5 text-[10px] text-muted-foreground", stickyCell, isLeads ? "left-8 w-9" : "left-0 w-9")}>{r.srNo}</td>
+                            <td className={cn("max-w-[6rem] truncate px-2 py-0.5 font-medium", stickyCell, isLeads ? "left-[4.25rem] w-24" : "left-9 w-24")}>{r.name || "—"}</td>
+                            <td className={cn("max-w-[7rem] truncate px-2 py-0.5 font-mono text-[10px] text-muted-foreground", stickyCell, isLeads ? "left-[10.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]" : "left-[8.25rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]")}>
                               {r.contact ? (
-                                <a href={`tel:${r.contact}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                                  <Phone className="h-3 w-3" />{r.contact}
+                                <a href={`tel:${r.contact}`} className="flex items-center gap-1 hover:text-foreground transition-colors truncate">
+                                  <Phone className="h-3 w-3 shrink-0" />{r.contact}
                                 </a>
                               ) : "—"}
                             </td>
                             {isCat && (
-                              <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
+                              <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{r.loadedAt ? fmtDate(r.loadedAt) : "—"}</td>
                             )}
-                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
-                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
-                            <td className="px-2.5 py-1.5 whitespace-nowrap">
+                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap capitalize">{(r.callType || "—").replace(/_/g, " ")}</td>
+                            <td className="px-2 py-0.5 text-[10px] text-muted-foreground whitespace-nowrap">{fmtTs(r.startTimestamp)}</td>
+                            <td className="px-2 py-0.5 whitespace-nowrap">
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-white/[0.06] ${statusBadge.cls}`}>
                                 {statusBadge.label}
                               </span>
                             </td>
-                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
-                            <td className="px-2.5 py-1.5">
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
+                            <td className="px-2 py-0.5">
                               {r.recordingUrl ? (
                                 <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
@@ -1909,7 +1920,7 @@ function DataPage() {
                                 </a>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-2.5 py-1.5">
+                            <td className="px-2 py-0.5">
                               {(r.transcript || r.hasTranscript) ? (
                                 <button
                                   onClick={() => openWbahTranscript(r)}
@@ -1919,17 +1930,17 @@ function DataPage() {
                                 </button>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className={`px-2.5 py-1.5 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}>{sentBadge.label}</td>
-                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentDate || "—"}</td>
-                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentTime || "—"}</td>
-                            <td className="px-2.5 py-1.5">
+                            <td className={`px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${sentBadge.cls}`}>{sentBadge.label}</td>
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentDate || "—"}</td>
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{r.appointmentTime || "—"}</td>
+                            <td className="px-2 py-0.5">
                               {r.bookingStatus ? (
                                 <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/[0.06] capitalize">
                                   {r.bookingStatus.replace(/_/g, " ")}
                                 </span>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-2.5 py-1.5">
+                            <td className="px-2 py-0.5">
                               {r.calendlyBookingUrl ? (
                                 <a href={r.calendlyBookingUrl} target="_blank" rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
@@ -1938,10 +1949,10 @@ function DataPage() {
                                 </a>
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
-                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[120px] truncate">
                               {r.endReason ? r.endReason.replace(/_/g, " ") : "—"}
                             </td>
-                            <td className="px-2.5 py-1.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
+                            <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap capitalize max-w-[140px] truncate">
                               {r.disconnectionReason ? r.disconnectionReason.replace(/_/g, " ") : "—"}
                             </td>
                           </tr>
@@ -1966,7 +1977,7 @@ function DataPage() {
       {dataTab === "people" && !isWbah && (
         <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
           {/* People toolbar */}
-          <div className="flex flex-col gap-2 border-b border-white/[0.06] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
               Inbound Leads from CRM
               {crmPeople.length > 0 && (
@@ -2065,7 +2076,7 @@ function DataPage() {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
-                    <th className="w-8 px-2.5 py-1.5">
+                    <th className="w-8 px-2 py-0.5">
                       <Checkbox
                         checked={crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length}
                         onCheckedChange={(v) => {
@@ -2074,12 +2085,12 @@ function DataPage() {
                         }}
                       />
                     </th>
-                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
-                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
-                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
-                    <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
+                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2173,7 +2184,7 @@ function DataPage() {
         scheduleData={scheduleQ.data ?? null}
         onSave={handleSaveSchedule}
       />
-    </div>
+    </DashboardPage>
   );
 }
 
@@ -2474,7 +2485,7 @@ function CsvMappingDialog({
                           const f = SYSTEM_FIELDS.find((x) => x.value === effective);
                           const customKeyVal = customKeys[h] || toMetaKey(h) || h;
                           return (
-                            <th key={h} className="whitespace-nowrap px-2.5 py-1.5 font-semibold">
+                            <th key={h} className="whitespace-nowrap px-2 py-0.5 font-semibold">
                               <div className="text-[11px] text-foreground/80">{h}</div>
                               <div className="text-[10px] font-normal">
                                 {isCustom ? (

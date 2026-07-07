@@ -23,7 +23,8 @@ import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeSentiment } from "@/lib/sentiment";
 import { Button } from "@/components/ui/button";
-import { KpiCard, MiniKpiCard, SummaryTooltip } from "@/components/dashboard/PageShell";
+import { DashboardPage, KpiCard, MiniKpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
+import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -599,14 +600,14 @@ function LeadsPage() {
   }
 
   return (
-    <div className="w-full min-w-0 max-w-full px-4 py-4 sm:px-5">
+    <DashboardPage>
       {/* Header */}
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h1 className="text-base font-semibold tracking-tight">
+          <h1 className="text-sm font-semibold tracking-tight">
             {isWbah ? "Positive / Neutral Leads" : "Leads"}
           </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-[10px] text-muted-foreground mt-0.5">
             {isWbah
               ? "Already-called leads with positive or neutral sentiment — newest first"
               : "Lead Generation intelligence — updated automatically after every call"}
@@ -635,18 +636,18 @@ function LeadsPage() {
               Qualify {selectedIds.size} Lead{selectedIds.size !== 1 ? "s" : ""}
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => {
+          <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" onClick={() => {
             leadsQ.refetch();
             statsQ.refetch();
           }}>
-            <RefreshCw className="mr-1 h-4 w-4" />
+            <RefreshCw className="mr-1 h-3.5 w-3.5" />
             Refresh
           </Button>
         </div>
       </div>
 
       {/* KPI strip */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Total Leads" value={leads.length} icon={Users} iconBg="bg-blue-500/15" iconColor="text-blue-400" />
         <KpiCard
           label="Positive Sentiment"
@@ -668,7 +669,7 @@ function LeadsPage() {
 
       {/* Campaign stats mini strip */}
       {stats && (
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <MiniKpiCard label="Calls Made" value={stats.called} hint={`of ${stats.total} records`} />
           <MiniKpiCard label="Contacts Reached" value={stats.reached} hint={`${stats.conversionRate}% connect rate`} />
           <MiniKpiCard label="Positive Sentiment" value={`${stats.positivePct}%`} />
@@ -677,12 +678,12 @@ function LeadsPage() {
       )}
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b">
+      <div className="flex gap-1 overflow-x-auto border-b">
         {(["leads", "campaigns"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-2.5 py-1 text-xs font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+            className={`px-2 py-0.5 text-[11px] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
               tab === t
                 ? "border-primary text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -704,8 +705,8 @@ function LeadsPage() {
       {/* Lead Intelligence Tab */}
       {tab === "leads" && (
         <div className="min-w-0 overflow-hidden rounded-xl border border-white/[0.06] bg-card/60">
-          <div className="flex flex-col gap-2 border-b border-white/[0.06] px-3 py-2 sm:px-4 lg:flex-row lg:items-center lg:justify-between">
-            <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <div className="flex flex-col gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3 lg:flex-row lg:items-center lg:justify-between">
+            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
               {isWbah ? "Positive / Neutral Leads" : "Lead Records"}
               {hasLeadFilters && (
                 <span className="ml-2 normal-case text-xs font-normal text-muted-foreground tracking-normal">
@@ -731,13 +732,13 @@ function LeadsPage() {
                 placeholder="Search name, phone, email…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-7 min-w-0 flex-1 basis-32 max-w-[200px] text-xs sm:flex-none sm:w-40"
+                className="h-6 min-w-0 flex-1 basis-28 max-w-[180px] text-[11px] sm:flex-none sm:w-36"
               />
               <select
                 aria-label="Lead Status"
                 value={leadStatusCat}
                 onChange={(e) => setLeadStatusCat(e.target.value as LeadStatusCategory)}
-                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 {LEAD_STATUS_CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -748,7 +749,7 @@ function LeadsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="">All Statuses</option>
                 {STATUS_OPTIONS.map((o) => (
@@ -758,7 +759,7 @@ function LeadsPage() {
               <select
                 value={sentimentFilter}
                 onChange={(e) => setSentimentFilter(e.target.value)}
-                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="">All Sentiments</option>
                 <option value="positive">Positive</option>
@@ -769,7 +770,7 @@ function LeadsPage() {
                 <select
                   value={callStatusFilter}
                   onChange={(e) => setCallStatusFilter(e.target.value)}
-                  className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 >
                   <option value="">All Call Statuses</option>
                   <option value="completed">Completed</option>
@@ -781,7 +782,7 @@ function LeadsPage() {
               <select
                 value={leadsDuration}
                 onChange={(e) => setLeadsDuration(e.target.value)}
-                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 title="Call duration"
               >
                 <option value="">Any duration</option>
@@ -794,7 +795,7 @@ function LeadsPage() {
               <select
                 value={leadsOutcome}
                 onChange={(e) => setLeadsOutcome(e.target.value)}
-                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                 title="Call outcome"
               >
                 <option value="">All Outcomes</option>
@@ -804,7 +805,7 @@ function LeadsPage() {
               <select
                 value={wbahDaysFilter}
                 onChange={(e) => setWbahDaysFilter(e.target.value)}
-                className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
               >
                 <option value="today">Today</option>
                 <option value="yesterday">Yesterday</option>
@@ -823,7 +824,7 @@ function LeadsPage() {
                     value={leadsFrom}
                     max={leadsTo || undefined}
                     onChange={(e) => setLeadsFrom(e.target.value)}
-                    className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                     title="From date"
                   />
                   <span className="text-[11px] text-muted-foreground">to</span>
@@ -832,7 +833,7 @@ function LeadsPage() {
                     value={leadsTo}
                     min={leadsFrom || undefined}
                     onChange={(e) => setLeadsTo(e.target.value)}
-                    className="h-7 rounded-md border border-white/[0.08] bg-card/80 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                    className="h-6 rounded-md border border-white/[0.08] bg-card/80 px-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
                     title="To date"
                   />
                 </div>
@@ -850,7 +851,7 @@ function LeadsPage() {
             </div>
           </div>
           {isWbah && (
-            <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-4">
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] px-2.5 py-1.5 sm:px-3">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground mr-1">Quick filter</span>
               {[
                 { value: "positive",          label: "Positive" },
@@ -862,7 +863,7 @@ function LeadsPage() {
                   <button
                     key={c.value}
                     onClick={() => setQuickFilter(active ? "" : c.value)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 transition-colors ${
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 transition-colors ${
                       active
                         ? "bg-primary/15 text-primary ring-primary/30"
                         : "bg-card/80 text-muted-foreground ring-white/[0.08] hover:text-foreground hover:ring-white/20"
@@ -888,59 +889,59 @@ function LeadsPage() {
               </div>
             ) : (
               <div className="min-w-0 overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-white/[0.06] bg-card/30">
-                      <th className="px-2.5 py-1.5 w-8">
+                      <th className={cn("px-2 py-1 w-8", isWbah && cn(stickyHead, "left-0"))}>
                         <Checkbox
                           checked={selectedIds.size === filtered.length && filtered.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Status</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Sentiment</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Score</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Interest</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Summary</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next Action</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Contact</th>
-                      <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Last Called At</th>
+                      <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", isWbah && cn(stickyHead, "left-8 w-28"))}>Name</th>
+                      <th className={cn("px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground", isWbah && cn(stickyHead, "left-[9.75rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.45)]"))}>Phone</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Status</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Sentiment</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Score</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Interest</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Summary</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Next Action</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Contact</th>
+                      <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Last Called At</th>
                       {isRetell && <>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Call Status</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Duration</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Recording</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
                       </>}
                       {isWbah && <>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Call Status</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Duration</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recording</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transcript</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Date</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Appt Time</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Booking</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">End Reason</th>
-                        <th className="px-2.5 py-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">Disconnection</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Call Status</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Duration</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Recording</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Transcript</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Appt Date</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Appt Time</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Booking</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">End Reason</th>
+                        <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground whitespace-nowrap">Disconnection</th>
                       </>}
-                      <th className="px-2.5 py-1.5 w-8"></th>
+                      <th className="px-2 py-1 w-8"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {leadsPag.sliced.map((lead: any) => (
                       <tr
                         key={lead.id}
-                        className={`h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
+                        className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${selectedIds.has(lead.id) ? "bg-blue-500/5" : ""}`}
                       >
-                        <td className="px-2.5 py-1">
+                        <td className={cn("px-2 py-0.5", isWbah && cn(stickyCell, "left-0 w-8"))}>
                           <Checkbox
                             checked={selectedIds.has(lead.id)}
                             onCheckedChange={() => toggleSelect(lead.id)}
                           />
                         </td>
-                        <td className="max-w-[140px] px-2.5 py-1 text-xs font-medium">
+                        <td className={cn("max-w-[7rem] px-2 py-0.5 text-[11px] font-medium", isWbah && cn(stickyCell, "left-8 w-28"))}>
                           <span className="inline-flex min-w-0 items-center gap-1.5 truncate">
                             <span className="truncate">{lead.full_name ?? "—"}</span>
                             {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
@@ -957,11 +958,11 @@ function LeadsPage() {
                             <div className="text-[11px] text-muted-foreground font-normal">{lead.company_name}</div>
                           )}
                         </td>
-                        <td className="px-2.5 py-1 text-muted-foreground whitespace-nowrap text-[11px] font-mono">
+                        <td className={cn("px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[10px] font-mono", isWbah && cn(stickyCell, "left-[9.75rem] w-28 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.35)]"))}>
                           {lead.phone}
                         </td>
                         {/* Status picker */}
-                        <td className="px-2.5 py-1">
+                        <td className="px-2 py-0.5">
                           <div className="flex flex-col gap-1">
                             {(() => {
                               if (isWbah) {
@@ -1000,20 +1001,20 @@ function LeadsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-2.5 py-1">{sentimentBadge(lead.sentiment)}</td>
-                        <td className="px-2.5 py-1">{scoreBadge(lead.lead_score)}</td>
-                        <td className="px-2.5 py-1">{interestBadge(lead.interest_level)}</td>
+                        <td className="px-2 py-0.5">{sentimentBadge(lead.sentiment)}</td>
+                        <td className="px-2 py-0.5">{scoreBadge(lead.lead_score)}</td>
+                        <td className="px-2 py-0.5">{interestBadge(lead.interest_level)}</td>
                         {/* Call summary */}
-                        <td className="px-2.5 py-1 text-xs text-muted-foreground max-w-[200px] align-middle">
+                        <td className="px-2 py-0.5 text-xs text-muted-foreground max-w-[200px] align-middle">
                           <SummaryTooltip text={lead.call_summary} lines={2} />
                         </td>
-                        <td className="px-2.5 py-1 text-[11px] text-muted-foreground max-w-[180px] align-middle">
+                        <td className="px-2 py-0.5 text-[11px] text-muted-foreground max-w-[180px] align-middle">
                           <span className="line-clamp-1">{lead.next_action ?? "—"}</span>
                         </td>
-                        <td className="px-2.5 py-1 text-muted-foreground whitespace-nowrap text-[11px]">
+                        <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtDate(lead.last_contacted_at)}
                         </td>
-                        <td className="px-2.5 py-1 text-muted-foreground whitespace-nowrap text-[11px]">
+                        <td className="px-2 py-0.5 text-muted-foreground whitespace-nowrap text-[11px]">
                           {fmtCallDate(
                             isWbah ? lead.meta?.last_called_at
                             : isRetell ? lead.retell_call?.started_at
@@ -1021,42 +1022,42 @@ function LeadsPage() {
                           )}
                         </td>
                         {isRetell && <>
-                          <td className="px-2.5 py-1">{callStatusBadge(lead.retell_call?.call_status)}</td>
-                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
-                          <td className="px-2.5 py-1">
+                          <td className="px-2 py-0.5">{callStatusBadge(lead.retell_call?.call_status)}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
+                          <td className="px-2 py-0.5">
                             {lead.retell_call?.recording_url
                               ? <a href={lead.retell_call.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-2.5 py-1">
+                          <td className="px-2 py-0.5">
                             {lead.retell_call?.transcript
                               ? <button onClick={() => setWbahTranscript(lead.retell_call.transcript)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">
                             {lead.retell_call?.disconnection_reason ? String(lead.retell_call.disconnection_reason).replace(/_/g, " ") : "—"}
                           </td>
                         </>}
                         {isWbah && <>
-                          <td className="px-2.5 py-1">{callStatusBadge(lead.meta?.call_status)}</td>
-                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
-                          <td className="px-2.5 py-1">
+                          <td className="px-2 py-0.5">{callStatusBadge(lead.meta?.call_status)}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
+                          <td className="px-2 py-0.5">
                             {lead.meta?.recording_url
                               ? <a href={lead.meta.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-2.5 py-1">
+                          <td className="px-2 py-0.5">
                             {lead.call_summary
                               ? <button onClick={() => setWbahTranscript(lead.call_summary)} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-violet-400/80 hover:text-violet-400 hover:bg-violet-500/10 border border-violet-500/20 transition-colors whitespace-nowrap"><span>Transcript</span></button>
                               : <span className="text-muted-foreground text-[11px]">—</span>}
                           </td>
-                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
-                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
-                          <td className="px-2.5 py-1">{bookingStatusBadge(lead.meta?.booking_status)}</td>
-                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
-                          <td className="px-2.5 py-1 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_date ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.appointment_time ?? "—"}</td>
+                          <td className="px-2 py-0.5">{bookingStatusBadge(lead.meta?.booking_status)}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.end_reason ?? "—"}</td>
+                          <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{lead.meta?.disconnection_reason ?? "—"}</td>
                         </>}
-                        <td className="px-2.5 py-1">
+                        <td className="px-2 py-0.5">
                           <button
                             onClick={() => openLeadPanel(lead)}
                             title="Notes & appointment"
@@ -1239,7 +1240,7 @@ function LeadsPage() {
               <p className="py-6 text-center text-sm text-muted-foreground">No calls found.</p>
             ) : (
               <div className="min-w-0 overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-white/[0.06] text-left text-[10px] uppercase tracking-wide text-muted-foreground">
                       <th className="px-2 py-1.5">Date</th>
@@ -1306,6 +1307,6 @@ function LeadsPage() {
         />
       )}
 
-    </div>
+    </DashboardPage>
   );
 }

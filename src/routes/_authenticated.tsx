@@ -102,7 +102,7 @@ function AuthenticatedLayout() {
         />
         <SidebarInset className="flex min-w-0 flex-1 flex-col overflow-x-hidden bg-transparent">
           {!hideHeader && (
-            <div className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-white/[0.04] bg-background/60 px-3 backdrop-blur-xl">
+            <div className="sticky top-0 z-30 flex h-10 items-center gap-2 border-b border-white/[0.04] bg-background/60 px-2.5 backdrop-blur-xl">
               <SidebarTrigger />
               <div className="ml-auto">
                 <ThemeToggle />
