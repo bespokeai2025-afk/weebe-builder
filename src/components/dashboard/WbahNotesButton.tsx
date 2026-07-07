@@ -1,4 +1,4 @@
-import { StickyNote } from "lucide-react";
+import { Calendar, StickyNote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   hasWbahAppointmentBooked,
@@ -20,6 +20,7 @@ type LeadLike = {
     appointment_time?: string | null;
     calendly_booking_url?: string | null;
     booking_status?: string | null;
+    call_count?: number;
   } | null;
 };
 
@@ -31,7 +32,7 @@ export function wbahAgentColorMapFromLeads(leads: LeadLike[]): Map<string, WbahA
   return buildWbahAgentColorMap(names);
 }
 
-/** Coloured sticky-note badge shown beside the contact name when booked. */
+/** Small agent-coloured calendar icon when the contact has a booked appointment. */
 export function WbahBookedStickyBadge({
   lead,
   agentColorMap,
@@ -47,30 +48,56 @@ export function WbahBookedStickyBadge({
   }${lead.meta?.appointment_time ? ` ${lead.meta.appointment_time}` : ""}`;
   const calendlyUrl = wbahCalendlyBookingUrl(lead);
 
-  const badge = (
+  const icon = (
     <span
       title={tip}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1",
+        "inline-flex shrink-0 items-center justify-center rounded p-0.5 ring-1",
         style.bg,
         style.text,
         style.ring,
       )}
     >
-      <StickyNote className="h-3 w-3 shrink-0" />
-      Booked
+      <Calendar className="h-2 w-2" strokeWidth={2.5} />
     </span>
   );
 
   if (calendlyUrl) {
     return (
       <a href={calendlyUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-        {badge}
+        {icon}
       </a>
     );
   }
 
-  return badge;
+  return icon;
+}
+
+/** Call count pill — inline beside the contact name. */
+export function WbahCallCountBadge({
+  count,
+  onClick,
+}: {
+  count: number;
+  onClick?: () => void;
+}) {
+  if (count <= 1) return null;
+  const pill = (
+    <span className="inline-flex shrink-0 items-center tabular-nums rounded px-0.5 text-[8px] font-semibold leading-none text-blue-400/90 bg-blue-500/10">
+      ×{count}
+    </span>
+  );
+  if (!onClick) return pill;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="View all calls for this contact"
+      className="inline-flex shrink-0 items-center rounded px-0.5 text-[8px] font-semibold leading-none tabular-nums text-blue-400/90 bg-blue-500/10 hover:bg-blue-500/20 transition-colors"
+    >
+      ×{count}
+    </button>
+  );
 }
 
 /** Clickable Calendly link for table columns. */
@@ -112,14 +139,18 @@ export function WbahNotesButton({
       onClick={onClick}
       title={title}
       className={cn(
-        "flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium transition-colors border",
+        "flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium transition-colors border",
         booked && style
-          ? cn(style.bg, style.text, style.ring, "ring-1 border-transparent hover:opacity-90 font-semibold")
+          ? cn(style.bg, style.text, style.ring, "ring-1 border-transparent hover:opacity-90")
           : "text-amber-400/80 hover:text-amber-400 hover:bg-amber-500/10 border-amber-500/20 hover:border-amber-500/40",
       )}
     >
-      <StickyNote className="h-3 w-3 shrink-0" />
-      <span>{booked ? "Booked" : "Notes"}</span>
+      {booked ? (
+        <Calendar className="h-2.5 w-2.5 shrink-0" strokeWidth={2.5} />
+      ) : (
+        <StickyNote className="h-2.5 w-2.5 shrink-0" />
+      )}
+      {!booked && <span>Notes</span>}
     </button>
   );
 }

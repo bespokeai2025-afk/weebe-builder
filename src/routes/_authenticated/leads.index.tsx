@@ -66,7 +66,7 @@ import {
   type LeadStatusCategory,
 } from "@/lib/dashboard/lead-status-categories";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
-import { WbahNotesButton, WbahBookedStickyBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
+import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
 import { DialogDescription } from "@/components/ui/dialog";
 import {
@@ -956,19 +956,18 @@ function LeadsPage() {
                         </td>
                         <td className={cn("px-2 py-0.5", isWbah && cn(stickyCell, "left-8 w-44 overflow-hidden"))}>
                           <div className="min-w-0">
-                            <div className="truncate text-[11px] font-medium">{lead.full_name ?? "—"}</div>
-                            {isWbah && (
-                              <WbahBookedStickyBadge lead={lead} agentColorMap={wbahAgentColorMap} />
-                            )}
-                            {isWbah && (lead.meta?.call_count ?? 1) > 1 && (
-                              <button
-                                onClick={() => openCallHistory(lead)}
-                                title="View all calls for this contact"
-                                className="mt-0.5 inline-flex items-center gap-0.5 rounded-full bg-blue-500/15 text-blue-400 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-blue-500/25 transition-colors"
-                              >
-                                <Phone className="h-2.5 w-2.5 shrink-0" />{lead.meta.call_count}×
-                              </button>
-                            )}
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="truncate text-[11px] font-medium min-w-0">{lead.full_name ?? "—"}</span>
+                              {isWbah && (
+                                <WbahCallCountBadge
+                                  count={lead.meta?.call_count ?? 1}
+                                  onClick={() => openCallHistory(lead)}
+                                />
+                              )}
+                              {isWbah && (
+                                <WbahBookedStickyBadge lead={lead} agentColorMap={wbahAgentColorMap} />
+                              )}
+                            </div>
                           </div>
                           {lead.company_name && (
                             <div className="truncate text-[10px] text-muted-foreground font-normal">{lead.company_name}</div>
