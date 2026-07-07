@@ -492,6 +492,7 @@ function DataPage() {
   // distinct WeeBespoke `lead_status` present in the loaded get-all-calldata feed.
   const [wbahCategories, setWbahCategories]           = useState<{ name: string; count: number }[]>([]);
   const [wbahCatLoadingList, setWbahCatLoadingList]   = useState(false);
+  const [wbahCatListError, setWbahCatListError]       = useState<string | null>(null);
   const [wbahCatData, setWbahCatData]                 = useState<Record<string, any[]>>({});
   const [wbahCatLoadingMap, setWbahCatLoadingMap]     = useState<Record<string, boolean>>({});
   const [wbahCatErrorMap, setWbahCatErrorMap]         = useState<Record<string, string | null>>({});
@@ -961,6 +962,7 @@ function DataPage() {
   // default the active tab to the largest category on first load.
   async function handleFetchWbahCategoryList() {
     setWbahCatLoadingList(true);
+    setWbahCatListError(null);
     try {
       const res = await listWbahPeopleCategoriesFn();
       const cats = ((res as any)?.categories ?? []) as { name: string; count: number }[];
@@ -969,8 +971,9 @@ function DataPage() {
         if (prev) return prev;
         return cats[0]?.name ?? "";
       });
-    } catch {
-      /* non-fatal — sub-tabs just stay hidden until the categories load */
+    } catch (err) {
+      // Surface the failure instead of leaving the People section blank.
+      setWbahCatListError((err as Error).message || "Failed to load lead categories");
     } finally {
       setWbahCatLoadingList(false);
     }
@@ -1491,6 +1494,15 @@ function DataPage() {
                 <span className="px-3 py-2.5 text-xs text-muted-foreground flex items-center gap-1.5">
                   <RefreshCw className="h-3 w-3 animate-spin" /> Loading categories…
                 </span>
+              )}
+              {!wbahCatLoadingList && wbahCategories.length === 0 && wbahCatListError && (
+                <button
+                  onClick={() => handleFetchWbahCategoryList()}
+                  className="px-3 py-2.5 text-xs text-destructive hover:text-destructive/80 flex items-center gap-1.5"
+                  title={wbahCatListError}
+                >
+                  <AlertCircle className="h-3 w-3" /> Couldn't load categories — Retry
+                </button>
               )}
             </div>
 
