@@ -72,3 +72,37 @@ export async function loadWbahCrmBookingByDigits(
   }
   return map;
 }
+
+/** Overlay CRM / historical-call booking fields onto wbah_calls rows (for Calls page). */
+export async function enrichWbahCallRowsWithBookings(
+  supabaseAdmin: { from: (t: string) => any },
+  workspaceId: string,
+  rows: any[],
+): Promise<any[]> {
+  if (rows.length === 0) return rows;
+  const crmBookingByDigits = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
+
+  const byPhone = new Map<string, any[]>();
+  for (const r of rows) {
+    const key = phoneDigits(r.phone) || `id:${r.id}`;
+    const arr = byPhone.get(key) ?? [];
+    arr.push(r);
+    byPhone.set(key, arr);
+  }
+
+  return rows.map((r) => {
+    const key = phoneDigits(r.phone) || `id:${r.id}`;
+    const calls = byPhone.get(key) ?? [r];
+    const bookingCall = findWbahBookingCall(calls);
+    const crm = phoneDigits(r.phone) ? crmBookingByDigits.get(phoneDigits(r.phone)) : null;
+    const appt = resolveWbahBookingFields(r, bookingCall, crm);
+    return {
+      ...r,
+      appointment_date: appt.appointment_date ?? r.appointment_date ?? null,
+      appointment_time: appt.appointment_time ?? r.appointment_time ?? null,
+      booking_status: appt.booking_status ?? r.booking_status ?? null,
+      calendly_booking_url: appt.calendly_booking_url ?? r.calendly_booking_url ?? null,
+      agent_name: appt.agent_name ?? r.agent_name ?? null,
+    };
+  });
+}

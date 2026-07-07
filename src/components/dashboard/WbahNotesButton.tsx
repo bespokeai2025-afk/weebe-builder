@@ -9,7 +9,6 @@ import {
   wbahAgentStyle,
   type WbahAgentStyle,
 } from "@/lib/dashboard/wbah-agent-colors";
-import { cn } from "@/lib/utils";
 
 type LeadLike = {
   full_name?: string | null;

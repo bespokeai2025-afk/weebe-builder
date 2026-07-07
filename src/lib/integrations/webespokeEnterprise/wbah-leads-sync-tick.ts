@@ -509,12 +509,32 @@ async function fetchAllCallRecords(
 
 async function upsertCallRows(sb: ReturnType<typeof getAdminClient>, rows: NonNullable<ReturnType<typeof buildCallRow>>[]): Promise<number> {
   if (!rows.length) return 0;
+  const BOOKING = ["appointment_date", "appointment_time", "booking_status", "calendly_booking_url"] as const;
+  const ids = rows.map((r) => r.id);
+  const { data: existing } = await (sb as any)
+    .from("wbah_calls")
+    .select("id, appointment_date, appointment_time, booking_status, calendly_booking_url")
+    .in("id", ids);
+  const byId = new Map<string, any>(((existing ?? []) as any[]).map((e) => [String(e.id), e]));
+  const merged = rows.map((row) => {
+    const prev = byId.get(String(row.id));
+    if (!prev) return row;
+    const out = { ...row };
+    for (const f of BOOKING) {
+      const next = out[f];
+      const kept = prev[f];
+      if ((next == null || String(next).trim() === "") && kept != null && String(kept).trim() !== "") {
+        out[f] = kept;
+      }
+    }
+    return out;
+  });
   const BATCH = 200;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const { error } = await (sb as any).from("wbah_calls").upsert(rows.slice(i, i + BATCH), { onConflict: "id" });
+  for (let i = 0; i < merged.length; i += BATCH) {
+    const { error } = await (sb as any).from("wbah_calls").upsert(merged.slice(i, i + BATCH), { onConflict: "id" });
     if (error) console.error("[wbah-calls-sync] upsert error:", error.message);
   }
-  return rows.length;
+  return merged.length;
 }
 
 // ── Main exported tick functions ──────────────────────────────────────────────
@@ -781,6 +801,70 @@ export async function refreshWbahCallsIncremental(): Promise<{ calls: number; pa
 
   try { return await _incrInFlight; }
   finally { _incrInFlight = null; }
+}
+
+// Re-fetch the newest N pages from WeeBespoke to restore Calendly / appointment
+// fields that Retell upserts clear. Throttled separately from the incremental gap
+// filler so every Leads/Calls open repopulates recent bookings without walking
+// the full history.
+let _apptBackfillAt = 0;
+let _apptBackfillInflight: Promise<{ rows: number }> | null = null;
+const APPT_BACKFILL_MS = 5 * 60 * 1000;
+const APPT_BACKFILL_PAGES = 15;
+
+export async function refreshWbahAppointmentBackfill(): Promise<{ rows: number }> {
+  if (_apptBackfillInflight) return _apptBackfillInflight;
+  if (Date.now() - _apptBackfillAt < APPT_BACKFILL_MS) return { rows: 0 };
+
+  _apptBackfillInflight = (async () => {
+    const sb = getAdminClient();
+    const { data: ws } = await (sb as any).from("workspaces").select("id").eq("slug", WBAH_SLUG).maybeSingle();
+    if (!ws?.id) return { rows: 0 };
+    const workspaceId: string = ws.id;
+    const tokens = await getStoredTokens(sb);
+    if (!tokens) return { rows: 0 };
+
+    let accessToken = tokens.accessToken;
+    const fetchPage = async (p: number) => {
+      const url = `/call-output-data/get-user-history?currentPage=${p}`;
+      return apiFetch<any>(url, { method: "POST", body: "{}", headers: { Authorization: `Bearer ${accessToken}` } });
+    };
+
+    const p1 = await fetchPage(1);
+    if (!p1.ok || !p1.data) return { rows: 0 };
+    const p1Recs: any[] = Array.isArray((p1.data as any)?.data) ? (p1.data as any).data : [];
+    const pagination = (p1.data as any)?.pagination ?? {};
+    const totalItems = pagination?.totalItems ?? 0;
+    const pageSize = p1Recs.length || 10;
+    const lastPage = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1;
+
+    const last = lastPage > 1 ? await fetchPage(lastPage) : p1;
+    const lastRecs: any[] = last.ok && last.data && Array.isArray((last.data as any)?.data) ? (last.data as any).data : p1Recs;
+    const newestAtEnd = maxEpoch(lastRecs) >= maxEpoch(p1Recs);
+
+    const pages: number[] = [];
+    if (newestAtEnd) {
+      for (let p = lastPage; p >= Math.max(1, lastPage - APPT_BACKFILL_PAGES + 1); p--) pages.push(p);
+    } else {
+      for (let p = 1; p <= Math.min(lastPage, APPT_BACKFILL_PAGES); p++) pages.push(p);
+    }
+
+    let total = 0;
+    for (const p of pages) {
+      const res = p === 1 ? p1 : await fetchPage(p);
+      const recs: any[] = res.ok && res.data && Array.isArray((res.data as any)?.data) ? (res.data as any).data : [];
+      if (!recs.length) continue;
+      const rows = recs.map((r) => buildCallRow(r, workspaceId)).filter(Boolean) as NonNullable<ReturnType<typeof buildCallRow>>[];
+      total += await upsertCallRows(sb, rows);
+    }
+
+    _apptBackfillAt = Date.now();
+    console.log(`[wbah-appt-backfill] upserted=${total} pages=${pages.length}`);
+    return { rows: total };
+  })();
+
+  try { return await _apptBackfillInflight; }
+  finally { _apptBackfillInflight = null; }
 }
 
 export async function runWbahFullResync(): Promise<{ deleted: number; sellers: number; errors: string[] }> {

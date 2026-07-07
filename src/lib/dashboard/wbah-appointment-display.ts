@@ -87,26 +87,30 @@ export function isWbahPartialQualified(lead: WbahLeadLike): boolean {
 }
 
 /**
- * Calendly / appointment fields are shown only for positive-sentiment contacts.
- * Partial-qualified rows never show appointment date/time (even if CRM has data).
+ * Appointment columns: hidden for partial-qualified only.
+ * Shown whenever booking data exists (positive calls, or booked contacts whose
+ * latest call is neutral/negative but CRM still carries the Calendly slot).
  */
-export function wbahAppointmentDate(lead: WbahLeadLike): string | null {
+function wbahAppointmentField(
+  lead: WbahLeadLike,
+  field: "appointment_date" | "appointment_time" | "booking_status",
+): string | null {
   if (isWbahPartialQualified(lead)) return null;
-  if (normalizeSentiment(lead.sentiment) !== "positive") return null;
-  const v = lead.meta?.appointment_date;
-  return v != null && String(v).trim() !== "" ? String(v) : null;
+  const v = lead.meta?.[field];
+  if (v == null || String(v).trim() === "") return null;
+  if (normalizeSentiment(lead.sentiment) === "positive") return String(v);
+  if (hasWbahAppointmentBooked(lead)) return String(v);
+  return null;
+}
+
+export function wbahAppointmentDate(lead: WbahLeadLike): string | null {
+  return wbahAppointmentField(lead, "appointment_date");
 }
 
 export function wbahAppointmentTime(lead: WbahLeadLike): string | null {
-  if (isWbahPartialQualified(lead)) return null;
-  if (normalizeSentiment(lead.sentiment) !== "positive") return null;
-  const v = lead.meta?.appointment_time;
-  return v != null && String(v).trim() !== "" ? String(v) : null;
+  return wbahAppointmentField(lead, "appointment_time");
 }
 
 export function wbahBookingStatus(lead: WbahLeadLike): string | null {
-  if (isWbahPartialQualified(lead)) return null;
-  if (normalizeSentiment(lead.sentiment) !== "positive") return null;
-  const v = lead.meta?.booking_status;
-  return v != null && String(v).trim() !== "" ? String(v) : null;
+  return wbahAppointmentField(lead, "booking_status");
 }

@@ -14,6 +14,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { enrichWbahCallRowsWithBookings, loadWbahCrmBookingByDigits, findWbahBookingCall, resolveWbahBookingFields, phoneDigits } from "@/lib/dashboard/wbah-booking-meta";
 import { recordSyncState } from "@/lib/sync-state/sync-state.server";
 import { cacheWrap, cacheGet, cacheSet } from "@/lib/cache/redis.server";
 import * as api from "./client.server";
@@ -1397,7 +1398,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
     if (rows.length < PAGE) break;
     from += PAGE;
   }
-  return allRows.map((r: any) => ({
+  const mapped = allRows.map((r: any) => ({
     id:                   r.id,
     agent_id:             null,
     agent_name:           r.agent_name,
@@ -1428,6 +1429,7 @@ async function readWbahCallsRows(supabase: any, workspaceId: string, opts?: { li
     end_reason:           r.end_reason,
     call_count:           r.call_count ?? 1,
   }));
+  return enrichWbahCallRowsWithBookings(supabaseAdmin, workspaceId, mapped);
 }
 
 // NOTE: the full WBAH calls list is ~20MB (15k+ rows with transcripts) — far
@@ -1451,14 +1453,7 @@ export const listWbahCallsLive = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { supabase, workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    if (workspaceId === WBAH_WORKSPACE_ID) {
-      try {
-        const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
-        await refreshWbahCallsFromRetell();
-      } catch (e: any) {
-        console.warn("[wbah-calls-live] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
-      }
-    }
+    await refreshWbahLiveData(workspaceId);
     // Lite = no transcripts in the list payload (loaded on demand). Cuts the
     // Calls page response from ~20MB to a few MB and keeps it under limits.
     const rows = await readWbahCallsRows(supabase, workspaceId, { lite: true });
@@ -1663,6 +1658,22 @@ export const getWbahCallDetail = createServerFn({ method: "POST" })
 // ── Retell helper — get WBAH workspace's Retell API key ───────────────────────
 
 const WBAH_WORKSPACE_ID = "5cb750b6-fabf-4e84-9b92-740df1cd8d53";
+
+async function refreshWbahLiveData(workspaceId: string): Promise<void> {
+  if (workspaceId !== WBAH_WORKSPACE_ID) return;
+  try {
+    const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
+    await refreshWbahCallsFromRetell();
+  } catch (e: any) {
+    console.warn("[wbah-live] retell refresh failed:", e?.message ?? e);
+  }
+  try {
+    const { refreshWbahAppointmentBackfill } = await import("./wbah-leads-sync-tick");
+    await refreshWbahAppointmentBackfill();
+  } catch (e: any) {
+    console.warn("[wbah-live] appointment backfill failed:", e?.message ?? e);
+  }
+}
 
 async function requireWbahRetellKey(userId: string): Promise<string> {
   if (!userId) throw new Error("Unauthorized");
@@ -2529,18 +2540,8 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-posneu-leads:v2:${workspaceId}`, 60, async () => {
-      // Live on open (option 3): refresh the newest calls from WeeBespoke first
-      // (incremental, idempotent, concurrency-guarded — deduped with the Calls
-      // page), so the positive/neutral leads derived below reflect the latest data.
-      if (workspaceId === WBAH_WORKSPACE_ID) {
-        try {
-          const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
-          await refreshWbahCallsFromRetell();
-        } catch (e: any) {
-          console.warn("[wbah-posneu-leads] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
-        }
-      }
+    return cacheWrap(`webee:wbah-posneu-leads:v3:${workspaceId}`, 60, async () => {
+      await refreshWbahLiveData(workspaceId);
       const PAGE = 1000;
       const all: any[] = [];
       let from = 0;
@@ -2568,7 +2569,7 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
       // drill-down (getWbahContactCallHistory).
       const byPhone = new Map<string, any[]>();
       for (const c of all) {
-        const key = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+        const key = phoneDigits(c.phone) || `id:${c.id}`;
         const arr = byPhone.get(key) ?? [];
         arr.push(c);
         byPhone.set(key, arr);
@@ -2606,15 +2607,10 @@ export const listWbahPositiveNeutralLeads = createServerFn({ method: "GET" })
 
       console.log(`[WBAH leads] positive/neutral called contacts: ${posNeu.length}`);
 
-      const { loadWbahCrmBookingByDigits, findWbahBookingCall, resolveWbahBookingFields, phoneDigits } =
-        await import("@/lib/dashboard/wbah-booking-meta");
       const crmBookingByDigits = await loadWbahCrmBookingByDigits(supabaseAdmin, workspaceId);
 
-      // Shape rows to match the /leads ("Leads window") table contract so the
-      // existing WBAH renderer works unchanged: top-level lead fields + a `meta`
-      // blob carrying the latest-call details.
       return posNeu.map((c) => {
-        const phoneKey = c.phone && String(c.phone).trim() ? String(c.phone).trim() : `id:${c.id}`;
+        const phoneKey = phoneDigits(c.phone) || `id:${c.id}`;
         const calls = byPhone.get(phoneKey) ?? [c];
         const bookingCall = findWbahBookingCall(calls);
         const crm = phoneDigits(c.phone) ? crmBookingByDigits.get(phoneDigits(c.phone)) : null;
@@ -2717,18 +2713,8 @@ export const listWbahQualifiedLeads = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { workspaceId, userId } = context;
     if (!workspaceId) throw new Error("No active workspace");
-    return cacheWrap(`webee:wbah-qualified-leads:${workspaceId}`, 60, async () => {
-      // Live on open: refresh the newest calls from WeeBespoke first (guarded,
-      // idempotent, deduped with the Calls page) so qualification reflects the
-      // latest data.
-      if (workspaceId === WBAH_WORKSPACE_ID) {
-        try {
-          const { refreshWbahCallsFromRetell } = await import("./wbah-retell-calls-sync");
-          await refreshWbahCallsFromRetell();
-        } catch (e: any) {
-          console.warn("[wbah-qualified-leads] incremental refresh failed, serving DB snapshot:", e?.message ?? e);
-        }
-      }
+    return cacheWrap(`webee:wbah-qualified-leads:v2:${workspaceId}`, 60, async () => {
+      await refreshWbahLiveData(workspaceId);
 
       const PAGE = 1000;
       const all: any[] = [];
