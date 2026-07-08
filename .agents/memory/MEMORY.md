@@ -81,6 +81,7 @@
 - [WBAH unified sync_state](wbah-sync-state.md) — descriptive-only sync tracking; record outcomes of manual syncs only, never add background/auto sync (single-session logs admin out); error upserts omit last_successful_sync_at to preserve it.
 - [WBAH "not showing latest calls" — dialer stopped vs sync bug](wbah-calls-stopped-vs-syncbug.md) — check BOTH wbah_calls AND WBAH's own Retell newest ts; if they agree, calling stopped (operational), not a bug; only merge Retell when it's genuinely ahead.
 - [Workspace RLS policy pattern](workspace-rls-policy-pattern.md) — use workspace_members/auth.uid() not current_setting; context.supabase=authenticated role; validate under SET ROLE authenticated, not Mgmt-API (bypasses RLS).
+- [leads enum columns](lead-enum-columns.md) — leads.source/status are Postgres enums; entry status is need_to_call (no "new"); use toLeadSourceEnum(); supabase builders lack .catch and never throw — check {error}.
 - [WBAH aggregate cache & Leads perf](wbah-aggregate-cache-perf.md) — Redis 5MB SET cap silently skipped the ~8MB aggregate (cacheWrap = no-op); in-process cache + single-flight; invalidate ONLY via invalidateWbahAggregate.
 - [Full-height page layout trap](fullheight-page-layout-trap.md) — `h-full` page roots collapse inside the min-h-screen sidebar chain; bound the page root with a dvh calc instead.
 - [Cursor repo sync procedure](cursor-repo-snapshot-sync.md) — user pushes from Cursor to weebe-builder repo; diff trees first, sync only deltas, never hard reset; repo lockfile can be stale.

@@ -1,0 +1,55 @@
+Please add a small lead source indicator/icon to each lead displayed on the Leads page.
+
+This should show where each lead originally came from, without disrupting the existing Leads page layout, filters, sizing, manual status selectors, or workspace-specific logic.
+
+Requirements:
+
+1. Add a small lead source icon or badge next to each lead on the Leads page.
+2. The icon should be very small, clean, and subtle so it does not clutter the table/card layout.
+3. Place it somewhere sensible near the lead name, company name, phone number, or source column depending on the existing Leads page layout.
+4. For leads received from WEBEE/webforms, show a small webform/source icon.
+5. For leads received from CRM intake, show a small CRM/source icon.
+6. For WBAH specifically, because their leads are coming from CRM intake, show a small suitable CRM-style logo/icon on their leads.
+7. For any other lead intake system, support a custom source symbol/icon based on the lead source value.
+8. Do not hardcode WBAH logic into the standard WEBEE accounts.
+9. The icon must be determined from the lead’s own source/intake metadata, not from the logged-in account name alone.
+10. If the source is unknown, missing, or legacy data, show either a neutral default source icon or no icon, but do not break the page.
+11. Make sure the lead source icon respects workspace_id scoping and only uses the logged-in workspace’s own lead data.
+12. Do not change, remove, or break the existing manual status selectors on the standard WEBEE Leads page.
+13. Do not break filters, pagination, lead loading, qualified lead logic, calls logic, data page logic, or any existing workflows.
+14. Do not copy any WBAH workspace IDs, API keys, CRM settings, Retell settings, lead data, or configuration into standard WEBEE accounts.
+
+Implementation guidance:
+
+* Check whether leads already have a source field, intake_source field, origin field, crm_source field, form_source field, campaign source, or similar metadata.
+* If a usable field already exists, use that field to render the source icon.
+* If no suitable field exists, add a safe optional source/intake metadata field in the correct leads table or mapping layer without breaking old leads.
+* Existing leads with no source should continue loading normally.
+* New webform leads should be saved with a source such as `webform`.
+* New CRM-ingested leads should be saved with a source such as `crm`.
+* Other intake routes should be saved with their own source value where available.
+
+Suggested icon mapping:
+
+* `webform` / `website_form` / `form` = small form or globe icon
+* `crm` / `dynamics` / `pipedrive` / `hubspot` = small CRM/database/building icon
+* `csv` / `data_upload` = small upload/file icon
+* `manual` = small user/edit icon
+* `api` / `webhook` = small plug/webhook icon
+* unknown/blank = neutral default icon or no icon
+
+Testing required:
+
+* Login as a standard WEBEE account and confirm the Leads page still loads correctly.
+* Confirm each lead shows a small source icon where source data exists.
+* Confirm webform leads show the webform icon.
+* Confirm CRM intake leads show the CRM icon.
+* Confirm WBAH CRM leads show the CRM-style icon without affecting other accounts.
+* Confirm leads with missing source values do not break the page.
+* Confirm filters still work.
+* Confirm manual status selectors still work.
+* Confirm pagination still works.
+* Confirm leads remain scoped to the logged-in workspace_id.
+* Confirm no WBAH-specific data, config, IDs, API keys, or CRM setup leaks into standard WEBEE accounts.
+
+This should be a small Leads page enhancement only. Preserve all existing backend logic, workspace scoping, RLS assumptions, workflows, filters, status update logic, and account-specific configuration.

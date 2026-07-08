@@ -48,14 +48,15 @@ export const Route = createFileRoute("/api/v1/campaigns")({
           if (existing) {
             resolvedLeadId = existing.id;
           } else {
-            const { data: newLead } = await sb().from("leads").insert({
+            const { data: newLead, error: newLeadError } = await sb().from("leads").insert({
               workspace_id: workspaceId,
               phone,
               full_name: name ?? null,
               name:      name ?? null,
               source:    "api",
-              status:    "new",
+              status:    "need_to_call",
             }).select("id").single();
+            if (newLeadError) console.error("[API v1] campaign lead auto-create failed:", newLeadError.message);
             resolvedLeadId = newLead?.id;
           }
         }

@@ -63,6 +63,7 @@ export const Route = createFileRoute("/api/v1/contacts")({
           return jsonErr("At least one of: full_name, phone, email is required");
         }
 
+        const { toLeadSourceEnum } = await import("@/lib/lead-gen/webforms.server");
         const now = new Date().toISOString();
         const { data, error } = await sb().from("leads").insert({
           workspace_id:   workspaceId,
@@ -70,11 +71,11 @@ export const Route = createFileRoute("/api/v1/contacts")({
           name:           contactName ?? null,
           phone:          phone       ?? null,
           email:          email       ?? null,
-          source:         source      ?? "api",
+          source:         toLeadSourceEnum(source ?? "api", "api"),
           notes:          notes       ?? null,
           tags:           tags        ?? null,
           pipeline_stage: pipeline_stage ?? null,
-          status:         "new",
+          status:         "need_to_call",
           created_at:     now,
           updated_at:     now,
         }).select(CONTACT_SELECT).single();

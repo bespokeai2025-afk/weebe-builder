@@ -126,6 +126,19 @@ export interface ProcessSubmissionResult {
   error?: string;
 }
 
+// leads.source is a Postgres enum (lead_source); source_type is free text.
+// Never write an unvalidated value into the enum column — Postgres rejects
+// the whole row with "invalid input value for enum lead_source".
+const LEAD_SOURCE_ENUM_VALUES = new Set([
+  "website", "inbound", "outbound", "referral", "import",
+  "website_form", "landing_page", "facebook_lead_form", "google_ads_lead_form",
+  "tiktok_lead_form", "linkedin_lead_form", "zapier", "make", "custom_form",
+  "webee_website_form", "api",
+]);
+export function toLeadSourceEnum(sourceType: string, fallback = "website_form"): string {
+  return LEAD_SOURCE_ENUM_VALUES.has(sourceType) ? sourceType : fallback;
+}
+
 export async function processWebformSubmission(opts: {
   workspaceId: string;
   webformSourceId: string;
@@ -146,17 +159,19 @@ export async function processWebformSubmission(opts: {
 
   // Spam check
   if (isSpam(raw)) {
-    await supabaseAdmin.from("webform_submissions").insert({
-      workspace_id: workspaceId,
-      webform_source_id: webformSourceId,
-      source_type: sourceType,
-      source_detail: sourceDetail,
-      raw_payload: raw,
-      mapped_payload: {},
-      ip_address: ip,
-      user_agent: userAgent,
-      status: "spam",
-    }).catch(() => {});
+    try {
+      await supabaseAdmin.from("webform_submissions").insert({
+        workspace_id: workspaceId,
+        webform_source_id: webformSourceId,
+        source_type: sourceType,
+        source_detail: sourceDetail,
+        raw_payload: raw,
+        mapped_payload: {},
+        ip_address: ip,
+        user_agent: userAgent,
+        status: "spam",
+      });
+    } catch { /* best-effort */ }
     return { ok: false, status: "spam", error: "Spam detected" };
   }
 
@@ -222,8 +237,8 @@ export async function processWebformSubmission(opts: {
         phone:          phone ?? "",
         company_name:   mapped.company_name ?? null,
         notes:          mapped.notes ?? null,
-        status:         "new",
-        source:         sourceType,
+        status:         "need_to_call",
+        source:         toLeadSourceEnum(sourceType),
         source_type:    sourceType,
         source_detail:  sourceDetail,
         source_page:    utm.source_page,
@@ -255,37 +270,44 @@ export async function processWebformSubmission(opts: {
     leadId = newLead!.id;
   }
 
-  // Add note to entity notes
-  await supabaseAdmin.from("entity_notes").insert({
-    workspace_id: workspaceId,
-    entity_type:  "lead",
-    entity_id:    leadId,
-    content:      `Lead ${leadStatus === "created" ? "created" : "updated"} from webform: ${formName}${sourceDetail ? ` (${sourceDetail})` : ""}`,
-    created_at:   new Date().toISOString(),
-  }).catch(() => {});
+  // Add note to entity notes (best-effort — never fail the submission over it)
+  try {
+    const { error: noteError } = await supabaseAdmin.from("entity_notes").insert({
+      workspace_id: workspaceId,
+      entity_type:  "lead",
+      entity_id:    leadId,
+      body:         `Lead ${leadStatus === "created" ? "created" : "updated"} from webform: ${formName}${sourceDetail ? ` (${sourceDetail})` : ""}`,
+      created_at:   new Date().toISOString(),
+    });
+    if (noteError) console.error("[WEBFORM] entity_notes insert failed:", noteError.message);
+  } catch { /* best-effort */ }
 
   // Store submission record
-  const { data: submission } = await supabaseAdmin
-    .from("webform_submissions")
-    .insert({
-      workspace_id:     workspaceId,
-      webform_source_id: webformSourceId,
-      lead_id:          leadId,
-      source_type:      sourceType,
-      source_detail:    sourceDetail,
-      raw_payload:      raw,
-      mapped_payload:   { ...mapped, ...utm },
-      utm_source:       utm.utm_source,
-      utm_medium:       utm.utm_medium,
-      utm_campaign:     utm.utm_campaign,
-      referrer:         utm.referrer,
-      ip_address:       ip,
-      user_agent:       userAgent,
-      status:           leadStatus === "updated" ? "duplicate" : "processed",
-    })
-    .select("id")
-    .single()
-    .catch(() => ({ data: null }));
+  let submission: { id: string } | null = null;
+  try {
+    const { data, error: submissionError } = await supabaseAdmin
+      .from("webform_submissions")
+      .insert({
+        workspace_id:     workspaceId,
+        webform_source_id: webformSourceId,
+        lead_id:          leadId,
+        source_type:      sourceType,
+        source_detail:    sourceDetail,
+        raw_payload:      raw,
+        mapped_payload:   { ...mapped, ...utm },
+        utm_source:       utm.utm_source,
+        utm_medium:       utm.utm_medium,
+        utm_campaign:     utm.utm_campaign,
+        referrer:         utm.referrer,
+        ip_address:       ip,
+        user_agent:       userAgent,
+        status:           leadStatus === "updated" ? "duplicate" : "processed",
+      })
+      .select("id")
+      .single();
+    if (submissionError) console.error("[WEBFORM] webform_submissions insert failed:", submissionError.message);
+    submission = data;
+  } catch { submission = null; }
 
   // Send notification email
   if (notifyEmail) {
@@ -338,14 +360,15 @@ export async function processContactForm(fields: {
   let workspaceId: string | null = adminWorkspaceId;
 
   if (!workspaceId) {
-    const { data: ws } = await supabaseAdmin
-      .from("workspace_members")
-      .select("workspace_id, users!inner(email)")
-      .eq("users.email", WEBEE_ADMIN_EMAIL)
-      .limit(1)
-      .single()
-      .catch(() => ({ data: null }));
-    workspaceId = ws?.workspace_id ?? null;
+    try {
+      const { data: ws } = await supabaseAdmin
+        .from("workspace_members")
+        .select("workspace_id, users!inner(email)")
+        .eq("users.email", WEBEE_ADMIN_EMAIL)
+        .limit(1)
+        .single();
+      workspaceId = ws?.workspace_id ?? null;
+    } catch { workspaceId = null; }
   }
 
   if (!workspaceId) {
