@@ -564,7 +564,10 @@ export const startQualificationCallsForLeads = createServerFn({ method: "POST" }
       const k = secret?.production_api_key?.trim();
       if (k?.startsWith("key_")) agentApiKey = k;
     }
-    const resolvedKey = deployedRetellAgentId ? (clientRetellKey || agentApiKey) : undefined;
+    // If the workspace has its own Retell API key, always use it — the agent belongs
+    // to their Retell workspace regardless of which internal deployment flag is set.
+    // Fallback: per-agent secret (deployedRetellAgentId path), then platform key (undefined).
+    const resolvedKey = clientRetellKey || (deployedRetellAgentId ? agentApiKey : undefined);
 
     const fromNumber = data.fromNumber?.trim() || (agentSettings.phoneNumber as string | undefined) || null;
 
@@ -772,7 +775,7 @@ export const fireScheduledCalls = createServerFn({ method: "POST" })
           fromNumber: (agentSettings.phoneNumber as string | undefined) ?? null,
           name: agent?.name ?? "Agent",
           preCallMappings: (qualifySettings.preCallMappings as Record<string, string> | undefined) ?? {},
-          resolvedKey: deployedRetellAgentId ? (clientRetellKey || agentApiKey) : undefined,
+          resolvedKey: clientRetellKey || (deployedRetellAgentId ? agentApiKey : undefined),
         };
       }
 
