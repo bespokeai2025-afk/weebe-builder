@@ -5,7 +5,6 @@ import { Fragment, useState, useEffect, useMemo } from "react";
 import {
   ChevronDown,
   ChevronRight,
-  Download,
   FlaskConical,
   MessageSquare,
   Phone,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RecordingPlayerDialog } from "@/components/RecordingPlayerDialog";
 import { DashboardPage, KpiCard, SummaryTooltip, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { cn } from "@/lib/utils";
@@ -63,49 +63,6 @@ function statusClass(s?: string | null) {
   return "bg-muted text-muted-foreground";
 }
 
-function RecordingDialog({
-  url,
-  contact,
-  onClose,
-}: {
-  url: string;
-  contact: string;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Call Recording</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{contact}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <audio controls autoPlay={false} className="w-full" src={url} style={{ colorScheme: "dark" }}>
-          Your browser does not support audio playback.
-        </audio>
-        <a
-          href={url}
-          download
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-muted/40 px-4 py-2 text-sm font-medium hover:bg-muted"
-        >
-          <Download className="h-4 w-4" />
-          Download recording
-        </a>
-      </div>
-    </div>
-  );
-}
-
 type PanelTarget = {
   entityType: NotesEntityType;
   entityId: string;
@@ -141,7 +98,7 @@ function TestCallRow({ c }: { c: ReturnType<typeof listTestCalls> extends Promis
   return (
     <>
       {recordingPlayer && (
-        <RecordingDialog
+        <RecordingPlayerDialog
           url={recordingPlayer.url}
           contact={recordingPlayer.contact}
           onClose={() => setRecordingPlayer(null)}
@@ -475,7 +432,7 @@ function CallsPage() {
   return (
     <DashboardPage>
       {recordingPlayer && (
-        <RecordingDialog
+        <RecordingPlayerDialog
           url={recordingPlayer.url}
           contact={recordingPlayer.contact}
           onClose={() => setRecordingPlayer(null)}

@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, Play, FileText, ExternalLink } from "lucide-react";
+import { Database, PhoneOutgoing, CalendarClock, UserCheck, Search, X, UserPlus, RotateCcw, BarChart3, Users, RefreshCw, Download, AlertCircle, Phone, FileText, ExternalLink } from "lucide-react";
 import { WbahCallSchedulingSection } from "@/components/dashboard/WbahCallSchedulingSection";
 import { DashboardPage, KpiCard, stickyCell, stickyHead } from "@/components/dashboard/PageShell";
+import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { cn } from "@/lib/utils";
 import { LoadingProgress } from "@/components/dashboard/LoadingProgress";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1926,11 +1927,11 @@ function DataPage() {
                             <td className="px-2 py-0.5 text-muted-foreground text-[11px] whitespace-nowrap">{fmtMs(r.durationMs)}</td>
                             <td className="px-2 py-0.5">
                               {r.recordingUrl ? (
-                                <a href={r.recordingUrl} target="_blank" rel="noopener noreferrer"
+                                <PlayRecordingButton
+                                  url={r.recordingUrl}
+                                  contact={r.name ?? r.contact ?? "Lead"}
                                   className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors"
-                                >
-                                  <Play className="h-3 w-3" /> Play
-                                </a>
+                                />
                               ) : <span className="text-muted-foreground/40 text-[11px]">—</span>}
                             </td>
                             <td className="px-2 py-0.5">

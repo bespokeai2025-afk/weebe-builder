@@ -45,6 +45,7 @@ import { listWbahQualifiedLeads, getWbahContactCallHistory, getWbahCallDetail } 
 import { normalizeSentiment } from "@/lib/sentiment";
 import { listLiveAgents } from "@/lib/agents/agents.functions";
 import { NotesBookingSheet } from "@/components/dashboard/NotesBookingSheet";
+import { PlayRecordingButton } from "@/components/RecordingPlayerDialog";
 import { WbahNotesButton, WbahBookedStickyBadge, WbahCallCountBadge, WbahCalendlyLink, wbahAgentColorMapFromLeads } from "@/components/dashboard/WbahNotesButton";
 import { useWbahAgentOptions } from "@/hooks/useWbahAgentOptions";
 import type { NotesEntityType } from "@/components/dashboard/NotesBookingSheet";
@@ -723,7 +724,7 @@ function QualifiedPage() {
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration((lead.retell_call?.duration_seconds ?? 0) * 1000)}</td>
                         <td className="px-2 py-0.5">
                           {lead.retell_call?.recording_url
-                            ? <a href={lead.retell_call.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
+                            ? <PlayRecordingButton url={lead.retell_call.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
                             : <span className="text-muted-foreground text-[11px]">—</span>}
                         </td>
                         <td className="px-2 py-0.5">
@@ -740,7 +741,7 @@ function QualifiedPage() {
                         <td className="px-2 py-0.5 text-[11px] text-muted-foreground whitespace-nowrap">{fmtDuration(lead.meta?.duration_ms)}</td>
                         <td className="px-2 py-0.5">
                           {lead.meta?.recording_url
-                            ? <a href={lead.meta.recording_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap"><PlayCircle className="h-3 w-3" /><span>Play</span></a>
+                            ? <PlayRecordingButton url={lead.meta.recording_url} contact={lead.name ?? lead.phone ?? "Lead"} className="flex items-center gap-1 rounded px-1.5 py-1 text-[10px] font-medium text-blue-400/80 hover:text-blue-400 hover:bg-blue-500/10 border border-blue-500/20 transition-colors whitespace-nowrap" />
                             : <span className="text-muted-foreground text-[11px]">—</span>}
                         </td>
                         <td className="px-2 py-0.5">
@@ -845,7 +846,7 @@ function QualifiedPage() {
                         <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">{c.agentName ?? "—"}</td>
                         <td className="px-2 py-1.5">
                           {c.recordingUrl
-                            ? <a href={c.recordingUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><PlayCircle className="h-3 w-3" />Play</a>
+                            ? <PlayRecordingButton url={c.recordingUrl} contact={callHistory.name || callHistory.phone || "Lead"} className="inline-flex items-center gap-1 text-primary hover:underline" />
                             : <span className="text-muted-foreground">—</span>}
                         </td>
                         <td className="px-2 py-1.5">
