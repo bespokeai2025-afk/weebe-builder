@@ -23,8 +23,8 @@ import {
 const INTEGRATION_KEY  = "webespoke_enterprise";
 const CLIENT_NAME      = "Webuyanyhouse";
 const WBAH_SLUG        = "webuyanyhouse";
-const WBAH_EMAIL       = "admin@webuyanyhouse.co.uk";
-const WBAH_PASSWORD    = "Bespoke2025!";
+const WBAH_EMAIL       = process.env.WEBESPOKE_ADMIN_EMAIL ?? "admin@webuyanyhouse.co.uk";
+const WBAH_PASSWORD    = process.env.WEBESPOKE_ADMIN_PASSWORD ?? "";
 const SOURCE_DETAIL    = "webespoke_enterprise";
 
 // ── Workspace helpers ─────────────────────────────────────────────────────────
@@ -417,6 +417,9 @@ export const provisionWebuyanyhouseAccount = createServerFn({ method: "POST" })
     if (existingUser) {
       userId = existingUser.id;
     } else {
+      if (!WBAH_PASSWORD) {
+        throw new Error("Set WEBESPOKE_ADMIN_PASSWORD in environment before provisioning a new WBAH account.");
+      }
       const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
         email: WBAH_EMAIL,
         password: WBAH_PASSWORD,
