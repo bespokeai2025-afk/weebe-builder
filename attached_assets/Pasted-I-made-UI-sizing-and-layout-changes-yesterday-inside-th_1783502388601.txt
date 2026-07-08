@@ -1,0 +1,44 @@
+I made UI sizing and layout changes yesterday inside the Webuyanyhouse/WBAH account workspace on the WEBEE platform. I now need those same UI sizing/configuration improvements applied to the standard WEBEE user accounts.
+
+By UI changes, I specifically mean the sizing, spacing, layout, table/card configuration, column sizing, responsive behaviour, page density, filters/header layout, and general visual configuration of these pages:
+
+* Calls page
+* Leads page
+* Qualified page
+* Data page
+
+The standard WEBEE version should visually match the improved WBAH version for these pages, but this must be treated as a UI/design migration only.
+
+Critical requirements:
+
+1. Do not copy any WBAH workspace configuration into normal WEBEE accounts.
+2. Do not copy or hardcode any WBAH workspace IDs, Retell API keys, Retell workspace IDs, agent IDs, phone numbers, campaign IDs, Cal.com/Calendly settings, CRM settings, lead data, call data, qualified data, or workflow rules.
+3. All data must remain scoped by the logged-in user’s own workspace_id.
+4. Apply only reusable frontend/UI changes from the WBAH version.
+5. The Calls, Leads, Qualified, and Data pages on standard WEBEE accounts should match the WBAH page sizing/configuration visually.
+6. Do not break existing logic or workflows on the Calls, Leads, Qualified, or Data pages.
+7. The standard WEBEE Leads page has manual status selectors/manual status update controls. These must continue working exactly as they do now.
+8. Do not remove or overwrite existing filters, pagination, lead loading, call loading, qualified lead loading, data upload/import logic, qualification logic, workspace-specific settings, or API routing.
+9. Do not change backend logic unless absolutely required for the UI to render correctly.
+10. Do not change RLS assumptions, Supabase workspace scoping, or API credential loading.
+11. WBAH must continue working exactly as it does now.
+12. Normal WEBEE accounts must keep their own account settings, workspace settings, API credentials, data, statuses, and workflows.
+
+Please first compare the WBAH versions of the Calls, Leads, Qualified, and Data pages against the standard WEBEE versions. Identify the reusable UI sizing/layout/configuration changes only, then apply those safely to the standard version.
+
+After making the changes, test the following:
+
+* Login as a standard WEBEE account.
+* Confirm the Calls page visually matches the improved WBAH sizing/layout.
+* Confirm the Leads page visually matches the improved WBAH sizing/layout.
+* Confirm the Qualified page visually matches the improved WBAH sizing/layout.
+* Confirm the Data page visually matches the improved WBAH sizing/layout.
+* Confirm Calls only load data for the logged-in standard workspace.
+* Confirm Leads only load data for the logged-in standard workspace.
+* Confirm Qualified only loads data for the logged-in standard workspace.
+* Confirm the Data page only loads/uploads/manages data for the logged-in standard workspace.
+* Confirm manual lead status selectors still work on the standard Leads page.
+* Confirm no WBAH data, config, workspace ID, API key, agents, campaigns, or settings appear in standard accounts.
+* Confirm the WBAH account still works exactly as before.
+
+This should be a safe UI parity update across the Calls, Leads, Qualified, and Data pages only. Preserve all existing backend logic, workspace scoping, workflows, status update logic, API routing, and account-specific configuration.

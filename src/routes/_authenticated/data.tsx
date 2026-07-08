@@ -2087,10 +2087,10 @@ function DataPage() {
             </div>
           ) : (
             <div className="min-w-0 overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full text-[11px]">
                 <thead>
                   <tr className="border-b border-white/[0.06] bg-card/30">
-                    <th className="w-8 px-2 py-0.5">
+                    <th className="w-8 px-2 py-1">
                       <Checkbox
                         checked={crmPeople.length > 0 && crmPeopleSelected.size === crmPeople.length}
                         onCheckedChange={(v) => {
@@ -2099,21 +2099,21 @@ function DataPage() {
                         }}
                       />
                     </th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Name</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Phone</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Email</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Source</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">CRM Status</th>
-                    <th className="px-2 py-0.5 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Received</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Name</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Phone</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Email</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Source</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">CRM Status</th>
+                    <th className="px-2 py-1 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Received</th>
                   </tr>
                 </thead>
                 <tbody>
                   {crmPag.sliced.map((p) => (
                     <tr
                       key={p.external_id}
-                      className={`group h-9 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
+                      className={`group h-8 border-b border-white/[0.04] align-middle hover:bg-white/[0.02] transition-colors ${crmPeopleSelected.has(p.external_id) ? "bg-blue-500/5" : ""}`}
                     >
-                      <td className="px-2.5 py-1">
+                      <td className="px-2 py-0.5">
                         <Checkbox
                           checked={crmPeopleSelected.has(p.external_id)}
                           onCheckedChange={() => {
@@ -2124,18 +2124,18 @@ function DataPage() {
                           }}
                         />
                       </td>
-                      <td className="px-2.5 py-1 text-xs font-medium whitespace-nowrap">{p.name || "—"}</td>
-                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px] font-mono">{p.phone || "—"}</td>
-                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">{p.email || "—"}</td>
-                      <td className="px-2.5 py-1 text-muted-foreground text-[11px]">{p.source || "—"}</td>
-                      <td className="px-2.5 py-1">
+                      <td className="px-2 py-0.5 text-[11px] font-medium whitespace-nowrap">{p.name || "—"}</td>
+                      <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground text-[10px] font-mono">{p.phone || "—"}</td>
+                      <td className="px-2 py-0.5 text-muted-foreground text-[11px]">{p.email || "—"}</td>
+                      <td className="px-2 py-0.5 text-muted-foreground text-[11px]">{p.source || "—"}</td>
+                      <td className="px-2 py-0.5">
                         {p.status ? (
                           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground ring-1 ring-white/[0.06]">
                             {p.status.replace(/_/g, " ")}
                           </span>
                         ) : "—"}
                       </td>
-                      <td className="whitespace-nowrap px-2.5 py-1 text-muted-foreground text-[11px]">
+                      <td className="whitespace-nowrap px-2 py-0.5 text-muted-foreground text-[11px]">
                         {p.created_at ? fmtDate(p.created_at) : "—"}
                       </td>
                     </tr>
